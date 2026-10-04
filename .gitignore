@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# artefactos generados
+.runs/
+.modelos/
+rag_index/
+trazas.db
+informe.md
+auditoria.md
+research.md
+supervisor.md
+supervisor_*.md

@@ -1,0 +1,109 @@
+# deepseek-flow
+
+Un agente de terminal construido sobre [PocketFlow](https://github.com/The-Pocket/PocketFlow)
+(el framework de 100 líneas) con **DeepSeek V4.1 Flash** como LLM y una
+arquitectura de **CORE + módulos**: un chat mínimo con capacidades de solo
+lectura, y cada capacidad nueva que se agrega es un archivo que se deja en
+`modules/` (y se quita borrándolo).
+
+```mermaid
+flowchart TD
+    q[GetQuestion] -->|continue| s[AgentStep]
+    s -->|answer| q
+    s -->|tool| t[ExecuteTools]
+    t --> s
+    q -->|exit| x[ExitChat]
+```
+
+## Filosofía
+
+Heredada de PocketFlow y de [bmo](../bmo) (el harness que inspiró los módulos):
+
+- **Los datos exactos los cuenta el código; el LLM solo interpreta.**
+- **Un módulo = un archivo** con `TOOLS` (esquemas) e `IMPL` (implementaciones).
+  El registro los descubre al arrancar: agregar = dejar el archivo, quitar = borrarlo.
+- **Todo bucle tiene presupuesto** (ley L8 de bmo): rondas de herramientas,
+  rondas del juez, rondas de debate, pasos del supervisor.
+- **Los errores son información**: un tool que falla devuelve `ERROR: ...`
+  como texto y el modelo se autocorrige; la escritura de archivos exige
+  aprobación humana (HITL) y EOF/Ctrl+C cuentan como rechazo.
+
+## Quickstart
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env        # ajusta lo que quieras
+export DEEPSEEK_API_KEY=sk-...
+python3 main.py             # el chat
+```
+
+Sin `.env`, el agente opera sobre el directorio actual (portable por defecto).
+
+## Capacidades (17, al día de hoy)
+
+| Origen | Herramientas |
+|---|---|
+| CORE (lectura) | `list_files`, `read_file`, `search_files` |
+| escritura (HITL) | `write_file` — diff + `s/n`, default seguro |
+| juez | `answer_verified` — borrador → juez (verifica citas contra archivos) → refinamiento |
+| informe | `run_informe` — map-reduce paralelo de trazas `.jsonl` |
+| auditoria | `run_auditoria` — BatchFlow multi-carpeta + síntesis comparativa |
+| research | `deep_research` — web + loop de cobertura |
+| debate | `debate` — proponente vs crítico por colas + juez |
+| supervisor | `run_supervisor` — descompone una tarea y ejecuta piezas |
+| db | `sql` / `db_schema` — SELECT de solo lectura sobre SQLite |
+| rag | `rag_search` / `rag_index` — búsqueda semántica local (fastembed) |
+| websearch | `search_web` — ddgs sin API key |
+| mcp | `mcp_tools` / `mcp_call` — consume servidores MCP externos |
+
+## CLI completo
+
+```bash
+python3 main.py                          # chat
+python3 main.py juez "pregunta"          # respuesta con verificación de citas
+python3 main.py informe [carpeta]        # map-reduce de trazas .jsonl
+python3 main.py auditoria c1 c2          # multi-carpeta comparativa
+python3 main.py research "tema"          # investigación web con loop
+python3 main.py debate "tema" [--rondas] # debate multi-agente
+python3 main.py supervisor "tarea"       # orquestación de piezas
+python3 main.py index [carpeta]          # indexar para RAG
+python3 main.py carga_trazas.py          # (script aparte) jsonl → SQLite
+python3 main.py mcp-server               # exponer capacidades vía MCP
+python3 main.py grafo [flujo]            # exportar los grafos a mermaid
+```
+
+Cada corrida deja un trace por nodo en `.runs/*.jsonl`.
+
+## Estructura
+
+```
+deepseek-flow/
+├── main.py            # entry point + subcomandos
+├── nodes.py / flow.py # el CORE: bucle del agente
+├── modules/           # capacidades del chat (TOOLS + IMPL por archivo)
+├── informe|juez|auditoria|research|supervisor|debate|rag|mcp_server|carga_trazas.py
+│                      # piezas standalone (CLI) — los módulos las exponen
+├── utils/             # call_llm, fs_tools, embeddings, laya, estructura,
+│                      # mcp_client, tracing, viz, websearch
+├── tests/             # smoke tests (pytest)
+└── docs/design.md     # el diseño completo, actualizado
+```
+
+## Documentación
+
+- **[docs/design.md](docs/design.md)** — diseño detallado: grafos, contratos
+  de `shared`, leyes/límites, hallazgos medidos (incluidos los de Laya).
+- **[docs/roadmap.md](docs/roadmap.md)** — próximos pasos priorizados.
+
+## Testing
+
+```bash
+python3 -m pytest tests/ -q
+```
+
+## Créditos
+
+- [PocketFlow](https://github.com/The-Pocket/PocketFlow) — el framework (100 líneas, cero dependencias).
+- [bmo](https://github.com/) — la arquitectura de módulos, las leyes de
+  bucles y Laya vienen de ahí.
+- [DeepSeek](https://www.deepseek.com/) — V4.1 Flash (`deepseek-flash`).

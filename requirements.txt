@@ -1,0 +1,9 @@
+pocketflow>=0.0.3
+openai>=2.0.0
+pyyaml>=6.0
+numpy>=1.26
+fastembed>=0.4
+fastmcp>=3.0
+ddgs>=9.0
+laya==0.3.20
+pytest>=8.0
