@@ -68,6 +68,84 @@ def test_sql_select_funciona():
     assert "15595" in r
 
 
+def test_sql_limita_filas_de_verdad():
+    """La ley del módulo es 'LIMIT forzado si no lo trae'. El chequeo era
+    substring ('limit' in consulta.lower()): un LIKE '%unlimited%' o una
+    columna 'limits' lo suprimían y la consulta devolvía todas las filas.
+    El chequeo debe mirar la cláusula LIMIT, no una subcadena cualquiera."""
+    from pathlib import Path as P
+
+    if not (RAIZ / "trazas.db").is_file():
+        pytest.skip("sin trazas.db: corre carga_trazas.py")
+    from modules.db import MAX_FILAS, sql
+
+    # sin LIMIT trae a lo sumo MAX_FILAS
+    r = sql("SELECT id FROM trazas")
+    filas = [ln for ln in r.splitlines() if ln.strip()]
+    assert len(filas) - 2 <= MAX_FILAS  # encabezado + separador
+
+    # 'unlimited' como texto NO debe suprimir el LIMIT forzado
+    r2 = sql("SELECT id FROM trazas WHERE 'unlimited' = 'unlimited'")
+    filas2 = [ln for ln in r2.splitlines() if ln.strip()]
+    assert len(filas2) - 2 <= MAX_FILAS, "un 'unlimited' en el WHERE suprimió el LIMIT"
+
+
+def test_sql_cierra_conexion_ante_error_no_sqlite():
+    """Un fallo de execute que no sea sqlite3.Error no debe filtrar la
+    conexión: el módulo la cierra siempre (finally), no solo en el camino
+    sqlite3.Error."""
+    from pathlib import Path as P
+
+    if not (RAIZ / "trazas.db").is_file():
+        pytest.skip("sin trazas.db: corre carga_trazas.py")
+    import modules.db as db
+
+    capturada = {}
+
+    class ConEspia:
+        row_factory = None
+
+        def execute(self, *a, **k):
+            raise RuntimeError("fallo no-sqlite en execute")
+
+        def close(self):
+            capturada["cerrada"] = True
+
+    def fake_con():
+        return ConEspia()
+
+    original = db._con
+    db._con = fake_con
+    try:
+        r = db.sql("SELECT 1")
+    finally:
+        db._con = original
+    assert r.startswith("ERROR")
+    assert capturada.get("cerrada"), "la conexión quedó abierta tras un error no-sqlite"
+
+
+def test_sql_permita_punto_coma_en_literal():
+    """El guard 'una sola sentencia' no debe confundir un ';' dentro de un
+    literal o comentario con una segunda sentencia: era un sobre-rechazo."""
+    from pathlib import Path as P
+
+    if not (RAIZ / "trazas.db").is_file():
+        pytest.skip("sin trazas.db: corre carga_trazas.py")
+    from modules.db import sql
+
+    # un ';' dentro de una cadena es legal y no es multi-sentencia
+    r = sql("SELECT id FROM trazas WHERE 'a;b' = 'a;b'")
+    assert not r.startswith("ERROR"), f"sobre-rechazo por ';' en literal: {r[:80]}"
+
+
+def test_sql_rechaza_multi_sentencia():
+    """El guard sigue bloqueando lo que sí es multi-sentencia real."""
+    from modules.db import sql
+
+    r = sql("SELECT 1; SELECT 2")
+    assert r.startswith("ERROR")
+
+
 def test_mermaid_export():
     from utils.viz import mermaid
 
@@ -1139,7 +1217,9 @@ def test_hitl_web(monkeypatch):
     assert hitl._arrancar() == puerto
 
     def post(decision):
-        datos = urllib.parse.urlencode({"decision": decision}).encode()
+        # el form real manda también el token del pedido vigente
+        token = hitl._pendido.token if hitl._pendido is not None else ""
+        datos = urllib.parse.urlencode({"decision": decision, "token": token}).encode()
         req = urllib.request.Request(f"http://127.0.0.1:{puerto}/decision", data=datos)
         return urllib.request.urlopen(req, timeout=5).read()
 
@@ -1178,6 +1258,110 @@ def test_hitl_web(monkeypatch):
     # 4) timeout inválido (setting corrupto) no rompe: cae al default seguro
     monkeypatch.setenv("HITL_WEB_TIMEOUT", "no-es-numero")
     assert hitl._timeout() == float(hitl.TIMEOUT_DEFAULT)
+
+
+def test_hitl_web_rechaza_post_cross_origin(monkeypatch):
+    """Contención real del gate humano (medido: loopback NO alcanza).
+
+    Un POST a /decision con Origin ajeno (CSRF/DNS-rebinding: la víctima
+    solo tiene que cargar una página mientras hay un pedido pendiente) debe
+    ser ignorado, no aprobar. El mismo pedido con Origin/Host de loopback
+    sí decide. Regresión del hallazgo del juez: faltaba validar Origin/Host."""
+    import threading
+    import time as _t
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    import utils.hitl_web as hitl
+
+    puerto = 8792
+    monkeypatch.setenv("HITL_WEB_PORT", str(puerto))
+    monkeypatch.setenv("HITL_WEB_TIMEOUT", "300")
+    monkeypatch.setattr(hitl, "_servidor", None)  # puerto propio (aislado)
+    assert hitl._arrancar() == puerto
+
+    def post(decision, origin):
+        datos = urllib.parse.urlencode({"decision": decision}).encode()
+        cabeceras = {"Content-Type": "application/x-www-form-urlencoded"}
+        if origin is not None:
+            cabeceras["Origin"] = origin
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{puerto}/decision", data=datos, headers=cabeceras)
+        try:
+            return urllib.request.urlopen(req, timeout=5)
+        except urllib.error.HTTPError as e:
+            return e  # 403 esperado para el POST cross-origin
+
+    resultados = {}
+
+    # 1) POST con Origin ajeno: NO debe decidir (el pedido sigue pendiente)
+    hilo = threading.Thread(
+        target=lambda: resultados.update(ok=hitl.aprobar("¿Escribir?", "diff")))
+    hilo.start()
+    for _ in range(50):
+        if hitl._pendiente is not None:
+            break
+        _t.sleep(0.02)
+    assert hitl._pendiente is not None
+    r = post("aprobar", origin="http://evil.example")
+    assert getattr(r, "status", getattr(r, "code", None)) == 403, "el POST cross-origin no fue rechazado"
+    _t.sleep(0.1)
+    assert hitl._pendiente is not None, "un Origin ajeno decidió el pedido"
+    assert not resultados.get("ok"), "el pedido se resolvió por un POST cross-origin"
+
+    # 2) POST legítimo (sin Origin, mismo-origen vía loopback) con el token: sí decide
+    token = hitl._pendido.token
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{puerto}/decision",
+        data=urllib.parse.urlencode({"decision": "aprobar", "token": token}).encode())
+    urllib.request.urlopen(req, timeout=5)
+    hilo.join(5)
+    assert resultados["ok"] is True
+
+
+def test_hitl_web_post_tardio_no_contamina_el_siguiente(monkeypatch):
+    """Un POST que trae una decisión vieja (llega mientras el pedido
+    siguiente ya está esperando) NO puede decidirlo: la decisión va atada
+    al pedido, no a una global suelta. Se ejerce la ventana real: un POST
+    concurrente dentro del wait() de B no debe resolverlo."""
+    import threading
+    import time as _t
+    import urllib.parse
+    import urllib.request
+
+    import utils.hitl_web as hitl
+
+    puerto = 8793
+    monkeypatch.setenv("HITL_WEB_PORT", str(puerto))
+    monkeypatch.setenv("HITL_WEB_TIMEOUT", "300")
+    monkeypatch.setattr(hitl, "_servidor", None)  # puerto propio (aislado)
+    assert hitl._arrancar() == puerto
+
+    def post(decision, token=""):
+        datos = urllib.parse.urlencode({"decision": decision, "token": token}).encode()
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{puerto}/decision", data=datos)
+        try:
+            return urllib.request.urlopen(req, timeout=5)
+        except urllib.error.HTTPError as e:
+            return e  # 403 esperado para el POST viejo
+
+    # pedido A: expira por timeout sin que nadie vote. Su token queda viejo.
+    monkeypatch.setenv("HITL_WEB_TIMEOUT", "0.15")
+    assert hitl.aprobar("¿A?", "a") is False
+    post("aprobar", token="token-viejo-de-A")  # POST TARDÍO de A: nadie espera
+    _t.sleep(0.05)
+
+    # pedido B: espera SU decisión. El POST de A (token viejo) no lo resuelve,
+    # y el timeout corto de B debe dar el default seguro False.
+    resultados = {}
+    monkeypatch.setenv("HITL_WEB_TIMEOUT", "0.3")
+    hilo = threading.Thread(
+        target=lambda: resultados.update(ok=hitl.aprobar("¿B?", "b")))
+    hilo.start()
+    hilo.join(5)
+    assert resultados["ok"] is False, "una decisión con token viejo resolvió B"
 
 
 def test_hitl_web_puerto_ocupado_default_seguro(monkeypatch):
@@ -1356,6 +1540,73 @@ def test_resumen_de_sesion_rutas_visibles(capsys, monkeypatch, tmp_path):
     salida = capsys.readouterr().out
     assert "resumen de sesión guardado" in salida
     assert list(tmp_path.glob("sesion_*.md")), "no escribió el archivo"
+
+
+def test_rag_indice_inconsistente_falla_cerrado(tmp_path, monkeypatch):
+    """Un índice semántico con chunks.json y vectores.npy de largos distintos
+    (reindexado interrumpido, o índice mezclado) hacía reventar buscar() con
+    IndexError y, si sobran vectores, desalineaba el ranking en silencio.
+    _cargar() debe detectar la inconsistencia y fallar con un error claro
+    (reindexar) en vez de crashear o devolver basura."""
+    import json
+
+    import numpy as np
+
+    import rag
+
+    monkeypatch.setattr(rag, "INDICE_DIR", tmp_path)
+    monkeypatch.setattr(rag, "_indice_cache", None)
+
+    # 4 chunks pero solo 2 vectores: el caso del IndexError
+    (tmp_path / "chunks.json").write_text(
+        json.dumps({"modo": "semantico",
+                    "chunks": [{"path": "a", "texto": "x"}] * 4}), encoding="utf-8")
+    np.save(tmp_path / "vectores.npy", np.random.rand(2, 8).astype(np.float32))
+
+    with pytest.raises(RuntimeError) as exc:
+        rag._cargar()
+    assert "inconsistente" in str(exc.value).lower() or "reindexa" in str(exc.value).lower()
+
+    # y buscar() tampoco debe crashear con IndexError: propaga el RuntimeError claro
+    monkeypatch.setattr(rag, "_indice_cache", None)
+    with pytest.raises(RuntimeError):
+        rag.buscar("cualquier cosa")
+
+
+def test_rag_indice_sobran_vectores_falla_cerrado(tmp_path, monkeypatch):
+    """El caso inverso (más vectores que chunks) no crashea pero desalinea el
+    ranking en silencio: tambien debe fallar cerrado."""
+    import json
+
+    import numpy as np
+
+    import rag
+
+    monkeypatch.setattr(rag, "INDICE_DIR", tmp_path)
+    monkeypatch.setattr(rag, "_indice_cache", None)
+    (tmp_path / "chunks.json").write_text(
+        json.dumps({"modo": "semantico",
+                    "chunks": [{"path": "a", "texto": "x"}] * 2}), encoding="utf-8")
+    np.save(tmp_path / "vectores.npy", np.random.rand(5, 8).astype(np.float32))
+
+    with pytest.raises(RuntimeError):
+        rag._cargar()
+
+
+def test_rag_indice_lexico_sin_vectores_ok(tmp_path, monkeypatch):
+    """El modo léxico no lleva vectores: cargarlo NO debe exigir vectores.npy."""
+    import json
+
+    import rag
+
+    monkeypatch.setattr(rag, "INDICE_DIR", tmp_path)
+    monkeypatch.setattr(rag, "_indice_cache", None)
+    (tmp_path / "chunks.json").write_text(
+        json.dumps({"modo": "lexico",
+                    "chunks": [{"path": "a", "texto": "hola mundo"}]}), encoding="utf-8")
+
+    modo, vectores, chunks = rag._cargar()
+    assert modo == "lexico" and vectores is None and len(chunks) == 1
 
 
 def test_juez_lote_aisla_fallas(tmp_path, monkeypatch):

@@ -113,8 +113,14 @@ class SaveIndex(Node):
         chunks = [c for p in partes for c in p["chunks"]]
         vectores_todos = [v for p in partes for v in p["vectores"]]
         INDICE_DIR.mkdir(exist_ok=True)
+        ruta_vec = INDICE_DIR / "vectores.npy"
         if vectores_todos:
-            np.save(INDICE_DIR / "vectores.npy", np.array(vectores_todos, dtype=np.float32))
+            np.save(ruta_vec, np.array(vectores_todos, dtype=np.float32))
+        else:
+            # causa raíz del índice inconsistente: al escribir chunks.json
+            # nuevo con vectores viejos al lado, _cargar() ve largos distintos.
+            # Si esta corrida no produce vectores, no debe quedar ninguno.
+            ruta_vec.unlink(missing_ok=True)
         with open(INDICE_DIR / "chunks.json", "w", encoding="utf-8") as f:
             json.dump({"modo": modo, "chunks": chunks}, f, ensure_ascii=False)
         return modo, len(chunks), bool(vectores_todos)
@@ -165,7 +171,20 @@ def _cargar():
     data = json.loads(chunks_file.read_text(encoding="utf-8"))
     vectores = None
     if data["modo"] == "semantico":
-        vectores = np.load(INDICE_DIR / "vectores.npy")
+        ruta_vec = INDICE_DIR / "vectores.npy"
+        if not ruta_vec.is_file():
+            raise RuntimeError(
+                "índice inconsistente: chunks.json dice modo semántico pero falta "
+                "vectores.npy. Reindexa con rag_index.")
+        vectores = np.load(ruta_vec)
+        # un índice mezclado (reindexado interrumpido) deja largos distintos:
+        # sin esta guarda, buscar() revienta con IndexError (más chunks que
+        # vectores) o desalinea el ranking en silencio (más vectores que
+        # chunks). Fallar cerrado con la causa es lo correcto.
+        if len(vectores) != len(data["chunks"]):
+            raise RuntimeError(
+                f"índice inconsistente: {len(data['chunks'])} chunks pero "
+                f"{len(vectores)} vectores. Reindexa con rag_index.")
     _indice_cache = (data["modo"], vectores, data["chunks"])
     return _indice_cache
 

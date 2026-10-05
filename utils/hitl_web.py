@@ -10,7 +10,14 @@ con botones Aprobar / Rechazar que hacen POST a `/decision`.
 Contrato y contención:
 
 - Solo stdlib (`http.server` + `threading`). Sin dependencias nuevas.
-- Un solo pedido pendiente a la vez, protegido con `threading.Event`.
+- Un solo pedido pendiente a la vez. Cada pedido lleva su PROPIO Event y
+  su propia decisión (objeto `_Pedido`), más un token secreto que viaja en
+  la página y en el form: un POST de un pedido anterior (o de otra
+  pestaña) no puede resolver el vigente.
+- Defensa anti-CSRF / DNS-rebinding: el POST a `/decision` solo se acepta
+  si el header Host es de loopback y, si viene Origin, también es loopback.
+  Una página ajena puede auto-postear, pero su Origin la delata y se
+  ignora sin decidir (loopback solo NO alcanzaba como contención).
 - `aprobar()` espera el Event con timeout (`HITL_WEB_TIMEOUT`, 300s de
   default) y devuelve True o False. Timeout o error => False: el mismo
   default seguro que el CLI (un rechazo nunca bloquea al agente).
@@ -18,6 +25,7 @@ Contrato y contención:
   red. El puerto es configurable con `HITL_WEB_PORT` (default 8765).
 """
 import html
+import secrets
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -28,10 +36,51 @@ PUERTO_DEFAULT = 8765
 TIMEOUT_DEFAULT = 300
 
 _lock = threading.Lock()          # serializa aprobar(): un pedido a la vez
-_evento = None                    # threading.Event del pedido pendiente
-_decision = None                  # True/False que dejó el navegador
-_pendiente = None                 # (titulo, cuerpo) que se está sirviendo
+_pendido = None                   # Pedido actual (o None): titulo, cuerpo, token, evento
+_pendiente = None                 # compat: (titulo, cuerpo) del pedido vigente
 _servidor = None                  # ThreadingHTTPServer (arranque perezoso)
+
+
+class _Pedido:
+    """Un pedido HITL con su propia decisión y su propio Event.
+
+    La decisión va ATADA al pedido (no a una global): un POST que traiga la
+    decisión de un pedido anterior (o de otra pestaña) no puede resolver
+    este. El token secreto viaja en la página y en el form."""
+
+    def __init__(self, titulo, cuerpo, token):
+        self.titulo = titulo
+        self.cuerpo = cuerpo
+        self.token = token
+        self.evento = threading.Event()
+        self.decision = None  # True/False que dejó el navegador
+
+
+def _hosts_validos():
+    """Hosts aceptados en el header Host: solo loopback (defensa anti
+    DNS-rebinding: un POST con Host ajeno no decide)."""
+    try:
+        puerto = _arrancar()
+    except Exception:
+        puerto = _setting("HITL_WEB_PORT", str(PUERTO_DEFAULT))
+    nombres = {"127.0.0.1", "localhost", "[::1]", "::1"}
+    return {f"{n}:{puerto}" for n in nombres} | nombres
+
+
+def _origen_valido(handler):
+    """True si el POST viene de un contexto legítimo de la propia página:
+    Host de loopback y, si viene Origin, que sea loopback (bloquea CSRF:
+    una página ajena puede auto-postear, pero su Origin no es loopback)."""
+    host = (handler.headers.get("Host") or "").strip()
+    if host and host not in _hosts_validos():
+        return False
+    origin = (handler.headers.get("Origin") or "").strip()
+    if origin:
+        puerto = _arrancar()
+        permitidos = {f"http://127.0.0.1:{puerto}", f"http://localhost:{puerto}"}
+        if origin not in permitidos:
+            return False
+    return True
 
 _PAGINA = """<!DOCTYPE html>
 <html lang="es">
@@ -49,9 +98,11 @@ button {{ font-size: 1rem; padding: .6rem 1.4rem; cursor: pointer; }}
 <h2>{titulo}</h2>
 <pre>{cuerpo}</pre>
 <form method="post" action="/decision">
+  <input type="hidden" name="token" value="{token}">
   <button class="aprobar" name="decision" value="aprobar">Aprobar</button>
 </form>
 <form method="post" action="/decision">
+  <input type="hidden" name="token" value="{token}">
   <button class="rechazar" name="decision" value="rechazar">Rechazar</button>
 </form>
 </body></html>
@@ -80,31 +131,44 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path.split("?")[0] not in ("/", "/index.html"):
             self._responder(404, "<p>404</p>")
             return
-        if _pendiente is None:
+        pedido = _pendido
+        if pedido is None:
             self._responder(200, "<p>No hay ningún pedido pendiente.</p>")
             return
-        titulo, cuerpo = _pendiente
         self._responder(200, _PAGINA.format(
-            titulo=html.escape(titulo), cuerpo=html.escape(cuerpo)))
+            titulo=html.escape(pedido.titulo),
+            cuerpo=html.escape(pedido.cuerpo),
+            token=html.escape(pedido.token)))
 
     def do_POST(self):
-        global _decision
         if self.path.split("?")[0] != "/decision":
             self._responder(404, "<p>404</p>")
             return
+        # Contención del gate: un POST de una página ajena (CSRF) o con Host
+        # ajeno (DNS-rebinding) se ignora SIN decidir ni revelar el pedido.
+        if not _origen_valido(self):
+            self._responder(403, "<p>Origen no permitido.</p>")
+            return
         largo = int(self.headers.get("Content-Length") or 0)
         datos = self.rfile.read(largo).decode("utf-8", errors="replace")
-        # el botón manda decision=aprobar|rechazar (form-urlencoded)
-        decision = "rechazar"
+        # el form manda decision=aprobar|rechazar y el token del pedido
+        decision, token = "rechazar", ""
         for campo in datos.split("&"):
             clave, _, valor = campo.partition("=")
             if clave == "decision":
                 decision = valor
-        _decision = (decision == "aprobar")
-        if _evento is not None:
-            _evento.set()
+            elif clave == "token":
+                token = valor
+        pedido = _pendido
+        # token obligatorio y atado al pedido vigente: un POST de un pedido
+        # ya terminado (o de otra pestaña) no puede resolver este.
+        if pedido is None or not secrets.compare_digest(token, pedido.token):
+            self._responder(403, "<p>Decisión inválida o expirada.</p>")
+            return
+        pedido.decision = (decision == "aprobar")
+        pedido.evento.set()
         self._responder(200, _GRACIAS.format(
-            decision="Aprobar" if _decision else "Rechazar"))
+            decision="Aprobar" if pedido.decision else "Rechazar"))
 
 
 def _arrancar():
@@ -132,7 +196,7 @@ def aprobar(titulo, cuerpo):
     Devuelve True si el navegador aprobó dentro del timeout, False en
     cualquier otro caso (rechazo, timeout o error): el default seguro.
     """
-    global _pendiente, _evento, _decision
+    global _pendido, _pendiente
     with _lock:
         try:
             puerto = _arrancar()
@@ -140,19 +204,19 @@ def aprobar(titulo, cuerpo):
             print(f"[hitl_web] no se pudo levantar el servidor: {e}")
             return False
 
-        _pendiente = (str(titulo), str(cuerpo))
-        _decision = None
-        _evento = threading.Event()
+        pedido = _Pedido(str(titulo), str(cuerpo), secrets.token_urlsafe(24))
+        _pendido = pedido
+        _pendiente = (pedido.titulo, pedido.cuerpo)  # compat con do_GET/tests
         print(f"[hitl_web] aprobación pendiente en http://{HOST}:{puerto}")
 
         try:
-            listo = _evento.wait(_timeout())
+            listo = pedido.evento.wait(_timeout())
         except Exception as e:  # nunca colgar al agente por un fallo del HITL
             print(f"[hitl_web] error esperando la decisión: {e}")
             listo = False
-        decidido = _decision
+        decidido = pedido.decision
+        _pendido = None
         _pendiente = None
-        _evento = None
         if not listo:
             print("[hitl_web] timeout sin decisión: se rechaza (default seguro)")
             return False

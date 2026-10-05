@@ -39,28 +39,59 @@ def db_schema():
     )
 
 
+def _sentencias(texto):
+    """Trocea por ';' ignorando los que están dentro de literales ('...' o
+    "..."). Devuelve las partes no vacías: > 1 significa multi-sentencia.
+    Un ';' dentro de una cadena es legal, no una segunda sentencia."""
+    partes, actual, comilla = [], [], None
+    for ch in texto:
+        if comilla:
+            actual.append(ch)
+            if ch == comilla:
+                comilla = None
+        elif ch in ("'", '"'):
+            comilla = ch
+            actual.append(ch)
+        elif ch == ";":
+            partes.append("".join(actual))
+            actual = []
+        else:
+            actual.append(ch)
+    partes.append("".join(actual))
+    return [p for p in partes if p.strip()]
+
+
+_RE_LIMIT = re.compile(r"\blimit\b", re.IGNORECASE)
+
+
 def sql(consulta):
     try:
         con = _con()
     except RuntimeError as e:
         return f"ERROR: {e}"
-    if not consulta.strip().lower().startswith("select"):
-        con.close()
-        return "ERROR: solo SELECT"
-    if ";" in consulta.strip()[:-1]:
-        con.close()
-        return "ERROR: una sola sentencia"
-    if PROHIBIDOS.search(consulta):
-        con.close()
-        return "ERROR: solo SELECT"
-    if "limit" not in consulta.lower():
-        consulta = f"{consulta.rstrip(';')} LIMIT {MAX_FILAS}"
     try:
-        filas = con.execute(consulta).fetchall()
-    except sqlite3.Error as e:
+        if not consulta.strip().lower().startswith("select"):
+            return "ERROR: solo SELECT"
+        if len(_sentencias(consulta)) > 1:
+            return "ERROR: una sola sentencia"
+        if PROHIBIDOS.search(consulta):
+            return "ERROR: solo SELECT"
+        # la ley es 'LIMIT forzado si no lo trae': hay que mirar la CLÁUSULA
+        # LIMIT, no una subcadena (un LIKE '%unlimited%' la suprimía).
+        if not _RE_LIMIT.search(consulta):
+            consulta = f"{consulta.rstrip(';').rstrip()} LIMIT {MAX_FILAS}"
+        try:
+            filas = con.execute(consulta).fetchall()
+        except sqlite3.Error as e:
+            return f"ERROR SQL: {e}"
+        except Exception as e:  # noqa: BLE001 (el error es un hecho, no un crash:
+            # sqlite3.Warning no hereda de sqlite3.Error y otros fallos de uso
+            # también deben volver como texto, no propagarse al chat)
+            return f"ERROR SQL: {type(e).__name__}: {e}"
+    finally:
+        # cierra siempre: antes, un fallo que no fuera sqlite3.Error (p. ej.
+        # sqlite3.Warning, que no hereda de sqlite3.Error) filtraba la conexión.
         con.close()
-        return f"ERROR SQL: {e}"
-    con.close()
     if not filas:
         return "(sin resultados)"
     encabezado = " | ".join(filas[0].keys())
