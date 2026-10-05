@@ -58,7 +58,7 @@ Sin ese paso el harness funciona igual — el router del chat y el Choose del
 supervisor degradan al lado DeepSeek; solo se pierden los ifs locales (ms,
 costo 0).
 
-## Capacidades (20, al día de hoy)
+## Capacidades (22, al día de hoy)
 
 | Origen | Herramientas |
 |---|---|
