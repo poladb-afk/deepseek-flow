@@ -136,7 +136,12 @@ class AgentStep(Node):
         shared["messages"].append(historiar(exec_res))
         if getattr(exec_res, "tool_calls", None):
             return "tool"
-        print(f"\nDeepSeek: {exec_res.content}")
+        if _setting("CHAT_STREAM", "1") == "1":
+            # con streaming el contenido ya se imprimió en vivo (deltas sin
+            # salto): acá solo se cierra la línea, sin repetir la respuesta.
+            print()
+        else:
+            print(f"\nDeepSeek: {exec_res.content}")
         return "answer"
 
 

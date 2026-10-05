@@ -639,6 +639,28 @@ def test_agent_step_stream_imprime_limpio_si_sanitiza(monkeypatch, capsys):
     assert "DeepSeek (limpio): ¡Hola! ag" in salida
 
 
+def test_agent_step_post_no_reimprime_con_stream(monkeypatch, capsys):
+    """Con streaming el contenido ya se imprimió en vivo (deltas); post NO
+    debe repetir la respuesta completa — solo cierra la línea. Con la
+    versión clásica, sí la imprime con el prefijo."""
+    from types import SimpleNamespace
+
+    import nodes
+
+    mensaje = SimpleNamespace(content="respuesta en vivo", tool_calls=None)
+
+    monkeypatch.setenv("CHAT_STREAM", "1")
+    nodes.AgentStep().post({"messages": []}, None, mensaje)
+    salida = capsys.readouterr().out
+    assert "respuesta en vivo" not in salida  # no se repite
+    assert salida == "\n"  # solo cierra la línea
+
+    monkeypatch.setenv("CHAT_STREAM", "0")
+    nodes.AgentStep().post({"messages": []}, None, mensaje)
+    salida = capsys.readouterr().out
+    assert "DeepSeek: respuesta en vivo" in salida
+
+
 def test_supervisor_no_ejecuta_llamadas_identicas(tmp_path, monkeypatch):
     import supervisor as sup
 

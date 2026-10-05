@@ -64,7 +64,9 @@ versión stream cuando `CHAT_STREAM == "1"` (default) y la clásica con `0`.
 El resto del flujo no cambia (historiar, recuperación DSML, sanitizar,
 ExecuteTools). Como con streaming el contenido crudo ya se imprimió en
 vivo, si `sanitizar` corta, tras el aviso existente se imprime también la
-versión limpia (`DeepSeek (limpio): …`).
+versión limpia (`DeepSeek (limpio): …`). Y como ya salió en vivo, `post()`
+NO reimprime la respuesta completa: con stream solo cierra la línea (los
+deltas van sin salto); con la clásica mantiene el `print("\nDeepSeek: …")`.
 
 ## El historial canónico y el modo thinking pegajoso (2026-10-05)
 
@@ -146,7 +148,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Nodo | Tipo | prep | exec | post |
 |---|---|---|---|---|
 | GetQuestion | Node | — | `input()` (ignora vacías; EOF → exit) | `salir/exit/quit` → `exit`; si no, agrega mensaje user, resetea `tool_rounds` → `continue` |
-| AgentStep | Node (max_retries=3, wait=5) | historial + tools (sin tools si ya gastó el límite) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` ordena el salto de línea pendiente) |
+| AgentStep | Node (max_retries=3, wait=5) | historial + tools (sin tools si ya gastó el límite) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
 | ExecuteTools | Node | último `tool_calls` | ejecuta cada llamada (`run_tool_call`) | agrega mensajes tool, suma `tool_rounds` → `default` |
 | ExitChat | Node | — | — | imprime despedida |
 

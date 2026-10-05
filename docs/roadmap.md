@@ -98,7 +98,9 @@ contención, y memoria del ciclo.
   `.content` y `.tool_calls` desde los fragmentos (id/name en el primer
   fragmento, arguments por concatenación). `AgentStep.exec` (y por herencia
   `DirectAnswer`) elige stream con `CHAT_STREAM` (default 1), clásica con 0.
-  Si el sanitizado corta, tras el aviso se imprime la versión limpia.
+  Si el sanitizado corta, tras el aviso se imprime la versión limpia; y con
+  stream `post()` NO reimprime la respuesta (la respuesta ya salió en vivo:
+  solo cierra la línea).
 - **Interrupción del usuario**: pendiente (streaming solo de salida por ahora).
 - Memoria: persistir/comprimir `messages` entre sesiones (hoy cada
   arranque es borrón y cuenta nueva; dentro de la sesión el historial se
