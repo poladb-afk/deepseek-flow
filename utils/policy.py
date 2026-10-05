@@ -69,8 +69,12 @@ _NEGRA_PREGUNTAR = (
 )
 
 # Comandos que piden DOS confirmaciones: lo más peligroso del inventario.
+# rm -rf/-fr entra acá (("rm",) suelto queda en preguntar): la
+# especificación de la mesa 2 le exige doble fricción a lo destructivo.
 _NEGRA_DOBLE = (
     ("git", "push"),
+    ("rm", "-rf"),
+    ("rm", "-fr"),
 )
 
 # Patrones de shell que impiden clasificar por prefijo: escriben, sustituyen

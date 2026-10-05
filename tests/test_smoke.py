@@ -2071,3 +2071,14 @@ def test_evals_costos_ordena_por_costo(tmp_path):
     assert cara["dominante"] == "AgentStep"
     assert cara["tools"] == 1
     assert cara["fecha"] == "2026-01-01 11:00:00"
+
+
+def test_policy_rm_rf_paga_doble():
+    """Desviación de spec encontrada en auditoría: rm -rf debía ser
+    confirmar_doble (doble fricción) y había quedado en preguntar."""
+    from utils.policy import clasificar
+
+    assert clasificar("rm -rf /tmp/x") == "confirmar_doble"
+    assert clasificar("rm -fr /tmp/x") == "confirmar_doble"
+    assert clasificar("rm archivo.txt") == "preguntar"
+    assert clasificar("ls && rm -rf /") == "confirmar_doble"  # compuesto: el piso lo fija el peor
