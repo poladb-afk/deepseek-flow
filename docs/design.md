@@ -479,6 +479,11 @@ Es SECUENCIAL a propósito (CPU puro: el paralelismo no aporta y el orden de
 las secciones es virtud). Con UNA carpeta el resultado es idéntico al de
 siempre (compatibilidad hacia atrás).
 
+En el BatchFlow la rama es un `Flow` anidado, y `_orch` del flujo interno NO
+recibe el job del batch: se usa una cola de jobs propia que respeta el orden
+y se aplica a la corrida del pipeline. El modo single no entra nunca al
+BatchFlow.
+
 ### Juez en lote — AsyncParallelBatchFlow (I/O-bound)
 `main.py juez_lote preguntas.txt` · [juez_lote.py](../juez_lote.py)
 
@@ -661,6 +666,15 @@ vistazo), el resumen por nodo (veces, tiempo, %) y la cronología con
 barras de duración proporcionales. Sin args usa el trace con contenido
 más reciente (main.py abre el propio antes de despachar: los vacíos se
 saltan). Determinista: el mismo jsonl da el mismo HTML (test de humo).
+
+### Export de grafos — el diagrama que ejecuta el framework
+`python3 main.py grafo [flujo]` · [utils/viz.py](../utils/viz.py)
+
+Camina los `successors` desde el nodo inicial y emite mermaid — el grafo
+real, no el dibujado. Registra todos los flujos: chat, informe, juez,
+juez_lote, auditoria, research, supervisor, effective_n y
+effective_n_multi. Un flujo anidado declara el nombre de su contenedor
+(`JuezLoteFlow`, `EffectiveNMulti`) aunque su start sea una hoja.
 
 ### Memoria entre sesiones — la biblioteca consultable
 [modules/memoria.py](../modules/memoria.py) · `memoria/*.md` (ignorada)

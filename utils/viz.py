@@ -23,7 +23,17 @@ def mermaid(flow, titulo="flujo"):
             lineas.append(f"    {nombre(nodo)} -->|{accion}| {nombre(siguiente)}")
             rec(siguiente)
 
+    # Un BatchFlow (o cualquier flujo anidado) tiene como start el pipeline
+    # interno; el walk interno lo sigue. Nombres espejo del batch y de su
+    # nodo-rama (que no tiene aristas porque es hoja), así el diagrama
+    # distingue el batch puro (effective_n multi), el pipeline (single) y la
+    # rama async de juez_lote.
+    if type(flow).__name__ != "Flow":
+        nombres[id(flow.start_node)] = type(flow).__name__
     rec(flow.start_node)
+    # si el raíz no tiene aristas (batch puro / rama hoja), igual se declara
+    if not flow.start_node.successors:
+        lineas.append(f"    {nombre(flow.start_node)}")
     return "\n".join(lineas)
 
 
@@ -31,10 +41,14 @@ FLOWS = {
     "chat": lambda: __import__("flow").create_agent_flow(),
     "informe": lambda: __import__("informe").create_informe_flow(),
     "juez": lambda: __import__("juez").create_juez_flow(),
+    "juez_lote": lambda: __import__("juez_lote").create_juez_lote_flow(),
     "auditoria": lambda: __import__("auditoria").create_auditoria_flow(),
     "research": lambda: __import__("research").create_research_flow(),
     "supervisor": lambda: __import__("supervisor").create_supervisor_flow(),
     "effective_n": lambda: __import__("effective_n").create_effective_n_flow(),
+    "effective_n_multi": lambda: __import__("effective_n").EffectiveNMulti(
+        [], "*.jsonl", "salidas/effective_n.md"
+    ),
 }
 
 

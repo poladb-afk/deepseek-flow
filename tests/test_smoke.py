@@ -77,6 +77,21 @@ def test_mermaid_export():
     assert "Planner" in texto and "research" in texto
 
 
+def test_mermaid_flujos_batch_y_lote():
+    """El export de grafos cubre los flujos nuevos: el batch puro
+    (effective_n multi) y la rama async del lote. Un flujo anidado declara su
+    nombre aunque su start sea hoja."""
+    from utils.viz import FLOWS, mermaid
+
+    multi = mermaid(FLOWS["effective_n_multi"]())
+    assert "EffectiveNMulti" in multi
+    lote = mermaid(FLOWS["juez_lote"]())
+    assert "JuezLoteFlow" in lote
+    # el single conserva su pipeline de 3 nodos
+    single = mermaid(FLOWS["effective_n"]())
+    assert "ScanFiles" in single and "HashFile" in single and "WriteReport" in single
+
+
 def test_tabla_markdown():
     from informe import tabla_markdown
 
