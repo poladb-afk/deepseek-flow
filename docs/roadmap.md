@@ -140,7 +140,7 @@ defecto, no un waterfall — los cortes ligeros y reversibles de otras
 mesas pueden avanzar en paralelo con evidencia propia): (1) Replay-evals, (2) HITL graduado + hooks, (3) Laya en
 el voto del router.
 
-**Mesa 1 — Evals (el harness juzgándose, 12-factor #8):** replay de trazas de
+**Mesa 1 — Evals (el harness juzgándose, 12-factor #8) — ✅ MVP hecho (2026-10-05):** evals.py (bench del router con baseline git-sha: 93.3%/ECE 0.0658, reproduce los históricos; linter de invariantes sobre 114 trazas — detectó el ciego histórico de evento_tool; costo por sesión). Matiz del consejo en la primera corrida: es instrumento de SEÑAL, no gate — antes de bloquear cualquier CI hay que medir sensibilidad/especificidad contra los P0/P1 históricos (¿cuáles habría bloqueado?) y la tasa de falsos bloqueos. Pendiente de la mesa: replay de trazas de
 .runs contra código actual (regresión de comportamiento, no de unidades); bench
 de decisiones del voto (los casos donde corrigió a Laya como dataset
 permanente); costo por sesión (tokens/latencia) como métrica first-class
