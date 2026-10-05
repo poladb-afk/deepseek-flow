@@ -6,9 +6,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-URL=https://github.com/poladb-afk/deepseek-flow/releases/download/laya-v1/laya-checkpoints.tar.gz
-SHA=441c2715264b978b3352c333147e7b04c3fd668f12189aa36e49352f223a3915
-DEST=/tmp/laya-checkpoints.tar.gz
+URL=https://github.com/poladb-afk/deepseek-flow/releases/download/laya-v2/laya-checkpoints-v2.tar.gz
+SHA=49fe873b0d90adf2887bca995bc7e0ca9ae0e1785dd6a63a01b7455636a410fa
+DEST=/tmp/laya-checkpoints-v2.tar.gz
 
 echo "→ bajando $URL (1.2 GB)…"
 curl -L --fail --progress-bar -o "$DEST" "$URL"

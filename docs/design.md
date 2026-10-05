@@ -409,7 +409,8 @@ son la sonda histórica):
 | checkpoint | crudo | ECE | con compuerta |
 |---|---|---|---|
 | base multilingual | 13/24 | 0.379 | 12/24 |
-| **router_flow-1k** | **20/24** | **0.077** | **22/24** |
+| router_flow-1k | 20/24 | 0.077 | 22/24 |
+| **router_flow-1k curado (test 30, +300 imperativos)** | **27/30** | **0.066** | **28/30** |
 
 El fallo del base era sistemático: sesgo a `directo` con confianza ALTA
 (mundial 0.95, cómputo 0.97, clima 0.97, README 0.84) — la compuerta no
@@ -424,7 +425,14 @@ una llamada más, no una respuesta mal fundada).
 
 `sonda_router.py` corre el test con la lógica EXACTA de producción
 (`python3 sonda_router.py [ckpt ...]`, sin args usa `LAYA_MODEL`).
-**Ensamble 2-de-2 con voto de confirmación** (medido en la sesión
+**Curaduría con imperativos** (2026-10-05): la sesión completa mostró
+el falso-directo sistemático con imperativos de acción ("debatí…",
+"investigá…", 0.78-0.96). Round dirigido de +300 casos con la regla
+capacidad-vs-creativo en el prompt (generate_targeted, 300/300
+verificados → 1.121 casos) y un run más: los 6 casos-imperativos del
+test 6/6, y la trampa inversa ("escribime un haiku") correcta a 0.97.
+Persiste el histórico "último mundial" (0.83) — en producción lo cubre
+el voto. **Ensamble 2-de-2 con voto de confirmación** (medido en la sesión
 completa): el checkpoint dice 'directo' con confianza 0.78-0.96 para
 imperativos de acción ("debatí…", "investigá…") y las capacidades se
 perdían — el test del router no tenía casos imperativos. Ahora, cuando

@@ -42,7 +42,7 @@ Sin `.env`, el agente opera sobre el directorio actual (portable por defecto).
 ### En una PC nueva, el harness entero (Laya incluida)
 
 Los checkpoints de Laya no van en el repo (643 MB cada uno, demasiado para
-git) sino en una [release](https://github.com/poladb-afk/deepseek-flow/releases/tag/laya-v1);
+git) sino en una [release](https://github.com/poladb-afk/deepseek-flow/releases/tag/laya-v2);
 un comando los baja, verifica y deja listos:
 
 ```bash
