@@ -36,12 +36,21 @@ def _resolve(raw):
     if expanded.is_absolute():
         candidates = [expanded]
     else:
-        candidates = [root / expanded for root in roots]
+        # un relativo también puede serlo al CWD del proceso (medido: el
+        # modelo arma rutas como las ve en el listado, ancladas al CWD que
+        # declara el system prompt, no a las raíces permitidas)
+        candidates = [Path.cwd() / expanded] + [root / expanded for root in roots]
+    permitido = None  # bajo el techo pero inexistente: write_file podría crearlo
     for cand in candidates:
         resolved = Path.resolve(cand)
         for root in roots:
             if resolved == root or root in resolved.parents:
-                return resolved, None
+                if resolved.exists():
+                    return resolved, None
+                if permitido is None:
+                    permitido = resolved
+    if permitido is not None:
+        return permitido, None
     return None, "ruta fuera de los directorios permitidos: " + ", ".join(str(r) for r in roots)
 
 
@@ -260,9 +269,10 @@ TOOLS = [
 
 
 def run_tool_call(tool_call, extra_impls=None):
-    """Ejecuta una tool call de la API y devuelve el mensaje role=tool.
-    extra_impls incorpora las implementaciones de los módulos."""
-    fn = tool_call.function
+    """Ejecuta una tool call (la forma dict canónica del historial) y
+    devuelve el mensaje role=tool. extra_impls incorpora las
+    implementaciones de los módulos."""
+    fn = tool_call["function"]
     impls = {
         "list_files": list_files,
         "read_file": read_file,
@@ -270,13 +280,13 @@ def run_tool_call(tool_call, extra_impls=None):
     }
     if extra_impls:
         impls.update(extra_impls)
-    impl = impls.get(fn.name)
+    impl = impls.get(fn["name"])
     if impl is None:
-        result = f"ERROR: herramienta desconocida: {fn.name}"
+        result = f"ERROR: herramienta desconocida: {fn['name']}"
     else:
         try:
-            args = json.loads(fn.arguments or "{}")
+            args = json.loads(fn["arguments"] or "{}")
             result = str(impl(**args))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001  (el error es un hecho, no un crash)
             result = f"ERROR: {type(e).__name__}: {e}"
-    return {"role": "tool", "tool_call_id": tool_call.id, "content": result}
+    return {"role": "tool", "tool_call_id": tool_call["id"], "content": result}

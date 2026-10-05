@@ -45,6 +45,52 @@ respuesta:
    el reintento del nodo re-pregunta) y quita tags HTML espurios que
    parten palabras (`S<small>oy` → `Soy`), sin tocar markdown legítimo.
 
+## El historial canónico y el modo thinking pegajoso (2026-10-05)
+
+Tres crashes medidos en producción, todos `400: The reasoning_content in
+the thinking mode must be passed back to the API`, dos de ellos con el
+fix anterior puesto — lo que forzó a instrumentar el cliente y capturar
+el historial exacto de la request fallida (dump en fallo, hoy retirado).
+
+**El historial rechazado era estructuralmente perfecto** (dicts
+canónicos, sin reasoning, sin extras) — el veneno no era la forma de los
+mensajes sino el FLIP de modo thinking dentro de la conversación:
+
+- ON→OFF: vuelta directa (thinking) seguida de vuelta con tools (crash
+  del usuario, turno 3).
+- OFF→ON: 8 rondas de tools y la llamada del tope reactiva thinking
+  porque `tools=None` (crash en la sesión de fixes, reproducido dos
+  veces; la traza .runs muestra las 8 rondas y el dump confirma 8
+  assistants con tool_calls).
+
+Respuesta en capas:
+
+1. **`historiar()` en `nodes.py`**: el mensaje del asistente entra al
+   historial como dict canónico `{role, content, tool_calls}` — sin
+   `reasoning_content`, sin campos nulos del objeto pydantic.
+   `ExecuteTools.prep` y `run_tool_call` usan la forma dict.
+2. **Modo pegajoso en `call_llm_agent`**: si hay tráfico de tools en el
+   historial (cualquier `role:tool` o `tool_calls`), thinking va
+   desactivado aunque la llamada no traiga tools — cubre la llamada del
+   tope de rondas Y las vueltas directas posteriores a una agéntica.
+   Conversación limpia y sin tools: thinking normal (el modo disabled
+   midió descarrilos). El filtro de `reasoning_content` queda como
+   segunda barrera.
+3. **`extraer_yaml`**, recovery DSML y sanitizar conviven con esto: los
+   dos últimos viven en `exec()` (reintento real de PocketFlow), no en
+   `post()`.
+
+Validación: matriz de probes (4 combinaciones ±reasoning ±tools en
+aislamiento: todas OK — el validador solo estalla con el flip real en
+sesión larga) + E2E con `MAX_TOOL_ROUNDS=1` reproduciendo el escenario
+exacto del crash (ronda de tools → llamada sin tools sobre historial
+agéntico → vuelta directa): responde completo, sin 400.
+
+Nota de límites: la regla exacta del validador de DeepSeek es opaca (el
+mensaje habla de reasoning_content pero estalla por consistencia de
+modo); lo que está medido es que el modo pegajoso elimina los tres
+crashes conocidos.
+
 ## Sanitizado de respuestas descarriladas
 
 Medido en producción (2026-10-05): una respuesta se cortó a mitad del

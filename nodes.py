@@ -33,6 +33,21 @@ def dsml_a_tool_calls(content):
         ))
     return calls
 
+
+def historiar(msg):
+    """El mensaje del asistente en forma canónica para el historial: solo
+    role/content/tool_calls. El reasoning_content del modo thinking NO
+    viaja — arrastrarlo a una vuelta sin thinking rompe la API (400
+    'reasoning_content must be passed back', medido en producción)."""
+    m = {"role": "assistant", "content": msg.content}
+    if getattr(msg, "tool_calls", None):
+        m["tool_calls"] = [
+            {"id": tc.id, "type": "function",
+             "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+            for tc in msg.tool_calls
+        ]
+    return m
+
 # Action space = capacidades base del CORE + lo que aporten los módulos.
 MODULE_TOOLS, MODULE_IMPLS = discover()
 TOOLS = CORE_TOOLS + MODULE_TOOLS
@@ -86,9 +101,10 @@ class AgentStep(Node):
 
     def exec(self, inputs):
         messages, tools = inputs
-        return call_llm_agent(messages, tools)
-
-    def post(self, shared, prep_res, exec_res):
+        exec_res = call_llm_agent(messages, tools)
+        # La recuperación DSML y el sanitizado van en exec, NO en post: los
+        # max_retries de PocketFlow envuelven exec(), así que un raise acá
+        # SÍ re-pregunta; en post() cortaría el chat (bug medido).
         if not getattr(exec_res, "tool_calls", None) and RE_DSML.search(exec_res.content or ""):
             parseados = dsml_a_tool_calls(exec_res.content)
             if parseados:
@@ -101,10 +117,13 @@ class AgentStep(Node):
             if cortado:
                 print("  [sanitizado] la respuesta descarriló a un prompt ajeno: cortada")
                 if not contenido:
-                    # no quedó nada utilizable: que el reintento del nodo re-pregunte
+                    # no quedó nada utilizable: el retry del nodo re-pregunta
                     raise ValueError("respuesta descarrilada (solo markup de rol)")
                 exec_res.content = contenido
-        shared["messages"].append(exec_res)
+        return exec_res
+
+    def post(self, shared, prep_res, exec_res):
+        shared["messages"].append(historiar(exec_res))
         if getattr(exec_res, "tool_calls", None):
             return "tool"
         print(f"\nDeepSeek: {exec_res.content}")
@@ -113,7 +132,7 @@ class AgentStep(Node):
 
 class ExecuteTools(Node):
     def prep(self, shared):
-        return shared["messages"][-1].tool_calls
+        return shared["messages"][-1]["tool_calls"]
 
     def exec(self, tool_calls):
         return [run_tool_call(tc, MODULE_IMPLS) for tc in tool_calls]
@@ -191,7 +210,13 @@ class LayaRouter(Node):
         if eleccion == "directo":
             if veredicto(confianza) != "met":
                 return "herramientas"  # dudoso: caer al lado seguro
-            voto = voto_confirmacion_router(prep_res)
+            # post() NO tiene retry en PocketFlow: si el voto revienta (YAML
+            # roto del modelo), caemos al lado seguro en vez de cortar el chat.
+            try:
+                voto = voto_confirmacion_router(prep_res)
+            except Exception as e:
+                print(f"  [voto] falló ({type(e).__name__}) → herramientas")
+                return "herramientas"
             if voto != "directo":  # 2-de-2: desacuerdo → lado seguro
                 print(f"  [voto] deepseek dice {voto} → herramientas")
                 return "herramientas"

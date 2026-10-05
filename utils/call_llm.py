@@ -77,14 +77,31 @@ def call_llm(messages):
 
 def call_llm_agent(messages, tools=None):
     """Una vuelta del agente: devuelve el mensaje del asistente
-    (con .tool_calls si pidió herramientas). Thinking desactivado SOLO
-    con tools: la API de DeepSeek los rechaza juntos (A1, como bmo). Sin
-    tools va con thinking normal — el modo disabled no hace falta ahí y
-    medimos descarrilos de decodificación corriendo directo en él
-    (system prompts ajenos, tags que parten palabras: 3 episodios)."""
-    kwargs = {"model": _model(), "messages": messages}
-    if tools:
-        kwargs["tools"] = tools
+    (con .tool_calls si pidió herramientas).
+
+    Thinking: la API rechaza tools+thinking juntos (A1, como bmo) y
+    también los FLIPS de modo dentro de una conversación (400
+    'reasoning_content must be passed back', medido en ambas direcciones:
+    ON→OFF entre turnos, OFF→ON al tope de rondas). El modo es pegajoso:
+    con tráfico de tools en el historial va desactivado aunque esta
+    llamada no traiga tools; conversación limpia va con thinking normal
+    (correr directo en disabled midió descarrilos: prompts ajenos, tags
+    que parten palabras)."""
+    # el reasoning_content del modo thinking no viaja (parte del mismo
+    # contrato de consistencia de modo)
+    limpio = [
+        {k: v for k, v in m.items() if k != "reasoning_content"}
+        if isinstance(m, dict) else m
+        for m in messages
+    ]
+    agentico = any(
+        isinstance(m, dict) and (m.get("role") == "tool" or m.get("tool_calls"))
+        for m in limpio
+    )
+    kwargs = {"model": _model(), "messages": limpio}
+    if tools or agentico:
+        if tools:
+            kwargs["tools"] = tools
         kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
     response = _client().chat.completions.create(**kwargs)
     return response.choices[0].message

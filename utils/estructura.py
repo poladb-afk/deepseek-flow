@@ -18,6 +18,11 @@ def extraer_yaml(texto):
         bloque = texto.split("```yaml")[1].split("```")[0].strip()
     elif "```" in texto:
         bloque = texto.split("```")[1].split("```")[0].strip()
+        # fence de otro lenguaje (```python): la etiqueta queda pegada a la
+        # primera línea; si esta no es "clave: valor" (sin ':'), la descartamos.
+        primera, _, resto = bloque.partition("\n")
+        if ":" not in primera:
+            bloque = resto.strip()
     else:
         bloque = texto.strip()
     datos = yaml.safe_load(bloque)

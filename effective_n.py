@@ -171,6 +171,8 @@ class WriteReport(Node):
             f"- `{f}`: etiquetas en conflicto {sorted(n)}" for f, n in contradicciones[:MAX_EJEMPLOS]
         ) or "ninguna"
         bloque_dup = "\n".join("- " + " ≡ ".join(f"`{n}`" for n in g) for g in dup_archivos) or "ninguno"
+        # total==0 (archivos vacíos o solo-rotos): evitar la división por cero
+        pct_dup = f"{(1 - efectivo / total):.1%}" if total else "—"
 
         return {"total": total, "efectivo": efectivo, "markdown": f"""# Effective N — {date.today().isoformat()}
 
@@ -182,7 +184,7 @@ huella distinta en el CONJUNTO (no por archivo).
 
 ## Resumen
 
-- Registros: {total} → **Effective N: {efectivo}** ({total - efectivo} duplicados, {1 - efectivo / total:.1%})
+- Registros: {total} → **Effective N: {efectivo}** ({total - efectivo} duplicados, {pct_dup})
 - Archivos duplicados enteros (md5):
 {bloque_dup}
 - Contradicciones de etiqueta (mismo contenido, distinto next): {ejemplos_contra}

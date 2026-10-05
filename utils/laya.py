@@ -21,7 +21,7 @@ from utils.call_llm import _setting
 
 _lock = threading.RLock()  # reentrante: preguntar() lockea y llama a agente(), que lockea de nuevo
 _agentes = {}  # setting → agente (router y supervisor cargan checkpoints distintos)
-_error = None
+_errores = {}  # setting → error (por checkpoint: el fallo de uno no envenena al otro)
 
 DEFAULT_MODEL = "convaiinnovations/laya-multilingual"
 
@@ -29,11 +29,10 @@ DEFAULT_MODEL = "convaiinnovations/laya-multilingual"
 def agente(setting="LAYA_MODEL"):
     """El agente del checkpoint que ese setting nombra (caché por setting:
     el router del chat y el Choose del supervisor no son el mismo modelo)."""
-    global _error
     clave = _setting(setting, DEFAULT_MODEL)
-    if clave not in _agentes and _error is None:
+    if clave not in _agentes and clave not in _errores:
         with _lock:
-            if clave not in _agentes and _error is None:
+            if clave not in _agentes and clave not in _errores:
                 try:
                     if Path(clave).exists():
                         # ANTES de importar laya: huggingface_hub lee estas
@@ -45,9 +44,9 @@ def agente(setting="LAYA_MODEL"):
 
                     _agentes[clave] = laya.load(clave)
                 except Exception as e:  # sin modelo local: degradar, no romper
-                    _error = f"{type(e).__name__}: {e}"
-    if _error and clave not in _agentes:
-        raise RuntimeError(f"laya no disponible: {_error}")
+                    _errores[clave] = f"{type(e).__name__}: {e}"
+    if clave in _errores and clave not in _agentes:
+        raise RuntimeError(f"laya no disponible: {_errores[clave]}")
     return _agentes[clave]
 
 
