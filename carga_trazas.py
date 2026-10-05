@@ -10,7 +10,6 @@ Uso:
 import argparse
 import json
 import sqlite3
-from pathlib import Path
 
 from informe import collect_files
 from utils.fs_tools import _resolve

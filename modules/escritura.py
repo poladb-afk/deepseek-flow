@@ -5,7 +5,6 @@ Nada toca el disco sin un 's' del usuario en la terminal. Un rechazo
 El rechazo se devuelve al modelo como texto — es información para corregir,
 no un error. Si el archivo existe, la vista previa es un diff unificado."""
 import difflib
-from pathlib import Path
 
 from utils import hitl_web
 from utils.call_llm import _setting

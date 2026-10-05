@@ -178,6 +178,11 @@ def test_effective_n_multi_carpeta_batchflow(tmp_path, capsys, monkeypatch):
     assert f"Carpeta `{a}`" in md and f"Carpeta `{b}`" in md
     # orden determinista: la sección de `a` antes de la de `b`
     assert md.index(str(a)) < md.index(str(b))
+    # cada sección lleva SOLO su carpeta (el job viaja en params, no se mezcla)
+    sec_a = md.split(f"Carpeta `{a}`")[1].split("## Carpeta")[0]
+    assert "uno.jsonl" in sec_a and "dos.jsonl" not in sec_a
+    sec_b = md.split(f"Carpeta `{b}`")[1].split("## Carpeta")[0]
+    assert "dos.jsonl" in sec_b and "uno.jsonl" not in sec_b
     # secciones degradadas: los H1 de los informes internos pasan a H2
     assert md.count("\n# ") == 0
     assert capsys.readouterr().out.count("Carpeta procesada") == 2

@@ -367,19 +367,6 @@ class EffectiveNMulti(BatchFlow):
         return super()._run(shared)
 
 
-def informes_por_carpeta(carpetas, glob):
-    """Corre el flujo effective_n por carpeta y devuelve el informe de cada
-    una (carpeta, resumen, markdown). UN solo flujo por carpeta: el
-    BatchFlow es la forma de la pieza standalone; esto es el uso directo
-    (mismo flujo interno) para módulos y tests."""
-    informes = []
-    for c in carpetas:
-        shared = {"folder": str(c), "glob": glob}
-        create_effective_n_flow().run(shared)
-        informes.append(shared)
-    return informes
-
-
 def resumen_conjunto(informes):
     """Total del lote. La deduplicación es POR CARPETA (cada corrida es
     independiente): el Effective N conjunto suma los de cada carpeta y no
