@@ -76,6 +76,7 @@ costo 0).
 | supervisor | `run_supervisor` — bucle reactivo: Laya elige la herramienta de cada paso |
 | db | `sql` / `db_schema` — SELECT de solo lectura sobre SQLite |
 | effective_n | `run_effective_n` — deduplicación exacta por contenido (Effective N; 1 o varias carpetas, `BatchFlow`) |
+| evals | `evals` — el harness juzgándose a sí mismo: bench del router, linter de trazas, costo por sesión |
 | rag | `rag_search` / `rag_index` — búsqueda semántica local (fastembed) |
 | memoria | `memory_search` / `memory_save` — biblioteca consultable entre sesiones |
 | websearch | `search_web` — ddgs sin API key |
@@ -112,6 +113,7 @@ python3 main.py research "tema"          # investigación web con loop
 python3 main.py debate "tema" [--rondas] # debate multi-agente
 python3 main.py supervisor "tarea"       # orquestación de piezas
 python3 main.py effective_n [carpeta ...] # deduplicación exacta (1 o varias carpetas)
+python3 main.py evals                   # evals: bench del router + linter de trazas + costos
 python3 main.py heartbeat [--ahora]    # piezas programadas (cron nocturno)
 python3 main.py visor [trace.jsonl]    # HTML del trace (default: el último)
 python3 main.py index [carpeta]          # indexar para RAG
@@ -130,7 +132,7 @@ deepseek-flow/
 ├── main.py            # entry point + subcomandos
 ├── nodes.py / flow.py # el CORE: bucle del agente
 ├── modules/           # capacidades del chat (TOOLS + IMPL por archivo)
-├── informe|juez|juez_lote|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|heartbeat|visor|carga_trazas.py
+├── informe|juez|juez_lote|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|evals|heartbeat|visor|carga_trazas.py
 │                      # piezas standalone (CLI) — los módulos las exponen
 ├── utils/             # call_llm, fs_tools, embeddings, laya, estructura,
 │                      # mcp_client, tracing, viz, websearch
