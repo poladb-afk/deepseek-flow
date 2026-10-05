@@ -256,6 +256,34 @@ def test_juez_lote_informe_y_speedup(tmp_path, monkeypatch):
     assert speedup > 1.0, md
 
 
+def test_juez_rondas_configurables(monkeypatch):
+    """--rondas / responder_con_juez(rondas=N) fija el tope real: con el juez
+    insatisfecho, hace exactamente N borradores. Sin pasarlo, usa JUEZ_ROUNDS."""
+    import juez
+
+    llamadas = {"n": 0}
+
+    def llm_fake(prompt):
+        if "Evalúa el borrador" in prompt:
+            return "verdict: retry\nproblems:\n  - sigue mal"
+        llamadas["n"] += 1
+        return f"borrador {llamadas['n']}"
+
+    monkeypatch.setattr(juez, "call_llm", llm_fake)
+
+    for n in (1, 3):
+        llamadas["n"] = 0
+        resp, adv = juez.responder_con_juez("¿q?", rondas=n)
+        assert llamadas["n"] == n, f"rondas={n} hizo {llamadas['n']} borradores"
+        assert adv and "tope de" in adv
+        assert resp == f"borrador {n}"
+
+    # default = JUEZ_ROUNDS (compatibilidad hacia atrás)
+    llamadas["n"] = 0
+    juez.responder_con_juez("¿q?")
+    assert llamadas["n"] == juez.JUEZ_ROUNDS
+
+
 def test_juez_lote_tool_del_chat(tmp_path, monkeypatch):
     """La tool juez_lote del chat corre el lote y devuelve el resumen."""
     import time

@@ -67,7 +67,7 @@ costo 0).
 | coding (HITL) | `run_command` — shell con `s/n`, timeout y salida truncada |
 | coding (HITL) | `edit_file` — reemplazo exacto y único (diff quirúrgico) |
 | HITL web | con `HITL_WEB=1` las aprobaciones se responden desde el navegador |
-| juez | `answer_verified` — borrador → juez (verifica citas contra archivos) → refinamiento |
+| juez | `answer_verified` — borrador → juez (verifica citas contra archivos) → refinamiento; `rondas` opcional |
 | juez (lote) | `juez_lote` — N preguntas verificadas EN PARALELO (`AsyncParallelBatchFlow`) + medición de speedup |
 | informe | `run_informe` — map-reduce paralelo de trazas `.jsonl` |
 | auditoria | `run_auditoria` — BatchFlow multi-carpeta + síntesis comparativa |
@@ -104,7 +104,7 @@ sale igual). `memoria/` no se versiona (está en `.gitignore`).
 
 ```bash
 python3 main.py                          # chat
-python3 main.py juez "pregunta"          # respuesta con verificación de citas
+python3 main.py juez "pregunta" [--rondas N] # respuesta con verificación de citas
 python3 main.py juez_lote preguntas.txt  # N preguntas EN PARALELO (+ speedup medido)
 python3 main.py informe [carpeta]        # map-reduce de trazas .jsonl
 python3 main.py auditoria c1 c2          # multi-carpeta comparativa

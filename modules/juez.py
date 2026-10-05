@@ -18,6 +18,7 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "pregunta": {"type": "string", "description": "La pregunta a responder con verificación"},
+                    "rondas": {"type": "integer", "description": "Tope de rondas de evaluación (default: 2)"},
                 },
                 "required": ["pregunta"],
             },
@@ -48,8 +49,8 @@ TOOLS = [
 ]
 
 
-def answer_verified(pregunta):
-    respuesta, advertencia = responder_con_juez(pregunta)
+def answer_verified(pregunta, rondas=None):
+    respuesta, advertencia = responder_con_juez(pregunta, rondas=rondas or 2)
     resultado = respuesta
     if advertencia:
         resultado += f"\n\n(⚠️ {advertencia})"

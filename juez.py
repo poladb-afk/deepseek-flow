@@ -4,11 +4,12 @@ Draft responde; Judge evalúa en YAML (verdict: ok/retry) y si el borrador
 cita archivos (ruta:línea), los LEE y verifica las citas contra el
 contenido real — el antídoto contra desvíentes como citar "línea 20"
 cuando la real es la 25. Un YAML roto o inválido lanza en exec() y el
-retry del Node vuelve a preguntar. Máx JUEZ_ROUNDS rondas: al llegar al
-tope se entrega lo último con una advertencia (ley L8 de bmo: el bucle se
+retry del Node vuelve a preguntar. El tope de rondas es JUEZ_ROUNDS (default
+2, configurable por corrida con `--rondas` o shared["max_rounds"]): al llegar
+al tope se entrega lo último con una advertencia (ley L8 de bmo: el bucle se
 autoacota).
 
-Uso: python3 main.py juez "pregunta"
+Uso: python3 main.py juez "pregunta" [--rondas N]
 """
 import argparse
 import re
@@ -117,11 +118,13 @@ suggestions:
 
     def post(self, shared, prep_res, exec_res):
         rounds = shared.get("rounds", 1)
-        if exec_res["verdict"] == "ok" or rounds >= JUEZ_ROUNDS:
+        # tope configurable por corrida (shared["max_rounds"]); default JUEZ_ROUNDS.
+        max_rounds = shared.get("max_rounds", JUEZ_ROUNDS)
+        if exec_res["verdict"] == "ok" or rounds >= max_rounds:
             if exec_res["verdict"] != "ok":
                 shared["advertencia"] = (
                     f"El juez seguía insatisfecho al llegar al tope de "
-                    f"{JUEZ_ROUNDS} rondas; se entrega el último borrador."
+                    f"{max_rounds} rondas; se entrega el último borrador."
                 )
             return "entregar"
         shared["feedback"] = "\n".join(f"- {p}" for p in exec_res["problems"])
@@ -146,8 +149,8 @@ def create_juez_flow():
     return Flow(start=draft)
 
 
-def responder_con_juez(pregunta):
-    shared = {"question": pregunta}
+def responder_con_juez(pregunta, rondas=JUEZ_ROUNDS):
+    shared = {"question": pregunta, "max_rounds": rondas}
     create_juez_flow().run(shared)
     return shared["draft"], shared.get("advertencia")
 
@@ -157,10 +160,13 @@ def main(argv=None):
         prog="juez", description="Responder con borrador → juez → refinamiento"
     )
     parser.add_argument("pregunta", help="la pregunta")
-    parser.add_argument("--rondas", type=int, default=JUEZ_ROUNDS, help="(no usado aún)")
+    parser.add_argument("--rondas", type=int, default=JUEZ_ROUNDS,
+                        help=f"tope de rondas de evaluación (default: {JUEZ_ROUNDS})")
     args = parser.parse_args(argv)
 
-    respuesta, advertencia = responder_con_juez(args.pregunta)
+    if args.rondas < 1:
+        raise SystemExit("ERROR: --rondas debe ser >= 1")
+    respuesta, advertencia = responder_con_juez(args.pregunta, rondas=args.rondas)
     print(f"\nRespuesta (juzgada):\n{respuesta}")
     if advertencia:
         print(f"\n⚠️  {advertencia}")

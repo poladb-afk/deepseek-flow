@@ -250,7 +250,7 @@ forma mínima: el action space del agente **es** el registro de módulos.
 |---|---|---|
 | `informe` | `run_informe(carpeta?, glob?, salida?)` | lanza el pipeline map-reduce y devuelve la ruta del markdown; el progreso se imprime en vivo |
 | `escritura` | `write_file(path, content)` | escribe dentro de los directorios permitidos **con aprobación humana (HITL)**: vista previa (diff si existe) y `s/n` en la terminal — o desde el navegador con `HITL_WEB=1` (`utils/hitl_web.py`); EOF/Ctrl+C/timeout cuentan como rechazo (default seguro); el rechazo vuelve al modelo como texto para que corrija; contenido idéntico → no-op |
-| `juez` | `answer_verified(pregunta)` | responde con control de calidad: borrador → juez → refinamiento; el juez verifica citas ruta:línea contra el contenido real |
+| `juez` | `answer_verified(pregunta, rondas?)` | responde con control de calidad: borrador → juez → refinamiento; el juez verifica citas ruta:línea contra el contenido real; `rondas` fija el tope de evaluación (default 2) |
 | `juez` (lote) | `juez_lote(preguntas, salida?)` | verifica N preguntas EN PARALELO (AsyncParallelBatchFlow) reutilizando el flujo del juez; informe con una sección por pregunta + speedup medido |
 | `auditoria` | `run_auditoria(carpetas, glob?, salida?)` | audita varias carpetas a la vez (una sección por carpeta + síntesis comparativa) |
 | `rag` | `rag_search(consulta, k?)` / `rag_index(carpeta?, glob?)` | búsqueda semántica sobre el índice local (embeddings fastembed) y (re)indexación |
@@ -303,7 +303,9 @@ flowchart LR
 la pregunta (los hechos los reúne el código). `Judge` extrae las citas
 `ruta:línea` del borrador, lee las líneas reales, y evalúa en YAML
 (`verdict: ok/retry`) — `extraer_yaml` + asserts: un YAML roto lanza y el
-retry del Node re-pregunta. Tope de `JUEZ_ROUNDS` (ley L8).
+retry del Node re-pregunta. Tope de rondas `JUEZ_ROUNDS` (default 2, ley L8),
+configurable por corrida con `--rondas N` o `shared["max_rounds"]`; la tool
+`answer_verified(pregunta, rondas?)` lo expone.
 
 ### Auditoría — BatchFlow + flujo anidado (Flow como Node)
 `main.py auditoria c1 c2 [--glob] [--salida]` · [auditoria.py](../auditoria.py)
