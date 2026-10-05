@@ -32,6 +32,7 @@ Respondé en el idioma de cada pedido (español o inglés)."""
 SUBCOMANDOS = {
     "informe": "informe",
     "juez": "juez",
+    "juez_lote": "juez_lote",
     "auditoria": "auditoria",
     "index": "rag",
     "debate": "debate",

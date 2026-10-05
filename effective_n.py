@@ -10,17 +10,26 @@ Pieza 100% código (como carga_trazas.py): determinista, verificable, sin
 LLM. Map-Reduce de PocketFlow solo como forma: HashFile es el mapa y el
 reduce cruza pares y escribe el markdown.
 
+Modo multi-carpeta (BatchFlow, patrón esencial de PocketFlow): el MISMO
+flujo por carpeta (create_effective_n_flow) se fanea sobre la lista de
+carpetas — cada corrida queda intacta, con su propio informe y resumen. Es
+SECUENCIAL a propósito: la carga es CPU puro (leer y hashear .jsonl), donde
+el paralelismo no aporta, y el orden en que se apilan las secciones del
+informe conjunto es una virtud (determinista, reproducible). Con una sola
+carpeta el resultado es idéntico al de siempre (compatibilidad hacia atrás).
+
 Uso:
-    python3 main.py effective_n [carpeta] [--glob '*.jsonl'] [--salida effective_n.md]
+    python3 main.py effective_n [carpeta ...] [--glob '*.jsonl'] [--salida effective_n.md]
 """
 import argparse
 import hashlib
 import json
 from collections import Counter
+from copy import copy
 from datetime import date
 from pathlib import Path
 
-from pocketflow import BatchNode, Flow, Node
+from pocketflow import BatchFlow, BatchNode, Flow, Node
 
 from informe import DEFAULT_FOLDER, collect_files
 from utils.fs_tools import _resolve
@@ -50,7 +59,10 @@ def md5_de(path):
 
 class ScanFiles(Node):
     def prep(self, shared):
-        return shared["folder"], shared["glob"]
+        # la carpeta y el glob llegan por params (el BatchFlow multi-carpeta
+        # inyecta un job por carpeta); shared queda para los resultados.
+        # `glob` cae a shared para el flujo de una carpeta suelto.
+        return self.params["folder"], self.params.get("glob") or shared.get("glob", "*.jsonl")
 
     def exec(self, inputs):
         return collect_files(*inputs)
@@ -65,6 +77,13 @@ class HashFile(BatchNode):
 
     def prep(self, shared):
         return shared["files"]
+
+    def _run(self, shared):
+        # En el BatchFlow multi-carpeta, HashFile hereda los params del job
+        # (folder/glob/salida) del nodo anterior; aquí sobran (la lista de
+        # archivos va por shared), así que se descartan.
+        self.params = {}
+        return super()._run(shared)
 
     def exec(self, filepath):
         n, rotos, con_steps, con_obs = 0, 0, 0, 0
@@ -112,7 +131,9 @@ class WriteReport(Node):
     """Reduce: cruces por pares, Effective N del conjunto, contradicciones."""
 
     def prep(self, shared):
-        return shared["folder"], shared.get("analisis", [])
+        # el nodo hereda el job por params: `folder` (BatchFlow) o, en el
+        # flujo de una carpeta, también está en shared.
+        return self.params.get("folder") or shared["folder"], shared.get("analisis", [])
 
     def exec(self, inputs):
         folder, analisis = inputs
@@ -215,23 +236,197 @@ distintos cuentan como duplicado igual.)
 """}
 
     def post(self, shared, prep_res, exec_res):
-        path = Path(shared["salida"])
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(exec_res["markdown"], encoding="utf-8")
-        shared["informe"] = str(path.resolve())
+        # El flujo de una carpeta corre con salida en shared; el job del
+        # BatchFlow multi-carpeta trae salida=None (no escribe a disco: el
+        # informe conjunto lo escribe el batch). El resultado va SIEMPRE a
+        # shared y a shared["informes"] (acumulador del batch).
+        shared.update(exec_res)  # total, efectivo, markdown
+        salida = shared.get("salida") or self.params.get("salida")
+        if salida:
+            path = Path(salida)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(exec_res["markdown"], encoding="utf-8")
+            shared["informe"] = str(path.resolve())
         shared["resumen"] = (
             f"{exec_res['total']} registros → Effective N {exec_res['efectivo']} "
             f"({exec_res['total'] - exec_res['efectivo']} duplicados)"
         )
-        print(f"Informe escrito: {path.resolve()}")
+        if shared.get("informes") is not None:
+            # id estable para el informe conjunto: la carpeta (por params en
+            # el BatchFlow, del shared en el flujo de una carpeta). Se copia
+            # un dict NUEVO por corrida: el shared es el MISMO en todas las
+            # ramas, así que sin copia el acumulador guardaría N veces el
+            # último resultado.
+            folder = self.params.get("folder") or shared.get("folder")
+            shared["informes"].append({
+                **shared,
+                **exec_res,
+                "folder": str(Path(folder).resolve()) if folder is not None else None,
+            })
+        if salida:
+            print(f"Informe escrito: {salida}")
+        else:
+            print(f"Carpeta procesada: {self.params.get('folder', shared.get('folder'))}")
 
 
 def create_effective_n_flow():
+    """Flujo de UNA carpeta: ScanFiles → HashFile → WriteReport.
+
+    La carpeta/glob/salida viajan en los params del flujo (el BatchFlow
+    multi-carpeta inyecta un job por corrida). Si el llamador no fijó params,
+    se derivan de shared: así el flujo sigue corriéndose con
+    shared = {folder, glob, salida} como siempre (compatibilidad).
+
+    Detalle de PocketFlow: `Flow._orch` fija en cada nodo `params or
+    {**self.params}` — los params del FLUJO pisan los del start_node. Por eso
+    el job vive en self.params y los nodos lo leen de ahí."""
     scan = ScanFiles()
     mapa = HashFile()
     reduce_ = WriteReport()
     scan >> mapa >> reduce_
-    return Flow(start=scan)
+    flow = Flow(start=scan)
+
+    def _run(shared):
+        if not flow.params:
+            flow.set_params({
+                "folder": shared.get("folder"),
+                "glob": shared.get("glob", "*.jsonl"),
+                "salida": shared.get("salida"),
+            })
+        return Flow._run(flow, shared)
+
+    flow._run = _run
+    return flow
+
+
+class EffectiveNMulti(BatchFlow):
+    """Un flujo effective_n POR CARPETA, sobre la MISMA pieza
+    (create_effective_n_flow). SECUENCIAL a propósito: CPU puro (leer y
+    hashear .jsonl), donde el paralelismo no aporta y el orden en que se
+    apilan las secciones del informe conjunto es una virtud (determinista,
+    reproducible).
+
+    prep devuelve un job por carpeta; BatchFlow corre el pipeline para cada
+    uno. La salida se decide en post: con una sola carpeta, escribe donde el
+    flujo de una sola carpeta lo haría (comportamiento EXACTO de siempre);
+    con varias, arma un informe por sección + resumen conjunto."""
+
+    def __init__(self, carpetas, glob, salida):
+        super().__init__(start=create_effective_n_flow())
+        self.carpetas = list(carpetas)
+        self.glob = glob
+        self.salida = salida
+
+    def prep(self, shared):
+        # jobs del batch — SOLO el payload. El flujo de una carpeta se usa
+        # como start: anidarlo como rama dispara su derivación de params (y
+        # en el batch el shared no tiene folder), así que _run lo reemplaza
+        # por un nodo que corre el MISMO pipeline con los params del flujo.
+        return [{"folder": str(c)} for c in self.carpetas]
+
+    def post(self, shared, prep_res, exec_res):
+        informes = shared["informes"]
+        if len(self.carpetas) == 1:
+            # compatibilidad hacia atrás: el flujo de UNA carpeta no cambia
+            # (shared["informe"]/["resumen"]/["folder"] con los de esa carpeta)
+            shared.update(informes[0])
+            return
+        path = Path(self.salida)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(informe_conjunto(informes), encoding="utf-8")
+        shared["informe"] = str(path.resolve())
+        shared["resumen"] = resumen_conjunto(informes)
+        print(f"Informe conjunto escrito: {path.resolve()}")
+
+    def _run(self, shared):
+        """Inicializa la cola de jobs y reenvía el batch: cada rama deja su
+        parte en shared["informes"]; el informe conjunto (o único) lo escribe
+        post(). El flujo interno NO escribe a disco (salida=None).
+
+        Detalle de PocketFlow: BatchFlow llama `_orch(shared, {**params,
+        **bp})`, pero la rama (el nodo del batch) es un FLUJO anidado — y el
+        `_orch` de ese flujo interno NO recibe el job. Por eso el job se toma
+        de una cola propia, en orden, y se aplica a la corrida del pipeline.
+        La copia del flujo es SUPERFICIAL (como la de _orch): los successors
+        siguen apuntando al pipeline original."""
+        shared["informes"] = []
+        self._jobs = list(self.prep(shared))
+        flujo = self.start_node
+        self._flujo = flujo
+        nodo = copy(flujo)
+
+        def _run_plano(shared, batch=self):
+            # El `_orch` del batch NO pasa el job a este nodo (sí a los
+            # demás), así que el job sale de la cola, en orden.
+            job = batch._jobs.pop(0) if batch._jobs else {}
+            batch._flujo.params = {**job, "glob": batch.glob, "salida": None}
+            return batch._flujo._orch(shared)
+
+        nodo._run = _run_plano
+        self.start_node = nodo
+        return super()._run(shared)
+
+
+def informes_por_carpeta(carpetas, glob):
+    """Corre el flujo effective_n por carpeta y devuelve el informe de cada
+    una (carpeta, resumen, markdown). UN solo flujo por carpeta: el
+    BatchFlow es la forma de la pieza standalone; esto es el uso directo
+    (mismo flujo interno) para módulos y tests."""
+    informes = []
+    for c in carpetas:
+        shared = {"folder": str(c), "glob": glob}
+        create_effective_n_flow().run(shared)
+        informes.append(shared)
+    return informes
+
+
+def resumen_conjunto(informes):
+    """Total del lote. La deduplicación es POR CARPETA (cada corrida es
+    independiente): el Effective N conjunto suma los de cada carpeta y no
+    detecta coincidencias entre carpetas — eso queda como propiedad de los
+    solapes por pares cuando se corren juntas. El total de registros sí es
+    la suma real de todas las carpetas."""
+    total = sum(i["total"] for i in informes)
+    efectivo = sum(i["efectivo"] for i in informes)
+    return (
+        f"{len(informes)} carpetas · {total} registros → Effective N {efectivo} "
+        f"({total - efectivo} duplicados)"
+    )
+
+
+def informe_conjunto(informes):
+    """Markdown del lote: resumen conjunto + una sección por carpeta (su
+    informe completo, con el H1 degradado a H2)."""
+    partes = [f"""# Effective N — lote de {len(informes)} carpetas — {date.today().isoformat()}
+
+{resumen_conjunto(informes)}
+"""]
+    for i in informes:
+        folder = Path(i["folder"]).resolve()
+        partes.append(f"## Carpeta `{folder}`\n")
+        for linea in i["markdown"].splitlines():
+            if linea.startswith("# "):
+                linea = "#" + linea
+            partes.append(linea)
+        partes.append("")
+    return "\n".join(partes)
+
+
+def resolver_carpetas(args):
+    """Carpetas del lote: todas las posicionales (o DEFAULT_FOLDER)."""
+    raw = args.carpeta or [DEFAULT_FOLDER]
+    carpetas, errores = [], []
+    for c in raw:
+        folder, err = _resolve(c)
+        if err:
+            errores.append(f"{c}: {err}")
+        elif not folder.is_dir():
+            errores.append(f"{c}: no es una carpeta: {folder}")
+        else:
+            carpetas.append(folder)
+    if errores:
+        raise SystemExit("ERROR:\n" + "\n".join(errores))
+    return carpetas
 
 
 def main(argv=None):
@@ -239,19 +434,24 @@ def main(argv=None):
         prog="effective_n",
         description="Deduplicación exacta por contenido de trazas .jsonl (código puro)",
     )
-    parser.add_argument("carpeta", nargs="?", default=DEFAULT_FOLDER, help=f"carpeta a analizar (default: {DEFAULT_FOLDER})")
+    parser.add_argument("carpeta", nargs="*", default=None,
+                        help=f"carpetas a analizar, una o varias (default: {DEFAULT_FOLDER})")
     parser.add_argument("--glob", default="*.jsonl", help="patrón de archivos (default: %(default)s)")
     parser.add_argument("--salida", default="salidas/effective_n.md", help="archivo de salida (default: %(default)s)")
     args = parser.parse_args(argv)
 
-    folder, err = _resolve(args.carpeta)
-    if err:
-        raise SystemExit(f"ERROR: {err}")
-    if not folder.is_dir():
-        raise SystemExit(f"ERROR: no es una carpeta: {folder}")
+    carpetas = resolver_carpetas(args)
 
-    shared = {"folder": str(folder), "glob": args.glob, "salida": args.salida}
-    create_effective_n_flow().run(shared)
+    if len(carpetas) == 1:
+        # ruta EXACTA de siempre (mismo flujo, mismo post, mismo print)
+        shared = {"folder": str(carpetas[0]), "glob": args.glob, "salida": args.salida}
+        create_effective_n_flow().run(shared)
+        return
+
+    # con una sola carpeta el BatchFlow no cambia nada; con varias fanea el
+    # flujo por carpeta (SECUENCIAL: CPU puro, orden determinista).
+    shared = {"informes": []}
+    EffectiveNMulti(carpetas, args.glob, args.salida).run(shared)
 
 
 if __name__ == "__main__":

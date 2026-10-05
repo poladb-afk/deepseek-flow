@@ -121,6 +121,145 @@ def test_effective_n_flow(tmp_path):
     assert "Effective N: 3" in md
 
 
+def _escribir_caso(carpeta, nombre, task, nxt):
+    import json as _json
+
+    carpeta.mkdir(parents=True, exist_ok=True)
+    (carpeta / nombre).write_text(
+        _json.dumps({"id": task, "fields": {"task": task}, "answers": {"next": nxt}}) + "\n",
+        encoding="utf-8",
+    )
+    return carpeta.resolve()
+
+
+def test_effective_n_una_carpeta_igual_que_siempre(tmp_path, monkeypatch):
+    """Compatibilidad hacia atrás: con una sola carpeta la salida es el
+    informe de siempre (sin cabecera conjunta ni secciones por carpeta)."""
+    from effective_n import main as en_main
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    a = _escribir_caso(tmp_path / "a", "uno.jsonl", "x", "read_file")
+    salida = tmp_path / "one.md"
+    en_main([str(a), "--salida", str(salida)])
+    md = salida.read_text(encoding="utf-8")
+    assert md.startswith("# Effective N —")
+    assert "## Carpeta" not in md  # no es el informe conjunto
+
+
+def test_effective_n_multi_carpeta_batchflow(tmp_path, capsys, monkeypatch):
+    """Dos carpetas con el MISMO flujo faneado (BatchFlow, secuencial):
+    secciones de ambas y resumen conjunto, en el orden pedido."""
+    from effective_n import main as en_main
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    a = _escribir_caso(tmp_path / "a", "uno.jsonl", "x", "read_file")
+    b = _escribir_caso(tmp_path / "b", "dos.jsonl", "y", "list_files")
+    salida = tmp_path / "both.md"
+
+    en_main([str(a), str(b), "--salida", str(salida)])
+    md = salida.read_text(encoding="utf-8")
+    assert md.splitlines()[0].startswith("# Effective N — lote de 2 carpetas")
+    assert md.count("## Carpeta") == 2
+    assert f"Carpeta `{a}`" in md and f"Carpeta `{b}`" in md
+    # orden determinista: la sección de `a` antes de la de `b`
+    assert md.index(str(a)) < md.index(str(b))
+    # secciones degradadas: los H1 de los informes internos pasan a H2
+    assert md.count("\n# ") == 0
+    assert capsys.readouterr().out.count("Carpeta procesada") == 2
+
+
+def test_effective_n_multi_carpeta_total(tmp_path):
+    """El resumen conjunto suma los registros reales de todas las carpetas."""
+    from effective_n import EffectiveNMulti
+
+    a = _escribir_caso(tmp_path / "a", "uno.jsonl", "x", "read_file")
+    _escribir_caso(tmp_path / "a", "dos.jsonl", "y", "list_files")
+    b = _escribir_caso(tmp_path / "b", "tres.jsonl", "z", "finish")
+    shared = {"informes": []}
+    EffectiveNMulti([a, b], "*.jsonl", str(tmp_path / "c.md")).run(shared)
+    assert shared["resumen"] == "2 carpetas · 3 registros → Effective N 3 (0 duplicados)"
+    assert Path(shared["informe"]).is_file()
+
+
+def test_imports_batchflow_exactos():
+    """Cobertura de abstracciones: las piezas nuevas importan exactamente
+    pocketflow.BatchFlow (effective_n) y pocketflow.AsyncParallelBatchFlow
+    (juez_lote)."""
+    import inspect
+
+    import effective_n
+    import juez_lote
+
+    assert "BatchFlow" in inspect.getsource(effective_n)
+    assert "AsyncParallelBatchFlow" in inspect.getsource(juez_lote)
+    # y las usa como clase base / instancia real
+    from pocketflow import AsyncParallelBatchFlow, BatchFlow
+
+    assert issubclass(effective_n.EffectiveNMulti, BatchFlow)
+    assert issubclass(juez_lote.JuezLoteFlow, AsyncParallelBatchFlow)
+
+
+def test_juez_lote_informe_y_speedup(tmp_path, monkeypatch):
+    """juez_lote: N preguntas en paralelo → N secciones, y la medición del
+    speedup (suma de tiempos individuales vs reloj de pared). call_llm
+    fiteado con latencia real: el paralelismo debe solapar las corridas."""
+    import time
+
+    import juez as juez_mod
+
+    def llm_fake(prompt):
+        time.sleep(0.15)  # latencia simulada
+        if "Evalúa el borrador" in prompt:
+            return "verdict: ok"
+        return "Respuesta de prueba."
+
+    monkeypatch.setattr(juez_mod, "call_llm", llm_fake)
+
+    preguntas = tmp_path / "preguntas.txt"
+    preguntas.write_text(
+        "¿Qué hace effective_n?\n\n# comentario\n¿Qué hace juez?\n¿Qué hace el RAG?\n",
+        encoding="utf-8",
+    )
+    salida = tmp_path / "lote.md"
+    import juez_lote
+
+    resumen = juez_lote.run_juez_lote(str(preguntas), str(salida))
+
+    md = salida.read_text(encoding="utf-8")
+    assert md.count("## P") == 3  # una sección por pregunta
+    assert "¿Qué hace effective_n?" in md and "¿Qué hace el RAG?" in md
+    assert "Speedup medido" in md
+    m = juez_lote.leer_preguntas(str(preguntas))
+    assert m == ["¿Qué hace effective_n?", "¿Qué hace juez?", "¿Qué hace el RAG?"]
+
+    # el speedup real es > 1 porque las corridas se solapan
+    assert "paralelo" in resumen
+    # extraer el speedup del informe y verificar > 1
+    import re as _re
+
+    speedup = float(_re.search(r"\*\*([\d.]+)×\*\*", md).group(1))
+    assert speedup > 1.0, md
+
+
+def test_juez_lote_tool_del_chat(tmp_path, monkeypatch):
+    """La tool juez_lote del chat corre el lote y devuelve el resumen."""
+    import time
+
+    import juez as juez_mod
+    import modules.juez as mj
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.setattr(juez_mod, "call_llm",
+                        lambda p: "verdict: ok" if "Evalúa el borrador" in p
+                        else (time.sleep(0.05) or "ok"))
+    preguntas = tmp_path / "p.txt"
+    preguntas.write_text("uno\ndos\n", encoding="utf-8")
+    salida = tmp_path / "s.md"
+    r = mj.juez_lote(str(preguntas), str(salida))
+    assert "Juez en lote" in r and Path(salida).is_file()
+    assert "juez_lote" in {t["function"]["name"] for t in mj.TOOLS}
+
+
 def test_pregunta_despacho_congelada():
     from supervisor import OPCIONES, REGISTRO
 

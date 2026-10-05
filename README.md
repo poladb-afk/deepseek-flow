@@ -68,13 +68,14 @@ costo 0).
 | coding (HITL) | `edit_file` — reemplazo exacto y único (diff quirúrgico) |
 | HITL web | con `HITL_WEB=1` las aprobaciones se responden desde el navegador |
 | juez | `answer_verified` — borrador → juez (verifica citas contra archivos) → refinamiento |
+| juez (lote) | `juez_lote` — N preguntas verificadas EN PARALELO (`AsyncParallelBatchFlow`) + medición de speedup |
 | informe | `run_informe` — map-reduce paralelo de trazas `.jsonl` |
 | auditoria | `run_auditoria` — BatchFlow multi-carpeta + síntesis comparativa |
 | research | `deep_research` — web + loop de cobertura |
 | debate | `debate` — proponente vs crítico por colas + juez |
 | supervisor | `run_supervisor` — bucle reactivo: Laya elige la herramienta de cada paso |
 | db | `sql` / `db_schema` — SELECT de solo lectura sobre SQLite |
-| effective_n | `run_effective_n` — deduplicación exacta por contenido (Effective N) |
+| effective_n | `run_effective_n` — deduplicación exacta por contenido (Effective N; 1 o varias carpetas, `BatchFlow`) |
 | rag | `rag_search` / `rag_index` — búsqueda semántica local (fastembed) |
 | memoria | `memory_search` / `memory_save` — biblioteca consultable entre sesiones |
 | websearch | `search_web` — ddgs sin API key |
@@ -104,12 +105,13 @@ sale igual). `memoria/` no se versiona (está en `.gitignore`).
 ```bash
 python3 main.py                          # chat
 python3 main.py juez "pregunta"          # respuesta con verificación de citas
+python3 main.py juez_lote preguntas.txt  # N preguntas EN PARALELO (+ speedup medido)
 python3 main.py informe [carpeta]        # map-reduce de trazas .jsonl
 python3 main.py auditoria c1 c2          # multi-carpeta comparativa
 python3 main.py research "tema"          # investigación web con loop
 python3 main.py debate "tema" [--rondas] # debate multi-agente
 python3 main.py supervisor "tarea"       # orquestación de piezas
-python3 main.py effective_n [carpeta]   # deduplicación exacta (Effective N)
+python3 main.py effective_n [carpeta ...] # deduplicación exacta (1 o varias carpetas)
 python3 main.py heartbeat [--ahora]    # piezas programadas (cron nocturno)
 python3 main.py visor [trace.jsonl]    # HTML del trace (default: el último)
 python3 main.py index [carpeta]          # indexar para RAG
@@ -128,7 +130,7 @@ deepseek-flow/
 ├── main.py            # entry point + subcomandos
 ├── nodes.py / flow.py # el CORE: bucle del agente
 ├── modules/           # capacidades del chat (TOOLS + IMPL por archivo)
-├── informe|juez|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|heartbeat|visor|carga_trazas.py
+├── informe|juez|juez_lote|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|heartbeat|visor|carga_trazas.py
 │                      # piezas standalone (CLI) — los módulos las exponen
 ├── utils/             # call_llm, fs_tools, embeddings, laya, estructura,
 │                      # mcp_client, tracing, viz, websearch

@@ -251,6 +251,7 @@ forma mínima: el action space del agente **es** el registro de módulos.
 | `informe` | `run_informe(carpeta?, glob?, salida?)` | lanza el pipeline map-reduce y devuelve la ruta del markdown; el progreso se imprime en vivo |
 | `escritura` | `write_file(path, content)` | escribe dentro de los directorios permitidos **con aprobación humana (HITL)**: vista previa (diff si existe) y `s/n` en la terminal — o desde el navegador con `HITL_WEB=1` (`utils/hitl_web.py`); EOF/Ctrl+C/timeout cuentan como rechazo (default seguro); el rechazo vuelve al modelo como texto para que corrija; contenido idéntico → no-op |
 | `juez` | `answer_verified(pregunta)` | responde con control de calidad: borrador → juez → refinamiento; el juez verifica citas ruta:línea contra el contenido real |
+| `juez` (lote) | `juez_lote(preguntas, salida?)` | verifica N preguntas EN PARALELO (AsyncParallelBatchFlow) reutilizando el flujo del juez; informe con una sección por pregunta + speedup medido |
 | `auditoria` | `run_auditoria(carpetas, glob?, salida?)` | audita varias carpetas a la vez (una sección por carpeta + síntesis comparativa) |
 | `rag` | `rag_search(consulta, k?)` / `rag_index(carpeta?, glob?)` | búsqueda semántica sobre el índice local (embeddings fastembed) y (re)indexación |
 | `debate` | `debate(tema, rondas?)` | debate multi-agente (proponente vs crítico por colas) con juez final |
@@ -259,7 +260,7 @@ forma mínima: el action space del agente **es** el registro de módulos.
 | `research` | `deep_research(tema, salida?)` | loop de cobertura: planner → researcher (web) → synthesizer; detecta huecos y re-planifica (MAX_ROUNDS=2) |
 | `supervisor` | `run_supervisor(tarea, salida?)` | bucle reactivo: Laya (Choose local, umbral 0.9) o DeepSeek eligen la herramienta de cada paso; síntesis final |
 | `db` | `sql(consulta)` / `db_schema()` | SELECT de solo lectura sobre la base SQLite de trazas (una sentencia, LIMIT forzado, sin DDL) |
-| `effective_n` | `run_effective_n(carpeta?, glob?, salida?)` | deduplicación exacta por contenido de trazas .jsonl: Effective N, archivos duplicados enteros, solape por pares, contradicciones de etiqueta |
+| `effective_n` | `run_effective_n(carpetas?, glob?, salida?)` | deduplicación exacta por contenido de trazas .jsonl: Effective N, archivos duplicados enteros, solape por pares, contradicciones de etiqueta; 1 o varias carpetas (BatchFlow, informe conjunto) |
 
 ### HITL web — la aprobación desde el navegador
 `utils/hitl_web.py` · [utils/hitl_web.py](../utils/hitl_web.py)
@@ -456,7 +457,7 @@ del informe); la tool `sql` es SELECT de una sola sentencia con LIMIT
 forzado y vocabulario prohibido (insert/update/delete/...).
 
 ### Effective N — deduplicación exacta antes de entrenar
-`main.py effective_n [carpeta]` · [effective_n.py](../effective_n.py)
+`main.py effective_n [carpeta ...]` · [effective_n.py](../effective_n.py)
 
 ```mermaid
 flowchart LR
@@ -471,6 +472,28 @@ puro (como carga_trazas), sin LLM: la huella de contenido es sha1 de
 hashea archivo por archivo; el reduce cruza pares, detecta archivos
 duplicados enteros (md5), contradicciones de etiqueta (misma huella sin
 `next`, etiquetas distintas) y escribe el markdown.
+
+Con VARIAS carpetas, `EffectiveNMulti` (BatchFlow) fanea el MISMO flujo por
+carpeta y escribe un informe conjunto con una sección por carpeta + resumen.
+Es SECUENCIAL a propósito (CPU puro: el paralelismo no aporta y el orden de
+las secciones es virtud). Con UNA carpeta el resultado es idéntico al de
+siempre (compatibilidad hacia atrás).
+
+### Juez en lote — AsyncParallelBatchFlow (I/O-bound)
+`main.py juez_lote preguntas.txt` · [juez_lote.py](../juez_lote.py)
+
+```mermaid
+flowchart LR
+    p["prep: 1 job por pregunta"] --> c["CorrerJuez (AsyncNode)<br/>asyncio.gather"]
+    c --> r["post: informe + speedup"]
+```
+
+Cada pregunta corre el flujo del juez EXISTENTE (`juez.create_juez_flow`)
+dentro del fan-out async; el puente sync→async es `asyncio.to_thread` (el
+flujo bloquea en `call_llm`). I/O-bound (LLM): el paralelismo SÍ aporta y se
+MIDE — suma de los tiempos individuales vs reloj de pared → speedup (patrón
+parallel del cookbook). Cada corrida lleva su índice: el informe queda en el
+orden del archivo, no en orden de terminación.
 
 | shared | Contenido |
 |---|---|
