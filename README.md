@@ -26,7 +26,8 @@ Heredada de PocketFlow y de [bmo](../bmo) (el harness que inspiró los módulos)
   rondas del juez, rondas de debate, pasos del supervisor.
 - **Los errores son información**: un tool que falla devuelve `ERROR: ...`
   como texto y el modelo se autocorrige; la escritura de archivos exige
-  aprobación humana (HITL) y EOF/Ctrl+C cuentan como rechazo.
+  aprobación humana (HITL) — `s/n` en la terminal, o desde el navegador
+  con `HITL_WEB=1` — y EOF/Ctrl+C/timeout cuentan como rechazo.
 
 ## Quickstart
 
