@@ -119,6 +119,7 @@ content: |
             print(f"  🤔 huecos (ronda {shared['ronda']}): {shared['feedback'][:120]}")
             return "research"
         salida = Path(shared["salida"])
+        salida.parent.mkdir(parents=True, exist_ok=True)
         salida.write_text(exec_res["content"], encoding="utf-8")
         shared["informe"] = str(salida.resolve())
         print(f"\n✅ informe escrito: {shared['informe']}")
@@ -154,7 +155,7 @@ def main(argv=None):
         prog="research", description="Deep research con loop de cobertura"
     )
     parser.add_argument("tema")
-    parser.add_argument("--salida", default="research.md")
+    parser.add_argument("--salida", default="salidas/research.md")
     args = parser.parse_args(argv)
     investigar(args.tema, args.salida)
 

@@ -324,6 +324,7 @@ class Sintetizar(Node):
 
     def post(self, shared, prep_res, exec_res):
         salida = Path(shared["salida"])
+        salida.parent.mkdir(parents=True, exist_ok=True)
         pasos = "\n".join(f"- {h}" for h in shared.get("hechos", [])) or "(ninguno)"
         salida.write_text(
             f"# Supervisor — {shared['tarea']}\n\n{exec_res}\n\n"
@@ -345,7 +346,7 @@ def create_supervisor_flow():
     return Flow(start=elegir)
 
 
-def supervisar(tarea, salida="supervisor.md"):
+def supervisar(tarea, salida="salidas/supervisor.md"):
     shared = {"tarea": tarea, "salida": salida}
     create_supervisor_flow().run(shared)
     return shared["informe"]
@@ -356,7 +357,7 @@ def main(argv=None):
         prog="supervisor", description="Bucle reactivo: Laya elige la herramienta de cada paso"
     )
     parser.add_argument("tarea")
-    parser.add_argument("--salida", default="supervisor.md")
+    parser.add_argument("--salida", default="salidas/supervisor.md")
     args = parser.parse_args(argv)
     supervisar(args.tarea, args.salida)
 

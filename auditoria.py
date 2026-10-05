@@ -96,6 +96,7 @@ class ReduceGlobal(Node):
 
     def post(self, shared, prep_res, exec_res):
         salida = Path(shared["salida"])
+        salida.parent.mkdir(parents=True, exist_ok=True)
         salida.write_text(exec_res, encoding="utf-8")
         shared["auditoria"] = str(salida.resolve())
         print(f"Auditoría escrita: {salida.resolve()}")
@@ -127,7 +128,7 @@ def main(argv=None):
     )
     parser.add_argument("carpetas", nargs="+", help="carpetas a auditar")
     parser.add_argument("--glob", default="*.jsonl", help="patrón de archivos (default: %(default)s)")
-    parser.add_argument("--salida", default="auditoria.md", help="archivo de salida (default: %(default)s)")
+    parser.add_argument("--salida", default="salidas/auditoria.md", help="archivo de salida (default: %(default)s)")
     args = parser.parse_args(argv)
     auditar(args.carpetas, args.glob, args.salida)
 

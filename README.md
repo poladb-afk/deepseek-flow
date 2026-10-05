@@ -104,6 +104,7 @@ deepseek-flow/
 │                      # piezas standalone (CLI) — los módulos las exponen
 ├── utils/             # call_llm, fs_tools, embeddings, laya, estructura,
 │                      # mcp_client, tracing, viz, websearch
+├── salidas/           # informes generados por las corridas (ignorada)
 ├── tests/             # smoke tests (pytest)
 └── docs/design.md     # el diseño completo, actualizado
 ```

@@ -214,6 +214,7 @@ distintos cuentan como duplicado igual.)
 
     def post(self, shared, prep_res, exec_res):
         path = Path(shared["salida"])
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(exec_res["markdown"], encoding="utf-8")
         shared["informe"] = str(path.resolve())
         shared["resumen"] = (
@@ -238,7 +239,7 @@ def main(argv=None):
     )
     parser.add_argument("carpeta", nargs="?", default=DEFAULT_FOLDER, help=f"carpeta a analizar (default: {DEFAULT_FOLDER})")
     parser.add_argument("--glob", default="*.jsonl", help="patrón de archivos (default: %(default)s)")
-    parser.add_argument("--salida", default="effective_n.md", help="archivo de salida (default: %(default)s)")
+    parser.add_argument("--salida", default="salidas/effective_n.md", help="archivo de salida (default: %(default)s)")
     args = parser.parse_args(argv)
 
     folder, err = _resolve(args.carpeta)

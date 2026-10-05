@@ -17,7 +17,7 @@ TOOLS = [
                 "properties": {
                     "carpeta": {"type": "string", "description": f"Carpeta a analizar (default: {DEFAULT_FOLDER})"},
                     "glob": {"type": "string", "description": "Patrón de archivos (default: '*.jsonl')"},
-                    "salida": {"type": "string", "description": "Archivo de salida (default: informe.md)"},
+                    "salida": {"type": "string", "description": "Archivo de salida (default: salidas/informe.md)"},
                 },
                 "required": [],
             },
@@ -26,7 +26,7 @@ TOOLS = [
 ]
 
 
-def run_informe(carpeta=None, glob="*.jsonl", salida="informe.md"):
+def run_informe(carpeta=None, glob="*.jsonl", salida="salidas/informe.md"):
     folder, err = _resolve(carpeta or DEFAULT_FOLDER)
     if err:
         return f"ERROR: {err}"

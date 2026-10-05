@@ -172,6 +172,7 @@ Carpeta: `{folder}` · {len(analisis)} archivos · {total_reg} registros
 
     def post(self, shared, prep_res, exec_res):
         path = Path(shared["salida"])
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(exec_res, encoding="utf-8")
         shared["informe"] = str(path.resolve())
         print(f"Informe escrito: {path.resolve()}")
@@ -194,7 +195,7 @@ def main(argv=None):
     )
     parser.add_argument("carpeta", nargs="?", default=DEFAULT_FOLDER, help=f"carpeta a analizar (default: {DEFAULT_FOLDER})")
     parser.add_argument("--glob", default="*.jsonl", help="patrón de archivos (default: %(default)s)")
-    parser.add_argument("--salida", default="informe.md", help="archivo de salida (default: %(default)s)")
+    parser.add_argument("--salida", default="salidas/informe.md", help="archivo de salida (default: %(default)s)")
     args = parser.parse_args(argv)
 
     folder, err = _resolve(args.carpeta)

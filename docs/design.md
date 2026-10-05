@@ -575,3 +575,13 @@ Hallazgos y sus fixes:
    Warning de fastembed (mean pooling) — informativo, sin acción.
 4. El falso-directo del router se confirmó en vivo dos veces más
    (MCP 0.82, debate 0.78) — candidato al ensamble 2-de-3 cuando toque.
+
+## Salidas — una carpeta, no una raíz llena de .md
+
+Higienizado (2026-10-05): todas las piezas escribían sus informes en la
+raíz del proyecto (informe.md, auditoria*.md, supervisor*.md,
+research*.md, effective_n*.md...) — el .gitignore los tapaba de git pero
+no del disco. Ahora el default de TODAS las salidas es `salidas/` (y
+`salidas/heartbeat/` para las nocturnas), cada escritor crea su
+directorio (la lección del heartbeat), y el .gitignore se simplificó a
+`salidas/` única.

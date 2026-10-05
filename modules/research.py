@@ -14,7 +14,7 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "tema": {"type": "string", "description": "Tema a investigar"},
-                    "salida": {"type": "string", "description": "Archivo de salida (default: research.md)"},
+                    "salida": {"type": "string", "description": "Archivo de salida (default: salidas/research.md)"},
                 },
                 "required": ["tema"],
             },
@@ -23,7 +23,7 @@ TOOLS = [
 ]
 
 
-def deep_research(tema, salida="research.md"):
+def deep_research(tema, salida="salidas/research.md"):
     ruta = investigar(tema, salida)
     return f"Informe de investigación escrito: {ruta}. Lee el archivo con read_file para el detalle."
 

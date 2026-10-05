@@ -15,7 +15,7 @@ TOOLS = [
                 "properties": {
                     "carpetas": {"type": "string", "description": "Carpetas a auditar, separadas por coma"},
                     "glob": {"type": "string", "description": "Patrón de archivos (default: '*.jsonl')"},
-                    "salida": {"type": "string", "description": "Archivo de salida (default: auditoria.md)"},
+                    "salida": {"type": "string", "description": "Archivo de salida (default: salidas/auditoria.md)"},
                 },
                 "required": ["carpetas"],
             },

@@ -15,7 +15,7 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "tarea": {"type": "string", "description": "La tarea compuesta a orquestar"},
-                    "salida": {"type": "string", "description": "Archivo de salida (default: supervisor.md)"},
+                    "salida": {"type": "string", "description": "Archivo de salida (default: salidas/supervisor.md)"},
                 },
                 "required": ["tarea"],
             },
@@ -24,7 +24,7 @@ TOOLS = [
 ]
 
 
-def run_supervisor(tarea, salida="supervisor.md"):
+def run_supervisor(tarea, salida="salidas/supervisor.md"):
     from supervisor import supervisar
 
     ruta = supervisar(tarea, salida)

@@ -20,7 +20,7 @@ TOOLS = [
                 "properties": {
                     "carpeta": {"type": "string", "description": f"Carpeta a analizar (default: {DEFAULT_FOLDER})"},
                     "glob": {"type": "string", "description": "Patrón de archivos (default: '*.jsonl')"},
-                    "salida": {"type": "string", "description": "Archivo de salida (default: 'effective_n.md')"},
+                    "salida": {"type": "string", "description": "Archivo de salida (default: 'salidas/effective_n.md')"},
                 },
                 "required": [],
             },
@@ -29,7 +29,7 @@ TOOLS = [
 ]
 
 
-def run_effective_n(carpeta=None, glob="*.jsonl", salida="effective_n.md"):
+def run_effective_n(carpeta=None, glob="*.jsonl", salida="salidas/effective_n.md"):
     folder, err = _resolve(carpeta or DEFAULT_FOLDER)
     if err:
         return f"ERROR: {err}"

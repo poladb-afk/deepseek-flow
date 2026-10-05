@@ -9,14 +9,5 @@ __pycache__/
 .modelos/
 rag_index/
 trazas.db
-informe.md
-auditoria.md
-research.md
-supervisor.md
-supervisor_*.md
+salidas/
 .heartbeat/
-effective_n*.md
-heartbeat/
-auditoria_round*.md
-pocketflow_research.md
-research_*.md

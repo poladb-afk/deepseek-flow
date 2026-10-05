@@ -1,2 +1,2 @@
-{"tarea": "¿Cuántas trazas .jsonl hay en ~/Documentos/00_IA/bmo/data y cuántos casos únicos en total? Deja las cifras con su fuente.", "salida": "heartbeat/trazas_diarias.md", "cada_horas": 24}
-{"tarea": "Effective N de ~/Documentos/00_IA/bmo/data: duplicación entre archivos, archivos repetidos enteros y contradicciones. ¿Cambió algo desde ayer?", "salida": "heartbeat/effective_n.md", "cada_horas": 24}
+{"tarea": "¿Cuántas trazas .jsonl hay en ~/Documentos/00_IA/bmo/data y cuántos casos únicos en total? Deja las cifras con su fuente.", "salida": "salidas/heartbeat/trazas_diarias.md", "cada_horas": 24}
+{"tarea": "Effective N de ~/Documentos/00_IA/bmo/data: duplicación entre archivos, archivos repetidos enteros y contradicciones. ¿Cambió algo desde ayer?", "salida": "salidas/heartbeat/effective_n.md", "cada_horas": 24}
