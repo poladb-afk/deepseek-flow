@@ -146,12 +146,15 @@ de decisiones del voto (los casos donde corrigió a Laya como dataset
 permanente); costo por sesión (tokens/latencia) como métrica first-class
 derivable de las trazas.
 
-**Mesa 2 — HITL graduado + hooks (12-factor #6):** política de aprobación por
-clasificación (pytest/grep/ls auto; git commit siempre preguntar; git push
-confirmación extra — hoy cada run_command cuesta un s/n, 272 en una sesión);
-hooks pre/post en run_tool_call (py_compile tras edit_file, pytest tras write
-de .py, denylist antes de run_command); residuales pendientes: GET del
-hitl_web sin validar origen, naming _pendido/_pendiente.
+**Mesa 2 — HITL graduado + hooks (12-factor #6) — ✅ MVP hecho (2026-10-05):**
+`utils/policy.py` (clasificador determinista sin LLM: `auto`/`preguntar`/`confirmar_doble`)
++ integración en `run_command` (`HITL_AUTO=1` default; `0` = todo pregunta como hoy)
++ hooks post-tool en `run_tool_call` (`HOOKS_POST`; `py_compile` tras edit/write de `.py`
+como error-como-feedback). Reglas de composición: `&&`/`|` exigen que TODOS los segmentos
+sean auto; redirección/`$()`/backticks/`xargs` ⇒ preguntar; `python3 -c` siempre pregunta;
+`git push`/`rm -rf` ⇒ doble confirmación. Residuales pendientes de la mesa: hooks de
+denylist ANTES de run_command, pytest tras write de .py (más caro que py_compile),
+GET del hitl_web sin validar origen, naming `_pendido`/`_pendiente`.
 
 **Mesa 3 — Laya en más mecanismos:** el voto del router (mejor ROI: dispara en
 cada directo-met y hoy paga DeepSeek); gate del juez (clasificar ok/retry, juez

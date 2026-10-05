@@ -6,13 +6,22 @@ shell esa aprobación ES la contención (un comando llega a donde las
 raíces permitidas de las tools de archivos no llegan; decirlo explícito
 es parte del contrato). Rieles mecánicos: timeout, salida truncada (el
 resultado viaja al historial del chat), stdin cerrado para que nada
-quede esperando input interactivo.
+quede esperando input interactivo. Con HITL graduado, solo los comandos
+de solo-lectura verificado se saltan el 's' (con el comando igual a la
+vista); el resto mantiene la aprobación.
 
 edit_file es reemplazo exacto y único: la lección medida del clobber de
 fs_tools.py — write_file de archivo entero lo pisó con un fragmento
 (282→16 líneas). Un edit que falla ruidosamente (no existe / no es
 único) obliga al modelo a volver al archivo en vez de reescribirlo de
 memoria. write_file queda para archivos nuevos o reescrituras totales.
+
+HITL graduado (mesa 2): con HITL_AUTO=1 (default) `utils/policy.py`
+clasifica el comando ANTES del preview. Solo los de solo-lectura
+verificado (whitelist determinista) se ejecutan 'auto', con una línea
+visible de transparencia; el resto pregunta como siempre y lo más
+peligroso (git push, rm -rf) pide dos confirmaciones. Con HITL_AUTO=0
+todo vuelve al s/n de hoy (compatibilidad).
 """
 import difflib
 import subprocess
@@ -21,6 +30,7 @@ from pathlib import Path
 from utils import hitl_web
 from utils.call_llm import _setting
 from utils.fs_tools import _resolve
+from utils.policy import clasificar
 
 TIMEOUT_S = 120
 SALIDA_MAX = 4000  # chars: el resultado entra al historial y al costo
@@ -98,10 +108,28 @@ def run_command(command):
     if not command or not str(command).strip():
         return "ERROR: comando vacío"
     command = str(command)
-    print(f"\n── run_command ──\n{command}")
-    _cuerpo[0] = command
-    if not _approve("¿Ejecutar?"):
-        return "RECHAZADO por el usuario: el comando no se ejecutó. Puedes proponer otro o preguntar qué cambiaría."
+
+    # HITL graduado (mesa 2): clasificá por riesgo antes del preview.
+    # 'auto' = solo-lectura verificado → ejecuta directo, pero SIEMPRE
+    # imprime el comando (transparencia: el usuario lo ve igual).
+    nivel = clasificar(command)
+    if _setting("HITL_AUTO", "1") != "1":
+        nivel = "preguntar"  # HITL_AUTO=0: compatibilidad total con el s/n de hoy
+
+    if nivel == "auto":
+        print(f"\n── run_command [auto: solo-lectura] ──\n{command}")
+    elif nivel == "confirmar_doble":
+        print(f"\n── run_command [¡doble confirmación!] ──\n{command}")
+        _cuerpo[0] = command
+        if not _approve("¿Seguro? (1/2)"):
+            return "RECHAZADO por el usuario: el comando no se ejecutó. Puedes proponer otro o preguntar qué cambiaría."
+        if not _approve("¿Confirmás de nuevo? (2/2)"):
+            return "RECHAZADO por el usuario: el comando no se ejecutó (segunda confirmación). Puedes proponer otro o preguntar qué cambiaría."
+    else:  # 'preguntar': el flujo de hoy
+        print(f"\n── run_command ──\n{command}")
+        _cuerpo[0] = command
+        if not _approve("¿Ejecutar?"):
+            return "RECHAZADO por el usuario: el comando no se ejecutó. Puedes proponer otro o preguntar qué cambiaría."
 
     try:
         r = subprocess.run(

@@ -28,6 +28,13 @@ Heredada de PocketFlow y de [bmo](../bmo) (el harness que inspiró los módulos)
   como texto y el modelo se autocorrige; la escritura de archivos exige
   aprobación humana (HITL) — `s/n` en la terminal, o desde el navegador
   con `HITL_WEB=1` — y EOF/Ctrl+C/timeout cuentan como rechazo.
+- **HITL graduado**: con `HITL_AUTO=1` (default) el riesgo del comando
+  decide la fricción. Solo-lectura verificado (`pytest`, `grep`, `ls`,
+  `git status`…) corre **auto** (con el comando igual a la vista); lo no
+  reconocido pregunta como siempre; `git push` y `rm -rf` piden **dos**
+  confirmaciones. `HITL_AUTO=0` vuelve al `s/n` para todo. Además, un
+  **hook** post-tool corre `py_compile` tras escribir un `.py` y le
+  devuelve `⚠ SINTAXIS` al modelo para que se autocorrija.
 - **El chat responde en vivo**: las respuestas se imprimen token a token
   mientras se generan (`CHAT_STREAM=1`, default) y un Ctrl+C durante la
   generación corta la respuesta conservando lo parcial (`CHAT_STREAM_INTERRUPT`,
@@ -64,7 +71,7 @@ costo 0).
 |---|---|
 | CORE (lectura) | `list_files`, `read_file`, `search_files` |
 | escritura (HITL) | `write_file` — diff + `s/n`, default seguro |
-| coding (HITL) | `run_command` — shell con `s/n`, timeout y salida truncada |
+| coding (HITL) | `run_command` — shell con HITL graduado por riesgo (`HITL_AUTO=1`), timeout y salida truncada |
 | coding (HITL) | `edit_file` — reemplazo exacto y único (diff quirúrgico) |
 | HITL web | con `HITL_WEB=1` las aprobaciones se responden desde el navegador |
 | juez | `answer_verified` — borrador → juez (verifica citas contra archivos) → refinamiento; `rondas` opcional |

@@ -1081,6 +1081,11 @@ def test_system_prompt_estable_y_trae_entorno():
 def test_run_command_hitl_y_rieles(monkeypatch):
     import modules.coding as coding
 
+    # HITL_AUTO=0 fuerza el camino clásico (todo pregunta), que es lo que
+    # este test ejercita: aprobación, rechazo, timeout y truncado. La
+    # clasificación graduada tiene sus propios tests.
+    monkeypatch.setenv("HITL_AUTO", "0")
+
     # aprobado: ejecuta y reporta exit + salida
     monkeypatch.setattr(coding, "_approve", lambda p: True)
     r = coding.run_command("echo hola-coding")
@@ -1139,6 +1144,186 @@ def test_action_space_suma_coding():
 
     nombres = {t["function"]["name"] for t in TOOLS}
     assert {"run_command", "edit_file"} <= nombres
+
+
+def test_policy_clasifica_los_tres_niveles():
+    from utils.policy import clasificar
+
+    # AUTO: whitelist de solo-lectura
+    for c in ("pytest -q", "python3 -m pytest tests/", "grep -r x .", "ls -la",
+              "cat x.py", "head -5 x", "tail -f x", "wc -l x", "find . -name x",
+              "file x", "echo hola", "git status", "git log --oneline",
+              "git diff", "git show HEAD", "git blame x.py"):
+        assert clasificar(c) == "auto", c
+
+    # PREGUNTAR: lo no reconocido y la negra de un solo s/n
+    for c in ("mkdir nueva", "curl http://x", "rm -f x", "git commit -m x",
+              "git checkout .", "git reset --hard", "pip install x"):
+        assert clasificar(c) == "preguntar", c
+
+    # CONFIRMAR_DOBLE
+    assert clasificar("git push") == "confirmar_doble"
+    assert clasificar("git push origin main") == "confirmar_doble"
+    assert clasificar("") == "preguntar"
+    assert clasificar(None) == "preguntar"
+
+
+def test_policy_reglas_de_composicion():
+    from utils.policy import clasificar
+
+    # compuesto todo-seguro = auto
+    assert clasificar("ls && grep x y") == "auto"
+    assert clasificar("cat a.py | grep def") == "auto"
+    assert clasificar("git status && git diff") == "auto"
+
+    # compuesto mixto = preguntar (basta UN segmento no auto)
+    assert clasificar("ls && rm -f x") == "preguntar"
+    assert clasificar("git status | python3 -c 'print(1)'") == "preguntar"
+    assert clasificar("pytest -q && pip install x") == "preguntar"
+
+    # redirección / sustitución / xargs = preguntar (incluso con whitelist)
+    for c in ("cat x > y", "echo hi > f", "grep x < f", "ls >> log",
+              "ls $(pwd)", "echo `date`", "ls | xargs rm", "cat x | xargs grep y"):
+        assert clasificar(c) == "preguntar", c
+
+    # python3 -c SIEMPRE pregunta (código arbitrario)
+    assert clasificar("python3 -c \"print(1)\"") == "preguntar"
+    assert clasificar("python -c \"print(1)\"") == "preguntar"
+
+    # doble confirmación gana sobre todo lo demás en el compuesto
+    assert clasificar("git push && ls") == "confirmar_doble"
+    assert clasificar("ls && git push") == "confirmar_doble"
+    assert clasificar("git push origin main && rm -rf /") == "confirmar_doble"
+
+
+def test_run_command_auto_no_pide_input(monkeypatch):
+    import modules.coding as coding
+
+    # con HITL_AUTO=1 (default), un comando seguro NO debe llamar a input:
+    # si lo llamara, este monkeypatch explotaría.
+    def explota(prompt):
+        raise AssertionError(f"no debía preguntar: {prompt!r}")
+
+    monkeypatch.delenv("HITL_AUTO", raising=False)
+    monkeypatch.setattr("builtins.input", explota)
+    r = coding.run_command("echo auto-sin-input")
+    assert r.startswith("exit 0") and "auto-sin-input" in r
+
+
+def test_run_command_no_seguro_pide_input(monkeypatch):
+    import modules.coding as coding
+
+    llamados = []
+
+    def falso_input(prompt):
+        llamados.append(prompt)
+        return "s"
+
+    monkeypatch.delenv("HITL_AUTO", raising=False)
+    monkeypatch.setattr("builtins.input", falso_input)
+    r = coding.run_command("echo no-seguro")  # echo SÍ es auto; forzamos no-auto
+    # (echo es auto → para probar el camino 'preguntar' usamos algo no whitelisted)
+    assert llamados == []  # echo se ejecutó auto, sin input
+    assert r.startswith("exit 0")
+
+    # un comando no-seguro SÍ pide (rm... no lo ejecutamos realmente: no está
+    # en whitelist así que pregunta; lo rechazamos para no tocar nada)
+    monkeypatch.setattr("builtins.input", lambda p: (llamados.append(p), "n")[1])
+    r2 = coding.run_command("mkdir no_se_debe_crear")
+    assert llamados and llamados[-1].startswith("¿Ejecutar?")
+    assert r2.startswith("RECHAZADO")
+
+
+def test_run_command_hitl_auto_cero_compatibilidad(monkeypatch):
+    import modules.coding as coding
+
+    # Con HITL_AUTO=0 hasta un comando seguro pregunta (comportamiento de hoy).
+    llamados = []
+    monkeypatch.setenv("HITL_AUTO", "0")
+    monkeypatch.setattr("builtins.input", lambda p: (llamados.append(p), "s")[1])
+    r = coding.run_command("echo compat")
+    assert llamados  # preguntó pese a ser whitelisted
+    assert r.startswith("exit 0") and "compat" in r
+    monkeypatch.delenv("HITL_AUTO", raising=False)
+
+
+def test_run_command_doble_confirmacion_aborta(monkeypatch):
+    import modules.coding as coding
+
+    # git push pide dos s/n; si la segunda es 'n', aborta (sin ejecutar).
+    respuestas = iter(["s", "n"])
+    monkeypatch.delenv("HITL_AUTO", raising=False)
+    monkeypatch.setattr("builtins.input", lambda p: next(respuestas))
+    r = coding.run_command("git push")  # no llega a ejecutar: aborta en la 2ª
+    assert r.startswith("RECHAZADO")
+
+    # si la primera es 'n', también aborta
+    monkeypatch.setattr("builtins.input", lambda p: "n")
+    r = coding.run_command("git push --dry-run")
+    assert r.startswith("RECHAZADO")
+
+
+def _tc(nombre, args):
+    import json
+    return {"id": "call_x", "type": "function",
+            "function": {"name": nombre, "arguments": json.dumps(args)}}
+
+
+def test_hook_py_compile_tras_edit_y_write(tmp_path, monkeypatch):
+    import modules.coding as coding
+    import modules.escritura
+    from utils.fs_tools import run_tool_call
+
+    # run_tool_call real: registra las implementaciones de los módulos (en
+    # el agente lo hace nodes.py; acá lo armamos igual).
+    extra = {**coding.IMPL, **modules.escritura.IMPL}
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.setattr(coding, "_approve", lambda p: True)
+    monkeypatch.setattr(modules.escritura, "_approve", lambda p: True)
+
+    # edit_file de un .py con sintaxis rota: el hook agrega ⚠ SINTAXIS
+    roto = tmp_path / "roto.py"
+    roto.write_text("def f(:\n    pass\n", encoding="utf-8")
+    res = run_tool_call(_tc("edit_file", {
+        "path": str(roto), "old_string": "def f(:", "new_string": "def g(:"}), extra)
+    assert "⚠ SINTAXIS" in res["content"]
+
+    # write_file de un .py roto también
+    res = run_tool_call(_tc("write_file", {
+        "path": str(tmp_path / "nuevo.py"), "content": "x = (\n"}), extra)
+    assert "⚠ SINTAXIS" in res["content"]
+
+    # un .py correcto NO agrega nada
+    res = run_tool_call(_tc("write_file", {
+        "path": str(tmp_path / "bueno.py"), "content": "def ok():\n    return 1\n"}), extra)
+    assert "⚠ SINTAXIS" not in res["content"]
+    assert res["content"].startswith("Escrito")
+
+    # un .txt no dispara py_compile (no aplica)
+    res = run_tool_call(_tc("write_file", {
+        "path": str(tmp_path / "notas.txt"), "content": "esto no es python(\n"}), extra)
+    assert "⚠ SINTAXIS" not in res["content"]
+
+    # edit_file que corrige el .py roto: sin aviso
+    res = run_tool_call(_tc("edit_file", {
+        "path": str(roto), "old_string": "def g(:", "new_string": "def g():"}), extra)
+    assert "⚠ SINTAXIS" not in res["content"]
+
+
+def test_hook_no_rompe_la_ejecucion(tmp_path, monkeypatch):
+    # Un hook que lanza NO rompe el resultado (contrato de hierro).
+    from utils import fs_tools
+
+    def hook_malo(tool_call, resultado):
+        raise ValueError("boom")
+
+    fs_tools.HOOKS_POST.setdefault("read_file", []).append(hook_malo)
+    try:
+        res = fs_tools.run_tool_call(_tc("read_file", {
+            "path": str(tmp_path / "x.txt")}))  # no existe → ERROR
+        assert res["content"].startswith("ERROR")
+    finally:
+        fs_tools.HOOKS_POST["read_file"].remove(hook_malo)
 
 
 def test_contratos_laya_congelados_sha1():

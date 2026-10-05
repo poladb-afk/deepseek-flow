@@ -9,6 +9,7 @@ corrija en la siguiente vuelta; no son fallos transitorios del API.
 import fnmatch
 import json
 import os
+import subprocess
 from pathlib import Path
 
 from utils.call_llm import _setting
@@ -23,6 +24,45 @@ SEARCH_HITS_PER_FILE = 5
 CONTENT_MAX_BYTES = 4 * 1024 * 1024
 # Directorios que el listado salta: miles de entradas irrelevantes para el agente.
 SKIP_DIRS = {".git", "__pycache__", "node_modules"} | {".venv", ".venv-train"}
+
+# Hooks post-tool (mesa 2): {nombre_tool: [fn]}. Cada fn(tool_call_dict,
+# resultado_str) -> str puede ENRIQUECER el resultado antes de que viaje al
+# modelo. Contrato de hierro: un hook NUNCA rompe la ejecución — si lanza,
+# el resultado queda intacto. El patrón que habilita es 'error como
+# feedback': un chequeo barato tras la escritura (p. ej. py_compile)
+# devuelve el problema al modelo para que se autocorrija.
+HOOKS_POST = {}
+
+
+def _hook_py_compile(tool_call, resultado):
+    """Tras edit_file/write_file sobre un .py, corre `python3 -m py_compile`
+    del archivo. Si falla, agrega '⚠ SINTAXIS: <error>' al resultado para
+    que el MODELO lo vea y corrija (habría pescado el clobber de
+    fs_tools.py al instante). Jamás rompe: si py_compile no existe,
+    el archivo no es .py o cualquier cosa falla raro, devuelve intacto."""
+    try:
+        args = json.loads(tool_call["function"].get("arguments") or "{}")
+        path = args.get("path")
+        if not path or not str(path).endswith(".py"):
+            return resultado
+        resolved, err = _resolve(path)
+        if err or not resolved.is_file():
+            return resultado
+        proc = subprocess.run(
+            ["python3", "-m", "py_compile", str(resolved)],
+            capture_output=True, text=True, timeout=15,
+        )
+        if proc.returncode != 0:
+            detalle = (proc.stderr or proc.stdout or "").strip()
+            return resultado + f"\n⚠ SINTAXIS: {detalle}"
+        return resultado
+    except Exception:  # noqa: BLE001  (un hook nunca rompe la ejecución)
+        return resultado
+
+
+# Registro: validation barata tras cada escritura de .py.
+HOOKS_POST["edit_file"] = [_hook_py_compile]
+HOOKS_POST["write_file"] = [_hook_py_compile]
 
 
 def allowed_roots():
@@ -279,7 +319,8 @@ TOOLS = [
 def run_tool_call(tool_call, extra_impls=None):
     """Ejecuta una tool call (la forma dict canónica del historial) y
     devuelve el mensaje role=tool. extra_impls incorpora las
-    implementaciones de los módulos."""
+    implementaciones de los módulos. Tras la ejecución corre los hooks
+    post-tool de HOOKS_POST[tool] para enriquecer el resultado."""
     fn = tool_call["function"]
     impls = {
         "list_files": list_files,
@@ -297,4 +338,13 @@ def run_tool_call(tool_call, extra_impls=None):
             result = str(impl(**args))
         except Exception as e:  # noqa: BLE001  (el error es un hecho, no un crash)
             result = f"ERROR: {type(e).__name__}: {e}"
+
+    # Hooks post-tool: enriquecen el resultado antes de que viaje al modelo
+    # (patrón error-como-feedback). Un hook que lanza no rompe nada.
+    for hook in HOOKS_POST.get(fn["name"], ()):
+        try:
+            result = hook(tool_call, result)
+        except Exception:  # noqa: BLE001
+            pass
+
     return {"role": "tool", "tool_call_id": tool_call["id"], "content": result}

@@ -846,6 +846,60 @@ aprobaciones HITL reales vía driver pty):
 31/31 tests (HITL sí/no, timeout, truncado, y las tres fallas
 ruidosas del edit).
 
+## HITL graduado + hooks (mesa 2, 2026-10-05)
+
+El contrato binario del HITL (todo `run_command` paga un `s/n` — 272 en
+una sola sesión) encuentra su gradación sin aflojar la contención, en dos
+piezas nuevas.
+
+**`utils/policy.py` — clasificador determinista, sin LLM.** Mismo comando
+⇒ misma clasificación, siempre. Tres niveles de fricción:
+
+- **`auto`**: solo-lectura verificado. Whitelist conservadora de prefijos
+  exactos de primeros tokens (`pytest`, `python3 -m pytest`, `grep`, `ls`,
+  `cat`, `head`, `tail`, `wc`, `find`, `file`, `echo` sin redirección,
+  `git status/log/diff/show/blame`). Se ejecuta directo.
+- **`preguntar`**: el flujo de hoy (un `s/n`). **Default de todo lo no
+  reconocido** — la política solo RELAJA lo que reconoce.
+- **`confirmar_doble`**: `git push` y `rm -rf` piden dos `s/n` seguidos.
+
+Reglas de composición (la parte crítica):
+
+- El comando se parte por `&&` y `|`. **Todos** los segmentos deben ser
+  `auto` para que el compuesto sea `auto` — basta uno sospechoso
+  (`ls && rm -rf /`) para que todo pregunte.
+- Cualquier redirección (`>` `<` `>>`), sustitución `$(...)`, backticks o
+  `xargs` degrada a `preguntar`: escriben o ejecutan cosas que no se
+  pueden clasificar por prefijo.
+- `python3 -c` pregunta SIEMPRE: es código arbitrario disfrazado de
+  comando de una línea (aunque hoy lo usemos para repros).
+
+Orden: whitelist primero, negra después, default `preguntar`.
+
+**Integración en `run_command` (`modules/coding.py`).** Con `HITL_AUTO=1`
+(default) se clasifica ANTES del preview: `auto` ejecuta imprimiendo una
+línea visible `── run_command [auto: solo-lectura] ──` + el comando (el
+usuario lo ve igual — transparencia); `preguntar` es el flujo de hoy;
+`confirmar_doble` hace dos `(s/n)` y cualquiera que sea no aborta. Con
+`HITL_AUTO=0` todo vuelve al `s/n` clásico (compatibilidad).
+
+**Hooks post-tool (`utils/fs_tools.run_tool_call`).** Mecanismo genérico
+`HOOKS_POST = {nombre_tool: [fn]}` donde `fn(tool_call_dict, resultado_str)
+-> str` puede enriquecer el resultado antes de que viaje al modelo. Se
+registra UNO: tras `edit_file`/`write_file` sobre un `.py`, corre
+`python3 -m py_compile` (subprocess, timeout 15s) y si falla agrega
+`⚠ SINTAXIS: <error>` al resultado. Es el patrón **error-como-feedback**:
+el modelo ve el problema y se autocorrige en la vuelta siguiente —
+habría pescado el clobber de `fs_tools.py` al instante. Contrato de
+hierro: un hook NUNCA rompe la ejecución (si py_compile no existe, el
+archivo no es `.py`, o cualquier cosa falla raro, el resultado queda
+intacto).
+
+81→88 tests: los tres niveles de `clasificar()`, TODAS las reglas de
+composición, `run_command` con HITL_AUTO=1 seguro sin input (monkeypatch
+que explota si se llama) y no-seguro pidiendo, doble confirmación
+abortando, y el hook tras edit/write de `.py` roto vs. bueno.
+
 ## Candados de contrato y fixes de la auditoría de sesión (2026-10-05)
 
 Auditoría de una sesión real del usuario (revisión de consistencia
