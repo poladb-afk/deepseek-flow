@@ -135,7 +135,9 @@ FastAPI/Gradio.
 ## Menú de desarrollo (registrado 2026-10-05)
 
 Siete mesas más una de UX, decididas al cierre del día. Orden aceptado como
-secuencia oficial: (1) Replay-evals, (2) HITL graduado + hooks, (3) Laya en
+secuencia oficial (matiz del consejo, 2026-10-05: es el orden por
+defecto, no un waterfall — los cortes ligeros y reversibles de otras
+mesas pueden avanzar en paralelo con evidencia propia): (1) Replay-evals, (2) HITL graduado + hooks, (3) Laya en
 el voto del router.
 
 **Mesa 1 — Evals (el harness juzgándose, 12-factor #8):** replay de trazas de
