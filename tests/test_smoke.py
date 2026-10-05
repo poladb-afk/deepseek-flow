@@ -421,3 +421,10 @@ def test_sanitizar_prompt_ajeno():
     assert cortado and limpio == "¡Hola! 👋 Soy tu ag"
     assert sanitizar("respuesta normal sin markers") == ("respuesta normal sin markers", False)
     assert sanitizar("<system>solo basura") == ("", True)
+    # segunda variante medida: tag HTML que parte una palabra
+    texto2 = "¡Hola! 👋\n\nS<small>oy un agente de exploración de archivos.</small> Puedo ayudar."
+    limpio2, cambio2 = sanitizar(texto2)
+    assert cambio2 and limpio2 == "¡Hola! 👋\n\nSoy un agente de exploración de archivos. Puedo ayudar."
+    # el markdown legítimo (negritas, listas) NO se toca
+    ok = "- **Listar** el contenido\n- 📁 `/ruta`\n## título"
+    assert sanitizar(ok) == (ok, False)

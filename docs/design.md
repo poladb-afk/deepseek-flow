@@ -28,6 +28,23 @@ historial + definiciones de tools; si el modelo responde con `tool_calls`,
 la acción `tool` ejecuta y el bucle vuelve a `AgentStep`; si responde con
 texto, la acción `answer` imprime y vuelve a esperar la siguiente pregunta.
 
+## Sanitizado de respuestas descarriladas y thinking selectivo
+
+Tres episodios medidos en producción (2026-10-05, todos en el camino
+directo): un system prompt ajeno pegado al saludo, un `<small>` que
+partía una palabra, una palabra espuria ("¿EnAnswered?"). Dos capas de
+respuesta:
+
+1. **Causa raíz (la más probable)**: `call_llm_agent` desactivaba el
+   thinking SIEMPRE, aunque la llamada fuera sin tools — y la
+   restricción A1 (API rechaza tools+thinking) solo aplica con tools.
+   Sin tools ahora va con thinking normal; verificado en vivo: respuestas
+   limpias en ambos caminos.
+2. **Defensa en profundidad**: `sanitizar()` en `AgentStep.post` corta
+   en markers de rol ajenos (`<system>`, `[INST]`…; si no queda nada,
+   el reintento del nodo re-pregunta) y quita tags HTML espurios que
+   parten palabras (`S<small>oy` → `Soy`), sin tocar markdown legítimo.
+
 ## Sanitizado de respuestas descarriladas
 
 Medido en producción (2026-10-05): una respuesta se cortó a mitad del

@@ -59,16 +59,23 @@ class GetQuestion(Node):
 # Markers de rol que el modelo a veces emite a mitad de respuesta cuando
 # descarrila (medido en producción: un system prompt ajeno de agente
 # genérico apareció pegado al saludo). El chat no debe mostrar ni guardarlos.
-MARKERS_ROL = ("<system>", "<<SYS>>", "<|im_start|>", "<|im_start|>", "[INST]", "<｜System｜>")
+MARKERS_ROL = ("<system>", "<<SYS>>", "<|im_start|>", "[INST]", "<｜System｜>")
+# Tags HTML espurios que parten palabras (S<small>oy) pero dejan el resto
+# utilizable: se quitan y el texto se recompone (segunda medición en prod.)
+TAG_HTML = re.compile(
+    r"</?(?:small|b|i|em|strong|code|pre|div|span|p|br|sub|sup|u|s|mark|h[1-6]|ul|ol|li)\b[^>]*>")
 
 
 def sanitizar(texto):
-    """(contenido_limpio, se_corto): lo que precede al primer marker de rol."""
+    """(contenido_limpio, se_modifico). Dos descarrilos medidos: un marker de
+    rol ajeno (se corta: lo que sigue es basura) y tags HTML que parten
+    palabras (se quitan: el texto sigue siendo la respuesta)."""
     for marca in MARKERS_ROL:
         i = texto.find(marca)
         if i >= 0:
             return texto[:i].rstrip(), True
-    return texto, False
+    limpio = TAG_HTML.sub("", texto)
+    return limpio, limpio != texto
 
 
 class AgentStep(Node):

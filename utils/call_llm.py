@@ -77,15 +77,16 @@ def call_llm(messages):
 
 def call_llm_agent(messages, tools=None):
     """Una vuelta del agente: devuelve el mensaje del asistente
-    (con .tool_calls si pidió herramientas). Thinking desactivado
-    porque la API de DeepSeek rechaza tools con thinking activo
-    (misma razón que bmo, anotación A1)."""
+    (con .tool_calls si pidió herramientas). Thinking desactivado SOLO
+    con tools: la API de DeepSeek los rechaza juntos (A1, como bmo). Sin
+    tools va con thinking normal — el modo disabled no hace falta ahí y
+    medimos descarrilos de decodificación corriendo directo en él
+    (system prompts ajenos, tags que parten palabras: 3 episodios)."""
     kwargs = {"model": _model(), "messages": messages}
     if tools:
         kwargs["tools"] = tools
-    response = _client().chat.completions.create(
-        **kwargs, extra_body={"thinking": {"type": "disabled"}}
-    )
+        kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+    response = _client().chat.completions.create(**kwargs)
     return response.choices[0].message
 
 
