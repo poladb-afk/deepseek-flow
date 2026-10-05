@@ -759,3 +759,44 @@ No aplicado (correctamente diferido por el informe): unificar
 vocabulario de `shared`/actions — 7/9 claves compartidas son benignas,
 los archivos fríos no justifican el refactor (churn medido), y las 2
 colisiones reales (`analisis`, `feedback`) se documentan, no se tocan.
+
+## Sesión integral 2026-10-05 (post-coding agent): 18 turnos, todo verde
+
+Prueba completa por el chat real (driver pty, aprobaciones HITL
+automáticas): 26 llamadas a tools, 16 herramientas distintas, 0 errores.
+Cobertura: tools CORE, coding (write→run→edit→run con verificación de
+doble(4)==8 → triple(4)==12), sql+db_schema, answer_verified con cita
+verificada (`tests/test_smoke.py:613`), debate (async, 2 rondas + juez),
+informe map-reduce async-paralelo, web, RAG (index+search), supervisor
+sub-agente, effective_n, MCP real (servidor `matematica`, 4 tools),
+inglés espejado en el turno 1. La traza nueva con `evento_tool` dejó
+cada llamada nominada en `.runs/`.
+
+Tres hallazgos en vivo:
+
+1. **El falso-directo atacó y el voto lo mató**: "debatí en 2 rondas…"
+   → Laya `directo conf 0.99` (la debilidad conocida del checkpoint con
+   imperativos) → voto 2-de-2 → `herramientas` → el debate corrió. La
+   defensa de mayoría trabajando en producción, no en la sonda.
+2. **El supervisor heredó las coding tools por el lado DeepSeek**: su
+   `catalogo()` deriva del action space dinámico, así que `run_command`
+   fue electable (y electo, con HITL aprobándose DENTRO del sub-agente).
+   La congelación aplica al contrato de Laya (18 opciones), no al
+   catálogo. Decisión implícita que queda documentada acá: se acepta —
+   el self-healing del supervisor (feedback, vetos) y el HITL protegen;
+   re-entrenar el dispatch para sumarlas es costo sin necesidad medida.
+3. **El guard del ZeroDivision se ejercitó solo**: los 3 .jsonl más
+   chicos de .runs tienen 0 registros → `effective_n` con total==0
+   produjo su informe en vez de crashear (el fix de esa mañana,
+   validado sin buscarlo).
+
+Y el modo thinking pegajoso sobrevivió la sesión entera: turnos
+directos intercalados en un historial agéntico pesado, sin un solo 400.
+
+Contraste con el cookbook de PocketFlow (revisado mismo día): cubrimos
+Chat, Structured Output, Workflow, Agent, RAG, Map-Reduce, Multi-Agent,
+Supervisor, Parallel, Thinking (selectivo+pegajoso), MCP (client y
+server), Tracing (nodos+tools+visor), Judge, Debate, Heartbeat, Deep
+Research y Coding Agent. Faltan — y ya estaban en el roadmap:
+streaming, memoria de largo plazo, HITL web, A2A, vision/PDF. Voice,
+descartado.
