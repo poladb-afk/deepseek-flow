@@ -585,3 +585,11 @@ no del disco. Ahora el default de TODAS las salidas es `salidas/` (y
 `salidas/heartbeat/` para las nocturnas), cada escritor crea su
 directorio (la lección del heartbeat), y el .gitignore se simplificó a
 `salidas/` única.
+
+## El CWD en el system prompt
+
+Medido en producción (2026-10-05): "¿en qué carpeta estamos?" se
+respondía con la raíz permitida (el único directorio que el modelo
+conocía) en vez del CWD real. El system prompt ahora declara el
+directorio de trabajo actual del proceso: la pregunta sobre el entorno
+se responde con el dato, sin adivinar ni gastar tools.

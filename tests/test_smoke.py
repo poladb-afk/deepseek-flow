@@ -428,3 +428,12 @@ def test_sanitizar_prompt_ajeno():
     # el markdown legítimo (negritas, listas) NO se toca
     ok = "- **Listar** el contenido\n- 📁 `/ruta`\n## título"
     assert sanitizar(ok) == (ok, False)
+
+
+def test_system_prompt_trae_el_cwd():
+    import main
+
+    prompt = main.system_prompt()
+    assert "Directorio de trabajo actual:" in prompt
+    assert str(main.Path.cwd()) in prompt
+    assert "Directorios permitidos" in prompt

@@ -1,5 +1,6 @@
 import importlib
 import sys
+from pathlib import Path
 
 from flow import create_agent_flow
 from utils.fs_tools import allowed_roots
@@ -9,7 +10,12 @@ WELCOME = "Agente con DeepSeek V4.1 Flash — pregunta sobre tus archivos ('sali
 
 def system_prompt():
     roots = "\n".join(f"- {r}" for r in allowed_roots())
+    # el CWD del proceso: sin esto, "¿en qué carpeta estamos?" se responde
+    # adivinando la raíz permitida (medido en producción)
+    cwd = Path.cwd()
     return f"""Agente de exploración de archivos.
+
+Directorio de trabajo actual: {cwd}
 
 Directorios permitidos:
 {roots}"""
