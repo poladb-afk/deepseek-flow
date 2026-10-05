@@ -180,7 +180,17 @@ crece sin techo, sesión de fixes como evidencia; validar contra el modo thinkin
 pegajoso); telemetría de convergencia (hechos nuevos por ronda: comprar ronda si
 converge, cortar si estanca); agentic RAG como flow dedicado (gap del cookbook);
 loops fractales con presupuesto heredado (depth máx 2).
+- Nuevo de la investigación 2026-10-05: **pre-filtro de contexto** — Laya
+  elige qué notas de memoria/ o chunks de RAG entran al prompt ANTES de
+  pagar tokens (patrón de la wild con ~80% de costo/tiempo reportado);
+  y **¿el trabajo está listo?** — clasificador de convergencia de loops
+  (el judgment kernel del agente mu hace exactamente esto: riesgo de
+  comando, qué queda en contexto, cuándo terminar).
 
+- Nuevo de la investigación 2026-10-05 (patrones de la wild): **exponer
+  Laya vía MCP** como producto del harness (referencia typesafe-mcp /
+  mcp-laya: el juicio tipado y calibrado como tool consumible por
+  cualquier agente MCP — nosotros ya tenemos mcp_server.py).
 **Mesa 7 — Skills y triggers:** skills/ declarativas (paquete prompt+tools+condición
 de disparo, a lo ZCode); webhook autenticado sobre el server del HITL web (el
 harness como servicio, seguridad primero).
