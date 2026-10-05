@@ -82,14 +82,11 @@ correlacionan — la independencia la pone Laya. Siguientes aplicaciones
 cuando duelan: el falso-directo del router (mundial) y las respuestas
 verificables del chat.
 
-## 5. Coding agent — `run_command` con HITL
+## 5. Coding agent — ✅ hecho (2026-10-05)
 
-El único salto de categoría pendiente (patrón advanced del cookbook):
-cerrar el ciclo escribir→**ejecutar**→corregir. read/search/write_file
-ya están; falta ejecutar comandos (tests, git) con aprobación humana y
-contención, y memoria del ciclo. (El coding agent ya está hecho con
-`run_command`/`edit_file`; queda la memoria del ciclo apoyada en la
-biblioteca de memoria de `modules/memoria.py`.)
+`run_command` y `edit_file` con HITL (`modules/coding.py`), verificados en
+vivo (loop write→run→edit→run); la memoria del ciclo vive en la biblioteca
+de `modules/memoria.py`.
 
 ## 6. Streaming + memoria entre sesiones
 
@@ -134,6 +131,62 @@ error ⇒ rechazo (mismo default seguro que el CLI). Falta todavía el
 paso siguiente de la línea: subir el HITL a una arista del grafo
 (`needs_approval` → AskHuman → `approved/rejected`) y migrar el chat a
 FastAPI/Gradio.
+
+## Menú de desarrollo (registrado 2026-10-05)
+
+Siete mesas más una de UX, decididas al cierre del día. Orden aceptado como
+secuencia oficial: (1) Replay-evals, (2) HITL graduado + hooks, (3) Laya en
+el voto del router.
+
+**Mesa 1 — Evals (el harness juzgándose, 12-factor #8):** replay de trazas de
+.runs contra código actual (regresión de comportamiento, no de unidades); bench
+de decisiones del voto (los casos donde corrigió a Laya como dataset
+permanente); costo por sesión (tokens/latencia) como métrica first-class
+derivable de las trazas.
+
+**Mesa 2 — HITL graduado + hooks (12-factor #6):** política de aprobación por
+clasificación (pytest/grep/ls auto; git commit siempre preguntar; git push
+confirmación extra — hoy cada run_command cuesta un s/n, 272 en una sesión);
+hooks pre/post en run_tool_call (py_compile tras edit_file, pytest tras write
+de .py, denylist antes de run_command); residuales pendientes: GET del
+hitl_web sin validar origen, naming _pendido/_pendiente.
+
+**Mesa 3 — Laya en más mecanismos:** el voto del router (mejor ROI: dispara en
+cada directo-met y hoy paga DeepSeek); gate del juez (clasificar ok/retry, juez
+completo solo si duda); presupuesto dinámico de rondas (estimación Laya de
+cuántas rondas necesita el pedido); triaje de memoria (¿esta nota merece
+biblioteca?). Cada candidato cuesta un round de entrenamiento: el filtro es la
+frecuencia de la decisión que reemplaza.
+
+**Mesa 4 — Agentes fractales:** agents/ como modules/ (sub-agentes
+especializados: mini-flows con prompt y subset de tools, expuestos como tools;
+el supervisor ya lo es de facto); debate con tools (debaters que grep/lean/corren
+antes de argumentar — medir win-rate en temas factuales); comité de jueces
+(juez_lote + mayoria() = self-consistency 2-de-3); coding loop como sub-flow
+(plan→edit→test→revert, presupuesto propio).
+
+**Mesa 5 — Async donde falta:** research de BatchNode a AsyncParallelBatchNode
+(mismo patrón medido que juez_lote); comité de debates paralelos (N debates
+sobre sub-preguntas + síntesis); supervisor con sub-tareas independientes (salto
+reactivo→DAG).
+
+**Mesa 6 — Contexto y loops:** compacción de contexto (12-factor #5 — messages
+crece sin techo, sesión de fixes como evidencia; validar contra el modo thinking
+pegajoso); telemetría de convergencia (hechos nuevos por ronda: comprar ronda si
+converge, cortar si estanca); agentic RAG como flow dedicado (gap del cookbook);
+loops fractales con presupuesto heredado (depth máx 2).
+
+**Mesa 7 — Skills y triggers:** skills/ declarativas (paquete prompt+tools+condición
+de disparo, a lo ZCode); webhook autenticado sobre el server del HITL web (el
+harness como servicio, seguridad primero).
+
+**Mesa 8 — UX (incorporada a pedido):** chat web completo (FastAPI/SSE sobre el
+server HITL existente, sesiones en navegador); pulido de terminal (etiqueta
+DeepSeek: en streaming —nit pendiente—, colores por tipo de evento, indicador de
+progreso en rondas largas); HITL UX (diffs con highlight, explicación corta del
+comando antes del s/n, historial de aprobaciones de la sesión); visor --watch
+(tail -f de .runs); arranque con listado de la biblioteca de memoria (mostrar el
+catálogo, SIN inyectar contexto — el arranque vacío es regla).
 
 ## Cola final (considerados, sin fecha)
 
