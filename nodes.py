@@ -186,16 +186,41 @@ PREGUNTA_ROUTER = {
 }
 
 
+PREGUNTA_VOTO = {
+    "confirma_herramientas": {
+        "type": "choice",
+        "instructions": "Second opinion before answering directly — does this request truly require running tools (reading or searching files, web, or executing a capability) — action imperatives almost always do — or is it answerable from knowledge alone?",
+        "criteria": {
+            "herramientas": "needs local files, web data, or running a capability; imperatives of action included",
+            "directo": "pure knowledge, conversation or creativity; nothing to run or look up",
+        },
+    }
+}
+
+
 def voto_confirmacion_router(pregunta):
-    """El segundo voto del router: confirmación barata antes de saltar a
-    DirectAnswer. Medido en producción: el checkpoint dice 'directo' con
-    confianza alta para imperativos de acción ("debatí…", "investigá…",
-    0.78-0.96) y la capacidad se pierde — el voto lo corrige."""
-    from utils.call_llm import call_llm, _setting
+    """El segundo voto del router, en tres niveles (Mesa 3): Laya-voto
+    local decide los acuerdos Y desacuerdos confiables (costo 0, ms);
+    DeepSeek queda como ÁRBITRO de la banda incierta. La independencia de
+    errores es el recurso escaso — si ambos checkpoints fallan juntos el
+    voto es eco, no voto — así que la promoción del voto local pasó por la
+    puerta de correlación del bench (design.md, Mesa 3). Sin
+    LAYA_MODEL_VOTO, el voto de DeepSeek de siempre."""
+    from utils.call_llm import _setting, call_llm
     from utils.estructura import extraer_yaml
+    from utils.laya import disponible, preguntar, veredicto
 
     if _setting("USE_VOTACION", "1") != "1":
         return "directo"  # apagado: la palabra de Laya es final
+    if disponible("LAYA_MODEL_VOTO"):
+        estado = {"pregunta": str(pregunta)[:1000]}
+        resp, conf = preguntar(estado, PREGUNTA_VOTO, setting="LAYA_MODEL_VOTO")["confirma_herramientas"]
+        if resp in ("herramientas", "directo") and veredicto(conf) == "met":
+            # acuerdo confiable (directo→directo, el ahorro) o desacuerdo
+            # confiable (herramientas→lado seguro): DeepSeek no hace falta
+            print(f"  [voto] laya local: {resp} (conf {conf:.2f})")
+            return resp
+        print(f"  [voto] laya local duda ({resp}, conf {conf:.2f}) → arbitra DeepSeek")
     r = extraer_yaml(call_llm(
         f"Pregunta del usuario:\n{pregunta}\n\n"
         "¿Responderla requiere USAR HERRAMIENTAS (leer/buscar archivos, web, "

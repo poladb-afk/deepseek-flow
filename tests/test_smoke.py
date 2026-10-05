@@ -2120,3 +2120,60 @@ def test_stream_agrega_etiqueta_deepseek(monkeypatch, capsys):
     assert accion == "answer"
     salida = capsys.readouterr().out
     assert "DeepSeek: " in salida and "hola" in salida
+
+
+def test_pregunta_voto_congelada_sha1():
+    """El contrato del voto local con el fine-tune router_voto (Mesa 3):
+    cambiar UNA palabra desincroniza entrenamiento y producción."""
+    import hashlib
+    import json
+
+    from nodes import PREGUNTA_VOTO
+
+    canon = hashlib.sha1(
+        json.dumps(PREGUNTA_VOTO, sort_keys=True, ensure_ascii=False).encode()
+    ).hexdigest()
+    assert canon == "df1d1adec848a349d991e4aa334b4d11a4d0b81f"
+
+
+def test_voto_confirmacion_tres_niveles(monkeypatch):
+    """Mesa 3: acuerdo/desacuerdo confiable lo decide Laya local (sin
+    DeepSeek); la banda incierta la arbitra DeepSeek; sin checkpoint,
+    DeepSeek como siempre."""
+    from types import SimpleNamespace
+
+    import nodes
+    import utils.laya as laya_mod
+
+    llamadas = {"ds": 0}
+
+    def ds_fake(prompt):
+        llamadas["ds"] += 1
+        return "```yaml\nveredicto: directo\n```"
+
+    monkeypatch.setattr("utils.call_llm.call_llm", ds_fake)
+
+    def pregunta_con(resp, conf):
+        return lambda estado, preguntas, setting="LAYA_MODEL": {
+            "confirma_herramientas": (resp, conf)}
+
+    # 1) acuerdo confiable: voto local dice directo 0.95 → directo, DeepSeek NUNCA
+    monkeypatch.setattr(laya_mod, "disponible", lambda s: True)
+    monkeypatch.setattr(laya_mod, "preguntar", pregunta_con("directo", 0.95))
+    assert nodes.voto_confirmacion_router("hola, cómo estás?") == "directo"
+    assert llamadas["ds"] == 0
+
+    # 2) desacuerdo confiable: voto local dice herramientas 0.9 → lado seguro, sin DeepSeek
+    monkeypatch.setattr(laya_mod, "preguntar", pregunta_con("herramientas", 0.90))
+    assert nodes.voto_confirmacion_router("debatí si X") == "herramientas"
+    assert llamadas["ds"] == 0
+
+    # 3) banda incierta (0.5): arbitra DeepSeek
+    monkeypatch.setattr(laya_mod, "preguntar", pregunta_con("directo", 0.50))
+    assert nodes.voto_confirmacion_router("caso límite") == "directo"
+    assert llamadas["ds"] == 1
+
+    # 4) sin checkpoint: DeepSeek como siempre
+    monkeypatch.setattr(laya_mod, "disponible", lambda s: False)
+    assert nodes.voto_confirmacion_router("otro caso") == "directo"
+    assert llamadas["ds"] == 2
