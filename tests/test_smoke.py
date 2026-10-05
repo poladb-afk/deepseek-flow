@@ -1001,3 +1001,139 @@ def test_hitl_web_puerto_ocupado_default_seguro(monkeypatch):
     monkeypatch.setattr(hitl, "_servidor", None)  # forzar arranque
     monkeypatch.setenv("HITL_WEB_PORT", "no-es-un-puerto")
     assert hitl.aprobar("¿Escribir?", "algo") is False
+
+
+def test_memory_search_encuentra_y_lista(tmp_path, monkeypatch):
+    """La memoria es una BIBLIOTECA consultable: memory_search encuentra el
+    texto (case-insensitive) con archivo+línea y siempre lista la biblioteca."""
+    import modules.memoria as mem
+
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+    # biblioteca vacía: lo dice y no explota
+    vacio = mem.memory_search("cualquier-cosa")
+    assert "vacía" in vacio
+
+    (tmp_path / "nota_2026-10-05_prueba.md").write_text(
+        "Hallazgo de LaYa\n\nEl router degrada al lado SEGURO.\n", encoding="utf-8")
+    (tmp_path / "sesion_2026-10-05.md").write_text(
+        "Tema: streaming\n\nSe implementó el modo clásico y el stream.\n", encoding="utf-8")
+
+    # búsqueda insensible a mayúsculas + archivo/línea
+    r = mem.memory_search("laya")
+    assert "nota_2026-10-05_prueba.md" in r and "L1" in r
+    # siempre lista la biblioteca completa
+    assert "nota_2026-10-05_prueba.md" in r and "sesion_2026-10-05.md" in r
+
+    # sin query: solo lista
+    solo_lista = mem.memory_search("")
+    assert "Biblioteca" in solo_lista and "L1" not in solo_lista
+
+    # sin coincidencias: lo dice pero igual lista
+    assert "no aparece" in mem.memory_search("inexistente-xyz")
+
+
+def test_memory_save_contiene_el_slug(tmp_path, monkeypatch):
+    """Contención dura: el título genera el slug, no es una ruta. Un título
+    con barra, '..' o solo símbolos se rechaza o se neutraliza."""
+    import modules.memoria as mem
+
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+
+    # el slug neutraliza la barra y los '..': nada sale de memoria/
+    r = mem.memory_save("../../etc/passwd", "contenido malicioso")
+    assert r.startswith("Guardado")
+    destino = Path(r.split("Guardado en ", 1)[1])
+    assert destino.parent == tmp_path.resolve()
+    assert ".." not in destino.name and "/" not in destino.name
+
+    # un título sin caracteres utilizables se rechaza
+    assert mem.memory_save("///", "x").startswith("ERROR")
+    assert mem.memory_save("...", "x").startswith("ERROR")
+
+    # y SOLO escribe dentro de memoria/: ningún archivo fuera de tmp_path
+    fuera = list(tmp_path.parent.glob("passwd*"))
+    assert not fuera
+
+
+def test_memory_save_escribe_con_titulo_primera_linea(tmp_path, monkeypatch):
+    import modules.memoria as mem
+
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+    r = mem.memory_save("Mi hallazgo", "detalle del hallazgo")
+    assert r.startswith("Guardado")
+    destino = Path(r.split("Guardado en ", 1)[1])
+    assert destino.exists() and destino.parent == tmp_path.resolve()
+    assert destino.name.startswith("nota_") and destino.name.endswith("_mi-hallazgo.md")
+    lineas = destino.read_text(encoding="utf-8").splitlines()
+    assert lineas[0] == "Mi hallazgo"  # el título es la primera línea
+    assert "detalle del hallazgo" in destino.read_text(encoding="utf-8")
+
+
+def test_action_space_suma_memoria():
+    from nodes import TOOLS
+
+    nombres = {t["function"]["name"] for t in TOOLS}
+    assert {"memory_search", "memory_save"} <= nombres
+
+
+def test_resumen_de_sesion_escribe_con_llm(tmp_path, monkeypatch):
+    """Al salir, con MEMORIA activo y >=2 preguntas, UNA llamada a call_llm
+    resume y guarda memoria/sesion_FECHA.md. La llamada va fiteada."""
+    import main
+    import utils.call_llm as c
+
+    monkeypatch.setenv("MEMORIA", "1")
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+    llamadas = {"n": 0}
+
+    def llm_fake(prompt):
+        llamadas["n"] += 1
+        assert "Resumí esta conversación" in prompt
+        assert "hola mundo" in prompt and "chau mundo" in prompt  # ve la charla
+        return "Tema: charla\n- Pedidos: hola\n- Resultado: chau"
+
+    monkeypatch.setattr(c, "call_llm", llm_fake, raising=False)
+    shared = {"messages": [
+        {"role": "system", "content": "prompt"},
+        {"role": "user", "content": "hola mundo"},
+        {"role": "assistant", "content": "respuesta uno"},
+        {"role": "user", "content": "chau mundo"},
+        {"role": "assistant", "content": "respuesta dos"},
+    ]}
+    main.resumen_de_sesion(shared)
+    assert llamadas["n"] == 1  # UNA sola llamada
+
+    sesiones = list(tmp_path.glob("sesion_*.md"))
+    assert len(sesiones) == 1
+    assert "Tema: charla" in sesiones[0].read_text(encoding="utf-8")
+
+
+def test_resumen_de_sesion_se_apaga_y_no_rompe(tmp_path, monkeypatch):
+    """MEMORIA=0 no resume; menos de 2 preguntas tampoco; y un fallo del LLM
+    no rompe la salida (bookkeeping)."""
+    import main
+    import utils.call_llm as c
+
+    def no_llamar(prompt):
+        raise AssertionError("no debería llamar al LLM")
+
+    monkeypatch.setattr(c, "call_llm", no_llamar, raising=False)
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+
+    monkeypatch.setenv("MEMORIA", "0")
+    main.resumen_de_sesion({"messages": [
+        {"role": "user", "content": "una"}, {"role": "user", "content": "dos"}]})
+    assert not list(tmp_path.glob("sesion_*.md"))
+
+    monkeypatch.setenv("MEMORIA", "1")
+    main.resumen_de_sesion({"messages": [{"role": "user", "content": "una sola"}]})
+    assert not list(tmp_path.glob("sesion_*.md"))  # <2 preguntas
+
+    # fallo del LLM: se sale igual, sin archivo, sin excepción
+    def explota(prompt):
+        raise RuntimeError("sin saldo")
+
+    monkeypatch.setattr(c, "call_llm", explota, raising=False)
+    main.resumen_de_sesion({"messages": [
+        {"role": "user", "content": "una"}, {"role": "user", "content": "dos"}]})
+    assert not list(tmp_path.glob("sesion_*.md"))

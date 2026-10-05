@@ -87,7 +87,9 @@ verificables del chat.
 El único salto de categoría pendiente (patrón advanced del cookbook):
 cerrar el ciclo escribir→**ejecutar**→corregir. read/search/write_file
 ya están; falta ejecutar comandos (tests, git) con aprobación humana y
-contención, y memoria del ciclo.
+contención, y memoria del ciclo. (El coding agent ya está hecho con
+`run_command`/`edit_file`; queda la memoria del ciclo apoyada en la
+biblioteca de memoria de `modules/memoria.py`.)
 
 ## 6. Streaming + memoria entre sesiones
 
@@ -104,10 +106,20 @@ contención, y memoria del ciclo.
 - **Interrupción del usuario (2026-10-05)**: Ctrl+C durante la generación
   corta el stream y conserva lo parcial (el chat sigue); `CHAT_STREAM_INTERRUPT`
   (default 1) la activa, `0` propaga el Ctrl+C como salida.
-- Memoria: persistir/comprimir `messages` entre sesiones (hoy cada
-  arranque es borrón y cuenta nueva; dentro de la sesión el historial se
-  reenvía completo — costo creciente). (Descartado como prioridad por el
-  usuario; vuelve cuando duela.)
+- **Memoria entre sesiones implementada (2026-10-05)**: como
+  **biblioteca consultable, NO contexto auto-inyectado**. Cada chat arranca
+  con la memoria vacía (nada se inyecta al inicio; el system prompt no se
+  toca) y el agente la consulta por tools cuando el pedido lo justifica.
+  `modules/memoria.py` expone `memory_search` (busca texto en los markdown
+  de `memoria/` y lista la biblioteca; código puro) y `memory_save`
+  (escribe `memoria/nota_FECHA_slug.md` con el título como primera línea:
+  sin HITL —es la libreta del agente— pero con contención dura, solo dentro
+  de `memoria/`, slug del título sin rutas ni `..`). Al salir del chat, con
+  `MEMORIA=1` (default) y ≥2 preguntas, UNA llamada a `call_llm` resume la
+  conversación en `memoria/sesion_FECHA.md` (bookkeeping, sin HITL; si
+  falla, se sale igual). `memoria/` está en `.gitignore`. Descartado por
+  ahora: persistir/comprimir `messages` completo (el historial se reenvía
+  entero dentro de la sesión — costo creciente); vuelve cuando duela.
 
 ## 7. HITL web — ✅ hecho (2026-10-05)
 

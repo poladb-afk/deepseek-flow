@@ -12,7 +12,9 @@ def system_prompt():
     # REGLA de estabilidad: el prefijo debe ser byte-estable durante la
     # sesión para no romper el KV-cache (DeepSeek Harness lo midió: una
     # sección dinámica recalcularía ~99% del contexto por turno). Nada
-    # variable —fecha, hora, contadores— entra jamás acá.
+    # variable —fecha, hora, contadores— entra jamás acá. La memoria entre
+    # sesiones NO se inyecta: es una biblioteca que el agente consulta por
+    # tools cuando el pedido lo justifica.
     roots = "\n".join(f"- {r}" for r in allowed_roots())
     # el CWD del proceso: sin esto, "¿en qué carpeta estamos?" se responde
     # adivinando la raíz permitida (medido en producción)
@@ -43,6 +45,49 @@ SUBCOMANDOS = {
 }
 
 
+def resumen_de_sesion(shared):
+    """Resumen automático al salir (bookkeeping, sin HITL): UNA sola llamada
+    a call_llm comprime la conversación y la guarda como
+    memoria/sesion_FECHA.md. Con MEMORIA=0 no hace nada; con menos de 2
+    preguntas de usuario tampoco. Si la llamada falla, se sale igual sin
+    romper nada (es bookkeeping, no una acción nueva)."""
+    from utils.call_llm import _setting
+
+    if _setting("MEMORIA", "1") != "1":
+        return
+    mensajes = shared.get("messages", [])
+    if sum(1 for m in mensajes if m.get("role") == "user") < 2:
+        return
+    try:
+        from modules.memoria import guardar_resumen_sesion
+        from utils.call_llm import call_llm
+
+        lineas = []
+        for m in mensajes:
+            rol = m.get("role")
+            if rol == "system":
+                continue
+            contenido = m.get("content")
+            if not contenido and m.get("tool_calls"):
+                contenido = "(herramientas) " + ", ".join(
+                    tc["function"]["name"] for tc in m["tool_calls"])
+            if contenido:
+                lineas.append(f"{rol}: {contenido}")
+        transcript = "\n".join(lineas)
+        resumen = call_llm(
+            "Resumí esta conversación entre un usuario y un agente, en español, "
+            "en pocas líneas y para consulta futura. Incluí: el tema en una línea; "
+            "los pedidos del usuario y sus resultados; las decisiones tomadas; los "
+            "hallazgos; y los archivos tocados. No repitas saludos ni el texto crudo.\n\n"
+            f"--- Conversación ---\n{transcript}"
+        )
+        destino = guardar_resumen_sesion(resumen)
+        if destino:
+            print(f"\n[memoria] resumen de sesión guardado en {destino}")
+    except Exception as e:  # noqa: BLE001  (bookkeeping: nunca corta la salida)
+        print(f"\n[memoria] no se pudo guardar el resumen de la sesión ({type(e).__name__})")
+
+
 def main():
     from utils.tracing import activar
 
@@ -60,6 +105,8 @@ def main():
         create_agent_flow().run(shared)
     except KeyboardInterrupt:
         print("\n¡Chao! 👋")
+    finally:
+        resumen_de_sesion(shared)
 
 
 if __name__ == "__main__":

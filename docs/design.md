@@ -594,7 +594,9 @@ resolver el base buscando `model.safetensors`, no por nombre.
 
 - Escribir archivos → herramienta write_file con confirmación humana
   previa (HITL).
-- Memoria entre sesiones → persistir `messages` (cookbook `chat-memory`).
+- Memoria entre sesiones → ✅ hecha como **biblioteca consultable** (ver
+  abajo), NO como contexto inyectado: persistir/comprimir `messages`
+  (cookbook `chat-memory`) quedó descartado por costo creciente.
 - Muchos documentos y preguntas repetidas → indexar offline (RAG).
 - Streaming de respuestas y memoria entre sesiones (persistir/comprimir
   `messages`).
@@ -636,6 +638,35 @@ vistazo), el resumen por nodo (veces, tiempo, %) y la cronología con
 barras de duración proporcionales. Sin args usa el trace con contenido
 más reciente (main.py abre el propio antes de despachar: los vacíos se
 saltan). Determinista: el mismo jsonl da el mismo HTML (test de humo).
+
+### Memoria entre sesiones — la biblioteca consultable
+[modules/memoria.py](../modules/memoria.py) · `memoria/*.md` (ignorada)
+
+Filosofía EXACTA: la memoria es una **biblioteca consultable, NO contexto
+auto-inyectado**. Cada chat arranca con la memoria vacía —nada se inyecta
+al inicio y el system prompt no se toca (sigue byte-estable para el
+KV-cache)— y el agente la consulta solo cuando el pedido lo justifica, vía
+tools. Dos tools, código puro (sin LLM):
+
+- `memory_search(query)`: busca el texto (case-insensitive) dentro de los
+  markdown de `memoria/` y devuelve archivo+línea coincidente, más el
+  listado completo de la biblioteca (con la biblioteca vacía, lo dice).
+- `memory_save(titulo, contenido)`: escribe
+  `memoria/nota_FECHA_slug.md` con el título como primera línea. SIN HITL
+  (es la libreta del agente) pero con contención dura: el nombre sale de
+  un slug del título (ASCII, sin separadores de ruta ni `..`), el destino
+  resuelto DEBE quedar dentro de `memoria/` (doble chequeo) y un título
+  sin caracteres utilizables se rechaza. Devuelve el path escrito.
+
+Resumen automático al salir: `main.py` envuelve la corrida del flujo en
+`try/finally` (cubre el retorno normal y el Ctrl+C del prompt).
+`resumen_de_sesion(shared)` corre en el `finally`; con `MEMORIA=1`
+(default) y al menos 2 preguntas de usuario hace UNA sola llamada a
+`call_llm` que comprime la conversación (tema, pedidos y resultados,
+decisiones, hallazgos, archivos tocados) y la guarda como
+`memoria/sesion_FECHA.md` vía `guardar_resumen_sesion`. Sin HITL (es
+bookkeeping, no una acción nueva) y con el fallo de la llamada contenido:
+se sale igual sin romper nada. `MEMORIA=0` apaga todo.
 
 ## Sesión de prueba completa (2026-10-05): 19 turnos, las 18 capacidades
 

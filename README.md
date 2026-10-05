@@ -76,8 +76,28 @@ costo 0).
 | db | `sql` / `db_schema` — SELECT de solo lectura sobre SQLite |
 | effective_n | `run_effective_n` — deduplicación exacta por contenido (Effective N) |
 | rag | `rag_search` / `rag_index` — búsqueda semántica local (fastembed) |
+| memoria | `memory_search` / `memory_save` — biblioteca consultable entre sesiones |
 | websearch | `search_web` — ddgs sin API key |
 | mcp | `mcp_tools` / `mcp_call` — consume servidores MCP externos |
+
+## Memoria entre sesiones
+
+La memoria es una **biblioteca consultable**, no contexto auto-inyectado.
+Cada chat arranca con la memoria vacía (nada entra al system prompt); el
+agente la consulta por tools solo cuando el pedido lo justifica:
+
+- `memory_search(query)` — busca texto (insensible a mayúsculas) en los
+  markdown de `memoria/` y devuelve archivo+línea, más el listado de la
+  biblioteca. Código puro, sin LLM.
+- `memory_save(titulo, contenido)` — guarda `memoria/nota_FECHA_slug.md`
+  con el título como primera línea. Sin HITL (es la libreta del agente)
+  pero con contención dura: solo escribe dentro de `memoria/`, el nombre
+  sale de un slug del título (sin rutas ni `..`).
+
+Al salir del chat, si `MEMORIA=1` (default) y hubo al menos 2 preguntas,
+**una** llamada a `call_llm` resume la conversación y la guarda como
+`memoria/sesion_FECHA.md` (bookkeeping, sin HITL; si la llamada falla se
+sale igual). `memoria/` no se versiona (está en `.gitignore`).
 
 ## CLI completo
 
@@ -112,6 +132,7 @@ deepseek-flow/
 │                      # piezas standalone (CLI) — los módulos las exponen
 ├── utils/             # call_llm, fs_tools, embeddings, laya, estructura,
 │                      # mcp_client, tracing, viz, websearch
+├── memoria/           # biblioteca entre sesiones (ignorada)
 ├── salidas/           # informes generados por las corridas (ignorada)
 ├── tests/             # smoke tests (pytest)
 └── docs/design.md     # el diseño completo, actualizado

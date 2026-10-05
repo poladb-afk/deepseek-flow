@@ -12,3 +12,6 @@ trazas.db
 salidas/
 .heartbeat/
 informe_jsonl_runs.txt
+
+# memoria entre sesiones: la biblioteca se regenera, no se versiona
+memoria/*.md
