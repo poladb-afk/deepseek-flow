@@ -11,3 +11,4 @@ rag_index/
 trazas.db
 salidas/
 .heartbeat/
+informe_jsonl_runs.txt
