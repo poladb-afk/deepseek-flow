@@ -1356,3 +1356,27 @@ def test_resumen_de_sesion_rutas_visibles(capsys, monkeypatch, tmp_path):
     salida = capsys.readouterr().out
     assert "resumen de sesión guardado" in salida
     assert list(tmp_path.glob("sesion_*.md")), "no escribió el archivo"
+
+
+def test_juez_lote_aisla_fallas(tmp_path, monkeypatch):
+    """Medido en vivo: el verdict inválido persistente de UNA pregunta mató
+    el lote entero y perdió el trabajo de las demás. Ahora el fallo es un
+    hecho del informe, no la muerte del batch."""
+    import juez_lote
+
+    class FlujoFake:
+        def run(self, shared):
+            if "ROMPE" in shared["question"]:
+                raise AssertionError("verdict inválido")
+            shared["draft"] = "respuesta verificada"
+            shared["rounds"] = 1
+
+    monkeypatch.setattr(juez_lote, "create_juez_flow", lambda: FlujoFake())
+    preg = tmp_path / "p.txt"
+    preg.write_text("pregunta buena\npregunta ROMPE ahora\n", encoding="utf-8")
+    salida = tmp_path / "lote.md"
+    resumen = juez_lote.run_juez_lote(preg, salida)
+    texto = salida.read_text(encoding="utf-8")
+    assert "respuesta verificada" in texto  # la buena sobrevive
+    assert "❌ Falló" in texto and "verdict inválido" in texto  # la mala, documentada
+    assert "1 fallidas" in resumen

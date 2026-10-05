@@ -86,7 +86,18 @@ class CorrerJuez(AsyncNode):
             def _correr():
                 shared = {"question": pregunta}
                 t0 = time.perf_counter()
-                create_juez_flow().run(shared)
+                try:
+                    create_juez_flow().run(shared)
+                except Exception as e:  # noqa: BLE001  (medido en vivo: el fallo
+                    # persistente de UNA pregunta —p. ej. verdict inválido tras
+                    # los retries del juez— no puede matar el lote y perder el
+                    # trabajo ya ganado de las demás)
+                    return {
+                        "pregunta": pregunta,
+                        "error": f"{type(e).__name__}: {e}",
+                        "rounds": shared.get("rounds", 0),
+                        "segundos": time.perf_counter() - t0,
+                    }
                 return {
                     "pregunta": pregunta,
                     "respuesta": shared.get("draft"),
@@ -100,7 +111,8 @@ class CorrerJuez(AsyncNode):
     async def post_async(self, shared, prep_res, exec_res):
         exec_res["indice"] = self.params.get("indice", 0)
         shared["resultados"].append(exec_res)
-        print(f"  ✓ P{exec_res['indice'] + 1} ({exec_res['segundos']:.2f}s, "
+        marca = "✗" if exec_res.get("error") else "✓"
+        print(f"  {marca} P{exec_res['indice'] + 1} ({exec_res['segundos']:.2f}s, "
               f"{exec_res['rounds']} rondas)")
 
 
@@ -133,7 +145,19 @@ class JuezLoteFlow(AsyncParallelBatchFlow):
         speedup = (suma / self._seg_par) if self._seg_par > 0 else float("inf")
 
         secciones = []
+        fallidas = 0
         for i, r in enumerate(pasos):
+            if r.get("error"):
+                fallidas += 1
+                secciones.append(f"""## P{i + 1}. {r.get('pregunta', '')}
+
+**❌ Falló** (el juez no la pudo verificar):
+
+> {r['error']}
+
+- Rondas: {r.get('rounds', 0)} · Duración: {r.get('segundos', 0.0):.2f}s
+""")
+                continue
             adv = (
                 f"\n\n> ⚠️  {r['advertencia']}"
                 if r.get("advertencia") else ""
@@ -146,6 +170,8 @@ class JuezLoteFlow(AsyncParallelBatchFlow):
 
 - Rondas: {r.get('rounds', 0)} · Duración: {r.get('segundos', 0.0):.2f}s
 """)
+        aviso_lote = (f"\n\n> ⚠️  {fallidas} de {n} preguntas fallaron y quedaron "
+                      "sin verificar (el resto del lote se conserva)." if fallidas else "")
 
         tabla = "\n".join(
             f"| P{i + 1} | {r.get('rounds', 0)} | {r['segundos']:.2f}s |"
@@ -155,7 +181,7 @@ class JuezLoteFlow(AsyncParallelBatchFlow):
         return f"""# Juez en lote — {date.today().isoformat()}
 
 {date.today().isoformat()} · {n} preguntas verificadas en paralelo
-(AsyncParallelBatchFlow)
+(AsyncParallelBatchFlow){aviso_lote}
 
 ## Medición
 
@@ -190,9 +216,11 @@ lote paralelo. `speedup = suma / pared` (>1 acelera; con una sola pregunta es
         path.write_text(texto, encoding="utf-8")
         resultados = shared.get("resultados", [])
         n = len(resultados)
+        fallidas = sum(1 for r in resultados if r.get("error"))
         suma = sum(r["segundos"] for r in resultados)
         shared["informe"] = str(path.resolve())
-        shared["metricas"] = {"n": n, "seg_secuencial": suma, "seg_paralelo": self._seg_par}
+        shared["metricas"] = {"n": n, "fallidas": fallidas,
+                              "seg_secuencial": suma, "seg_paralelo": self._seg_par}
         print(f"\nInforme: {path.resolve()} ({n} preguntas, "
               f"{suma:.2f}s secuencial → {self._seg_par:.2f}s paralelo)")
         return exec_res
@@ -210,8 +238,9 @@ def run_juez_lote(ruta_preguntas, salida=DEFAULT_SALIDA):
     shared = {"preguntas": preguntas, "resultados": []}
     asyncio.run(create_juez_lote_flow(salida=salida).run_async(shared))
     m = shared["metricas"]
+    detalle = f", {m['fallidas']} fallidas" if m.get("fallidas") else ""
     return (
-        f"Juez en lote: {m['n']} preguntas verificadas en paralelo "
+        f"Juez en lote: {m['n']} preguntas verificadas en paralelo{detalle} "
         f"({m['seg_secuencial']:.2f}s secuencial → {m['seg_paralelo']:.2f}s "
         f"paralelo). Informe: {shared['informe']}"
     )
