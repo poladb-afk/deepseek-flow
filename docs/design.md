@@ -28,6 +28,17 @@ historial + definiciones de tools; si el modelo responde con `tool_calls`,
 la acción `tool` ejecuta y el bucle vuelve a `AgentStep`; si responde con
 texto, la acción `answer` imprime y vuelve a esperar la siguiente pregunta.
 
+## Sanitizado de respuestas descarriladas
+
+Medido en producción (2026-10-05): una respuesta se cortó a mitad del
+saludo y el modelo siguió emitiendo un system prompt AJENO (un "file
+exploration agent" genérico — texto de entrenamiento, no inyección de
+nadie: episodio estocástico de decodificación, no reproducible en 3
+intentos). `AgentStep.post` ahora corta el contenido en el primer marker
+de rol (`<system>`, `[INST]`, `<|im_start|>`…): el chat muestra y el
+historial guarda solo lo que lo precede; si no queda nada, el reintento
+del nodo re-pregunta. Test con el transcript real.
+
 ## Recuperación del canal de tools (DSML como texto)
 
 Medido en producción (2026-10-05): a veces DeepSeek emite las tool calls

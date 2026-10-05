@@ -56,6 +56,21 @@ class GetQuestion(Node):
         return "continue"
 
 
+# Markers de rol que el modelo a veces emite a mitad de respuesta cuando
+# descarrila (medido en producción: un system prompt ajeno de agente
+# genérico apareció pegado al saludo). El chat no debe mostrar ni guardarlos.
+MARKERS_ROL = ("<system>", "<<SYS>>", "<|im_start|>", "<|im_start|>", "[INST]", "<｜System｜>")
+
+
+def sanitizar(texto):
+    """(contenido_limpio, se_corto): lo que precede al primer marker de rol."""
+    for marca in MARKERS_ROL:
+        i = texto.find(marca)
+        if i >= 0:
+            return texto[:i].rstrip(), True
+    return texto, False
+
+
 class AgentStep(Node):
     def prep(self, shared):
         # Al llegar al límite de rondas se retiran las tools: el modelo debe responder ya.
@@ -74,6 +89,14 @@ class AgentStep(Node):
                 # el historial queda canónico: tool_calls, sin el markup crudo
                 exec_res.content = None
                 exec_res.tool_calls = parseados
+        if not getattr(exec_res, "tool_calls", None):
+            contenido, cortado = sanitizar(exec_res.content or "")
+            if cortado:
+                print("  [sanitizado] la respuesta descarriló a un prompt ajeno: cortada")
+                if not contenido:
+                    # no quedó nada utilizable: que el reintento del nodo re-pregunte
+                    raise ValueError("respuesta descarrilada (solo markup de rol)")
+                exec_res.content = contenido
         shared["messages"].append(exec_res)
         if getattr(exec_res, "tool_calls", None):
             return "tool"

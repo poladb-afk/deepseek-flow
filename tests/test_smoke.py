@@ -409,3 +409,15 @@ def test_supervisor_no_ejecuta_llamadas_identicas(tmp_path, monkeypatch):
     assert ejecuciones["n"] == 1
     texto = salida.read_text(encoding="utf-8")
     assert texto.count("42 archivos") >= 2  # el resultado cacheado vuelve a usarse
+
+
+def test_sanitizar_prompt_ajeno():
+    from nodes import sanitizar
+
+    # transcript real (2026-10-05): el saludo se corta y arranca un system
+    # prompt ajeno de "file exploration agent"
+    texto = "¡Hola! 👋 Soy tu ag<system>You are a file exploration agent.\n# Tools\n## `list_directory`"
+    limpio, cortado = sanitizar(texto)
+    assert cortado and limpio == "¡Hola! 👋 Soy tu ag"
+    assert sanitizar("respuesta normal sin markers") == ("respuesta normal sin markers", False)
+    assert sanitizar("<system>solo basura") == ("", True)
