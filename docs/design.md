@@ -138,8 +138,9 @@ forma mínima: el action space del agente **es** el registro de módulos.
 | `mcp` | `mcp_tools()` / `mcp_call(servidor, herramienta, argumentos)` | habla el Model Context Protocol: consume herramientas de servidores MCP externos configurados en `MCP_SERVERS` — el action space deja de ser cerrado |
 | `websearch` | `search_web(consulta, k?)` | búsqueda web con ddgs (DuckDuckGo, sin API key); devuelve título, URL y resumen para citar |
 | `research` | `deep_research(tema, salida?)` | loop de cobertura: planner → researcher (web) → synthesizer; detecta huecos y re-planifica (MAX_ROUNDS=2) |
-| `supervisor` | `run_supervisor(tarea, salida?)` | descompone una tarea compuesta (YAML+assert) y ejecuta cada paso con el action space completo; síntesis final |
+| `supervisor` | `run_supervisor(tarea, salida?)` | bucle reactivo: Laya (Choose local, umbral 0.9) o DeepSeek eligen la herramienta de cada paso; síntesis final |
 | `db` | `sql(consulta)` / `db_schema()` | SELECT de solo lectura sobre la base SQLite de trazas (una sentencia, LIMIT forzado, sin DDL) |
+| `effective_n` | `run_effective_n(carpeta?, glob?, salida?)` | deduplicación exacta por contenido de trazas .jsonl: Effective N, archivos duplicados enteros, solape por pares, contradicciones de etiqueta |
 
 ### Servidor MCP (dirección inversa)
 
@@ -219,15 +220,89 @@ El synthesizer juzga la COBERTURA (no la respuesta): con huecos, vuelve
 al planner con feedback; presupuesto MAX_ROUNDS=2. Web por ddgs,
 structured output en todo (extraer_yaml + assert + retry).
 
-### Supervisor — el action space, planificado
-`main.py supervisor "tarea"` · [supervisor.py](../supervisor.py)
+### Supervisor — bucle reactivo con Choose local
+`main.py supervisor "tarea"` · [supervisor.py](../supervisor.py) · [sonda_supervisor.py](../sonda_supervisor.py)
 
-Planificar (YAML+assert contra el catálogo CON esquemas de args) →
-EjecutarPasos (BatchNode; cada pieza corre con su PROPIO shared — el
-aislamiento lo da cada pieza al construir su estado) → Sintetizar.
-Leyes: MAX_PASOS=5 y **anti-recursión** (run_supervisor no puede
-despacharse a sí mismo — la L1 de bmo). Los errores de un paso son
-datos para la síntesis, no crash.
+```mermaid
+flowchart TD
+    e[ElegirSiguiente] -->|ejecutar| p[EjecutarPaso]
+    p -->|elegir| e
+    e -->|sintetizar| s[Sintetizar]
+    p -->|sintetizar| s
+```
+
+ElegirSiguiente (Laya con la task **supervisor_dispatch**: 18 opciones =
+17 tools + finish; `uncertain` o sin laya → DeepSeek con el catálogo) →
+EjecutarPaso (args por mini-llamada DeepSeek + ejecución + el hecho
+`N herramienta(args) -> resultado` que verá la elección siguiente) →
+repetir hasta finish o MAX_PASOS=5 (L8) → Sintetizar. Antes era una
+tanda: un plan de una vez y los pasos dependientes quedaban fuera; ahora
+el paso N+1 decide con el resultado del N — el Choose de bmo. El estado
+`{tarea, hechos}` y `PREGUNTA_DESPACHO` replican la task byte a byte
+(test de humo vigila las 18 opciones). Anti-recursión (L1): run_supervisor
+no está entre las opciones ni en el fallback. **Self-healing** (ítem 4
+del roadmap): un paso que falla es un hecho con `ERROR (...)`; reintentar
+esa herramienta recibe el error como feedback explícito en el prompt de
+args; a los {MAX_FALLOS_POR_HERRAMIENTA} fallos la herramienta se VETA
+(ni Laya ni DeepSeek pueden elegirla; si DeepSeek desobedece, finish) —
+el reintento tiene presupuesto, no bucle. El éxito limpia el contador.
+El informe final lleva la sección "Pasos": la auditoría de la corrida
+(una línea por paso con su resultado, errores incluidos). Verificado con LLM real en cuatro
+corridas (íntegras en el log de la sesión): (1-2) tareas limpias —
+trazas de bmo/data y localizar MAX_TOOL_ROUNDS — sin fallos duros, con
+recuperación suave (truncado → relectura acotada); (3) archivo
+inexistente: fallo → pivot ordenado (search→list→search) → cierre
+honesto con alternativa; (4) SQL con columna inexistente: fallo →
+reintento con feedback → corrección copiando el nombre exacto del
+esquema ya ejecutado → tarea resuelta. La corrida (4) destapó dos fixes:
+- **Veto de repetición sin-args**: db_schema corrió 4 veces en la primera
+  versión de la tarea (patología medida — el presupuesto se quemaba antes
+  del primer error). Las herramientas sin argumentos que ya corrieron
+  exitosas quedan vetadas en la corrida (L8; `SIN_ARGS`).
+- **Feedback reforzado**: el reintento corregía a ciegas ("programa") en
+  vez de leer el esquema visible en hechos; ahora el prompt exige copiar
+  los nombres EXACTOS de los pasos ejecutados. El umbral de despacho es
+propio y MÁS exigente que el del router (`LAYA_UNSURE_HIGH_SUPERVISOR`,
+0.9): un paso quemado pesa más que la llamada que ahorra. utils/laya
+cachea agentes POR setting: el router y el supervisor son checkpoints
+distintos (`LAYA_MODEL` / `LAYA_MODEL_SUPERVISOR`).
+
+Ciclo de fine-tune medido (test a mano 24, todas las opciones cubiertas):
+
+| checkpoint | crudo | ECE | despachos locales (umbral 0.9) |
+|---|---|---|---|
+| base multilingual | 5/24 | 0.574 | — |
+| supervisor_dispatch r1 | 8/24 | 0.353 | (menú truncado) |
+| supervisor_dispatch r2 (60/opción) | 11/24 | 0.222 | 1/24 · 1/1 |
+| supervisor_dispatch r3 (164/opción, hechos 100% del menú) | 15/24 | 0.293 | 13/24 · 9/13 |
+| **r4 (+round dirigido a los pares confusos, 3.283 casos)** | 14/24 | 0.238 | **8/24 · 8/8 correctos** |
+
+Hallazgos del ciclo (todos documentados en el LEEME de
+bmo/train/kaggle-supervisor): (1) **el head se trunca en silencio** —
+instructions + 18 criteria ≈ 278 tokens > head_max_len 256: las últimas
+opciones nunca se veían; criteria cortos → 231 tokens y +3 de acierto;
+(2) **el 87% del dataset entrenó con hechos de herramientas inventadas**
+(grep, ls, python...) porque el prompt no restringía los nombres — el
+filtro exacto (`train/filtrar_hechos.py`) rescató 138/1.094; el prompt
+corregido exige nombres del menú y 1/3 de primer paso (train viejo 12%
+vs test 54%); (3) la dosis por opción manda: router 410/opción → 20/24,
+harness_choose 330 → 23/24, esto 60 → 11/24; (4) la generación del
+round a escala (n=216) murió con HTTP 402 (saldo DeepSeek agotado) tras
+399 casos casi todos primer-paso — inservibles. El checkpoint v2 está
+el round a escala se corrió tras recargar saldo: 2.946 casos (89-215 por
+opción, hechos 100% del menú real) → 15/24 con 13 despachos locales de
+los cuales 9 correctos. Tercera corrección del ciclo: el propio filtro
+de hechos tenía un bug (findall con dos grupos → tuplas → rechazaba
+todo); medición real del dataset viejo: 33% válido, y el prompt
+corregido da 100%. Umbral 0.9 mantenido con números. El round dirigido a los pares
+confusos (+560 verificados con generate_targeted, reescrito genérico)
+curó lo que quedaba: r4 despacha MENOS (8/24) pero 8/8 correctos — el
+modelo aprendió a dudar donde antes estaba seguro y equivocado. El
+acierto crudo se estanca en ~14-15/24 (el matiz de los pares
+search_web/deep_research, informe/auditoria, sql/db_schema es en parte
+convención, no hecho); la calibración es lo que el sistema necesita:
+todo lo que Laya despacha local es correcto, el resto lo decide DeepSeek.
+Techo asumido: más rounds de datos no mueven el crudo.
 
 ### Base de datos — trazas interrogables
 `python3 carga_trazas.py [carpeta]` → `trazas.db` · [modules/db.py](../modules/db.py)
@@ -236,25 +311,121 @@ Carga código-pura verificable (15.595 registros, cruza con los conteos
 del informe); la tool `sql` es SELECT de una sola sentencia con LIMIT
 forzado y vocabulario prohibido (insert/update/delete/...).
 
-### Laya — ifs inteligentes (tras flag)
-`USE_LAYA_ROUTER=1` · [utils/laya.py](../utils/laya.py) · nodos LayaRouter/DirectAnswer
+### Effective N — deduplicación exacta antes de entrenar
+`main.py effective_n [carpeta]` · [effective_n.py](../effective_n.py)
+
+```mermaid
+flowchart LR
+    s[ScanFiles] --> h["HashFile (BatchNode)"] --> w[WriteReport]
+```
+
+El informe cuenta registros por archivo; esta pieza responde la pregunta
+previa al re-entrenamiento: cuántos son **distintos de verdad**. Código
+puro (como carga_trazas), sin LLM: la huella de contenido es sha1 de
+`(task, observation, criteria, steps, answers.next)` — ignora
+`id`/`created`/`model`, que cambian entre volcados del mismo caso. El mapa
+hashea archivo por archivo; el reduce cruza pares, detecta archivos
+duplicados enteros (md5), contradicciones de etiqueta (misma huella sin
+`next`, etiquetas distintas) y escribe el markdown.
+
+| shared | Contenido |
+|---|---|
+| `folder`, `glob`, `salida` | configuración sembrada por main |
+| `files` | rutas encontradas (ScanFiles) |
+| `analisis` | por archivo: n, rotos, huellas, etiquetas, con steps/observation, dist next, md5 |
+| `informe`, `resumen` | ruta del markdown y línea "N → Effective N" (WriteReport) |
+
+Hallazgos medidos sobre `bmo/data` (12 archivos, 15.595 registros):
+
+1. **Effective N = 6.717** (56,9% de duplicación), **0 contradicciones de
+   etiqueta** — la duplicación es repetición, no ruido de etiquetas.
+2. `round3/harness_choose.jsonl` ≡ `round3/harness_choose_verified.jsonl`
+   **byte a byte (md5 idéntico)**: la verificación de round3 no filtró
+   nada — el volcado copió choose→verified sin pasar por el juez.
+3. round3 es **acumulativo**: contiene 2.316 de los 2.591 de round2
+   (89,6%). Sumar round2+round3 casi no suma datos (aporta 275 casos).
+4. **Rounds sin `steps`**: round1-3 traen `observation` (0 registros con
+   `steps`); producción (decisions.jsonl del sandbox: 121/151) y la raíz
+   verified (1.097/1.109) usan `steps`. Esquema de estado distinto: si se
+   re-entrena con rounds, el modelo no ve el campo que domina en producción.
+5. `relabelled` vacío (0 bytes) en raíz y round1: el volcado lo crea y
+   nunca lo llena. La raíz `rejected` mezcla dos esquemas (60 con steps +
+   354 con observation).
+6. Subconjunto entrenable máximo no redundante:
+   `raiz_verified + round1_verified + round3` = **6.141 casos** (los tres
+   bloques son disjuntos por contenido entre sí).
+
+Decisión sobre el pipeline de rounds (el ítem 1 del roadmap): el volcado
+de rounds no está versionado en bmo (ningún script del repo escribe
+`*_verified`/`*_relabelled`) y dejó tres defectos: verificación saltada
+(round3), esquema sin `steps`, relabelled nunca poblado. Corrección:
+regenerar los rounds con el generador versionado (`train/generate_targeted.py`,
+que emite `steps` vía schema) o versionar el generador de observaciones;
+hasta entonces, entrenar solo con el subconjunto del punto 6 y tratar
+`round3/verified` como choose.
+
+### Laya — el router del chat, afinado (activo por defecto)
+[utils/laya.py](../utils/laya.py) · nodos LayaRouter/DirectAnswer · [sonda_router.py](../sonda_router.py)
 
 Laya responde preguntas cerradas en local (carga ~12 s, inferencia ~0 s,
 costo 0) con probabilidades; los umbrales de bmo (0.7/0.3) convierten la
 confianza en met/uncertain/not met, y uncertain cae al lado SEGURO
-(herramientas). Sonda empírica (5 casos): 3/5 crudo, **4/5 con la
-compuerta** — el punto débil es "hechos actuales" (mundial → directo con
-0.85). Mejora real: fine-tunear laya con ejemplos de routing (la stack de
-bmo sirve); hasta entonces `USE_LAYA_ROUTER` default 0.
+(herramientas). El checkpoint es el fine-tune **router_flow** (bmo,
+`train/kaggle-router/`): la task replica byte a byte `PREGUNTA_ROUTER` y
+el estado `{"pregunta": ...}` es el mismo dict que produce
+`Task.state` — el contrato entrenamiento≡producción que las rondas 4 de
+harness_choose enseñaron por las malas (estado distinto → 14/24).
+
+Pipeline (la stack de bmo tal cual): task YAML + 12 contextos de tráfico
+→ generate con DeepSeek (json_object; 840 casos balanceados, únicos) →
+verify con juez ciego (821/840 conservados) → Kaggle T4 (`layaft train`,
+RLCD + calibración, 656 secuencias, median 93 tokens) → checkpoint
+`.modelos/router_flow-1k` → medición local en CPU.
+
+Medido sobre el test a mano de 24 (12/12, jamás entrenado; los 5 primeros
+son la sonda histórica):
+
+| checkpoint | crudo | ECE | con compuerta |
+|---|---|---|---|
+| base multilingual | 13/24 | 0.379 | 12/24 |
+| **router_flow-1k** | **20/24** | **0.077** | **22/24** |
+
+El fallo del base era sistemático: sesgo a `directo` con confianza ALTA
+(mundial 0.95, cómputo 0.97, clima 0.97, README 0.84) — la compuerta no
+protegía porque los errores eran seguros de sí (de 12 casos-herramientas
+acertaba 2). Tras el fine-tune la compuerta vuelve a servir: los errores
+crudos quedan en confianzas bajas (clima 0.68, README 0.51, tests 0.57)
+y caen al lado seguro. Los 2 fallos restantes: "¿quién ganó el último
+mundial?" (directo 0.83, pasa la compuerta — el punto débil histórico
+persiste en su forma española neutra) y el muro de Berlín (directo
+correcto pero 0.63 < 0.7 → herramientas; sobre-cautela barata: cuesta
+una llamada más, no una respuesta mal fundada).
+
+`sonda_router.py` corre el test con la lógica EXACTA de producción
+(`python3 sonda_router.py [ckpt ...]`, sin args usa `LAYA_MODEL`).
+Verificado el flujo COMPLETO del chat contra LLM real (2026-10-05):
+camino directo dos vueltas seguidas y camino herramientas con tool_calls
+reales. La primera pasada destapó un bug de cableado latente desde el
+flag-0: `DirectAnswer >> ask` armaba la arista default pero el post
+heredado devuelve "answer" — el chat MORÍA tras la primera respuesta
+directa (PocketFlow: "Flow ends: 'answer' not found"). Fix: aristas
+`answer`/`tool` explícitas (test_router_aristas_del_chat lo vigila).
 
 Hallazgos medidos: (1) el downloader de huggingface_hub cuelga en este
 entorno aunque el CDN dé 32 MB/s — el checkpoint base se bajó con curl a
 `.modelos/laya-multilingual` y `LAYA_MODEL` apunta ahí; (2) con path
 local hay que setear `HF_HUB_OFFLINE` ANTES de `import laya`
 (huggingface_hub lee las variables al importarse); (3) el fine-tune de
-bmo responde casi al azar (0.52/0.48) fuera de su distribución; (4) la
-confianza útil es `answer_confidence`, no `confidence`; (5) el lock de
-inferencia debe ser RLock (preguntar → agente re-entra).
+bmo (harness_choose) responde casi al azar (0.52/0.48) fuera de su
+distribución — cada fine-tune sirve a SU pregunta; (4) la confianza útil
+es `answer_confidence`, no `confidence`; (5) el lock de inferencia debe
+ser RLock (preguntar → agente re-entra); (6) el generador de datos
+escribe por combo y ~30% de los casos venían con etiqueta que no
+ejemplificaban — la regla "the labeled answer must be the only
+defensible one" en el prompt de la task + verify lo dejaron en 2,3%
+(19/840); (7) los kernels de Kaggle montan los datasets en
+`/kaggle/input/datasets/<owner>/<slug>`, no en `/kaggle/input/<slug>`:
+resolver el base buscando `model.safetensors`, no por nombre.
 
 ## Cómo crecer desde aquí
 
@@ -264,11 +435,28 @@ inferencia debe ser RLock (preguntar → agente re-entra).
 - Muchos documentos y preguntas repetidas → indexar offline (RAG).
 - Streaming de respuestas y memoria entre sesiones (persistir/comprimir
   `messages`).
-- Fine-tunear laya con ejemplos de routing (4/5 con compuerta hoy) y
-  usarlo como Choose del supervisor (despacho local de pasos).
+- Choose del supervisor a escala: recargar saldo DeepSeek, generar
+  ~2.400 casos con hechos del menú real (prompt ya corregido), verify
+  y un run más — la dosis por opción es la palanca que falta (60 → 120+).
+- Datar el punto débil restante del router (mundial): un round dirigido
+  de "hechos actuales" con `generate_targeted` (arreglar su
+  `contexts_path` roto primero).
 - La aprobación HITL vive hoy dentro del tool (`input()`); si el chat
   migra a web (FastAPI/Gradio), subirla a una arista del grafo
   (`needs_approval` → AskHuman → `approved/rejected`).
 - Self-healing batch (pasos fallidos re-encolados con feedback) y
   heartbeat (piezas corriendo solas de noche).
 - Un visor del trace (.runs/*.jsonl ya registra nodo/acción/duración).
+
+### Heartbeat — las piezas de noche
+`python3 main.py heartbeat [--ahora|--seco]` · [heartbeat.py](../heartbeat.py) · [heartbeat.jsonl](../heartbeat.jsonl)
+
+Pieza standalone: lee las tareas de `heartbeat.jsonl` (tarea + salida +
+`cada_horas`), corre las vencidas con el supervisor reactivo completo y
+deja informe + estado (`.heartbeat/estado.json`) + log de auditoría
+(`.heartbeat/log.jsonl`). El reloj lo pone el cron del sistema
+(la línea sugerida vive en el docstring); la pieza solo decide qué toca —
+sin tareas vencidas no gasta una llamada. `--ahora` fuerza (para probar),
+`--seco` lista. Leyes: cada tarea es un supervisor entero (MAX_PASOS=5,
+veto tras dos fallos) y MAX_TAREAS_POR_CORRIDA=10. Crea el directorio de
+salida (lección de la primera corrida: Sintetizar escribe directo).

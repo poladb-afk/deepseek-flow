@@ -34,6 +34,7 @@ FLOWS = {
     "auditoria": lambda: __import__("auditoria").create_auditoria_flow(),
     "research": lambda: __import__("research").create_research_flow(),
     "supervisor": lambda: __import__("supervisor").create_supervisor_flow(),
+    "effective_n": lambda: __import__("effective_n").create_effective_n_flow(),
 }
 
 

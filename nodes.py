@@ -81,10 +81,14 @@ class LayaRouter(Node):
     """If inteligente: Laya (local, ms) decide si la pregunta necesita
     herramientas o se responde directa. La confianza aplica los umbrales
     de bmo; 'uncertain' cae al lado SEGURO (herramientas). Si laya no está
-    disponible, también cae a herramientas: degrada, no rompe."""
+    disponible, también cae a herramientas: degrada, no rompe.
+
+    El estado {"pregunta": ...} y PREGUNTA_ROUTER son el contrato del
+    fine-tune (task router_flow de bmo): entrenamiento y producción leen
+    lo mismo byte a byte."""
 
     def prep(self, shared):
-        return str(shared["messages"][-1]["content"])[:1000]
+        return {"pregunta": str(shared["messages"][-1]["content"])[:1000]}
 
     def exec(self, estado):
         from utils.laya import disponible, preguntar

@@ -24,6 +24,8 @@ SUBCOMANDOS = {
     "mcp-server": "mcp_server",
     "research": "research",
     "supervisor": "supervisor",
+    "effective_n": "effective_n",
+    "heartbeat": "heartbeat",
     "grafo": "utils.viz",
 }
 

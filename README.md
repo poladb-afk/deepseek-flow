@@ -39,7 +39,7 @@ python3 main.py             # el chat
 
 Sin `.env`, el agente opera sobre el directorio actual (portable por defecto).
 
-## Capacidades (17, al día de hoy)
+## Capacidades (18, al día de hoy)
 
 | Origen | Herramientas |
 |---|---|
@@ -50,8 +50,9 @@ Sin `.env`, el agente opera sobre el directorio actual (portable por defecto).
 | auditoria | `run_auditoria` — BatchFlow multi-carpeta + síntesis comparativa |
 | research | `deep_research` — web + loop de cobertura |
 | debate | `debate` — proponente vs crítico por colas + juez |
-| supervisor | `run_supervisor` — descompone una tarea y ejecuta piezas |
+| supervisor | `run_supervisor` — bucle reactivo: Laya elige la herramienta de cada paso |
 | db | `sql` / `db_schema` — SELECT de solo lectura sobre SQLite |
+| effective_n | `run_effective_n` — deduplicación exacta por contenido (Effective N) |
 | rag | `rag_search` / `rag_index` — búsqueda semántica local (fastembed) |
 | websearch | `search_web` — ddgs sin API key |
 | mcp | `mcp_tools` / `mcp_call` — consume servidores MCP externos |
@@ -66,8 +67,11 @@ python3 main.py auditoria c1 c2          # multi-carpeta comparativa
 python3 main.py research "tema"          # investigación web con loop
 python3 main.py debate "tema" [--rondas] # debate multi-agente
 python3 main.py supervisor "tarea"       # orquestación de piezas
+python3 main.py effective_n [carpeta]   # deduplicación exacta (Effective N)
+python3 main.py heartbeat [--ahora]    # piezas programadas (cron nocturno)
 python3 main.py index [carpeta]          # indexar para RAG
 python3 main.py carga_trazas.py          # (script aparte) jsonl → SQLite
+python3 sonda_router.py [ckpt]        # (script aparte) router con compuerta
 python3 main.py mcp-server               # exponer capacidades vía MCP
 python3 main.py grafo [flujo]            # exportar los grafos a mermaid
 ```
@@ -81,7 +85,7 @@ deepseek-flow/
 ├── main.py            # entry point + subcomandos
 ├── nodes.py / flow.py # el CORE: bucle del agente
 ├── modules/           # capacidades del chat (TOOLS + IMPL por archivo)
-├── informe|juez|auditoria|research|supervisor|debate|rag|mcp_server|carga_trazas.py
+├── informe|juez|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|heartbeat|carga_trazas.py
 │                      # piezas standalone (CLI) — los módulos las exponen
 ├── utils/             # call_llm, fs_tools, embeddings, laya, estructura,
 │                      # mcp_client, tracing, viz, websearch

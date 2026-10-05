@@ -1,9 +1,10 @@
 """Módulo `supervisor`: orquestación de piezas como capacidad del chat.
 
-Corre el flujo Planificar→EjecutarPasos→Sintetizar (el mismo action space,
-planificado) y devuelve la síntesis con la ruta del informe."""
-from supervisor import supervisar
-
+Corre el bucle reactivo ElegirSiguiente→EjecutarPaso→Sintetizar (Laya
+elige la herramienta de cada paso; el mismo action space) y devuelve la
+síntesis con la ruta del informe. El import es perezoso: el top-level
+`supervisor` corre discover() al cargarse y un import mutuo colgaría
+el registro de módulos."""
 TOOLS = [
     {
         "type": "function",
@@ -24,6 +25,8 @@ TOOLS = [
 
 
 def run_supervisor(tarea, salida="supervisor.md"):
+    from supervisor import supervisar
+
     ruta = supervisar(tarea, salida)
     return f"Síntesis del supervisor escrita: {ruta}. Lee el archivo con read_file."
 

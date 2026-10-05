@@ -1,10 +1,10 @@
 """Laya: juicios cerrados locales con probabilidades — los "ifs inteligentes".
 
-Carga perezosa del checkpoint (LAYA_MODEL). Default: el checkpoint BASE
-multilingual de laya — el fine-tune de bmo (train/runs-kaggle) está
-especializado en su Choose y responde casi al azar a preguntas de routing
-fuera de distribución (medido: 0.52/0.48), así que NO es buen default
-aquí; puedes apuntarlo con LAYA_MODEL si algún día afinas para esto.
+Carga perezosa del checkpoint (LAYA_MODEL). Para el router del chat, el
+checkpoint es el fine-tune router_flow (bmo/train/kaggle-router): 22/24
+con compuerta contra 12/24 del base multilingual (medido, design.md).
+Sin LAYA_MODEL, el default es el BASE multilingual — útil como fallback
+genérico, pero el router afinado se trae de bmo.
 
 Detalles medidos:
 - laya.load con path LOCAL igual consulta HF Hub y puede colgar en red:
@@ -20,20 +20,22 @@ from pathlib import Path
 from utils.call_llm import _setting
 
 _lock = threading.RLock()  # reentrante: preguntar() lockea y llama a agente(), que lockea de nuevo
-_agente = None
+_agentes = {}  # setting → agente (router y supervisor cargan checkpoints distintos)
 _error = None
 
 DEFAULT_MODEL = "convaiinnovations/laya-multilingual"
 
 
-def agente():
-    global _agente, _error
-    if _agente is None and _error is None:
+def agente(setting="LAYA_MODEL"):
+    """El agente del checkpoint que ese setting nombra (caché por setting:
+    el router del chat y el Choose del supervisor no son el mismo modelo)."""
+    global _error
+    clave = _setting(setting, DEFAULT_MODEL)
+    if clave not in _agentes and _error is None:
         with _lock:
-            if _agente is None and _error is None:
+            if clave not in _agentes and _error is None:
                 try:
-                    modelo = _setting("LAYA_MODEL", DEFAULT_MODEL)
-                    if Path(modelo).exists():
+                    if Path(clave).exists():
                         # ANTES de importar laya: huggingface_hub lee estas
                         # variables al importarse, y con path local igual
                         # consulta el Hub (y puede colgar en red).
@@ -41,17 +43,17 @@ def agente():
                         os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
                     import laya
 
-                    _agente = laya.load(modelo)
+                    _agentes[clave] = laya.load(clave)
                 except Exception as e:  # sin modelo local: degradar, no romper
                     _error = f"{type(e).__name__}: {e}"
-    if _error:
+    if _error and clave not in _agentes:
         raise RuntimeError(f"laya no disponible: {_error}")
-    return _agente
+    return _agentes[clave]
 
 
-def disponible():
+def disponible(setting="LAYA_MODEL"):
     try:
-        agente()
+        agente(setting)
         return True
     except RuntimeError:
         return False
@@ -65,19 +67,24 @@ def _confianza(respuesta):
     return respuesta.get("confidence", 0.0)
 
 
-def preguntar(estado, preguntas):
-    """Una pasada local. Devuelve {id: (respuesta, confianza)}."""
+def preguntar(estado, preguntas, setting="LAYA_MODEL"):
+    """Una pasada local. Devuelve {id: (respuesta, confianza)}.
+
+    `estado` puede ser str, dict o lista (laya serializa el dict a JSON:
+    el contrato de los fine-tunes es {"pregunta": ...} / {"tarea", "hechos"}).
+    `setting` elige el checkpoint: LAYA_MODEL (router) o
+    LAYA_MODEL_SUPERVISOR (Choose del supervisor)."""
     with _lock:
-        resultado = agente().system_one(str(estado), preguntas, lang="es")
+        resultado = agente(setting).system_one(estado, preguntas, lang="es")
     return {
         pid: (r.get("choice", r.get("answer")), _confianza(r))
         for pid, r in resultado["answers"].items()
     }
 
 
-def veredicto(confianza):
-    alto = float(_setting("LAYA_UNSURE_HIGH", "0.7"))
-    bajo = float(_setting("LAYA_UNSURE_LOW", "0.3"))
+def veredicto(confianza, alto=None, bajo=None):
+    alto = float(alto if alto is not None else _setting("LAYA_UNSURE_HIGH", "0.7"))
+    bajo = float(bajo if bajo is not None else _setting("LAYA_UNSURE_LOW", "0.3"))
     if confianza >= alto:
         return "met"
     if confianza <= bajo:

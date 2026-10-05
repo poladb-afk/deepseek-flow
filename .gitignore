@@ -14,3 +14,6 @@ auditoria.md
 research.md
 supervisor.md
 supervisor_*.md
+.heartbeat/
+effective_n*.md
+heartbeat/

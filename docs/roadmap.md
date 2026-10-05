@@ -3,29 +3,54 @@
 Priorizado por valor/costo, decidido al cierre de la etapa 2026-10-04.
 Cada ítem indica qué pieza lo apoya y qué falta.
 
-## 1. Datos: Effective N y `pasos` en los rounds
+## 1. Datos: Effective N y `pasos` en los rounds — ✅ hecho (2026-10-04)
 
-**El hallazgo pendiente de explotar.** La auditoría y la BD mostraron:
-- round3 tiene 4.825 trazas pero posible duplicación con `verified`
-  (distribuciones idénticas) — falta medir el **Effective N** real
-  (deduplicación por contenido).
-- Los rounds 1-3 **no traen `steps`** (0 registros con pasos; la raíz sí:
-  2.314/2.764) — si se re-entrena Laya con rounds, la distribución no
-  incluye el campo `steps` que el estado de Choose usa en producción.
-- Los `relabelled` están vacíos (fallo de volcado del pipeline).
+Pieza `effective_n.py` (código puro, informe markdown) + módulo
+`run_effective_n`. Los hallazgos, medidos y en design.md:
 
-Acción: pieza `effective_n.py` (deduplicación exacta en código +
-informe) + decidir la corrección del pipeline de rounds. Apoya la
-decisión de re-entrenar que el debate dejó condicionada.
+- **Effective N = 6.717 de 15.595** (56,9% duplicación), 0 contradicciones
+  de etiqueta. La "duplicación round3↔verified" era exacta:
+  `round3/harness_choose_verified.jsonl` es **copia byte a byte** del
+  choose (la verificación no filtró nada).
+- round3 es acumulativo (contiene el 89,6% de round2): round2 aporta solo
+  275 casos nuevos. Subconjunto entrenable máximo: raíz_verified +
+  round1_verified + round3 = **6.141**.
+- Rounds 1-3 sin `steps` (usan `observation`); producción y raíz usan
+  `steps`. `relabelled` vacío por volcado nunca poblado.
 
-## 2. Fine-tune de Laya para routing
+Decisión tomada: el volcado de rounds no está versionado y dejó los tres
+defectos; antes de re-entrenar hay que regenerar los rounds con el
+generador versionado de bmo (`train/generate_targeted.py`, que emite
+`steps`). Entretanto: entrenar con el subconjunto de 6.141 y tratar
+round3/verified como choose. El fine-tune (ítem 2) sigue condicionado a
+esa regeneración.
 
-El router funciona (4/5 con compuerta de confianza) pero su punto débil
-es "hechos actuales". La mejora real no es más prompt-tuning (random walk
-medido) sino fine-tunear el checkpoint multilingual con ejemplos de
-routing — la stack de entrenamiento de bmo sirve tal cual. Al terminar:
-activar `USE_LAYA_ROUTER=1` por defecto y promover Laya a **Choose del
-supervisor** (despacho local de pasos).
+## 2. Fine-tune de Laya para routing — ✅ hecho (2026-10-04)
+
+Hecho, con la stack de bmo tal cual (task `router_flow` en
+`bmo/train/kaggle-router/`): 840 casos generados con DeepSeek sobre 12
+contextos de tráfico → juez ciego (821 verificados) → Kaggle T4 →
+checkpoint `.modelos/router_flow-1k`.
+
+| checkpoint | crudo | ECE | con compuerta |
+|---|---|---|---|
+| base multilingual | 13/24 | 0.379 | 12/24 |
+| router_flow-1k | 20/24 | 0.077 | **22/24** |
+
+`USE_LAYA_ROUTER=1` es ahora el default (flow.py). El supervisor pasó a
+bucle reactivo con Choose local (task supervisor_dispatch, 18 opciones):
+r1 8/24 → r2 **11/24 · ECE 0.222** (hallazgos: head truncado a 256 tokens,
+87% del dataset con hechos de herramientas inventadas, dosis 60/opción);
+r3 (15/24, 13 despachos 9 correctos) y round dirigido r4 sobre los
+pares confusos (3.283 casos): **14/24 crudo con 8/8 despachos locales
+correctos** — integrado y activo. El crudo tiene techo (~15) porque parte
+del matiz es convención; la calibración quedó perfecta para el sistema:
+lo que despacha local no falla. El contrato
+entrenamiento≡producción (pregunta y estado byte a byte) es el que
+cuenta — documentado en design.md. Pendiente dentro de esta línea:
+promover el patrón a **Choose del supervisor** (falta la task de despacho
+con su catálogo) y un round dirigido de "hechos actuales" para el único
+falso-directo que resiste (mundial, 0.83).
 
 ## 3. Streaming + memoria entre sesiones
 
@@ -34,12 +59,17 @@ supervisor** (despacho local de pasos).
   arranque es borrón y cuenta nueva; dentro de la sesión el historial se
   reenvía completo — costo creciente).
 
-## 4. Self-healing batch + heartbeat
+## 4. Self-healing + heartbeat — ✅ hecho (2026-10-05)
 
-- Pasos fallidos del supervisor re-encolados con el feedback del error
-  (hoy son datos para la síntesis, no reintento).
-- Heartbeat: las piezas (auditoría, informe) corriendo solas de noche
-  con la salida lista a la mañana.
+- Self-healing en el supervisor reactivo: el fallo de un paso es un
+  hecho con ERROR; el reintento recibe el error como feedback en el
+  prompt de args; dos fallos y la herramienta se veta (L8). El informe
+  final lleva la sección "Pasos" (auditoría). Medido en dos tareas
+  reales: sin fallos duros, recuperación suave de facto (truncado →
+  relectura acotada). Tests de integración sin red.
+- `heartbeat.py`: tareas programadas (heartbeat.jsonl) con el supervisor
+  completo, estado + log de auditoría, línea de cron sugerida. Probado
+  con dos tareas reales nocturnas (trazas + effective_n de bmo/data).
 
 ## 5. HITL web
 

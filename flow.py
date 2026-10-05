@@ -11,14 +11,17 @@ def create_agent_flow():
 
     from utils.call_llm import _setting
 
-    if _setting("USE_LAYA_ROUTER", "0") == "1":
+    if _setting("USE_LAYA_ROUTER", "1") == "1":
         # If inteligente: Laya decide localmente la primera arista
         router = LayaRouter()
         directo = DirectAnswer(max_retries=3, wait=5)
         ask - "continue" >> router
         router - "directo" >> directo
         router - "herramientas" >> step
-        directo >> ask
+        # DirectAnswer hereda el post de AgentStep: devuelve "answer" (nunca
+        # "tool", va sin tools) — la arista correcta es esa, no la default.
+        directo - "answer" >> ask
+        directo - "tool" >> tools
     else:
         ask - "continue" >> step
 
