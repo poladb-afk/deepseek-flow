@@ -430,10 +430,16 @@ def test_sanitizar_prompt_ajeno():
     assert sanitizar(ok) == (ok, False)
 
 
-def test_system_prompt_trae_el_cwd():
+def test_system_prompt_estable_y_trae_entorno():
     import main
+    from utils.fs_tools import allowed_roots
 
-    prompt = main.system_prompt()
-    assert "Directorio de trabajo actual:" in prompt
-    assert str(main.Path.cwd()) in prompt
-    assert "Directorios permitidos" in prompt
+    a, b = main.system_prompt(), main.system_prompt()
+    assert a == b  # byte-estable: nada dinámico puede entrar (KV-cache)
+    # rol: resolución de pedidos, alcance anclado al CWD
+    assert "tools disponibles" in a
+    assert f"Trabajás en {main.Path.cwd()} y sus subdirectorios" in a
+    # el perímetro duro (allowed roots) sigue declarado
+    assert any(str(r) in a for r in allowed_roots())
+    # el idioma se espeja (español o inglés), no se fija a uno
+    assert "español o inglés" in a

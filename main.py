@@ -9,16 +9,22 @@ WELCOME = "Agente con DeepSeek V4.1 Flash — pregunta sobre tus archivos ('sali
 
 
 def system_prompt():
+    # REGLA de estabilidad: el prefijo debe ser byte-estable durante la
+    # sesión para no romper el KV-cache (DeepSeek Harness lo midió: una
+    # sección dinámica recalcularía ~99% del contexto por turno). Nada
+    # variable —fecha, hora, contadores— entra jamás acá.
     roots = "\n".join(f"- {r}" for r in allowed_roots())
     # el CWD del proceso: sin esto, "¿en qué carpeta estamos?" se responde
     # adivinando la raíz permitida (medido en producción)
     cwd = Path.cwd()
-    return f"""Agente de exploración de archivos.
+    return f"""Agente de resolución de pedidos con tools disponibles.
 
-Directorio de trabajo actual: {cwd}
+Trabajás en {cwd} y sus subdirectorios.
 
-Directorios permitidos:
-{roots}"""
+Alcance máximo de las tools de archivos:
+{roots}
+
+Respondé en el idioma de cada pedido (español o inglés)."""
 
 
 SUBCOMANDOS = {

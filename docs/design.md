@@ -593,3 +593,48 @@ respondía con la raíz permitida (el único directorio que el modelo
 conocía) en vez del CWD real. El system prompt ahora declara el
 directorio de trabajo actual del proceso: la pregunta sobre el entorno
 se responde con el dato, sin adivinar ni gastar tools.
+
+## Curaduría del system prompt (minimalismo validado)
+
+Revisión contra el estado del arte 2026 (2026-10-04): el propio DeepSeek
+publicó el system prompt de su agente (repo `deepseek-ai/deepseek-harness`)
+y su arquitectura valida la filosofía del proyecto — prefijo estable
+mínimo + hechos de runtime como snapshot en rol de usuario + tool schemas
+como catálogo independiente. Su medición clave: una sección dinámica en
+el prefijo rompe el KV-cache y recalcula ~99% del contexto por turno.
+
+El prompt del chat quedó así (verificado en vivo, 1 llamada):
+
+- **Rol tarea-primero** (semántica 2026): "Agente de resolución de
+  pedidos con tools disponibles" — identidad orientada al resultado, no
+  a la actividad; el inventario de capacidades vive en los tool schemas
+  (info en cada pieza), no en el prompt.
+- **Entorno en capas**: "Trabajás en {cwd} y sus subdirectorios" como
+  espacio de trabajo + "Alcance máximo de las tools de archivos" con
+  las raíces permitidas como perímetro duro. Medido: preguntado "where
+  do you work?", el modelo distinguió ambas capas sin ambigüedad
+  ("work in deepseek-flow and its subdirectories; file-tool access
+  limited to at most 00_IA").
+- **Portabilidad del entorno (verificado con demo)**: nada está
+  hardcodeado — el CWD se renderiza con `Path.cwd()` por arranque y el
+  perímetro sigue la cadena `AGENT_ALLOWED_DIRS` (env o .env del
+  checkout, gitignored) → default portable `.` (= CWD). Descargado el
+  zip en otra máquina y abierto en otro repo, el prompt completo se
+  re-renderiza a ese repo (demo: abrir desde /tmp con el default
+  muestra `/tmp/...` en ambas capas). El tradeoff del default `.`: si
+  se abre en ~, el perímetro es el home entero — acotarlo es trabajo
+  del .env de cada instalación.
+- **Idioma espejado**: "Respondé en el idioma de cada pedido (español
+  o inglés)" — el idioma se decide por pedido, no se fija. Medido:
+  pregunta en inglés → respuesta en inglés.
+- **Regla de estabilidad codificada**: comentario + test — el prefijo es
+  byte-estable por sesión (CWD y raíces se congelan al arranque); nada
+  dinámico (fecha, hora, contadores) entra jamás. Si algún día hace
+  falta la fecha, va como mensaje de usuario, no acá.
+
+Lo que NO cambió: el prompt sigue siendo ~6 líneas; la info necesaria
+vive en cada pieza (descripciones de tools, prompts one-shot), que es
+donde el estado del arte pone el peso (Augment, sobre los prompts
+filtrados: los schemas JSON suelen ser más reveladores que el prompt
+mismo). El lever de curaduría siguiente son las descripciones de las 18
+herramientas — con sonda antes/después, como hicimos con el router.
