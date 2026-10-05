@@ -7,11 +7,15 @@ no un error. Si el archivo existe, la vista previa es un diff unificado."""
 import difflib
 from pathlib import Path
 
+from utils import hitl_web
+from utils.call_llm import _setting
 from utils.fs_tools import _resolve
 
 PREVIEW_LINES = 30
 DIFF_LINES = 60
 YES = {"s", "si", "sí", "y", "yes"}
+
+_cuerpo = [""]  # cuerpo del próximo pedido HITL web (lo lee _approve local)
 
 TOOLS = [
     {
@@ -41,6 +45,8 @@ def _clip(text, max_lines, marker):
 
 
 def _approve(prompt):
+    if _setting("HITL_WEB", "0") == "1":
+        return hitl_web.aprobar(prompt, _cuerpo[0])
     try:
         answer = input(f"{prompt} (s/n): ").strip().lower()
     except (EOFError, KeyboardInterrupt):
@@ -73,12 +79,14 @@ def write_file(path, content):
                 lineterm="",
             )
         )
-        print(_clip(diff, DIFF_LINES, "[... diff truncado ...]"))
+        cuerpo = _clip(diff, DIFF_LINES, "[... diff truncado ...]")
     else:
         print(f"(archivo nuevo, {len(content.splitlines())} líneas)")
-        print(_clip(content, PREVIEW_LINES, "[... contenido truncado ...]"))
+        cuerpo = _clip(content, PREVIEW_LINES, "[... contenido truncado ...]")
+    print(cuerpo)
+    _cuerpo[0] = cuerpo
 
-    if not _approve("¿Escribir?"):
+    if not _approve(f"¿Escribir? → {resolved}"):
         return "RECHAZADO por el usuario: el archivo no se modificó. Puedes proponer otro contenido o preguntar qué cambiaría."
 
     try:

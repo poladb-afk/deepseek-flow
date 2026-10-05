@@ -668,3 +668,70 @@ def test_evento_tool_deja_rastro():
     e1, e2 = (json.loads(l) for l in lineas)
     assert e1["nodo"] == "sql" and e1["accion"] == "ok" and e1["seg"] == 0.5
     assert e2["nodo"] == "run_command" and e2["accion"] == "error"
+
+
+def test_hitl_web(monkeypatch):
+    """HITL web: el navegador decide (aprobar/rechazar) y el timeout cae a
+    un default seguro (False). Se prueba el servidor en un puerto propio."""
+    import threading
+    import urllib.parse
+    import urllib.request
+
+    import utils.hitl_web as hitl
+
+    puerto = 8791
+    monkeypatch.setenv("HITL_WEB_PORT", str(puerto))
+    monkeypatch.setenv("HITL_WEB_TIMEOUT", "300")
+    # servidor ya arrancado: aprobar() lo reutiliza (perezoso, una sola vez)
+    assert hitl._arrancar() == puerto
+
+    def post(decision):
+        datos = urllib.parse.urlencode({"decision": decision}).encode()
+        req = urllib.request.Request(f"http://127.0.0.1:{puerto}/decision", data=datos)
+        return urllib.request.urlopen(req, timeout=5).read()
+
+    resultados = {}
+
+    # 1) aprobar: la función espera el Event y devuelve True
+    hilo = threading.Thread(
+        target=lambda: resultados.update(ok=hitl.aprobar("¿Escribir?", "diff de prueba")))
+    hilo.start()
+    import time as _t
+    for _ in range(50):  # esperar el pedido pendiente antes de votar
+        if hitl._pendiente is not None:
+            break
+        _t.sleep(0.02)
+    assert hitl._pendiente is not None
+    post("aprobar")
+    hilo.join(5)
+    assert resultados["ok"] is True
+
+    # 2) rechazar: POST de rechazar devuelve False
+    hilo = threading.Thread(
+        target=lambda: resultados.update(ok=hitl.aprobar("¿Ejecutar?", "ls -la")))
+    hilo.start()
+    for _ in range(50):
+        if hitl._pendiente is not None:
+            break
+        _t.sleep(0.02)
+    post("rechazar")
+    hilo.join(5)
+    assert resultados["ok"] is False
+
+    # 3) timeout: nadie vota y expira -> default seguro False
+    monkeypatch.setenv("HITL_WEB_TIMEOUT", "0.2")
+    assert hitl.aprobar("¿Aplicar?", "diff huérfano") is False
+
+    # 4) timeout inválido (setting corrupto) no rompe: cae al default seguro
+    monkeypatch.setenv("HITL_WEB_TIMEOUT", "no-es-numero")
+    assert hitl._timeout() == float(hitl.TIMEOUT_DEFAULT)
+
+
+def test_hitl_web_puerto_ocupado_default_seguro(monkeypatch):
+    """Si el servidor no puede levantar (puerto inválido), aprobar() devuelve
+    False en vez de propagar la excepción: el HITL nunca cuelga al agente."""
+    import utils.hitl_web as hitl
+
+    monkeypatch.setattr(hitl, "_servidor", None)  # forzar arranque
+    monkeypatch.setenv("HITL_WEB_PORT", "no-es-un-puerto")
+    assert hitl.aprobar("¿Escribir?", "algo") is False

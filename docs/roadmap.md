@@ -97,11 +97,19 @@ contención, y memoria del ciclo.
   reenvía completo — costo creciente). (Descartado como prioridad por el
   usuario; vuelve cuando duela.)
 
-## 7. HITL web
+## 7. HITL web — ✅ hecho (2026-10-05)
 
-Migrar la aprobación de escritura de `input()` a una arista del grafo
-(`needs_approval` → AskHuman → `approved/rejected`) y el chat a
-FastAPI/Gradio cuando se quiera interfaz de navegador.
+`utils/hitl_web.py` (solo stdlib: `http.server` + `threading`). Con
+`HITL_WEB=1`, las aprobaciones de `write_file`, `edit_file` y
+`run_command` en vez de preguntar `s/n` en la terminal se responden
+desde el navegador: un servidor perezoso en `127.0.0.1:8765` (puerto
+`HITL_WEB_PORT`) sirve el título + el cuerpo (diff o comando) dentro de
+`<pre>` con botones Aprobar/Rechazar. Un solo pedido a la vez
+(`threading.Event`), timeout `HITL_WEB_TIMEOUT` (300s), y timeout o
+error ⇒ rechazo (mismo default seguro que el CLI). Falta todavía el
+paso siguiente de la línea: subir el HITL a una arista del grafo
+(`needs_approval` → AskHuman → `approved/rejected`) y migrar el chat a
+FastAPI/Gradio.
 
 ## Cola final (considerados, sin fecha)
 

@@ -61,6 +61,7 @@ costo 0).
 | escritura (HITL) | `write_file` — diff + `s/n`, default seguro |
 | coding (HITL) | `run_command` — shell con `s/n`, timeout y salida truncada |
 | coding (HITL) | `edit_file` — reemplazo exacto y único (diff quirúrgico) |
+| HITL web | con `HITL_WEB=1` las aprobaciones se responden desde el navegador |
 | juez | `answer_verified` — borrador → juez (verifica citas contra archivos) → refinamiento |
 | informe | `run_informe` — map-reduce paralelo de trazas `.jsonl` |
 | auditoria | `run_auditoria` — BatchFlow multi-carpeta + síntesis comparativa |

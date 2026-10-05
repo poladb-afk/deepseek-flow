@@ -18,6 +18,8 @@ import difflib
 import subprocess
 from pathlib import Path
 
+from utils import hitl_web
+from utils.call_llm import _setting
 from utils.fs_tools import _resolve
 
 TIMEOUT_S = 120
@@ -25,6 +27,8 @@ SALIDA_MAX = 4000  # chars: el resultado entra al historial y al costo
 PREVIEW_LINES = 30
 
 YES = {"s", "si", "sí", "y", "yes"}
+
+_cuerpo = [""]  # cuerpo del próximo pedido HITL web (lo lee _approve)
 
 TOOLS = [
     {
@@ -73,6 +77,8 @@ TOOLS = [
 
 
 def _approve(prompt):
+    if _setting("HITL_WEB", "0") == "1":
+        return hitl_web.aprobar(prompt, _cuerpo[0])
     try:
         answer = input(f"{prompt} (s/n): ").strip().lower()
     except (EOFError, KeyboardInterrupt):
@@ -93,6 +99,7 @@ def run_command(command):
         return "ERROR: comando vacío"
     command = str(command)
     print(f"\n── run_command ──\n{command}")
+    _cuerpo[0] = command
     if not _approve("¿Ejecutar?"):
         return "RECHAZADO por el usuario: el comando no se ejecutó. Puedes proponer otro o preguntar qué cambiaría."
 
@@ -152,8 +159,10 @@ def edit_file(path, old_string, new_string):
         )
     )
     print(f"\n── edit_file: {resolved} ──")
-    print(_clip(diff, SALIDA_MAX, "[... diff truncado ...]"))
-    if not _approve("¿Aplicar?"):
+    diff_mostrado = _clip(diff, SALIDA_MAX, "[... diff truncado ...]")
+    print(diff_mostrado)
+    _cuerpo[0] = diff_mostrado
+    if not _approve(f"¿Aplicar? → {resolved}"):
         return "RECHAZADO por el usuario: el archivo no se modificó."
 
     try:
