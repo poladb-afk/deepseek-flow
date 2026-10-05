@@ -1631,3 +1631,258 @@ def test_juez_lote_aisla_fallas(tmp_path, monkeypatch):
     assert "respuesta verificada" in texto  # la buena sobrevive
     assert "❌ Falló" in texto and "verdict inválido" in texto  # la mala, documentada
     assert "1 fallidas" in resumen
+
+
+# ---------------------------------------------------------------------------
+# Evals (mesa 1, replay-evals): bench del router, linter de trazas, costos
+# ---------------------------------------------------------------------------
+
+def _bench_con(fake_agente):
+    """Corre correr_bench() con un agente fake (system_one), sin cargar laya."""
+    from evals import correr_bench
+
+    return correr_bench(agente=fake_agente)
+
+
+def test_evals_bench_score_y_ece_ok():
+    """Un agente perfecto: score con compuerta y crudo = 100%, ECE = 0."""
+    from evals import correr_bench
+
+    from nodes import PREGUNTA_ROUTER  # noqa: F401  (contrato importado)
+    # el fake responde SIEMPRE lo esperado con confianza 1.0
+    import json
+
+    from evals import TEST_ROUTER
+
+    esperados = {}
+    for l in TEST_ROUTER.read_text(encoding="utf-8").splitlines():
+        if l.strip():
+            c = json.loads(l)
+            esperados[c["fields"]["pregunta"]] = c["answers"]["necesita_herramientas"]
+
+    class AgentePerfecto:
+        def system_one(self, estado, preguntas, lang="es"):
+            esperado = esperados[estado["pregunta"]]
+            return {"answers": {"necesita_herramientas":
+                                {"choice": esperado, "answer_confidence": 1.0}}}
+
+    bench, err = _bench_con(AgentePerfecto())
+    assert err is None and bench["estado"] == "ok"
+    assert bench["score"] == 1.0 and bench["score_crudo"] == 1.0
+    assert bench["ece"] == 0.0
+
+
+def test_evals_bench_ece_pesimista():
+    """Un agente que dice directo con conf 1.0 pero se equivoca siempre: ECE
+    alto, calcularlo a mano sobre la decisión cruda."""
+    from datetime import date
+
+    from evals import correr_bench
+
+    from nodes import PREGUNTA_ROUTER  # noqa: F401
+
+    class AgenteMalCalibrado:
+        def system_one(self, estado, preguntas, lang="es"):
+            return {"answers": {"necesita_herramientas":
+                                {"choice": "directo", "answer_confidence": 1.0}}}
+
+    bench, err = _bench_con(AgenteMalCalibrado())
+    assert err is None
+    # casos esperado=directo (13) aciertan crudo; esperado=herramientas (17) no
+    assert abs(bench["score_crudo"] - 13 / 30) < 1e-4
+    # ECE = |1.0 - 13/30| porque todo cae en el bin [0.9, 1.0]
+    assert abs(bench["ece"] - (1 - 13 / 30)) < 1e-3
+
+
+def test_evals_bench_contra_baseline_mejora_y_regresion(tmp_path):
+    """comparar_baseline: PRIMERA CORRIDA sin archivo, OK si mejora,
+    REGRESIÓN si el score baja (con el mismo shape del bench)."""
+    from evals import comparar_baseline
+
+    ruta = tmp_path / "bench_router.json"
+    nuevo = {"score": 0.9, "score_crudo": 0.9, "ece": 0.05}
+    # sin baseline
+    assert comparar_baseline(nuevo, ruta=ruta)["veredicto"] == "PRIMERA CORRIDA"
+
+    # baseline peor → OK
+    ruta.write_text('{"score": 0.8, "ece": 0.10}', encoding="utf-8")
+    r = comparar_baseline(nuevo, ruta=ruta)
+    assert r["veredicto"] == "OK"
+    assert r["delta"]["score"] == 0.1 and r["delta"]["ece"] == -0.05
+
+    # baseline mejor → REGRESIÓN
+    ruta.write_text('{"score": 0.95, "ece": 0.02}', encoding="utf-8")
+    r = comparar_baseline(nuevo, ruta=ruta)
+    assert r["veredicto"] == "REGRESIÓN"
+    assert r["delta"]["score"] < 0
+
+    # baseline sin score (corrida degradada) no es referencia
+    ruta.write_text('{"score": null, "ece": null}', encoding="utf-8")
+    assert comparar_baseline(nuevo, ruta=ruta)["veredicto"] == "PRIMERA CORRIDA"
+
+
+def test_evals_bench_laya_ausente_degrada(monkeypatch):
+    """Sin laya: correr_bench devuelve estado 'no disponible' y un motivo, sin
+    crashear (la degradación prometida)."""
+    import evals
+
+    def revienta(*a, **k):
+        raise RuntimeError("laya no disponible: prueba")
+
+    monkeypatch.setattr("utils.laya.agente", revienta)
+    bench, motivo = evals.correr_bench()
+    assert bench["estado"] == "no disponible"
+    assert bench["score"] is None and "laya no disponible" in motivo
+
+
+def _linea(nodo, accion, seg=0.0, ts=0.0):
+    return {"ts": ts, "nodo": nodo, "accion": accion, "seg": seg}
+
+
+def test_evals_linter_traza_limpia_sin_falsos_positivos():
+    """Una traza del chat bien formada (router → tool → ExecuteTools →
+    answer) pasa el linter sin violaciones."""
+    from evals import linter_traza
+
+    eventos = [
+        _linea("GetQuestion", "continue"),
+        _linea("LayaRouter", "herramientas"),
+        _linea("AgentStep", "tool"),
+        _linea("read_file", "ok", 0.001),
+        _linea("ExecuteTools", "default", 0.01),
+        _linea("AgentStep", "answer"),
+        _linea("GetQuestion", "exit"),
+        _linea("ExitChat", "None"),
+    ]
+    assert linter_traza(eventos) == []
+
+
+def test_evals_linter_detecta_agentstep_sin_executetools():
+    """(a) AgentStep tool seguido de otro AgentStep sin ExecuteTools."""
+    from evals import linter_traza
+
+    eventos = [
+        _linea("GetQuestion", "continue"),
+        _linea("LayaRouter", "herramientas"),
+        _linea("AgentStep", "tool"),
+        _linea("AgentStep", "tool"),  # nunca hubo ExecuteTools
+        _linea("AgentStep", "answer"),
+    ]
+    viol = linter_traza(eventos)
+    assert any(v[0] == "a" for v in viol), viol
+
+
+def test_evals_linter_detecta_accion_desconocida():
+    """(c) un par (nodo, accion) fuera del conjunto canónico."""
+    from evals import linter_traza
+
+    eventos = [
+        _linea("GetQuestion", "continue"),
+        _linea("LayaRouter", "herramientas"),
+        _linea("NodoInventado", "hace_algo"),
+        _linea("AgentStep", "answer"),
+    ]
+    viol = linter_traza(eventos)
+    assert any(v[0] == "c" and "NodoInventado" in v[2] for v in viol), viol
+    # y un par conocido no dispara (c)
+    assert not any(v[0] == "c" for v in linter_traza([
+        _linea("GetQuestion", "continue"),
+        _linea("LayaRouter", "herramientas"),
+        _linea("ExecuteTools", "default"),
+    ]))
+
+
+def test_evals_linter_detecta_executetools_largo_sin_tools():
+    """(d) ExecuteTools > 120s sin eventos de tools propios (el ciego viejo)."""
+    from evals import linter_traza
+
+    eventos = [
+        _linea("GetQuestion", "continue"),
+        _linea("LayaRouter", "herramientas"),
+        _linea("AgentStep", "tool"),
+        _linea("ExecuteTools", "default", seg=300.0),  # largo y sin tools
+        _linea("AgentStep", "answer"),
+    ]
+    viol = linter_traza(eventos)
+    assert any(v[0] == "d" for v in viol), viol
+    # con una tool propia, deja de ser ciego
+    con_tool = [
+        _linea("GetQuestion", "continue"),
+        _linea("LayaRouter", "herramientas"),
+        _linea("AgentStep", "tool"),
+        _linea("run_command", "ok", seg=200.0),  # evento propio
+        _linea("ExecuteTools", "default", seg=300.0),
+        _linea("AgentStep", "answer"),
+    ]
+    assert not any(v[0] == "d" for v in linter_traza(con_tool))
+
+
+def test_evals_linter_detecta_turno_sin_router():
+    """(b) con router activo en la traza, un turno que salta de GetQuestion a
+    AgentStep answer sin pasar por LayaRouter."""
+    from evals import linter_traza
+
+    eventos = [
+        _linea("GetQuestion", "continue"),
+        _linea("AgentStep", "answer"),  # sin LayaRouter
+        _linea("GetQuestion", "continue"),
+        _linea("LayaRouter", "herramientas"),  # este turno sí
+        _linea("AgentStep", "answer"),
+        _linea("GetQuestion", "exit"),
+    ]
+    viol = linter_traza(eventos)
+    assert any(v[0] == "b" for v in viol), viol
+
+
+def test_evals_linter_runs_reporta_por_invariante(tmp_path):
+    """linter_runs agrupa violaciones por invariante y por archivo."""
+    import json
+
+    import evals
+
+    limpia = tmp_path / "limpia.jsonl"
+    limpia.write_text(json.dumps(_linea("GetQuestion", "exit")) + "\n"
+                      + json.dumps(_linea("ExitChat", "None")) + "\n", encoding="utf-8")
+    sucia = tmp_path / "sucia.jsonl"
+    sucia.write_text("\n".join(json.dumps(e) for e in [
+        _linea("GetQuestion", "continue"),
+        _linea("LayaRouter", "herramientas"),
+        _linea("AgentStep", "tool"),
+        _linea("AgentStep", "answer"),  # (a): sin ExecuteTools
+    ]) + "\n", encoding="utf-8")
+
+    resumen = evals.linter_runs(tmp_path)
+    assert resumen["total"] == 2
+    assert resumen["por_invariante"].get("a", 0) == 1
+    assert resumen["por_archivo"]["sucia.jsonl"]
+    assert not resumen["por_archivo"].get("limpia.jsonl")
+
+
+def test_evals_costos_ordena_por_costo(tmp_path):
+    """costos_runs ordena de más caro a más barato y calcula nodo dominante."""
+    import json
+
+    import evals
+
+    def _escribir(nombre, eventos):
+        (tmp_path / nombre).write_text(
+            "\n".join(json.dumps(e) for e in eventos) + "\n", encoding="utf-8")
+
+    _escribir("20260101_100000.jsonl", [
+        _linea("AgentStep", "answer", seg=2.0),
+        _linea("read_file", "ok", seg=1.0),
+    ])
+    _escribir("20260101_110000.jsonl", [
+        _linea("AgentStep", "tool", seg=10.0),
+        _linea("ExecuteTools", "default", seg=5.0),
+        _linea("read_file", "ok", seg=0.0),
+    ])
+
+    sesiones = evals.costos_runs(tmp_path)
+    assert [s["archivo"] for s in sesiones] == [
+        "20260101_110000.jsonl", "20260101_100000.jsonl"]
+    cara = sesiones[0]
+    assert cara["total"] == 15.0
+    assert cara["dominante"] == "AgentStep"
+    assert cara["tools"] == 1
+    assert cara["fecha"] == "2026-01-01 11:00:00"

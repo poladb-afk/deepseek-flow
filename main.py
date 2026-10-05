@@ -43,6 +43,7 @@ SUBCOMANDOS = {
     "heartbeat": "heartbeat",
     "visor": "visor",
     "grafo": "utils.viz",
+    "evals": "evals",
 }
 
 
