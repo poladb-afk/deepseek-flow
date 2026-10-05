@@ -7,7 +7,8 @@ más checkpoints y reporta, por caso: elección cruda, confianza, veredicto
 cosa cae a 'herramientas' (el lado seguro). Correcto = decisión == esperado.
 
 El estado es {"pregunta": ...}: el contrato del fine-tune (task router_flow),
-que nodes.LayaRouter ya replica.
+importado de nodes — una sola fuente; una copia local derivaría sin que
+ningún test lo note (hallazgo medido en la revisión de consistencia).
 
 Uso:
     python3 sonda_router.py [checkpoint ...]   # sin args: LAYA_MODEL del .env
@@ -19,16 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 TEST = Path("/home/roquedb/Documentos/00_IA/bmo/train/tasks/router_flow_test.jsonl")
-PREGUNTA = {
-    "necesita_herramientas": {
-        "type": "choice",
-        "instructions": "Does answering the request require tools (search/reading files, web, computation) or can it be answered directly?",
-        "criteria": {
-            "herramientas": "needs local files, documents, current data, or exact computation",
-            "directo": "general knowledge, conversation, creativity; no external data needed",
-        },
-    }
-}
+from nodes import PREGUNTA_ROUTER  # noqa: E402  (el contrato, sin copia)
 
 
 def correr(agente, casos):
@@ -36,7 +28,7 @@ def correr(agente, casos):
 
     filas, ok, crudo_ok = [], 0, 0
     for caso in casos:
-        r = agente.system_one({"pregunta": caso["fields"]["pregunta"]}, PREGUNTA, lang="es")
+        r = agente.system_one({"pregunta": caso["fields"]["pregunta"]}, PREGUNTA_ROUTER, lang="es")
         resp = r["answers"]["necesita_herramientas"]
         eleccion = resp.get("choice", resp.get("answer"))
         conf = _confianza(resp)

@@ -164,8 +164,9 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 python3 main.py informe [carpeta] [--glob '*.jsonl'] [--salida informe.md]
 ```
 
-Default: `~/Documentos/00_IA/bmo/data` (también corre directo con
-`python3 informe.py`).
+Default: `.` (el CWD — portable; `INFORME_CARPETA` en .env fija otra,
+p. ej. `~/Documentos/00_IA/bmo/data` en esta máquina). También corre
+directo con `python3 informe.py`.
 
 ```mermaid
 flowchart LR
@@ -725,3 +726,36 @@ aprobaciones HITL reales vía driver pty):
 
 31/31 tests (HITL sí/no, timeout, truncado, y las tres fallas
 ruidosas del edit).
+
+## Candados de contrato y fixes de la auditoría de sesión (2026-10-05)
+
+Auditoría de una sesión real del usuario (revisión de consistencia
+semántica, informe en `salidas/revision_consistencia_2026-10-05.md`).
+Sus mediciones se verificaron independientemente — el sha1
+prod≡sonda del router (`01bf4478f15c…`) era exacto — y su lote de
+"candados, no refactors" se aplicó completo:
+
+1. **`sonda_router.py` importa `PREGUNTA_ROUTER` de `nodes`** — una sola
+   fuente; la copia local podía derivar sin que ningún test lo notara
+   (drift medido como 0 hoy, riesgo latente alto).
+2. **`test_contratos_laya_congelados_sha1`** — congela el CONTENIDO
+   completo (sha1 canónico) de ambos contratos; el test de claves no
+   alcanzaba (cambiaba una palabra de instructions y nada fallaba).
+3. **Fix de `search_files` con `path` a archivo**: `os.walk` sobre un
+   archivo no visita nada → falso negativo silencioso ("Ningún archivo
+   contiene X" sobre un archivo que sí lo contiene). El informe lo
+   midió pero lo atribuyó a "strings cortos"; repro y root-cause
+   nuestros: es el path-a-archivo (ahora se trata como único habitante
+   de su directorio padre).
+4. **`evento_tool` en la traza**: las tools que no son flujos
+   (run_command, sql, write_file) no atravesaban nodos — una ronda de
+   50s era inatribuible desde `.runs/` (ciego medido en esta
+   auditoría). ExecuteTools registra ahora nombre + ok/error + duración
+   por llamada.
+5. **design.md**: default de informe corregido (decía `bmo/data`; el
+   código usa `.` con `INFORME_CARPETA` en .env).
+
+No aplicado (correctamente diferido por el informe): unificar
+vocabulario de `shared`/actions — 7/9 claves compartidas son benignas,
+los archivos fríos no justifican el refactor (churn medido), y las 2
+colisiones reales (`analisis`, `feedback`) se documentan, no se tocan.

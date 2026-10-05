@@ -1,5 +1,6 @@
 import json
 import re
+import time
 from types import SimpleNamespace
 
 from pocketflow import Node
@@ -7,6 +8,7 @@ from pocketflow import Node
 from modules import discover
 from utils.call_llm import call_llm_agent
 from utils.fs_tools import MAX_TOOL_ROUNDS, TOOLS as CORE_TOOLS, run_tool_call
+from utils.tracing import evento_tool
 
 EXIT_WORDS = {"salir", "exit", "quit"}
 
@@ -135,7 +137,15 @@ class ExecuteTools(Node):
         return shared["messages"][-1]["tool_calls"]
 
     def exec(self, tool_calls):
-        return [run_tool_call(tc, MODULE_IMPLS) for tc in tool_calls]
+        # cada tool deja su evento propio en la traza (nombre + ok/error):
+        # sin eso, una ronda larga es inatribuible desde .runs (auditoría)
+        resultados = []
+        for tc in tool_calls:
+            inicio = time.time()
+            r = run_tool_call(tc, MODULE_IMPLS)
+            evento_tool(tc["function"]["name"], not r["content"].startswith("ERROR"), time.time() - inicio)
+            resultados.append(r)
+        return resultados
 
     def post(self, shared, prep_res, exec_res):
         shared["messages"].extend(exec_res)

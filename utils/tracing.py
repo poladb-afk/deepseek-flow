@@ -9,10 +9,32 @@ from datetime import datetime
 from pathlib import Path
 
 _activo = False
+_salida = None
+
+
+def _escribir(dic):
+    if _salida is None:
+        return
+    _salida.write(json.dumps(dic, ensure_ascii=False) + "\n")
+    _salida.flush()
+
+
+def evento_tool(nombre, ok, seg):
+    """Evento de tool individual. Las tools que no son flujos (run_command,
+    sql, write_file...) no atraviesan nodos: sin esto, un ExecuteTools de
+    50s es inatribuible desde .runs (ciego medido en la auditoría)."""
+    _escribir(
+        {
+            "ts": round(time.time(), 3),
+            "nodo": nombre,
+            "accion": "ok" if ok else "error",
+            "seg": round(seg, 3),
+        }
+    )
 
 
 def activar(ruta_base=None):
-    global _activo
+    global _activo, _salida
     if _activo or __import__("os").environ.get("TRACE", "1") == "0":
         return
     _activo = True
@@ -22,22 +44,17 @@ def activar(ruta_base=None):
     directorio = Path(ruta_base or Path(__file__).resolve().parent.parent / ".runs")
     directorio.mkdir(exist_ok=True)
     archivo = directorio / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.jsonl"
-    salida = open(archivo, "w", encoding="utf-8")
+    _salida = open(archivo, "w", encoding="utf-8")
 
     def evento(nodo, accion, inicio):
-        salida.write(
-            json.dumps(
-                {
-                    "ts": round(time.time(), 3),
-                    "nodo": type(nodo).__name__,
-                    "accion": str(accion),
-                    "seg": round(time.time() - inicio, 3),
-                },
-                ensure_ascii=False,
-            )
-            + "\n"
+        _escribir(
+            {
+                "ts": round(time.time(), 3),
+                "nodo": type(nodo).__name__,
+                "accion": str(accion),
+                "seg": round(time.time() - inicio, 3),
+            }
         )
-        salida.flush()
 
     _run_original = pocketflow.BaseNode._run
 

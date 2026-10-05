@@ -608,3 +608,63 @@ def test_action_space_suma_coding():
 
     nombres = {t["function"]["name"] for t in TOOLS}
     assert {"run_command", "edit_file"} <= nombres
+
+
+def test_contratos_laya_congelados_sha1():
+    """El contrato con el fine-tune es byte-a-byte: cambiar UNA palabra de
+    instructions/criteria desincroniza entrenamiento y producción. El test
+    de claves no alcanza (hallazgo de la revisión de consistencia)."""
+    import hashlib
+    import json
+
+    from nodes import PREGUNTA_ROUTER
+    from supervisor import PREGUNTA_DESPACHO
+
+    canon = lambda p: hashlib.sha1(  # noqa: E731
+        json.dumps(p, sort_keys=True, ensure_ascii=False).encode()
+    ).hexdigest()
+    assert canon(PREGUNTA_ROUTER) == "01bf4478f15cef2c47ed889533cdd3e9c1ee9739"
+    assert canon(PREGUNTA_DESPACHO) == "de43614ad2f939048fb76ef7f9058bdbb0ef212e"
+
+
+def test_sonda_router_importa_el_contrato():
+    """La sonda no re-tipea: deriva del objeto de producción (drift
+    imposible por construcción)."""
+    import nodes
+    import sonda_router
+
+    assert sonda_router.PREGUNTA_ROUTER is nodes.PREGUNTA_ROUTER
+
+
+def test_search_files_con_path_a_archivo():
+    """Falso negativo medido en la auditoría: os.walk sobre un archivo no
+    visita nada y la tool decía 'Ningún archivo contiene' sobre un
+    archivo que sí lo contiene."""
+    from utils.fs_tools import search_files
+
+    r = search_files(query="PREGUNTA_ROUTER", path="nodes.py")
+    assert "nodes.py" in r and "Ningún archivo" not in r
+
+    r = search_files(query="PREGUNTA", path="sonda_router.py")
+    assert "sonda_router.py" in r and "Ningún archivo" not in r
+
+
+def test_evento_tool_deja_rastro():
+    """Las tools que no son flujos también se trazan (nombre + ok/error)."""
+    import io
+    import json
+
+    import utils.tracing as tracing
+
+    original = tracing._salida
+    tracing._salida = io.StringIO()
+    try:
+        tracing.evento_tool("sql", True, 0.5)
+        tracing.evento_tool("run_command", False, 12.3)
+        lineas = tracing._salida.getvalue().strip().splitlines()
+    finally:
+        tracing._salida = original
+    assert len(lineas) == 2
+    e1, e2 = (json.loads(l) for l in lineas)
+    assert e1["nodo"] == "sql" and e1["accion"] == "ok" and e1["seg"] == 0.5
+    assert e2["nodo"] == "run_command" and e2["accion"] == "error"

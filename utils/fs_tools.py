@@ -154,7 +154,15 @@ def search_files(query=None, glob=None, path=None):
 
     file_hits, content_hits, skipped_big = [], [], 0
     for root in roots:
-        for dirpath, dirnames, filenames in os.walk(root):
+        if root.is_file():
+            # os.walk sobre un ARCHIVO no visita nada: falso negativo
+            # silencioso (medido: "Ningún archivo contiene..." sobre un
+            # archivo que sí lo contiene). Lo tratamos como único
+            # habitante de su directorio padre.
+            walks = [(str(root.parent), [], [root.name])]
+        else:
+            walks = os.walk(root)
+        for dirpath, dirnames, filenames in walks:
             dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
             for fname in filenames:
                 fpath = Path(dirpath) / fname
