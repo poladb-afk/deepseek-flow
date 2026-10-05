@@ -28,6 +28,10 @@ Heredada de PocketFlow y de [bmo](../bmo) (el harness que inspiró los módulos)
   como texto y el modelo se autocorrige; la escritura de archivos exige
   aprobación humana (HITL) — `s/n` en la terminal, o desde el navegador
   con `HITL_WEB=1` — y EOF/Ctrl+C/timeout cuentan como rechazo.
+- **El chat responde en vivo**: las respuestas se imprimen token a token
+  mientras se generan (`CHAT_STREAM=1`, default) y un Ctrl+C durante la
+  generación corta la respuesta conservando lo parcial (`CHAT_STREAM_INTERRUPT`,
+  default 1); `0` en cualquiera vuelve al comportamiento clásico.
 
 ## Quickstart
 
