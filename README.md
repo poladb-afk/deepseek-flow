@@ -39,6 +39,20 @@ python3 main.py             # el chat
 
 Sin `.env`, el agente opera sobre el directorio actual (portable por defecto).
 
+### En una PC nueva, el harness entero (Laya incluida)
+
+Los checkpoints de Laya no van en el repo (643 MB cada uno, demasiado para
+git) sino en una [release](https://github.com/poladb-afk/deepseek-flow/releases/tag/laya-v1);
+un comando los baja, verifica y deja listos:
+
+```bash
+./descargar_modelos.sh
+```
+
+Sin ese paso el harness funciona igual — el router del chat y el Choose del
+supervisor degradan al lado DeepSeek; solo se pierden los ifs locales (ms,
+costo 0).
+
 ## Capacidades (18, al día de hoy)
 
 | Origen | Herramientas |
