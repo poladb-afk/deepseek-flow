@@ -5,7 +5,7 @@ from pathlib import Path
 from flow import create_agent_flow
 from utils.fs_tools import allowed_roots
 
-WELCOME = "Agente con DeepSeek V4.1 Flash — pregunta sobre tus archivos ('salir' o Ctrl+C para terminar)."
+WELCOME = "Agente con DeepSeek V4.1 Flash — pedidos sobre tus archivos y tu código ('salir' o Ctrl+C para terminar)."
 
 
 def system_prompt():

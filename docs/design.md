@@ -684,3 +684,44 @@ donde el estado del arte pone el peso (Augment, sobre los prompts
 filtrados: los schemas JSON suelen ser más reveladores que el prompt
 mismo). El lever de curaduría siguiente son las descripciones de las 18
 herramientas — con sonda antes/después, como hicimos con el router.
+
+## El coding agent: run_command y edit_file (2026-10-05)
+
+El agente de archivos se volvió agente de código con un módulo nuevo
+(`modules/coding.py`, el patrón TOOLS+IMPL — el CORE no cambió una línea)
+y dos herramientas bajo el mismo contrato HITL que `write_file`:
+
+- **`run_command`**: shell con aprobación `(s/n)`, preview del comando.
+  Rieles mecánicos: timeout de 120s, salida truncada a 4k chars (viaja
+  al historial y al costo), stdin cerrado (nada espera input
+  interactivo), CWD del proceso. Diseño explícito: para shell la
+  aprobación humana ES la contención — un comando llega a donde las
+  raíces permitidas de las tools de archivos no llegan. El rechazo
+  vuelve al modelo como texto (información para corregir, no error).
+- **`edit_file`**: reemplazo exacto y único de `old_string` por
+  `new_string` con diff unificado y aprobación. Falla ruidosamente si
+  el texto no aparece, aparece N veces, o es idéntico al reemplazo —
+  obliga al modelo a volver al archivo en vez de reescribirlo de
+  memoria. Es la lección medida del clobber de `fs_tools.py`
+  (write_file de archivo entero lo dejó en 16 líneas).
+
+El supervisor NO suma estas tools: su contrato de 18 opciones está
+congelado con el checkpoint de Laya (agregarlas exige re-entrenar el
+dispatch). Chat-first; supervisor recién si medimos necesidad.
+
+Verificación en vivo (sesión completa por el flujo real del chat, con
+aprobaciones HITL reales vía driver pty):
+
+- crear `demo.py` con `write_file` usando un path RELATIVO
+  (`salidas/tmp_coding/demo.py`) — resolvió por el candidato CWD del
+  fix de `_resolve` (el issue 6 de la caza, funcionando en producción);
+- verificar con `run_command` (`python3 -c "...print(suma(2,3))"` →
+  exit 0, salida `5`);
+- corregir con `edit_file`: diff de UNA línea (`a + b` → `a - b`),
+  aplicado y re-verificado con `cd ... && python -c`;
+- precisión de instrucciones: el agente notó que el docstring quedó
+  desactualizado ("Devuelve la suma") y NO lo tocó porque el pedido era
+  solo el retorno.
+
+31/31 tests (HITL sí/no, timeout, truncado, y las tres fallas
+ruidosas del edit).

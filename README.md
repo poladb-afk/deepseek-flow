@@ -53,12 +53,14 @@ Sin ese paso el harness funciona igual — el router del chat y el Choose del
 supervisor degradan al lado DeepSeek; solo se pierden los ifs locales (ms,
 costo 0).
 
-## Capacidades (18, al día de hoy)
+## Capacidades (20, al día de hoy)
 
 | Origen | Herramientas |
 |---|---|
 | CORE (lectura) | `list_files`, `read_file`, `search_files` |
 | escritura (HITL) | `write_file` — diff + `s/n`, default seguro |
+| coding (HITL) | `run_command` — shell con `s/n`, timeout y salida truncada |
+| coding (HITL) | `edit_file` — reemplazo exacto y único (diff quirúrgico) |
 | juez | `answer_verified` — borrador → juez (verifica citas contra archivos) → refinamiento |
 | informe | `run_informe` — map-reduce paralelo de trazas `.jsonl` |
 | auditoria | `run_auditoria` — BatchFlow multi-carpeta + síntesis comparativa |

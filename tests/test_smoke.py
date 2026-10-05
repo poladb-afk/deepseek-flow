@@ -545,3 +545,66 @@ def test_system_prompt_estable_y_trae_entorno():
     assert any(str(r) in a for r in allowed_roots())
     # el idioma se espeja (español o inglés), no se fija a uno
     assert "español o inglés" in a
+
+
+def test_run_command_hitl_y_rieles(monkeypatch):
+    import modules.coding as coding
+
+    # aprobado: ejecuta y reporta exit + salida
+    monkeypatch.setattr(coding, "_approve", lambda p: True)
+    r = coding.run_command("echo hola-coding")
+    assert r.startswith("exit 0") and "hola-coding" in r
+
+    # rechazado: no ejecuta, el rechazo es texto para el modelo
+    monkeypatch.setattr(coding, "_approve", lambda p: False)
+    r = coding.run_command("echo no-deberia")
+    assert r.startswith("RECHAZADO") and "no-deberia" not in r
+
+    # timeout: el riel mecánico corta el comando colgado
+    monkeypatch.setattr(coding, "_approve", lambda p: True)
+    monkeypatch.setattr(coding, "TIMEOUT_S", 1)
+    assert "timeout" in coding.run_command("sleep 5")
+
+    # truncado: la salida larga no intoxica el historial
+    monkeypatch.setattr(coding, "TIMEOUT_S", 120)
+    r = coding.run_command("python3 -c \"print('x' * 20000)\"")
+    assert "salida truncada" in r and len(r) < 6000
+
+
+def test_edit_file_quirurgico(tmp_path, monkeypatch):
+    import modules.coding as coding
+
+    archivo = tmp_path / "demo.py"
+    archivo.write_text("def suma(a, b):\n    return a + b\n", encoding="utf-8")
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.setattr(coding, "_approve", lambda p: True)
+
+    # happy path: ocurrencia única, reemplazo exacto
+    r = coding.edit_file(str(archivo), "a + b", "a - b")
+    assert r.startswith("Editado")
+    assert "a - b" in archivo.read_text(encoding="utf-8")
+
+    # no aparece: falla ruidoso, el archivo queda intacto
+    antes = archivo.read_text(encoding="utf-8")
+    r = coding.edit_file(str(archivo), "texto_que_no_esta", "x")
+    assert r.startswith("ERROR") and "no aparece" in r
+    assert archivo.read_text(encoding="utf-8") == antes
+
+    # ambiguo: dos ocurrencias piden más contexto
+    archivo.write_text("base = 1\nbase = base + 1\n", encoding="utf-8")
+    r = coding.edit_file(str(archivo), "base = ", "valor = ")
+    assert "2 veces" in r
+    assert "base" in archivo.read_text(encoding="utf-8")
+
+    # rechazado: el diff se muestra pero el disco queda intacto
+    monkeypatch.setattr(coding, "_approve", lambda p: False)
+    r = coding.edit_file(str(archivo), "base = 1", "base = 10")
+    assert r.startswith("RECHAZADO")
+    assert "base = 1" in archivo.read_text(encoding="utf-8")
+
+
+def test_action_space_suma_coding():
+    from nodes import TOOLS
+
+    nombres = {t["function"]["name"] for t in TOOLS}
+    assert {"run_command", "edit_file"} <= nombres
