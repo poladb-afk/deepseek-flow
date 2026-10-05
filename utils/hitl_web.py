@@ -36,8 +36,7 @@ PUERTO_DEFAULT = 8765
 TIMEOUT_DEFAULT = 300
 
 _lock = threading.Lock()          # serializa aprobar(): un pedido a la vez
-_pendido = None                   # Pedido actual (o None): titulo, cuerpo, token, evento
-_pendiente = None                 # compat: (titulo, cuerpo) del pedido vigente
+_pendiente = None                   # Pedido actual (o None): titulo, cuerpo, token, evento
 _servidor = None                  # ThreadingHTTPServer (arranque perezoso)
 
 
@@ -131,7 +130,12 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path.split("?")[0] not in ("/", "/index.html"):
             self._responder(404, "<p>404</p>")
             return
-        pedido = _pendido
+        # mismo corte que do_POST: un GET de página ajena (DNS-rebinding) no
+        # puede leer el pedido pendiente ni su token (hallazgo de auditoría)
+        if not _origen_valido(self):
+            self._responder(403, "<p>Origen no permitido.</p>")
+            return
+        pedido = _pendiente
         if pedido is None:
             self._responder(200, "<p>No hay ningún pedido pendiente.</p>")
             return
@@ -159,7 +163,7 @@ class _Handler(BaseHTTPRequestHandler):
                 decision = valor
             elif clave == "token":
                 token = valor
-        pedido = _pendido
+        pedido = _pendiente
         # token obligatorio y atado al pedido vigente: un POST de un pedido
         # ya terminado (o de otra pestaña) no puede resolver este.
         if pedido is None or not secrets.compare_digest(token, pedido.token):
@@ -196,7 +200,7 @@ def aprobar(titulo, cuerpo):
     Devuelve True si el navegador aprobó dentro del timeout, False en
     cualquier otro caso (rechazo, timeout o error): el default seguro.
     """
-    global _pendido, _pendiente
+    global _pendiente
     with _lock:
         try:
             puerto = _arrancar()
@@ -205,8 +209,7 @@ def aprobar(titulo, cuerpo):
             return False
 
         pedido = _Pedido(str(titulo), str(cuerpo), secrets.token_urlsafe(24))
-        _pendido = pedido
-        _pendiente = (pedido.titulo, pedido.cuerpo)  # compat con do_GET/tests
+        _pendiente = pedido
         print(f"[hitl_web] aprobación pendiente en http://{HOST}:{puerto}")
 
         try:
@@ -215,7 +218,6 @@ def aprobar(titulo, cuerpo):
             print(f"[hitl_web] error esperando la decisión: {e}")
             listo = False
         decidido = pedido.decision
-        _pendido = None
         _pendiente = None
         if not listo:
             print("[hitl_web] timeout sin decisión: se rechaza (default seguro)")

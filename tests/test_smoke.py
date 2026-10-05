@@ -1403,7 +1403,7 @@ def test_hitl_web(monkeypatch):
 
     def post(decision):
         # el form real manda también el token del pedido vigente
-        token = hitl._pendido.token if hitl._pendido is not None else ""
+        token = hitl._pendiente.token if hitl._pendiente is not None else ""
         datos = urllib.parse.urlencode({"decision": decision, "token": token}).encode()
         req = urllib.request.Request(f"http://127.0.0.1:{puerto}/decision", data=datos)
         return urllib.request.urlopen(req, timeout=5).read()
@@ -1496,7 +1496,7 @@ def test_hitl_web_rechaza_post_cross_origin(monkeypatch):
     assert not resultados.get("ok"), "el pedido se resolvió por un POST cross-origin"
 
     # 2) POST legítimo (sin Origin, mismo-origen vía loopback) con el token: sí decide
-    token = hitl._pendido.token
+    token = hitl._pendiente.token
     req = urllib.request.Request(
         f"http://127.0.0.1:{puerto}/decision",
         data=urllib.parse.urlencode({"decision": "aprobar", "token": token}).encode())
@@ -2082,3 +2082,41 @@ def test_policy_rm_rf_paga_doble():
     assert clasificar("rm -fr /tmp/x") == "confirmar_doble"
     assert clasificar("rm archivo.txt") == "preguntar"
     assert clasificar("ls && rm -rf /") == "confirmar_doble"  # compuesto: el piso lo fija el peor
+
+
+def test_hitl_web_get_valida_origen():
+    """Corte ligero (auditoría): un GET con Host ajeno (DNS-rebinding) no
+    puede leer el pedido pendiente ni su token — mismo corte que el POST."""
+    import io
+    from types import SimpleNamespace
+
+    import utils.hitl_web as hw
+
+    hw._pendiente = SimpleNamespace(titulo="t", cuerpo="secreto",
+                                    token="x", evento=__import__("threading").Event())
+    try:
+        puerto = hw._arrancar()  # el real (otros tests pueden haberlo movido)
+        handler = SimpleNamespace(headers={"Host": "evil.example.com:%d" % puerto})
+        assert hw._origen_valido(handler) is False
+        handler_ok = SimpleNamespace(headers={"Host": "127.0.0.1:%d" % puerto})
+        assert hw._origen_valido(handler_ok) is True
+    finally:
+        hw._pendiente = None
+
+
+def test_stream_agrega_etiqueta_deepseek(monkeypatch, capsys):
+    """La respuesta streameada llega con su rótulo (nit de UX, mesa 8)."""
+    from types import SimpleNamespace
+
+    import nodes
+
+    def fake_stream(msgs, tools=None):
+        print("hola", end="", flush=True)  # el stream real imprime los deltas
+        return SimpleNamespace(content="hola", tool_calls=None)
+
+    monkeypatch.setattr(nodes, "call_llm_agent_stream", fake_stream)
+    shared = {"messages": [{"role": "user", "content": "q"}], "tool_rounds": 0}
+    accion = nodes.AgentStep()._run(shared)
+    assert accion == "answer"
+    salida = capsys.readouterr().out
+    assert "DeepSeek: " in salida and "hola" in salida

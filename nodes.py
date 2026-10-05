@@ -105,6 +105,9 @@ class AgentStep(Node):
         messages, tools = inputs
         stream = _setting("CHAT_STREAM", "1") == "1"
         if stream:
+            # etiqueta antes del primer delta: sin ella las respuestas
+            # llegan sin rótulo (nit de UX de la mesa 8, medido en prod)
+            print("\nDeepSeek: ", end="", flush=True)
             exec_res = call_llm_agent_stream(messages, tools)
         else:
             exec_res = call_llm_agent(messages, tools)
