@@ -1,3 +1,7 @@
+import json
+import re
+from types import SimpleNamespace
+
 from pocketflow import Node
 
 from modules import discover
@@ -5,6 +9,29 @@ from utils.call_llm import call_llm_agent
 from utils.fs_tools import MAX_TOOL_ROUNDS, TOOLS as CORE_TOOLS, run_tool_call
 
 EXIT_WORDS = {"salir", "exit", "quit"}
+
+# Recuperación del canal de tools: a veces DeepSeek emite las llamadas como
+# TEXTO con su markup interno (DSML) en vez del canal estructurado — el chat
+# las imprimiría como respuesta y se quedaría colgado (medido en producción).
+# El separador real llega con UNA o DOS barras fullwidth (medido en
+# producción: el log trae <｜｜DSML｜｜, el transcript pegado una sola)
+_SEP = r"[｜|]{1,2}"
+RE_DSML = re.compile(rf"<{_SEP}DSML")
+DSML_INVOKE = re.compile(rf'<{_SEP}DSML{_SEP} invoke name="([^"]+)">(.*?)</{_SEP}DSML{_SEP} invoke>', re.DOTALL)
+DSML_PARAM = re.compile(rf'<{_SEP}DSML{_SEP} parameter name="([^"]+)"[^>]*>(.*?)</{_SEP}DSML{_SEP} parameter>', re.DOTALL)
+
+
+def dsml_a_tool_calls(content):
+    """El texto DSML de vuelta en objetos con la forma de la API (atributos
+    .function.name/.arguments/.id): el camino `tool` existente sigue intacto."""
+    calls = []
+    for m in DSML_INVOKE.finditer(content):
+        args = {k: v.strip() for k, v in DSML_PARAM.findall(m.group(2))}
+        calls.append(SimpleNamespace(
+            id=f"dsml-{len(calls)}",
+            function=SimpleNamespace(name=m.group(1), arguments=json.dumps(args, ensure_ascii=False)),
+        ))
+    return calls
 
 # Action space = capacidades base del CORE + lo que aporten los módulos.
 MODULE_TOOLS, MODULE_IMPLS = discover()
@@ -40,6 +67,13 @@ class AgentStep(Node):
         return call_llm_agent(messages, tools)
 
     def post(self, shared, prep_res, exec_res):
+        if not getattr(exec_res, "tool_calls", None) and RE_DSML.search(exec_res.content or ""):
+            parseados = dsml_a_tool_calls(exec_res.content)
+            if parseados:
+                print("  [recuperación] tool calls llegaron como texto (DSML) → ejecutando")
+                # el historial queda canónico: tool_calls, sin el markup crudo
+                exec_res.content = None
+                exec_res.tool_calls = parseados
         shared["messages"].append(exec_res)
         if getattr(exec_res, "tool_calls", None):
             return "tool"
@@ -77,6 +111,27 @@ PREGUNTA_ROUTER = {
 }
 
 
+def voto_confirmacion_router(pregunta):
+    """El segundo voto del router: confirmación barata antes de saltar a
+    DirectAnswer. Medido en producción: el checkpoint dice 'directo' con
+    confianza alta para imperativos de acción ("debatí…", "investigá…",
+    0.78-0.96) y la capacidad se pierde — el voto lo corrige."""
+    from utils.call_llm import call_llm, _setting
+    from utils.estructura import extraer_yaml
+
+    if _setting("USE_VOTACION", "1") != "1":
+        return "directo"  # apagado: la palabra de Laya es final
+    r = extraer_yaml(call_llm(
+        f"Pregunta del usuario:\n{pregunta}\n\n"
+        "¿Responderla requiere USAR HERRAMIENTAS (leer/buscar archivos, web, "
+        "ejecutar una capacidad: debate, investigación, informe, sql...) o se "
+        "responde DIRECTO de conocimiento? Un imperativo de acción (debatá, "
+        "investigá, generá, medí...) casi siempre es herramientas.\n\n"
+        "Responde SOLO yaml:\n```yaml\nveredicto: herramientas|directo\n```"
+    ))
+    return r.get("veredicto", "herramientas")
+
+
 class LayaRouter(Node):
     """If inteligente: Laya (local, ms) decide si la pregunta necesita
     herramientas o se responde directa. La confianza aplica los umbrales
@@ -103,8 +158,13 @@ class LayaRouter(Node):
 
         eleccion, confianza = exec_res
         print(f"  [laya] {eleccion} (conf {confianza:.2f})")
-        if eleccion == "directo" and veredicto(confianza) != "met":
-            return "herramientas"  # dudoso: caer al lado seguro
+        if eleccion == "directo":
+            if veredicto(confianza) != "met":
+                return "herramientas"  # dudoso: caer al lado seguro
+            voto = voto_confirmacion_router(prep_res)
+            if voto != "directo":  # 2-de-2: desacuerdo → lado seguro
+                print(f"  [voto] deepseek dice {voto} → herramientas")
+                return "herramientas"
         return eleccion
 
 

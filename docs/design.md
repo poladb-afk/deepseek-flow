@@ -28,6 +28,17 @@ historial + definiciones de tools; si el modelo responde con `tool_calls`,
 la acción `tool` ejecuta y el bucle vuelve a `AgentStep`; si responde con
 texto, la acción `answer` imprime y vuelve a esperar la siguiente pregunta.
 
+## Recuperación del canal de tools (DSML como texto)
+
+Medido en producción (2026-10-05): a veces DeepSeek emite las tool calls
+como TEXTO crudo con su markup interno (DSML, `<｜DSML｜｜ invoke …>`) en
+vez del canal estructurado — el chat las imprimía como respuesta y se
+quedaba esperando, sin ejecutar nada. `AgentStep.post` ahora lo detecta:
+sin `tool_calls` pero con la marca DSML en el contenido → `dsml_a_tool_calls`
+parsea de vuelta los invokes (misma forma que la API) y los INYECTA en el
+mensaje, con el markup limpiado para que el historial quede canónico. El
+camino `tool` existente sigue intacto. Test con el transcript real.
+
 ## Comunicación (shared)
 
 | Clave | Contenido |
@@ -240,7 +251,17 @@ tanda: un plan de una vez y los pasos dependientes quedaban fuera; ahora
 el paso N+1 decide con el resultado del N — el Choose de bmo. El estado
 `{tarea, hechos}` y `PREGUNTA_DESPACHO` replican la task byte a byte
 (test de humo vigila las 18 opciones). Anti-recursión (L1): run_supervisor
-no está entre las opciones ni en el fallback. **Self-healing** (ítem 4
+no está entre las opciones ni en el fallback. **Mayoría 2-de-3**
+(`utils/votacion.py`): la vía dudosa resuelve por mayoría — voto A
+(DeepSeek, prompt clásico), voto B (DeepSeek, por eliminación: framing
+independiente) y voto C (el crudo de Laya, consulta ya pagada); triple
+desacuerdo → gana A. Laya segura sigue despachando sola (0 llamadas); el
+veto manda sobre cualquier mayoría. USE_VOTACION=0 apaga (voto único).
+Medido con LLM real sobre el test de 24: sistema 16/24 (voto único) →
+**17/24 (mayoría)**; corrige justo los pares confusos (search_web↔list,
+db_schema↔sql, read_file↔search_web) y el hallazgo honesto: A y B
+correlacionan (misma familia ante el mismo catálogo, coincidieron
+equivocados en 3 casos) — la independencia real la aporta el voto C. **Self-healing** (ítem 4
 del roadmap): un paso que falla es un hecho con `ERROR (...)`; reintentar
 esa herramienta recibe el error como feedback explícito en el prompt de
 args; a los {MAX_FALLOS_POR_HERRAMIENTA} fallos la herramienta se VETA
@@ -403,6 +424,17 @@ una llamada más, no una respuesta mal fundada).
 
 `sonda_router.py` corre el test con la lógica EXACTA de producción
 (`python3 sonda_router.py [ckpt ...]`, sin args usa `LAYA_MODEL`).
+**Ensamble 2-de-2 con voto de confirmación** (medido en la sesión
+completa): el checkpoint dice 'directo' con confianza 0.78-0.96 para
+imperativos de acción ("debatí…", "investigá…") y las capacidades se
+perdían — el test del router no tenía casos imperativos. Ahora, cuando
+Laya dice directo con 'met', `voto_confirmacion_router` pide una
+mini-llamada de confirmación a DeepSeek ("¿herramientas o directo?");
+desacuerdo → lado seguro. Verificado en vivo: debate y deep_research
+corrieron por fin como tools (planner, búsqueda, huecos, segunda ronda).
+Cobertura final: **18/18 capacidades**. USE_VOTACION=0 apaga ambos
+ensambles.
+
 Verificado el flujo COMPLETO del chat contra LLM real (2026-10-05):
 camino directo dos vueltas seguidas y camino herramientas con tool_calls
 reales. La primera pasada destapó un bug de cableado latente desde el
@@ -460,3 +492,50 @@ sin tareas vencidas no gasta una llamada. `--ahora` fuerza (para probar),
 `--seco` lista. Leyes: cada tarea es un supervisor entero (MAX_PASOS=5,
 veto tras dos fallos) y MAX_TAREAS_POR_CORRIDA=10. Crea el directorio de
 salida (lección de la primera corrida: Sintetizar escribe directo).
+
+### Visor del trace — los .runs abiertos
+`python3 main.py visor [trace.jsonl ...]` · [visor.py](../visor.py)
+
+Pieza standalone de código puro: lee los eventos de `.runs/*.jsonl`
+(`{ts, nodo, accion, seg}` — utils/tracing) y escribe al lado un HTML
+autocontenido (offline, sin CDN): el recorrido con las vueltas del bucle
+(la historia `ElegirSiguiente→EjecutarPaso` del supervisor se lee de un
+vistazo), el resumen por nodo (veces, tiempo, %) y la cronología con
+barras de duración proporcionales. Sin args usa el trace con contenido
+más reciente (main.py abre el propio antes de despachar: los vacíos se
+saltan). Determinista: el mismo jsonl da el mismo HTML (test de humo).
+
+## Sesión de prueba completa (2026-10-05): 19 turnos, las 18 capacidades
+
+Una sola sesión continua de chat ejerciendo todo el harness. Resultado
+por capacidad: router directo ✓, list/read/search ✓, write_file con HITL
+(crea y sobrescribe) ✓, answer_verified con citas ✓, sql ✓, mcp_tools +
+mcp_call (1847×293=541171, correcto) ✓, search_web (honesto: los snippets
+no traían el tag de versión) ✓, rag_index + rag_search (35 fragmentos,
+dedup en design.md al top) ✓, run_effective_n ✓, run_informe (22
+archivos, 33.974 registros — creció con los datasets nuevos) ✓,
+run_auditoria (round1 vs round3) ✓, run_supervisor (42 .py, el más
+grande correcto, notó hasta el path truncado en los hechos) ✓,
+debate/research ✗ (ver hallazgo 1).
+
+Hallazgos y sus fixes:
+
+1. **El separador DSML es DOBLE barra** (`<｜｜DSML｜｜`): la primera
+   versión de la recuperación usaba una sola (copiada de un transcript
+   pegado a mano que la colapsaba) y NUNCA disparó — el debate y el
+   research de la sesión se perdieron. Fix: regex flexible `[｜|]{1,2}`,
+   verificada contra los tres bloques reales del log (los tres parsean)
+   y con test de ambos formatos. El patrón de fondo: el DSML aparece
+   cuando el modelo va SIN tools (camino directo del router) pero quiere
+   llamar igual — tres de los falso-directo del router terminaron en
+   DSML; con la recuperación andando, ese error del router se
+   auto-corrige.
+2. **Repetición idéntica con args en el supervisor**: search_files con
+   el mismo glob corrió 4 veces (el veto solo cubría sin-args). Fix:
+   firma canónica herramienta+args → cache (la idéntica no re-ejecuta,
+   reutiliza el resultado) + veto a la segunda firma repetida.
+3. Ruido cosmético: httpx/asyncio "Event loop is closed" al cerrar los
+   clientes async (×6 por sesión) — sin impacto, pendiente de silenciar.
+   Warning de fastembed (mean pooling) — informativo, sin acción.
+4. El falso-directo del router se confirmó en vivo dos veces más
+   (MCP 0.82, debate 0.78) — candidato al ensamble 2-de-3 cuando toque.

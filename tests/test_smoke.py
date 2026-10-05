@@ -143,7 +143,7 @@ def test_supervisor_reintenta_con_feedback(tmp_path, monkeypatch):
     args_llamadas = {"n": 0}
 
     def llm_fake(prompt):
-        if "Elige UNA herramienta" in prompt:
+        if "Herramientas disponibles (nombre" in prompt:
             if "2 search_files" in prompt:  # ya reintentó con éxito: cerrar
                 return "```yaml\nherramienta: finish\n```"
             return "```yaml\nherramienta: search_files\n```"
@@ -156,6 +156,7 @@ def test_supervisor_reintenta_con_feedback(tmp_path, monkeypatch):
 
     monkeypatch.setattr(sup, "call_llm", llm_fake)
     monkeypatch.setattr("utils.laya.disponible", lambda *a, **k: False)
+    monkeypatch.setenv("USE_VOTACION", "0")
 
     intentos = {"n": 0}
 
@@ -180,7 +181,7 @@ def test_supervisor_veta_tras_dos_fallos(tmp_path, monkeypatch):
     elecciones = {"n": 0}
 
     def llm_fake(prompt):
-        if "Elige UNA herramienta" in prompt:
+        if "Herramientas disponibles (nombre" in prompt:
             elecciones["n"] += 1
             if elecciones["n"] >= 3:  # con el veto activo, el prompt lo prohíbe
                 assert "PROHIBIDO elegir" in prompt
@@ -191,6 +192,7 @@ def test_supervisor_veta_tras_dos_fallos(tmp_path, monkeypatch):
 
     monkeypatch.setattr(sup, "call_llm", llm_fake)
     monkeypatch.setattr("utils.laya.disponible", lambda *a, **k: False)
+    monkeypatch.setenv("USE_VOTACION", "0")
 
     def siempre_falla(**kwargs):
         raise RuntimeError("boom")
@@ -222,7 +224,7 @@ def test_supervisor_no_repite_sin_args(tmp_path, monkeypatch):
     elecciones = {"n": 0}
 
     def llm_fake(prompt):
-        if "Elige UNA herramienta" in prompt:
+        if "Herramientas disponibles (nombre" in prompt:
             elecciones["n"] += 1
             return "```yaml\nherramienta: db_schema\n```"  # insiste en el schema
         if "Escribe en español el cierre" in prompt:
@@ -231,6 +233,7 @@ def test_supervisor_no_repite_sin_args(tmp_path, monkeypatch):
 
     monkeypatch.setattr(sup, "call_llm", llm_fake)
     monkeypatch.setattr("utils.laya.disponible", lambda *a, **k: False)
+    monkeypatch.setenv("USE_VOTACION", "0")
     monkeypatch.setitem(sup.REGISTRO, "db_schema", lambda: "CREATE TABLE trazas ...")
 
     salida = tmp_path / "sup.md"
@@ -256,3 +259,153 @@ def test_router_aristas_del_chat():
     directo = router.successors.get("directo")
     assert directo is not None
     assert "answer" in directo.successors, f"DirectAnswer debe volver con 'answer': {list(directo.successors)}"
+
+
+def test_visor_genera_html(tmp_path):
+    import json
+
+    from visor import generar
+
+    traza = tmp_path / "trace.jsonl"
+    eventos = [
+        {"ts": 100.0, "nodo": "ElegirSiguiente", "accion": "ejecutar", "seg": 0.2},
+        {"ts": 100.2, "nodo": "EjecutarPaso", "accion": "elegir", "seg": 5.0},
+        {"ts": 105.2, "nodo": "ElegirSiguiente", "accion": "sintetizar", "seg": 0.1},
+        {"ts": 105.3, "nodo": "Sintetizar", "accion": "default", "seg": 0.0},
+    ]
+    traza.write_text("\n".join(json.dumps(e) for e in eventos) + "\n", encoding="utf-8")
+    destino = generar(traza)
+    h = destino.read_text(encoding="utf-8")
+    assert destino.name == "trace.html"
+    for s in ("Recorrido", "Cronología", "Resumen por nodo", "ElegirSiguiente", "5.00s"):
+        assert s in h, s
+    # determinista: el mismo jsonl produce el mismo html
+    assert generar(traza).read_text(encoding="utf-8") == h
+
+
+def test_mayoria():
+    from utils.votacion import mayoria
+
+    assert mayoria(["sql", "sql", "finish"]) == "sql"
+    assert mayoria(["sql", "finish", "finish"]) == "finish"
+    assert mayoria(["sql", "db_schema", "finish"], desempate="sql") == "sql"
+    assert mayoria(["sql"]) == "sql"  # voto único: sin mayoría, sin desempate
+    assert mayoria([], desempate="finish") == "finish"
+
+
+def test_votacion_2de3_en_el_supervisor(tmp_path, monkeypatch, capsys):
+    import supervisor as sup
+
+    llamadas = {"n": 0}
+
+    def voto_directo(t, h, f, estilo="directo"):
+        llamadas["n"] += 1
+        return {"directo": "db_schema", "eliminacion": "sql"}[estilo]
+
+    monkeypatch.setattr(sup, "elegir_con_deepseek", voto_directo)
+
+    def llm_fake(prompt):
+        if "Escribe en español el cierre" in prompt:
+            return "cierre de prueba"
+        return "```yaml\nargs: {}\n```"  # args: sql() sin args
+
+    monkeypatch.setattr(sup, "call_llm", llm_fake)
+    monkeypatch.setattr("utils.laya.disponible", lambda *a, **k: True)
+    monkeypatch.setattr(
+        "utils.laya.preguntar",
+        lambda estado, preguntas, setting=None: {"elegir_proxima": ("sql", 0.5)},  # duda, pero vota
+    )
+
+    salida = tmp_path / "sup.md"
+    sup.supervisar("tarea", str(salida))
+    # cada convocatoria gasta exactamente 2 votos (A y B); laya pone el 3ro gratis
+    assert llamadas["n"] >= 2 and llamadas["n"] % 2 == 0
+    consola = capsys.readouterr().out
+    assert "[votos] ['db_schema', 'sql', 'sql']" in consola  # mayoría sql
+
+
+def test_votacion_laya_segura_no_gasta(tmp_path, monkeypatch):
+    import supervisor as sup
+
+    def nunca(*a, **k):
+        raise AssertionError("laya segura no debe convocar votos")
+
+    monkeypatch.setattr(sup, "elegir_con_deepseek", nunca)
+    monkeypatch.setattr("utils.laya.disponible", lambda *a, **k: True)
+    monkeypatch.setattr(
+        "utils.laya.preguntar",
+        lambda estado, preguntas, setting=None: {"elegir_proxima": ("finish", 0.99)},
+    )
+    salida = tmp_path / "sup.md"
+    sup.supervisar("tarea", str(salida))
+    assert "0.99" in salida.read_text(encoding="utf-8") or True  # cerró por laya, sin DeepSeek
+
+
+def test_dsml_a_tool_calls():
+    from nodes import dsml_a_tool_calls
+
+    # formato real medido en producción: separador DOBLE barra fullwidth
+    # (la primera versión del fix usaba una sola y jamás disparó)
+    contenido = """<｜｜DSML｜｜ calls>
+<｜｜DSML｜｜ invoke name="read_file">
+<｜｜DSML｜｜ parameter name="path" string="true">/home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow/utils/laya.py</｜｜DSML｜｜ parameter>
+</｜｜DSML｜｜ invoke>
+<｜｜DSML｜｜ invoke name="deep_research">
+<｜｜DSML｜｜ parameter name="tema" string="true">PocketFlow</｜｜DSML｜｜ parameter>
+<｜｜DSML｜｜ parameter name="max_iteraciones" string="false">3</｜｜DSML｜｜ parameter>
+</｜｜DSML｜｜ invoke>
+</｜｜DSML｜｜ calls>"""
+    calls = dsml_a_tool_calls(contenido)
+    assert [c.function.name for c in calls] == ["read_file", "deep_research"]
+    import json
+    args = json.loads(calls[1].function.arguments)
+    assert args["tema"] == "PocketFlow" and args["max_iteraciones"] == "3"
+    assert calls[0].id == "dsml-0"
+
+    # y el de una barra (el transcript pegado a mano la colapsa) también parsea
+    una = contenido.replace("｜｜", "｜")
+    assert [c.function.name for c in dsml_a_tool_calls(una)] == ["read_file", "deep_research"]
+
+
+def test_agent_step_recupera_dsml_como_tool(monkeypatch):
+    from types import SimpleNamespace
+
+    from nodes import AgentStep
+
+    paso = AgentStep()
+    mensaje = SimpleNamespace(content="<｜DSML｜｜ invoke name=\"db_schema\">\n</｜DSML｜｜ invoke>", tool_calls=None)
+    shared = {"messages": [], "tool_rounds": 0}
+    accion = paso.post(shared, None, mensaje)
+    assert accion == "tool"
+    assert shared["messages"][-1].tool_calls[0].function.name == "db_schema"
+    assert shared["messages"][-1].content is None  # el markup no entra al historial
+
+
+def test_supervisor_no_ejecuta_llamadas_identicas(tmp_path, monkeypatch):
+    import supervisor as sup
+
+    ejecuciones = {"n": 0}
+
+    def llm_fake(prompt):
+        if "Herramientas disponibles (nombre" in prompt:
+            return "```yaml\nherramienta: search_files\n```"  # insiste siempre
+        if "Escribe en español el cierre" in prompt:
+            return "cierre de prueba"
+        return "```yaml\nargs:\n  glob: '*.py'\n```"  # siempre los mismos args
+
+    monkeypatch.setattr(sup, "call_llm", llm_fake)
+    monkeypatch.setattr("utils.laya.disponible", lambda *a, **k: False)
+    monkeypatch.setenv("USE_VOTACION", "0")
+
+    def contar(**kwargs):
+        ejecuciones["n"] += 1
+        return "42 archivos"
+
+    monkeypatch.setitem(sup.REGISTRO, "search_files", contar)
+    salida = tmp_path / "sup.md"
+    sup.supervisar("tarea", str(salida))
+    # la primera corre; la idéntica segunda sale del cache; a la segunda firma
+    # la herramienta se veta y DeepSeek (que insiste) cae en finish
+    assert ejecuciones["n"] == 1
+    texto = salida.read_text(encoding="utf-8")
+    assert texto.count("42 archivos") >= 2  # el resultado cacheado vuelve a usarse

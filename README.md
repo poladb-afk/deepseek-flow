@@ -83,6 +83,7 @@ python3 main.py debate "tema" [--rondas] # debate multi-agente
 python3 main.py supervisor "tarea"       # orquestación de piezas
 python3 main.py effective_n [carpeta]   # deduplicación exacta (Effective N)
 python3 main.py heartbeat [--ahora]    # piezas programadas (cron nocturno)
+python3 main.py visor [trace.jsonl]    # HTML del trace (default: el último)
 python3 main.py index [carpeta]          # indexar para RAG
 python3 main.py carga_trazas.py          # (script aparte) jsonl → SQLite
 python3 sonda_router.py [ckpt]        # (script aparte) router con compuerta
@@ -99,7 +100,7 @@ deepseek-flow/
 ├── main.py            # entry point + subcomandos
 ├── nodes.py / flow.py # el CORE: bucle del agente
 ├── modules/           # capacidades del chat (TOOLS + IMPL por archivo)
-├── informe|juez|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|heartbeat|carga_trazas.py
+├── informe|juez|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|heartbeat|visor|carga_trazas.py
 │                      # piezas standalone (CLI) — los módulos las exponen
 ├── utils/             # call_llm, fs_tools, embeddings, laya, estructura,
 │                      # mcp_client, tracing, viz, websearch

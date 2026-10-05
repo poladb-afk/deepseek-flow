@@ -63,9 +63,21 @@ def vetadas(fallos):
 SIN_ARGS = {t["function"]["name"] for t in _TODAS if not t["function"].get("parameters", {}).get("properties")}
 
 
-def repetidas(exitosas):
-    """Las herramientas sin-args que ya corrieron bien: idéntica repetición."""
-    return {h for h in exitosas if h in SIN_ARGS}
+def repetidas(exitosas, previas=None):
+    """Lo ya cubierto y no elegible de nuevo: las herramientas sin-args que
+    corrieron bien, y toda herramienta llamada DOS veces con la misma firma
+    (patología medida: search_files con el mismo glob cuatro veces — el
+    veto corta el bucle, el cache evita re-ejecutar)."""
+    fuera = {h for h in exitosas if h in SIN_ARGS}
+    veces = {}
+    for (h, _clave), d in (previas or {}).items():
+        veces[h] = max(veces.get(h, 0), d.get("n", 0))
+    return fuera | {h for h, n in veces.items() if n >= 2}
+
+
+def clave_de(herramienta, args):
+    """La firma canónica de una llamada: herramienta + args ordenados."""
+    return json.dumps(args or {}, sort_keys=True, ensure_ascii=False)
 
 # Congelada: task supervisor_dispatch (bmo/train/tasks/supervisor_dispatch.yaml).
 # Las 18 opciones en este orden exacto; entrenamiento y producción leen igual.
@@ -121,29 +133,66 @@ def hecho_de(n, herramienta, args, resultado):
     return f"{n} {herramienta}({breve}) -> {una_linea[:HECHO_LARGO]}"
 
 
+INSTRUCCION_ELECCION = {
+    # voto A — el clásico
+    "directo": "Elige UNA herramienta para el siguiente paso (o finish). "
+               "El siguiente paso sigue de lo que FALTA, no de lo ya hecho.",
+    # voto B — independiente por construcción: razona al revés
+    "eliminacion": "Primero ELIMINA: nombra las herramientas que ya cumplieron "
+                   "su parte según los hechos (o están prohibidas) y quedan descartadas. "
+                   "Luego elige UNA de las restantes para el siguiente paso (o finish "
+                   "si no queda nada que aporte).",
+}
+
+
+def elegir_con_deepseek(tarea, hechos, fuera, estilo="directo"):
+    """Un voto de DeepSeek sobre el catálogo, con el framing del estilo."""
+    veto_txt = (
+        f"\nPROHIBIDO elegir (ya fallaron {MAX_FALLOS_POR_HERRAMIENTA} veces): "
+        + ", ".join(sorted(fuera)) + ".\n" if fuera else ""
+    )
+    plan = extraer_yaml(call_llm(
+        f"Tarea del usuario: {tarea}\n\n"
+        f"Ya ejecutado:\n" + ("\n".join(hechos) or "(nada)") + "\n\n"
+        f"Herramientas disponibles (nombre: descripción):\n{catalogo()}\n"
+        f"{veto_txt}"
+        f"finish: la tarea está cubierta o bloqueada; sintetizar ya.\n\n"
+        f"{INSTRUCCION_ELECCION[estilo]}\n\n"
+        "Responde SOLO yaml:\n```yaml\nherramienta: nombre\n```"
+    ))
+    eleccion = plan["herramienta"]
+    assert eleccion in REGISTRO or eleccion == "finish", f"herramienta desconocida: {eleccion}"
+    return eleccion
+
+
 class ElegirSiguiente(Node):
-    """El Choose: Laya decide local (ms, costo 0); la compuerta manda —
-    solo 'met' despacha con la elección de Laya, cualquier duda cae al
-    lado seguro (DeepSeek con el catálogo completo). El umbral del
-    supervisor es MÁS exigente que el del router (0.9 vs 0.7): el costo
-    de un despacho erróneo (un paso quemado de MAX_PASOS) pesa más que
-    lo que ahorra (una mini-llamada de elección)."""
+    """El Choose: Laya decide local (ms, costo 0) cuando está segura (8/8
+    medidas); la vía dudosa resuelve por MAYORÍA 2-de-3 (patrón
+    majority-vote): dos consultas DeepSeek con framing distinto (directo y
+    por eliminación) + el voto crudo de Laya (la consulta ya está pagada).
+    Triple desacuerdo → gana el voto directo (la convención de siempre).
+    USE_VOTACION=0 lo apaga (vuelve al voto único). El veto y el tope de
+    fallos siguen mandando sobre cualquier mayoría."""
 
     def prep(self, shared):
-        return shared["tarea"], shared.get("hechos", []), shared.get("fallos", {}), shared.get("exitosas", [])
+        return (shared["tarea"], shared.get("hechos", []), shared.get("fallos", {}),
+                shared.get("exitosas", []), shared.get("previas", {}))
 
     def exec(self, inputs):
-        tarea, hechos, fallos, exitosas = inputs
-        fuera = vetadas(fallos) | repetidas(exitosas)
+        tarea, hechos, fallos, exitosas, hechas = inputs
+        fuera = vetadas(fallos) | repetidas(exitosas, hechas)
         eleccion, origen = None, None
+        laya_resp = None
         from utils.call_llm import _setting
         from utils.laya import disponible, preguntar, veredicto
+        from utils.votacion import mayoria
 
         alto = _setting("LAYA_UNSURE_HIGH_SUPERVISOR", "0.9")
         if disponible("LAYA_MODEL_SUPERVISOR"):
             estado = {"tarea": tarea, "hechos": "\n".join(hechos[-HECHOS_MAX_LINEAS:])}
             resp, conf = preguntar(estado, PREGUNTA_DESPACHO, setting="LAYA_MODEL_SUPERVISOR")["elegir_proxima"]
             if resp in REGISTRO or resp == "finish":
+                laya_resp = resp
                 if resp in fuera:
                     print(f"  [laya] {resp} está vetada (dos fallos) → elige DeepSeek")
                 elif veredicto(conf, alto=alto) == "met":
@@ -155,26 +204,23 @@ class ElegirSiguiente(Node):
         else:
             print("  [laya] no disponible → elige DeepSeek")
         if eleccion is None:
-            veto_txt = (
-                f"\nPROHIBIDO elegir (ya fallaron {MAX_FALLOS_POR_HERRAMIENTA} veces): "
-                + ", ".join(sorted(fuera)) + ".\n" if fuera else ""
-            )
-            plan = extraer_yaml(call_llm(
-                f"Tarea del usuario: {tarea}\n\n"
-                f"Ya ejecutado:\n" + ("\n".join(hechos) or "(nada)") + "\n\n"
-                f"Herramientas disponibles (nombre: descripción):\n{catalogo()}\n"
-                f"{veto_txt}"
-                f"finish: la tarea está cubierta o bloqueada; sintetizar ya.\n\n"
-                "Elige UNA herramienta para el siguiente paso (o finish). "
-                "El siguiente paso sigue de lo que FALTA, no de lo ya hecho.\n\n"
-                "Responde SOLO yaml:\n```yaml\nherramienta: nombre\n```"
-            ))
-            eleccion = plan["herramienta"]
-            if eleccion in fuera:  # desobedeció el veto: cerrar, no chocar otra vez
+            a = elegir_con_deepseek(tarea, hechos, fuera, "directo")
+            votos = [a]
+            if _setting("USE_VOTACION", "1") == "1":
+                votos.append(elegir_con_deepseek(tarea, hechos, fuera, "eliminacion"))
+                if laya_resp:
+                    votos.append(laya_resp)
+            eleccion = mayoria(votos, desempate=a, minimo=2)
+            if len(votos) == 1:
+                origen = "deepseek"
+            elif len(set(votos)) < len(votos):
+                origen = f"mayoría {eleccion}"
+            else:
+                origen = f"desempate→{eleccion}"
+            print(f"  [votos] {votos} → {origen}")
+            if eleccion in fuera:  # una mayoría sobre lo prohibido no corre: cerrar
                 print(f"  [L8] {eleccion} vetada y elegida igual → finish")
                 eleccion = "finish"
-            assert eleccion in REGISTRO or eleccion == "finish", f"herramienta desconocida: {eleccion}"
-            origen = "deepseek"
         return eleccion, origen
 
     def post(self, shared, prep_res, exec_res):
@@ -197,10 +243,11 @@ class EjecutarPaso(Node):
             shared["eleccion"],
             len(shared.get("hechos", [])) + 1,
             shared.get("fallos", {}).get(shared["eleccion"], 0),
+            shared.get("previas", {}),
         )
 
     def exec(self, inputs):
-        tarea, hechos, herramienta, n, fallos_previos = inputs
+        tarea, hechos, herramienta, n, fallos_previos, previas = inputs
         feedback = ""
         if fallos_previos:
             previos = [h for h in hechos if f" {herramienta}(" in h and "ERROR" in h][-1:]
@@ -222,6 +269,12 @@ class EjecutarPaso(Node):
         ))
         args = plan.get("args", {}) or {}
         assert isinstance(args, dict), "args debe ser dict"
+        clave = clave_de(herramienta, args)
+        firma = (herramienta, clave)
+        if firma in previas and previas[firma].get("resultado"):
+            print("  [L8] llamada idéntica a una previa: se reutiliza el resultado")
+            return {"herramienta": herramienta, "args": args,
+                    "resultado": previas[firma]["resultado"][:4000], "n": n, "repetida": True}
         try:
             resultado = str(REGISTRO[herramienta](**args))
         except Exception as e:  # noqa: BLE001  (el error es un hecho, no un crash)
@@ -241,6 +294,12 @@ class EjecutarPaso(Node):
         else:
             fallos[exec_res["herramienta"]] = 0  # el éxito limpia el contador
             shared.setdefault("exitosas", []).append(exec_res["herramienta"])
+            h, a = exec_res["herramienta"], exec_res["args"]
+            firma = (h, clave_de(h, a))
+            registro = shared.setdefault("previas", {}).setdefault(firma, {"n": 0, "resultado": None})
+            registro["n"] += 1  # el intento cuenta aunque haya sido cacheado
+            if not exec_res.get("repetida"):
+                registro["resultado"] = exec_res["resultado"]
             print(f"  → {exec_res['resultado'][:120]}")
         if len(shared["hechos"]) >= MAX_PASOS:
             print(f"  [L8] tope de {MAX_PASOS} pasos → síntesis")

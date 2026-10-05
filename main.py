@@ -26,6 +26,7 @@ SUBCOMANDOS = {
     "supervisor": "supervisor",
     "effective_n": "effective_n",
     "heartbeat": "heartbeat",
+    "visor": "visor",
     "grafo": "utils.viz",
 }
 

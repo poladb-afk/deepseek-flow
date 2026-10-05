@@ -17,3 +17,6 @@ supervisor_*.md
 .heartbeat/
 effective_n*.md
 heartbeat/
+auditoria_round*.md
+pocketflow_research.md
+research_*.md

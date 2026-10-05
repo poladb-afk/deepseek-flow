@@ -52,40 +52,63 @@ promover el patrón a **Choose del supervisor** (falta la task de despacho
 con su catálogo) y un round dirigido de "hechos actuales" para el único
 falso-directo que resiste (mundial, 0.83).
 
-## 3. Streaming + memoria entre sesiones
+## Hechos
 
-- Streaming: respuestas token a token + interrupción del usuario.
-- Memoria: persistir/comprimir `messages` entre sesiones (hoy cada
-  arranque es borrón y cuenta nueva; dentro de la sesión el historial se
-  reenvía completo — costo creciente).
-
-## 4. Self-healing + heartbeat — ✅ hecho (2026-10-05)
+### 4 (viejo). Self-healing + heartbeat — ✅ (2026-10-05)
 
 - Self-healing en el supervisor reactivo: el fallo de un paso es un
   hecho con ERROR; el reintento recibe el error como feedback en el
-  prompt de args; dos fallos y la herramienta se veta (L8). El informe
-  final lleva la sección "Pasos" (auditoría). Medido en dos tareas
-  reales: sin fallos duros, recuperación suave de facto (truncado →
-  relectura acotada). Tests de integración sin red.
+  prompt de args; dos fallos y la herramienta se veta (L8), y las
+  herramientas sin-args no se repiten. El informe final lleva la sección
+  "Pasos" (auditoría). Verificado con LLM real: fallo → reintento
+  corregido → éxito.
 - `heartbeat.py`: tareas programadas (heartbeat.jsonl) con el supervisor
   completo, estado + log de auditoría, línea de cron sugerida. Probado
   con dos tareas reales nocturnas (trazas + effective_n de bmo/data).
 
-## 5. HITL web
+## 3. Visor del trace — ✅ hecho (2026-10-05)
+
+`visor.py` (python3 main.py visor): HTML autocontenido offline con
+recorrido, resumen por nodo y cronología con barras. Testeado con traces
+reales del supervisor y del heartbeat.
+
+## 4. Majority vote — ✅ hecho (2026-10-05, primera etapa)
+
+`utils/votacion.py` (mayoría genérica) + integración en el despacho
+dudoso del supervisor: 2-de-3 (DeepSeek directo, DeepSeek por
+eliminación, Laya crudo). Medido con LLM real: sistema 16/24 → **17/24**,
+corrigiendo los pares confusos; hallazgo: los dos votos DeepSeek
+correlacionan — la independencia la pone Laya. Siguientes aplicaciones
+cuando duelan: el falso-directo del router (mundial) y las respuestas
+verificables del chat.
+
+## 5. Coding agent — `run_command` con HITL
+
+El único salto de categoría pendiente (patrón advanced del cookbook):
+cerrar el ciclo escribir→**ejecutar**→corregir. read/search/write_file
+ya están; falta ejecutar comandos (tests, git) con aprobación humana y
+contención, y memoria del ciclo.
+
+## 6. Streaming + memoria entre sesiones
+
+- Streaming: respuestas token a token + interrupción del usuario.
+- Memoria: persistir/comprimir `messages` entre sesiones (hoy cada
+  arranque es borrón y cuenta nueva; dentro de la sesión el historial se
+  reenvía completo — costo creciente). (Descartado como prioridad por el
+  usuario; vuelve cuando duela.)
+
+## 7. HITL web
 
 Migrar la aprobación de escritura de `input()` a una arista del grafo
 (`needs_approval` → AskHuman → `approved/rejected`) y el chat a
 FastAPI/Gradio cuando se quiera interfaz de navegador.
 
-## 6. Visor del trace
+## Cola final (considerados, sin fecha)
 
-`.runs/*.jsonl` ya registra nodo/acción/duración por ejecución. Falta un
-visor HTML simple (leer el jsonl y dibujar el recorrido del grafo).
+- **A2A** — solo si sirve para consumir agentes remotos de otros equipos.
+- **Vision/PDF** — extracción de datos de PDFs con visión (patrón
+  invoice del cookbook).
 
-## Descartes explícitos
+## Descartes
 
 - **Voz** — no interesa.
-- **Vision/PDF, A2A** — no prioritarios (A2A solo si sirve para consumar
-  agentes remotos de otros equipos).
-- **Majority vote / ensambles** — cuando haya una pregunta cuya
-  incorrectitud duela.
