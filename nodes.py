@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from pocketflow import Node
 
 from modules import discover
-from utils.call_llm import call_llm_agent
+from utils.call_llm import call_llm_agent, call_llm_agent_stream, _setting
 from utils.fs_tools import MAX_TOOL_ROUNDS, TOOLS as CORE_TOOLS, run_tool_call
 from utils.tracing import evento_tool
 
@@ -103,7 +103,11 @@ class AgentStep(Node):
 
     def exec(self, inputs):
         messages, tools = inputs
-        exec_res = call_llm_agent(messages, tools)
+        stream = _setting("CHAT_STREAM", "1") == "1"
+        if stream:
+            exec_res = call_llm_agent_stream(messages, tools)
+        else:
+            exec_res = call_llm_agent(messages, tools)
         # La recuperación DSML y el sanitizado van en exec, NO en post: los
         # max_retries de PocketFlow envuelven exec(), así que un raise acá
         # SÍ re-pregunta; en post() cortaría el chat (bug medido).
@@ -121,6 +125,10 @@ class AgentStep(Node):
                 if not contenido:
                     # no quedó nada utilizable: el retry del nodo re-pregunta
                     raise ValueError("respuesta descarrilada (solo markup de rol)")
+                # con streaming el crudo ya se imprimió en vivo (a veces con
+                # el descarrilo incluido): se imprime también la versión limpia
+                if stream and exec_res.content:
+                    print(f"\nDeepSeek (limpio): {contenido}")
                 exec_res.content = contenido
         return exec_res
 

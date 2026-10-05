@@ -91,7 +91,15 @@ contención, y memoria del ciclo.
 
 ## 6. Streaming + memoria entre sesiones
 
-- Streaming: respuestas token a token + interrupción del usuario.
+- **Streaming implementado (2026-10-05)**: `call_llm_agent_stream` en
+  `utils/call_llm.py` (mismo contrato de modo thinking pegajoso y filtro
+  de `reasoning_content`, con `stream=True`) imprime en vivo cada delta de
+  CONTENT (flush, sin saltos extra) y descarta los de reasoning; reconstruye
+  `.content` y `.tool_calls` desde los fragmentos (id/name en el primer
+  fragmento, arguments por concatenación). `AgentStep.exec` (y por herencia
+  `DirectAnswer`) elige stream con `CHAT_STREAM` (default 1), clásica con 0.
+  Si el sanitizado corta, tras el aviso se imprime la versión limpia.
+- **Interrupción del usuario**: pendiente (streaming solo de salida por ahora).
 - Memoria: persistir/comprimir `messages` entre sesiones (hoy cada
   arranque es borrón y cuenta nueva; dentro de la sesión el historial se
   reenvía completo — costo creciente). (Descartado como prioridad por el

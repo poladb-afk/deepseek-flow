@@ -9,6 +9,7 @@ La clave nunca se imprime ni se loguea.
 """
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 from openai import AsyncOpenAI, OpenAI
 
@@ -75,9 +76,9 @@ def call_llm(messages):
     return response.choices[0].message.content
 
 
-def call_llm_agent(messages, tools=None):
-    """Una vuelta del agente: devuelve el mensaje del asistente
-    (con .tool_calls si pidió herramientas).
+def _kwargs_agente(messages, tools=None):
+    """Contrato de modo thinking compartido por la versión clásica y la de
+    streaming (MISMA lógica: no puede haber deriva entre las dos).
 
     Thinking: la API rechaza tools+thinking juntos (A1, como bmo) y
     también los FLIPS de modo dentro de una conversación (400
@@ -103,8 +104,71 @@ def call_llm_agent(messages, tools=None):
         if tools:
             kwargs["tools"] = tools
         kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
-    response = _client().chat.completions.create(**kwargs)
+    return kwargs
+
+
+def call_llm_agent(messages, tools=None):
+    """Una vuelta del agente: devuelve el mensaje del asistente
+    (con .tool_calls si pidió herramientas)."""
+    response = _client().chat.completions.create(**_kwargs_agente(messages, tools))
     return response.choices[0].message
+
+
+def call_llm_agent_stream(messages, tools=None):
+    """Igual contrato que call_llm_agent (mismo modo thinking pegajoso,
+    mismo filtro de reasoning_content) pero con stream=True: imprime EN
+    VIVO cada delta de CONTENT a medida que llega (flush, sin saltos de
+    línea extra) y NO imprime los deltas de reasoning_content.
+
+    Al terminar devuelve un objeto con la forma que usa hoy el chat:
+    .content completo ensamblado y .tool_calls reconstruidos desde los
+    fragmentos del stream (llegan partidos con index; id y function.name
+    solo en el primer fragmento de cada llamada, function.arguments se
+    acumula por concatenación). Si el stream se corta a mitad, devuelve lo
+    acumulado sin explotar."""
+    stream = _client().chat.completions.create(
+        **_kwargs_agente(messages, tools), stream=True
+    )
+    contenido = []
+    por_indice = {}  # index -> {"id", "name", "arguments"}
+    try:
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            texto = getattr(delta, "content", None)
+            if texto:
+                # en vivo: sin salto extra, flush para que se vea ya
+                print(texto, end="", flush=True)
+                contenido.append(texto)
+            # los deltas de reasoning_content NO se imprimen (se descartan)
+            for frag in getattr(delta, "tool_calls", None) or []:
+                idx = frag.index if frag.index is not None else 0
+                acumulado = por_indice.setdefault(
+                    idx, {"id": None, "name": None, "arguments": ""})
+                if getattr(frag, "id", None):
+                    acumulado["id"] = frag.id  # solo el primer fragmento lo trae
+                funcion = getattr(frag, "function", None)
+                if funcion is not None:
+                    if getattr(funcion, "name", None):
+                        acumulado["name"] = funcion.name
+                    if getattr(funcion, "arguments", None):
+                        acumulado["arguments"] += funcion.arguments
+    except Exception:
+        # stream cortado a mitad: se devuelve lo acumulado, sin explotar
+        pass
+    tool_calls = [
+        SimpleNamespace(
+            id=acum["id"],
+            type="function",
+            function=SimpleNamespace(name=acum["name"], arguments=acum["arguments"]),
+        )
+        for _, acum in sorted(por_indice.items())
+    ]
+    return SimpleNamespace(
+        content="".join(contenido) or None,
+        tool_calls=tool_calls or None,
+    )
 
 
 async def call_llm_async(messages):

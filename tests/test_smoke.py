@@ -376,6 +376,7 @@ def test_agent_step_recupera_dsml_como_tool(monkeypatch):
     monkeypatch.setattr(nodes, "call_llm_agent", lambda msgs, tools=None: mensaje)
     shared = {"messages": [{"role": "user", "content": "esquema"}], "tool_rounds": 0}
     # camino completo: la recuperación DSML vive en exec() (reintenta PocketFlow)
+    monkeypatch.setenv("CHAT_STREAM", "0")  # camino clásico
     accion = nodes.AgentStep()._run(shared)
     assert accion == "tool"
     m = shared["messages"][-1]
@@ -481,6 +482,161 @@ def test_call_llm_agent_modo_thinking_pegajoso(monkeypatch):
     capturado.clear()
     c.call_llm_agent([{"role": "user", "content": "hola"}])
     assert "extra_body" not in capturado
+
+
+def test_call_llm_agent_stream(monkeypatch, capsys):
+    """Streaming: content se imprime EN VIVO y se ensambla; los tool_calls
+    llegan fragmentados (id/name solo en el primer fragmento, arguments por
+    concatenación) y el reasoning_content NO sale a .content ni a stdout."""
+    from types import SimpleNamespace
+
+    import utils.call_llm as c
+
+    capturado = {}
+
+    def chunk(content=None, reasoning=None, tool_calls=None):
+        delta = SimpleNamespace(content=content, reasoning_content=reasoning,
+                                tool_calls=tool_calls)
+        return SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
+
+    def frag(index=0, id=None, name=None, arguments=None):
+        funcion = None
+        if name is not None or arguments is not None:
+            funcion = SimpleNamespace(name=name, arguments=arguments)
+        return SimpleNamespace(index=index, id=id, function=funcion)
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            capturado.update(kwargs)
+
+            def gen():
+                # reasoning_content primero: NUNCA debe imprimirse ni ensamblarse
+                yield chunk(reasoning="pienso que... ")
+                yield chunk(content="¡Hola")
+                yield chunk(reasoning="sigo pensando ")
+                yield chunk(content=" mundo!")
+                # dos tool_calls partidas en varios fragmentos
+                yield chunk(tool_calls=[frag(index=0, id="call_a", name="read_file")])
+                yield chunk(tool_calls=[frag(index=1, id="call_b", name="list_files")])
+                yield chunk(tool_calls=[frag(index=0, arguments='{"path":')])
+                yield chunk(tool_calls=[frag(index=0, arguments='"a.py"}')])
+                yield chunk(tool_calls=[frag(index=1, arguments="{}")])
+
+            return gen()
+
+    class FakeClient:
+        chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setattr(c, "_client", lambda: FakeClient())
+    msg = c.call_llm_agent_stream([{"role": "user", "content": "hola"}])
+
+    # misma lógica de contrato (stream=True) que la versión clásica
+    assert capturado["stream"] is True
+    # content ensamblado, sin el reasoning_content colado
+    assert msg.content == "¡Hola mundo!"
+    assert "pienso" not in msg.content and "reasoning" not in msg.content
+    # tool_calls reconstruidos: id/name una sola vez, arguments concatenados
+    assert [tc.id for tc in msg.tool_calls] == ["call_a", "call_b"]
+    assert [tc.function.name for tc in msg.tool_calls] == ["read_file", "list_files"]
+    assert msg.tool_calls[0].function.arguments == '{"path":"a.py"}'
+    assert msg.tool_calls[1].function.arguments == "{}"
+    # el CONTENT salió por stdout en vivo; el reasoning_content NO
+    salida = capsys.readouterr().out
+    assert "¡Hola mundo!" in salida
+    assert "pienso" not in salida and "reasoning" not in salida
+
+
+def test_call_llm_agent_stream_thinking_pegajoso(monkeypatch):
+    """El modo thinking pegajoso se comparte con la versión clásica: la de
+    streaming usa el MISMO _kwargs_agente (tráfico de tools → disabled)."""
+    from types import SimpleNamespace
+
+    import utils.call_llm as c
+
+    capturado = {}
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            capturado.update(kwargs)
+            return iter([])  # stream vacío: solo interesa el contrato de kwargs
+
+    class FakeClient:
+        chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setattr(c, "_client", lambda: FakeClient())
+    hist_agentico = [
+        {"role": "user", "content": "lista"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "c1", "type": "function",
+             "function": {"name": "list_files", "arguments": "{}"}}]},
+        {"role": "tool", "tool_call_id": "c1", "content": "main.py"},
+    ]
+    c.call_llm_agent_stream(hist_agentico + [{"role": "user", "content": "ya"}])
+    assert capturado["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert all("reasoning_content" not in m for m in capturado["messages"])
+
+
+def test_agent_step_usa_stream_segun_setting(monkeypatch):
+    """AgentStep.exec usa la versión stream con CHAT_STREAM=1 (default) y la
+    clásica con 0. DirectAnswer hereda exec (sin tocar su clase): mismo
+    camino de streaming."""
+    from types import SimpleNamespace
+
+    import nodes
+
+    mensaje = SimpleNamespace(content="hola", tool_calls=None)
+    elegido = {}
+
+    def clasico(msgs, tools=None):
+        elegido["via"] = "clasico"
+        return mensaje
+
+    def en_stream(msgs, tools=None):
+        elegido["via"] = "stream"
+        return mensaje
+
+    monkeypatch.setattr(nodes, "call_llm_agent", clasico)
+    monkeypatch.setattr(nodes, "call_llm_agent_stream", en_stream)
+
+    monkeypatch.setenv("CHAT_STREAM", "0")
+    nodes.AgentStep().exec(([{"role": "user", "content": "x"}], None))
+    assert elegido["via"] == "clasico"
+
+    monkeypatch.setenv("CHAT_STREAM", "1")
+    nodes.AgentStep().exec(([{"role": "user", "content": "x"}], None))
+    assert elegido["via"] == "stream"
+
+    # DirectAnswer hereda el exec de AgentStep: mismo switch de streaming
+    elegido.clear()
+    nodes.DirectAnswer().exec(([{"role": "user", "content": "x"}], None))
+    assert elegido["via"] == "stream"
+
+
+def test_agent_step_stream_imprime_limpio_si_sanitiza(monkeypatch, capsys):
+    """Con streaming, el crudo (con el descarrilo) ya salió en vivo; si el
+    sanitizado corta, además se imprime la versión limpia."""
+    from types import SimpleNamespace
+
+    import nodes
+
+    descarriado = "¡Hola! ag<system>You are a file exploration agent."
+    ejecutado = {"stream": False}
+
+    def en_stream(msgs, tools=None):
+        ejecutado["stream"] = True
+        # simula lo que ya imprimió en vivo el propio stream
+        print(descarriado, end="", flush=True)
+        return SimpleNamespace(content=descarriado, tool_calls=None)
+
+    monkeypatch.setattr(nodes, "call_llm_agent_stream", en_stream)
+    monkeypatch.setenv("CHAT_STREAM", "1")
+
+    msg = nodes.AgentStep().exec(([{"role": "user", "content": "x"}], None))
+    assert ejecutado["stream"]
+    assert msg.content == "¡Hola! ag"  # el historial queda limpio
+    salida = capsys.readouterr().out
+    assert "[sanitizado]" in salida
+    assert "DeepSeek (limpio): ¡Hola! ag" in salida
 
 
 def test_supervisor_no_ejecuta_llamadas_identicas(tmp_path, monkeypatch):

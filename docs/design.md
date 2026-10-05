@@ -45,6 +45,27 @@ respuesta:
    el reintento del nodo re-pregunta) y quita tags HTML espurios que
    parten palabras (`S<small>oy` → `Soy`), sin tocar markdown legítimo.
 
+## Streaming de respuestas (CHAT_STREAM)
+
+Roadmap ítem 6. `call_llm_agent_stream(messages, tools=None)` en
+`utils/call_llm.py` comparte el MISMO `_kwargs_agente` que la versión
+clásica (contrato de modo thinking pegajoso y filtro de `reasoning_content`
+sin deriva) pero con `stream=True`: imprime en vivo cada delta de CONTENT
+(`print(..., end="", flush=True)`, sin saltos extra) y descarta los deltas
+de reasoning_content. Al terminar devuelve un objeto con la forma que usa
+el chat: `.content` ensamblado y `.tool_calls` reconstruidos desde los
+fragmentos (llegan partidos por `index`; `id` y `function.name` solo en el
+primer fragmento de cada llamada; `function.arguments` se acumula por
+concatenación). Si el stream se corta a mitad, devuelve lo acumulado sin
+explotar.
+
+`AgentStep.exec` (y por herencia `DirectAnswer`, sin tocar su clase) usa la
+versión stream cuando `CHAT_STREAM == "1"` (default) y la clásica con `0`.
+El resto del flujo no cambia (historiar, recuperación DSML, sanitizar,
+ExecuteTools). Como con streaming el contenido crudo ya se imprimió en
+vivo, si `sanitizar` corta, tras el aviso existente se imprime también la
+versión limpia (`DeepSeek (limpio): …`).
+
 ## El historial canónico y el modo thinking pegajoso (2026-10-05)
 
 Tres crashes medidos en producción, todos `400: The reasoning_content in
@@ -125,7 +146,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Nodo | Tipo | prep | exec | post |
 |---|---|---|---|---|
 | GetQuestion | Node | — | `input()` (ignora vacías; EOF → exit) | `salir/exit/quit` → `exit`; si no, agrega mensaje user, resetea `tool_rounds` → `continue` |
-| AgentStep | Node (max_retries=3, wait=5) | historial + tools (sin tools si ya gastó el límite) | `call_llm_agent` | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` |
+| AgentStep | Node (max_retries=3, wait=5) | historial + tools (sin tools si ya gastó el límite) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` ordena el salto de línea pendiente) |
 | ExecuteTools | Node | último `tool_calls` | ejecuta cada llamada (`run_tool_call`) | agrega mensajes tool, suma `tool_rounds` → `default` |
 | ExitChat | Node | — | — | imprime despedida |
 
@@ -135,6 +156,10 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 - `call_llm_agent(messages, tools=None)` → mensaje del asistente, con
   `extra_body={"thinking": {"type": "disabled"}}` porque la API de DeepSeek
   rechaza tools con thinking activo (misma razón que bmo, anotación A1).
+- `call_llm_agent_stream(messages, tools=None)` → igual contrato, con
+  `stream=True`; imprime el CONTENT en vivo y devuelve el mensaje
+  ensamblado (content + tool_calls). La versión clásica sigue disponible
+  con `CHAT_STREAM=0`.
 - `fs_tools.py` — el cuerpo del agente:
   - `list_files(path?, depth)`: listing con tamaños; sin path lista los
     directorios permitidos; salta `.venv*`, `.git`, `__pycache__`,
