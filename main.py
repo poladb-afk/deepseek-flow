@@ -53,10 +53,15 @@ def resumen_de_sesion(shared):
     romper nada (es bookkeeping, no una acción nueva)."""
     from utils.call_llm import _setting
 
+    # ninguna ruta es muda: un episodio de resumen silenciosamente ausente
+    # no se pudo reproducir (4 intentos) y sin prints es indecidible cuál fue
     if _setting("MEMORIA", "1") != "1":
+        print("\n[memoria] desactivada (MEMORIA=0): sin resumen de sesión")
         return
     mensajes = shared.get("messages", [])
-    if sum(1 for m in mensajes if m.get("role") == "user") < 2:
+    n_users = sum(1 for m in mensajes if m.get("role") == "user")
+    if n_users < 2:
+        print(f"\n[memoria] sesión corta ({n_users} pregunta): sin resumen")
         return
     try:
         from modules.memoria import guardar_resumen_sesion
@@ -84,6 +89,8 @@ def resumen_de_sesion(shared):
         destino = guardar_resumen_sesion(resumen)
         if destino:
             print(f"\n[memoria] resumen de sesión guardado en {destino}")
+        else:
+            print("\n[memoria] el resumen no se pudo escribir (OSError en memoria/)")
     except Exception as e:  # noqa: BLE001  (bookkeeping: nunca corta la salida)
         print(f"\n[memoria] no se pudo guardar el resumen de la sesión ({type(e).__name__})")
 

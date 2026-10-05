@@ -1137,3 +1137,35 @@ def test_resumen_de_sesion_se_apaga_y_no_rompe(tmp_path, monkeypatch):
     main.resumen_de_sesion({"messages": [
         {"role": "user", "content": "una"}, {"role": "user", "content": "dos"}]})
     assert not list(tmp_path.glob("sesion_*.md"))
+
+
+def test_resumen_de_sesion_rutas_visibles(capsys, monkeypatch, tmp_path):
+    """Ninguna ruta del exit-summary es muda (episodio silencioso no
+    reproducido: sin prints es indecidible cuál disparó)."""
+    import main
+
+    # desactivada
+    monkeypatch.setenv("MEMORIA", "0")
+    main.resumen_de_sesion({"messages": []})
+    assert "desactivada" in capsys.readouterr().out
+
+    # sesión corta
+    monkeypatch.setenv("MEMORIA", "1")
+    main.resumen_de_sesion({"messages": [
+        {"role": "user", "content": "hola"},
+    ]})
+    assert "sesión corta" in capsys.readouterr().out
+
+    # feliz: escribe y anuncia el destino
+    monkeypatch.setattr("utils.call_llm.call_llm", lambda p: "resumen de prueba")
+    import modules.memoria as mem
+
+    monkeypatch.setattr(mem, "_raiz", lambda: tmp_path)
+    main.resumen_de_sesion({"messages": [
+        {"role": "user", "content": "uno"},
+        {"role": "assistant", "content": "r1"},
+        {"role": "user", "content": "dos"},
+    ]})
+    salida = capsys.readouterr().out
+    assert "resumen de sesión guardado" in salida
+    assert list(tmp_path.glob("sesion_*.md")), "no escribió el archivo"

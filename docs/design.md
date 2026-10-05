@@ -880,3 +880,33 @@ server), Tracing (nodos+tools+visor), Judge, Debate, Heartbeat, Deep
 Research, Coding Agent y HITL web. Faltan — y ya estaban en el roadmap:
 streaming, memoria de largo plazo, A2A, vision/PDF. Voice,
 descartado.
+
+## Memoria entre sesiones: biblioteca consultable (2026-10-05)
+
+Tercer ítem construido por el propio harness (6 turnos, 36 aprobaciones,
+2 commits). Filosofía pedida por el usuario, respetada al pie de la
+letra: la memoria es una BIBLIOTECA, no contexto auto-inyectado — todo
+chat arranca vacío y el system prompt quedó intacto (estabilidad
+byte-a-byte preservada). Piezas (`modules/memoria.py` + `main.py`):
+
+- `memory_search(query)`: código puro, busca en `memoria/*.md` y lista
+  la biblioteca. Verificado en vivo: ante "¿qué hay en memoria?", el
+  agente la consultó y contestó con el contenido real.
+- `memory_save(titulo, contenido)`: escribe `memoria/nota_FECHA_slug.md`
+  sin HITL (la libreta del agente) con contención dura: slug sin rutas
+  ni `..`, solo dentro de `memoria/`.
+- Resumen automático al salir: una sola llamada resume la sesión a
+  `memoria/sesion_FECHA.md` (bookkeeping, sin HITL; MEMORIA=0 apaga;
+  <2 preguntas no resume).
+
+Anomalía registrada honestamente: la sesión de construcción misma NO
+dejó resumen al salir (salida limpia, sin print alguno), pero cuatro
+repros (pipe simple, pty, tools, transcript grande) funcionan y el
+episodio no se reprodujo. Consecuencia: **ninguna ruta del
+exit-summary vuelve a ser muda** — desactivada, sesión corta, OSError y
+éxito ahora imprimen su veredicto, con test que clava las cuatro rutas.
+Si reincide, el print dirá exactamente cuál fue.
+
+Nota: `sesion_FECHA.md` comparte nombre por día — sesiones repetidas el
+mismo día se sobrescriben (aceptado por ahora; cada sesión que importa
+suele tener además sus salidas/ nominativas).
