@@ -216,7 +216,7 @@ forma mínima: el action space del agente **es** el registro de módulos.
 | Módulo | Herramienta | Qué hace |
 |---|---|---|
 | `informe` | `run_informe(carpeta?, glob?, salida?)` | lanza el pipeline map-reduce y devuelve la ruta del markdown; el progreso se imprime en vivo |
-| `escritura` | `write_file(path, content)` | escribe dentro de los directorios permitidos **con aprobación humana (HITL)**: vista previa (diff si existe) y `s/n` en la terminal; EOF/Ctrl+C cuentan como rechazo (default seguro); el rechazo vuelve al modelo como texto para que corrija; contenido idéntico → no-op |
+| `escritura` | `write_file(path, content)` | escribe dentro de los directorios permitidos **con aprobación humana (HITL)**: vista previa (diff si existe) y `s/n` en la terminal — o desde el navegador con `HITL_WEB=1` (`utils/hitl_web.py`); EOF/Ctrl+C/timeout cuentan como rechazo (default seguro); el rechazo vuelve al modelo como texto para que corrija; contenido idéntico → no-op |
 | `juez` | `answer_verified(pregunta)` | responde con control de calidad: borrador → juez → refinamiento; el juez verifica citas ruta:línea contra el contenido real |
 | `auditoria` | `run_auditoria(carpetas, glob?, salida?)` | audita varias carpetas a la vez (una sección por carpeta + síntesis comparativa) |
 | `rag` | `rag_search(consulta, k?)` / `rag_index(carpeta?, glob?)` | búsqueda semántica sobre el índice local (embeddings fastembed) y (re)indexación |
@@ -227,6 +227,21 @@ forma mínima: el action space del agente **es** el registro de módulos.
 | `supervisor` | `run_supervisor(tarea, salida?)` | bucle reactivo: Laya (Choose local, umbral 0.9) o DeepSeek eligen la herramienta de cada paso; síntesis final |
 | `db` | `sql(consulta)` / `db_schema()` | SELECT de solo lectura sobre la base SQLite de trazas (una sentencia, LIMIT forzado, sin DDL) |
 | `effective_n` | `run_effective_n(carpeta?, glob?, salida?)` | deduplicación exacta por contenido de trazas .jsonl: Effective N, archivos duplicados enteros, solape por pares, contradicciones de etiqueta |
+
+### HITL web — la aprobación desde el navegador
+`utils/hitl_web.py` · [utils/hitl_web.py](../utils/hitl_web.py)
+
+Con `HITL_WEB=1`, las aprobaciones de `write_file`, `edit_file` y
+`run_command` dejan de pedir `s/n` por stdin: `aprobar(titulo, cuerpo)`
+levanta (perezoso, una sola vez) un servidor HTTP en `127.0.0.1:8765`
+(`HITL_WEB_PORT`) que sirve una página simple con el título, el cuerpo
+(el diff o el comando) dentro de `<pre>` y dos forms con botones
+**Aprobar / Rechazar** que hacen POST a `/decision`. Solo stdlib
+(`http.server` + `threading`) — sin dependencias nuevas. Un solo pedido
+pendiente a la vez (`threading.Event`), timeout `HITL_WEB_TIMEOUT`
+(300s): timeout o error ⇒ `False`, el mismo default seguro que el CLI.
+El chat, el agente y el CORE no cambian una línea: `_approve` de cada
+módulo solo elige la fuente de la respuesta (navegador o terminal).
 
 ### Servidor MCP (dirección inversa)
 
@@ -556,8 +571,9 @@ resolver el base buscando `model.safetensors`, no por nombre.
 - Datar el punto débil restante del router (mundial): un round dirigido
   de "hechos actuales" con `generate_targeted` (arreglar su
   `contexts_path` roto primero).
-- La aprobación HITL vive hoy dentro del tool (`input()`); si el chat
-  migra a web (FastAPI/Gradio), subirla a una arista del grafo
+- La aprobación HITL vive hoy dentro del tool (`input()`, o el navegador
+  con `HITL_WEB=1` vía `utils/hitl_web.py`); el paso siguiente, si el
+  chat migra a web (FastAPI/Gradio), es subirla a una arista del grafo
   (`needs_approval` → AskHuman → `approved/rejected`).
 - Self-healing batch (pasos fallidos re-encolados con feedback) y
   heartbeat (piezas corriendo solas de noche).
@@ -797,6 +813,6 @@ Contraste con el cookbook de PocketFlow (revisado mismo día): cubrimos
 Chat, Structured Output, Workflow, Agent, RAG, Map-Reduce, Multi-Agent,
 Supervisor, Parallel, Thinking (selectivo+pegajoso), MCP (client y
 server), Tracing (nodos+tools+visor), Judge, Debate, Heartbeat, Deep
-Research y Coding Agent. Faltan — y ya estaban en el roadmap:
-streaming, memoria de largo plazo, HITL web, A2A, vision/PDF. Voice,
+Research, Coding Agent y HITL web. Faltan — y ya estaban en el roadmap:
+streaming, memoria de largo plazo, A2A, vision/PDF. Voice,
 descartado.
