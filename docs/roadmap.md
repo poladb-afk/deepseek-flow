@@ -101,7 +101,9 @@ contención, y memoria del ciclo.
   Si el sanitizado corta, tras el aviso se imprime la versión limpia; y con
   stream `post()` NO reimprime la respuesta (la respuesta ya salió en vivo:
   solo cierra la línea).
-- **Interrupción del usuario**: pendiente (streaming solo de salida por ahora).
+- **Interrupción del usuario (2026-10-05)**: Ctrl+C durante la generación
+  corta el stream y conserva lo parcial (el chat sigue); `CHAT_STREAM_INTERRUPT`
+  (default 1) la activa, `0` propaga el Ctrl+C como salida.
 - Memoria: persistir/comprimir `messages` entre sesiones (hoy cada
   arranque es borrón y cuenta nueva; dentro de la sesión el historial se
   reenvía completo — costo creciente). (Descartado como prioridad por el

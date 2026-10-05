@@ -125,12 +125,20 @@ def call_llm_agent_stream(messages, tools=None):
     fragmentos del stream (llegan partidos con index; id y function.name
     solo en el primer fragmento de cada llamada, function.arguments se
     acumula por concatenación). Si el stream se corta a mitad, devuelve lo
-    acumulado sin explotar."""
+    acumulado sin explotar.
+
+    Interrupción del usuario (roadmap ítem 6): si el usuario aprieta Ctrl+C
+    MIENTRAS se genera, con CHAT_STREAM_INTERRUPT=1 (default) se corta el
+    stream y se devuelve lo acumulado (el chat sigue, no se cae); se imprime
+    un aviso "[interrumpido]". Con 0, el Ctrl+C se propaga como siempre
+    (main lo toma como salida). El Ctrl+C fuera del stream no se toca."""
     stream = _client().chat.completions.create(
         **_kwargs_agente(messages, tools), stream=True
     )
+    interrumpible = _setting("CHAT_STREAM_INTERRUPT", "1") == "1"
     contenido = []
     por_indice = {}  # index -> {"id", "name", "arguments"}
+    cortado = False
     try:
         for chunk in stream:
             if not chunk.choices:
@@ -154,9 +162,25 @@ def call_llm_agent_stream(messages, tools=None):
                         acumulado["name"] = funcion.name
                     if getattr(funcion, "arguments", None):
                         acumulado["arguments"] += funcion.arguments
+    except KeyboardInterrupt:
+        # Ctrl+C durante la generación: si la interrupción está activa se
+        # corta acá y se devuelve lo acumulado (el chat sigue vivo); si no,
+        # se propaga para que main la trate como salida.
+        if not interrumpible:
+            raise
+        cortado = True
+        print("\n  [interrumpido] generación cortada por el usuario")
     except Exception:
-        # stream cortado a mitad: se devuelve lo acumulado, sin explotar
-        pass
+        # stream cortado a mitad (red, etc.): se devuelve lo acumulado
+        cortado = True
+    # cierra el stream si quedó abierto por la interrupción (libera la conexión)
+    if cortado:
+        cerrar = getattr(stream, "close", None)
+        if callable(cerrar):
+            try:
+                cerrar()
+            except Exception:
+                pass
     tool_calls = [
         SimpleNamespace(
             id=acum["id"],

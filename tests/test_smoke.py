@@ -661,6 +661,45 @@ def test_agent_step_post_no_reimprime_con_stream(monkeypatch, capsys):
     assert "DeepSeek: respuesta en vivo" in salida
 
 
+def test_call_llm_agent_stream_interrupcion(monkeypatch, capsys):
+    """Ctrl+C durante la generación: con CHAT_STREAM_INTERRUPT=1 (default)
+    se corta el stream, se devuelve lo acumulado (el chat sigue) y se avisa;
+    con 0, el KeyboardInterrupt se propaga (main lo trata como salida)."""
+    from types import SimpleNamespace
+
+    import utils.call_llm as c
+
+    def chunk(content):
+        return SimpleNamespace(choices=[SimpleNamespace(
+            delta=SimpleNamespace(content=content, reasoning_content=None, tool_calls=None))])
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            def gen():
+                yield chunk("Hola ")
+                yield chunk("mundo")
+                raise KeyboardInterrupt  # el usuario aprieta Ctrl+C acá
+
+            return gen()
+
+    class FakeClient:
+        chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setattr(c, "_client", lambda: FakeClient())
+
+    # activada (default): devuelve lo parcial sin explotar
+    monkeypatch.setenv("CHAT_STREAM_INTERRUPT", "1")
+    msg = c.call_llm_agent_stream([{"role": "user", "content": "hola"}])
+    assert msg.content == "Hola mundo"
+    salida = capsys.readouterr().out
+    assert "Hola mundo" in salida and "[interrumpido]" in salida
+
+    # desactivada: el KeyboardInterrupt viaja (no lo traga el stream)
+    monkeypatch.setenv("CHAT_STREAM_INTERRUPT", "0")
+    with pytest.raises(KeyboardInterrupt):
+        c.call_llm_agent_stream([{"role": "user", "content": "hola"}])
+
+
 def test_supervisor_no_ejecuta_llamadas_identicas(tmp_path, monkeypatch):
     import supervisor as sup
 
