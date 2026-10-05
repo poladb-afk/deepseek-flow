@@ -546,6 +546,55 @@ def test_call_llm_agent_stream(monkeypatch, capsys):
     assert "pienso" not in salida and "reasoning" not in salida
 
 
+def test_stream_alimenta_historial_canonico_y_dsml(monkeypatch):
+    """El mensaje del stream es drop-in del clásico: historiarlo da el dict
+    canónico (sin reasoning) y el transcript DSML en vivo se recupera como
+    tool calls estructuradas."""
+    from types import SimpleNamespace
+
+    import nodes
+    import utils.call_llm as c
+
+    def chunk(content=None, reasoning=None):
+        delta = SimpleNamespace(content=content, reasoning_content=reasoning,
+                                tool_calls=None)
+        return SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
+
+    def fake_stream(chunks):
+        class FakeCompletions:
+            def create(self, **kwargs):
+                return iter(chunks)
+
+        class FakeClient:
+            chat = SimpleNamespace(completions=FakeCompletions())
+
+        monkeypatch.setattr(c, "_client", lambda: FakeClient())
+
+    # 1) respuesta de texto: historiarla da el canónico sin reasoning
+    fake_stream([chunk(reasoning="no viaja "), chunk(content="Hola"), chunk(content=" mundo")])
+    msg = c.call_llm_agent_stream([{"role": "user", "content": "x"}])
+    h = nodes.historiar(msg)
+    assert h == {"role": "assistant", "content": "Hola mundo"}
+    assert "reasoning_content" not in h
+
+    # 2) DSML emitido como texto: llega fragmentado por el stream y la
+    #    recuperación (en AgentStep.exec) lo vuelve tool_calls estructuradas
+    dsml = '<｜DSML｜｜ invoke name="db_schema">\n</｜DSML｜｜ invoke>'
+    fake_stream([chunk(dsml[:20]), chunk(dsml[20:])])
+    reactivado = {"via": False}
+
+    def en_stream(msgs, tools=None):
+        reactivado["via"] = True
+        return c.call_llm_agent_stream(msgs, tools)
+
+    monkeypatch.setattr(nodes, "call_llm_agent_stream", en_stream)
+    monkeypatch.setenv("CHAT_STREAM", "1")
+    out = nodes.AgentStep().exec(([{"role": "user", "content": "esquema"}], None))
+    assert reactivado["via"]
+    assert out.content is None  # el markup crudo no queda en el historial
+    assert out.tool_calls[0].function.name == "db_schema"
+
+
 def test_call_llm_agent_stream_thinking_pegajoso(monkeypatch):
     """El modo thinking pegajoso se comparte con la versión clásica: la de
     streaming usa el MISMO _kwargs_agente (tráfico de tools → disabled)."""
