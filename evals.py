@@ -548,15 +548,18 @@ def informe_markdown(bench, comparacion, linter, costos, sha, fecha):
     return "\n".join(L)
 
 
-def generar(dir_runs=DIR_RUNS, dir_salida=DIR_SALIDA, agente=None, sha=None):
+def generar(dir_runs=DIR_RUNS, dir_salida=DIR_SALIDA, agente=None, sha=None,
+            actualizar_baseline=True):
     """Corre las tres secciones y escribe UN informe markdown. Devuelve su Path.
-    `agente` (opcional) permite inyectar un fake en tests sin tocar utils.laya."""
+    `agente` (opcional) permite inyectar un fake en tests sin tocar utils.laya.
+    `actualizar_baseline=False` (tool del chat): compara pero NO pisa el
+    baseline — el ancla de medición no se sobrescribe desde una conversación."""
     fecha = date.today().isoformat()
     sha = sha if sha is not None else _git_sha()
 
     bench, _ = correr_bench(agente=agente)
     comparacion = comparar_baseline(bench)
-    if bench.get("score") is not None:
+    if actualizar_baseline and bench.get("score") is not None:
         guardar_baseline(bench, sha=sha)
 
     linter = linter_runs(dir_runs)

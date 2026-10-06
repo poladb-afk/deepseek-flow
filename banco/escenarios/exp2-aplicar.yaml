@@ -1,0 +1,12 @@
+id: exp2-aplicar
+descripcion: el harness crea modules/evals.py con las dos tools
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+turnos:
+  - id: aplicar
+    linea: "Leé banco/specs/exp2_evals_tool.md (verificada, confía) y aplicalo: creá modules/evals.py (TOOLS con los dos esquemas + IMPL reutilizando las funciones de evals.py de la raíz), actualizá la fila de evals en la tabla de Capacidades del README, y appendeá los tests. Escribí primero, después ./calidad.sh hasta verde."
+    hitl: s
+    timeout: 600
+  - id: salir
+    linea: "salir"
+    timeout: 60

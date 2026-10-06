@@ -315,3 +315,7 @@ mide: marcadores por turno en conversación real contra DeepSeek.
 - **exp/5 ✅ mergeada** — search_files con conteo exacto: "N archivos"
   con N real calculado antes del tope + sugerencia de find (auto desde
   exp/1). Fin del "50+" del test exhaustivo.
+- **exp/2 ✅ mergeada** — evals como tool del chat (estilo run_informe:
+  informe a disco + ruta). Corrección de fondo del conductor: la tool
+  compara pero NO guarda el baseline (`actualizar_baseline=False`).
+  Medido: tool nativa, 25 s, baseline intacto.

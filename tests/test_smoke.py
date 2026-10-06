@@ -21,7 +21,7 @@ def test_action_space_completo():
         "run_informe", "write_file", "answer_verified", "run_auditoria",
         "rag_search", "rag_index", "debate",  # módulos
         "mcp_tools", "mcp_call", "search_web", "deep_research", "run_supervisor",
-        "sql", "db_schema", "run_effective_n",
+        "sql", "db_schema", "run_effective_n", "evals",
     }
     assert esperadas <= nombres, f"faltan: {esperadas - nombres}"
 
@@ -425,6 +425,35 @@ def test_juez_lote_tool_del_chat(tmp_path, monkeypatch):
     r = mj.juez_lote(str(preguntas), str(salida))
     assert "Juez en lote" in r and Path(salida).is_file()
     assert "juez_lote" in {t["function"]["name"] for t in mj.TOOLS}
+
+
+def test_evals_tool_del_chat(tmp_path, monkeypatch):
+    """La tool evals del chat corre el pipeline y devuelve la ruta del informe."""
+    import modules.evals as me
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    # una traza mínima válida: par (nodo, accion) canónico, sin violaciones
+    (runs / "sesion.jsonl").write_text(
+        '{"nodo": "GetQuestion", "accion": "exit", "seg": 1.0}\n', encoding="utf-8")
+    # bench sin test de router (la ruta externa no existe en el test) y sin LLM
+    monkeypatch.setattr(me, "DIR_RUNS", runs)
+    salida = tmp_path / "evals_out"
+    r = me.evals(dir_runs=str(runs), salida=str(salida))
+    assert "Informe de evals generado" in r
+    informes = list(salida.glob("evals_*.md"))
+    assert informes, "no se escribió el informe de evals"
+    assert "evals" in {t["function"]["name"] for t in me.TOOLS}
+
+
+def test_evals_tool_rechaza_carpeta_inexistente(tmp_path, monkeypatch):
+    """Una carpeta de trazas que no existe devuelve ERROR, no excepción."""
+    import modules.evals as me
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    r = me.evals(dir_runs=str(tmp_path / "no_existe"))
+    assert r.startswith("ERROR:")
 
 
 def test_pregunta_despacho_congelada():
@@ -3448,3 +3477,23 @@ def test_dsml_con_presupuesto_agotado_no_rearma_lo_retirado():
     solo = "<｜｜DSML｜｜ calls> todo markup"
     nuevo, avisar = dsml_con_presupuesto_agotado(solo, ["x"], None)
     assert nuevo == MENSAJE_DSML_AGOTADO and "seguí" in nuevo and avisar is True
+
+
+def test_tool_evals_no_pisa_el_baseline(monkeypatch, tmp_path):
+    """exp/2: la tool del chat corre el pipeline de evals COMPARANDO contra
+    el baseline pero sin guardarlo — el ancla de medición no se sobrescribe
+    desde una conversación (el CLI sí actualiza, como siempre)."""
+    import modules.evals as mod
+
+    llamadas = {"guardar": 0}
+    monkeypatch.setattr("evals.correr_bench", lambda agente=None: ({"score": 1.0}, None))
+    monkeypatch.setattr("evals.comparar_baseline", lambda b: {"veredicto": "OK"})
+    monkeypatch.setattr("evals.guardar_baseline", lambda *a, **k: llamadas.__setitem__("guardar", llamadas["guardar"] + 1))
+    monkeypatch.setattr("evals.linter_runs", lambda d=None: {})
+    monkeypatch.setattr("evals.costos_runs", lambda d=None: [])
+    monkeypatch.setattr("evals.informe_markdown", lambda *a, **k: "# evals")
+
+    # rutas DENTRO de las raíces permitidas (tmp_path de pytest está fuera)
+    r = mod.evals(dir_runs=None, salida="salidas/banco")
+    assert "Informe de evals generado" in r
+    assert llamadas["guardar"] == 0, "la tool del chat NO guarda baseline"

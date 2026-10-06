@@ -850,6 +850,21 @@ tope agrega "... y M más (mostrando 50 de TOT; para el listado completo:
 run_command 'find ...' ya es solo-lectura auto)" — la sugerencia apunta
 al camino que exp/1 volvió automático.
 
+### exp/2 — evals como tool del chat (2026-10-06)
+
+Medido en el test exhaustivo: el modelo QUISO correr evals en vivo, no
+existía la tool, su run_command fue rechazado y degradó a leer la
+corrida del día anterior del disco. La spec pedía dos tools (rápida +
+pesada); el harness prefirió UNA `evals` estilo run_informe (informe a
+disco + ruta) — consistente con el patrón del código, y la revisión del
+conductor aceptó el diseño con UNA corrección de fondo: `generar` ganó
+`actualizar_baseline` (default True = CLI intacto) y la tool pasa False
+— el ancla de medición no se pisa desde una conversación.
+
+Medición (exp2-medicion): tool nativa usada (cero run_command), informe
+leído y resumido en 25 s, y el baseline verificado INTACTO tras la
+corrida (filecmp).
+
 ## Cómo crecer desde aquí
 
 - Escribir archivos → herramienta write_file con confirmación humana
