@@ -742,6 +742,64 @@ Hallazgos y sus fixes:
 4. El falso-directo del router se confirmó en vivo dos veces más
    (MCP 0.82, debate 0.78) — candidato al ensamble 2-de-3 cuando toque.
 
+## Vision/PDF y A2A: la cola final, dos capacidades (2026-10-05)
+
+Últimos dos ítems del roadmap. Dos módulos nuevos (`modules/vision.py`,
+`modules/a2a.py`), sin dependencias nuevas (`requests` ya estaba), con
+`TOOLS`+`IMPL` como el resto. Nunca tocan el historial del chat: la
+imagen/el archivo viaja en un turno de usuario aislado y lo que vuelve es
+solo el texto de la respuesta.
+
+### Vision/PDF — `modules/vision.py`
+
+Dos caminos distintos, cada uno por una razón medida:
+
+- **`ver_imagen(path, pregunta)`** — la imagen va como **data-URL base64**
+  dentro de un message de **USER** con `content=[{type:text},
+  {type:image_url}]`. El mensaje system/assistant NO puede llevar
+  imágenes: la API responde **400** (medido) — por eso la imagen viaja en
+  un turno de usuario propio y no se inyecta al historial. La llamada es
+  `call_llm` (contenido como array), **SIN** el `extra_body` de thinking:
+  `call_llm_agent` agrega thinking+tools y eso no aplica acá.
+- **`ver_pdf(path, pregunta)`** — los PDF NO van por base64: van por la
+  **Files API**. `POST /files` multipart (`file` + `purpose=file-extract`)
+  → `file_id`; luego `POST /chat/completions` con
+  `content=[{type:file,file_id},{type:text}]` → el texto llega en
+  `message.content`. **Sin estado**: cada `ver_pdf` sube, consulta y listo
+  (no se guarda el `file_id`). El tope lo impone la Files API (64 MiB).
+
+**El tipo se valida por CONTENIDO, no por nombre** (magic bytes): `\xff\xd8\xff`
+JPEG, `\x89PNG\r\n\x1a\n` PNG, `GIF87a/GIF89a`, `RIFF....WEBP`; un PDF
+empieza con `%PDF`. Un `.png` que en realidad es JPEG se acepta como JPEG;
+un `.png` de texto se rechaza. **Límites chequeados ANTES de llamar**:
+imagen 32 MiB y body 48 MiB (base64 crece ~4/3); superarlos devuelve un
+`ERROR` legible sin tocar la red. API key/base de los settings existentes
+(`LLM_API_KEY`/`LLM_BASE_URL`).
+
+### A2A — `modules/a2a.py`
+
+El eje de `mcp` pero del lado de los AGENTES: en vez de tools dentro de un
+servidor, hablamos con agentes remotos que exponen el protocolo
+**agent2agent**. Setting `A2A_AGENTS` en `.env`: JSON
+`{"nombre": "http://host:puerto"}`.
+
+- **`agentes_remotos()`** — lista los agentes del setting con su agent card
+  (`GET {base}/.well-known/agent.json`, timeout 5s). Card inaccesible ⇒
+  `inaccesible` **y el resto sigue** (degradación, no crash).
+- **`a2a_tarea(nombre, mensaje)`** — `POST {base}/` JSON-RPC 2.0
+  `method=message/send`, `params={message:{role:"user",parts:[{type:"text",
+  text:mensaje}]}}`, `id` incrementado por proceso. Devuelve el `result`
+  (serializado) o el error del JSON-RPC como texto. Timeout 60s.
+
+Sin setting (o vacío, o JSON roto ⇒ se trata como vacío) las tools
+devuelven "no hay agentes configurados" sin tocar la red.
+
+Tests sin red (`tests/test_smoke.py`): la imagen y el PDF se validan
+mockeando `requests.post` (forma del data-URL, `purpose`, `file_id` dentro
+del `content`, y que >límite/tipo inválido devuelven ERROR *sin* llamar);
+A2A corre contra un `http.server` fake (card + JSON-RPC), con un agente
+caído verificado como `inaccesible`.
+
 ## Salidas — una carpeta, no una raíz llena de .md
 
 Higienizado (2026-10-05): todas las piezas escribían sus informes en la

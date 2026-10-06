@@ -203,11 +203,22 @@ comando antes del s/n, historial de aprobaciones de la sesión); visor --watch
 (tail -f de .runs); arranque con listado de la biblioteca de memoria (mostrar el
 catálogo, SIN inyectar contexto — el arranque vacío es regla).
 
-## Cola final (considerados, sin fecha)
+## Cola final — ✅ vacía (2026-10-05)
 
-- **A2A** — solo si sirve para consumir agentes remotos de otros equipos.
-- **Vision/PDF** — extracción de datos de PDFs con visión (patrón
-  invoice del cookbook).
+Los dos últimos ítems quedaron construidos y verificados:
+
+- **Vision/PDF** — ✅ `modules/vision.py`: `ver_imagen` (data-URL base64
+  en un turno de USER; el type se valida por contenido; 32 MiB/48 MiB
+  chequeados antes de llamar) y `ver_pdf` (Files API: `POST /files` con
+  `purpose=file-extract` → `file_id` → `POST /chat/completions` con
+  `content=[{type:file,file_id},{type:text}]`; sin estado; 64 MiB).
+- **A2A** — ✅ `modules/a2a.py`: `agentes_remotos` (agent card con
+  degradación a "inaccesible") y `a2a_tarea` (JSON-RPC 2.0
+  `message/send`); setting `A2A_AGENTS` (JSON nombre→URL); sin setting,
+  mensaje claro.
+
+Tests sin red (mocks de `requests.post` + `http.server` fake), diseño en
+la sección "Vision/PDF y A2A" de design.md.
 
 ## Descartes
 

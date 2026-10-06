@@ -2177,3 +2177,357 @@ def test_voto_confirmacion_tres_niveles(monkeypatch):
     monkeypatch.setattr(laya_mod, "disponible", lambda s: False)
     assert nodes.voto_confirmacion_router("otro caso") == "directo"
     assert llamadas["ds"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Vision/PDF (cola final): ver_imagen (data-URL base64) y ver_pdf (Files API)
+# ---------------------------------------------------------------------------
+
+PNG_1x1 = bytes.fromhex(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4"
+    "890000000a49444154789c6360000002000154a24f5c0000000049454e44ae426082"
+)
+
+
+def test_mime_por_contenido_ignora_el_nombre():
+    """El tipo se valida por CONTENIDO (magic bytes), no por extensión."""
+    import modules.vision as vision
+
+    assert vision._mime_por_contenido(PNG_1x1) == "image/png"
+    assert vision._mime_por_contenido(b"\xff\xd8\xff\xe0" + b"x" * 20) == "image/jpeg"
+    assert vision._mime_por_contenido(b"GIF89a" + b"y" * 20) == "image/gif"
+    assert vision._mime_por_contenido(b"GIF87a" + b"y" * 20) == "image/gif"
+    assert vision._mime_por_contenido(b"RIFF\x00\x00\x00\x00WEBPVP8 ") == "image/webp"
+    # texto con nombre .png → ninguna firma coincide
+    assert vision._mime_por_contenido(b"soy texto, no una imagen") is None
+
+
+def test_ver_imagen_data_url_bien_formada(tmp_path, monkeypatch):
+    """Sin red: el POST se mockea y se verifica la FORMA del request (data
+    URL base64 en un message de USER con content=[text, image_url])."""
+    import modules.vision as vision
+
+    img = tmp_path / "foto.png"
+    img.write_bytes(PNG_1x1)
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.setattr(vision, "get_api_key", lambda: "sk-test")
+
+    capturado = {}
+
+    class Resp:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json():
+            return {"choices": [{"message": {"content": "un pixel rojo"}}]}
+
+    def post_fake(url, headers=None, json=None, timeout=None):
+        capturado.update(url=url, headers=headers, body=json, timeout=timeout)
+        return Resp()
+
+    monkeypatch.setattr(vision.requests, "post", post_fake)
+
+    r = vision.ver_imagen(str(img), "¿qué color es?")
+    assert r == "un pixel rojo"
+    assert capturado["url"].endswith("/chat/completions")
+    assert capturado["headers"]["Authorization"] == "Bearer sk-test"
+    msgs = capturado["body"]["messages"]
+    assert len(msgs) == 1 and msgs[0]["role"] == "user"
+    contenido = msgs[0]["content"]
+    assert contenido[0]["type"] == "text" and contenido[0]["text"] == "¿qué color es?"
+    assert contenido[1]["type"] == "image_url"
+    data_url = contenido[1]["image_url"]["url"]
+    assert data_url.startswith("data:image/png;base64,")
+    import base64 as _b64
+
+    assert _b64.b64decode(data_url.split(",", 1)[1]) == PNG_1x1
+
+
+def test_ver_imagen_tipo_invalido_por_contenido(tmp_path, monkeypatch):
+    """Un archivo de texto con nombre .png se rechaza SIN llamar a la red."""
+    import modules.vision as vision
+
+    falso = tmp_path / "disfraz.png"
+    falso.write_text("no soy una imagen", encoding="utf-8")
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+
+    def no_llamar(*a, **k):
+        raise AssertionError("no debía llamar a la API")
+
+    monkeypatch.setattr(vision.requests, "post", no_llamar)
+    r = vision.ver_imagen(str(falso), "¿qué es?")
+    assert r.startswith("ERROR") and "no es una imagen soportada" in r
+
+
+def test_ver_imagen_demasiado_grande_sin_llamar(tmp_path, monkeypatch):
+    """Imagen > 32 MiB → ERROR legible y NINGUNA llamada."""
+    import modules.vision as vision
+
+    grande = tmp_path / "grande.png"
+    grande.write_bytes(PNG_1x1)
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.setattr(vision, "IMAGEN_MAX_BYTES", 10)  # tope minúsculo para el test
+
+    def no_llamar(*a, **k):
+        raise AssertionError("no debía llamar a la API")
+
+    monkeypatch.setattr(vision.requests, "post", no_llamar)
+    r = vision.ver_imagen(str(grande), "¿qué es?")
+    assert r.startswith("ERROR") and "tope para una imagen" in r
+
+
+def test_ver_pdf_subida_y_content(tmp_path, monkeypatch):
+    """Sin red: se mockea subida + consulta y se verifica la forma (purpose,
+    file_id dentro del content, content devuelto)."""
+    import modules.vision as vision
+
+    pdf = tmp_path / "factura.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n...contenido...\n%%EOF")
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.setattr(vision, "get_api_key", lambda: "sk-test")
+
+    llamadas = []
+
+    class RespSubida:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"id": "file-abc123"}
+
+    class RespChat:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"choices": [{"message": {"content": "Total: $100"}}]}
+
+    def post_fake(url, headers=None, files=None, data=None, json=None, timeout=None):
+        llamadas.append({"url": url, "headers": headers, "files": files, "data": data, "json": json})
+        return RespSubida() if url.endswith("/files") else RespChat()
+
+    monkeypatch.setattr(vision.requests, "post", post_fake)
+
+    r = vision.ver_pdf(str(pdf), "¿cuál es el total?")
+    assert r == "Total: $100"
+
+    assert len(llamadas) == 2
+    subida, consulta = llamadas
+    assert subida["url"].endswith("/files")
+    assert subida["data"] == {"purpose": "file-extract"}
+    nombre_enviado, bytes_enviados, mime = subida["files"]["file"]
+    assert nombre_enviado == "factura.pdf" and bytes_enviados.startswith(b"%PDF")
+    assert mime == "application/pdf"
+    assert subida["headers"]["Authorization"] == "Bearer sk-test"
+
+    assert consulta["url"].endswith("/chat/completions")
+    contenido = consulta["json"]["messages"][0]["content"]
+    assert contenido[0] == {"type": "file", "file_id": "file-abc123"}
+    assert contenido[1]["type"] == "text" and contenido[1]["text"] == "¿cuál es el total?"
+
+
+def test_ver_pdf_no_pdf_por_contenido(tmp_path, monkeypatch):
+    """Un archivo .pdf que no empieza con %PDF se rechaza sin subir nada."""
+    import modules.vision as vision
+
+    falso = tmp_path / "disfraz.pdf"
+    falso.write_text("no soy un pdf", encoding="utf-8")
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+
+    def no_llamar(*a, **k):
+        raise AssertionError("no debía llamar a la API")
+
+    monkeypatch.setattr(vision.requests, "post", no_llamar)
+    r = vision.ver_pdf(str(falso), "¿qué dice?")
+    assert r.startswith("ERROR") and "no es un PDF" in r
+
+
+def test_ver_pdf_demasiado_grande_sin_llamar(tmp_path, monkeypatch):
+    """PDF > 64 MiB → ERROR legible y NINGUNA subida."""
+    import modules.vision as vision
+
+    pdf = tmp_path / "grande.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.setattr(vision, "PDF_MAX_BYTES", 4)  # tope minúsculo para el test
+
+    def no_llamar(*a, **k):
+        raise AssertionError("no debía llamar a la API")
+
+    monkeypatch.setattr(vision.requests, "post", no_llamar)
+    r = vision.ver_pdf(str(pdf), "¿qué dice?")
+    assert r.startswith("ERROR") and "tope para un PDF" in r
+
+
+# ---------------------------------------------------------------------------
+# A2A (cola final): agentes_remotos y a2a_tarea contra un servidor fake
+# ---------------------------------------------------------------------------
+
+
+class _ServidorA2A:
+    """Servidor HTTP mínimo que habla (a medias) el protocolo A2A: sirve el
+    agent card en /.well-known/agent.json y responde JSON-RPC en /.
+    Usa ThreadingHTTPServer de stdlib; registra el último payload recibido."""
+
+    def __init__(self):
+        self.ultimo = None
+
+    def arrancar(self, responder=None, card=None):
+        import json as _json
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        self.ultimo = None
+        card = card if card is not None else {
+            "name": "eco", "description": "agente de prueba",
+            "skills": [{"id": "echo", "description": "repite texto"}],
+        }
+        responder = responder or (lambda payload: {"jsonrpc": "2.0", "id": payload.get("id"), "result": {"echo": payload["params"]["message"]}})
+        estado = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                if self.path.split("?")[0] == "/.well-known/agent.json":
+                    cuerpo = _json.dumps(card).encode()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(cuerpo)))
+                    self.end_headers()
+                    self.wfile.write(cuerpo)
+                else:
+                    self.send_response(404)
+                    self.end_headers()
+
+            def do_POST(self):
+                largo = int(self.headers.get("Content-Length") or 0)
+                payload = _json.loads(self.rfile.read(largo) or b"{}")
+                estado.ultimo = payload
+                cuerpo = _json.dumps(responder(payload)).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(cuerpo)))
+                self.end_headers()
+                self.wfile.write(cuerpo)
+
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        return f"http://127.0.0.1:{srv.server_address[1]}", srv
+
+
+def test_a2a_sin_setting(monkeypatch):
+    """Sin setting (o vacío / JSON roto) las tools lo dicen claro, sin red."""
+    import modules.a2a as a2a
+
+    for valor in (None, "", "   ", "{no soy json}", "[]"):
+        if valor is None:
+            monkeypatch.delenv("A2A_AGENTS", raising=False)
+        else:
+            monkeypatch.setenv("A2A_AGENTS", valor)
+        monkeypatch.setattr(a2a, "_agentes", lambda: {})
+        r = a2a.agentes_remotos()
+        assert "No hay agentes remotos A2A configurados" in r
+        r2 = a2a.a2a_tarea("x", "hola")
+        assert "No hay agentes remotos A2A configurados" in r2
+
+    # JSON roto se trata como vacío (degradación)
+    monkeypatch.setenv("A2A_AGENTS", "{no soy json}")
+    assert a2a._agentes() == {}
+
+
+def test_a2a_lista_y_tarea(monkeypatch):
+    """Con setting a un servidor fake: agentes_remotos lista el card y
+    a2a_tarea envía JSON-RPC message/send y parsea el result."""
+    import json
+    import json as _json
+
+    import modules.a2a as a2a
+
+    srv = _ServidorA2A()
+    base, httpd = srv.arrancar()
+    try:
+        monkeypatch.setenv("A2A_AGENTS", _json.dumps({"eco": base}))
+
+        listado = a2a.agentes_remotos()
+        assert "eco" in listado and base in listado
+        assert "agente de prueba" in listado
+        assert "echo" in listado and "repite texto" in listado
+
+        r = a2a.a2a_tarea("eco", "hola mundo")
+        payload = json.loads(r)
+        assert payload["echo"] == {"role": "user", "parts": [{"type": "text", "text": "hola mundo"}]}
+
+        # la FORMA del request enviado: JSON-RPC 2.0 message/send
+        enviado = srv.ultimo
+        assert enviado["jsonrpc"] == "2.0"
+        assert enviado["method"] == "message/send"
+        assert enviado["params"]["message"]["role"] == "user"
+        assert enviado["params"]["message"]["parts"] == [{"type": "text", "text": "hola mundo"}]
+        assert isinstance(enviado["id"], int)
+    finally:
+        httpd.shutdown()
+
+
+def test_a2a_error_jsonrpc(monkeypatch):
+    """Un error JSON-RPC del agente se devuelve como texto, no rompe."""
+    import json as _json
+
+    import modules.a2a as a2a
+
+    srv = _ServidorA2A()
+    base, httpd = srv.arrancar(
+        responder=lambda payload: {"jsonrpc": "2.0", "id": payload.get("id"),
+                                   "error": {"code": -32000, "message": "no puedo"}})
+    try:
+        monkeypatch.setenv("A2A_AGENTS", _json.dumps({"eco": base}))
+        r = a2a.a2a_tarea("eco", "hola")
+        assert r.startswith("ERROR JSON-RPC") and "no puedo" in r
+    finally:
+        httpd.shutdown()
+
+
+def test_a2a_agente_caido_es_inaccesible(monkeypatch):
+    """Un agente caído se reporta 'inaccesible' (degradación, no crash)."""
+    import json as _json
+
+    import modules.a2a as a2a
+
+    monkeypatch.setenv("A2A_AGENTS", _json.dumps({"caido": "http://127.0.0.1:1"}))
+    r = a2a.agentes_remotos()
+    assert "inaccesible" in r and "caido" in r
+
+    r2 = a2a.a2a_tarea("caido", "hola")
+    assert r2.startswith("ERROR") and "inaccesible" in r2
+
+    # nombre no configurado: texto claro, sin red
+    monkeypatch.setenv("A2A_AGENTS", _json.dumps({"otro": "http://127.0.0.1:1"}))
+    r3 = a2a.a2a_tarea("inexistente", "hola")
+    assert r3.startswith("ERROR") and "no configurado" in r3
+
+
+def test_a2a_card_agente_caido_no_corta_el_listado(monkeypatch):
+    """Con un agente sano y otro caído, el listado muestra el card del sano
+    e 'inaccesible' para el caído (el caído no corta el listado)."""
+    import json as _json
+
+    import modules.a2a as a2a
+
+    srv = _ServidorA2A()
+    base, httpd = srv.arrancar()
+    try:
+        monkeypatch.setenv("A2A_AGENTS", _json.dumps({"sano": base, "caido": "http://127.0.0.1:1"}))
+        r = a2a.agentes_remotos()
+        assert "sano" in r and "agente de prueba" in r
+        assert "caido" in r and "inaccesible" in r
+    finally:
+        httpd.shutdown()
+
+
+def test_action_space_suma_vision_y_a2a():
+    from nodes import TOOLS
+
+    nombres = {t["function"]["name"] for t in TOOLS}
+    assert {"ver_imagen", "ver_pdf", "agentes_remotos", "a2a_tarea"} <= nombres

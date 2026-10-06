@@ -65,7 +65,7 @@ Sin ese paso el harness funciona igual — el router del chat y el Choose del
 supervisor degradan al lado DeepSeek; solo se pierden los ifs locales (ms,
 costo 0).
 
-## Capacidades (22, al día de hoy)
+## Capacidades (24, al día de hoy)
 
 | Origen | Herramientas |
 |---|---|
@@ -86,8 +86,10 @@ costo 0).
 | evals | `evals` — el harness juzgándose a sí mismo: bench del router, linter de trazas, costo por sesión |
 | rag | `rag_search` / `rag_index` — búsqueda semántica local (fastembed) |
 | memoria | `memory_search` / `memory_save` — biblioteca consultable entre sesiones |
+| vision/PDF | `ver_imagen` / `ver_pdf` — mira imágenes (data-URL base64) y lee PDFs (Files API); tipo por contenido, límites chequeados antes de llamar |
 | websearch | `search_web` — ddgs sin API key |
 | mcp | `mcp_tools` / `mcp_call` — consume servidores MCP externos |
+| a2a | `agentes_remotos` / `a2a_tarea` — consume agentes remotos (protocolo agent2agent); setting `A2A_AGENTS` |
 
 ## Memoria entre sesiones
 
