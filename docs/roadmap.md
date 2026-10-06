@@ -312,3 +312,6 @@ mide: marcadores por turno en conversación real contra DeepSeek.
   by-paseaba: cero ejecución tras el retiro, continuación limpia.
 - **exp/3 ✅ mergeada** — hook py_compile visible: `[hook] ⚠ SINTAXIS
   devuelta al modelo` en terminal (el veto ya imprimía; el hook no).
+- **exp/5 ✅ mergeada** — search_files con conteo exacto: "N archivos"
+  con N real calculado antes del tope + sugerencia de find (auto desde
+  exp/1). Fin del "50+" del test exhaustivo.

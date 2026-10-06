@@ -840,6 +840,16 @@ devuelta al modelo: <última línea del detalle>` (coloreado, flush como
 los demás avisos). El flujo del modelo no cambia: la observabilidad
 completa sin tocar el contrato.
 
+### exp/5 — search_files con conteo exacto (2026-10-06)
+
+Patología medida (test exhaustivo): el conteo de ".py" quedaba "50+" y
+el modelo no sabía cuántos eran; su find para cerrar el número cayó en
+preguntar (hasta exp/1). Ahora el conteo EXACTO se calcula antes de
+truncar la muestra: "N archivos coinciden" con N real, y al cortar el
+tope agrega "... y M más (mostrando 50 de TOT; para el listado completo:
+run_command 'find ...' ya es solo-lectura auto)" — la sugerencia apunta
+al camino que exp/1 volvió automático.
+
 ## Cómo crecer desde aquí
 
 - Escribir archivos → herramienta write_file con confirmación humana
