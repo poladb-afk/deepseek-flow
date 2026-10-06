@@ -814,6 +814,11 @@ edit, CERO relecturas del archivo, diff correcto aprobado y verificado
 — el reintento único hipotetizado. minar_errores queda como línea de
 base (27 errores) para vigilar la tasa a futuro.
 
+Primera corroboración de campo (2026-10-06, corte en el merge de exp/10):
+pre-fix 116 llamadas / 11 errores (9%); post-fix 25 llamadas / 0 (0%).
+Direccional — muestra chica y sesiones más simples que las de código;
+el heartbeat acumulará la serie.
+
 ### exp/12 — el bypass DSML del presupuesto, cerrado (2026-10-06)
 
 Hallazgo de exp/4: al retirarse las tools por el tope, el modelo emitía
