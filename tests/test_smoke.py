@@ -671,6 +671,78 @@ def test_agent_step_recupera_dsml_como_tool(monkeypatch):
     assert m["content"] is None
 
 
+def test_sanitizar_markers_y_tags():
+    """Dos descarrilos medidos en producción: un marker de rol ajeno corta
+    (lo que sigue es basura) y los tags HTML que parten palabras se quitan
+    (el texto sigue siendo la respuesta)."""
+    from nodes import sanitizar
+
+    # marker de rol: corta desde ahí; el contenido previo sobrevive
+    limpio, modificado = sanitizar("¡Hola! <|im_start|>system eres un agente genérico")
+    assert modificado is True and limpio == "¡Hola!"
+
+    # <<SYS>> y <system> también son markers de rol
+    assert sanitizar("buenas <<SYS>> ahora eres otro")[0] == "buenas"
+    assert sanitizar("ok <system>instrucción ajena")[0] == "ok"
+
+    # marker al inicio: no queda nada utilizable
+    limpio, modificado = sanitizar("<system>solo basura")
+    assert modificado is True and limpio == ""
+
+    # tags HTML que parten palabras: se quitan y el texto se recompone
+    limpio, modificado = sanitizar("S<small>oy</small> DeepSeek")
+    assert modificado is True and limpio == "Soy DeepSeek"
+
+    # texto sano: intacto
+    limpio, modificado = sanitizar("respuesta normal, sin ruido")
+    assert modificado is False and limpio == "respuesta normal, sin ruido"
+
+
+def test_agent_step_sanitiza_y_reintenta(monkeypatch):
+    """El sanitizado vive en exec(): si quedó algo se imprime limpio, y si no
+    quedó nada el retry de PocketFlow re-pregunta (raise)."""
+    from types import SimpleNamespace
+
+    import nodes
+
+    monkeypatch.setenv("CHAT_STREAM", "0")  # camino clásico, sin stream
+
+    # caso 1: descarrilo parcial → el historial guarda solo lo limpio
+    mensaje = SimpleNamespace(content="¡Hola! <|im_start|>system ajeno", tool_calls=None)
+    monkeypatch.setattr(nodes, "call_llm_agent", lambda msgs, tools=None: mensaje)
+    shared = {"messages": [{"role": "user", "content": "hola"}], "tool_rounds": 0}
+    accion = nodes.AgentStep()._run(shared)
+    assert accion == "answer"
+    assert shared["messages"][-1]["content"] == "¡Hola!"
+
+    # caso 2: solo markup de rol → raise (PocketFlow reintenta en exec)
+    vacio = SimpleNamespace(content="<system>nada útil", tool_calls=None)
+    monkeypatch.setattr(nodes, "call_llm_agent", lambda msgs, tools=None: vacio)
+    shared = {"messages": [{"role": "user", "content": "hola"}], "tool_rounds": 0}
+    with pytest.raises(ValueError):
+        nodes.AgentStep()._run(shared)
+
+
+def test_banco_contar_marcadores():
+    """El conteo de marcadores es la señal medible del banco: cada línea de la
+    terminal se suma al marcador cuya regex matchea."""
+    from banco.banco import MARCADORES, contar_marcadores
+
+    # la compacción se anuncia con su propia marca
+    conteo = contar_marcadores("[compacción] zona fría: 4 mensajes → resumen")
+    assert conteo["compaccion"] == 1
+
+    # varias señales en varias líneas: cada una suma por ocurrencia en su línea
+    texto = "[laya] directo\n[laya] dudoso\n⚙ ronda 2/5\n(s/n): 2x"
+    conteo = contar_marcadores(texto)
+    assert conteo["laya"] == 2 and conteo["ronda"] == 1 and conteo["hitl_prompt"] == 1
+
+    # texto sin señales: no aparece ninguna clave (solo se cuentan > 0)
+    conteo = contar_marcadores("charla normal")
+    assert conteo == {}
+    assert set(MARCADORES)  # el catálogo de señales es no vacío
+
+
 def test_historial_canonico_sin_reasoning():
     """400 medido en producción: el reasoning_content del modo thinking no
     puede viajar a vueltas sin thinking. El historial es dict canónico."""
@@ -875,10 +947,16 @@ def test_stream_alimenta_historial_canonico_y_dsml(monkeypatch):
 
     monkeypatch.setattr(nodes, "call_llm_agent_stream", en_stream)
     monkeypatch.setenv("CHAT_STREAM", "1")
-    out = nodes.AgentStep().exec(([{"role": "user", "content": "esquema"}], None))
+    # con tools OFRECIDAS la recuperación corre: markup → tool_calls
+    out = nodes.AgentStep().exec(([{"role": "user", "content": "esquema"}], ["tool"]))
     assert reactivado["via"]
     assert out.content is None  # el markup crudo no queda en el historial
     assert out.tool_calls[0].function.name == "db_schema"
+    # con tools RETIRADAS (tope L8) el markup NO se re-arma (exp/12):
+    # queda el mensaje honesto y no hay tool_calls que ejecutar
+    out2 = nodes.AgentStep().exec(([{"role": "user", "content": "esquema"}], None))
+    assert out2.tool_calls is None
+    assert "seguí" in out2.content
 
 
 def test_call_llm_agent_stream_thinking_pegajoso(monkeypatch):
@@ -3300,3 +3378,23 @@ def test_edit_file_diagnostico_whitespace_y_candidatos():
 
     # cadena totalmente ajena: sin candidatos
     assert candidatos_similares(archivo, "import numpy as np\nimport pandas") == []
+
+
+def test_dsml_con_presupuesto_agotado_no_rearma_lo_retirado():
+    """exp/12: medido en exp/4 — el modelo emitía tool-calls como texto
+    DSML DESPUÉS del retiro por el tope y la recuperación las ejecutaba:
+    la ley L8 quedaba by-paseada. Ahora sin tools el markup se corta; con
+    tools, la recuperación de siempre."""
+    from nodes import MENSAJE_DSML_AGOTADO, dsml_con_presupuesto_agotado
+
+    content = "Cerrando el estado.<｜｜DSML｜｜ calls> <｜｜DSML｜｜ invoke name=\"write_file\">..."
+    # tools presentes: intacto, sin aviso (la recuperación corre aparte)
+    nuevo, avisar = dsml_con_presupuesto_agotado(content, ["x"], TOOLS_PRESENTES := ["t"])
+    assert nuevo == content and avisar is False
+    # tools retiradas: corta antes del markup
+    nuevo, avisar = dsml_con_presupuesto_agotado(content, ["x"], None)
+    assert nuevo == "Cerrando el estado." and avisar is True
+    # solo markup: mensaje honesto y accionable
+    solo = "<｜｜DSML｜｜ calls> todo markup"
+    nuevo, avisar = dsml_con_presupuesto_agotado(solo, ["x"], None)
+    assert nuevo == MENSAJE_DSML_AGOTADO and "seguí" in nuevo and avisar is True

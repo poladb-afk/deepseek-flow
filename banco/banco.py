@@ -101,6 +101,7 @@ MARCADORES = {
     "sintaxis": r"⚠ SINTAXIS",
     "veto": r"PROHIBID|[Vv]etad",
     "recuperacion": r"\[recuperación\]",
+    "dsml_ignorado": r"\[DSML\] tool calls como texto: IGNORADOS",
     "sanitizado": r"\[sanitizado\]",
     "ronda": r"⚙ ronda \d+",
     "auto_lectura": r"run_command \[auto",

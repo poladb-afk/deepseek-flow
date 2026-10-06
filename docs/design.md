@@ -814,6 +814,23 @@ edit, CERO relecturas del archivo, diff correcto aprobado y verificado
 — el reintento único hipotetizado. minar_errores queda como línea de
 base (27 errores) para vigilar la tasa a futuro.
 
+### exp/12 — el bypass DSML del presupuesto, cerrado (2026-10-06)
+
+Hallazgo de exp/4: al retirarse las tools por el tope, el modelo emitía
+la llamada como TEXTO DSML y la recuperación la ejecutaba igual — la ley
+"todo bucle tiene presupuesto" no era tope duro por el canal de texto.
+
+`dsml_con_presupuesto_agotado`: con tools ofrecidas, la recuperación de
+siempre; con tools retiradas, el markup se corta (lo previo sobrevive) y
+si no queda nada, el contenido pasa a ser el mensaje honesto "(sin
+texto: emitiste tool-calls con el presupuesto agotado — decí 'seguí'
+para reiniciarlo)". Terminal: "[DSML] tool calls como texto: IGNORADOS".
+
+Re-medición del escenario que by-paseaba (exp4-protocolo, tope 2):
+antes — el write_file corría tras el retiro (recuperacion×1); ahora —
+dsml_ignorado×1, cero ejecución en el turno 1, y el turno de
+continuación completa con su HITL. La ley vuelve a sostenerse.
+
 ## Cómo crecer desde aquí
 
 - Escribir archivos → herramienta write_file con confirmación humana

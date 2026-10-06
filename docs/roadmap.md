@@ -306,3 +306,7 @@ mide: marcadores por turno en conversación real contra DeepSeek.
   indentación (incluye old_strings de 1 línea), candidatos con línea y
   ocurrencias listadas. Medido: reintento único y cero relecturas en el
   caso tab-vs-espacios. Línea de base: 27 errores históricos.
+- **exp/12 ✅ mergeada** — bypass DSML del presupuesto cerrado: la
+  recuperación no re-arma tools retiradas por el tope (markup cortado +
+  mensaje honesto + aviso en terminal). Re-medición del escenario que
+  by-paseaba: cero ejecución tras el retiro, continuación limpia.
