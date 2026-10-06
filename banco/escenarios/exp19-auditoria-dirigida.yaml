@@ -1,0 +1,14 @@
+# Auditoría dirigida: el scope, el inventario y el método están regalados.
+# Solo lectura; el valor está en el JUICIO semántico, no en la exploración.
+id: exp19-auditoria-dirigida
+descripcion: auditoría semántica dirigida de modules/
+env:
+  MAX_TOOL_ROUNDS: "40"
+scratch: []
+turnos:
+  - id: auditoria
+    linea: "Auditoría dirigida, SOLO LECTURA. Scope: EXCLUSIVAMENTE los 16 archivos de modules/ (a2a, auditoria, coding, db, debate, effective_n, escritura, informe, juez, mcp, memoria, rag, research, supervisor, vision, websearch — cada uno con __init__.py de registro). NO leas utils/, ni raíz, ni tests: ya están auditados. Qué se busca: INCONSISTENCIAS SEMÁNTICAS dentro de cada módulo — (a) la descripción del esquema TOOLS vs lo que el IMPL realmente hace (params que la descripción menciona y no existen, defaults que difieren, promesas del texto que el código no cumple); (b) contratos internos rotos (IMPL con clave que no está en TOOLS o viceversa); (c) límites declarados (timeouts, topes, tamaños) con valores distintos entre comentario y código. Método OBLIGATORIO: leé en tandas de 4 archivos por ronda y DESPUÉS DE CADA TANDA escribí los hallazgos de esa tanda (archivo, línea, severidad alto/medio/cosmético, evidencia con citas de ambas partes; si una tanda está limpia, escribilo: 'tanda N sin hallazgos') ANTES de pasar a la siguiente — la conversación se compacta y lo que no anotes por tanda se pierde del contexto. Si una sospecha surge, VERIFICALA en el código (buscá el mecanismo de despacho real) antes de reportarla. El cierre es solo el conteo por severidad de TODO lo anotado."
+    timeout: 900
+  - id: salir
+    linea: "salir"
+    timeout: 60

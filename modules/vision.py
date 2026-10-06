@@ -37,7 +37,7 @@ from utils.fs_tools import _resolve
 # Límites (se chequean ANTES de llamar; el error es texto, no un crash)
 IMAGEN_MAX_BYTES = 32 * 1024 * 1024   # 32 MiB
 BODY_MAX_BYTES = 48 * 1024 * 1024     # 48 MiB (base64 crece ~4/3)
-PDF_MAX_BYTES = 64 * 1024 * 1024      # 64 MiB vía Files API (file_id)
+PDF_MAX_BYTES = 64 * 1024 * 1024      # 64 MiB (tope del PDF fuente, antes del rasterizado)
 TIMEOUT_S = 120
 
 # Firma por contenido → MIME real (la extensión NO decide).
@@ -244,8 +244,9 @@ TOOLS = [
         "function": {
             "name": "ver_pdf",
             "description": (
-                "Lee y responde sobre un PDF local vía la Files API (hasta 64 MiB). Útil para "
-                "extraer datos de documentos (facturas, informes) que read_file no puede leer por binarios."
+                "Lee y responde sobre un PDF local rasterizando páginas a imágenes con poppler "
+                "(hasta 64 MiB y 8 páginas). Útil para extraer datos de documentos (facturas, "
+                "informes) que read_file no puede leer por binarios."
             ),
             "parameters": {
                 "type": "object",

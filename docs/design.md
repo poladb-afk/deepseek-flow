@@ -898,6 +898,31 @@ informe `salidas/heartbeat/triaje_trazas_<fecha>.md` escrito y logueada.
 38/140 seleccionadas en la corrida real (72.9% de ahorro) — la auditoría
 profunda queda disponible para la selección cuando haga falta.
 
+### exp/19 — auditoría dirigida de modules/ y hallazgos (2026-10-06)
+
+El harness auditó los 16 módulos dirigido por scenario (scope, inventario
+y método regalados; MAX_TOOL_ROUNDS=40). Dos corridas — la primera enseñó
+el hallazgo metodológico: con 19 lecturas (~130 KB) la COMPACCIÓN se
+comió los módulos de las primeras tandas (informe final: 9/16); el
+método corregido anota hallazgos POR TANDA antes de avanzar (inmune a la
+compacción: cero en la segunda corrida, 6 rondas). La sospecha de
+websearch (TOOLS `search_web` vs función `run_search_web`) se
+AUTO-VERIFICÓ contra el mecanismo de despacho y se declaró "falsa alarma
+mía" — la calibración de confianza del auditor mejoró de 0/2 (auditoría
+1) a hallazgos verificados.
+
+Veredicto: 6 hallazgos (1 alto, 1 medio, 4 cosméticos), los dos
+sustantivos CONFIRMADOS y corregidos:
+- ALTO `modules/vision.py`: la descripción de `ver_pdf` decía "vía la
+  Files API" — falso desde el fix de poppler (la Files API rechaza PDFs,
+  HTTP 400). El modelo leía esa mentira en cada llamada. Descripción y
+  comentario de PDF_MAX_BYTES corregidos (la IMPL ya documentaba bien).
+- MEDIO `modules/auditoria.py`: el default de `salida` del tool era
+  `auditoria.md` mientras descripción y CLI prometen `salidas/auditoria.md`
+  — alineado. (Los 4 cosméticos: naming de websearch, `rondas=None` vs
+  "default 2" efectivo, comentario de PDF_MAX_BYTES, tope de páginas no
+  declarado — quedan como están, documentados acá.)
+
 - Kaggle, dos lecciones de operación: el CLI de datasets subió solo los
   archivos de primer nivel (la v1/v2 del kernel falló por eso — subida
   plana y versión nueva lo arreglaron) y el notebook copiado hereda

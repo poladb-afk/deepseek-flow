@@ -24,7 +24,7 @@ TOOLS = [
 ]
 
 
-def run_auditoria(carpetas, glob="*.jsonl", salida="auditoria.md"):
+def run_auditoria(carpetas, glob="*.jsonl", salida="salidas/auditoria.md"):
     if isinstance(carpetas, (list, tuple)):
         lista = [str(c).strip() for c in carpetas if str(c).strip()]
     else:
