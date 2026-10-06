@@ -1,0 +1,12 @@
+id: exp10-aplicar
+descripcion: el harness aplica el feedback rico de edit_file
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+turnos:
+  - id: aplicar
+    linea: "Leé banco/specs/exp10_edit.md (verificada, confía en ella) y aplicalo: funciones puras _normalizar_ws y candidatos_similares + errores enriquecidos en modules/coding.py, tests appendeados en tests/test_smoke.py, y el escenario banco/escenarios/exp10-reintento.yaml exacto a la spec. Escribí primero, después ./calidad.sh y corregí hasta verde."
+    hitl: s
+    timeout: 600
+  - id: salir
+    linea: "salir"
+    timeout: 60

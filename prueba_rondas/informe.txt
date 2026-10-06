@@ -1,2 +1,0 @@
-Archivo: exp11-aplicar2.yaml
-Primera línea: id: exp11-aplicar2
