@@ -27,7 +27,14 @@ def _from_env_file(path, name):
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        if key.strip() == name:
+        # tolera la forma shell `export KEY=valor`: sin esto, la clave
+        # quedaría como 'export LLM_API_KEY' y no matchearía name (frágil
+        # medido en la caza: resolvería mal la API key si alguien pega un
+        # .env con export). Se tolera con o sin espacio tras export.
+        key = key.strip()
+        if key.startswith("export "):
+            key = key[len("export "):].strip()
+        if key == name:
             return value.strip().strip("'\"")
     return None
 
@@ -170,9 +177,16 @@ def call_llm_agent_stream(messages, tools=None):
             raise
         cortado = True
         print("\n  [interrumpido] generación cortada por el usuario")
-    except Exception:
-        # stream cortado a mitad (red, etc.): se devuelve lo acumulado
+    except Exception as e:  # noqa: BLE001
+        # stream cortado a mitad (red, 401/429, etc.): se devuelve lo
+        # acumulado. Decisión de diseño, PERO no se enmascara la causa
+        # (frágil medido en la caza): con un error de la API y sin contenido
+        # acumulado, el usuario veía una respuesta vacía sin motivo. Se
+        # imprime la causa solo cuando NO hay nada acumulado (con contenido
+        # parcial el corte benigno no merece ruido).
         cortado = True
+        if not contenido:
+            print(f"\n  [stream] se cortó sin contenido ({type(e).__name__}: {e})")
     # cierra el stream si quedó abierto por la interrupción (libera la conexión)
     if cortado:
         cerrar = getattr(stream, "close", None)

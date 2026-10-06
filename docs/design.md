@@ -74,6 +74,14 @@ MIENTRAS se genera corta el stream y se devuelve lo acumulado — se imprime
 flujo vuelve al prompt). Con `0`, el `KeyboardInterrupt` se propaga y `main`
 lo trata como salida, como siempre. El Ctrl+C fuera del stream no se toca.
 
+**Corte por error, sin causa muda (2026-10-05)**: el `except Exception`
+del stream sigue devolviendo lo acumulado (una caída de red no rompe el
+chat), pero ya no **enmascara** la causa cuando no hay nada que devolver:
+con CERO contenido acumulado imprime `[stream] se cortó sin contenido
+(<Tipo>: <causa>)` — un 401/429/red con respuesta vacía deja de ser un
+misterio (fragilidad medida en la caza de bugs). Con contenido parcial el
+corte benigno no agrega ruido.
+
 ## El historial canónico y el modo thinking pegajoso (2026-10-05)
 
 Tres crashes medidos en producción, todos `400: The reasoning_content in

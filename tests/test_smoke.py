@@ -1014,6 +1014,82 @@ def test_call_llm_agent_stream_interrupcion(monkeypatch, capsys):
         c.call_llm_agent_stream([{"role": "user", "content": "hola"}])
 
 
+def test_stream_error_sin_contenido_no_es_mudo(monkeypatch, capsys):
+    """Fragilidad medida en la caza: el except genérico del stream devolvía
+    lo acumulado, así que un 401/429/error de red con CERO contenido daba una
+    respuesta vacía sin causa visible. Ahora la causa se imprime cuando no
+    quedó nada; con contenido parcial el corte no agrega ruido."""
+    from types import SimpleNamespace
+
+    import utils.call_llm as c
+
+    def chunk(content):
+        return SimpleNamespace(choices=[SimpleNamespace(
+            delta=SimpleNamespace(content=content, reasoning_content=None, tool_calls=None))])
+
+    class RuntimeException(Exception):
+        pass
+
+    # 1) falla ANTES de cualquier chunk: no hay contenido → se imprime la causa
+    class FakeCompletionsCrudo:
+        def create(self, **kwargs):
+            def gen():
+                raise RuntimeException("API caída: 401 no autorizado")
+                yield  # nunca llega (gen con raise adentro)
+
+            return gen()
+
+    class FakeClient1:
+        chat = SimpleNamespace(completions=FakeCompletionsCrudo())
+
+    monkeypatch.setattr(c, "_client", lambda: FakeClient1())
+    msg = c.call_llm_agent_stream([{"role": "user", "content": "hola"}])
+    assert msg.content is None
+    salida = capsys.readouterr().out
+    assert "[stream]" in salida and "RuntimeException" in salida
+    assert "401 no autorizado" in salida
+
+    # 2) falla DESPUÉS de emitir contenido: no se imprime la causa (benigno)
+    class FakeCompletionsParcial:
+        def create(self, **kwargs):
+            def gen():
+                yield chunk("Hola ")
+                raise RuntimeException("corte de red")  # contenido ya hubo
+
+            return gen()
+
+    class FakeClient2:
+        chat = SimpleNamespace(completions=FakeCompletionsParcial())
+
+    monkeypatch.setattr(c, "_client", lambda: FakeClient2())
+    msg = c.call_llm_agent_stream([{"role": "user", "content": "hola"}])
+    assert msg.content == "Hola "
+    salida = capsys.readouterr().out
+    assert "[stream]" not in salida  # se conserva parcial, sin ruido de causa
+
+
+def test_from_env_file_tolera_export(tmp_path):
+    """Fragilidad medida en la caza: una línea `export KEY=valor` en un .env
+    NO matcheaba (key quedaba 'export KEY') y rompía la resolución del
+    setting/API key. Ahora se tolera con o sin espacio tras export."""
+    import utils.call_llm as c
+
+    env = tmp_path / ".env"
+    env.write_text(
+        "# comentario\n"
+        "export LLM_API_KEY=sk-abc\n"
+        "export   OTRA=sin-espacios-raros\n"
+        "NORMAL=valor-plano\n"
+        "export CON_COMILLAS='citado'\n",
+        encoding="utf-8",
+    )
+    assert c._from_env_file(env, "LLM_API_KEY") == "sk-abc"
+    assert c._from_env_file(env, "OTRA") == "sin-espacios-raros"
+    assert c._from_env_file(env, "NORMAL") == "valor-plano"
+    assert c._from_env_file(env, "CON_COMILLAS") == "citado"
+    assert c._from_env_file(env, "NO_EXISTE") is None
+
+
 def test_supervisor_no_ejecuta_llamadas_identicas(tmp_path, monkeypatch):
     import supervisor as sup
 
