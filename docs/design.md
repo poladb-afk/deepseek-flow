@@ -795,6 +795,25 @@ Las corridas de control (exp4-bajo/amplio, presupuesto 4 vs 40 con la
 misma tarea) no muestran daño en defaults: 2 rondas, sin nota, sin
 diferencia.
 
+### exp/10 — edit_file con feedback rico (2026-10-06)
+
+edit_file generaba el 63% de los errores del harness (27/43, minería
+exp/9) con un feedback ciego: "old_string no aparece... releé el
+archivo" — el modelo relee entero y reintenta a ciegas.
+
+El error ahora diagnostica: (a) si el texto matchea normalizado
+whitespace (tabs→4, sin trailing), NOTA explícita de indentación — la
+causa clásica, incluso para old_strings de una línea; (b) top-3 de
+candidatos con número de línea (difflib sobre el texto unido — sobre
+listas de líneas compararía líneas enteras y toda casi-igual daría
+ratio 0); (c) en ocurrencias múltiples, las líneas exactas para apuntar
+con contexto.
+
+Medición (exp10-reintento, indentación tab-vs-espacios): 2 intentos de
+edit, CERO relecturas del archivo, diff correcto aprobado y verificado
+— el reintento único hipotetizado. minar_errores queda como línea de
+base (27 errores) para vigilar la tasa a futuro.
+
 ## Cómo crecer desde aquí
 
 - Escribir archivos → herramienta write_file con confirmación humana

@@ -3273,3 +3273,30 @@ def test_nota_presupuesto_solo_en_la_anteultima_ronda():
     assert nota and "3/4" in nota and "ÚLTIMA" in nota and "reinicia" in nota
     # máximo degenerado: la única ronda es también la anteúltima
     assert nota_presupuesto(0, 1) is not None
+
+
+def test_edit_file_diagnostico_whitespace_y_candidatos():
+    """exp/10: edit_file generaba el 63% de los errores del harness (27/43)
+    con un feedback ciego ('releé el archivo'). Ahora diagnostica la causa
+    clásica (indentación) y ofrece candidatos con línea — el reintento
+    debería ser uno y sin relectura completa."""
+    from modules.coding import _contiene_subsecuencia, _normalizar_ws, candidatos_similares
+
+    # archivo con indentación MIXTA: def g usa un tab real
+    archivo = "def f():\n    x = 1\n    return x\ndef g():\n\ty = 2\n    return y\n"
+    # old_string 'igual' pero con 4 espacios donde el archivo tiene tab
+    viejo_espacios = "def g():\n    y = 2\n    return y"
+
+    # el match exacto falla, pero la subsecuencia normalizada está
+    assert "def g():\n\ty = 2\n    return y" not in viejo_espacios
+    lineas_txt = _normalizar_ws(archivo).split("\n")
+    lineas_old = _normalizar_ws(viejo_espacios).split("\n")
+    assert _contiene_subsecuencia(lineas_txt, lineas_old)
+
+    # candidatos: la ventana correcta con su línea exacta (base 1)
+    cands = candidatos_similares(archivo, viejo_espacios)
+    assert cands and cands[0][0] == 4, "la ventana def g() arranca en L4"
+    assert "y = 2" in cands[0][1]
+
+    # cadena totalmente ajena: sin candidatos
+    assert candidatos_similares(archivo, "import numpy as np\nimport pandas") == []

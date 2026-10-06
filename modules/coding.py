@@ -209,6 +209,69 @@ def run_command(command):
     return f"exit {r.returncode}\n{salida or '(sin salida)'}"
 
 
+def _normalizar_ws(s):
+    """Normaliza whitespace para el diagnóstico: tabs→4 espacios y sin
+    espacios al final de línea. Sirve para DISTINGUIR la causa clásica
+    del no-match (indentación/copiado a mano) sin perdonar el match."""
+    return "\n".join(
+        linea.expandtabs(4).rstrip() for linea in s.splitlines()
+    ).strip("\n")
+
+
+def _contiene_subsecuencia(lineas_txt, lineas_old):
+    """True si la secuencia normalizada de old_string aparece como bloque
+    contiguo (al menos 2 líneas) dentro de la del texto: señal de que el
+    no-match es solo por espacios/tabs, no por texto equivocado."""
+    if not lineas_old or len(lineas_old) > len(lineas_txt):
+        return False
+    alto = len(lineas_old)
+    # una sola línea: basta que alguna línea del texto normalice igual
+    # (el caso clásico: tab vs espacios en la misma línea)
+    if alto == 1:
+        return lineas_old[0] in lineas_txt
+    return any(
+        lineas_txt[i : i + alto] == lineas_old
+        for i in range(len(lineas_txt) - alto + 1)
+    )
+
+
+def candidatos_similares(texto, old_string, max_candidatos=3):
+    """Top ventanas de líneas parecidas a old_string (difflib): para que
+    el modelo corrija en UN intento sin releer el archivo entero. Cada
+    candidato es (num_linea_inicio_base_1, excerpt). Ventanas del mismo
+    alto que old_string; si old_string tiene 1 línea, ventanas de 1.
+    Empates y orden por ratio descendente."""
+    lineas = texto.splitlines()
+    objetivo = old_string.splitlines()
+    alto = len(objetivo) or 1
+    if not lineas:
+        return []
+
+    evaluados = []
+    for i in range(len(lineas) - alto + 1):
+        ventana = lineas[i : i + alto]
+        # ratio sobre el texto UNIDO (caracteres): sobre listas de líneas
+        # SequenceMatcher compararía líneas enteras y toda casi-igual daría 0
+        ratio = difflib.SequenceMatcher(None, "\n".join(ventana), "\n".join(objetivo)).ratio()
+        evaluados.append((ratio, i + 1, "\n".join(ventana)))
+
+    evaluados.sort(key=lambda c: c[0], reverse=True)
+    mejores = [c for c in evaluados if c[0] > 0.5]
+    return [(num, excerpt) for _, num, excerpt in mejores[:max_candidatos]]
+
+
+def _lineas_ocurrencias(texto, old_string):
+    """Números de línea (base 1) donde EMPIEZA cada ocurrencia de
+    old_string — para el mensaje de ambigüedad (n > 1)."""
+    lineas = texto.splitlines()
+    n_lineas_old = len(old_string.splitlines())
+    inicios = []
+    for idx in range(len(lineas) - n_lineas_old + 1):
+        if "\n".join(lineas[idx : idx + n_lineas_old]) == old_string:
+            inicios.append(idx + 1)
+    return inicios
+
+
 def edit_file(path, old_string, new_string):
     resolved, err = _resolve(path)
     if err:
@@ -225,14 +288,31 @@ def edit_file(path, old_string, new_string):
     texto = resolved.read_text(encoding="utf-8", errors="replace")
     n = texto.count(old_string)
     if n == 0:
-        return (
+        mensaje = (
             f"ERROR: old_string no aparece en {resolved.name}. "
             "Leé el archivo con read_file y copiá el texto EXACTO; no lo reescribas de memoria."
         )
+        lineas_old = _normalizar_ws(old_string).split("\n")
+        lineas_txt = _normalizar_ws(texto).split("\n")
+        if _contiene_subsecuencia(lineas_txt, lineas_old):
+            mensaje += (
+                "\nNOTA: coincide salvo espacios/tabs — copiá la indentación "
+                "EXACTA del archivo (tabs vs espacios)."
+            )
+        candidatos = candidatos_similares(texto, old_string)
+        if candidatos:
+            mensaje += "\n¿Quisiste decir (línea n):"
+            for num, excerpt in candidatos:
+                recorte = excerpt if len(excerpt) <= 200 else excerpt[:200]
+                mensaje += f"\n  L{num}: {recorte!r}"
+        return mensaje
     if n > 1:
+        lineas = _lineas_ocurrencias(texto, old_string)
+        listado = ", ".join(str(x) for x in lineas)
         return (
             f"ERROR: old_string aparece {n} veces en {resolved.name}. "
-            "Agregá líneas de contexto alrededor hasta que la ocurrencia sea única."
+            "Agregá líneas de contexto alrededor hasta que la ocurrencia sea única.\n"
+            f"Ocurrencias en líneas: {listado} — agregá contexto para apuntar una."
         )
 
     nuevo = texto.replace(old_string, new_string, 1)

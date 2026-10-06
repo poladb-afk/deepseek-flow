@@ -302,3 +302,7 @@ mide: marcadores por turno en conversación real contra DeepSeek.
   protocolo de continuación documentado ("seguí" reinicia) y env por
   escenario en el banco (MAX_TOOL_ROUNDS=40 para aplicar). HALLAZGO:
   la recuperación DSML by-pasea el retiro de tools — candidato a fix.
+- **exp/10 ✅ mergeada** — edit_file con feedback rico: diagnóstico de
+  indentación (incluye old_strings de 1 línea), candidatos con línea y
+  ocurrencias listadas. Medido: reintento único y cero relecturas en el
+  caso tab-vs-espacios. Línea de base: 27 errores históricos.

@@ -1,0 +1,22 @@
+# Medición exp/10: el modelo escribe un archivo con indentación mixta y
+# luego edita con un old_string de espacios donde hay tab — el feedback
+# enriquecido debe diagnosticar la causa y el modelo completar el reemplazo
+# en UN reintento, sin releer el archivo entero.
+id: exp10-reintento
+descripcion: reintento único con feedback rico de edit_file
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow/prueba_edit
+scratch:
+  - prueba_edit
+turnos:
+  - id: crear
+    linea: "Creá prueba_edit/datos.py con EXACTAMENTE estas 6 líneas: 'def f():' / '    x = 1' con 4 espacios / '    return x' / 'def g():' / una línea con UN TAB seguido de 'y = 2' / '    return y'"
+    hitl: s
+    timeout: 180
+  - id: editar-trampa
+    linea: "Necesito que prueba_edit/datos.py quede con 'y = 3' en vez de 'y = 2' (terminá con el archivo editado y verificado). Detalle: en tu PRIMER intento de edit_file escribí el old_string con CUATRO ESPACIOS de indentación, aunque en el archivo esa línea tiene un tab; si falla, corregilo y completá el reemplazo."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60
