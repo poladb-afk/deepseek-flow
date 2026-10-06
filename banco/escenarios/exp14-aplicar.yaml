@@ -1,0 +1,12 @@
+id: exp14-aplicar
+descripcion: el harness aplica el lote del prefiltro
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+turnos:
+  - id: aplicar
+    linea: "Leé banco/specs/exp14_batch.md (verificada, confía) y aplicalo: preguntar_lote en utils/laya.py, _puntuar en UNA llamada en utils/contexto.py (mismo truncamiento y orden, misma ley de fallo), y los tests appendeados. Escribí primero, después ./calidad.sh hasta verde."
+    hitl: s
+    timeout: 600
+  - id: salir
+    linea: "salir"
+    timeout: 60
