@@ -985,6 +985,31 @@ composición, `run_command` con HITL_AUTO=1 seguro sin input (monkeypatch
 que explota si se llama) y no-seguro pidiendo, doble confirmación
 abortando, y el hook tras edit/write de `.py` roto vs. bueno.
 
+## Pulido de terminal (mesa 8, 2026-10-05)
+
+`utils/terminal.py` (stdlib, sin dependencias) da las dos piezas que
+faltaban del pulido de terminal, ambas degradando a texto plano cuando la
+salida no es una terminal:
+
+- **`colorear(texto, tipo)`** — códigos ANSI por TIPO de evento (`tool`
+  cian, `ok` verde, `error` rojo, `info` gris, `aviso` amarillo,
+  `respuesta` negrita). Solo pinta si `sys.stdout.isatty()` y no hay
+  `NO_COLOR` (el estándar) ni `COLOR=0` (escape hatch propio). Sin tty —
+  tests, pipes, logs — devuelve el texto intacto: nada cambia en CI.
+- **`progreso_ronda(ronda, tope)`** — etiqueta `⚙ ronda 2/8` (o `⚙ ronda
+  2` sin tope) para las rondas de herramientas.
+
+Integración en `nodes.ExecuteTools`: cada tool se **anuncia ANTES de
+correrla** (`→ read_file`, para que una espera de varios segundos no
+parezca colgada) y, en `post()`, la ronda consumida se etiqueta con su
+avance sobre `MAX_TOOL_ROUNDS`. Los avisos de recuperación DSML y de
+sanitizado pasan por `aviso` (amarillo). Los hooks y el resto del flujo no
+se tocan.
+
+5 tests: color con/sin tty, `NO_COLOR`/`COLOR=0`, tipo desconocido, el
+formato de `progreso_ronda`, y que `ExecuteTools` anuncie cada tool y
+etiquete la ronda (forzando `isatty=False` para ver el texto plano).
+
 ## Candados de contrato y fixes de la auditoría de sesión (2026-10-05)
 
 Auditoría de una sesión real del usuario (revisión de consistencia

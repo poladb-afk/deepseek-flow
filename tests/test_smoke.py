@@ -2675,3 +2675,89 @@ def test_action_space_suma_vision_y_a2a():
 
     nombres = {t["function"]["name"] for t in TOOLS}
     assert {"ver_imagen", "ver_pdf", "agentes_remotos", "a2a_tarea"} <= nombres
+
+
+# ---------------------------------------------------------------------------
+# Pulido de terminal (mesa 8): colores por tipo de evento + progreso de rondas
+# ---------------------------------------------------------------------------
+
+
+def test_colorear_sin_tty_no_pinta(monkeypatch):
+    """Sin tty (tests, pipes) el color NO aparece: los textos quedan
+    intactos. Es lo que garantiza que nada cambie en CI ni en logs."""
+    import utils.terminal as t
+
+    monkeypatch.setattr(t.sys.stdout, "isatty", lambda: False, raising=False)
+    assert t.colorear("hola", "tool") == "hola"
+    assert t.colorear("hola", "error") == "hola"
+
+
+def test_colorear_con_tty_pinta_y_respeta_apagados(monkeypatch):
+    """Con tty sí pinta (códigos ANSI + reset); NO_COLOR y COLOR=0 mandan
+    sobre un tty real."""
+    import utils.terminal as t
+
+    monkeypatch.setattr(t.sys.stdout, "isatty", lambda: True, raising=False)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.delenv("COLOR", raising=False)
+    pintado = t.colorear("hola", "error")
+    assert pintado != "hola" and "\033[" in pintado and pintado.endswith("\033[0m")
+    assert "hola" in pintado
+
+    # NO_COLOR (estándar) apaga aun con tty
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert t.colorear("hola", "error") == "hola"
+
+    # COLOR=0 (escape hatch propio) también apaga
+    monkeypatch.delenv("NO_COLOR")
+    monkeypatch.setenv("COLOR", "0")
+    assert t.colorear("hola", "error") == "hola"
+
+
+def test_colorear_tipo_desconocido_no_altera(monkeypatch):
+    import utils.terminal as t
+
+    monkeypatch.setattr(t.sys.stdout, "isatty", lambda: True, raising=False)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.delenv("COLOR", raising=False)
+    assert t.colorear("hola", "inexistente") == "hola"
+
+
+def test_progreso_ronda():
+    from utils.terminal import progreso_ronda
+
+    assert progreso_ronda(2, 8) == "⚙ ronda 2/8"
+    assert progreso_ronda(1, 1) == "⚙ ronda 1/1"
+    assert progreso_ronda(3) == "⚙ ronda 3"  # sin tope conocido
+
+
+def test_execute_tools_anuncia_y_etiqueta(monkeypatch, capsys):
+    """Una ronda larga no parece colgada: cada tool se anuncia ANTES de
+    correr y la ronda consumida se etiqueta con su avance (n/MAX)."""
+    import nodes
+
+    # sin tty → texto plano (así lo ve un pipe; los tests no ven ANSI)
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False, raising=False)
+    monkeypatch.setattr(nodes, "MODULE_IMPLS", {})
+    monkeypatch.setattr(
+        nodes, "run_tool_call",
+        lambda tc, impls: {"role": "tool", "tool_call_id": tc["id"], "content": "ok"},
+    )
+
+    et = nodes.ExecuteTools()
+    shared = {"messages": [], "tool_rounds": 0}
+    tool_calls = [
+        {"id": "a", "function": {"name": "read_file", "arguments": "{}"}},
+        {"id": "b", "function": {"name": "list_files", "arguments": "{}"}},
+    ]
+    resultados = et.exec(tool_calls)
+    salida = capsys.readouterr().out
+    assert "→ read_file" in salida and "→ list_files" in salida
+    # el anuncio precede al resultado: aparece aunque el resultado viniera ok
+    assert len(resultados) == 2
+
+    # la ronda se etiqueta con el avance sobre el tope
+    et.post(shared, None, resultados)
+    salida = capsys.readouterr().out
+    assert f"⚙ ronda 1/{nodes.MAX_TOOL_ROUNDS}" in salida
+    assert shared["tool_rounds"] == 1

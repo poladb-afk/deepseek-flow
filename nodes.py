@@ -8,6 +8,7 @@ from pocketflow import Node
 from modules import discover
 from utils.call_llm import call_llm_agent, call_llm_agent_stream, _setting
 from utils.fs_tools import MAX_TOOL_ROUNDS, TOOLS as CORE_TOOLS, run_tool_call
+from utils.terminal import colorear, progreso_ronda
 from utils.tracing import evento_tool
 
 EXIT_WORDS = {"salir", "exit", "quit"}
@@ -117,14 +118,14 @@ class AgentStep(Node):
         if not getattr(exec_res, "tool_calls", None) and RE_DSML.search(exec_res.content or ""):
             parseados = dsml_a_tool_calls(exec_res.content)
             if parseados:
-                print("  [recuperación] tool calls llegaron como texto (DSML) → ejecutando")
+                print(colorear("  [recuperación] tool calls llegaron como texto (DSML) → ejecutando", "aviso"))
                 # el historial queda canónico: tool_calls, sin el markup crudo
                 exec_res.content = None
                 exec_res.tool_calls = parseados
         if not getattr(exec_res, "tool_calls", None):
             contenido, cortado = sanitizar(exec_res.content or "")
             if cortado:
-                print("  [sanitizado] la respuesta descarriló a un prompt ajeno: cortada")
+                print(colorear("  [sanitizado] la respuesta descarriló a un prompt ajeno: cortada", "aviso"))
                 if not contenido:
                     # no quedó nada utilizable: el retry del nodo re-pregunta
                     raise ValueError("respuesta descarrilada (solo markup de rol)")
@@ -158,14 +159,23 @@ class ExecuteTools(Node):
         resultados = []
         for tc in tool_calls:
             inicio = time.time()
+            nombre = tc["function"]["name"]
+            # pulido de terminal (mesa 8): una ronda larga no debe parecer
+            # colgada, así que la tool EN CURSO se anuncia antes de correr.
+            print(colorear(f"  → {nombre}", "tool"), flush=True)
             r = run_tool_call(tc, MODULE_IMPLS)
-            evento_tool(tc["function"]["name"], not r["content"].startswith("ERROR"), time.time() - inicio)
+            ok = not r["content"].startswith("ERROR")
+            evento_tool(nombre, ok, time.time() - inicio)
             resultados.append(r)
         return resultados
 
     def post(self, shared, prep_res, exec_res):
         shared["messages"].extend(exec_res)
         shared["tool_rounds"] = shared.get("tool_rounds", 0) + 1
+        # pulido de terminal (mesa 8): la ronda consumida se etiqueta para
+        # que una secuencia de varias rondas muestre su avance (n/MAX).
+        ronda = shared["tool_rounds"]
+        print(colorear("  " + progreso_ronda(ronda, MAX_TOOL_ROUNDS), "info"), flush=True)
         return "default"
 
 

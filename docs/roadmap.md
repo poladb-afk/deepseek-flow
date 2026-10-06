@@ -206,6 +206,16 @@ comando antes del s/n, historial de aprobaciones de la sesión); visor --watch
 (tail -f de .runs); arranque con listado de la biblioteca de memoria (mostrar el
 catálogo, SIN inyectar contexto — el arranque vacío es regla).
 
+**Pulido de terminal ✅ (2026-10-05):** `utils/terminal.py` — `colorear(texto,
+tipo)` con códigos ANSI por tipo de evento (`tool`/`ok`/`error`/`info`/`aviso`/
+`respuesta`) y `progreso_ronda(ronda, tope)` (`⚙ ronda 2/8`). Sin tty, o con
+`NO_COLOR`/`COLOR=0`, degrada a texto plano (nada cambia en CI, pipes ni logs).
+`ExecuteTools` anuncia cada tool ANTES de correrla (`→ read_file`, para que una
+espera no parezca colgada) y etiqueta la ronda consumida con su avance. Los
+avisos de recuperación DSML y sanitizado van coloreados como `aviso`. Sigue
+pendiente de la mesa: el chat web, el HITL UX, `visor --watch` y el listado de
+memoria al arranque.
+
 ## Cola final — ✅ vacía (2026-10-05)
 
 Los dos últimos ítems quedaron construidos y verificados:
