@@ -186,11 +186,11 @@ puro, sin LLM) + `AgentStep.prep`: la zona fría se reemplaza por un resumen
 como unidad indivisible) queda intacta; `COMPACTION_CHARS` (default 60000), una
 vez por ronda por huella sha1, `shared['compacciones']` cuenta. Invariantes del
 modo thinking clavados por `validar_historial` (sin reasoning_content, dicts
-canónicos, sin assistant sin sus tools, primer mensaje system). 124 passed;
-faltan telemetría de convergencia, agentic RAG como flow y loops fractales.
-Telemetría de convergencia (hechos nuevos por ronda: comprar ronda si
-converge, cortar si estanca); agentic RAG como flow dedicado (gap del cookbook);
-loops fractales con presupuesto heredado (depth máx 2).
+canónicos, sin assistant sin sus tools, primer mensaje system). 124 passed.
+Siguientes de la mesa (sin fecha): telemetría de convergencia (hechos nuevos por
+ronda: comprar ronda si converge, cortar si estanca); agentic RAG como flow
+dedicado (gap del cookbook); loops fractales con presupuesto heredado (depth máx
+2).
 - Nuevo de la investigación 2026-10-05: **pre-filtro de contexto** — Laya
   elige qué notas de memoria/ o chunks de RAG entran al prompt ANTES de
   pagar tokens (patrón de la wild con ~80% de costo/tiempo reportado);
