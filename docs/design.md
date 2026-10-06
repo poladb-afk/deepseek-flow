@@ -869,6 +869,25 @@ y (b) bustear el cache si el orden varía: pérdida neta. Segundo descarte
 por evidencia (con el triaje de exp/9): la sonda queda como artefacto
 re-ejecutable.
 
+### exp/16 — triaje de trazas para la auditoría nocturna (2026-10-06)
+
+La pregunta: auditar TODAS las trazas cuesta N llamadas LLM que crece
+sin techo (177 hoy). El triaje DETERMINISTA (invariantes del linter +
+outliers de duración >120 s) selecciona **37/139 legibles → 73.4% de
+ahorro** de la auditoría nocturna — sin checkpoint nuevo: tercera
+decisión por evidencia donde Laya no corresponde (con el triaje de
+errores y el pre-rank de tools). Límite honesto en el informe: el triaje
+ve lo estructural; lo semántico (decisión mala sin violación) requiere
+lectura LLM. `triaje_trazas.py` standalone; la integración como tarea
+del heartbeat queda para cuando se quiera cablear.
+
+Nota de proceso: la sesión del harness que lo aplicó agotó presupuesto y
+emitió el segundo edit como texto DSML — y el fix de exp/12 lo IGNORÓ en
+producción por primera vez (antes by-paseaba el tope): la ley sostuvo
+mientras el triaje se estaba construyendo. El test a medias que dejó se
+completó con la intención del edit ignorado (aserción en mixed-case
+contra un haystack con .upper()).
+
 - Kaggle, dos lecciones de operación: el CLI de datasets subió solo los
   archivos de primer nivel (la v1/v2 del kernel falló por eso — subida
   plana y versión nueva lo arreglaron) y el notebook copiado hereda
