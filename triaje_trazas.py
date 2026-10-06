@@ -267,6 +267,7 @@ def main(argv=None):
     print(f"  seleccionadas: {informe['n_seleccionadas']}/{informe['legibles']} "
           f"(ahorro {_fmt_pct(informe['ahorro_pct'])})")
     print(f"  → {md_path}")
+    return md_path
 
 
 if __name__ == "__main__":

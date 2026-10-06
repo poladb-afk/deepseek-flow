@@ -888,6 +888,16 @@ mientras el triaje se estaba construyendo. El test a medias que dejó se
 completó con la intención del edit ignorado (aserción en mixed-case
 contra un haystack con .upper()).
 
+### exp/17 — el triaje, cableado al heartbeat (2026-10-06)
+
+El heartbeat acepta `"tipo"` en sus tareas: default = supervisor
+reactivo (LLM, la noche es finita); `"tipo": "triaje"` = el script
+determinista directo, **cero llamadas LLM**. Verificación en vivo con
+config de una sola tarea: ✅ 0.1 s (los supervisores tardan minutos),
+informe `salidas/heartbeat/triaje_trazas_<fecha>.md` escrito y logueada.
+38/140 seleccionadas en la corrida real (72.9% de ahorro) — la auditoría
+profunda queda disponible para la selección cuando haga falta.
+
 - Kaggle, dos lecciones de operación: el CLI de datasets subió solo los
   archivos de primer nivel (la v1/v2 del kernel falló por eso — subida
   plana y versión nueva lo arreglaron) y el notebook copiado hereda

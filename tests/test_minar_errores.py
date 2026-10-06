@@ -255,3 +255,42 @@ def test_triaje_escribir_md_pone_el_limite_honesto_arriba_y_el_ahorro():
     assert md.index("## Límite honesto") < md.index("## Resumen")
     assert "Ahorro de la auditoría nocturna: 50.0%" in md
     assert "larga.jsonl" in md and "duración" in md
+
+
+# ---------------------------------------------------------------------------
+# Heartbeat: rama triaje determinista vs. default supervisor (exp/17)
+# ---------------------------------------------------------------------------
+
+def test_heartbeat_triaje_no_pasa_por_el_supervisor():
+    """`correr` con tipo=triaje corre el triaje determinista (cero LLM) y
+    devuelve la ruta escrita, sin tocar el supervisor."""
+    from heartbeat import correr
+
+    resultado = correr({
+        "tipo": "triaje",
+        "tarea": "Triaje de trazas: qué vale la pena auditar hoy",
+        "salida": "salidas/banco/triaje.md",
+        "cada_horas": 24,
+    })
+    assert resultado["ok"] is True
+    assert Path(resultado["informe"]).is_file()
+    assert "Límite honesto" in Path(resultado["informe"]).read_text(encoding="utf-8")
+
+
+def test_heartbeat_default_sin_tipo_llama_al_supervisor(monkeypatch):
+    """Una tarea SIN `tipo` sigue la rama default: pasa por supervisar()."""
+    import heartbeat
+
+    llamado = {}
+
+    def supervisar_fake(tarea, salida):
+        llamado["tarea"], llamado["salida"] = tarea, salida
+        Path(salida).parent.mkdir(parents=True, exist_ok=True)
+        Path(salida).write_text("fake", encoding="utf-8")
+        return salida
+
+    monkeypatch.setattr("supervisor.supervisar", supervisar_fake)
+    resultado = heartbeat.correr({"tarea": "una tarea LLM", "salida": "salidas/banco/fake.md", "cada_horas": 24})
+    assert resultado["ok"] is True
+    assert llamado["tarea"] == "una tarea LLM", "la rama default NO cambió"
+    assert resultado["informe"] == llamado["salida"]
