@@ -1244,3 +1244,27 @@ determinismo (dos llamadas), invariantes antes/después, e integración
 (`COMPACTION_CHARS` chico por monkeypatch → `AgentStep.prep` devuelve el
 historial compactado y cuenta en `shared['compacciones']`, sin
 re-compactar la misma ronda). Suite: **124 passed**.
+
+## Cierre de jornada 2026-10-05/06 — tablero verde
+
+Secuencia oficial completa y cola final vacía. Lo construido por el
+harness con auditoría independiente + E2E real en cada pieza:
+
+- **Mesas 1-2-3** (evals, HITL graduado+hooks, Laya-voto): el voto r2
+  promovido con 80% de turnos-directo sin DeepSeek (0 ecos, 0 errores
+  nuevos; r1 reprobado honestamente por la puerta).
+- **Mesa 6** (compacción): 89% de reducción con los 4 invariantes del
+  modo thinking intactos; E2E real final — la API acepta el historial
+  compactado, las tools siguen corriendo después, y el modelo explica
+  qué se compactó reteniendo la ventana caliente. Pre-filtro de contexto
+  y catálogo de memoria al arranque también adentro.
+- **Cola final** (A2A + vision/PDF): ver_imagen/ver_pdf contra la API
+  real (la Files API no acepta PDFs — medido — ruta por rasterización
+  poppler, multi-página verificado: 3 páginas, clave exacta de la p.2);
+  A2A verificado contra server fake del protocolo.
+- Bonus de sesiones: denylist PRE, historial de aprobaciones de sesión,
+  export en .env, stream sin enmascarar errores, pulido de terminal.
+
+24 capacidades · 141 tests · OOM aprendido: un checkpoint por proceso.
+Pendientes del menú: Mesa 4 (agentes fractales), 5 (async), 7 (skills),
+8 (chat web — ya empezada).
