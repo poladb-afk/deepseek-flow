@@ -52,6 +52,25 @@ def nota_presupuesto(ronda, maximo):
     return None
 
 
+MENSAJE_DSML_AGOTADO = (
+    "(sin texto: emitiste tool-calls con el presupuesto agotado — decí "
+    "'seguí' para reiniciarlo)"
+)
+
+
+def dsml_con_presupuesto_agotado(content, parseados, tools):
+    """(nuevo_content, avisar): la recuperación DSML no re-armó tools que
+    el tope retiró (ley L8 — medido en exp/4 que sí las ejecutaba: el
+    write_file corría después del retiro). Con tools presentes la
+    recuperación de siempre; sin tools, el markup se corta y el mensaje
+    que queda es honesto y accionable."""
+    if tools is not None or not parseados:
+        return content, False
+    m = RE_DSML.search(content or "")
+    limpio = (content or "")[: m.start()].rstrip() if m else ""
+    return (limpio or MENSAJE_DSML_AGOTADO), True
+
+
 def historiar(msg):
     """El mensaje del asistente en forma canónica para el historial: solo
     role/content/tool_calls. El reasoning_content del modo thinking NO
@@ -163,7 +182,14 @@ class AgentStep(Node):
         # SÍ re-pregunta; en post() cortaría el chat (bug medido).
         if not getattr(exec_res, "tool_calls", None) and RE_DSML.search(exec_res.content or ""):
             parseados = dsml_a_tool_calls(exec_res.content)
-            if parseados:
+            # ley L8: retiradas las tools, el texto DSML no las re-arma —
+            # el presupuesto no se by-pasea desde el canal de texto (exp/12)
+            exec_res.content, avisar = dsml_con_presupuesto_agotado(
+                exec_res.content, parseados, tools)
+            if avisar:
+                print(colorear("  [DSML] tool calls como texto: IGNORADOS "
+                               "(presupuesto agotado; 'seguí' lo reinicia)", "aviso"))
+            elif parseados:
                 print(colorear("  [recuperación] tool calls llegaron como texto (DSML) → ejecutando", "aviso"))
                 # el historial queda canónico: tool_calls, sin el markup crudo
                 exec_res.content = None

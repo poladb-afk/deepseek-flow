@@ -1,0 +1,12 @@
+id: exp12-aplicar
+descripcion: el harness cierra el bypass DSML
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+turnos:
+  - id: aplicar
+    linea: "Leé banco/specs/exp12_bypass.md (verificada, confía) y aplicalo: la función pura dsml_con_presupuesto_agotado + su uso en AgentStep.exec (el corte NO corre la recuperación cuando tools es None), el marcador nuevo en banco/banco.py y los tests appendeados. Escribí primero, después ./calidad.sh hasta verde."
+    hitl: s
+    timeout: 600
+  - id: salir
+    linea: "salir"
+    timeout: 60

@@ -39,6 +39,7 @@ def test_los_marcadores_matchean_las_lineas_reales_del_chat():
         "ronda": "  ⚙ ronda 3/8",
         "auto_lectura": "── run_command [auto: solo-lectura] ──",
         "interrumpido": "[interrumpido] generación cortada por el usuario",
+        "dsml_ignorado": "  [DSML] tool calls como texto: IGNORADOS (presupuesto agotado)",
     }
     for nombre, patron in MARCADORES.items():
         assert re.search(patron, muestras[nombre]), f"marcador {nombre} no matchea su línea real"
