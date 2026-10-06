@@ -13,14 +13,22 @@ dependencias y sin red. El default de todo lo no reconocido es
 'preguntar': la política solo RELAJA cuando el comando está en una
 whitelist conservadora de solo-lectura; todo lo demás pregunta como hoy.
 
-Regla de composición (la parte crítica): el comando se parte por `&&` y
-`|`, y TODOS los segmentos deben ser 'auto' para que el compuesto sea
+Regla de composición (la parte crítica): el comando se parte por `&&`,
+`|` y `;`, y TODOS los segmentos deben ser 'auto' para que el compuesto sea
 'auto'. Basta un segmento sospechoso para que todo pregunte — un
-`ls && rm -rf /` NO es auto. Además, la mera presencia de redirección
-(`>`, `<`, `>>`), sustitución `$(...)`, backticks o `xargs` degrada a
-'preguntar': escriben o ejecutan lo que no podemos ver clasificar por
-prefijo. `python3 -c` pregunta SIEMPRE (código arbitrario, aunque hoy lo
-usemos para repros).
+`ls && rm -rf /` NO es auto, y un `ls ; rm -rf /` tampoco (el `;` parte
+igual que `&&`: medido en el test exhaustivo del 2026-10-06, antes de
+partirlo `ls ; rm -rf /tmp/x` clasificaba 'auto' y el rm corría sin
+aprobación). Además, la mera presencia de redirección (`>`, `<`, `>>`),
+sustitución `$(...)`, backticks o `xargs` degrada a 'preguntar': escriben
+o ejecutan lo que no podemos ver clasificar por prefijo. `python3 -c`
+pregunta SIEMPRE (código arbitrario, aunque hoy lo usemos para repros).
+
+`cd` es neutro (test exhaustivo 2026-10-06: el modelo prefijó `cd <dir> &&`
+en 5/5 run_command y el compuesto degradaba a preguntar aunque el fondo
+fuera `pytest` auto): cambia el cwd del subshell de ESTE comando, no escribe
+ni ejecuta nada — mismo nivel de confianza que `cat`, que ya lee cualquier
+ruta del disco.
 
 Orden de evaluación: whitelist primero, negra después, default preguntar.
 """
@@ -53,6 +61,9 @@ _WHITELIST_PREFIJOS = (
     ("git", "diff"),
     ("git", "show"),
     ("git", "blame"),
+    # neutros: no leen ni escriben nada por sí mismos
+    ("cd",),
+    ("sort",),
 )
 
 # Comandos que SIEMPRE preguntan (aunque no tengan redirección ni xargs).
@@ -138,8 +149,9 @@ def clasificar(comando):
     if not comando:
         return PREGUNTAR
 
-    # Partimos por && y | (los separadores de composición que importan).
-    segmentos = re.split(r"&&|\|", comando)
+    # Partimos por &&, | y ; (los separadores de composición que importan:
+    # el shell ejecuta los tres, ver docstring).
+    segmentos = re.split(r"&&|\||;", comando)
 
     # 1) La negra manda: si CUALQUIER segmento pide doble o preguntar, ese
     #    es el piso del compuesto (tomamos el nivel más alto encontrado).
@@ -199,6 +211,8 @@ _LECTURA = (
     (("git", "diff"), "cambios sin commitear (solo lee)"),
     (("git", "show"), "contenido de un objeto (solo lee)"),
     (("git", "blame"), "autoría por línea (solo lee)"),
+    (("cd",), "cambia de directorio (solo afecta al subshell del comando)"),
+    (("sort",), "ordena líneas (solo lee)"),
 )
 
 
