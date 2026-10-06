@@ -3078,6 +3078,106 @@ def test_agent_step_prep_compacta_y_cuenta(monkeypatch, capsys):
     assert "compacciones" not in shared2
 
 
+def test_get_question_slash_aprobaciones(monkeypatch, capsys):
+    """/aprobaciones muestra el historial HITL sin llegar al modelo."""
+    import nodes
+    import utils.aprobaciones as ap
+
+    ap.limpiar()
+    ap.registrar("run_command", "echo hola", True, "auto")
+    shared = {"messages": [], "tool_rounds": 0}
+    accion = nodes.GetQuestion().post(shared, None, "/aprobaciones")
+    salida = capsys.readouterr().out
+    assert accion == "continue"
+    assert "✓ [auto] run_command: echo hola" in salida
+    assert shared["messages"] == []  # no entra al historial del modelo
+    # una pregunta normal sí entra al historial
+    nodes.GetQuestion().post(shared, None, "hola")
+    assert shared["messages"][-1]["content"] == "hola"
+    ap.limpiar()
+
+
+# ---------------------------------------------------------------------------
+# HITL UX (mesa 8): highlight, explicación y historial de aprobaciones
+# ---------------------------------------------------------------------------
+
+def test_highlight_diff(monkeypatch):
+    """El diff se colorea por tipo de línea; sin color, queda intacto."""
+    import utils.terminal as term
+
+    diff = "@@ -1 +1 @@\n-a = 1\n+a = 2\n c"
+    # sin tty/color: intacto (lo que ven tests, pipes y logs)
+    monkeypatch.setattr(term, "_quiere_color", lambda: False)
+    assert term.highlight_diff(diff) == diff
+    # con color: adiciones verdes, supresiones rojas, cabeceras coloreadas
+    monkeypatch.setattr(term, "_quiere_color", lambda: True)
+    h = term.highlight_diff(diff)
+    assert "\033[32m+a = 2\033[0m" in h  # verde
+    assert "\033[31m-a = 1\033[0m" in h  # rojo
+    assert "\033[36m@@ -1 +1 @@\033[0m" in h  # cian
+    # las cabeceras +++/--- van en gris, no verde/rojo (no confundir el nombre)
+    assert "\033[90m--- a (actual)\033[0m" in term.highlight_diff("--- a (actual)\n+++ a (nuevo)")
+
+
+def test_explicar_comando():
+    """Explicación corta y determinista por comando (mesa 8)."""
+    from utils.policy import explicar
+
+    assert "borrado recursivo" in explicar("rm -rf /tmp/x")
+    assert "borra archivos" in explicar("rm archivo.txt")
+    assert "publica commits" in explicar("git push origin main")
+    assert "solo lee" in explicar("grep -r foo src/")
+    assert "código Python arbitrario" in explicar('python3 -c "print(1)"')
+    # no reconocido: describe el default preguntar
+    assert "pide aprobación" in explicar("comando_raro --x")
+    # vacío: default seguro
+    assert "inválido" in explicar("   ")
+
+
+def test_historial_aprobaciones(monkeypatch):
+    """El registro de aprobaciones cuenta aprobadas/rechazadas de la sesión."""
+    import utils.aprobaciones as ap
+
+    ap.limpiar()
+    assert "No hay aprobaciones" in ap.resumen()
+
+    ap.registrar("run_command", "echo hola", True, "auto")
+    ap.registrar("write_file", "/tmp/x.py", False)
+    r = ap.resumen()
+    assert "2 (1 aprobadas, 1 rechazadas)" in r
+    assert "✓ [auto] run_command: echo hola" in r
+    assert "✗ write_file: /tmp/x.py" in r
+    # el buffer no crece sin techo
+    for i in range(300):
+        ap.registrar("run_command", f"c{i}", True)
+    assert len(ap.eventos()) == 200
+    ap.limpiar()
+
+
+def test_approve_registra_aprobaciones(monkeypatch, tmp_path):
+    """write_file/run_command registran su aprobación (aprobada o rechazada)."""
+    import modules.coding as coding
+    import modules.escritura as esc
+    import utils.aprobaciones as ap
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.setenv("HITL_AUTO", "0")
+    ap.limpiar()
+
+    # run_command rechazado: queda registrado como rechazo
+    monkeypatch.setattr(coding, "_approve", lambda p: False)
+    coding.run_command("echo x")
+    assert ap.eventos()[-1]["tipo"] == "run_command"
+    assert ap.eventos()[-1]["decision"] is False
+
+    # write_file aprobado: queda registrado como aprobación
+    monkeypatch.setattr(esc, "_approve", lambda p: True)
+    esc.write_file(str(tmp_path / "nuevo.txt"), "contenido")
+    assert ap.eventos()[-1]["tipo"] == "write_file"
+    assert ap.eventos()[-1]["decision"] is True
+    ap.limpiar()
+
+
 def test_catalogo_memoria_al_arranque(tmp_path, monkeypatch, capsys):
     """El arranque muestra el CATÁLOGO de la biblioteca (qué notas hay) SIN
     inyectar su contenido al contexto — el arranque vacío es regla (mesa 8)."""

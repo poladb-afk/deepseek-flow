@@ -56,3 +56,25 @@ def progreso_ronda(ronda, tope=None):
     if tope:
         return f"⚙ ronda {int(ronda)}/{int(tope)}"
     return f"⚙ ronda {int(ronda)}"
+
+
+def highlight_diff(diff):
+    """Colorea un diff unificado línea por línea (mesa 8): verde las
+    adiciones (`+`, no `+++`), rojo las supresiones (`-`, no `---`), cian
+    las cabeceras (`@@`). Sin tty o con el color apagado, devuelve el diff
+    intacto: los tests, los pipes y los `.runs` no ven códigos."""
+    if not _quiere_color():
+        return diff
+    lineas = []
+    for linea in diff.splitlines():
+        if linea.startswith(("+++", "---")):
+            lineas.append(colorear(linea, "info"))
+        elif linea.startswith("+"):
+            lineas.append(colorear(linea, "ok"))
+        elif linea.startswith("-"):
+            lineas.append(colorear(linea, "error"))
+        elif linea.startswith("@@"):
+            lineas.append(colorear(linea, "tool"))
+        else:
+            lineas.append(linea)
+    return "\n".join(lineas)

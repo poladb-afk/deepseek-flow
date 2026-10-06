@@ -7,8 +7,10 @@ no un error. Si el archivo existe, la vista previa es un diff unificado."""
 import difflib
 
 from utils import hitl_web
+from utils.aprobaciones import registrar as registrar_aprobacion
 from utils.call_llm import _setting
 from utils.fs_tools import _resolve
+from utils.terminal import highlight_diff
 
 PREVIEW_LINES = 30
 DIFF_LINES = 60
@@ -82,11 +84,13 @@ def write_file(path, content):
     else:
         print(f"(archivo nuevo, {len(content.splitlines())} líneas)")
         cuerpo = _clip(content, PREVIEW_LINES, "[... contenido truncado ...]")
-    print(cuerpo)
+    print(highlight_diff(cuerpo))
     _cuerpo[0] = cuerpo
 
     if not _approve(f"¿Escribir? → {resolved}"):
+        registrar_aprobacion("write_file", f"{resolved}", False, "preguntar")
         return "RECHAZADO por el usuario: el archivo no se modificó. Puedes proponer otro contenido o preguntar qué cambiaría."
+    registrar_aprobacion("write_file", f"{resolved}", True, "preguntar")
 
     try:
         resolved.parent.mkdir(parents=True, exist_ok=True)

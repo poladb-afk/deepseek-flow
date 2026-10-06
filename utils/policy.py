@@ -162,3 +162,66 @@ def clasificar(comando):
 
     # 3) default: preguntar.
     return PREGUNTAR
+
+
+# Explicaciones cortas por prefijo (mesa 8, UX): por qué el comando merece
+# la fricción que merece. Determinista, sin LLM — es un rótulo, no un juicio.
+_EXPLICACIONES = (
+    (("rm", "-rf"), "borrado recursivo forzado (destructivo)"),
+    (("rm", "-fr"), "borrado recursivo forzado (destructivo)"),
+    (("rm",), "borra archivos"),
+    (("git", "push"), "publica commits al remoto (irreversible en el server)"),
+    (("git", "commit"), "crea un commit en tu repo local"),
+    (("git", "checkout"), "cambia de rama/descarta cambios de working tree"),
+    (("git", "reset"), "mueve HEAD (puede descartar cambios)"),
+    (("pip",), "instala paquetes (modifica el entorno)"),
+    (("pip3",), "instala paquetes (modifica el entorno)"),
+    (("python3", "-c"), "código Python arbitrario en una línea"),
+    (("python", "-c"), "código Python arbitrario en una línea"),
+    (("mv",), "mueve o renombra archivos"),
+    (("cp",), "copia archivos"),
+    (("mkdir",), "crea directorios"),
+    (("touch",), "crea o actualiza archivos"),
+)
+
+# Solo-lectura conocida: la explicación dice POR QUÉ no pide fricción.
+_LECTURA = (
+    (("pytest",), "corre tests (solo lee)"),
+    (("python3", "-m", "pytest"), "corre tests (solo lee)"),
+    (("grep",), "busca texto (solo lee)"),
+    (("ls",), "lista un directorio (solo lee)"),
+    (("cat",), "muestra un archivo (solo lee)"),
+    (("head",), "muestra el inicio de un archivo (solo lee)"),
+    (("tail",), "muestra el final de un archivo (solo lee)"),
+    (("wc",), "cuenta líneas/palabras (solo lee)"),
+    (("find",), "busca archivos (solo lee)"),
+    (("file",), "identifica el tipo de archivo (solo lee)"),
+    (("echo",), "imprime texto"),
+    (("git", "status"), "estado del repo (solo lee)"),
+    (("git", "log"), "historial de commits (solo lee)"),
+    (("git", "diff"), "cambios sin commitear (solo lee)"),
+    (("git", "show"), "contenido de un objeto (solo lee)"),
+    (("git", "blame"), "autoría por línea (solo lee)"),
+)
+
+
+def explicar(comando):
+    """Explicación corta (una línea) de por qué `comando` tiene el nivel que
+    tiene. Determinista y sin LLM: la misma política que `clasificar`. Si el
+    comando no matchea ningún patrón conocido, describe el nivel por defecto."""
+    if comando is None or not str(comando).strip():
+        return "comando vacío o inválido → se pide aprobación (default seguro)"
+    comando = str(comando).strip()
+    nivel = clasificar(comando)
+    tokens = comando.split()
+    for prefijo, texto in _LECTURA:
+        if tuple(tokens[: len(prefijo)]) == prefijo:
+            return texto
+    for prefijo, texto in _EXPLICACIONES:
+        if tuple(tokens[: len(prefijo)]) == prefijo:
+            return texto
+    if nivel == AUTO:
+        return "solo-lectura verificado: no cambia nada"
+    if nivel == CONFIRMAR_DOBLE:
+        return "operación destructiva o irreversible: pide doble confirmación"
+    return "efecto no reconocido como solo-lectura: pide aprobación"

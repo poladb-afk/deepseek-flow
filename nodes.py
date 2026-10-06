@@ -69,6 +69,13 @@ class GetQuestion(Node):
     def post(self, shared, prep_res, exec_res):
         if exec_res.lower() in EXIT_WORDS:
             return "exit"
+        # UX (mesa 8): /aprobaciones muestra el historial HITL de la sesión.
+        # Es un comando de terminal, no llega al modelo ni al historial.
+        if exec_res.strip().lower() == "/aprobaciones":
+            from utils.aprobaciones import resumen
+
+            print("\n" + resumen())
+            return "continue"
         shared["messages"].append({"role": "user", "content": exec_res})
         shared["tool_rounds"] = 0
         return "continue"

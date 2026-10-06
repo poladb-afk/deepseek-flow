@@ -28,9 +28,11 @@ import subprocess
 from pathlib import Path
 
 from utils import hitl_web
+from utils.aprobaciones import registrar as registrar_aprobacion
 from utils.call_llm import _setting
 from utils.fs_tools import _resolve
-from utils.policy import clasificar
+from utils.policy import clasificar, explicar
+from utils.terminal import highlight_diff
 
 TIMEOUT_S = 120
 SALIDA_MAX = 4000  # chars: el resultado entra al historial y al costo
@@ -168,17 +170,26 @@ def run_command(command):
     if nivel == "auto":
         print(f"\n── run_command [auto: solo-lectura] ──\n{command}")
     elif nivel == "confirmar_doble":
-        print(f"\n── run_command [¡doble confirmación!] ──\n{command}")
+        print(f"\n── run_command [¡doble confirmación!] ──")
+        print(f"   ↳ {explicar(command)}")
+        print(command)
         _cuerpo[0] = command
         if not _approve("¿Seguro? (1/2)"):
+            registrar_aprobacion("run_command", command, False, "confirmar_doble")
             return "RECHAZADO por el usuario: el comando no se ejecutó. Puedes proponer otro o preguntar qué cambiaría."
         if not _approve("¿Confirmás de nuevo? (2/2)"):
+            registrar_aprobacion("run_command", command, False, "confirmar_doble")
             return "RECHAZADO por el usuario: el comando no se ejecutó (segunda confirmación). Puedes proponer otro o preguntar qué cambiaría."
+        registrar_aprobacion("run_command", command, True, "confirmar_doble")
     else:  # 'preguntar': el flujo de hoy
-        print(f"\n── run_command ──\n{command}")
+        print(f"\n── run_command ──")
+        print(f"   ↳ {explicar(command)}")
+        print(command)
         _cuerpo[0] = command
         if not _approve("¿Ejecutar?"):
+            registrar_aprobacion("run_command", command, False, "preguntar")
             return "RECHAZADO por el usuario: el comando no se ejecutó. Puedes proponer otro o preguntar qué cambiaría."
+        registrar_aprobacion("run_command", command, True, "preguntar")
 
     try:
         r = subprocess.run(
@@ -237,10 +248,12 @@ def edit_file(path, old_string, new_string):
     )
     print(f"\n── edit_file: {resolved} ──")
     diff_mostrado = _clip(diff, SALIDA_MAX, "[... diff truncado ...]")
-    print(diff_mostrado)
+    print(highlight_diff(diff_mostrado))
     _cuerpo[0] = diff_mostrado
     if not _approve(f"¿Aplicar? → {resolved}"):
+        registrar_aprobacion("edit_file", f"{resolved}", False, "preguntar")
         return "RECHAZADO por el usuario: el archivo no se modificó."
+    registrar_aprobacion("edit_file", f"{resolved}", True, "preguntar")
 
     try:
         resolved.write_text(nuevo, encoding="utf-8")
