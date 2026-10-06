@@ -66,6 +66,12 @@ def _confianza(respuesta):
     return respuesta.get("confidence", 0.0)
 
 
+def _extraer(answers):
+    """{id: (respuesta, confianza)} de un dict de answers de laya. La
+    extracción compartida por preguntar() y preguntar_lote()."""
+    return {pid: (r.get("choice", r.get("answer")), _confianza(r)) for pid, r in answers.items()}
+
+
 def preguntar(estado, preguntas, setting="LAYA_MODEL"):
     """Una pasada local. Devuelve {id: (respuesta, confianza)}.
 
@@ -75,10 +81,18 @@ def preguntar(estado, preguntas, setting="LAYA_MODEL"):
     LAYA_MODEL_SUPERVISOR (Choose del supervisor)."""
     with _lock:
         resultado = agente(setting).system_one(estado, preguntas, lang="es")
-    return {
-        pid: (r.get("choice", r.get("answer")), _confianza(r))
-        for pid, r in resultado["answers"].items()
-    }
+    return _extraer(resultado["answers"])
+
+
+def preguntar_lote(estados, preguntas, setting="LAYA_MODEL"):
+    """La versión en lote de preguntar(): los MISMOS contratos evaluados
+    sobre N estados en forward(s) compartido(s) (Agent.predict_batch).
+    Devuelve una lista alineada con estados: [{id_pregunta: (respuesta,
+    confianza)}]. Misma ley de degradación: si algo falla, lanza — el
+    llamador (contexto._puntuar) cae al default seguro."""
+    with _lock:  # reentrante, igual que preguntar: agente() lockea de nuevo
+        resultados = agente(setting).predict_batch(list(estados), preguntas, lang="es")
+    return [_extraer(r["answers"]) for r in resultados]
 
 
 def veredicto(confianza, alto=None, bajo=None):

@@ -3515,3 +3515,89 @@ def test_contrato_prefiltro_congelado_sha1():
 
     sha = hashlib.sha1(json.dumps(PREGUNTA_PREFILTRO, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     assert sha == "b40267534690ca6a787ebf8b40903b8dac8b3521", f"contrato del prefiltro derivado: {sha}"
+
+
+def test_preguntar_lote_alinea_y_extrae(monkeypatch):
+    """exp/14: preguntar_lote() es la versión en lote de preguntar(): un
+    forward compartido (predict_batch) para N estados, con la MISMA
+    extracción (respuesta, confianza) y alineado por índice."""
+    import utils.laya as laya_mod
+
+    class FakeAgente:
+        def __init__(self):
+            self.vistos = None
+
+        def predict_batch(self, estados, preguntas, lang="es"):
+            self.vistos = list(estados)
+            # dos resultados con answer_confidence DISTINTAS, en orden
+            return [
+                {"answers": {"aporta_contexto": {"choice": "si", "answer_confidence": 0.9}}},
+                {"answers": {"aporta_contexto": {"choice": "no", "answer_confidence": 0.2}}},
+            ]
+
+    fake = FakeAgente()
+    monkeypatch.setattr(laya_mod, "agente", lambda setting="LAYA_MODEL": fake)
+
+    estados = [{"consulta": "a", "bloque": "x"}, {"consulta": "a", "bloque": "y"}]
+    contrato = {"aporta_contexto": {"type": "choice"}}
+    salida = laya_mod.preguntar_lote(estados, contrato)
+
+    assert len(salida) == 2  # alineado 1:1 con los estados
+    assert salida[0]["aporta_contexto"] == ("si", 0.9)
+    assert salida[1]["aporta_contexto"] == ("no", 0.2)
+    # el batch se mandó de una: los MISMOS estados y contrato
+    assert fake.vistos == estados
+
+
+def test_puntuar_una_llamada_y_formula(monkeypatch):
+    """exp/14: _puntuar() arma TODOS los estados (mismo truncamiento y
+    orden) y llama a preguntar_lote UNA vez; los puntajes siguen la fórmula
+    confianza si 'si', 1-confianza si 'no'."""
+    import utils.contexto as ctx
+    import utils.laya as laya_mod
+
+    llamadas = {"n": 0}
+    capturado = {}
+
+    def fake_lote(estados, preguntas, setting="LAYA_MODEL"):
+        llamadas["n"] += 1
+        capturado["estados"] = list(estados)
+        # 'si' → confianza; 'no' → 1-confianza
+        return [
+            {"aporta_contexto": ("si", 0.8)},
+            {"aporta_contexto": ("no", 0.25)},
+            {"aporta_contexto": ("si", 0.6)},
+            {"aporta_contexto": ("no", 0.1)},
+        ]
+
+    monkeypatch.setattr(laya_mod, "disponible", lambda setting="LAYA_MODEL": True)
+    monkeypatch.setattr(laya_mod, "preguntar_lote", fake_lote)
+
+    unidades = ["u0", "u1", "u2", "u3"]
+    puntajes = ctx._puntuar("consulta", unidades, "LAYA_MODEL_PREFILTRO")
+
+    assert llamadas["n"] == 1, "debe ser UNA sola llamada en lote"
+    # fórmula: si → conf; no → 1-conf
+    assert puntajes == {0: 0.8, 1: 1.0 - 0.25, 2: 0.6, 3: 1.0 - 0.1}
+    # truncamiento y orden: consulta[:1000], bloque[:2000], en orden
+    assert capturado["estados"] == [
+        {"consulta": "consulta", "bloque": "u0"},
+        {"consulta": "consulta", "bloque": "u1"},
+        {"consulta": "consulta", "bloque": "u2"},
+        {"consulta": "consulta", "bloque": "u3"},
+    ]
+
+
+def test_puntuar_lote_que_falla_devuelve_none(monkeypatch):
+    """exp/14: la ley de hierro no cambia — si preguntar_lote lanza, _puntuar
+    devuelve None y el llamador cae al default seguro (sin juicio)."""
+    import utils.contexto as ctx
+    import utils.laya as laya_mod
+
+    def boom(estados, preguntas, setting="LAYA_MODEL"):
+        raise RuntimeError("batch roto")
+
+    monkeypatch.setattr(laya_mod, "disponible", lambda setting="LAYA_MODEL": True)
+    monkeypatch.setattr(laya_mod, "preguntar_lote", boom)
+
+    assert ctx._puntuar("c", ["a", "b"], "LAYA_MODEL_PREFILTRO") is None

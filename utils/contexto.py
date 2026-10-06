@@ -81,19 +81,25 @@ def elegir_por_laya(consulta, unidades, max_unidades, setting_modelo=DEFAULT_MOD
 
 def _puntuar(consulta, unidades, setting_modelo):
     """{índice: probabilidad} de que cada unidad aporte. None si Laya no
-    está o algo falla (el llamador cae al default seguro)."""
+    está o algo falla (el llamador cae al default seguro).
+
+    Una sola llamada en lote (preguntar_lote → Agent.predict_batch): un
+    forward compartido para N estados en vez de N pasadas secuenciales."""
     try:
-        from utils.laya import disponible, preguntar
+        from utils.laya import disponible, preguntar_lote
 
         if not disponible(setting_modelo):
             return None
+        # mismo truncamiento y MISMO orden que la versión secuencial
+        estados = [
+            {"consulta": str(consulta)[:1000], "bloque": str(unidad)[:2000]}
+            for unidad in unidades
+        ]
+        contrato = {"aporta_contexto": PREGUNTA_PREFILTRO["aporta_contexto"]}
+        respuestas = preguntar_lote(estados, contrato, setting=setting_modelo)
         puntajes = {}
-        for i, unidad in enumerate(unidades):
-            estado = {"consulta": str(consulta)[:1000], "bloque": str(unidad)[:2000]}
-            # clave estable por índice: preguntar() devuelve {id: (resp, conf)}
-            contrato = {"aporta_contexto": PREGUNTA_PREFILTRO["aporta_contexto"]}
-            resp = preguntar(estado, contrato, setting=setting_modelo)["aporta_contexto"]
-            respuesta, confianza = resp
+        for i, fila in enumerate(respuestas):
+            respuesta, confianza = fila["aporta_contexto"]
             puntajes[i] = confianza if respuesta == "si" else 1.0 - confianza
         return puntajes
     except Exception:  # cualquier fallo: sin juicio (default seguro)
