@@ -17,12 +17,11 @@ Dos capacidades con dos caminos distintos por una razón medida:
   48 MiB (la imagen crece ~33% al base64) — se chequea ANTES de llamar y
   se devuelve ERROR legible.
 
-- `ver_pdf(path, pregunta)` NO usa base64: los PDF van por la **Files API**.
-  1) `POST /files` multipart con `purpose=file-extract` → `file_id`;
-  2) `POST /chat/completions` con `content=[{type:file,file_id},{type:text}]`
-  → la respuesta viene en `message.content`. Sin estado: cada `ver_pdf`
-  sube, consulta y listo (no se guarda el `file_id`). Archivo hasta 64 MiB
-  (el límite lo impone la Files API por el `file_id`).
+- `ver_pdf(path, pregunta)` rasteriza con pdftoppm (poppler) y pregunta
+  por visión. Medido: la Files API NO acepta PDFs (solo imágenes, HTTP 400
+  'unsupported file'), así que PDF → PNG por página → imágenes al modelo
+  (1024 tokens c/u, tope de páginas). Sin estado: rasteriza en /tmp,
+  consulta y borra.
 
 Sin dependencias nuevas: `requests` (ya presente). API key/base de los
 settings existentes (`LLM_API_KEY`/`LLM_BASE_URL`)."""
@@ -142,9 +141,19 @@ def ver_imagen(path, pregunta="¿Qué hay en esta imagen?"):
         return f"ERROR: respuesta inesperada de la API: {e}"
 
 
+PDF_PAGINAS_MAX = 8  # cada página es una imagen: 1024 tokens c/u (medido)
+
+
 def ver_pdf(path, pregunta="¿Qué dice este PDF?"):
-    """Sube un PDF con la Files API (purpose=file-extract) y pregunta sobre
-    su texto extraído. Sin estado: sube, consulta y listo."""
+    """Pregunta sobre un PDF rasterizando páginas y usándo visión.
+
+    Medido en producción: la Files API de DeepSeek NO acepta PDFs (solo
+    webp/png/jpeg/gif — HTTP 400 'unsupported file'); el propósito
+    user_data sí, pero el formato no. La ruta que funciona: pdftoppm
+    (poppler, presente en el sistema) rasteriza a PNG y cada página va
+    como imagen al modelo (1024 tokens c/u — por eso el tope de páginas).
+
+    Sin estado: rasteriza en /tmp, consulta y borra."""
     resolved, data, err = _leer_bytes(path, PDF_MAX_BYTES, "un PDF")
     if err:
         return err
@@ -154,36 +163,43 @@ def ver_pdf(path, pregunta="¿Qué dice este PDF?"):
             "El tipo se valida por el contenido del archivo."
         )
 
-    nombre = resolved.name
-    mime = mimetypes.guess_type(nombre)[0] or "application/pdf"
-    # 1) POST /files con purpose=file-extract → file_id
-    try:
-        subida = requests.post(
-            f"{_api_base()}/files",
-            headers={"Authorization": f"Bearer {get_api_key()}"},
-            files={"file": (nombre, data, mime)},
-            data={"purpose": "file-extract"},
-            timeout=TIMEOUT_S,
-        )
-    except requests.RequestException as e:
-        return f"ERROR: falló la subida del PDF: {e}"
-    if subida.status_code != 200:
-        return f"ERROR: la Files API respondió {subida.status_code}: {subida.text[:400]}"
-    try:
-        file_id = subida.json()["id"]
-    except (KeyError, ValueError) as e:
-        return f"ERROR: la Files API no devolvió un file_id: {e}"
+    import subprocess
+    import tempfile
 
-    # 2) POST /chat/completions con content=[{type:file,file_id},{type:text}]
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "file", "file_id": file_id},
-                {"type": "text", "text": str(pregunta)},
-            ],
-        }
-    ]
+    with tempfile.TemporaryDirectory(prefix="vision_pdf_") as tmp:
+        base = str(Path(tmp) / "pag")
+        try:
+            r = subprocess.run(
+                ["pdftoppm", "-png", "-r", "110", str(resolved), base],
+                capture_output=True, text=True, timeout=60,
+                stdin=subprocess.DEVNULL,
+            )
+        except FileNotFoundError:
+            return "ERROR: pdftoppm (poppler) no está instalado en este sistema — no puedo rasterizar el PDF."
+        except subprocess.TimeoutExpired:
+            return "ERROR: timeout rasterizando el PDF (¿demasiadas páginas?)"
+        if r.returncode != 0:
+            return f"ERROR: pdftoppm falló: {(r.stderr or r.stdout).strip()[:300]}"
+
+        paginas = sorted(Path(tmp).glob("pag-*.png"))
+        if not paginas:
+            return "ERROR: la rasterización no produjo páginas."
+        if len(paginas) > PDF_PAGINAS_MAX:
+            return (
+                f"ERROR: el PDF tiene {len(paginas)} páginas y el tope es "
+                f"{PDF_PAGINAS_MAX} (cada página cuesta ~1024 tokens de imagen). "
+                "Extraé las páginas relevantes y reintentá."
+            )
+
+        contenido = [{"type": "text", "text": (
+            f"{str(pregunta)}\n\nEl PDF tiene {len(paginas)} páginas, "
+            "van en orden.")} ]
+        for pag in paginas:
+            b64 = base64.b64encode(pag.read_bytes()).decode("ascii")
+            contenido.append({"type": "image_url",
+                              "image_url": {"url": f"data:image/png;base64,{b64}"}})
+        messages = [{"role": "user", "content": contenido}]
+
     try:
         response = requests.post(
             f"{_api_base()}/chat/completions",
