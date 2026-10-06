@@ -8,6 +8,8 @@ env:
   MAX_TOOL_ROUNDS: "2"
 permitir:
   - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow/prueba_rondas
+scratch:
+  - prueba_rondas
 turnos:
   - id: tarea-dependiente
     linea: "Corré ls banco/escenarios; después leé las primeras 30 líneas del PRIMER archivo alfabético de esa lista; después creá prueba_rondas/informe.txt con el nombre de ese archivo y su primera línea de comentario."

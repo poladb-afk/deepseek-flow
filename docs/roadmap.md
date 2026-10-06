@@ -310,3 +310,5 @@ mide: marcadores por turno en conversación real contra DeepSeek.
   recuperación no re-arma tools retiradas por el tope (markup cortado +
   mensaje honesto + aviso en terminal). Re-medición del escenario que
   by-paseaba: cero ejecución tras el retiro, continuación limpia.
+- **exp/3 ✅ mergeada** — hook py_compile visible: `[hook] ⚠ SINTAXIS
+  devuelta al modelo` en terminal (el veto ya imprimía; el hook no).
