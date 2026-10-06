@@ -1,0 +1,15 @@
+id: exp11-aplicar2
+descripcion: segunda pasada con presupuesto ampliado y lectura mínima
+scratch: []
+turnos:
+  - id: aplicar
+    linea: "Leé banco/specs/exp11_scope.md (ya verificada, confía en ella) y aplicalo en DOS escrituras: (1) los cambios en banco/banco.py — esquema, DENYLIST_DURA, función pura decision_hitl y su integración en el loop; (2) los tests nuevos APPENDeados al final de tests/test_banco.py. Las fixtures textuales están EN la spec — no leas transcripts ni ningún otro archivo salvo banco/banco.py y el final de tests/test_banco.py para anclar el append. Escribí primero, verificá después."
+    hitl: s
+    timeout: 600
+  - id: gate
+    linea: "Corré ./calidad.sh; si falla algo tuyo, corregilo y re-correlo hasta verde. Reportá el resultado final."
+    hitl: s
+    timeout: 400
+  - id: salir
+    linea: "salir"
+    timeout: 60

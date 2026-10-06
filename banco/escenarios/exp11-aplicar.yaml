@@ -1,0 +1,11 @@
+id: exp11-aplicar
+descripcion: el harness aplica el scope de aprobación en el banco
+scratch: []
+turnos:
+  - id: aplicar
+    linea: "Leé banco/specs/exp11_scope.md entero y aplicalo: son cambios en banco/banco.py (esquema, denylist dura, función pura decision_hitl, integración en el loop) y tests nuevos en tests/test_banco.py con las fixtures reales que pide la spec. Después de escribir, corré ./calidad.sh y corregí lo que falle."
+    hitl: s
+    timeout: 600
+  - id: salir
+    linea: "salir"
+    timeout: 60

@@ -9,7 +9,7 @@ es el que lo avisa)."""
 import re
 from pathlib import Path
 
-from banco.banco import MARCADORES, cargar_escenario, contar_marcadores, limpiar
+from banco.banco import DENYLIST_DURA, MARCADORES, cargar_escenario, contar_marcadores, decision_hitl, limpiar
 
 ESCENARIOS = Path(__file__).resolve().parent.parent / "banco" / "escenarios"
 
@@ -48,3 +48,104 @@ def test_los_marcadores_matchean_las_lineas_reales_del_chat():
 
 def test_limpiar_quita_ansi_y_crlf():
     assert limpiar("\x1b[32mok\x1b[0m\r\n") == "ok\n"
+
+
+# --- scope HITL por path (exp/11) -------------------------------------------
+# Fixtures REALES (líneas textuales de transcripts de sesiones anteriores).
+PROMPT_ESCRITURA_DENTRO = "¿Escribir? → /tmp/prueba_banco/hola.txt (s/n): "
+PROMPT_ESCRITURA_FUERA = "¿Escribir? → /otro/lado/ajeno.txt (s/n): "
+PROMPT_ENV = "¿Escribir? → /proy/prueba_scope/.env (s/n): "
+PROMPT_COMANDO = "¿Ejecutar? (s/n): "
+BUFFER_COMANDO = (
+    "── run_command ──\n"
+    "↳ correr la suite de tests del banco\n"
+    "cd /x && python3 -m pytest tests/test_banco.py\n"
+    "¿Ejecutar? (s/n): "
+)
+BUFFER_COMANDO_PUSH = (
+    "── run_command ──\n"
+    "↳ subir los cambios\n"
+    "git push origin main\n"
+    "¿Ejecutar? (s/n): "
+)
+
+
+def test_escritura_dentro_del_scope():
+    d = decision_hitl(PROMPT_ESCRITURA_DENTRO, "",
+                      permitir=["/tmp/prueba", "/proy/prueba_scope"])
+    assert d["tipo"] == "escritura"
+    assert d["objetivo"] == "/tmp/prueba_banco/hola.txt"
+    assert d["dentro"] is True
+
+
+def test_escritura_fuera_del_scope():
+    d = decision_hitl(PROMPT_ESCRITURA_FUERA, "",
+                      permitir=["/tmp/prueba", "/proy/prueba_scope"])
+    assert d["tipo"] == "escritura"
+    assert d["dentro"] is False
+    assert d["motivo"] == "fuera-de-scope"
+
+
+def test_env_fuera_aunque_el_scope_lo_permita():
+    # el prefijo del permitir CONTIENE el directorio del .env: aun así la
+    # denylist dura del conductor manda por encima.
+    d = decision_hitl(PROMPT_ENV, "", permitir=["/proy/prueba_scope"])
+    assert d["dentro"] is False
+    assert d["motivo"] == "denylist"
+
+
+def test_comando_dentro_de_permitir_comandos():
+    d = decision_hitl(PROMPT_COMANDO, BUFFER_COMANDO,
+                      permitir_comandos=["cd"])
+    assert d["tipo"] == "comando"
+    assert d["objetivo"] == "cd /x && python3 -m pytest tests/test_banco.py"
+    assert d["dentro"] is True
+
+
+def test_comando_git_push_es_denylist():
+    d = decision_hitl(PROMPT_COMANDO, BUFFER_COMANDO_PUSH,
+                      permitir_comandos=["git"])
+    assert d["tipo"] == "comando"
+    assert d["objetivo"] == "git push origin main"
+    assert d["dentro"] is False
+    assert d["motivo"] == "denylist"
+
+
+def test_extraccion_del_comando_ignora_banner_y_explicacion():
+    buffer = (
+        "texto anterior del turno\n"
+        "── run_command ──\n"
+        "↳ explicación que NO es el comando\n"
+        "python3 -m pytest -q\n"
+        "¿Ejecutar? (s/n): "
+    )
+    d = decision_hitl(PROMPT_COMANDO, buffer)
+    assert d["objetivo"] == "python3 -m pytest -q"
+    assert d["dentro"] is True
+
+
+def test_prompt_no_parseable_sigue_el_flujo():
+    d = decision_hitl("¿Querés seguir? [y/n]: ", "")
+    assert d["tipo"] == "desconocido"
+    assert d["objetivo"] is None
+    assert d["dentro"] is True
+    assert d["motivo"] == "no-parseable"
+
+
+def test_denylist_dura_es_la_declarada():
+    assert ".env" in DENYLIST_DURA["rutas"]
+    assert ".git/" in DENYLIST_DURA["rutas"]
+    assert "memoria/" in DENYLIST_DURA["rutas"]
+    assert "git push" in DENYLIST_DURA["comandos"]
+    assert "rm -rf" in DENYLIST_DURA["comandos"]
+    assert "rm -fr" in DENYLIST_DURA["comandos"]
+
+
+def test_escenario_sin_scope_sigue_siendo_valido():
+    # las claves nuevas son OPCIONALES: los escenarios existentes no las traen
+    yamls = list(ESCENARIOS.glob("*.yaml"))
+    assert yamls
+    for ruta in yamls:
+        esc = cargar_escenario(ruta)
+        assert "permitir" not in esc or isinstance(esc["permitir"], list)
+        assert "permitir_comandos" not in esc or isinstance(esc["permitir_comandos"], list)
