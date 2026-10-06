@@ -82,7 +82,7 @@ def preguntar(estado, preguntas, setting="LAYA_MODEL"):
 
 
 def veredicto(confianza, alto=None, bajo=None):
-    alto = float(alto if alto is not None else _setting("LAYA_UNSURE_HIGH", "0.7"))
+    alto = float(alto if alto is not None else _setting("LAYA_UNSURE_HIGH", "0.85"))
     bajo = float(bajo if bajo is not None else _setting("LAYA_UNSURE_LOW", "0.3"))
     if confianza >= alto:
         return "met"

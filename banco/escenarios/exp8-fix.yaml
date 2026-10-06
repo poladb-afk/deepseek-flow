@@ -1,0 +1,11 @@
+id: exp8-fix
+descripcion: corrección del esperado_de en sonda_laya
+scratch: []
+turnos:
+  - id: corregir
+    linea: "sonda_laya.py voto_en_router revienta con KeyError 'confirma_herramientas'. Leé banco/specs/exp8_fix_esperado.md y aplicá los 2 toques exactos que describe."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

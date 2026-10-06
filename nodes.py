@@ -257,7 +257,12 @@ def voto_confirmacion_router(pregunta):
     if disponible("LAYA_MODEL_VOTO"):
         estado = {"pregunta": str(pregunta)[:1000]}
         resp, conf = preguntar(estado, PREGUNTA_VOTO, setting="LAYA_MODEL_VOTO")["confirma_herramientas"]
-        if resp in ("herramientas", "directo") and veredicto(conf) == "met":
+        # el umbral del voto es propio (0.7): la curva del veto da 96% de
+        # precisión con 83% de cobertura a 0.7, y subirlo junto al router le
+        # cortaría la mitad de las decisiones locales.
+        if resp in ("herramientas", "directo") and veredicto(
+            conf, alto=float(_setting("LAYA_UNSURE_HIGH_VOTO", "0.7"))
+        ) == "met":
             # acuerdo confiable (directo→directo, el ahorro) o desacuerdo
             # confiable (herramientas→lado seguro): DeepSeek no hace falta
             print(f"  [voto] laya local: {resp} (conf {conf:.2f})")

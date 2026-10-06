@@ -1,0 +1,11 @@
+id: exp8-fix-tests
+descripcion: correcciones tras gate rojo + nota de cascada en design
+scratch: []
+turnos:
+  - id: corregir
+    linea: "El gate quedó rojo con 2 tests. Leé banco/specs/exp8_correcciones.md y aplicá las 3 operaciones exactas (reescribir un test con la versión dada, actualizar el guarda-contratos de la sonda, agregar un bullet a la sección exp/8 de design.md)."
+    hitl: s
+    timeout: 420
+  - id: salir
+    linea: "salir"
+    timeout: 60

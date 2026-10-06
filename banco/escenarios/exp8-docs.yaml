@@ -1,0 +1,11 @@
+id: exp8-docs
+descripcion: las 2 operaciones de docs que quedaron pendientes
+scratch: []
+turnos:
+  - id: docs
+    linea: "Leé banco/specs/exp8_aplicar.md SOLO las secciones 5 y 6: son 2 inserciones de texto textual (una sección en docs/design.md después del bloque que termina en 'Decisión: NO re-ajustar temperaturas con 54 casos.' y un append al final de docs/roadmap.md). NO toques .env ni ningún otro archivo — las secciones 1-4 ya están aplicadas."
+    hitl: s
+    timeout: 420
+  - id: salir
+    linea: "salir"
+    timeout: 60

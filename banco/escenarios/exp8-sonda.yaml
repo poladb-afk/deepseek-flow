@@ -1,0 +1,12 @@
+# exp/8 parte 1: el harness extiende la sonda con la entrada del ensamble.
+id: exp8-sonda
+descripcion: una entrada nueva en ESPECIFICACIONES + línea de docstring
+scratch: []
+turnos:
+  - id: aplicar
+    linea: "Leé banco/specs/exp8_sonda_voto.md y aplicalo: es UNA entrada de diccionario y UNA línea de docstring en sonda_laya.py, exactamente como está escrito. Nada más."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

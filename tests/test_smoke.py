@@ -3240,3 +3240,22 @@ def test_catalogo_memoria_nunca_rompe(monkeypatch, capsys):
     monkeypatch.setattr(mem, "_archivos_md", boom)
     main.catalogo_memoria()  # no levanta
     assert capsys.readouterr().out == ""
+
+
+def test_split_umbrales_router_y_voto(monkeypatch):
+    """exp/8: la compuerta del router (LAYA_UNSURE_HIGH) y la del voto
+    (LAYA_UNSURE_HIGH_VOTO) son settings SEPARADAS. El test fija el entorno
+    con monkeypatch porque _setting lee en cascada nuestro .env y el de bmo
+    (BMO_ENV tiene LAYA_UNSURE_HIGH=0.7 heredado, que enmascara el default
+    0.85 del código — medido: sin fijar la env, veredicto(0.84) da met)."""
+    from utils.laya import veredicto
+
+    # la setting del router manda sobre cualquier cascada
+    monkeypatch.setenv("LAYA_UNSURE_HIGH", "0.85")
+    assert veredicto(0.84) == "uncertain"
+    assert veredicto(0.85) == "met"
+    monkeypatch.setenv("LAYA_UNSURE_HIGH", "0.7")
+    assert veredicto(0.75) == "met"
+    # el voto consulta con su propio alto explícito: nunca hereda al router
+    assert veredicto(0.75, alto=0.7) == "met"
+    assert veredicto(0.84, alto=0.7) == "met"
