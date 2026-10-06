@@ -33,6 +33,13 @@ SKIP_DIRS = {".git", "__pycache__", "node_modules"} | {".venv", ".venv-train"}
 # devuelve el problema al modelo para que se autocorrija.
 HOOKS_POST = {}
 
+# Hooks pre-tool (mesa 2): {nombre_tool: [fn]}. Cada fn(tool_call_dict) se
+# corre ANTES de ejecutar la implementación. Sirve para DENYLIST y guardas
+# que deben decidir antes de que el efecto ocurra (un hook post ya llegaría
+# tarde para un comando que ya corrió). Contrato de hierro, igual que los
+# post: un hook NUNCA rompe la ejecución — si lanza, se ignora.
+HOOKS_PRE = {}
+
 
 def _hook_py_compile(tool_call, resultado):
     """Tras edit_file/write_file sobre un .py, corre `python3 -m py_compile`
@@ -319,8 +326,10 @@ TOOLS = [
 def run_tool_call(tool_call, extra_impls=None):
     """Ejecuta una tool call (la forma dict canónica del historial) y
     devuelve el mensaje role=tool. extra_impls incorpora las
-    implementaciones de los módulos. Tras la ejecución corre los hooks
-    post-tool de HOOKS_POST[tool] para enriquecer el resultado."""
+    implementaciones de los módulos. Antes de ejecutar corre los hooks
+    pre-tool de HOOKS_PRE[tool] (denylist/guardas: pueden CANCELAR la
+    ejecución devolviendo texto); tras la ejecución corre los post-tool de
+    HOOKS_POST[tool] para enriquecer el resultado."""
     fn = tool_call["function"]
     impls = {
         "list_files": list_files,
@@ -329,6 +338,18 @@ def run_tool_call(tool_call, extra_impls=None):
     }
     if extra_impls:
         impls.update(extra_impls)
+
+    # Hooks pre-tool: la última palabra antes del efecto (denylist). Un hook
+    # que devuelve texto CANCELA la ejecución (el texto es el resultado); si
+    # devuelve None, no opina. Un hook que lanza no rompe nada: se ignora.
+    for hook in HOOKS_PRE.get(fn["name"], ()):
+        try:
+            veto = hook(tool_call)
+        except Exception:  # noqa: BLE001
+            veto = None
+        if veto is not None:
+            return {"role": "tool", "tool_call_id": tool_call["id"], "content": str(veto)}
+
     impl = impls.get(fn["name"])
     if impl is None:
         result = f"ERROR: herramienta desconocida: {fn['name']}"

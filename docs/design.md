@@ -953,7 +953,26 @@ hierro: un hook NUNCA rompe la ejecución (si py_compile no existe, el
 archivo no es `.py`, o cualquier cosa falla raro, el resultado queda
 intacto).
 
-81→88 tests: los tres niveles de `clasificar()`, TODAS las reglas de
+**Hooks pre-tool (`utils/fs_tools.HOOKS_PRE`).** El complemento que
+faltaba: `HOOKS_PRE = {nombre_tool: [fn]}` donde `fn(tool_call_dict) -> str|None`.
+Si el hook devuelve texto, **CANCELA** la ejecución (ese texto es el
+resultado); si devuelve `None`, no opina. Mismo contrato de hierro: un
+hook que lanza se ignora y la tool sigue. Corre ANTES de la
+implementación porque hay guardas que un hook post ya llega tarde a
+evaluar (un comando que ya corrió). El primer uso es el residual de la
+mesa 2:
+
+- **Denylist dura de `run_command`** (`modules/coding.py`): los comandos
+  de daño irreversible en el host — `rm -rf /` y la fork bomb
+  `:(){ :|:& };:` — se vetan **sin s/n** (no hay aprobación que los
+  salve) y el veto vuelve al modelo como `ERROR` para que reformule. La
+  lista es corta a propósito: la política graduada ya cubre el resto con
+  fricción; acá solo va lo que nunca debería ejecutarse desde un chat
+  automático. El hook se registra desde el propio módulo
+  (`_registrar_hooks()` al importar), así la política viaja con su
+  módulo, no con el CORE.
+
+81→88→92 tests: los tres niveles de `clasificar()`, TODAS las reglas de
 composición, `run_command` con HITL_AUTO=1 seguro sin input (monkeypatch
 que explota si se llama) y no-seguro pidiendo, doble confirmación
 abortando, y el hook tras edit/write de `.py` roto vs. bueno.

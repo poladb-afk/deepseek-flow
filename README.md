@@ -34,7 +34,9 @@ Heredada de PocketFlow y de [bmo](../bmo) (el harness que inspiró los módulos)
   reconocido pregunta como siempre; `git push` y `rm -rf` piden **dos**
   confirmaciones. `HITL_AUTO=0` vuelve al `s/n` para todo. Además, un
   **hook** post-tool corre `py_compile` tras escribir un `.py` y le
-  devuelve `⚠ SINTAXIS` al modelo para que se autocorrija.
+  devuelve `⚠ SINTAXIS` al modelo para que se autocorrija; y un **hook
+  pre-tool** veta sin `s/n` los comandos de daño irreversible
+  (`rm -rf /`, fork bomb) por denylist dura.
 - **El chat responde en vivo**: las respuestas se imprimen token a token
   mientras se generan (`CHAT_STREAM=1`, default) y un Ctrl+C durante la
   generación corta la respuesta conservando lo parcial (`CHAT_STREAM_INTERRUPT`,

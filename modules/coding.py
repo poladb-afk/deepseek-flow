@@ -40,6 +40,55 @@ YES = {"s", "si", "sí", "y", "yes"}
 
 _cuerpo = [""]  # cuerpo del próximo pedido HITL web (lo lee _approve)
 
+# Patrones de comandos PROHIBIDOS sin excepción (denylist dura): no hay s/n
+# que los apruebe. Corre como hook PRE (HOOKS_PRE["run_command"]), es decir
+# ANTES de que el comando exista siquiera como propuesta: un hook post ya
+# llegaría tarde a un comando que ya corrió. La lista es deliberadamente
+# corta y de daño irreversible — la política graduada (utils/policy.py) ya
+# cubre el resto con fricción; acá solo va lo que NUNCA debería ejecutarse
+# desde un chat automatizado (borrado de disco/fork bomb en el host).
+import re as _re
+
+_PROHIBIDOS = _re.compile(
+    r"(?:^|[;&|`(]|\s)\s*"                       # inicio de segmento
+    r"(?:rm\s+-[a-zA-Z]*[rf][a-zA-Z]*\s+/\s*(?:$|[;&|])"  # rm -rf / (raíz)
+    r"|:\s*\(\s*\)\s*\{)"                        # :(){ :|:& };  fork bomb
+)
+
+
+def _vetar_comando_prohibido(tool_call):
+    """Hook PRE de run_command: si el comando matchea la denylist dura,
+    CANCELA la ejecución devolviendo el veto como texto (el modelo lo ve y
+    se autocorrige); si no, devuelve None (no opina). Nunca lanza."""
+
+    import json as _json
+
+    try:
+        args = _json.loads(tool_call["function"].get("arguments") or "{}")
+        comando = args.get("command") or ""
+    except Exception:  # noqa: BLE001
+        return None
+    if comando and _PROHIBIDOS.search(comando):
+        return (
+            "ERROR: comando prohibido por la denylist de seguridad (daño "
+            "irreversible en el host); no se ejecutó ni se pidió aprobación. "
+            "Reformulá el comando acotado a un directorio del proyecto."
+        )
+    return None
+
+
+def _registrar_hooks():
+    """Engancha el denylist de run_command al registro PRE del CORE. Se hace
+    acá (no en fs_tools) para que la política de coding viaje con su módulo."""
+    from utils.fs_tools import HOOKS_PRE
+
+    if _vetar_comando_prohibido not in HOOKS_PRE.get("run_command", []):
+        HOOKS_PRE.setdefault("run_command", []).append(_vetar_comando_prohibido)
+
+
+_registrar_hooks()
+
+
 TOOLS = [
     {
         "type": "function",

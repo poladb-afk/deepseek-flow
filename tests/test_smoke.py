@@ -1326,6 +1326,66 @@ def test_hook_no_rompe_la_ejecucion(tmp_path, monkeypatch):
         fs_tools.HOOKS_POST["read_file"].remove(hook_malo)
 
 
+def test_hook_pre_denylist_veta_antes_de_ejecutar(tmp_path, monkeypatch):
+    """Mesa 2 (residual): el denylist de run_command corre ANTES de la
+    implementación (hook PRE). Un comando prohibido se veta sin ejecutarse
+    NI aprobarse (input explota si se llamara)."""
+    import modules.coding as coding
+    import subprocess
+    from utils import fs_tools
+
+    # el denylist quedó registrado al importar el módulo
+    assert fs_tools.HOOKS_PRE.get("run_command")
+
+    def explota(*a, **k):
+        raise AssertionError("el comando prohibido llegó a ejecutarse")
+
+    # input y subprocess explotan: si el denylist fallara, el test lo delata.
+    # Guardamos el subprocess.run ORIGINAL antes de parchear (restaurarlo con
+    # coding.subprocess.run devolvería el parcheado).
+    run_original = subprocess.run
+    monkeypatch.setattr("builtins.input", explota)
+    monkeypatch.setattr(coding.subprocess, "run", explota)
+
+    res = fs_tools.run_tool_call(
+        _tc("run_command", {"command": "rm -rf /"}),
+        coding.IMPL,
+    )
+    assert res["content"].startswith("ERROR") and "denylist" in res["content"]
+
+    res = fs_tools.run_tool_call(
+        _tc("run_command", {"command": ":(){ :|:& };:"}),
+        coding.IMPL,
+    )
+    assert res["content"].startswith("ERROR") and "denylist" in res["content"]
+
+    # un comando normal NO es vetado: restauramos el run real y verificamos
+    # que llega a la implementación (echo inofensivo, HITL_AUTO lo corre auto).
+    monkeypatch.delenv("HITL_AUTO", raising=False)
+    monkeypatch.setattr(coding.subprocess, "run", run_original)
+    res = fs_tools.run_tool_call(
+        _tc("run_command", {"command": "echo denylist-ok"}),
+        coding.IMPL,
+    )
+    assert res["content"].startswith("exit 0") and "denylist-ok" in res["content"]
+
+
+def test_hook_pre_que_lanza_no_rompe(tmp_path):
+    """Un hook PRE que lanza se ignora y la tool sigue (contrato de hierro)."""
+    from utils import fs_tools
+
+    def hook_malo(tool_call):
+        raise ValueError("boom")
+
+    fs_tools.HOOKS_PRE.setdefault("read_file", []).append(hook_malo)
+    try:
+        res = fs_tools.run_tool_call(_tc("read_file", {
+            "path": str(tmp_path / "no-existe.txt")}))
+        assert res["content"].startswith("ERROR")  # llegó a la impl y devolvió su ERROR
+    finally:
+        fs_tools.HOOKS_PRE["read_file"].remove(hook_malo)
+
+
 def test_contratos_laya_congelados_sha1():
     """El contrato con el fine-tune es byte-a-byte: cambiar UNA palabra de
     instructions/criteria desincroniza entrenamiento y producción. El test
