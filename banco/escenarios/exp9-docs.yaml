@@ -1,0 +1,11 @@
+id: exp9-docs
+descripcion: docs del veredicto exp/9
+scratch: []
+turnos:
+  - id: docs
+    linea: "Leé banco/specs/exp9_docs.md y aplicá las 2 operaciones textuales (sección en docs/design.md después de la de exp/8, y reemplazo de la entrada exp/9 en docs/roadmap.md)."
+    hitl: s
+    timeout: 420
+  - id: salir
+    linea: "salir"
+    timeout: 60

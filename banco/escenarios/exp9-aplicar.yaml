@@ -1,0 +1,15 @@
+id: exp9-aplicar
+descripcion: el harness aplica minar_errores.py
+scratch: []
+turnos:
+  - id: aplicar
+    linea: "Leé banco/specs/exp9_minar_errores.md entero y aplicalo: creá minar_errores.py en la raíz exactamente como especifica (reuso de _leer_eventos de evals, funciones puras es_timeout/es_rechazo_probable/destino_del_reintento, agregados por tool con tasa de autocorrección, salidas md+json, el límite honesto en el docstring). Después creá tests/test_minar_errores.py con tests deterministas de las tres funciones puras con listas sintéticas de eventos (un error con reintento ok, un error sin reintento, un timeout por duración, un rechazo probable)."
+    hitl: s
+    timeout: 600
+  - id: gate
+    linea: "Corré ./calidad.sh y reportá sin corregir."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60
