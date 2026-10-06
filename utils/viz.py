@@ -6,7 +6,7 @@ import argparse
 
 
 def mermaid(flow, titulo="flujo"):
-    lineas = [f"flowchart TD"]
+    lineas = ["flowchart TD"]
     nombres = {}
     vistos = set()
 

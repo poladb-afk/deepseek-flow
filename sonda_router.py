@@ -41,7 +41,7 @@ def correr(agente, casos):
 
 
 def main(paths):
-    casos = [json.loads(l) for l in TEST.read_text(encoding="utf-8").splitlines() if l.strip()]
+    casos = [json.loads(linea) for linea in TEST.read_text(encoding="utf-8").splitlines() if linea.strip()]
     if not paths:
         from utils.laya import agente
 
@@ -50,7 +50,7 @@ def main(paths):
         import laya
 
         agentes = [laya.load(p, device="cpu") for p in paths]
-    for nombre, agente in zip([p or "LAYA_MODEL (.env)" for p in paths], agentes):
+    for nombre, agente in zip([p or "LAYA_MODEL (.env)" for p in paths], agentes, strict=True):
         filas, ok, crudo = correr(agente, casos)
         print(f"\n=== {nombre} ===")
         for id_, esperado, eleccion, conf, decision, marca in filas:

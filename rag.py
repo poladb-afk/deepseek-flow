@@ -253,7 +253,7 @@ def main(argv=None):
     try:
         indexar(args.carpeta, args.glob)
     except ValueError as e:
-        raise SystemExit(str(e))
+        raise SystemExit(str(e)) from e
 
 
 if __name__ == "__main__":

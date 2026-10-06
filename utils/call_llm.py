@@ -7,6 +7,7 @@ en este orden:
   3. LLM_API_KEY en ~/Documentos/00_IA/bmo/.env
 La clave nunca se imprime ni se loguea.
 """
+import contextlib
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -191,10 +192,8 @@ def call_llm_agent_stream(messages, tools=None):
     if cortado:
         cerrar = getattr(stream, "close", None)
         if callable(cerrar):
-            try:
+            with contextlib.suppress(Exception):
                 cerrar()
-            except Exception:
-                pass
     tool_calls = [
         SimpleNamespace(
             id=acum["id"],

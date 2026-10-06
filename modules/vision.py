@@ -26,7 +26,6 @@ Dos capacidades con dos caminos distintos por una razón medida:
 Sin dependencias nuevas: `requests` (ya presente). API key/base de los
 settings existentes (`LLM_API_KEY`/`LLM_BASE_URL`)."""
 import base64
-import mimetypes
 import subprocess
 from pathlib import Path
 

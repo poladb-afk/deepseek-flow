@@ -91,7 +91,7 @@ def ece(confianzas, aciertos, bins=10):
 def _casos_router():
     if not TEST_ROUTER.is_file():
         return None, f"no existe el test: {TEST_ROUTER}"
-    casos = [json.loads(l) for l in TEST_ROUTER.read_text(encoding="utf-8").splitlines() if l.strip()]
+    casos = [json.loads(linea) for linea in TEST_ROUTER.read_text(encoding="utf-8").splitlines() if linea.strip()]
     return casos, None
 
 
@@ -271,9 +271,7 @@ def _accion_valida(nodo, accion):
     if (nodo, accion) in ACCIONES_CANONICAS:
         return True
     # evento de tool individual
-    if nodo in TOOLS_CONOCIDAS and accion in ("ok", "error"):
-        return True
-    return False
+    return nodo in TOOLS_CONOCIDAS and accion in ("ok", "error")
 
 
 def linter_traza(eventos, umbral_seg=UMBRAL_CEGUERA_SEG):
@@ -363,10 +361,10 @@ def _leer_eventos(archivo):
     artefacto a saltear, nunca una excepción que tumbe el informe)."""
     eventos = []
     try:
-        for l in Path(archivo).read_text(encoding="utf-8").splitlines():
-            l = l.strip()
-            if l:
-                eventos.append(json.loads(l))
+        for linea in Path(archivo).read_text(encoding="utf-8").splitlines():
+            linea = linea.strip()
+            if linea:
+                eventos.append(json.loads(linea))
     except (json.JSONDecodeError, OSError):
         return []
     return eventos

@@ -64,7 +64,7 @@ def correr(agente, casos, votacion=False):
 def main(args):
     votacion = "--votacion" in args
     paths = [a for a in args if not a.startswith("--")]
-    casos = [json.loads(l) for l in TEST.read_text(encoding="utf-8").splitlines() if l.strip()]
+    casos = [json.loads(linea) for linea in TEST.read_text(encoding="utf-8").splitlines() if linea.strip()]
     if not paths:
         from utils.call_llm import _setting
 
@@ -79,7 +79,7 @@ def main(args):
         import laya
 
         agentes = [laya.load(p, device="cpu") for p in paths]
-    for nombre, agente in zip(paths, agentes):
+    for nombre, agente in zip(paths, agentes, strict=True):
         filas, crudo, local_ok, locales, final = correr(agente, casos, votacion)
         print(f"\n=== {nombre}{' (con votación 2-de-3)' if votacion else ''} ===")
         for id_, esperado, eleccion, conf, decision, detalle, marca in filas:

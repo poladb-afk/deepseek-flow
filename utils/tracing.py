@@ -44,7 +44,8 @@ def activar(ruta_base=None):
     directorio = Path(ruta_base or Path(__file__).resolve().parent.parent / ".runs")
     directorio.mkdir(exist_ok=True)
     archivo = directorio / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.jsonl"
-    _salida = open(archivo, "w", encoding="utf-8")
+    # sumidero a vida de proceso: se escribe por evento y se cierra al salir
+    _salida = open(archivo, "w", encoding="utf-8")  # noqa: SIM115
 
     def evento(nodo, accion, inicio):
         _escribir(

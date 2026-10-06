@@ -6,6 +6,7 @@ Los errores de uso (ruta fuera de rango, archivo inexistente, argumentos
 mal formados) se devuelven como texto "ERROR: ..." para que el modelo
 corrija en la siguiente vuelta; no son fallos transitorios del API.
 """
+import contextlib
 import fnmatch
 import json
 import os
@@ -363,9 +364,7 @@ def run_tool_call(tool_call, extra_impls=None):
     # Hooks post-tool: enriquecen el resultado antes de que viaje al modelo
     # (patrón error-como-feedback). Un hook que lanza no rompe nada.
     for hook in HOOKS_POST.get(fn["name"], ()):
-        try:
+        with contextlib.suppress(Exception):  # un hook que lanza no rompe nada
             result = hook(tool_call, result)
-        except Exception:  # noqa: BLE001
-            pass
 
     return {"role": "tool", "tool_call_id": tool_call["id"], "content": result}

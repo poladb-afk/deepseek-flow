@@ -86,7 +86,7 @@ def main(argv=None):
     from utils.tracing import activar
 
     activar()
-    tareas = [json.loads(l) for l in Path(args.config).read_text(encoding="utf-8").splitlines() if l.strip()]
+    tareas = [json.loads(linea) for linea in Path(args.config).read_text(encoding="utf-8").splitlines() if linea.strip()]
     estado = cargar_estado()
     pendientes = tareas if args.ahora else vencidas(tareas, estado)
     if args.seco or not pendientes:

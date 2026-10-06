@@ -24,6 +24,7 @@ peligroso (git push, rm -rf) pide dos confirmaciones. Con HITL_AUTO=0
 todo vuelve al s/n de hoy (compatibilidad).
 """
 import difflib
+import re as _re
 import subprocess
 from pathlib import Path
 
@@ -49,8 +50,6 @@ _cuerpo = [""]  # cuerpo del próximo pedido HITL web (lo lee _approve)
 # corta y de daño irreversible — la política graduada (utils/policy.py) ya
 # cubre el resto con fricción; acá solo va lo que NUNCA debería ejecutarse
 # desde un chat automatizado (borrado de disco/fork bomb en el host).
-import re as _re
-
 _PROHIBIDOS = _re.compile(
     r"(?:^|[;&|`(]|\s)\s*"                       # inicio de segmento
     r"(?:rm\s+-[a-zA-Z]*[rf][a-zA-Z]*\s+/\s*(?:$|[;&|])"  # rm -rf / (raíz)
@@ -170,7 +169,7 @@ def run_command(command):
     if nivel == "auto":
         print(f"\n── run_command [auto: solo-lectura] ──\n{command}")
     elif nivel == "confirmar_doble":
-        print(f"\n── run_command [¡doble confirmación!] ──")
+        print("\n── run_command [¡doble confirmación!] ──")
         print(f"   ↳ {explicar(command)}")
         print(command)
         _cuerpo[0] = command
@@ -182,7 +181,7 @@ def run_command(command):
             return "RECHAZADO por el usuario: el comando no se ejecutó (segunda confirmación). Puedes proponer otro o preguntar qué cambiaría."
         registrar_aprobacion("run_command", command, True, "confirmar_doble")
     else:  # 'preguntar': el flujo de hoy
-        print(f"\n── run_command ──")
+        print("\n── run_command ──")
         print(f"   ↳ {explicar(command)}")
         print(command)
         _cuerpo[0] = command

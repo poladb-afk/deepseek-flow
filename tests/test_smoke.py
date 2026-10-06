@@ -40,7 +40,8 @@ def test_extraer_yaml_tres_formatos():
     assert extraer_yaml("bla ```yaml\nverdict: ok\n```")["verdict"] == "ok"
     assert extraer_yaml("bla ```\nverdict: retry\n```")["verdict"] == "retry"
     assert extraer_yaml("verdict: ok")["verdict"] == "ok"
-    with pytest.raises(Exception):
+    # extraer_yaml valida con assert (el retry del Node es el mismo mecanismo)
+    with pytest.raises(AssertionError):
         extraer_yaml("no hay yaml acá")
 
 
@@ -58,7 +59,6 @@ def test_sql_rechaza_lo_prohibido():
 
 
 def test_sql_select_funciona():
-    from pathlib import Path as P
 
     if not (RAIZ / "trazas.db").is_file():
         pytest.skip("sin trazas.db: corre carga_trazas.py")
@@ -73,7 +73,6 @@ def test_sql_limita_filas_de_verdad():
     substring ('limit' in consulta.lower()): un LIKE '%unlimited%' o una
     columna 'limits' lo suprimían y la consulta devolvía todas las filas.
     El chequeo debe mirar la cláusula LIMIT, no una subcadena cualquiera."""
-    from pathlib import Path as P
 
     if not (RAIZ / "trazas.db").is_file():
         pytest.skip("sin trazas.db: corre carga_trazas.py")
@@ -94,7 +93,6 @@ def test_sql_cierra_conexion_ante_error_no_sqlite():
     """Un fallo de execute que no sea sqlite3.Error no debe filtrar la
     conexión: el módulo la cierra siempre (finally), no solo en el camino
     sqlite3.Error."""
-    from pathlib import Path as P
 
     if not (RAIZ / "trazas.db").is_file():
         pytest.skip("sin trazas.db: corre carga_trazas.py")
@@ -127,7 +125,6 @@ def test_sql_cierra_conexion_ante_error_no_sqlite():
 def test_sql_permita_punto_coma_en_literal():
     """El guard 'una sola sentencia' no debe confundir un ';' dentro de un
     literal o comentario con una segunda sentencia: era un sobre-rechazo."""
-    from pathlib import Path as P
 
     if not (RAIZ / "trazas.db").is_file():
         pytest.skip("sin trazas.db: corre carga_trazas.py")
@@ -147,9 +144,8 @@ def test_sql_rechaza_multi_sentencia():
 
 
 def test_mermaid_export():
-    from utils.viz import mermaid
-
     from research import create_research_flow
+    from utils.viz import mermaid
 
     texto = mermaid(create_research_flow())
     assert "Planner" in texto and "research" in texto
@@ -397,7 +393,7 @@ def test_pregunta_despacho_congelada():
         "mcp_tools", "mcp_call", "search_web", "deep_research", "sql", "db_schema",
         "run_effective_n", "finish",
     ]
-    assert OPCIONES == esperadas, f"contrato roto: {OPCIONES}"
+    assert esperadas == OPCIONES, f"contrato roto: {OPCIONES}"
     assert "run_supervisor" not in OPCIONES  # L1: anti-recursión
     assert all(o in REGISTRO or o == "finish" for o in OPCIONES)
 
@@ -514,9 +510,6 @@ def test_router_aristas_del_chat():
     from flow import create_agent_flow
 
     flow = create_agent_flow()
-    por_nombre = {}
-    for nodo in (flow.start_node,):
-        pass
     # caminar el grafo desde ask
     ask = flow.start_node
     router = ask.successors.get("continue")
@@ -1434,8 +1427,9 @@ def test_hook_pre_denylist_veta_antes_de_ejecutar(tmp_path, monkeypatch):
     """Mesa 2 (residual): el denylist de run_command corre ANTES de la
     implementación (hook PRE). Un comando prohibido se veta sin ejecutarse
     NI aprobarse (input explota si se llamara)."""
-    import modules.coding as coding
     import subprocess
+
+    import modules.coding as coding
     from utils import fs_tools
 
     # el denylist quedó registrado al importar el módulo
@@ -1519,8 +1513,8 @@ def test_sonda_router_importa_el_contrato():
 def test_sonda_supervisor_importa_el_contrato():
     """Misma garantía del lado del despacho: la sonda del supervisor deriva
     de supervisor.PREGUNTA_DESPACHO (no hay copia que pueda derivar)."""
-    import supervisor
     import sonda_supervisor
+    import supervisor
 
     assert sonda_supervisor.PREGUNTA_DESPACHO is supervisor.PREGUNTA_DESPACHO
 
@@ -1554,7 +1548,7 @@ def test_evento_tool_deja_rastro():
     finally:
         tracing._salida = original
     assert len(lineas) == 2
-    e1, e2 = (json.loads(l) for l in lineas)
+    e1, e2 = (json.loads(linea) for linea in lineas)
     assert e1["nodo"] == "sql" and e1["accion"] == "ok" and e1["seg"] == 0.5
     assert e2["nodo"] == "run_command" and e2["accion"] == "error"
 
@@ -2004,18 +1998,17 @@ def _bench_con(fake_agente):
 
 def test_evals_bench_score_y_ece_ok():
     """Un agente perfecto: score con compuerta y crudo = 100%, ECE = 0."""
-    from evals import correr_bench
 
-    from nodes import PREGUNTA_ROUTER  # noqa: F401  (contrato importado)
     # el fake responde SIEMPRE lo esperado con confianza 1.0
     import json
 
     from evals import TEST_ROUTER
+    from nodes import PREGUNTA_ROUTER  # noqa: F401  (contrato importado)
 
     esperados = {}
-    for l in TEST_ROUTER.read_text(encoding="utf-8").splitlines():
-        if l.strip():
-            c = json.loads(l)
+    for linea in TEST_ROUTER.read_text(encoding="utf-8").splitlines():
+        if linea.strip():
+            c = json.loads(linea)
             esperados[c["fields"]["pregunta"]] = c["answers"]["necesita_herramientas"]
 
     class AgentePerfecto:
@@ -2033,9 +2026,6 @@ def test_evals_bench_score_y_ece_ok():
 def test_evals_bench_ece_pesimista():
     """Un agente que dice directo con conf 1.0 pero se equivoca siempre: ECE
     alto, calcularlo a mano sobre la decisión cruda."""
-    from datetime import date
-
-    from evals import correr_bench
 
     from nodes import PREGUNTA_ROUTER  # noqa: F401
 
@@ -2260,7 +2250,6 @@ def test_policy_rm_rf_paga_doble():
 def test_hitl_web_get_valida_origen():
     """Corte ligero (auditoría): un GET con Host ajeno (DNS-rebinding) no
     puede leer el pedido pendiente ni su token — mismo corte que el POST."""
-    import io
     from types import SimpleNamespace
 
     import utils.hitl_web as hw
@@ -2269,9 +2258,9 @@ def test_hitl_web_get_valida_origen():
                                     token="x", evento=__import__("threading").Event())
     try:
         puerto = hw._arrancar()  # el real (otros tests pueden haberlo movido)
-        handler = SimpleNamespace(headers={"Host": "evil.example.com:%d" % puerto})
+        handler = SimpleNamespace(headers={"Host": f"evil.example.com:{puerto}"})
         assert hw._origen_valido(handler) is False
-        handler_ok = SimpleNamespace(headers={"Host": "127.0.0.1:%d" % puerto})
+        handler_ok = SimpleNamespace(headers={"Host": f"127.0.0.1:{puerto}"})
         assert hw._origen_valido(handler_ok) is True
     finally:
         hw._pendiente = None
@@ -2313,7 +2302,6 @@ def test_voto_confirmacion_tres_niveles(monkeypatch):
     """Mesa 3: acuerdo/desacuerdo confiable lo decide Laya local (sin
     DeepSeek); la banda incierta la arbitra DeepSeek; sin checkpoint,
     DeepSeek como siempre."""
-    from types import SimpleNamespace
 
     import nodes
     import utils.laya as laya_mod
@@ -2970,7 +2958,7 @@ def test_compaccion_noop_si_entra_en_max_chars():
 def test_compaccion_conserva_system_y_ventana_caliente():
     """El system y los últimos N mensajes quedan intactos; la zona fría se
     reemplaza por UN resumen [compacción]."""
-    from utils.compaccion import compactar, PREFIJO_COMPACCION, VENTANA_DEFAULT
+    from utils.compaccion import PREFIJO_COMPACCION, VENTANA_DEFAULT, compactar
 
     largo = _historial_sintetico(n_vueltas=40)
     out = compactar(largo, max_chars=100)
@@ -3006,7 +2994,7 @@ def test_compaccion_unidad_indivisible():
 def test_compaccion_no_parte_unidad_al_recortar():
     """Caso borde: si el corte por ventana cae en medio de una unidad, la
     unidad entra completa (la ventana puede quedar en más de N mensajes)."""
-    from utils.compaccion import compactar, VENTANA_DEFAULT, validar_historial
+    from utils.compaccion import compactar, validar_historial
 
     largo = _historial_sintetico(n_vueltas=40)
     out = compactar(largo, max_chars=100)

@@ -110,7 +110,7 @@ def _prefiltrar(query, archivos):
     if maximo <= 0 or len(archivos) <= maximo:
         return archivos, False
     try:
-        from utils.contexto import elegir_por_laya, unidades_bloques
+        from utils.contexto import elegir_por_laya
 
         elegidos = elegir_por_laya(query, archivos, maximo, setting_modelo="LAYA_MODEL_PREFILTRO")
     except Exception:  # el prefiltro nunca rompe la memoria

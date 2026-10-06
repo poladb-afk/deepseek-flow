@@ -1,0 +1,36 @@
+# Base de calidad de deepseek-flow (2026-10-06).
+#
+# Dos palancas, alineadas con la filosofía del proyecto:
+#   - higiene   → ruff (determinista, sin LLM): lo que el código cuenta solo.
+#   - funcional → pytest (tests/test_smoke.py).
+# El gate completo corre con ./calidad.sh
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+# artefactos y bibliotecas no versionadas: nada que auditar acá
+exclude = [
+    ".runs",
+    ".modelos",
+    ".heartbeat",
+    "rag_index",
+    "salidas",
+    "memoria",
+    "heartbeat",
+]
+
+[tool.ruff.lint]
+# E/W pycodestyle, F pyflakes (muerto/sin uso), B bugbear (bugs comunes),
+# I imports, C4 comprehensions, SIM simplificaciones, UP modernización.
+select = ["E", "W", "F", "B", "I", "C4", "SIM", "UP"]
+ignore = [
+    # El proyecto documenta el PORQUÉ en comentarios largos (ley medida,
+    # patrón medido en producción): reformatarlos sería perder señal.
+    "E501",
+    # El if/else explícito gana al ternario de una línea en las rutas de
+    # fs_tools (resolución de rutas permitidas: se lee auditando).
+    "SIM108",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

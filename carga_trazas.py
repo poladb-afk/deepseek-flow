@@ -65,9 +65,6 @@ def cargar(carpeta, db="trazas.db", glob="*.jsonl"):
                     (str(archivo), str(archivo.parent), n, modulo, task, criterios, pasos, valido),
                 )
     con.commit()
-    resumen = con.execute(
-        "SELECT carpeta, modulo, COUNT(*) FROM trazas WHERE json_valido=1 GROUP BY carpeta, modulo"
-    ).fetchall()
     con.close()
     print(f"{total} registros ({rotas} rotos) de {len(archivos)} archivos → {db}")
     return total, rotas

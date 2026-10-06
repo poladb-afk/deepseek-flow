@@ -107,10 +107,7 @@ def _segmento_es_auto(segmento):
     # Redirección / sustitución / xargs: nunca auto, ni siquiera para echo.
     if _PELIGRO_SHELL.search(segmento):
         return False
-    for prefijo in _WHITELIST_PREFIJOS:
-        if _empieza_con(tokens, prefijo):
-            return True
-    return False
+    return any(_empieza_con(tokens, prefijo) for prefijo in _WHITELIST_PREFIJOS)
 
 
 def _segmento_nivel(segmento):

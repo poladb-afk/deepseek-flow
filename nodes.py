@@ -6,8 +6,9 @@ from types import SimpleNamespace
 from pocketflow import Node
 
 from modules import discover
-from utils.call_llm import call_llm_agent, call_llm_agent_stream, _setting
-from utils.fs_tools import MAX_TOOL_ROUNDS, TOOLS as CORE_TOOLS, run_tool_call
+from utils.call_llm import _setting, call_llm_agent, call_llm_agent_stream
+from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
+from utils.fs_tools import TOOLS as CORE_TOOLS
 from utils.terminal import colorear, progreso_ronda
 from utils.tracing import evento_tool
 
@@ -112,7 +113,7 @@ class AgentStep(Node):
         # se toca el system: los invariantes del modo thinking quedan dados
         # por utils/compaccion.compactar. El costo se paga UNA vez por ronda:
         # la huella del historial compactado evita re-compactar si coincide.
-        from utils.compaccion import compactar, huella, serializar, PREFIJO_COMPACCION
+        from utils.compaccion import PREFIJO_COMPACCION, compactar, huella, serializar
 
         tope = int(_setting("COMPACTION_CHARS", "60000"))
         mensajes = shared["messages"]
