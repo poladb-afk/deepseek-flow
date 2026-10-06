@@ -1,0 +1,12 @@
+id: exp17-aplicar
+descripcion: el harness cablea el triaje al heartbeat
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+turnos:
+  - id: aplicar
+    linea: "Leé banco/specs/exp17_heartbeat.md (verificada, confía) y aplicalo: branch por tipo en correr() de heartbeat.py, docstring, return md_path en triaje_trazas.py, tarea nueva en heartbeat.jsonl y el test appendeado. Escribí primero, después ./calidad.sh hasta verde."
+    hitl: s
+    timeout: 600
+  - id: salir
+    linea: "salir"
+    timeout: 60

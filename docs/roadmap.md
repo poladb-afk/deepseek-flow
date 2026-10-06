@@ -332,7 +332,7 @@ mide: marcadores por turno en conversación real contra DeepSeek.
   re-ejecutable en banco/probes/cache_tools.py.
 - **exp/16 ✅ mergeada** — triaje_trazas.py: selección determinista
   (linter + outliers) 37/139 → 73.4% de ahorro de la auditoría nocturna,
-  sin checkpoint. Tercer "Laya no acá" por evidencia. Pendiente de
-  cablear como tarea del heartbeat.
+  sin checkpoint. Tercer "Laya no acá" por evidencia. Cableado como tarea
+  del heartbeat (exp/17, tipo=triaje: 0 llamadas LLM, 0.1 s verificados).
   menos churn de búsqueda, costo de ranking local. El claim "~80%" de la
   wild queda reemplazado por la medición propia. Sección en design.md.

@@ -17,6 +17,10 @@ Formato de heartbeat.jsonl (una línea por tarea):
 
     {"tarea": "auditá las trazas nuevas de ~/datos", "salida": "heartbeat/auditoria.md", "cada_horas": 24}
 
+Las tareas aceptan `"tipo"`: default = supervisor reactivo (LLM);
+`"tipo": "triaje"` = determinista, cero llamadas LLM (el triaje de trazas
+escribe `triaje_trazas_<fecha>.md` al lado de la salida declarada).
+
 Leyes: cada corrida es un supervisor entero (MAX_PASOS=5, veto tras dos
 fallos); `--ahora` fuerza todas (para probar); `--seco` solo lista qué
 correría. Sin tareas vencidas no gasta una sola llamada.
@@ -61,6 +65,12 @@ def correr(tarea):
     destino.parent.mkdir(parents=True, exist_ok=True)  # Sintetizar escribe directo
     inicio = time.time()
     try:
+        if tarea.get("tipo") == "triaje":
+            import triaje_trazas
+
+            destino_dir = (RAIZ / tarea["salida"]).parent
+            informe = triaje_trazas.main(["--salida", str(destino_dir)])
+            return {"ok": True, "informe": str(informe), "seg": round(time.time() - inicio, 1)}
         informe = supervisar(tarea["tarea"], str(destino))
         return {"ok": True, "informe": informe, "seg": round(time.time() - inicio, 1)}
     except Exception as e:  # noqa: BLE001  (la corrida nocturna no muere por una tarea)
