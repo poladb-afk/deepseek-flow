@@ -205,14 +205,20 @@ def hitl_pendiente(chat):
     return bool(lineas) and bool(RE_HITL.search(lineas[-1]))
 
 
-def correr(escenario, dir_salida, env_extra=None):
+def correr(escenario, dir_salida):
     dir_salida.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%H%M%S")
     crudo = dir_salida / f"{escenario['id']}_{stamp}.log"
     eventos_f = dir_salida / f"{escenario['id']}_{stamp}.jsonl"
     resumen = dir_salida / f"{escenario['id']}_{stamp}.md"
 
-    chat = Chat(env_extra=env_extra)
+    # env del escenario: cada escenario puede fijar variables del chat
+    # (p. ej. MAX_TOOL_ROUNDS=3 para forzar la nota de presupuesto en pocas
+    # rondas). MEMORIA=0 default salvo `memoria: true`.
+    env = dict(escenario.get("env") or {})
+    env.setdefault("MEMORIA", "1" if escenario.get("memoria") else "0")
+
+    chat = Chat(env_extra=env)
     chat.abrir_log(crudo)
     eventos = eventos_f.open("a", encoding="utf-8")
 
@@ -341,8 +347,7 @@ def main(argv=None):
     parser.add_argument("--dir", default="salidas/banco", help="directorio de salida (default: %(default)s)")
     args = parser.parse_args(argv)
     esc = cargar_escenario(args.escenario)
-    env_extra = {"MEMORIA": "1"} if esc.get("memoria") else {}
-    return correr(esc, RAIZ / args.dir, env_extra=env_extra)
+    return correr(esc, RAIZ / args.dir)
 
 
 if __name__ == "__main__":

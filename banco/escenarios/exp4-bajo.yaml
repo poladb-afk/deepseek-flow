@@ -1,0 +1,17 @@
+# Medición exp/4 A: presupuesto corto a propósito — la nota debe llegar al
+# modelo en la anteúltima ronda y este debe cerrar estado o pedir
+# continuación (el corte deja de ser mudo).
+id: exp4-bajo
+descripcion: nota de presupuesto con MAX_TOOL_ROUNDS=4
+env:
+  MAX_TOOL_ROUNDS: "4"
+scratch:
+  - prueba_rondas
+turnos:
+  - id: tarea-larga
+    linea: "Leé uno por uno estos SEIS archivos y después creá prueba_rondas/resumen.md con una línea de resumen por archivo: sonda_laya.py, minar_errores.py, banco/banco.py, nodes.py, modules/coding.py, utils/policy.py"
+    hitl: s
+    timeout: 420
+  - id: salir
+    linea: "salir"
+    timeout: 60

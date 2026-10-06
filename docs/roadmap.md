@@ -297,3 +297,8 @@ mide: marcadores por turno en conversación real contra DeepSeek.
   .git/, memoria/, git push, rm -rf). Auto-prueba en vivo: el ataque al
   .env se rechazó solo (evento hitl-fuera-de-alcance), el permitido
   corrió. Sección en design.md.
+- **exp/4 ✅ mergeada** — presupuesto visible: la nota de la anteúltima
+  ronda viaja en el resultado de la tool (el modelo ya ve su tope),
+  protocolo de continuación documentado ("seguí" reinicia) y env por
+  escenario en el banco (MAX_TOOL_ROUNDS=40 para aplicar). HALLAZGO:
+  la recuperación DSML by-pasea el retiro de tools — candidato a fix.

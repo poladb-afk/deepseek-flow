@@ -3259,3 +3259,17 @@ def test_split_umbrales_router_y_voto(monkeypatch):
     # el voto consulta con su propio alto explícito: nunca hereda al router
     assert veredicto(0.75, alto=0.7) == "met"
     assert veredicto(0.84, alto=0.7) == "met"
+
+
+def test_nota_presupuesto_solo_en_la_anteultima_ronda():
+    """exp/4: el modelo no veía su presupuesto (el ⚙ iba solo a la terminal)
+    y el tope lo cortaba en mudo — tres sesiones de aplicación muertas así.
+    La nota viaja en el resultado de la última tool de la anteúltima ronda."""
+    from nodes import nota_presupuesto
+
+    assert nota_presupuesto(2, 4) is None
+    assert nota_presupuesto(4, 4) is None
+    nota = nota_presupuesto(3, 4)
+    assert nota and "3/4" in nota and "ÚLTIMA" in nota and "reinicia" in nota
+    # máximo degenerado: la única ronda es también la anteúltima
+    assert nota_presupuesto(0, 1) is not None

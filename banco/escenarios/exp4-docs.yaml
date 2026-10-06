@@ -1,0 +1,11 @@
+id: exp4-docs
+descripcion: docs de exp/4
+scratch: []
+turnos:
+  - id: docs
+    linea: "Leé banco/specs/exp4_docs.md y aplicá las 2 operaciones textuales (ojo con la corrección del typo que la misma spec indica)."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

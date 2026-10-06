@@ -38,6 +38,20 @@ def dsml_a_tool_calls(content):
     return calls
 
 
+def nota_presupuesto(ronda, maximo):
+    """La nota que ve el MODELO al entrar a la anteúltima ronda: su única
+    vista del presupuesto (el ⚙ de la terminal no llega a la conversación).
+    None en toda otra ronda — una nota por pregunta alcanza."""
+    if ronda == maximo - 1:
+        return (
+            f"⚙ ronda {ronda}/{maximo} completada — la próxima es tu ÚLTIMA "
+            "con tools (después se retiran): si no te alcanza, usala para "
+            "cerrar el estado y pedí continuación — un mensaje nuevo del "
+            "usuario reinicia el presupuesto."
+        )
+    return None
+
+
 def historiar(msg):
     """El mensaje del asistente en forma canónica para el historial: solo
     role/content/tool_calls. El reasoning_content del modo thinking NO
@@ -202,11 +216,16 @@ class ExecuteTools(Node):
         return resultados
 
     def post(self, shared, prep_res, exec_res):
-        shared["messages"].extend(exec_res)
         shared["tool_rounds"] = shared.get("tool_rounds", 0) + 1
+        ronda = shared["tool_rounds"]
+        # la nota de presupuesto viaja en la conversación (no en la
+        # terminal): es la única vista del tope que tiene el modelo.
+        nota = nota_presupuesto(ronda, MAX_TOOL_ROUNDS)
+        if nota and exec_res:
+            exec_res[-1]["content"] = f"{exec_res[-1]['content']}\n{nota}"
+        shared["messages"].extend(exec_res)
         # pulido de terminal (mesa 8): la ronda consumida se etiqueta para
         # que una secuencia de varias rondas muestre su avance (n/MAX).
-        ronda = shared["tool_rounds"]
         print(colorear("  " + progreso_ronda(ronda, MAX_TOOL_ROUNDS), "info"), flush=True)
         return "default"
 
