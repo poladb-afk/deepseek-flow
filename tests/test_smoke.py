@@ -1265,6 +1265,33 @@ def test_policy_clasifica_los_tres_niveles():
     assert clasificar(None) == "preguntar"
 
 
+def test_policy_semicolon_y_cd_neutro():
+    """Lecciones medidas en el test exhaustivo del 2026-10-06 (35 turnos vs
+    DeepSeek real): (1) el modelo prefijó `cd <dir> &&` en 5/5 run_command y
+    el compuesto degradaba a preguntar aunque el fondo fuera pytest auto;
+    (2) el `;` NO se partía como && y |: `ls ; rm -rf /tmp/x` clasificaba
+    auto y el rm corría sin aprobación (hueco real: shell=True)."""
+    from utils.policy import clasificar
+
+    # cd neutro: solo cambia el cwd del subshell de este comando
+    assert clasificar("cd /algun/lado && python3 -m pytest tests/ -q") == "auto"
+    assert clasificar("cd . && ls") == "auto"
+
+    # ... pero no relaja nada: el segmento peligroso sigue mandando
+    assert clasificar("cd /tmp && rm -f x") == "preguntar"
+    assert clasificar("cd /algo && python3 main.py evals") == "preguntar"
+    assert clasificar("cd /algo && git push") == "confirmar_doble"
+
+    # sort a la whitelist (medido: find | sort | head era el conteo natural)
+    assert clasificar("find . -name '*.py' | sort -rn | head -5") == "auto"
+
+    # el ; parte como && y |: TODOS los segmentos deben ser auto (y la
+    # negra doble gana sobre todo — rm -rf paga las DOS confirmaciones)
+    assert clasificar("ls ; rm -rf /tmp/x") == "confirmar_doble"
+    assert clasificar("git status ; rm algo") == "preguntar"
+    assert clasificar("ls ; grep x y") == "auto"
+
+
 def test_policy_reglas_de_composicion():
     from utils.policy import clasificar
 
