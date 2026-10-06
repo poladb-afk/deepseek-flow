@@ -27,6 +27,7 @@ Sin dependencias nuevas: `requests` (ya presente). API key/base de los
 settings existentes (`LLM_API_KEY`/`LLM_BASE_URL`)."""
 import base64
 import mimetypes
+import subprocess
 from pathlib import Path
 
 import requests
@@ -163,7 +164,6 @@ def ver_pdf(path, pregunta="¿Qué dice este PDF?"):
             "El tipo se valida por el contenido del archivo."
         )
 
-    import subprocess
     import tempfile
 
     with tempfile.TemporaryDirectory(prefix="vision_pdf_") as tmp:

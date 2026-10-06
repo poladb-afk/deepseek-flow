@@ -2422,24 +2422,38 @@ def test_ver_imagen_demasiado_grande_sin_llamar(tmp_path, monkeypatch):
     assert r.startswith("ERROR") and "tope para una imagen" in r
 
 
-def test_ver_pdf_subida_y_content(tmp_path, monkeypatch):
-    """Sin red: se mockea subida + consulta y se verifica la forma (purpose,
-    file_id dentro del content, content devuelto)."""
+def test_ver_pdf_rasteriza_y_consulta(tmp_path, monkeypatch):
+    """El contrato nuevo (medido): Files API NO acepta PDFs → pdftoppm
+    rasteriza y las páginas van como imágenes al modelo. Mock del POST y
+    del rasterizador; PDF real mínimo para pasar la firma %PDF."""
+    import subprocess
+
     import modules.vision as vision
 
     pdf = tmp_path / "factura.pdf"
-    pdf.write_bytes(b"%PDF-1.4\n...contenido...\n%%EOF")
+    pdf.write_bytes(b"%PDF-1.4 + firma + EOF")
     monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
     monkeypatch.setattr(vision, "get_api_key", lambda: "sk-test")
+    from pathlib import Path as _P
+    Path = _P
+
+    # pdftoppm falso: produce dos PNG de página
+    paginas = []
+    def pdftoppm_fake(*args, **kwargs):
+        # argv de pdftoppm: [cmd, -png, -r, 110, INPUT, BASE_OUT] — el
+        # output es el ÚLTIMO argumento; las páginas nacen ahí
+        argv = args[0]
+        base = argv[-1]
+        pag1 = Path(base + "-1.png")
+        pag1.write_bytes(b"\x89PNG" + b"fake" * 10)
+        pag2 = Path(base + "-2.png")
+        pag2.write_bytes(b"\x89PNG" + b"fake" * 10)
+        paginas.extend([pag1, pag2])
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(vision.subprocess, "run", pdftoppm_fake)
 
     llamadas = []
-
-    class RespSubida:
-        status_code = 200
-
-        @staticmethod
-        def json():
-            return {"id": "file-abc123"}
 
     class RespChat:
         status_code = 200
@@ -2448,28 +2462,24 @@ def test_ver_pdf_subida_y_content(tmp_path, monkeypatch):
         def json():
             return {"choices": [{"message": {"content": "Total: $100"}}]}
 
-    def post_fake(url, headers=None, files=None, data=None, json=None, timeout=None):
-        llamadas.append({"url": url, "headers": headers, "files": files, "data": data, "json": json})
-        return RespSubida() if url.endswith("/files") else RespChat()
+    def post_fake(url, headers=None, **kwargs):
+        llamadas.append({"url": url, "headers": headers, "json": kwargs.get("json")})
+        return RespChat()
 
     monkeypatch.setattr(vision.requests, "post", post_fake)
 
     r = vision.ver_pdf(str(pdf), "¿cuál es el total?")
     assert r == "Total: $100"
 
-    assert len(llamadas) == 2
-    subida, consulta = llamadas
-    assert subida["url"].endswith("/files")
-    assert subida["data"] == {"purpose": "file-extract"}
-    nombre_enviado, bytes_enviados, mime = subida["files"]["file"]
-    assert nombre_enviado == "factura.pdf" and bytes_enviados.startswith(b"%PDF")
-    assert mime == "application/pdf"
-    assert subida["headers"]["Authorization"] == "Bearer sk-test"
-
+    assert len(llamadas) == 1
+    consulta = llamadas[0]
     assert consulta["url"].endswith("/chat/completions")
+    assert consulta["headers"]["Authorization"] == "Bearer sk-test"
     contenido = consulta["json"]["messages"][0]["content"]
-    assert contenido[0] == {"type": "file", "file_id": "file-abc123"}
-    assert contenido[1]["type"] == "text" and contenido[1]["text"] == "¿cuál es el total?"
+    assert contenido[0]["type"] == "text" and "2 páginas" in contenido[0]["text"]
+    imagenes = [c for c in contenido if c["type"] == "image_url"]
+    assert len(imagenes) == 2  # una por página, en orden
+    assert imagenes[0]["image_url"]["url"].startswith("data:image/png;base64,")
 
 
 def test_ver_pdf_no_pdf_por_contenido(tmp_path, monkeypatch):
