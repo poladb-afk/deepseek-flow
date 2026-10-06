@@ -1129,3 +1129,80 @@ Si reincide, el print dirá exactamente cuál fue.
 Nota: `sesion_FECHA.md` comparte nombre por día — sesiones repetidas el
 mismo día se sobrescriben (aceptado por ahora; cada sesión que importa
 suele tener además sus salidas/ nominativas).
+
+## Compacción de contexto (Mesa 6, 12-factor #5) — 2026-10-06
+
+### El problema, medido
+
+`shared['messages']` crece sin techo y **cada vuelta reenvía TODO el
+historial** a la API. Evidencia: la sesión de construcción de la cola
+final disparó **115 llamadas a tools**; cada turno pagó tokens por todo
+lo anterior aunque lo viejo ya no aportara. El KV-cache amortigua el
+precio unitario, pero el contexto sigue creciendo linealmente y cada
+turno vuelve a mandarlo entero — el problema es de tamaño, no solo de
+plata. Y el modo thinking *pegajoso* (ver `utils/call_llm.py`) vuelve
+delicado tocar el historial: cualquier reescritura puede romper los
+invariantes y disparar el 400 medido.
+
+### La pieza: `utils/compaccion.py` (código puro, sin LLM)
+
+`compactar(messages, max_chars, ventana=6)`:
+
+- **(a) Ventana caliente intacta.** Siempre conserva el system (índice 0)
+  y los últimos `N` mensajes (default 6), contando **assistant con
+  `tool_calls` + sus tools como UNIDAD indivisible** — nunca se separan.
+- **(b) Zona fría → un resumen.** El medio se reemplaza por **UN mensaje
+  de user** con prefijo fijo `[compacción]`, el conteo de mensajes
+  omitidos y un placeholder instructivo. El resumen REAL lo escribe el
+  agente a sí mismo en un segundo paso; acá no hay LLM: mismo input →
+  mismo output (determinista y pura).
+- **(c) Invariante de la API.** Nunca deja un assistant con `tool_calls`
+  sin sus tools. Si el corte por ventana cae en medio de una unidad, la
+  unidad entra completa (la ventana puede quedar en más de N mensajes: la
+  unidad manda).
+- **(d) No-op documentado.** Si el historial ya entra en `max_chars` o
+  tiene menos de `ventana + 2` mensajes, se devuelve intacto.
+
+### Integración (`nodes.py`, `AgentStep.prep`)
+
+ANTES de llamar al modelo: si el historial serializado supera
+`COMPACTION_CHARS` (setting, default 60000), `compactar` corre y se
+guarda `shared['compacciones'] += 1` con el print
+`[compacción] zona fría: X mensajes → resumen; ventana caliente: Y`.
+
+**El costo se paga UNA vez por ronda**: `shared['_compaccion_huella']`
+guarda el sha1 del historial ya compactado y no se re-procesa si coincide
+(una segunda llamada con el mismo historial es un no-op).
+
+El resumen-instrucción es deliberadamente sobrio: dice que las vueltas
+anteriores fueron compactadas y que los hechos durables están en
+`memoria/` si hicieran falta (el agente la consulta con `memory_search`).
+No inventa memoria ni pide escribir nada.
+
+### Invariantes de seguridad (tests que los clavan)
+
+`validar_historial(messages)` devuelve las violaciones (vacío = válido) y
+NUNCA levanta. Clava los cuatro invariantes que el modo thinking pegajoso
+exige:
+
+1. Sin `reasoning_content` en ningún mensaje.
+2. Dicts canónicos por rol (role/content/tool_calls/tool_call_id).
+3. Ningún assistant con `tool_calls` sin sus tools inmediatas después
+   (comparación por `tool_call_id`: caza tanto la tool faltante como la
+   tool huérfana).
+4. Primer mensaje = system.
+
+`test_compaccion_invariantes_antes_y_despues` corre `validar_historial`
+ANTES y DESPUÉS de compactar sobre un historial sintético de 201 mensajes
+con mezcla de tools, y además verifica que el validador SÍ detecta cada
+rotura (no es un chequeo vacuo).
+
+### Tests
+
+`tests/test_smoke.py`: no-op corto, no-op si entra en `max_chars`,
+conservación de system + ventana caliente, unidad indivisible (sin tool
+huérfana ni assistant sin tools), no-partir-unidad al recortar,
+determinismo (dos llamadas), invariantes antes/después, e integración
+(`COMPACTION_CHARS` chico por monkeypatch → `AgentStep.prep` devuelve el
+historial compactado y cuenta en `shared['compacciones']`, sin
+re-compactar la misma ronda). Suite: **124 passed**.

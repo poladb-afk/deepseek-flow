@@ -180,7 +180,15 @@ reactivo→DAG).
 
 **Mesa 6 — Contexto y loops:** compacción de contexto (12-factor #5 — messages
 crece sin techo, sesión de fixes como evidencia; validar contra el modo thinking
-pegajoso); telemetría de convergencia (hechos nuevos por ronda: comprar ronda si
+pegajoso) — **✅ compacción hecha (2026-10-06):** `utils/compaccion.py` (código
+puro, sin LLM) + `AgentStep.prep`: la zona fría se reemplaza por un resumen
+`[compacción]` y la ventana caliente (system + últimos 6, con assistant+tools
+como unidad indivisible) queda intacta; `COMPACTION_CHARS` (default 60000), una
+vez por ronda por huella sha1, `shared['compacciones']` cuenta. Invariantes del
+modo thinking clavados por `validar_historial` (sin reasoning_content, dicts
+canónicos, sin assistant sin sus tools, primer mensaje system). 124 passed;
+faltan telemetría de convergencia, agentic RAG como flow y loops fractales.
+Telemetría de convergencia (hechos nuevos por ronda: comprar ronda si
 converge, cortar si estanca); agentic RAG como flow dedicado (gap del cookbook);
 loops fractales con presupuesto heredado (depth máx 2).
 - Nuevo de la investigación 2026-10-05: **pre-filtro de contexto** — Laya

@@ -98,6 +98,30 @@ def sanitizar(texto):
 
 class AgentStep(Node):
     def prep(self, shared):
+        # Compacción de contexto (Mesa 6, 12-factor #5): si el historial
+        # serializado supera COMPACTION_CHARS, la zona fría se reemplaza por
+        # un resumen-instrucción (código puro, sin LLM) ANTES de llamar al
+        # modelo. Nunca se separa un assistant con tool_calls de sus tools ni
+        # se toca el system: los invariantes del modo thinking quedan dados
+        # por utils/compaccion.compactar. El costo se paga UNA vez por ronda:
+        # la huella del historial compactado evita re-compactar si coincide.
+        from utils.compaccion import compactar, huella, serializar, PREFIJO_COMPACCION
+
+        tope = int(_setting("COMPACTION_CHARS", "60000"))
+        mensajes = shared["messages"]
+        if tope > 0 and len(serializar(mensajes)) > tope:
+            h = huella(mensajes)
+            if shared.get("_compaccion_huella") != h:
+                nuevo = compactar(mensajes, tope)
+                if nuevo is not mensajes and len(nuevo) < len(mensajes):
+                    frios = len(mensajes) - len(nuevo) + 1  # +1: el propio resumen
+                    print(
+                        f"{PREFIJO_COMPACCION} zona fría: {frios} mensajes → "
+                        f"resumen; ventana caliente: {len(nuevo) - 1}"
+                    )
+                    shared["messages"] = nuevo
+                    shared["compacciones"] = shared.get("compacciones", 0) + 1
+                    shared["_compaccion_huella"] = huella(nuevo)
         # Al llegar al límite de rondas se retiran las tools: el modelo debe responder ya.
         tools = None if shared.get("tool_rounds", 0) >= MAX_TOOL_ROUNDS else TOOLS
         return shared["messages"], tools
