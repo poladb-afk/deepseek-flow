@@ -156,7 +156,7 @@ sean auto; redirección/`$()`/backticks/`xargs` ⇒ preguntar; `python3 -c` siem
 denylist ANTES de run_command, pytest tras write de .py (más caro que py_compile),
 GET del hitl_web sin validar origen, naming `_pendido`/`_pendiente`.
 
-**Mesa 3 — Laya en más mecanismos:** el voto del router (mejor ROI: dispara en
+**Mesa 3 — Laya en más mecanismos — ✅ voto del router promovido (2026-10-05, jornada de fine-tune completa):** task router_voto (contrato PREGUNTA_VOTO, sha1 congelado) → 930 generados/558 verificados por juez ciego en dos rondas (el juez rechazó ~40%: la banda de confusión es cara de etiquetar; corrección de dirección imperativo≠tools) → r1 (288 casos) REPROBADO por la puerta: banda confiable vacía, ahorro 0 (honestidad del instrumento) → r2 (528 casos) PROMOVIDO: 27/30 crudo, 96% en banda confiable, ahorro medido 80% de los turnos-directo (24/30), 0 ecos, 0 errores nuevos, correlación de errores router↔voto limpia. Producción: tres niveles en voto_confirmacion_router (Laya-voto decide acuerdos/desacuerdos confiables; banda incierta la arbitra DeepSeek; sin checkpoint, voto DeepSeek de siempre). Verificado e2e. Nota operativa: medir router+voto en UN proceso dio OOM (2×615MB + 15GB de máquina) — un checkpoint por proceso, dumps en /tmp. Siguientes de la mesa (sin fecha): gate del juez, presupuesto dinámico de rondas, triaje de memoria, exposición MCP. El voto del router (mejor ROI: dispara en
 cada directo-met y hoy paga DeepSeek); gate del juez (clasificar ok/retry, juez
 completo solo si duda); presupuesto dinámico de rondas (estimación Laya de
 cuántas rondas necesita el pedido); triaje de memoria (¿esta nota merece
