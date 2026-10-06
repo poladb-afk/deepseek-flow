@@ -334,5 +334,10 @@ mide: marcadores por turno en conversación real contra DeepSeek.
   (linter + outliers) 37/139 → 73.4% de ahorro de la auditoría nocturna,
   sin checkpoint. Tercer "Laya no acá" por evidencia. Cableado como tarea
   del heartbeat (exp/17, tipo=triaje: 0 llamadas LLM, 0.1 s verificados).
+- **exp/19 ✅ mergeada** — auditoría dirigida de modules/: método por
+  tandas con anotación incremental (la compacción se comía las primeras
+  tandas: 9/16 → 16/16). 6 hallazgos (1 alto: descripción de ver_pdf
+  mentía el mecanismo; 1 medio: default de salida de run_auditoria),
+  confirmados y corregidos.
   menos churn de búsqueda, costo de ranking local. El claim "~80%" de la
   wild queda reemplazado por la medición propia. Sección en design.md.
