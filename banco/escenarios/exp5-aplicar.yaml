@@ -1,0 +1,12 @@
+id: exp5-aplicar
+descripcion: el harness aplica el conteo exacto de search_files
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+turnos:
+  - id: aplicar
+    linea: "Leé banco/specs/exp3_exp5_quickwins.md y aplicá SOLO la sección '## exp/5' (ignorá la de exp/3): search_files en utils/fs_tools.py debe reportar el CONTEO EXACTO de resultados cuando trunca al tope SEARCH_MAX_FILES (el conteo se calcula antes de truncar) con la sugerencia de find por run_command, respetando el formato real de salida actual; y el test con tmp_path de 55 archivos vacíos que asserts el total y el tope. Después ./calidad.sh hasta verde."
+    hitl: s
+    timeout: 600
+  - id: salir
+    linea: "salir"
+    timeout: 60

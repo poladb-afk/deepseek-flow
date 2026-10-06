@@ -1,5 +1,6 @@
 """Smoke tests de lo estable — sin red, sin LLM, sin modelo."""
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -50,6 +51,50 @@ def test_search_files_por_nombre():
 
     r = search_files(glob="requirements.txt", path="Pocketflow/deepseek-flow")
     assert "requirements.txt" in r
+
+
+def test_search_files_conteo_exacto_al_truncar(tmp_path):
+    """El tope SEARCH_MAX_FILES es de MUESTRA, no del conteo: con 55 archivos
+    el resultado debe decir el total exacto (55) y cuántos se muestran (50),
+    más la sugerencia de find. El conteo se calcula ANTES de truncar."""
+    from utils.fs_tools import SEARCH_MAX_FILES, search_files
+
+    # tmp_path (/tmp) cae fuera de los directorios permitidos de las tools;
+    # los tests deben vivir dentro del alcance real de la tool.
+    base = RAIZ.parent / "_tmp_search_files"
+    if base.exists():
+        shutil.rmtree(base)
+    base.mkdir(parents=True)
+    try:
+        for i in range(55):
+            (base / f"archivo_{i:02d}.txt").write_text("")
+
+        r = search_files(glob="*.txt", path=str(base))
+        assert "55" in r  # total exacto, contado antes de truncar
+        assert str(SEARCH_MAX_FILES) in r  # el tope figura como muestra
+        assert "run_command" in r and "find" in r  # sugerencia del escape hatch
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
+def test_search_files_sin_aviso_bajo_el_tope(tmp_path):
+    """Con menos archivos que el tope no hay aviso de truncado."""
+    from utils.fs_tools import search_files
+
+    base = RAIZ.parent / "_tmp_search_files_bajo"
+    if base.exists():
+        shutil.rmtree(base)
+    base.mkdir(parents=True)
+    try:
+        for i in range(10):
+            (base / f"archivo_{i:02d}.txt").write_text("")
+
+        r = search_files(glob="*.txt", path=str(base))
+        assert "10 archivos coinciden" in r
+        assert "run_command" not in r
+        assert "más" not in r
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
 
 
 def test_sql_rechaza_lo_prohibido():

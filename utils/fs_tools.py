@@ -204,6 +204,7 @@ def search_files(query=None, glob=None, path=None):
     pattern = glob or "*"
 
     file_hits, content_hits, skipped_big = [], [], 0
+    file_total = 0  # conteo EXACTO antes de truncar a la muestra SEARCH_MAX_FILES
     for root in roots:
         if root.is_file():
             # os.walk sobre un ARCHIVO no visita nada: falso negativo
@@ -225,6 +226,7 @@ def search_files(query=None, glob=None, path=None):
                 except OSError:
                     continue
                 if not query:
+                    file_total += 1
                     if len(file_hits) < SEARCH_MAX_FILES:
                         file_hits.append((fpath, size))
                     continue
@@ -248,10 +250,16 @@ def search_files(query=None, glob=None, path=None):
     if not query:
         if not file_hits:
             return f"Ningún archivo coincide con '{pattern}'."
-        out = [f"{len(file_hits)} archivos coinciden con '{pattern}':"]
+        shown = len(file_hits)
+        out = [f"{file_total} archivos coinciden con '{pattern}':"]
         out += [f"- {p} ({s} B)" for p, s in sorted(file_hits)]
-        if len(file_hits) == SEARCH_MAX_FILES:
-            out.append(f"[tope de {SEARCH_MAX_FILES} alcanzado: puede haber más]")
+        if file_total > shown:
+            scope = path or " ".join(str(r) for r in roots)
+            out.append(
+                f"... y {file_total - shown} archivos más "
+                f"(mostrando {shown} de {file_total}; para el listado completo: "
+                f"run_command 'find {scope} -name \"{pattern}\"' ya es solo-lectura auto)"
+            )
         return "\n".join(out)
 
     if not content_hits:
