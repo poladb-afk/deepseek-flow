@@ -1,0 +1,14 @@
+# Segunda pasada: la verificación de formatos YA está hecha (la hizo el
+# harness en la sesión anterior y gastó su presupuesto de rondas en ella).
+# Ahora solo escribe.
+id: exp7-aplicar2
+descripcion: el harness escribe sonda_laya.py sin re-verificar nada
+scratch: []
+turnos:
+  - id: escribir
+    linea: "Creá sonda_laya.py AHORA siguiendo banco/specs/exp7_sonda_laya.md. La verificación que la spec pide YA está hecha (no la repitas, no leas nada más): router_voto_test.jsonl usa fields['pregunta'] y answers['confirma_herramientas'], mismo formato que router_flow_test.jsonl; supervisor_dispatch_test.jsonl usa fields['tarea'] y fields['hechos'] (hechos puede ser string multilínea o vacío); los tres son jsonl un caso por línea. Escribí el archivo completo en UNA sola llamada a write_file. Estilo sonda_router.py, comentarios en español, funciones puras tabla_confiabilidad/curva_compuerta/ece importables, UN checkpoint por proceso vía utils.laya.agente con setting propio, salidas md+json en salidas/evals/."
+    hitl: s
+    timeout: 600
+  - id: salir
+    linea: "salir"
+    timeout: 60
