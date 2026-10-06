@@ -124,3 +124,134 @@ def test_minar_runs_saltea_trazas_ilegibles_sin_romper(tmp_path):
     assert informe["errores_total"] == 1
     assert informe["tasa_autocorreccion"] == pytest.approx(1.0)
     assert informe["trazas_ilegibles"] == ["roto.jsonl"], "la rota se reporta, no se cae"
+
+
+# ---------------------------------------------------------------------------
+# Triaje determinista de trazas (triaje_trazas.py)
+# ---------------------------------------------------------------------------
+
+def _ev_triaje(nodo, accion, seg):
+    """Evento mínimo que consumen el linter y el cálculo de duración."""
+    return {"nodo": nodo, "accion": accion, "seg": seg}
+
+
+def test_triaje_seleccionar_clasifica_los_cuatro_casos():
+    """Cada combinación (violación × duración) cae en su motivo correcto."""
+    from triaje_trazas import seleccionar
+
+    evaluaciones = {
+        # limpia y corta: FUERA
+        "limpia_corta": [
+            _ev_triaje("GetQuestion", "continue", 0.1),
+            _ev_triaje("LayaRouter", "directo", 0.2),
+            _ev_triaje("AgentStep", "answer", 0.3),
+        ],
+        # violación (acción desconocida) pero corta: dentro por violaciones
+        "con_violacion": [
+            _ev_triaje("Fantasma", "accion_rara", 0.1),
+        ],
+        # larga y limpia (solo acciones canónicas): dentro por duración
+        "larga_limpia": [
+            _ev_triaje("GetQuestion", "continue", 0.1),
+            _ev_triaje("LayaRouter", "herramientas", 50.0),
+            _ev_triaje("AgentStep", "tool", 60.0),
+            _ev_triaje("ExecuteTools", "default", 30.0),
+            _ev_triaje("read_file", "ok", 0.0),
+            _ev_triaje("AgentStep", "answer", 40.0),
+        ],
+        # violación Y larga: dentro por ambos
+        "ambos": [
+            _ev_triaje("Fantasma", "accion_rara", 0.1),
+            _ev_triaje("read_file", "ok", 200.0),
+        ],
+    }
+    sel = seleccionar(evaluaciones, umbral_seg=120.0)
+    assert set(sel) == {"con_violacion", "larga_limpia", "ambos"}
+    assert "limpia_corta" not in sel, "la limpia y corta queda afuera"
+    assert sel["con_violacion"] == "violaciones"
+    assert sel["larga_limpia"] == "duración", "sin violaciones pero > 120s entra"
+    assert sel["ambos"] == "ambos"
+
+
+def test_triaje_seleccionar_es_determinista_y_umbral_explicito():
+    """Determinista y el umbral es el borde: igual al umbral NO entra."""
+    from triaje_trazas import seleccionar
+
+    evaluaciones = {
+        "justo_en_umbral": [_ev_triaje("read_file", "ok", 120.0)],
+        "pasa_umbral": [_ev_triaje("read_file", "ok", 120.1)],
+    }
+    assert seleccionar(evaluaciones, umbral_seg=120.0) == {"pasa_umbral": "duración"}
+    # dos llamadas iguales → mismo resultado (puro)
+    assert seleccionar(evaluaciones, umbral_seg=120.0) == seleccionar(
+        evaluaciones, umbral_seg=120.0)
+
+
+def test_triaje_leyenda_se_ordena_por_severidad():
+    """3 trazas seleccionadas: ambos → violaciones → duración."""
+    from triaje_trazas import _ORDEN_MOTIVO, _clave_orden
+
+    seleccionadas = {
+        "corta_viol": {"motivo": "violaciones", "violaciones": 1, "duracion_seg": 0.5},
+        "larga_sola": {"motivo": "duración", "violaciones": 0, "duracion_seg": 300.0},
+        "las_dos": {"motivo": "ambos", "violaciones": 2, "duracion_seg": 200.0},
+    }
+    ordenados = [n for n, _ in sorted(seleccionadas.items(), key=_clave_orden)]
+    assert ordenados == ["las_dos", "corta_viol", "larga_sola"]
+    # la severidad del motivo es un orden explícito y estable
+    assert _ORDEN_MOTIVO["ambos"] < _ORDEN_MOTIVO["violaciones"] < _ORDEN_MOTIVO["duración"]
+
+
+def test_triaje_mismo_motivo_ordena_por_duracion_desc():
+    """Dentro de un mismo motivo, la traza más larga va primero."""
+    from triaje_trazas import _clave_orden
+
+    seleccionadas = {
+        "b_larga": {"motivo": "duración", "violaciones": 0, "duracion_seg": 500.0},
+        "a_corta": {"motivo": "duración", "violaciones": 0, "duracion_seg": 130.0},
+    }
+    ordenados = [n for n, _ in sorted(seleccionadas.items(), key=_clave_orden)]
+    assert ordenados == ["b_larga", "a_corta"]
+
+
+def test_triaje_evaluar_runs_saltea_ilegibles_y_cuenta_vacias(tmp_path):
+    """Sobre archivos reales: legibles/vacías/ilegibles se separan y el ahorro
+    se calcula sobre las legibles."""
+    from triaje_trazas import evaluar_runs
+
+    (tmp_path / "larga.jsonl").write_text(
+        '{"nodo": "read_file", "accion": "ok", "seg": 200.0}\n', encoding="utf-8")
+    (tmp_path / "limpia.jsonl").write_text(
+        '{"nodo": "read_file", "accion": "ok", "seg": 0.5}\n', encoding="utf-8")
+    (tmp_path / "roto.jsonl").write_text("{no es json}\n", encoding="utf-8")
+    (tmp_path / "vacia.jsonl").write_text("", encoding="utf-8")
+
+    informe = evaluar_runs(tmp_path, umbral_seg=120.0)
+    assert informe["legibles"] == 2
+    assert informe["vacias"] == 1
+    assert informe["ilegibles"] == ["roto.jsonl"]
+    assert informe["total"] == 4
+    assert informe["n_seleccionadas"] == 1, "solo la larga entra"
+    assert informe["seleccionadas"]["larga.jsonl"]["motivo"] == "duración"
+    # 1 de 2 legibles → 50% de ahorro
+    assert informe["ahorro_pct"] == pytest.approx(50.0)
+
+
+def test_triaje_escribir_md_pone_el_limite_honesto_arriba_y_el_ahorro():
+    from triaje_trazas import escribir_md
+
+    informe = {
+        "total": 4, "legibles": 2, "vacias": 1, "ilegibles": [],
+        "n_seleccionadas": 1, "umbral_seg": 120.0, "ahorro_pct": 50.0,
+        "seleccionadas": {"larga.jsonl": {
+            "motivo": "duración", "violaciones": 0, "duracion_seg": 200.0}},
+    }
+    md = escribir_md(informe, "abc1234", "2026-10-06T00:00:00")
+    assert "## Límite honesto" in md
+    assert "NO VE LO SEMÁNTICO" in md.upper().replace("**", ""), \
+        "el informe declara lo que el triaje no puede ver"
+    assert "auditoría completa sigue disponible" in md.lower()
+    # el límite honesto va ANTES del resumen/ahorro
+    assert md.index("## Límite honesto") < md.index("## Resumen")
+    assert "Ahorro de la auditoría nocturna: 50.0%" in md
+    assert "larga.jsonl" in md and "duración" in md
