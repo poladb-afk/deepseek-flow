@@ -115,6 +115,10 @@ content: |
     def post(self, shared, prep_res, exec_res):
         if exec_res["action"] == "research":
             shared["ronda"] = shared.get("ronda", 0) + 1
+            # Contrato de shared["feedback"] acá (auditoría de consistencia
+            # 2026-10-05): PROSA de huecos de cobertura. En juez.py la MISMA
+            # clave lleva BULLETS de crítica. Colisión semántica consciente:
+            # los flujos son independientes y no se unifica el vocabulario.
             shared["feedback"] = exec_res.get("feedback", "")
             print(f"  🤔 huecos (ronda {shared['ronda']}): {shared['feedback'][:120]}")
             return "research"

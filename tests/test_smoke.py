@@ -1352,6 +1352,15 @@ def test_sonda_router_importa_el_contrato():
     assert sonda_router.PREGUNTA_ROUTER is nodes.PREGUNTA_ROUTER
 
 
+def test_sonda_supervisor_importa_el_contrato():
+    """Misma garantía del lado del despacho: la sonda del supervisor deriva
+    de supervisor.PREGUNTA_DESPACHO (no hay copia que pueda derivar)."""
+    import supervisor
+    import sonda_supervisor
+
+    assert sonda_supervisor.PREGUNTA_DESPACHO is supervisor.PREGUNTA_DESPACHO
+
+
 def test_search_files_con_path_a_archivo():
     """Falso negativo medido en la auditoría: os.walk sobre un archivo no
     visita nada y la tool decía 'Ningún archivo contiene' sobre un
@@ -2442,14 +2451,13 @@ def test_a2a_lista_y_tarea(monkeypatch):
     """Con setting a un servidor fake: agentes_remotos lista el card y
     a2a_tarea envía JSON-RPC message/send y parsea el result."""
     import json
-    import json as _json
 
     import modules.a2a as a2a
 
     srv = _ServidorA2A()
     base, httpd = srv.arrancar()
     try:
-        monkeypatch.setenv("A2A_AGENTS", _json.dumps({"eco": base}))
+        monkeypatch.setenv("A2A_AGENTS", json.dumps({"eco": base}))
 
         listado = a2a.agentes_remotos()
         assert "eco" in listado and base in listado

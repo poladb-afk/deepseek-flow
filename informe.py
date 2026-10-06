@@ -108,6 +108,11 @@ class ScanFiles(Node):
 
 
 class AnalizeFile(AsyncParallelBatchNode):
+    # Contrato de shared["analisis"] (auditoría de consistencia 2026-10-05):
+    # acá es una LISTA de esquemas del LLM [{"file", "total", ..., "resumen"}].
+    # effective_n.py reusa la MISMA clave con otra forma (huellas de contenido).
+    # Colisión semántica consciente y sancionada: el vocabulario de shared NO
+    # se unifica (los flujos comparten la clave pero nunca se ejecutan juntos).
     async def prep_async(self, shared):
         return shared["files"]
 

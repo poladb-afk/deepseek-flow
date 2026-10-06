@@ -122,6 +122,11 @@ class HashFile(BatchNode):
         }
 
     def post(self, shared, prep_res, exec_res_list):
+        # Contrato de shared["analisis"] (auditoría de consistencia 2026-10-05):
+        # acá es una LISTA de esquemas de HUELLAS de contenido
+        # [{"file", "n", "huellas", "dist", "md5"}]. informe.py usa la MISMA
+        # clave con el esquema del LLM (resúmenes). Colisión semántica
+        # consciente: el flujo es independiente, no se unifica el vocabulario.
         shared["analisis"] = exec_res_list
         for a in exec_res_list:
             print(f"  ✓ {a['file'].name}: {a['n']} registros, {len(set(a['huellas']))} únicos")

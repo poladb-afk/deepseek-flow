@@ -127,6 +127,11 @@ suggestions:
                     f"{max_rounds} rondas; se entrega el último borrador."
                 )
             return "entregar"
+        # Contrato de shared["feedback"] (auditoría de consistencia 2026-10-05):
+        # acá son BULLETS "- problema" (crítica del juez, se reinyecta al draft).
+        # research.py reusa la MISMA clave con PROSA (huecos de cobertura).
+        # Colisión semántica consciente: el vocabulario no se unifica (los
+        # flujos son independientes y nunca comparten shared).
         shared["feedback"] = "\n".join(f"- {p}" for p in exec_res["problems"])
         return "retry"
 

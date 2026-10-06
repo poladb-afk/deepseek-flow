@@ -991,6 +991,22 @@ vocabulario de `shared`/actions — 7/9 claves compartidas son benignas,
 los archivos fríos no justifican el refactor (churn medido), y las 2
 colisiones reales (`analisis`, `feedback`) se documentan, no se tocan.
 
+**Cierre (2026-10-05, candados ejecutados):** los tres "hacer ya" de la
+recomendación quedaron aplicados, y las 2 colisiones quedaron
+**documentadas en el código** (no solo en este registro):
+
+1. `sonda_router.py` ya importa `PREGUNTA_ROUTER` de `nodes` (drift
+   imposible); se sumó `sonda_supervisor` a la misma garantía con test
+   (`PREGUNTA_DESPACHO is supervisor.PREGUNTA_DESPACHO`).
+2. Los contratos de Laya están congelados por sha1 (router, despacho, voto):
+   cambiar una palabra rompe el test.
+3. Comentarios de contrato en `informe.py`/`effective_n.py` (`analisis`) y
+   `juez.py`/`research.py` (`feedback`) declaran la forma esperada y la
+   colisión consciente — barato, sin refactor.
+4. Lo diferido (idioma de claves, `rounds`→`ronda`, vocabulario de actions)
+   sigue **sin hacerse por falta de evidencia** (7/9 claves compartidas son
+   benignas; los flujos fríos no justifican el churn).
+
 ## Sesión integral 2026-10-05 (post-coding agent): 18 turnos, todo verde
 
 Prueba completa por el chat real (driver pty, aprobaciones HITL
