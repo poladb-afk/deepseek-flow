@@ -38,6 +38,60 @@ RE_TU = re.compile(r"Tú:\s*$")
 RE_DEEPSEEK = re.compile(r"DeepSeek: ?$")
 MAX_HITL_POR_TURNO = 6
 
+# Scope HITL (exp/11): el driver deja de aprobar a ciegas. Parsea el objetivo
+# del prompt y solo aprueba si cae DENTRO del alcance del escenario; la
+# denylist dura del conductor manda por encima de cualquier scope.
+RE_HITL_ESCRITURA = re.compile(r"→ (\S+) \(s/n\)")
+RE_HITL_COMANDO = re.compile(r"¿Ejecutar\? \(s/n\)")
+DENYLIST_DURA = {
+    "rutas": (".env", ".git/", "memoria/"),
+    "comandos": ("git push", "rm -rf", "rm -fr"),
+}
+
+
+def decision_hitl(prompt, buffer_reciente, permitir=None, permitir_comandos=None):
+    """Decide si un prompt HITL cae dentro del alcance (función PURA).
+
+    Devuelve {tipo, objetivo, dentro, motivo}. `tipo` ∈ escritura/comando/
+    desconocido. Sin `permitir`/`permitir_comandos` (None) todo está
+    permitido SALVO la denylist dura: compatibilidad con los escenarios
+    viejos que no declaran scope.
+    """
+    objetivo = None
+    tipo = "desconocido"
+
+    m = RE_HITL_ESCRITURA.search(prompt)
+    if m:
+        tipo = "escritura"
+        objetivo = m.group(1)
+        if any(fragmento in objetivo for fragmento in DENYLIST_DURA["rutas"]):
+            return {"tipo": tipo, "objetivo": objetivo, "dentro": False, "motivo": "denylist"}
+        if permitir is not None and not any(objetivo.startswith(p) for p in permitir):
+            return {"tipo": tipo, "objetivo": objetivo, "dentro": False, "motivo": "fuera-de-scope"}
+        return {"tipo": tipo, "objetivo": objetivo, "dentro": True, "motivo": "ok"}
+    elif RE_HITL_COMANDO.search(prompt):
+        tipo = "comando"
+        lineas = [linea for linea in buffer_reciente.splitlines() if linea.strip()]
+        for linea in reversed(lineas):
+            limpia = linea.strip()
+            # el propio prompt HITL y su banner no son el comando (la
+            # ventana integrada incluye la línea "(s/n)" pendiente)
+            if "(s/n)" in limpia or limpia.startswith("── run_command") or limpia.startswith("↳ "):
+                continue
+            objetivo = limpia
+            break
+        if objetivo is not None:
+            if any(objetivo.startswith(c) for c in DENYLIST_DURA["comandos"]):
+                return {"tipo": tipo, "objetivo": objetivo, "dentro": False, "motivo": "denylist"}
+            if permitir_comandos is not None and not any(
+                    objetivo.startswith(p) for p in permitir_comandos):
+                return {"tipo": tipo, "objetivo": objetivo, "dentro": False, "motivo": "fuera-de-scope"}
+        return {"tipo": tipo, "objetivo": objetivo, "dentro": True, "motivo": "ok"}
+
+    # prompt nuevo o formato desconocido: dejamos seguir el flujo y que la
+    # política decida, pero queda registrado para revisar.
+    return {"tipo": "desconocido", "objetivo": None, "dentro": True, "motivo": "no-parseable"}
+
 # Los marcadores que el banco cuenta por turno: la señal medible del chat.
 MARCADORES = {
     "laya": r"\[laya\]",
@@ -173,6 +227,8 @@ def correr(escenario, dir_salida, env_extra=None):
         chat.matar()
         return 1
 
+    permitir = escenario.get("permitir")
+    permitir_comandos = escenario.get("permitir_comandos")
     resultados = []
     for i, turno in enumerate(escenario["turnos"], 1):
         tid = turno.get("id", f"t{i}")
@@ -205,7 +261,19 @@ def correr(escenario, dir_salida, env_extra=None):
                     estado = "ok" if "¡Chao" in limpiar(ventana + chat.nuevo) else "proceso-muerto"
                     break
                 if hitl_pendiente(chat) and hitl_dados < MAX_HITL_POR_TURNO:
-                    respuesta = "s" if politica == "s" else "n"
+                    # el HITL ya no se aprueba a ciegas: se mira el objetivo
+                    ventana_completa = limpiar(ventana + chat.nuevo)
+                    lineas_con_texto = [ln for ln in ventana_completa.splitlines() if ln.strip()]
+                    ultima_linea = lineas_con_texto[-1] if lineas_con_texto else ""
+                    decision = decision_hitl(ultima_linea, ventana_completa,
+                                             permitir, permitir_comandos)
+                    if decision["dentro"]:
+                        respuesta = "s" if politica == "s" else "n"
+                    else:
+                        respuesta = "n"
+                        evento("hitl-fuera-de-alcance",
+                               {"objetivo": decision["objetivo"], "motivo": decision["motivo"],
+                                "turno": i})
                     time.sleep(0.5)
                     chat.enviar(respuesta)
                     hitl_dados += 1

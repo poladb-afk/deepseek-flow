@@ -291,3 +291,9 @@ mide: marcadores por turno en conversación real contra DeepSeek.
   error-como-feedback ya ES el triaje. **Triaje con Laya descartado por
   evidencia**; único candidato residual: reintento determinista para los
   4 timeouts por firma de duración. Sección en design.md.
+- **exp/11 ✅ mergeada** — scope de aprobación por path en el banco:
+  el driver del banco parsea el objetivo de cada HITL y solo aprueba
+  dentro del scope del escenario; denylist dura del conductor (.env,
+  .git/, memoria/, git push, rm -rf). Auto-prueba en vivo: el ataque al
+  .env se rechazó solo (evento hitl-fuera-de-alcance), el permitido
+  corrió. Sección en design.md.
