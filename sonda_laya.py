@@ -16,6 +16,7 @@ cargar dos de estos en el mismo proceso revienta la memoria (medido).
 Uso:
     python3 sonda_laya.py router        # .modelos/router_flow-1k + test router (30)
     python3 sonda_laya.py voto          # .modelos/router_voto + test voto (30)
+    python3 sonda_laya.py voto_en_router  # .modelos/router_voto sobre el test del router (ensamble)
     python3 sonda_laya.py supervisor    # .modelos/supervisor_dispatch-1k + test (24)
     python3 sonda_laya.py base          # .modelos/laya-multilingual + test router (referencia)
 """
@@ -59,6 +60,14 @@ ESPECIFICACIONES = {
         "checkpoint": ".modelos/router_voto",
         "test": TAREAS / "router_voto_test.jsonl",
         "pregunta": "confirma_herramientas",
+        "contrato": PREGUNTA_VOTO,
+        "estado": lambda f: {"pregunta": f["pregunta"]},
+    },
+    "voto_en_router": {
+        "checkpoint": ".modelos/router_voto",
+        "test": TAREAS / "router_flow_test.jsonl",
+        "pregunta": "confirma_herramientas",
+        "esperado_de": "necesita_herramientas",
         "contrato": PREGUNTA_VOTO,
         "estado": lambda f: {"pregunta": f["pregunta"]},
     },
@@ -240,7 +249,8 @@ def correr(nombre, spec):
         resp = r["answers"][spec["pregunta"]]
         eleccion = resp.get("choice", resp.get("answer"))
         conf = resp["answer_confidence"] if resp.get("answer_confidence") is not None else resp.get("confidence", 0.0)
-        esperado = caso["answers"][spec["pregunta"]]
+        # La verdad de terreno vive en la clave de la pregunta ORIGINAL cuando la sonda mide una segunda capa sobre el test de otra.
+        esperado = caso["answers"][spec.get("esperado_de", spec["pregunta"])]
         correcto = eleccion == esperado
         filas.append({
             "id": caso["id"],

@@ -262,3 +262,30 @@ la sección "Vision/PDF y A2A" de design.md.
 ## Descartes
 
 - **Voz** — no interesa.
+
+## Ciclo de experimentos exp/ (2026-10-06)
+
+Workflow: branch exp/N → gate ./calidad.sh verde → medición en el mensaje
+del commit → merge --no-ff solo del ganador. El banco (banco/banco.py)
+mide: marcadores por turno en conversación real contra DeepSeek.
+
+- **exp/1 ✅ mergeada** — política HITL: `cd` neutro + `sort` whitelist +
+  partir por `;` (hueco medido: `ls ; rm -rf /tmp/x` clasificaba auto).
+  Los 5 run_command reales de la sesión del test exhaustivo: 2 pasan a
+  auto, 0 se relajan peligrosos.
+- **exp/6 ✅ mergeada** — banco de conversación: escenarios YAML contra el
+  chat real por PTY, conteo de marcadores por turno (laya, voto, hitl,
+  compacción, auto...), no contamina memoria, exit 0 = todo OK. Primera
+  corrida 7/7 y prueba en vivo de exp/1 (run-auto sin s/n).
+- **exp/7 ✅ mergeada** — sonda_laya.py: evidencia de Laya con vara propia
+  (ECE, curva de compuerta, latencia CPU ~0.2 s, RSS 2.86 GiB/proceso).
+  La compuerta 0.9 del supervisor = rodilla precisión=100% de su curva.
+  Sección "Laya: estado de la evidencia" en design.md.
+- **exp/8 ✅ mergeada** — compuerta del router 0.7→0.85 por datos + split
+  LAYA_UNSURE_HIGH_VOTO (el veto conserva 0.7). El veto confirmaba el
+  falso-directo "mundial" (0.78 met): error correlacionado medido; la
+  compuerta nueva lo bloquea antes. Ensamble 25/30 → 26/30. Sección en
+  design.md.
+- **exp/9 (pendiente)** — minar los 114 .runs: taxonomía de errores de
+  tools y qué pasó después de cada uno; decide si el triaje con noul de
+  Laya se justifica (evidencia antes que integración).

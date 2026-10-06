@@ -685,6 +685,36 @@ RLock. Un checkpoint por nombre: router, voto, supervisor y base (referencia).
   trae choice=0.5 exacto (el mínimo del clamp); el sesgo del clamp es
   conservador. Decisión: NO re-ajustar temperaturas con 54 casos.
 
+### exp/8 — la compuerta del router, decidida por datos (2026-10-06)
+
+La curva con semántica de producción (solo el lado "directo" se computa;
+herramientas dudoso cae al lado seguro sin compuerta) y la medición del
+ensamble completo (router_flow-1k + router_voto sobre las mismas 30
+preguntas, `sonda_laya.py voto_en_router`) dieron el veredicto:
+
+- **El veto CONFIRMA el falso-directo "mundial"**: responde "directo" con
+  conf 0.78 (met) — las dos capas fallan juntas, el caso de eco que la
+  Mesa 3 advertía como riesgo, ahora medido en un caso real del test.
+- **Compuerta del router 0.7 → 0.85**: bloquea mundial ANTES de consultar
+  al voto. En la banda 0.7–0.85 no hay ningún directo-correcto que lo
+  pierda (t20-historia, 0.62, ya estaba bloqueado en todos los umbrales)
+  — el kill es gratis. El ensamble pasa de 25/30 a 26/30 con los mismos 3
+  arbitrajes.
+- **El voto conserva su umbral propio** (LAYA_UNSURE_HIGH_VOTO=0.7): su
+  curva da 96% de precisión con 83% de cobertura local a 0.7; heredar la
+  subida del router le cortaría la cobertura a 53% sin ganar nada.
+- El supervisor no se toca: 0.9 ya es exactamente la rodilla de su curva
+  (exp/7).
+- Caveat honesto: n=30. La curva es consistente con todo lo medido antes
+  (mundial 0.83 documentado desde la curaduría), pero la banda 0.7–0.85
+  tiene pocos casos; el round dirigido de "hechos actuales" del roadmap
+  sigue siendo el refuerzo natural si aparecen más falsos-directos.
+- Descubrimiento de activación: `_setting` lee en cascada nuestro .env y
+  el de bmo (BMO_ENV) — bmo/.env trae LAYA_UNSURE_HIGH=0.7 heredado, que
+  enmascara el default del código. La compuerta 0.85 se activa fijando
+  LAYA_UNSURE_HIGH=0.85 en el .env del proyecto (documentado en
+  .env.example).
+
 ## Cómo crecer desde aquí
 
 - Escribir archivos → herramienta write_file con confirmación humana
