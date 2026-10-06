@@ -1,0 +1,17 @@
+# El harness aplica el código de exp/7: lee la spec y crea sonda_laya.py,
+# después se auto-verifica con el gate. Escrituras aprobadas por el driver.
+id: exp7-aplicar
+descripcion: sesión donde el harness aplica la spec de sonda_laya.py
+scratch: []
+turnos:
+  - id: leer-spec
+    linea: "Leé banco/specs/exp7_sonda_laya.md entero. Después aplicalo: creá el archivo sonda_laya.py en la raíz del proyecto exactamente como especifica esa spec (respetá el mapeo, las funciones puras importables, la ley de UN checkpoint por proceso y el estilo sonda_router.py). Antes de escribir, verificá el formato real de los archivos de test de bmo que menciona."
+    hitl: s
+    timeout: 600
+  - id: gate
+    linea: "Ahora corré el gate de calidad: ./calidad.sh y decime si queda algo por corregir en sonda_laya.py. No corrijas nada todavía, solo reportá."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

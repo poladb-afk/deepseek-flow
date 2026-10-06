@@ -1,8 +1,8 @@
 """Laya: juicios cerrados locales con probabilidades — los "ifs inteligentes".
 
 Carga perezosa del checkpoint (LAYA_MODEL). Para el router del chat, el
-checkpoint es el fine-tune router_flow (bmo/train/kaggle-router): 22/24
-con compuerta contra 12/24 del base multilingual (medido, design.md).
+checkpoint es el fine-tune router_flow (bmo/train/kaggle-router): 27/30
+crudo con ECE 0.066 (reproducible: python3 sonda_laya.py router; el 22/24 histórico era el test de 24 casos previo a la curaduría).
 Sin LAYA_MODEL, el default es el BASE multilingual — útil como fallback
 genérico, pero el router afinado se trae de bmo.
 

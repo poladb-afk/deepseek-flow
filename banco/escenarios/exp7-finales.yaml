@@ -1,0 +1,16 @@
+# Cuarta sesión exp/7: los 3 pendientes con anclas exactas.
+id: exp7-finales
+descripcion: bloque de datos en design.md + 2 fixes de exactitud
+scratch: []
+turnos:
+  - id: aplicar
+    linea: "Leé banco/specs/exp7_finales.md y aplicá las 3 operaciones exactamente como están: son 2 edit_file con texto textual dado y 1 ajuste de frase en .env.example. Los anclajes están especificados — no explores nada más."
+    hitl: s
+    timeout: 420
+  - id: verificar
+    linea: "Verificá sin correr nada: grep de '22/24' en utils/laya.py y .env.example (debe no aparecer), y mostrame las últimas líneas que agregaste a docs/design.md."
+    hitl: s
+    timeout: 180
+  - id: salir
+    linea: "salir"
+    timeout: 60
