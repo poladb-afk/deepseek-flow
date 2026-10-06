@@ -2985,13 +2985,17 @@ def test_unidades_bloques_no_parte_parrafos():
     assert unidades_bloques("") == []
 
 
-def test_elegir_por_laya_sin_modelo_es_noop():
+def test_elegir_por_laya_sin_modelo_es_noop(monkeypatch):
     """Regla de hierro: sin Laya disponible, entran los primeros max sin
-    perder recall (no-op). El filtro es un acelerador, no una dependencia."""
+    perder recall (no-op). El filtro es un acelerador, no una dependencia.
+    Desde exp/13 el checkpoint existe: la ausencia se SIMULA con monkeypatch
+    (la regla es 'si no está disponible', no 'si nunca se entrenó')."""
+    import utils.laya as ul
     from utils.contexto import elegir_por_laya
 
+    monkeypatch.setattr(ul, "disponible", lambda setting=None: False)
     unidades = ["a", "b", "c", "d"]
-    # sin LAYA_MODEL_PREFILTRO no hay checkpoint: _puntuar → None → primeros N
+    # checkpoint indisponible: _puntuar → None → primeros N (default seguro)
     out = elegir_por_laya("consulta", unidades, 2, setting_modelo="LAYA_MODEL_PREFILTRO")
     assert out == ["a", "b"]
     # con max<=0 o menos unidades que el tope, devuelve intactas

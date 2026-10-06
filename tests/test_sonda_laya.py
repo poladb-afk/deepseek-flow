@@ -60,7 +60,7 @@ def test_ece_local_es_cero_si_calibra_y_uno_si_miente_siempre():
 def test_especificaciones_mapean_cada_checkpoint_a_su_pregunta():
     from sonda_laya import ESPECIFICACIONES
 
-    assert set(ESPECIFICACIONES) == {"router", "voto", "supervisor", "base", "voto_en_router"}
+    assert set(ESPECIFICACIONES) == {"router", "voto", "supervisor", "base", "voto_en_router", "prefiltro"}
     assert ESPECIFICACIONES["router"]["pregunta"] == "necesita_herramientas"
     assert ESPECIFICACIONES["voto"]["pregunta"] == "confirma_herramientas"
     assert ESPECIFICACIONES["supervisor"]["pregunta"] == "elegir_proxima"

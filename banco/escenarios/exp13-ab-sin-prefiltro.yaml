@@ -1,0 +1,16 @@
+# A/B de exp/13: SIN prefiltro — memory_search sobre la biblioteca grande
+# con el checkpoint activo. El marcador [prefiltro Laya: N → M archivos]
+# cuenta la poda; read_file cuenta cuánto entró al contexto.
+id: exp13-ab-sin-prefiltro
+descripcion: memory_search sin prefiltro (control)
+env:
+  MEMORIA_PREFILTRO: "0"
+  MEMORIA_PREFILTRO_N: "2"
+scratch: []
+turnos:
+  - id: memoria
+    linea: "Buscá en la biblioteca de memoria todo lo que mencione el banco, los tests o las mediciones del proyecto, y dame un resumen con citas de archivo."
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

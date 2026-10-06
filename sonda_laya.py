@@ -18,6 +18,7 @@ Uso:
     python3 sonda_laya.py voto          # .modelos/router_voto + test voto (30)
     python3 sonda_laya.py voto_en_router  # .modelos/router_voto sobre el test del router (ensamble)
     python3 sonda_laya.py supervisor    # .modelos/supervisor_dispatch-1k + test (24)
+    python3 sonda_laya.py prefiltro      # .modelos/router_prefiltro + test propio (28 casos)
     python3 sonda_laya.py base          # .modelos/laya-multilingual + test router (referencia)
 """
 import argparse
@@ -41,6 +42,7 @@ SALIDA = RAIZ / "salidas" / "evals"
 # sonda_router.py). Los tests son los mismos que leen evals.py y las sondas.
 from nodes import PREGUNTA_ROUTER, PREGUNTA_VOTO  # noqa: E402
 from supervisor import PREGUNTA_DESPACHO  # noqa: E402
+from utils.contexto import PREGUNTA_PREFILTRO  # noqa: E402
 
 # El mapeo nombre → (checkpoint, test, pregunta, arma el estado por caso).
 # El estado de cada familia es el contrato del fine-tune correspondiente:
@@ -77,6 +79,13 @@ ESPECIFICACIONES = {
         "pregunta": "elegir_proxima",
         "contrato": PREGUNTA_DESPACHO,
         "estado": lambda f: {"tarea": f["tarea"], "hechos": f.get("hechos", "")},
+    },
+    "prefiltro": {
+        "checkpoint": ".modelos/router_prefiltro",
+        "test": TAREAS / "router_prefiltro_test.jsonl",
+        "pregunta": "aporta_contexto",
+        "contrato": PREGUNTA_PREFILTRO,
+        "estado": lambda f: {"consulta": f["consulta"], "bloque": f["bloque"]},
     },
     "base": {
         "checkpoint": ".modelos/laya-multilingual",
