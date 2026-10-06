@@ -14,6 +14,7 @@ import subprocess
 from pathlib import Path
 
 from utils.call_llm import _setting
+from utils.terminal import colorear
 
 DEFAULT_ALLOWED_DIRS = "."  # portable: CWD; en producción, AGENT_ALLOWED_DIRS en .env
 MAX_TOOL_ROUNDS = int(_setting("MAX_TOOL_ROUNDS", "8"))
@@ -62,6 +63,8 @@ def _hook_py_compile(tool_call, resultado):
         )
         if proc.returncode != 0:
             detalle = (proc.stderr or proc.stdout or "").strip()
+            print(colorear(f"  [hook] ⚠ SINTAXIS devuelta al modelo: "
+                           f"{detalle.splitlines()[-1] if detalle else path}", "aviso"), flush=True)
             return resultado + f"\n⚠ SINTAXIS: {detalle}"
         return resultado
     except Exception:  # noqa: BLE001  (un hook nunca rompe la ejecución)

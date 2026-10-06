@@ -1,0 +1,12 @@
+id: exp3-aplicar
+descripcion: el harness hace visible el hook de sintaxis
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+turnos:
+  - id: aplicar
+    linea: "Leé banco/specs/exp3_exp5_quickwins.md y aplicá SOLO la sección '## exp/3' (ignorá la de exp/5): el print del hook py_compile en utils/fs_tools.py con colorear de utils.terminal (verificá que no haya import circular) y los asserts con capsys en los tests existentes del hook. Después ./calidad.sh hasta verde."
+    hitl: s
+    timeout: 600
+  - id: salir
+    linea: "salir"
+    timeout: 60

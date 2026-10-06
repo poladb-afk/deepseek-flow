@@ -1,2 +1,0 @@
-Archivo: exp10-aplicar.yaml
-Comentario: descripcion: el harness aplica el feedback rico de edit_file

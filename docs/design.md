@@ -831,6 +831,15 @@ antes — el write_file corría tras el retiro (recuperacion×1); ahora —
 dsml_ignorado×1, cero ejecución en el turno 1, y el turno de
 continuación completa con su HITL. La ley vuelve a sostenerse.
 
+### exp/3 — el hook de sintaxis, visible (2026-10-06)
+
+Asimetría medida en el test exhaustivo: el veto imprime en terminal pero
+el `⚠ SINTAXIS` del hook py_compile viajaba solo al modelo — el usuario
+no veía que el hook actuó. Ahora el hook imprime `[hook] ⚠ SINTAXIS
+devuelta al modelo: <última línea del detalle>` (coloreado, flush como
+los demás avisos). El flujo del modelo no cambia: la observabilidad
+completa sin tocar el contrato.
+
 ## Cómo crecer desde aquí
 
 - Escribir archivos → herramienta write_file con confirmación humana

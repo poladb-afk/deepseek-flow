@@ -1471,7 +1471,7 @@ def _tc(nombre, args):
             "function": {"name": nombre, "arguments": json.dumps(args)}}
 
 
-def test_hook_py_compile_tras_edit_y_write(tmp_path, monkeypatch):
+def test_hook_py_compile_tras_edit_y_write(tmp_path, monkeypatch, capsys):
     import modules.coding as coding
     import modules.escritura
     from utils.fs_tools import run_tool_call
@@ -1489,17 +1489,22 @@ def test_hook_py_compile_tras_edit_y_write(tmp_path, monkeypatch):
     res = run_tool_call(_tc("edit_file", {
         "path": str(roto), "old_string": "def f(:", "new_string": "def g(:"}), extra)
     assert "⚠ SINTAXIS" in res["content"]
+    # el aviso también llega a la terminal (no solo al modelo)
+    assert "[hook] ⚠ SINTAXIS" in capsys.readouterr().out
 
     # write_file de un .py roto también
     res = run_tool_call(_tc("write_file", {
         "path": str(tmp_path / "nuevo.py"), "content": "x = (\n"}), extra)
     assert "⚠ SINTAXIS" in res["content"]
+    assert "[hook] ⚠ SINTAXIS" in capsys.readouterr().out
 
     # un .py correcto NO agrega nada
     res = run_tool_call(_tc("write_file", {
         "path": str(tmp_path / "bueno.py"), "content": "def ok():\n    return 1\n"}), extra)
     assert "⚠ SINTAXIS" not in res["content"]
     assert res["content"].startswith("Escrito")
+    # compila bien: el hook NO imprime nada en terminal
+    assert "[hook] ⚠ SINTAXIS" not in capsys.readouterr().out
 
     # un .txt no dispara py_compile (no aplica)
     res = run_tool_call(_tc("write_file", {
