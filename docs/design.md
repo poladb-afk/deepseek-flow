@@ -1130,6 +1130,37 @@ Nota: `sesion_FECHA.md` comparte nombre por día — sesiones repetidas el
 mismo día se sobrescriben (aceptado por ahora; cada sesión que importa
 suele tener además sus salidas/ nominativas).
 
+## Pre-filtro de contexto por Laya (Mesa 6, investigación 2026-10-05)
+
+Los dos caminos de contexto del harness tienen un techo duro en caracteres
+y no elegían QUE entra al prompt. El patrón de la wild (reportado con
+~80% de costo/tiempo) es dejar que un juicio barato y local elija antes
+de pagar tokens: **regla de hierro: si no hay juicio disponible, entran
+TODOS los chunks — un retriever no debe perder recall por un modelo
+ausente.**
+
+Dos filtros, mismos helpers, default seguro:
+
+- **`utils/contexto.py`** (código puro): `unidades_bloques(texto)` corta un
+  markdown/texto en bloques atómicos (una línea en blanco o directiva
+  `# ` los separa) sin partir ninguno; `elegir_por_laya(query, unidades,
+  setting_prompt, setting_modelo, max_unidades)` puntúa cada bloque con
+  el Laya correspondiente (0-1) y devuelve los de mayor puntaje **en orden
+  original** (la relevancia decide QUE entra, no el orden). Sin modelo
+  (`disponible()` False) o ante cualquier excepción, devuelve las
+  `max_unidades` primeras: nunca pierde recall por un fallo.
+- **`rag_search`** (modules/rag.py) filtra sus chunks por relevancia
+  antes de devolverlos (`RAG_PREFILTRO=1`, `RAG_PREFILTRO_N`).
+- **`memory_search`** (modules/memoria.py) filtra los .md de la
+  biblioteca cuando hay query (`MEMORIA_PREFILTRO=1`, `MEMORIA_PREFILTRO_N`).
+  Sin query, listado completo de siempre.
+
+El contrato del prompt/modelo de Laya va declarado (como los del router) y
+se lee de settings (`PREGUNTA_PREFILTRO` es la constante; `LAYA_MODEL_PREFILTRO`
+el checkpoint). No hay checkpoint entrenado todavía: en la ausencia de
+modelo, los filtros son no-op y el comportamiento es idéntico al de hoy
+(cercado por tests: sin modelo, entra todo).
+
 ## Compacción de contexto (Mesa 6, 12-factor #5) — 2026-10-06
 
 ### El problema, medido

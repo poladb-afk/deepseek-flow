@@ -193,8 +193,15 @@ dedicado (gap del cookbook); loops fractales con presupuesto heredado (depth má
 2).
 - Nuevo de la investigación 2026-10-05: **pre-filtro de contexto** — Laya
   elige qué notas de memoria/ o chunks de RAG entran al prompt ANTES de
-  pagar tokens (patrón de la wild con ~80% de costo/tiempo reportado);
-  y **¿el trabajo está listo?** — clasificador de convergencia de loops
+  pagar tokens (patrón de la wild con ~80% de costo/tiempo reportado) —
+  **✅ construido (2026-10-06):** `utils/contexto.py` (helpers puros:
+  `unidades_bloques`, `elegir_por_laya`) + ganchos en `rag_search`
+  (`RAG_PREFILTRO`/`RAG_PREFILTRO_N`) y `memory_search`
+  (`MEMORIA_PREFILTRO`/`MEMORIA_PREFILTRO_N`). Sin checkpoint
+  (`LAYA_MODEL_PREFILTRO`) el filtro es no-op: entran todos, como siempre
+  (no se pierde recall; cercado por tests con Laya simulado). Siguiente
+  real: entrenar el checkpoint `router_prefiltro`.
+  Y **¿el trabajo está listo?** — clasificador de convergencia de loops
   (el judgment kernel del agente mu hace exactamente esto: riesgo de
   comando, qué queda en contexto, cuándo terminar).
 
@@ -220,9 +227,15 @@ tipo)` con códigos ANSI por tipo de evento (`tool`/`ok`/`error`/`info`/`aviso`/
 `NO_COLOR`/`COLOR=0`, degrada a texto plano (nada cambia en CI, pipes ni logs).
 `ExecuteTools` anuncia cada tool ANTES de correrla (`→ read_file`, para que una
 espera no parezca colgada) y etiqueta la ronda consumida con su avance. Los
-avisos de recuperación DSML y sanitizado van coloreados como `aviso`. Sigue
-pendiente de la mesa: el chat web, el HITL UX, `visor --watch` y el listado de
-memoria al arranque.
+avisos de recuperación DSML y sanitizado van coloreados como `aviso`.
+
+**Visor --watch ✅ (2026-10-06):** `visor.py --watch` re-genera el HTML de
+la traza cuando crece (tail -f de `.runs/`), con `--intervalo` configurable.
+No re-renderiza sin cambios y un Ctrl+C sale limpio.
+
+Sigue pendiente de la mesa: el chat web, el HITL UX (diffs con highlight,
+explicación antes del s/n, historial de aprobaciones) y el listado de memoria
+al arranque.
 
 ## Cola final — ✅ vacía (2026-10-05)
 

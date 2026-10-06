@@ -49,7 +49,11 @@ def _archivos_md():
 def memory_search(query):
     """Busca `query` (case-insensitive) dentro de los .md de la biblioteca.
     Devuelve las coincidencias (archivo + línea) y, siempre, el listado de
-    los archivos de memoria/ para que el agente sepa qué hay disponible."""
+    los archivos de memoria/ para que el agente sepa qué hay disponible.
+
+    Con query y `MEMORIA_PREFILTRO=1`, un prefiltro local (Laya) elige
+    hasta `MEMORIA_PREFILTRO_N` archivos relevantes ANTES de leerlos: sin
+    Laya disponible el prefiltro es no-op (entran todos, como siempre)."""
     query = (query or "").strip()
     archivos = _archivos_md()
     if not archivos:
@@ -59,9 +63,11 @@ def memory_search(query):
     if not query:
         return listado
 
+    candidatos, prefiltro = _prefiltrar(query, archivos)
+
     q = query.lower()
     bloques, total = [], 0
-    for p in archivos:
+    for p in candidatos:
         try:
             texto = p.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -82,10 +88,36 @@ def memory_search(query):
         if total >= SEARCH_MAX_MATCHES:
             break
 
+    aviso = (f"[prefiltro Laya: {len(archivos)} → {len(candidatos)} archivos]"
+             if prefiltro else "")
     if not bloques:
-        return f"'{query}' no aparece en la biblioteca.\n\n{listado}"
+        return f"'{query}' no aparece en la biblioteca.\n\n{listado}" + (
+            f"\n{aviso}" if aviso else "")
     cabecera = f"'{query}' aparece en la memoria ({total} líneas):"
-    return "\n".join([cabecera] + bloques + ["", listado])
+    return "\n".join([linea for linea in [cabecera, aviso] if linea] + bloques + ["", listado])
+
+
+def _prefiltrar(query, archivos):
+    """(archivos a consultar, si el prefiltro actuó). Con
+    MEMORIA_PREFILTRO=0 o sin Laya, devuelve todos: la memoria completa,
+    como siempre."""
+    if _setting("MEMORIA_PREFILTRO", "1") != "1":
+        return archivos, False
+    try:
+        maximo = int(_setting("MEMORIA_PREFILTRO_N", "8"))
+    except (TypeError, ValueError):
+        maximo = 8
+    if maximo <= 0 or len(archivos) <= maximo:
+        return archivos, False
+    try:
+        from utils.contexto import elegir_por_laya, unidades_bloques
+
+        elegidos = elegir_por_laya(query, archivos, maximo, setting_modelo="LAYA_MODEL_PREFILTRO")
+    except Exception:  # el prefiltro nunca rompe la memoria
+        return archivos, False
+    if len(elegidos) >= len(archivos):
+        return archivos, False  # no actuó: sin aviso
+    return elegidos, True
 
 
 def memory_save(titulo, contenido):

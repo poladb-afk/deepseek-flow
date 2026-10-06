@@ -10,6 +10,7 @@ Código puro: el mismo jsonl siempre produce el mismo HTML.
 
 Uso:
     python3 main.py visor [trace.jsonl ...]   # sin args: el más reciente
+    python3 main.py visor --watch             # re-genera el HTML mientras crece
 """
 import argparse
 import html
@@ -117,16 +118,70 @@ def generar(ruta):
     return destino
 
 
+def contar_y_mtime(ruta):
+    """(cantidad de eventos, mtime) de un jsonl. Barato: para el watch
+    decide si la traza creció desde la última pasada (no relee si no cambió)."""
+    try:
+        st = ruta.stat()
+    except OSError:
+        return 0, 0.0
+    with open(ruta, encoding="utf-8") as f:
+        n = sum(1 for linea in f if linea.strip())
+    return n, st.st_mtime
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="visor", description="HTML inspeccionable de un trace .runs/*.jsonl")
     parser.add_argument("trazas", nargs="*", help="traces a visualizar (default: el más reciente de .runs/)")
+    parser.add_argument("--watch", action="store_true",
+                        help="re-genera el HTML en vivo mientras la traza crece (Ctrl+C para salir)")
+    parser.add_argument("--intervalo", type=float, default=1.0,
+                        help="segundos entre chequeos en --watch (default 1.0)")
     args = parser.parse_args(argv)
     rutas = [Path(t) for t in args.trazas] or [mas_reciente()]
     for ruta in rutas:
         if not ruta.is_file():
             raise SystemExit(f"ERROR: no existe: {ruta}")
+
+    if args.watch:
+        vigilar(rutas, args.intervalo)
+        return
+    for ruta in rutas:
         destino = generar(ruta)
         print(f"✓ {destino}")
+
+
+def vigilar(rutas, intervalo):
+    """Modo --watch: re-genera el HTML de cada traza cuando crece. No
+    re-renderiza sin cambios (no pisa el mtime del HTML al pedo) y no
+    rompe si el archivo todavía no existe o se está escribiendo (lo lee
+    igual: la traza se agrega por líneas completas, con flush). Un Ctrl+C
+    corta limpio. Pensado para correr al lado del chat en otra terminal."""
+    import time
+
+    from utils.terminal import colorear
+
+    ultimo = {}  # ruta -> (n_eventos, mtime)
+    print(colorear(
+        f"[visor] watch: {', '.join(str(r) for r in rutas)} (cada {intervalo}s, Ctrl+C para salir)",
+        "info"))
+    try:
+        while True:
+            for ruta in rutas:
+                n, mtime = contar_y_mtime(ruta)
+                if n == 0:
+                    continue
+                if ultimo.get(ruta) == (n, mtime):
+                    continue
+                try:
+                    destino = generar(ruta)
+                except SystemExit:
+                    continue  # traza vacía entre dos vueltas: se ignora
+                ultimo[ruta] = (n, mtime)
+                print(colorear(f"✓ {destino} ({n} eventos)", "ok"))
+            time.sleep(max(0.1, intervalo))
+    except KeyboardInterrupt:
+        print("\n[visor] watch terminado")
 
 
 if __name__ == "__main__":

@@ -548,6 +548,34 @@ def test_visor_genera_html(tmp_path):
     assert generar(traza).read_text(encoding="utf-8") == h
 
 
+def test_visor_watch_regenera_al_crecer(tmp_path):
+    """--watch vuelve a generar el HTML cuando la traza crece, y no rompe
+    con una traza vacía entre vueltas. En vez de esperar el loop infinito,
+    ejercitamos el paso que decide (contar_y_mtime) y el umbral de cambio."""
+    import json
+    import time
+
+    from visor import contar_y_mtime, generar
+
+    traza = tmp_path / "w.jsonl"
+    # traza inexistente: el watch no rompe (0 eventos)
+    assert contar_y_mtime(traza)[0] == 0
+
+    traza.write_text(json.dumps({"ts": 1, "nodo": "A", "accion": "x", "seg": 0.1}) + "\n")
+    n1, m1 = contar_y_mtime(traza)
+    assert n1 == 1
+    h1 = generar(traza).read_text(encoding="utf-8")
+
+    # la traza crece (como en vivo): hay cambio detectable y el HTML cambia
+    time.sleep(0.01)
+    traza.write_text(traza.read_text() + json.dumps(
+        {"ts": 2, "nodo": "B", "accion": "y", "seg": 0.2}) + "\n")
+    n2, m2 = contar_y_mtime(traza)
+    assert (n2, m2) != (n1, m1)  # el watch volvería a generar
+    h2 = generar(traza).read_text(encoding="utf-8")
+    assert "B" in h2 and h2 != h1
+
+
 def test_mayoria():
     from utils.votacion import mayoria
 
@@ -2773,8 +2801,131 @@ def test_execute_tools_anuncia_y_etiqueta(monkeypatch, capsys):
 
 
 # ---------------------------------------------------------------------------
-# Compacción de contexto (Mesa 6, 12-factor #5)
+# Pre-filtro de contexto por Laya (Mesa 6)
 # ---------------------------------------------------------------------------
+
+def test_unidades_bloques_no_parte_parrafos():
+    from utils.contexto import unidades_bloques
+
+    texto = "# Título\n\nprimer párrafo\ncon dos líneas\n\n# Sección\n\nsegundo párrafo"
+    bloques = unidades_bloques(texto)
+    assert bloques == ["# Título", "primer párrafo\ncon dos líneas", "# Sección", "segundo párrafo"]
+    assert unidades_bloques("") == []
+
+
+def test_elegir_por_laya_sin_modelo_es_noop():
+    """Regla de hierro: sin Laya disponible, entran los primeros max sin
+    perder recall (no-op). El filtro es un acelerador, no una dependencia."""
+    from utils.contexto import elegir_por_laya
+
+    unidades = ["a", "b", "c", "d"]
+    # sin LAYA_MODEL_PREFILTRO no hay checkpoint: _puntuar → None → primeros N
+    out = elegir_por_laya("consulta", unidades, 2, setting_modelo="LAYA_MODEL_PREFILTRO")
+    assert out == ["a", "b"]
+    # con max<=0 o menos unidades que el tope, devuelve intactas
+    assert elegir_por_laya("q", unidades, 0) == unidades
+    assert elegir_por_laya("q", unidades[:2], 5) == unidades[:2]
+
+
+def test_elegir_por_laya_elige_y_conserva_orden(monkeypatch):
+    """Con un Laya simulado, elige los de mayor puntaje y los devuelve en
+    ORDEN ORIGINAL (la relevancia decide qué entra, no cómo se muestra)."""
+    import utils.contexto as ctx
+
+    # simula puntajes de Laya: "a" y "c" aportan; "b" y "d" no
+    puntajes = {"bloque a": 0.9, "bloque b": 0.1, "bloque c": 0.8, "bloque d": 0.4}
+    monkeypatch.setattr(ctx, "_puntuar",
+                        lambda consulta, unidades, setting: {i: puntajes[u] for i, u in enumerate(unidades)})
+
+    unidades = ["bloque a", "bloque b", "bloque c", "bloque d"]
+    out = ctx.elegir_por_laya("q", unidades, 2)
+    assert out == ["bloque a", "bloque c"]  # los 2 mejores, en orden original
+
+
+def test_rag_prefiltro_noop_sin_modelo(monkeypatch):
+    """rag_search con RAG_PREFILTRO=1 pero sin Laya: la salida queda intacta."""
+    import modules.rag as rag
+    import utils.contexto as ctx
+
+    salida = ("3 fragmentos indexados (modo lexico); top 3:\n\n"
+              "--- a.py (score 0.5) ---\ncuerpo a\n\n"
+              "--- b.py (score 0.4) ---\ncuerpo b\n\n"
+              "--- c.py (score 0.3) ---\ncuerpo c")
+    # sin checkpoint del prefiltro: _puntuar levanta (Laya no está) → no-op
+    monkeypatch.setattr(ctx, "_puntuar",
+                        lambda consulta, unidades, setting: (_ for _ in ()).throw(RuntimeError("sin modelo")))
+    monkeypatch.setenv("RAG_PREFILTRO", "1")
+    monkeypatch.setenv("RAG_PREFILTRO_N", "2")
+    assert rag._prefiltrar("consulta", salida, 3) == salida  # sin Laya: intacta
+    # con 0 lo apaga explícitamente
+    monkeypatch.setenv("RAG_PREFILTRO", "0")
+    assert rag._prefiltrar("consulta", salida, 3) == salida
+
+
+def test_rag_prefiltro_actua_con_laya_simulado(monkeypatch):
+    import modules.rag as rag
+    import utils.contexto as ctx
+
+    salida = ("3 fragmentos indexados (modo lexico); top 3:\n\n"
+              "--- a.py (score 0.5) ---\ncuerpo a\n\n"
+              "--- b.py (score 0.4) ---\ncuerpo b\n\n"
+              "--- c.py (score 0.3) ---\ncuerpo c")
+    monkeypatch.setenv("RAG_PREFILTRO", "1")
+    monkeypatch.setenv("RAG_PREFILTRO_N", "1")
+    # el fragmento que contiene "cuerpo c" aporta; el resto no
+    monkeypatch.setattr(ctx, "_puntuar", lambda consulta, unidades, setting: {
+        i: (0.9 if "cuerpo c" in u else 0.1) for i, u in enumerate(unidades)})
+    out = rag._prefiltrar("consulta", salida, 3)
+    assert "[prefiltro Laya: 3 → 1 fragmentos]" in out
+    assert out.startswith("3 fragmentos indexados")  # el resumen original se conserva
+    assert "cuerpo c" in out and "cuerpo a" not in out
+
+
+def test_memoria_prefiltro_noop_sin_modelo(tmp_path, monkeypatch):
+    """memory_search sin Laya devuelve la memoria completa (no-op)."""
+    import modules.memoria as mem
+    import utils.contexto as ctx
+
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+    monkeypatch.setenv("MEMORIA_PREFILTRO", "1")
+    monkeypatch.setattr(ctx, "_puntuar",
+                        lambda consulta, unidades, setting: (_ for _ in ()).throw(RuntimeError("sin modelo")))
+    (tmp_path / "a.md").write_text("nota sobre pytest y compacción\n", encoding="utf-8")
+    (tmp_path / "b.md").write_text("otra nota cualquiera\n", encoding="utf-8")
+    out = mem.memory_search("compacción")
+    assert "a.md" in out  # encuentra la nota real
+    assert "prefiltro Laya" not in out  # sin Laya, sin aviso (no-op)
+
+
+def test_memoria_prefiltro_actua(tmp_path, monkeypatch):
+    import modules.memoria as mem
+    import utils.contexto as ctx
+
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+    monkeypatch.setenv("MEMORIA_PREFILTRO", "1")
+    monkeypatch.setenv("MEMORIA_PREFILTRO_N", "1")
+    for nombre in ("a.md", "b.md", "c.md"):
+        (tmp_path / nombre).write_text(f"contenido {nombre} sobre compacción\n", encoding="utf-8")
+    monkeypatch.setattr(ctx, "_puntuar", lambda consulta, unidades, setting: {
+        i: (0.9 if "b.md" in str(u) else 0.1) for i, u in enumerate(unidades)})
+    out = mem.memory_search("compacción")
+    assert "[prefiltro Laya: 3 → 1 archivos]" in out
+    assert "b.md" in out
+
+
+def test_rag_prefiltro_extrae_fragmentos():
+    """El parser de la salida de buscar() separa fragmentos sin romper el
+    shape (y devuelve None cuando no hay fragmentos)."""
+    import modules.rag as rag
+
+    salida = ("2 fragmentos indexados (modo lexico); top 2:\n\n"
+              "--- a.py (score 0.5) ---\ncuerpo a\n\n"
+              "--- b.py (score 0.4) ---\ncuerpo b")
+    frags = rag._extraer_fragmentos(salida)
+    assert len(frags) == 2
+    assert frags[0].startswith("--- a.py (score 0.5) ---")
+    assert "cuerpo b" in frags[1]
+    assert rag._extraer_fragmentos("El índice está vacío: reindexa con rag_index.") is None
 
 def _historial_sintetico(n_vueltas=50, relleno=400):
     """Historial canónico grande: system + N vueltas (user → assistant con
