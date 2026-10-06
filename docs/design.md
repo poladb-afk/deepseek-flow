@@ -819,6 +819,35 @@ pre-fix 116 llamadas / 11 errores (9%); post-fix 25 llamadas / 0 (0%).
 Direccional — muestra chica y sesiones más simples que las de código;
 el heartbeat acumulará la serie.
 
+### exp/13 — router_prefiltro: el checkpoint del pre-filtro de contexto (2026-10-06)
+
+La infra era no-op desde la Mesa 6 (contexto.py + settings); faltaba el
+checkpoint. Fine-tune con la receta de router_voto en bmo (task yaml con
+el estado de DOS campos consulta+bloque como producción, contrato
+congelado por sha1):
+
+- Datos: 1033 generados → juez ciego 530 verificados (51%) con top-up
+  dirigido de la clase "no" (balance final 299/231). **Filtro anti-fuga
+  aplicado** (lección de router_voto r2, donde el test entrenó dentro de
+  los verificados): 0 ids del test en el entrenamiento.
+- Sesgo juez=generador acotado por primera vez: releabel manual del
+  conductor sobre 30 casos → acuerdo 77% (7 corregidos: trampas bien
+  construidas mal etiquetadas — tema compartido, dato ausente, fecha
+  equivocada). Informe en bmo/data/router_prefiltro_relabel_informe.md.
+- Resultados (results.json del kernel T4x2, minutos): test 15/28 →
+  **22/28** (54% → 79%), ECE 0.326 → **0.091**; banda confiable NO vacía
+  (13 casos en [0.5,0.7) con 69% — la lección de voto r1 no se repite).
+- **El A/B que reemplaza el claim externo "~80%"** (biblioteca de 18
+  notas, max 2): poda 18→2 archivos por consulta (89%), el modelo hizo
+  menos búsquedas (3 vs 6 del control) y trabajó desde lo podado; costo
+  ~7 s por consulta de inferencia local (0 API). El ahorro real es de
+  CONTEXTO (2 bloques vs 18 entran al prompt), no de reloj.
+- Kaggle, dos lecciones de operación: el CLI de datasets subió solo los
+  archivos de primer nivel (la v1/v2 del kernel falló por eso — subida
+  plana y versión nueva lo arreglaron) y el notebook copiado hereda
+  referencias por nombre que hay que renombrar TODAS (contexts_router
+  sobrevivió al primer reemplazo).
+
 ### exp/12 — el bypass DSML del presupuesto, cerrado (2026-10-06)
 
 Hallazgo de exp/4: al retirarse las tools por el tope, el modelo emitía

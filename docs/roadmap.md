@@ -320,3 +320,8 @@ mide: marcadores por turno en conversación real contra DeepSeek.
   informe a disco + ruta). Corrección de fondo del conductor: la tool
   compara pero NO guarda el baseline (`actualizar_baseline=False`).
   Medido: tool nativa, 25 s, baseline intacto.
+- **exp/13 ✅ mergeada** — router_prefiltro entrenado e integrado:
+  530 casos (anti-fuga aplicado), test 54%→79% ECE 0.33→0.09, banda
+  confiable no vacía. A/B del pre-filtro: poda 18→2 (89%) por consulta,
+  menos churn de búsqueda, costo de ranking local. El claim "~80%" de la
+  wild queda reemplazado por la medición propia. Sección en design.md.

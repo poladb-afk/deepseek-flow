@@ -2985,13 +2985,17 @@ def test_unidades_bloques_no_parte_parrafos():
     assert unidades_bloques("") == []
 
 
-def test_elegir_por_laya_sin_modelo_es_noop():
+def test_elegir_por_laya_sin_modelo_es_noop(monkeypatch):
     """Regla de hierro: sin Laya disponible, entran los primeros max sin
-    perder recall (no-op). El filtro es un acelerador, no una dependencia."""
+    perder recall (no-op). El filtro es un acelerador, no una dependencia.
+    Desde exp/13 el checkpoint existe: la ausencia se SIMULA con monkeypatch
+    (la regla es 'si no está disponible', no 'si nunca se entrenó')."""
+    import utils.laya as ul
     from utils.contexto import elegir_por_laya
 
+    monkeypatch.setattr(ul, "disponible", lambda setting=None: False)
     unidades = ["a", "b", "c", "d"]
-    # sin LAYA_MODEL_PREFILTRO no hay checkpoint: _puntuar → None → primeros N
+    # checkpoint indisponible: _puntuar → None → primeros N (default seguro)
     out = elegir_por_laya("consulta", unidades, 2, setting_modelo="LAYA_MODEL_PREFILTRO")
     assert out == ["a", "b"]
     # con max<=0 o menos unidades que el tope, devuelve intactas
@@ -3497,3 +3501,17 @@ def test_tool_evals_no_pisa_el_baseline(monkeypatch, tmp_path):
     r = mod.evals(dir_runs=None, salida="salidas/banco")
     assert "Informe de evals generado" in r
     assert llamadas["guardar"] == 0, "la tool del chat NO guarda baseline"
+
+
+def test_contrato_prefiltro_congelado_sha1():
+    """El contrato del pre-filtro (exp/13): entrenamiento y producción leen
+    la misma pregunta byte a byte — cambiar una palabra desincroniza el
+    fine-tune router_prefiltro sin que nada lo note, como los demás
+    contratos congelados."""
+    import hashlib
+    import json
+
+    from utils.contexto import PREGUNTA_PREFILTRO
+
+    sha = hashlib.sha1(json.dumps(PREGUNTA_PREFILTRO, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    assert sha == "b40267534690ca6a787ebf8b40903b8dac8b3521", f"contrato del prefiltro derivado: {sha}"
