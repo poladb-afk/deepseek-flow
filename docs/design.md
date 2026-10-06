@@ -856,6 +856,19 @@ de DeepSeek domina con ±50% de ruido; en una corrida el modelo ni
 siquiera hizo búsquedas anchas). La ley de degradación no cambia:
 cualquier fallo del lote → default seguro (entran todos).
 
+### exp/15 — pre-rank de tools: descartado por el KV-cache (2026-10-06)
+
+La idea del brainstorm: 27 esquemas viajan en cada ronda de tools; Laya
+elegiría la familia y DeepSeek vería un top-k. La sonda
+`banco/probes/cache_tools.py` (API real) lo mató antes de construirlo:
+los esquemas viven en el PREFIJO CACHEADO — llamada idéntica 4096/4311
+tokens cacheados (miss 215 ≈ el propio mensaje del usuario), y un subset
+variado en orden canónico pegó miss 161. Ahorrar tokens que cuestan
+~nada a cambio de (a) arriesgar sacar la tool correcta del action space
+y (b) bustear el cache si el orden varía: pérdida neta. Segundo descarte
+por evidencia (con el triaje de exp/9): la sonda queda como artefacto
+re-ejecutable.
+
 - Kaggle, dos lecciones de operación: el CLI de datasets subió solo los
   archivos de primer nivel (la v1/v2 del kernel falló por eso — subida
   plana y versión nueva lo arreglaron) y el notebook copiado hereda

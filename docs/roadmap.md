@@ -326,5 +326,9 @@ mide: marcadores por turno en conversación real contra DeepSeek.
 - **exp/14 ✅ mergeada** — ranking del pre-filtro en lote (predict_batch):
   3.2× en el camino real (377 ms/bloque warm vs 1211 secuencial),
   decisiones idénticas. Mitiga el único costo medido del prefiltro.
+- **exp/15 ✅ mergeada (descarte)** — pre-rank de tools matado por el
+  KV-cache: los esquemas ya son ~gratis (miss 215/4311 por llamada);
+  variar la lista ahorraría nada y arriesga el action space. Sonda
+  re-ejecutable en banco/probes/cache_tools.py.
   menos churn de búsqueda, costo de ranking local. El claim "~80%" de la
   wild queda reemplazado por la medición propia. Sección en design.md.
