@@ -3497,3 +3497,17 @@ def test_tool_evals_no_pisa_el_baseline(monkeypatch, tmp_path):
     r = mod.evals(dir_runs=None, salida="salidas/banco")
     assert "Informe de evals generado" in r
     assert llamadas["guardar"] == 0, "la tool del chat NO guarda baseline"
+
+
+def test_contrato_prefiltro_congelado_sha1():
+    """El contrato del pre-filtro (exp/13): entrenamiento y producción leen
+    la misma pregunta byte a byte — cambiar una palabra desincroniza el
+    fine-tune router_prefiltro sin que nada lo note, como los demás
+    contratos congelados."""
+    import hashlib
+    import json
+
+    from utils.contexto import PREGUNTA_PREFILTRO
+
+    sha = hashlib.sha1(json.dumps(PREGUNTA_PREFILTRO, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    assert sha == "b40267534690ca6a787ebf8b40903b8dac8b3521", f"contrato del prefiltro derivado: {sha}"
