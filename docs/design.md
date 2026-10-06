@@ -715,6 +715,32 @@ preguntas, `sonda_laya.py voto_en_router`) dieron el veredicto:
   LAYA_UNSURE_HIGH=0.85 en el .env del proyecto (documentado en
   .env.example).
 
+### exp/9 — minería de errores: el triaje con Laya, descartado con el número a la vista (2026-10-06)
+
+`minar_errores.py` minó las 108 trazas de `.runs/` (SIN torch, JSON puro;
+reusa el parseo de evals). Límite honesto: la traza no guarda el texto del
+error (solo tool + ok/error + segundos) — la causa es imposibilidad, no
+omisión; lo medible es frecuencia, firma de duración y destino del
+reintento.
+
+- 43 errores de tools en 108 sesiones (18 sesiones con errores): frecuencia
+  baja, ~0,4 por sesión.
+- **Tasa de autocorrección 67,4%** (29/43): de los errores que la misma
+  sesión reintentó (35), **33 terminaron bien (94%)** — el lazo
+  error-como-feedback ES el triaje, y es gratis.
+- edit_file concentra 27/43 (old_string que no matchea → el modelo corrige
+  y reintenta, delta mediano 4 s); run_command 4/4 recuperados.
+- Los 8 abandonos son mayormente timeouts de flujos largos (juez_lote,
+  deep_research) donde el reintento no es decisión del modelo de todos modos.
+- 4 timeouts con firma de duración ~100 s: si algo se automatiza, es un
+  REINTENTO DETERMINISTA por firma (regla de código, no un modelo).
+
+**Veredicto: el triaje con noul de Laya queda DESCARTADO por evidencia** —
+a esta frecuencia y con esta autocorrección, una capa de decisión no agrega
+valor; su costo (checkpoint, umbral, fallback) no se paga. Revisar si la
+frecuencia de errores crece o si aparecen errores caros que el modelo no
+puede autodiagnosticar.
+
 ## Cómo crecer desde aquí
 
 - Escribir archivos → herramienta write_file con confirmación humana

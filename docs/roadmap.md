@@ -286,6 +286,8 @@ mide: marcadores por turno en conversación real contra DeepSeek.
   falso-directo "mundial" (0.78 met): error correlacionado medido; la
   compuerta nueva lo bloquea antes. Ensamble 25/30 → 26/30. Sección en
   design.md.
-- **exp/9 (pendiente)** — minar los 114 .runs: taxonomía de errores de
-  tools y qué pasó después de cada uno; decide si el triaje con noul de
-  Laya se justifica (evidencia antes que integración).
+- **exp/9 ✅ mergeada** — minar_errores.py: 43 errores en 108 sesiones,
+  tasa de autocorrección 67% (94% entre los reintentados) — el lazo
+  error-como-feedback ya ES el triaje. **Triaje con Laya descartado por
+  evidencia**; único candidato residual: reintento determinista para los
+  4 timeouts por firma de duración. Sección en design.md.
