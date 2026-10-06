@@ -13,8 +13,10 @@ comportamiento idéntico al de hoy.
 Hay dos consumidores del filtro (rag_search, memory_search); ambos usan
 los mismos helpers de acá para no derivar. El contrato del prompt se
 declara (como los del router: congelado) y el checkpoint se lee de un
-setting (`LAYA_MODEL_PREFILTRO`). Sin checkpoint entrenado todavía, el
-filtro es no-op — cercado por tests."""
+setting (`LAYA_MODEL_PREFILTRO`). Sin checkpoint disponible (o con
+cualquier fallo), el filtro es no-op — cercado por tests. El checkpoint
+router_prefiltro existe desde exp/13 (fine-tune de la tarea declarada
+acá byte a byte); la ley de ausencia no cambia."""
 
 # Contrato del pre-filtro: una sola opción binaria ("¿este bloque ayuda a
 # responder la consulta?"). El estado es {"consulta", "bloque"}; el fine-tune

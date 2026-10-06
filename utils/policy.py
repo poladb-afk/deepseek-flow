@@ -175,6 +175,9 @@ def clasificar(comando):
 
 # Explicaciones cortas por prefijo (mesa 8, UX): por qué el comando merece
 # la fricción que merece. Determinista, sin LLM — es un rótulo, no un juicio.
+# DELIBERADAMENTE más ancha que whitelist/negra: entradas como mv/cp/mkdir
+# clasifican al default 'preguntar' pero igual merecen SU razón en el
+# prompt de aprobación (clasificar = riesgo; explicar = UX del s/n).
 _EXPLICACIONES = (
     (("rm", "-rf"), "borrado recursivo forzado (destructivo)"),
     (("rm", "-fr"), "borrado recursivo forzado (destructivo)"),
