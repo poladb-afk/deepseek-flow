@@ -1,0 +1,31 @@
+# Escenario smoke del banco: la vuelta mínima que ejercita router, tools,
+# HITL en ambos sentidos, el camino auto de run_command (exp/1) y la
+# retención de contexto. ~8 turnos, ~2 minutos, centavos.
+id: smoke
+descripcion: vuelta mínima del chat — router, lectura, HITL ±, auto, contexto
+scratch:
+  - prueba_banco
+turnos:
+  - id: router-directo
+    linea: "¿Quién escribió El Quijote? Una línea, sin herramientas."
+    timeout: 90
+  - id: router-tools
+    linea: "¿Cuántos archivos .py hay en modules/?"
+    timeout: 120
+  - id: write-aprobar
+    linea: "Creá el archivo prueba_banco/hola.txt con el contenido: banco ok"
+    hitl: s
+    timeout: 120
+  - id: write-rechazar
+    linea: "Ahora creá prueba_banco/no.txt con el contenido que quieras."
+    hitl: n
+    timeout: 120
+  - id: run-auto
+    linea: "Corré este comando exacto: cd . && python3 -m pytest tests/test_smoke.py::test_policy_semicolon_y_cd_neutro -q"
+    timeout: 180
+  - id: contexto
+    linea: "¿Qué archivo te dejé crear y cuál te rechacé en esta sesión?"
+    timeout: 90
+  - id: salir
+    linea: "salir"
+    timeout: 60
