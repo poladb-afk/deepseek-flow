@@ -323,5 +323,8 @@ mide: marcadores por turno en conversación real contra DeepSeek.
 - **exp/13 ✅ mergeada** — router_prefiltro entrenado e integrado:
   530 casos (anti-fuga aplicado), test 54%→79% ECE 0.33→0.09, banda
   confiable no vacía. A/B del pre-filtro: poda 18→2 (89%) por consulta,
+- **exp/14 ✅ mergeada** — ranking del pre-filtro en lote (predict_batch):
+  3.2× en el camino real (377 ms/bloque warm vs 1211 secuencial),
+  decisiones idénticas. Mitiga el único costo medido del prefiltro.
   menos churn de búsqueda, costo de ranking local. El claim "~80%" de la
   wild queda reemplazado por la medición propia. Sección en design.md.

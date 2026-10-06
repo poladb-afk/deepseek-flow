@@ -842,6 +842,20 @@ congelado por sha1):
   menos búsquedas (3 vs 6 del control) y trabajó desde lo podado; costo
   ~7 s por consulta de inferencia local (0 API). El ahorro real es de
   CONTEXTO (2 bloques vs 18 entran al prompt), no de reloj.
+
+### exp/14 — el ranking del pre-filtro, en lote (2026-10-06)
+
+`_puntuar` llamaba a Laya una vez por bloque (secuencial: ~1.2 s/bloque
+medido con bloques largos reales). `preguntar_lote` (Agent.predict_batch,
+forward compartido) lo baja a UNA llamada: micro-benchmark — secuencial
+1211 ms/bloque vs lote 421 ms/bloque (~2.9×), y el camino completo
+`elegir_por_laya` medido WARM: 377 ms/bloque (3.2×), decisiones idénticas
+14/14 en el solapamiento. La carga en frío (~11 s) sigue siendo costo
+fijo por proceso. El turno del banco NO es instrumento acá (la latencia
+de DeepSeek domina con ±50% de ruido; en una corrida el modelo ni
+siquiera hizo búsquedas anchas). La ley de degradación no cambia:
+cualquier fallo del lote → default seguro (entran todos).
+
 - Kaggle, dos lecciones de operación: el CLI de datasets subió solo los
   archivos de primer nivel (la v1/v2 del kernel falló por eso — subida
   plana y versión nueva lo arreglaron) y el notebook copiado hereda
