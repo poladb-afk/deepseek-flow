@@ -233,9 +233,14 @@ avisos de recuperación DSML y sanitizado van coloreados como `aviso`.
 la traza cuando crece (tail -f de `.runs/`), con `--intervalo` configurable.
 No re-renderiza sin cambios y un Ctrl+C sale limpio.
 
-Sigue pendiente de la mesa: el chat web, el HITL UX (diffs con highlight,
-explicación antes del s/n, historial de aprobaciones) y el listado de memoria
-al arranque.
+**Catálogo de memoria al arranque ✅ (2026-10-06):** `main.catalogo_memoria()`
+imprime el listado de notas de la biblioteca al arrancar (nombre + conteo),
+SIN inyectar su contenido al contexto — el arranque vacío sigue siendo regla
+(la memoria es una biblioteca que el agente consulta con `memory_search`).
+Con `MEMORIA=0` o biblioteca vacía, silencio; nunca corta el arranque.
+
+Sigue pendiente de la mesa: el chat web y el HITL UX (diffs con highlight,
+explicación antes del s/n, historial de aprobaciones).
 
 ## Cola final — ✅ vacía (2026-10-05)
 

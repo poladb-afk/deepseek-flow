@@ -97,6 +97,29 @@ def resumen_de_sesion(shared):
         print(f"\n[memoria] no se pudo guardar el resumen de la sesión ({type(e).__name__})")
 
 
+def catalogo_memoria():
+    """Muestra el CATÁLOGO de la biblioteca de memoria al arrancar (mesa 8):
+    qué notas hay, SIN inyectar su contenido al contexto — el arranque vacío
+    es regla (la memoria es una biblioteca que el agente consulta, no contexto
+    automático). Con MEMORIA=0 o si la biblioteca está vacía, no imprime nada.
+    Nunca rompe el arranque (best-effort)."""
+    from utils.call_llm import _setting
+
+    if _setting("MEMORIA", "1") != "1":
+        return
+    try:
+        from modules.memoria import _archivos_md
+
+        archivos = _archivos_md()
+        if not archivos:
+            return
+        print(f"\n[memoria] biblioteca: {len(archivos)} notas (consultá con memory_search)")
+        for p in archivos:
+            print(f"  - {p.name}")
+    except Exception:  # noqa: BLE001 (mostrar el catálogo nunca corta el arranque)
+        pass
+
+
 def main():
     from utils.tracing import activar
 
@@ -110,6 +133,7 @@ def main():
         "tool_rounds": 0,
     }
     print(WELCOME)
+    catalogo_memoria()
     try:
         create_agent_flow().run(shared)
     except KeyboardInterrupt:

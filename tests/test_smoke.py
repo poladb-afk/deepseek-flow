@@ -3076,3 +3076,52 @@ def test_agent_step_prep_compacta_y_cuenta(monkeypatch, capsys):
     shared2 = {"messages": largo[:3], "tool_rounds": 0}
     nodes.AgentStep().prep(shared2)
     assert "compacciones" not in shared2
+
+
+def test_catalogo_memoria_al_arranque(tmp_path, monkeypatch, capsys):
+    """El arranque muestra el CATÁLOGO de la biblioteca (qué notas hay) SIN
+    inyectar su contenido al contexto — el arranque vacío es regla (mesa 8)."""
+    import main
+
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+    monkeypatch.setenv("MEMORIA", "1")
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    (tmp_path / "nota_a.md").write_text("contenido secreto A\n", encoding="utf-8")
+    (tmp_path / "nota_b.md").write_text("contenido secreto B\n", encoding="utf-8")
+
+    main.catalogo_memoria()
+    salida = capsys.readouterr().out
+    assert "biblioteca: 2 notas" in salida
+    assert "nota_a.md" in salida and "nota_b.md" in salida
+    # catálogo, no contenido: el cuerpo de las notas NO se imprime
+    assert "contenido secreto" not in salida
+
+    # MEMORIA=0 no muestra nada
+    monkeypatch.setenv("MEMORIA", "0")
+    main.catalogo_memoria()
+    assert capsys.readouterr().out == ""
+
+
+def test_catalogo_memoria_vacio(tmp_path, monkeypatch, capsys):
+    """Biblioteca vacía: no imprime nada (arranque silencioso)."""
+    import main
+
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+    monkeypatch.setenv("MEMORIA", "1")
+    main.catalogo_memoria()
+    assert capsys.readouterr().out == ""
+
+
+def test_catalogo_memoria_nunca_rompe(monkeypatch, capsys):
+    """Aunque la lectura de la biblioteca falle, el arranque sigue."""
+    import main
+
+    monkeypatch.setenv("MEMORIA", "1")
+    import modules.memoria as mem
+
+    def boom():
+        raise OSError("disco")
+
+    monkeypatch.setattr(mem, "_archivos_md", boom)
+    main.catalogo_memoria()  # no levanta
+    assert capsys.readouterr().out == ""

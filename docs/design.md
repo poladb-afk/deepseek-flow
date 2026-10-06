@@ -1130,6 +1130,13 @@ Nota: `sesion_FECHA.md` comparte nombre por día — sesiones repetidas el
 mismo día se sobrescriben (aceptado por ahora; cada sesión que importa
 suele tener además sus salidas/ nominativas).
 
+**Catálogo al arranque (mesa 8, 2026-10-06):** `main.catalogo_memoria()`
+imprime, apenas arranca el chat, la lista de notas de la biblioteca (nombre
++ conteo) — el agente sabé QUÉ hay sin que su contenido entre al contexto.
+La regla del arranque vacío se respeta al pie: se muestra el catálogo, no se
+inyecta nada al system prompt ni al historial. Con `MEMORIA=0` o biblioteca
+vacía, silencio; la función es best-effort (nunca corta el arranque).
+
 ## Pre-filtro de contexto por Laya (Mesa 6, investigación 2026-10-05)
 
 Los dos caminos de contexto del harness tienen un techo duro en caracteres

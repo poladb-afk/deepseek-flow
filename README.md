@@ -110,7 +110,9 @@ agente la consulta por tools solo cuando el pedido lo justifica:
 Al salir del chat, si `MEMORIA=1` (default) y hubo al menos 2 preguntas,
 **una** llamada a `call_llm` resume la conversación y la guarda como
 `memoria/sesion_FECHA.md` (bookkeeping, sin HITL; si la llamada falla se
-sale igual). `memoria/` no se versiona (está en `.gitignore`).
+sale igual). Al **arrancar**, el chat muestra el catálogo de la biblioteca
+(nombre y conteo de notas) SIN inyectar su contenido — el arranque vacío
+es regla. `memoria/` no se versiona (está en `.gitignore`).
 
 ## CLI completo
 
