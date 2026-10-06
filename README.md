@@ -85,7 +85,7 @@ costo 0).
 | supervisor | `run_supervisor` — bucle reactivo: Laya elige la herramienta de cada paso |
 | db | `sql` / `db_schema` — SELECT de solo lectura sobre SQLite |
 | effective_n | `run_effective_n` — deduplicación exacta por contenido (Effective N; 1 o varias carpetas, `BatchFlow`) |
-| evals | `evals` — el harness juzgándose a sí mismo: bench del router, linter de trazas, costo por sesión |
+| evals | `evals` — el harness juzgándose a sí mismo: bench del router, linter de trazas, costo por sesión (tool del chat: informe a disco SIN pisar el baseline) |
 | rag | `rag_search` / `rag_index` — búsqueda semántica local (fastembed) |
 | memoria | `memory_search` / `memory_save` — biblioteca consultable entre sesiones |
 | vision/PDF | `ver_imagen` / `ver_pdf` — mira imágenes (data-URL base64) y lee PDFs (Files API); tipo por contenido, límites chequeados antes de llamar |

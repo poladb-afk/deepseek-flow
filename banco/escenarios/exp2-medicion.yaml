@@ -1,0 +1,11 @@
+id: exp2-medicion
+descripcion: el chat corre evals como tool nativa
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+turnos:
+  - id: evals
+    linea: "Corré las evals del harness y dame el resumen: score del router con compuerta, ECE, violaciones del linter y la sesión más cara."
+    timeout: 400
+  - id: salir
+    linea: "salir"
+    timeout: 60
