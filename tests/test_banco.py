@@ -149,3 +149,14 @@ def test_escenario_sin_scope_sigue_siendo_valido():
         esc = cargar_escenario(ruta)
         assert "permitir" not in esc or isinstance(esc["permitir"], list)
         assert "permitir_comandos" not in esc or isinstance(esc["permitir_comandos"], list)
+
+
+def test_escenario_con_env_lo_expone_y_sin_env_sigue_valido(tmp_path):
+    """exp/4: `env:` por escenario (p. ej. MAX_TOOL_ROUNDS=40 para sesiones
+    de aplicación); sin la clave, compatibilidad total."""
+    from banco.banco import cargar_escenario
+
+    esc = cargar_escenario(ESCENARIOS / "exp4-amplio.yaml")
+    assert esc["env"] == {"MAX_TOOL_ROUNDS": "40"}
+    for ruta in ("smoke.yaml", "exp4-bajo.yaml"):
+        cargar_escenario(ESCENARIOS / ruta)  # sin env o con env: ambas válidas
