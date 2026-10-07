@@ -1,0 +1,19 @@
+id: exp21b-fix
+descripcion: el harness aplica el fix del verdict (exp/21, fase B) — normalización medida + degradación terminal
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: fix-juez
+    linea: "Leé banco/specs/exp21_verdict_juez.md, fase B, y aplicala con la forma medida por la sonda (salidas/evals/verdict_shapes_2026-10-07.jsonl: el verdict inválido capturado fue el sinónimo 'needs_changes', YAML perfectamente parseable — la falla es semántica). En juez.py, tres cosas: (1) en Judge.exec, normalizar el verdict ANTES del assert — str/strip/lower + un dict de alias _ALIAS_VERDICT = {'needs_changes': 'retry'} con comentario citando la sonda exp/21 (solo el sinónimo MEDIDO entra; el contrato sigue apretado, cualquier otra basura sigue inválida) — y el mensaje del assert ahora incluye el valor crudo; (2) en el prompt del Judge, una línea que prohíba sinónimos ('verdict SOLO puede ser ok o retry, literal — sin sinónimos'); (3) degradación terminal en responder_con_juez: si el flujo revienta tras los retries y shared tiene draft, se entrega el último borrador con advertencia explícita ('el juez no pudo emitir un veredicto legible...') — mismo patrón del tope de rondas; sin draft se re-raise tal cual. TODO en juez.py: DOS o TRES edit_file como máximo. Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes)."
+    hitl: s
+    timeout: 1200
+  - id: tests
+    linea: "Ahora los candados de la fase B (spec exp21) en tests/test_smoke.py: (a) normalización del verdict — función pura si la extraés, o vía el assert path: 'OK'/' ok '→ok, 'needs_changes'→retry, 'entregar' sigue inválido; (b) degradación — monkeypatch de juez.create_juez_flow con un fake cuyo .run(shared) planta shared['draft'] y luego lanza → responder_con_juez devuelve (draft, advertencia); un fake que lanza SIN plantar draft → vuelve a levantar. UN solo edit_file. `python3 -m pytest tests/ -q` hasta verde."
+    hitl: s
+    timeout: 1200
+  - id: salir
+    linea: "salir"
+    timeout: 60

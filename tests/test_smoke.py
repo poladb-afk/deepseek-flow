@@ -4089,3 +4089,73 @@ def test_bench_correr_recorta_causa_de_excepcion():
     razon = bench["filas"][0]["razones"][0]
     assert razon.startswith("excepción: ValueError: ")
     assert len(razon) == len("excepción: ValueError: ") + 200
+
+
+def _judge_verdict(monkeypatch, verdict_yaml):
+    """Corre Judge.exec con call_llm fakeado devolviendo YAML crudo.
+    Devuelve el veredicto normalizado (o propaga el AssertionError)."""
+    import juez
+
+    monkeypatch.setattr(juez, "call_llm", lambda prompt: verdict_yaml)
+    inputs = ("¿q?", "borrador sin citas", [], False)
+    return juez.Judge().exec(inputs)
+
+
+def test_verdict_normaliza_mayus_y_espacios(monkeypatch):
+    """Candado exp/21 (a): 'OK'/' ok ' → ok tras str/strip/lower."""
+    assert _judge_verdict(monkeypatch, "verdict: OK")["verdict"] == "ok"
+    assert _judge_verdict(monkeypatch, "verdict: '  ok  '")["verdict"] == "ok"
+    assert _judge_verdict(monkeypatch, "verdict: Retry")["verdict"] == "retry"
+
+
+def test_verdict_alias_medido_needs_changes(monkeypatch):
+    """Candado exp/21 (a): el ÚNICO sinónimo MEDIDO por la sonda
+    (verdict_shapes_2026-10-07.jsonl) se mapea a retry."""
+    assert _judge_verdict(monkeypatch, "verdict: needs_changes")["verdict"] == "retry"
+    # la normalización también aplica al alias (may/espacios)
+    assert _judge_verdict(monkeypatch, "verdict: Needs_Changes")["verdict"] == "retry"
+
+
+def test_verdict_basura_sigue_invalida(monkeypatch):
+    """Candado exp/21 (a): el contrato NO se afloja; 'entregar' y otras
+    palabras siguen inválidas (el assert menciona el valor crudo)."""
+    import pytest as _pytest
+
+    import juez
+
+    monkeypatch.setattr(juez, "call_llm", lambda prompt: "verdict: entregar")
+    with _pytest.raises(AssertionError) as exc:
+        juez.Judge().exec(("¿q?", "borrador", [], False))
+    assert "entregar" in str(exc.value)  # el mensaje trae el valor crudo
+
+
+def test_degradacion_terminal_con_draft(monkeypatch):
+    """Candado exp/21 (b): si el flujo revienta con draft presente,
+    responder_con_juez entrega (draft, advertencia) en vez de morir."""
+    import juez
+
+    class FlowQueRevientaConDraft:
+        def run(self, shared):
+            shared["draft"] = "borrador de emergencia"
+            raise RuntimeError("verdict inválido: 'basura'")
+
+    monkeypatch.setattr(juez, "create_juez_flow", lambda: FlowQueRevientaConDraft())
+    draft, advertencia = juez.responder_con_juez("¿q?")
+    assert draft == "borrador de emergencia"
+    assert advertencia and "veredicto legible" in advertencia
+
+
+def test_degradacion_terminal_sin_draft_relevanta(monkeypatch):
+    """Candado exp/21 (b): sin draft (el Draft también reventó) se re-raise
+    tal cual, no se inventa una respuesta."""
+    import pytest as _pytest
+
+    import juez
+
+    class FlowQueRevientaSinDraft:
+        def run(self, shared):
+            raise RuntimeError("el Draft tampoco pudo")
+
+    monkeypatch.setattr(juez, "create_juez_flow", lambda: FlowQueRevientaSinDraft())
+    with _pytest.raises(RuntimeError, match="el Draft tampoco pudo"):
+        juez.responder_con_juez("¿q?")

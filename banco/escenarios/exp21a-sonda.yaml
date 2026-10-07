@@ -1,0 +1,15 @@
+id: exp21a-sonda
+descripcion: el harness construye la sonda del verdict (exp/21, fase A)
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: construir-sonda
+    linea: "Leé banco/specs/exp21_verdict_juez.md (spec verificada, confía en ella) y construí SOLO la fase A: banco/probes/verdict_juez.py según la mecánica exacta de la spec (monkeypatch de juez.call_llm con wrapper que registra crudos y distingue prompts del Judge por 'Evalúa el borrador'; corre responder_con_juez por las 8 preguntas víctimas leyéndolas de banco/juez_preguntas.jsonl; excepción por pregunta atrapada y sigue; clasifica cada crudo con estructura.extraer_yaml; escribe salidas/evals/verdict_shapes_FECHA.jsonl + imprime resumen con tabla de shapes). UN write_file. NO corras la sonda (gasta LLM): la corre la auditoría. Verificación del turno: `python3 -m pytest tests/ -q` sigue verde (la sonda no toca nada existente) y `python3 -c 'import banco.probes.verdict_juez'`-level smoke lo podés obviar; bastará que pytest esté verde."
+    hitl: s
+    timeout: 1200
+  - id: salir
+    linea: "salir"
+    timeout: 60

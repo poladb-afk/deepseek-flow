@@ -110,9 +110,24 @@ problems:
   - <problema 1>
 suggestions:
   - <sugerencia 1>
-```"""
+```
+
+El campo verdict SOLO puede ser ok o retry, literal — sin sinónimos
+(no uses needs_changes, revisar, corregir ni ninguna otra palabra)."""
         veredicto = extraer_yaml(call_llm(prompt))
-        assert veredicto["verdict"] in ("ok", "retry"), "verdict inválido"
+        # Normalización del verdict ANTES del assert: str/strip/lower + el
+        # único alias MEDIDO por la sonda exp/21 (salidas/evals/
+        # verdict_shapes_2026-10-07.jsonl): el inválido capturado fue el
+        # sinónimo 'needs_changes' (YAML parseable, falla semántica). El
+        # contrato NO se afloja: solo ese sinónimo entra; cualquier otra
+        # basura ('entregar', 'OK!', etc.) sigue siendo inválida.
+        _ALIAS_VERDICT = {"needs_changes": "retry"}
+        crudo = veredicto.get("verdict")
+        normalizado = crudo.strip().lower() if isinstance(crudo, str) else crudo
+        veredicto["verdict"] = _ALIAS_VERDICT.get(normalizado, normalizado)
+        assert veredicto["verdict"] in ("ok", "retry"), (
+            f"verdict inválido: {crudo!r}"
+        )
         assert isinstance(veredicto.get("problems", []), list), "problems no es lista"
         return veredicto
 
@@ -156,7 +171,20 @@ def create_juez_flow():
 
 def responder_con_juez(pregunta, rondas=JUEZ_ROUNDS):
     shared = {"question": pregunta, "max_rounds": rondas}
-    create_juez_flow().run(shared)
+    try:
+        create_juez_flow().run(shared)
+    except Exception:
+        # Degradación terminal (mismo patrón que el tope de rondas, L8): si
+        # el flujo revienta tras los retries (p. ej. el verdict sigue
+        # ilegible), no se MATA: se entrega el último borrador con
+        # advertencia explícita. Sin draft (el Draft también reventó),
+        # se re-raise tal cual.
+        if not shared.get("draft"):
+            raise
+        shared["advertencia"] = (
+            "el juez no pudo emitir un veredicto legible; se entrega el "
+            "borrador sin veredicto."
+        )
     return shared["draft"], shared.get("advertencia")
 
 
