@@ -1,0 +1,15 @@
+id: banco-4-docs
+descripcion: cierre documental de la tanda banco_robusto — design.md
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: docs
+    linea: "Cerrá la tanda documentalmente: agregá al final de docs/design.md la sección '## Robustez del banco (2026-10-07, segunda tanda)' documentando los tres fixes de banco/specs/banco_robusto_2026-10-07.md con los HECHOS medidos (sin inventar números): fix 10 (marcador veto roto en ambas direcciones: 6 falsos positivos medidos en los transcripts del día — PROHIBIDOS en diffs y prosa ecoada — y el veto de seguridad nunca contado porque no se imprimía; ahora veto_l8/veto_denylist anclados a las líneas reales + el hook de la denylist imprime [denylist]; verificación offline: 0 falsos en los 5 transcripts de producción, 3/3 en las líneas reales); fix 11 (el tope de 6 HITL colgaba el turno 20 min y truncaba el escenario sin registrar causa — 2 colgados hoy, 5 históricos en 6/6; ahora knob max_hitl por turno + agotamiento elegante con evento hitl-tope; smoke E2E con max_hitl=1: turno ok en 16 s, primera escritura aprobada, segunda rechazada y reportada por el modelo); fix 12 (policy: 2>&1 es lectura; el strip del token no oculta ninguna redirección real; matriz 8 casos). UN solo edit_file."
+    hitl: s
+    timeout: 900
+  - id: salir
+    linea: "salir"
+    timeout: 60

@@ -1661,3 +1661,35 @@ línea por fix, lo que el diff muestra:
 **Falsa alarma descartada**: el `write_file` del supervisor reportado como
 no ejecutable NO era un bug — ya era electable y ejecutable vía
 `**_MODULE_IMPLS`. Se confirmó primera-mano y se descartó sin tocar código.
+
+## Robustez del banco (2026-10-07, segunda tanda)
+
+Segunda tanda de la spec `banco/specs/banco_robusto_2026-10-07.md`: tres
+fixes anclados a contratos existentes (la línea que el código imprime, el
+YAML del escenario, la semántica del shell), cada uno con su candado de
+test contra líneas REALES. Los números que siguen son los medidos.
+
+- **Fix 10 — marcadores de veto anclados a líneas reales**: el marcador
+  `"veto": r"PROHIBID|[Vv]etad"` fallaba en ambas direcciones — 6 falsos
+  positivos medidos en los transcripts del día (`PROHIBIDOS`, la constante
+  de `modules/db.py`, dentro de diffs preview de `edit_file`; y "vetado" en
+  prosa ecoada de instrucciones) y, a la vez, el veto de SEGURIDAD nunca se
+  contaba: el texto de la denylist iba solo al modelo como resultado de tool
+  y no se imprimía. Ahora `veto_l8`/`veto_denylist` se anclan a las líneas
+  reales (`\[laya\] … vetada`/`\[L8\] … vetada` y `[denylist]`) y el hook de
+  la denylist imprime `[denylist]` en terminal (paridad con `[hook]`).
+  Verificación offline: 0 falsos positivos en los 5 transcripts de
+  producción y 3/3 en las líneas reales.
+- **Fix 11 — tope HITL: agotamiento elegante + knob por turno**: al agotar
+  los 6 HITL el driver enmudecía, el turno colgaba hasta 20 min y el
+  `timeout` truncaba el escenario sin registrar la causa (2 turnos colgados
+  hoy; 5 turnos "aplicar" históricos terminando exactamente en 6/6). Ahora
+  hay knob `max_hitl` por turno y agotamiento elegante con el evento
+  `hitl-tope` (causa registrada, no timeout mudo). Smoke E2E con
+  `max_hitl=1`: turno ok en 16 s, primera escritura aprobada, segunda
+  rechazada y reportada por el modelo.
+- **Fix 12 — policy: `2>&1` es lectura, no escritura**: el regex
+  `_PELIGRO_SHELL` cazaba el `>` de `2>&1`, degradando a `preguntar` formas
+  de verificación solo-lectura. Ahora el token `2>&1` se quita antes del
+  escaneo y ninguna redirección real se oculta (`> f`, `2> f`, `2>&1 > f`,
+  `> f 2>&1` sobreviven). Matriz de 8 casos.

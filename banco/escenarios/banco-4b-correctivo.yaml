@@ -1,0 +1,15 @@
+id: banco-4b-correctivo
+descripcion: correctivo del cierre documental — frase garabateada en design.md
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: fix-frase
+    linea: "Correctivo mínimo en docs/design.md: en la sección '## Robustez del banco (2026-10-07, segunda tanda)', el paréntesis del Fix 11 dice '5 históricos terminando exactamente en 6/6, en 6/6 escenarios' — la coletilla 'en 6/6 escenarios' está de más y no corresponde a ningún hecho medido. Corregilo a '5 turnos \\\"aplicar\\\" históricos terminando exactamente en 6/6'. UN solo edit_file, nada más."
+    hitl: s
+    timeout: 600
+  - id: salir
+    linea: "salir"
+    timeout: 60
