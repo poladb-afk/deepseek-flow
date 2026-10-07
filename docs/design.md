@@ -1722,3 +1722,29 @@ La **pieza** que cierra ese hueco:
 
 La corrida baseline con LLM real la hace la **auditoría después** (no forma
 parte de este cierre documental).
+
+### Resultados del baseline (2 corridas, LLM real)
+
+- **Corrida 1** (instrumento pre-calibración): `respuesta_ok` 64.7% (11/17),
+  `cita_ok` 81.8% (9/11).
+- **Corrida 2** (instrumento calibrado, baseline vigente): `respuesta_ok`
+  76.5% (13/17), `cita_ok` 76.9% (10/13).
+
+Hallazgos medidos:
+
+1. **'verdict inválido' ESTOCÁSTICO del Judge** — 5/17 y 3/17 casos en cada
+   corrida, SIEMPRE casos distintos, ~60s quemados por caso en 3 retries: el
+   contrato YAML del verdict falla al azar en ~1 de cada 4-5 preguntas.
+2. **trampa-delete-file falló 2/2 corridas** — el Draft alucina la herramienta
+   inexistente y el Judge no contrasta contra el inventario real de tools.
+3. **citas desviadas pasan el juez** — las 3 citas fallidas de la corrida 2 son
+   near-misses que el Judge dejó pasar (línea 191 vs 195 real; 119/129 vs def
+   real en 128; rutas falsas tipo `/fs_tools.py:64` que `read_file` no
+   resuelve).
+4. **la trampa de premisa falsa (Files API) la corrigió bien en la corrida 1**
+   (pdftoppm con cita verificada).
+
+Sobre el instrumento mismo: **contención por caso** (un caso que explota no
+tira el bench — aprendido en la primera corrida real) y **calibración de
+`cita_ok` a la ventana de 2 líneas de `Judge.prep`** (el bench no debe ser más
+estricto que el contrato que mide).

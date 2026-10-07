@@ -1,0 +1,15 @@
+id: exp20e-docs
+descripcion: cierre numérico de exp/20 en design.md
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: resultados
+    linea: "Cerrá numéricamente exp/20: en docs/design.md, al final de la sección '## exp/20 — bench del juez', agregá un bloque '### Resultados del baseline (2 corridas, LLM real)' con ESTOS datos y solo estos: corrida 1 (instrumento pre-calibración): respuesta_ok 64.7% (11/17), cita_ok 81.8% (9/11); corrida 2 (instrumento calibrado, baseline vigente): respuesta_ok 76.5% (13/17), cita_ok 76.9% (10/13). Hallazgos medidos: (1) 'verdict inválido' ESTOCÁSTICO del Judge — 5/17 y 3/17 casos en cada corrida, SIEMPRE casos distintos, ~60s quemados por caso en 3 retries: el contrato YAML del verdict falla al azar en ~1 de cada 4-5 preguntas; (2) trampa-delete-file falló 2/2 corridas: el Draft alucina la herramienta inexistente y el Judge no contrasta contra el inventario real de tools; (3) citas desviadas pasan el juez: las 3 citas fallidas de la corrida 2 son near-misses que el Judge dejó pasar (línea 191 vs 195 real; 119/129 vs def real en 128; rutas falsas tipo /fs_tools.py:64 que read_file no resuelve); (4) la trampa de premisa falsa (Files API) la corrigió bien en la corrida 1 (pdftoppm con cita verificada). Además una línea sobre el instrumento mismo: contención por caso (un caso que explota no tira el bench — aprendido en la primera corrida real) y calibración de cita_ok a la ventana de 2 líneas de Judge.prep (el bench no debe ser más estricto que el contrato que mide). UN solo edit_file. Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes)."
+    hitl: s
+    timeout: 900
+  - id: salir
+    linea: "salir"
+    timeout: 60
