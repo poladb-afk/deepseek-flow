@@ -19,6 +19,7 @@ from pocketflow import Flow, Node
 from utils.call_llm import call_llm
 from utils.estructura import extraer_yaml
 from utils.fs_tools import _resolve, read_file
+from utils.terminal import colorear
 
 JUEZ_ROUNDS = 2
 CITA_RE = re.compile(r"(/[\w./-]+\.[\w]+):(\d+)")
@@ -67,6 +68,51 @@ class Draft(Node):
         shared["rounds"] = shared.get("rounds", 0) + 1
 
 
+def _recorte(texto, n=300):
+    """Recorta un texto VERBATIM a ~n chars, marcando si se truncó."""
+    texto = str(texto)
+    return texto[:n] + ("…" if len(texto) > n else "")
+
+
+def _veredicto_valido(d):
+    """Valida el veredicto contra AMBAS condiciones del contrato.
+
+    Devuelve (bool, motivo). La canonicalización str/strip/lower NO es
+    parche: case/whitespace son ruido de codificación, no semántica. El
+    contrato no se afloja: cualquier otra palabra ('needs_changes',
+    'OK!', 'entregar') queda inválida — y ahora es el feedback del
+    reintento el que la endereza, no un alias clavado.
+    """
+    if not isinstance(d, dict):
+        return False, "el YAML no es un diccionario de veredicto"
+    crudo = d.get("verdict")
+    canon = crudo.strip().lower() if isinstance(crudo, str) else crudo
+    if canon not in ("ok", "retry"):
+        return False, f"verdict inválido: {crudo!r} (se esperaba ok o retry)"
+    if "problems" in d and not isinstance(d["problems"], list):
+        return False, f"problems no es lista: {type(d['problems']).__name__}"
+    return True, ""
+
+
+def _validar(crudo):
+    """Parsea el crudo (extraer_yaml puede revantar) y valida.
+
+    Devuelve (veredicto_canonicalizado, motivo) con veredicto None si
+    inválido. extraer_yaml levantando es UN caso más de invalidez para el
+    loop de reparación: nada escapa de exec por el verdict.
+    """
+    try:
+        d = extraer_yaml(crudo)
+    except Exception as e:
+        return None, f"el YAML no parseó: {e}"
+    ok, motivo = _veredicto_valido(d)
+    if not ok:
+        return None, motivo
+    d["verdict"] = d["verdict"].strip().lower()
+    d.setdefault("problems", [])
+    return d, ""
+
+
 class Judge(Node):
     def prep(self, shared):
         """Hechos verificables en código: las líneas reales de cada cita."""
@@ -112,24 +158,45 @@ suggestions:
   - <sugerencia 1>
 ```
 
-El campo verdict SOLO puede ser ok o retry, literal — sin sinónimos
-(no uses needs_changes, revisar, corregir ni ninguna otra palabra)."""
-        veredicto = extraer_yaml(call_llm(prompt))
-        # Normalización del verdict ANTES del assert: str/strip/lower + el
-        # único alias MEDIDO por la sonda exp/21 (salidas/evals/
-        # verdict_shapes_2026-10-07.jsonl): el inválido capturado fue el
-        # sinónimo 'needs_changes' (YAML parseable, falla semántica). El
-        # contrato NO se afloja: solo ese sinónimo entra; cualquier otra
-        # basura ('entregar', 'OK!', etc.) sigue siendo inválida.
-        _ALIAS_VERDICT = {"needs_changes": "retry"}
-        crudo = veredicto.get("verdict")
-        normalizado = crudo.strip().lower() if isinstance(crudo, str) else crudo
-        veredicto["verdict"] = _ALIAS_VERDICT.get(normalizado, normalizado)
-        assert veredicto["verdict"] in ("ok", "retry"), (
-            f"verdict inválido: {crudo!r}"
+El campo verdict SOLO puede ser ok o retry, literal."""
+        crudo = call_llm(prompt)
+        veredicto, motivo = _validar(crudo)
+        if veredicto is not None:
+            return veredicto
+        # Error-como-feedback (patrón del harness, exp/21 fase B2): un
+        # verdict ilegible NO es un crash ni una entrega sin juzgar; es UN
+        # reintento INFORMADO que cita al modelo su propia respuesta inválida
+        # VERBATIM + el contrato. Un sinónimo nuevo lo atraviesa al parche de
+        # alias; acá el modelo ve qué escribió y qué se esperaba.
+        print(colorear(
+            "  [juez] verdict ilegible → reintento con feedback", "aviso"
+        ), flush=True)
+        recorte = _recorte(crudo)
+        feedback = (
+            f"Tu respuesta anterior no cumplió el contrato:\n"
+            f"--- respuesta recibida (verbatim) ---\n{recorte}\n"
+            f"--- fin ---\n"
+            f"Motivo: {motivo}\n"
+            f"El campo verdict SOLO puede ser ok o retry, literal "
+            f"(case/espacios se toleran); problems, si está, debe ser una "
+            f"lista. Respondé de nuevo SOLO yaml."
         )
-        assert isinstance(veredicto.get("problems", []), list), "problems no es lista"
-        return veredicto
+        crudo2 = call_llm(prompt + "\n\n" + feedback)
+        veredicto, _ = _validar(crudo2)
+        if veredicto is not None:
+            return veredicto
+        # Fallback semántico: ni con feedback validó. El lado SEGURO del
+        # contrato binario — si no se puede confirmar ok, no está ok. El
+        # borrador da una vuelta más con este problema como feedback, acotado
+        # por max_rounds (L8); nunca se raise por verdict en exec.
+        return {
+            "verdict": "retry",
+            "problems": [
+                "el juez no pudo emitir un veredicto legible "
+                f"(último crudo: {_recorte(crudo2)}); revisá precisión y "
+                "citas del borrador"
+            ],
+        }
 
     def post(self, shared, prep_res, exec_res):
         rounds = shared.get("rounds", 1)

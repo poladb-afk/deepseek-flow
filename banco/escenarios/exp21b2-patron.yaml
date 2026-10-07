@@ -1,0 +1,19 @@
+id: exp21b2-patron
+descripcion: el harness reemplaza los parches del verdict por el patrón error-como-feedback (exp/21 fase B2)
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: patron
+    linea: "Leé banco/specs/exp21_b2_patron.md (spec verificada; SUPERA a la fase B del spec exp21 anterior — los parches se quitan). Aplicala completa en juez.py: (1) quitar la línea de prompt de sinónimos prohibidos y el dict _ALIAS_VERDICT; (2) helper _veredicto_valido(d) -> (bool, motivo) con AMBAS condiciones (verdict canonizado str/strip/lower ∈ ok/retry; problems lista si está); (3) loop de reparación en Judge.exec — a lo sumo UN reintento INFORMADO cuyo feedback cita la respuesta inválida VERBATIM recortada (~300 chars) + el contrato, con print observable '  [juez] verdict ilegible → reintento con feedback' (colorear aviso, flush; importá colorear de utils.terminal); (4) fallback semántico si ni con feedback valida: devolver {'verdict': 'retry', 'problems': ['el juez no pudo emitir un veredicto legible (último crudo: <recorte>); revisá precisión y citas del borrador']} — nunca raise por verdict en exec. El try/except de responder_con_juez queda como está (armadura). DOS o TRES edit_file como máximo para juez.py. Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes)."
+    hitl: s
+    timeout: 1200
+  - id: tests
+    linea: "Ahora reescribí los tests de la fase B según la sección Candados de banco/specs/exp21_b2_patron.md (reparación con call_llm en secuencia inválido→válido; fallback con ambos inválidos → retry con crudo citado; yaml roto total por el mismo camino; canonicalización; problems string dispara reparación; los 2 tests de degradación de responder_con_juez quedan). UN solo edit_file en tests/test_smoke.py. `python3 -m pytest tests/ -q` hasta verde — no shipped rojo."
+    hitl: s
+    timeout: 1200
+  - id: salir
+    linea: "salir"
+    timeout: 60

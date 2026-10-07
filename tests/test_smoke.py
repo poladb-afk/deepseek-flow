@@ -4101,6 +4101,61 @@ def _judge_verdict(monkeypatch, verdict_yaml):
     return juez.Judge().exec(inputs)
 
 
+def test_verdict_fallback_semantico_sin_raise(monkeypatch):
+    """Candado exp/21 fase B2: ambos intentos inválidos → fallback con
+    verdict 'retry', el crudo citado en problems y problems es lista.
+    Nunca raise por verdict."""
+    import juez
+
+    monkeypatch.setattr(juez, "call_llm", lambda prompt: "verdict: nope")
+    v = juez.Judge().exec(("¿q?", "borrador", [], False))
+    assert v["verdict"] == "retry"
+    assert isinstance(v["problems"], list)
+    assert len(v["problems"]) == 1
+    assert "último crudo" in v["problems"][0]
+    assert "nope" in v["problems"][0]
+
+
+def test_verdict_yaml_roto_dispara_loop_sin_excepcion(monkeypatch):
+    """Candado exp/21 fase B2: extraer_yaml reventando es UN caso más de
+    invalidez — reparación o fallback, sin excepción que escape de exec."""
+    import juez
+
+    monkeypatch.setattr(juez, "call_llm", lambda prompt: "esto no es yaml: : :")
+    v = juez.Judge().exec(("¿q?", "borrador", [], False))
+    assert v["verdict"] == "retry"
+    assert isinstance(v["problems"], list)
+
+    # y si el reintento SÍ trae yaml válido, la reparación lo rescata
+    respuestas = iter(["no es yaml : :", "verdict: ok\nproblems: []"])
+
+    def fake(prompt):
+        return next(respuestas)
+
+    monkeypatch.setattr(juez, "call_llm", fake)
+    v2 = juez.Judge().exec(("¿q?", "borrador", [], False))
+    assert v2["verdict"] == "ok"
+
+
+def test_verdict_problems_string_dispara_reparacion(monkeypatch):
+    """Candado exp/21 fase B2: problems con forma inválida (string) también
+    dispara la reparación (segunda condición del contrato)."""
+    import juez
+
+    respuestas = iter([
+        "verdict: retry\nproblems: una sola cadena, no lista",
+        "verdict: retry\nproblems:\n  - ahora sí lista",
+    ])
+
+    def fake(prompt):
+        return next(respuestas)
+
+    monkeypatch.setattr(juez, "call_llm", fake)
+    v = juez.Judge().exec(("¿q?", "borrador", [], False))
+    assert v["verdict"] == "retry"
+    assert v["problems"] == ["ahora sí lista"]
+
+
 def test_verdict_normaliza_mayus_y_espacios(monkeypatch):
     """Candado exp/21 (a): 'OK'/' ok ' → ok tras str/strip/lower."""
     assert _judge_verdict(monkeypatch, "verdict: OK")["verdict"] == "ok"
@@ -4108,25 +4163,31 @@ def test_verdict_normaliza_mayus_y_espacios(monkeypatch):
     assert _judge_verdict(monkeypatch, "verdict: Retry")["verdict"] == "retry"
 
 
-def test_verdict_alias_medido_needs_changes(monkeypatch):
-    """Candado exp/21 (a): el ÚNICO sinónimo MEDIDO por la sonda
-    (verdict_shapes_2026-10-07.jsonl) se mapea a retry."""
-    assert _judge_verdict(monkeypatch, "verdict: needs_changes")["verdict"] == "retry"
-    # la normalización también aplica al alias (may/espacios)
-    assert _judge_verdict(monkeypatch, "verdict: Needs_Changes")["verdict"] == "retry"
-
-
-def test_verdict_basura_sigue_invalida(monkeypatch):
-    """Candado exp/21 (a): el contrato NO se afloja; 'entregar' y otras
-    palabras siguen inválidas (el assert menciona el valor crudo)."""
-    import pytest as _pytest
-
+def test_verdict_reparacion_por_feedback_sin_alias(monkeypatch):
+    """Candado exp/21 fase B2: la reparación FUNCIONA para el sinónimo
+    medido ('needs_changes') sin alias alguno. call_llm en SECUENCIA:
+    primero el inválido, después el válido → verdict final 'retry' con los
+    problems del segundo. El feedback cita el crudo inválido VERBATIM."""
     import juez
 
-    monkeypatch.setattr(juez, "call_llm", lambda prompt: "verdict: entregar")
-    with _pytest.raises(AssertionError) as exc:
-        juez.Judge().exec(("¿q?", "borrador", [], False))
-    assert "entregar" in str(exc.value)  # el mensaje trae el valor crudo
+    respuestas = iter([
+        "verdict: needs_changes\nproblems:\n  - cita floja",
+        "verdict: retry\nproblems:\n  - corregí la cita",
+    ])
+    prompts = []
+
+    def fake(prompt):
+        prompts.append(prompt)
+        return next(respuestas)
+
+    monkeypatch.setattr(juez, "call_llm", fake)
+    v = juez.Judge().exec(("¿q?", "borrador", [], False))
+    assert v["verdict"] == "retry"
+    assert v["problems"] == ["corregí la cita"]
+    # el reintento fue INFORMADO: cita la respuesta inválida y el contrato
+    assert len(prompts) == 2
+    assert "needs_changes" in prompts[1]
+    assert "ok o retry" in prompts[1]
 
 
 def test_degradacion_terminal_con_draft(monkeypatch):
