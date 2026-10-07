@@ -1748,3 +1748,29 @@ Sobre el instrumento mismo: **contención por caso** (un caso que explota no
 tira el bench — aprendido en la primera corrida real) y **calibración de
 `cita_ok` a la ventana de 2 líneas de `Judge.prep`** (el bench no debe ser más
 estricto que el contrato que mide).
+
+## exp/21 — el verdict estocástico del juez: sondeado, endurecido, degradado (2026-10-07)
+
+**La sonda** (`banco/probes/verdict_juez.py`, 9 respuestas del Judge con LLM
+real sobre las 8 víctimas de exp/20) capturó la forma real del verdict
+inválido: el sinónimo **`needs_changes`** — YAML perfectamente parseable,
+falla **SEMÁNTICA**. Resultado: 8 ok válidas, 1 `needs_changes`.
+
+**El fix en `juez.py` en tres capas**:
+
+1. **Prompt endurecido** — el verdict SOLO `ok` o `retry`, literal.
+2. **Normalización** `str`/`strip`/`lower` + `_ALIAS_VERDICT` con SOLO el
+   sinónimo medido (`needs_changes`): el contrato se aprieta, no se afloja.
+3. **Degradación terminal en `responder_con_juez`** — flujo roto tras los
+   retries con draft presente → se entrega el borrador con advertencia
+   (patrón L8); sin draft se re-raise. `main.py juez` y `juez_lote` heredan.
+
+**Re-medición del bench (fase C)**: `respuesta_ok` 76.5% → **94.1%**
+(+17.6pp) y `cita_ok` 76.9% → **93.8%** (+16.8pp) en la corrida de
+comparación; **CERO excepciones** (antes 3-5 por corrida). La corrida de
+actualización del baseline reprodujo 94.1% (baseline vigente: `respuesta_ok`
+94.1%, `cita_ok` 87.5%; dos corridas post-fix estables en 94.1).
+
+**Residuales medidos que NO eran de este exp**: trampa-delete-file sigue
+fallando (3/3 corridas — la alucinación de tool inexistente, hallazgo 2 de
+exp/20) y quedan near-miss de citas (hallazgo 3).

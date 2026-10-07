@@ -1,0 +1,15 @@
+id: exp21c-docs
+descripcion: cierre numérico de exp/21 en design.md
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: resultados
+    linea: "Cerrá numéricamente exp/21 en docs/design.md: al final de la sección de exp/20 (después de sus resultados), agregá la sección '## exp/21 — el verdict estocástico del juez: sondeado, endurecido, degradado (2026-10-07)' con ESTOS datos y solo estos: la sonda (banco/probes/verdict_juez.py, 9 respuestas del Judge con LLM real sobre las 8 víctimas de exp/20) capturó la forma real del verdict inválido: el sinónimo 'needs_changes' — YAML perfectamente parseable, falla SEMÁNTICA; 8 ok válidas, 1 needs_changes. El fix en juez.py en tres capas: prompt endurecido (verdict SOLO ok o retry, literal), normalización str/strip/lower + _ALIAS_VERDICT con SOLO el sinónimo medido (contrato apretado), y degradación terminal en responder_con_juez (flujo roto tras retries + draft presente → se entrega el borrador con advertencia, patrón L8; sin draft se re-raise; main.py juez y juez_lote heredan). Re-medición del bench (fase C): respuesta_ok 76.5% → 94.1% (+17.6pp) y cita_ok 76.9% → 93.8% (+16.8pp) en la corrida de comparación; CERO excepciones (antes 3-5 por corrida); corrida de actualización del baseline reprodujo 94.1% (baseline vigente: respuesta_ok 94.1%, cita_ok 87.5%, dos corridas post-fix estables en 94.1). Residuales medidos que NO eran de este exp: trampa-delete-file sigue fallando (3/3 corridas — la alucinación de tool inexistente, hallazgo 2 de exp/20) y quedan near-miss de citas (hallazgo 3). UN solo edit_file. Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes)."
+    hitl: s
+    timeout: 900
+  - id: salir
+    linea: "salir"
+    timeout: 60
