@@ -1,0 +1,19 @@
+id: deuda3-sondas-docs
+descripcion: el harness aplica el fix 8 (sondas portables) y el 9 (roadmap) y cierra design.md
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: fix-sondas
+    linea: "Leé banco/specs/deuda_2026-10-07.md (spec verificada, confía en ella) y aplicá SOLO el Fix 8: las tres sondas (sonda_laya.py, sonda_router.py, sonda_supervisor.py) tienen los paths de tests hardcodeados a /home/roquedb/...; resolver el directorio por setting BMO_TASKS_DIR con default idéntico al actual (patrón _setting). Son exactamente 3 edit_file (uno por sonda). NO toques .env.example (lo veta la denylist del driver: la auditoría lo documenta después). Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes; ruff NO lo corras)."
+    hitl: s
+    timeout: 1200
+  - id: fix-docs
+    linea: "Ahora el Fix 9 y el cierre de banco/specs/deuda_2026-10-07.md: (9) docs/roadmap.md describe ver_pdf vía Files API, mecanismo que modules/vision.py documenta como imposible (HTTP 400) — releé el docstring de modules/vision.py y reescribí ESA parte del roadmap con el mecanismo real (pdftoppm), sin tocar el resto; cierre: agregá al final de docs/design.md la sección '## Deuda menor y bugs latentes (2026-10-07)' como indica la spec (una línea por fix + la falsa alarma del supervisor). Exactamente 2 edit_file."
+    hitl: s
+    timeout: 1200
+  - id: salir
+    linea: "salir"
+    timeout: 60

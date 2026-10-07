@@ -248,9 +248,11 @@ Los dos últimos ítems quedaron construidos y verificados:
 
 - **Vision/PDF** — ✅ `modules/vision.py`: `ver_imagen` (data-URL base64
   en un turno de USER; el type se valida por contenido; 32 MiB/48 MiB
-  chequeados antes de llamar) y `ver_pdf` (Files API: `POST /files` con
-  `purpose=file-extract` → `file_id` → `POST /chat/completions` con
-  `content=[{type:file,file_id},{type:text}]`; sin estado; 64 MiB).
+  chequeados antes de llamar) y `ver_pdf` (rasteriza con pdftoppm/poppler
+  → PNG por página → cada página va como imagen al modelo; la Files API
+  NO acepta PDFs — HTTP 400 'unsupported file' — por eso el camino es el
+  rasterizado; tope de 8 páginas, ~1024 tokens c/u; sin estado: rasteriza
+  en /tmp y borra; 64 MiB de PDF fuente).
 - **A2A** — ✅ `modules/a2a.py`: `agentes_remotos` (agent card con
   degradación a "inaccesible") y `a2a_tarea` (JSON-RPC 2.0
   `message/send`); setting `A2A_AGENTS` (JSON nombre→URL); sin setting,

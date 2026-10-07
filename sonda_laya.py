@@ -34,7 +34,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 RAIZ = Path(__file__).resolve().parent
-TAREAS = Path("/home/roquedb/Documentos/00_IA/bmo/train/tasks")
 SALIDA = RAIZ / "salidas" / "evals"
 
 # Los contratos EXISTENTES se importan, no se copian: una copia local derivaría
@@ -42,7 +41,12 @@ SALIDA = RAIZ / "salidas" / "evals"
 # sonda_router.py). Los tests son los mismos que leen evals.py y las sondas.
 from nodes import PREGUNTA_ROUTER, PREGUNTA_VOTO  # noqa: E402
 from supervisor import PREGUNTA_DESPACHO  # noqa: E402
+from utils.call_llm import _setting  # noqa: E402
 from utils.contexto import PREGUNTA_PREFILTRO  # noqa: E402
+
+# El directorio de tests se resuelve por setting (default: la ruta histórica de
+# esta máquina) para que la sonda no quede clavada a un path local.
+TAREAS = Path(_setting("BMO_TASKS_DIR", str(Path.home() / "Documentos" / "00_IA" / "bmo" / "train" / "tasks")))
 
 # El mapeo nombre → (checkpoint, test, pregunta, arma el estado por caso).
 # El estado de cada familia es el contrato del fine-tune correspondiente:

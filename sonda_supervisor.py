@@ -21,8 +21,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from supervisor import PREGUNTA_DESPACHO, elegir_con_deepseek  # noqa: E402
+from utils.call_llm import _setting  # noqa: E402
 
-TEST = Path("/home/roquedb/Documentos/00_IA/bmo/train/tasks/supervisor_dispatch_test.jsonl")
+# El directorio de tests se resuelve por setting (default: la ruta histórica de
+# esta máquina) para que la sonda no quede clavada a un path local.
+_TAREAS = Path(_setting("BMO_TASKS_DIR", str(Path.home() / "Documentos" / "00_IA" / "bmo" / "train" / "tasks")))
+TEST = _TAREAS / "supervisor_dispatch_test.jsonl"
 
 
 def correr(agente, casos, votacion=False):

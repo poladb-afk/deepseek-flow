@@ -1620,3 +1620,44 @@ harness con auditoría independiente + E2E real en cada pieza:
 24 capacidades · 141 tests · OOM aprendido: un checkpoint por proceso.
 Pendientes del menú: Mesa 4 (agentes fractales), 5 (async), 7 (skills),
 8 (chat web — ya empezada).
+
+## Deuda menor y bugs latentes (2026-10-07)
+
+Nueve correcciones de la spec verificada `banco/specs/deuda_2026-10-07.md`
+(revisión completa del harness, cada punto verificado en el código). Una
+línea por fix, lo que el diff muestra:
+
+- **Fix 1 — `utils/embeddings.py`**: el prefijo `query:`/`passage:` se
+  decide DESPUÉS de cargar el modelo (sobre `_nombre_modelo` efectivo), no
+  antes: la primera llamada con la familia e5 ya prefija bien.
+- **Fix 2 — `minar_errores.py`**: el emparejado error→reintento usa la
+  posición del evento (no `eventos.index(ev)` por igualdad de dict), así
+  dos errores idénticos no colapsan ambos al primero.
+- **Fix 3 — `carga_trazas.py`**: `_texto()` serializa a JSON los campos
+  `criteria`/`task`/`modulo` no-string, para que un `criteria` lista/dict
+  no reviente el INSERT con `InterfaceError`.
+- **Fix 4 — `utils/websearch.py`**: `search_web` captura la excepción de
+  `DDGS().text` y devuelve `"ERROR: ..."` como texto (degrada, no tumba el
+  flujo de research, que era el único punto sin degradar del harness).
+- **Fix 5 — `utils/compaccion.py`**: eliminado `_recortar_cola` (era la
+  identidad, código muerto); el call site asigna directo
+  `cola = unidades[-ventana:]`. Cero cambio de comportamiento.
+- **Fix 6 — `modules/memoria.py`**: `guardar_resumen_sesion` sufija la
+  hora si `sesion_FECHA.md` ya existe, así dos sesiones del mismo día no
+  se pisan (la primera conserva el nombre clásico).
+- **Fix 7 — `modules/db.py`**: `_sin_literales()` vacía el contenido de los
+  literales `'...'`/`"..."` para los chequeos de PROHIBIDOS y LIMIT: una
+  consulta con la palabra 'delete'/'limit' en un string ya no da falso
+  positivo ni se salta el LIMIT forzado.
+- **Fix 8 — sondas** (`sonda_laya.py`, `sonda_router.py`,
+  `sonda_supervisor.py`): el directorio de tests se resuelve por el setting
+  `BMO_TASKS_DIR` (default idéntico al path anterior), portable a otra
+  máquina sin editar código.
+- **Fix 9 — `docs/roadmap.md`**: la sección "Cola final" describe `ver_pdf`
+  con su mecanismo real (pdftoppm/poppler → PNG por página → imágenes al
+  modelo, tope 8 páginas), no la Files API muerta (HTTP 400 con PDFs).
+  Coherencia documental; el ítem sigue marcado como hecho.
+
+**Falsa alarma descartada**: el `write_file` del supervisor reportado como
+no ejecutable NO era un bug — ya era electable y ejecutable vía
+`**_MODULE_IMPLS`. Se confirmó primera-mano y se descartó sin tocar código.

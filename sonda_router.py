@@ -19,7 +19,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-TEST = Path("/home/roquedb/Documentos/00_IA/bmo/train/tasks/router_flow_test.jsonl")
+# El directorio de tests se resuelve por setting (default: la ruta histórica de
+# esta máquina) para que la sonda no quede clavada a un path local.
+from utils.call_llm import _setting  # noqa: E402
+
+_TAREAS = Path(_setting("BMO_TASKS_DIR", str(Path.home() / "Documentos" / "00_IA" / "bmo" / "train" / "tasks")))
+TEST = _TAREAS / "router_flow_test.jsonl"
 from nodes import PREGUNTA_ROUTER  # noqa: E402  (el contrato, sin copia)
 
 
