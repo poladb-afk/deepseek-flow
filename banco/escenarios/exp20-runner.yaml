@@ -1,0 +1,19 @@
+id: exp20-runner
+descripcion: el harness construye bench_juez.py — la vara del juez (exp/20)
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: construir-runner
+    linea: "Leé banco/specs/exp20_bench_juez.md (spec verificada, confía en ella) y construí la pieza: bench_juez.py nuevo (runner secuencial con juez.responder_con_juez, funciones PURAS respuesta_ok y cita_ok — cita_ok lee la línea citada del disco con el MISMO CITA_RE de juez.py, importalo, no lo copies —, informe md en salidas/evals/, baseline salidas/evals/bench_juez.json con el patrón de evals.py: sin --actualizar-baseline compara y NO pisa, con la flag guarda; git sha reutilizando _git_sha de evals.py) y la línea del subcomando en main.py SUBCOMANDOS. El archivo de preguntas YA EXISTE: banco/juez_preguntas.jsonl (lo escribió la auditoría; NO lo toques). UN write_file para bench_juez.py y UN edit_file para main.py (2 en total). NO corras el runner todavía (gasta LLM): la verificación de este turno es pytest tal cual está."
+    hitl: s
+    timeout: 1200
+  - id: tests
+    linea: "Ahora los candados del exp/20 (sección 'Candados' de banco/specs/exp20_bench_juez.md) en tests/test_smoke.py: respuesta_ok (todos/uno/case-insensitive), cita_ok contra fixtures reales en tmp_path (cita correcta, línea sin el token, ruta equivocada, sin cita_archivo → None, línea beyond EOF → False), baseline no-pisa, y preguntas inválidas con error claro. UN solo edit_file. Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes) hasta verde."
+    hitl: s
+    timeout: 1200
+  - id: salir
+    linea: "salir"
+    timeout: 60

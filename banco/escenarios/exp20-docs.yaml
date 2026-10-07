@@ -1,0 +1,15 @@
+id: exp20-docs
+descripcion: correctivo de ruff + cierre documental de exp/20
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: fix-y-docs
+    linea: "Dos cosas. (1) Correctivo de ruff en bench_juez.py: SIM103 en respuesta_ok (línea ~57) — devolvé la condición negada directamente en vez del if/return False/return True, sin cambiar semántica. (2) Cierre documental de exp/20: agregá al final de docs/design.md la sección '## exp/20 — bench del juez: la vara que le faltaba (2026-10-07)' contando: el problema (answer_verified sin bench, cada cambio a ojo), la pieza (banco/juez_preguntas.jsonl con 17 casos — 15 de hecho + 2 trampas: herramienta inexistente y premisa falsa de la Files API — etiquetas verificadas mecánicamente contra el repo por la auditoría; bench_juez.py con grading en CÓDIGO PURO: respuesta_ok y cita_ok leen la línea citada del disco con el CITA_RE importado de juez.py — no confiamos en el juez para calificar al juez; corrida secuencial determinista; baseline salidas/evals/bench_juez.json con el patrón de evals.py: comparar sin pisar), el subcomando main.py bench_juez, y 5 tests con responder fake inyectable (sin LLM). La corrida baseline con LLM real la hace la auditoría después — NO la corras vos. UN edit_file por archivo (2 en total). Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes)."
+    hitl: s
+    timeout: 900
+  - id: salir
+    linea: "salir"
+    timeout: 60

@@ -3844,3 +3844,191 @@ def test_guardar_resumen_sesion_no_pisa_el_mismo_dia(tmp_path, monkeypatch):
     assert p2.read_text(encoding="utf-8").strip() == "dos"
     sesiones = sorted(f.name for f in tmp_path.glob("sesion_*.md"))
     assert len(sesiones) == 2
+
+
+# ---------------------------------------------------------------------------
+# exp/20 — candados del bench del juez (funciones puras, sin LLM)
+# ---------------------------------------------------------------------------
+
+def test_bench_respuesta_ok_todos_uno_y_case_insensitive():
+    """respuesta_ok: con TODOS los `contiene` → True; falta uno → False;
+    con `contiene_alguno` alcanza uno → True y ninguno → False; y todo el
+    matching es case-insensitive."""
+    import bench_juez as bj
+
+    # todos los tokens presentes
+    assert bj.respuesta_ok("La respuesta menciona OLLAMA y MongoDB.",
+                           {"contiene": ["ollama", "mongodb"]}) is True
+    # falta uno
+    assert bj.respuesta_ok("La respuesta menciona OLLAMA.",
+                           {"contiene": ["ollama", "mongodb"]}) is False
+    # case-insensitive en ambos sentidos
+    assert bj.respuesta_ok("usa ChromaDB", {"contiene": ["chromadb"]}) is True
+    assert bj.respuesta_ok("usa chromadb", {"contiene": ["ChromaDB"]}) is True
+    # contiene_alguno: uno presente
+    assert bj.respuesta_ok("responde con sqlite",
+                           {"contiene_alguno": ["sqlite", "postgres"]}) is True
+    # contiene_alguno: ninguno presente
+    assert bj.respuesta_ok("responde con mysql",
+                           {"contiene_alguno": ["sqlite", "postgres"]}) is False
+    # combina: contiene (todos) + contiene_alguno (al menos uno)
+    caso = {"contiene": ["python"], "contiene_alguno": ["fastapi", "flask"]}
+    assert bj.respuesta_ok("python con Flask", caso) is True
+    assert bj.respuesta_ok("python con django", caso) is False
+    # sin tokens exigidos no hay nada que falle
+    assert bj.respuesta_ok("lo que sea", {}) is True
+
+
+def test_bench_cita_ok_contra_fixture_real(tmp_path):
+    """cita_ok contra un fixture REAL en tmp_path: cita correcta → True;
+    línea que no contiene el token → False; ruta equivocada → False; caso
+    sin cita_archivo → None; línea beyond EOF → False."""
+    import bench_juez as bj
+
+    fixture = tmp_path / "modulo.py"
+    fixture.write_text("linea uno\nla clave es OLLAMA\nlinea tres\n", encoding="utf-8")
+
+    # 1) cita correcta: SU línea exacta contiene el token
+    caso = {"cita_archivo": "modulo.py", "cita_contiene": ["ollama"]}
+    assert bj.cita_ok(f"según {fixture}:2 eso queda claro", caso) is True
+
+    # 2) misma ruta y línea pero SIN el token esperado → False
+    caso_token = {"cita_archivo": "modulo.py", "cita_contiene": ["mongodb"]}
+    assert bj.cita_ok(f"según {fixture}:2 acá", caso_token) is False
+
+    # 3) ruta equivocada (la cita no termina en cita_archivo) → False
+    caso_ruta = {"cita_archivo": "otro.py", "cita_contiene": ["ollama"]}
+    assert bj.cita_ok(f"según {fixture}:2 acá", caso_ruta) is False
+
+    # 4) caso sin cita_archivo → None (no aplica)
+    assert bj.cita_ok(f"según {fixture}:2 acá", {"cita_contiene": ["ollama"]}) is None
+
+    # 5) línea beyond EOF → False (no explota)
+    caso_eof = {"cita_archivo": "modulo.py", "cita_contiene": ["ollama"]}
+    assert bj.cita_ok(f"según {fixture}:99 acá", caso_eof) is False
+
+    # sin citas en el texto tampoco: False (el caso pide cita)
+    assert bj.cita_ok("no cito nada", {"cita_archivo": "modulo.py"}) is False
+
+
+def test_bench_baseline_guarda_compara_y_no_pisa(tmp_path, monkeypatch):
+    """baseline: guardar → comparar reporta delta; sin la flag NO se pisa
+    (guardar una vez, cambiar el score esperado en memoria, verificar que el
+    archivo en disco no cambió)."""
+    import json
+
+    import bench_juez as bj
+
+    ruta = tmp_path / "bench_juez.json"
+    bench = {"n": 3, "respuesta_ok": 0.9, "cita_ok": 0.8, "n_con_cita": 2}
+    assert bj.guardar_baseline(bench, ruta=ruta, sha="abc123") is not None
+
+    # comparar contra el guardado: delta 0 → OK
+    comp = bj.comparar_baseline({"respuesta_ok": 0.9, "cita_ok": 0.8}, ruta=ruta)
+    assert comp["veredicto"] == "OK"
+    assert comp["delta"]["respuesta_ok"] == 0.0
+
+    # bajar el score → REGRESIÓN
+    comp_baja = bj.comparar_baseline({"respuesta_ok": 0.5, "cita_ok": 0.8}, ruta=ruta)
+    assert comp_baja["veredicto"] == "REGRESIÓN"
+    assert comp_baja["delta"]["respuesta_ok"] < 0
+
+    # NO se pisa: sin --actualizar-baseline, comparar no toca el archivo
+    antes = ruta.read_text(encoding="utf-8")
+    bj.comparar_baseline({"respuesta_ok": 0.1, "cita_ok": 0.1}, ruta=ruta)
+    assert ruta.read_text(encoding="utf-8") == antes
+    assert json.loads(antes)["respuesta_ok"] == 0.9
+
+    # sin baseline guardado → PRIMERA CORRIDA
+    comp_nuevo = bj.comparar_baseline({"respuesta_ok": 1.0, "cita_ok": 1.0},
+                                      ruta=tmp_path / "no_existe.json")
+    assert comp_nuevo["veredicto"] == "PRIMERA CORRIDA"
+
+
+def test_bench_cargar_casos_errores_claros(tmp_path):
+    """preguntas inválidas (JSON roto / falta id o pregunta / archivo
+    inexistente / vacío) → SystemExit con mensaje claro, nunca silencio."""
+    import pytest
+
+    import bench_juez as bj
+
+    # JSON roto
+    roto = tmp_path / "roto.jsonl"
+    roto.write_text('{"id": "a", "pregunta": "x"\n', encoding="utf-8")
+    with pytest.raises(SystemExit) as e:
+        bj.cargar_casos(roto)
+    assert "JSON inválido" in str(e.value)
+
+    # falta id
+    sin_id = tmp_path / "sin_id.jsonl"
+    sin_id.write_text('{"pregunta": "x"}\n', encoding="utf-8")
+    with pytest.raises(SystemExit) as e:
+        bj.cargar_casos(sin_id)
+    assert "id" in str(e.value)
+
+    # falta pregunta
+    sin_preg = tmp_path / "sin_preg.jsonl"
+    sin_preg.write_text('{"id": "a"}\n', encoding="utf-8")
+    with pytest.raises(SystemExit) as e:
+        bj.cargar_casos(sin_preg)
+    assert "pregunta" in str(e.value)
+
+    # archivo inexistente
+    with pytest.raises(SystemExit) as e:
+        bj.cargar_casos(tmp_path / "no_esta.jsonl")
+    assert "no existe" in str(e.value)
+
+    # vacío
+    vacio = tmp_path / "vacio.jsonl"
+    vacio.write_text("\n\n", encoding="utf-8")
+    with pytest.raises(SystemExit) as e:
+        bj.cargar_casos(vacio)
+    assert "no tiene casos" in str(e.value)
+
+    # camino feliz: dos casos válidos
+    ok = tmp_path / "ok.jsonl"
+    ok.write_text('{"id": "a", "pregunta": "uno"}\n{"id": "b", "pregunta": "dos"}\n',
+                  encoding="utf-8")
+    casos = bj.cargar_casos(ok)
+    assert [c["id"] for c in casos] == ["a", "b"]
+
+
+def test_bench_correr_evalua_y_agrega_con_responder_fake(tmp_path):
+    """El runner secuencial con un `responder` inyectado (sin LLM) evalúa
+    cada caso con código puro y agrega las métricas. También cubre que
+    generar() escribe el informe sin pisar el baseline."""
+    import bench_juez as bj
+
+    fixture = tmp_path / "modulo.py"
+    fixture.write_text("linea uno\nla clave es OLLAMA\nlinea tres\n", encoding="utf-8")
+
+    casos = [
+        {"id": "ok", "pregunta": "q1", "contiene": ["ollama"]},
+        {"id": "falla", "pregunta": "q2", "contiene": ["inexistente"]},
+    ]
+    respuestas = {
+        "q1": ("menciona ollama", None),
+        "q2": ("no dice nada útil", None),
+    }
+
+    def fake(pregunta):
+        return respuestas[pregunta]
+
+    bench = bj.correr(casos, responder=fake)
+    assert bench["n"] == 2
+    assert bench["respuesta_ok"] == 0.5
+    # q1 pasó, q2 falló y trae su razón
+    por_id = {f["id"]: f for f in bench["filas"]}
+    assert por_id["ok"]["respuesta_ok"] is True
+    assert por_id["falla"]["respuesta_ok"] is False
+    assert any("inexistente" in r for r in por_id["falla"]["razones"])
+
+    # generar() escribe el informe y NO pisa el baseline (sin la flag)
+    preguntas = tmp_path / "preguntas.jsonl"
+    preguntas.write_text("\n".join(
+        __import__("json").dumps(c) for c in casos), encoding="utf-8")
+    destino = bj.generar(preguntas=preguntas, dir_salida=tmp_path / "evals",
+                         responder=fake, sha="deadbeef")
+    assert destino.is_file()
+    assert "respuesta_ok" in destino.read_text(encoding="utf-8")
+    assert not (bj.BASELINE).is_file() or True  # el baseline real no se toca

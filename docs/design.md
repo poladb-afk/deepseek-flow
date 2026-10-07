@@ -1693,3 +1693,32 @@ test contra líneas REALES. Los números que siguen son los medidos.
   de verificación solo-lectura. Ahora el token `2>&1` se quita antes del
   escaneo y ninguna redirección real se oculta (`> f`, `2> f`, `2>&1 > f`,
   `> f 2>&1` sobreviven). Matriz de 8 casos.
+
+## exp/20 — bench del juez: la vara que le faltaba (2026-10-07)
+
+El **problema**: `answer_verified` no tenía banco de pruebas propio. Cada
+cambio a la ronda de juez (prompt, regex de citas, criterio de refuerzo) se
+evaluaba "a ojo": sin casos, sin baseline y sin números, cualquier ajuste
+parecía mejorar y nunca se podía comparar contra la versión anterior; peor
+aún, un cambio que empeoraba el grading podía pasar desapercibido.
+
+La **pieza** que cierra ese hueco:
+
+- **`banco/juez_preguntas.jsonl`** — 17 casos: 15 de hecho + 2 trampas
+  deliberadas (una pregunta que exige una herramienta inexistente y otra con
+  una premisa falsa sobre la Files API). Las etiquetas quedaron **verificadas
+  mecánicamente contra el repo por la auditoría**, no escritas a mano.
+- **`bench_juez.py`** — con **grading en CÓDIGO PURO**: `respuesta_ok` y
+  `cita_ok` leen la línea citada del disco con el `CITA_RE` **importado de
+  `juez.py`**, el mismo regex de producción. No confiamos en el juez para
+  calificar al juez: la verificación es determinista y ajena al LLM. La
+  corrida es **secuencial y determinista**, y el baseline
+  `salidas/evals/bench_juez.json` sigue el patrón de `evals.py`: **comparar
+  sin pisar** (la corrida nueva se contrasta contra el baseline guardado, que
+  no se sobrescribe).
+- **Subcomando `main.py bench_juez`** para dispararlo desde la CLI.
+- **5 tests** con `responder` *fake* inyectable, de modo que se ejercita el
+  grading **sin LLM**.
+
+La corrida baseline con LLM real la hace la **auditoría después** (no forma
+parte de este cierre documental).
