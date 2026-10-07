@@ -3881,8 +3881,9 @@ def test_bench_respuesta_ok_todos_uno_y_case_insensitive():
 
 def test_bench_cita_ok_contra_fixture_real(tmp_path):
     """cita_ok contra un fixture REAL en tmp_path: cita correcta → True;
-    línea que no contiene el token → False; ruta equivocada → False; caso
-    sin cita_archivo → None; línea beyond EOF → False."""
+    token en la línea SIGUIENTE a la citada → True (ventana de 2, igual que
+    juez.Judge.prep); línea que no contiene el token → False; ruta equivocada
+    → False; caso sin cita_archivo → None; línea beyond EOF → False."""
     import bench_juez as bj
 
     fixture = tmp_path / "modulo.py"
@@ -3891,6 +3892,10 @@ def test_bench_cita_ok_contra_fixture_real(tmp_path):
     # 1) cita correcta: SU línea exacta contiene el token
     caso = {"cita_archivo": "modulo.py", "cita_contiene": ["ollama"]}
     assert bj.cita_ok(f"según {fixture}:2 eso queda claro", caso) is True
+
+    # 1b) VENTANA de 2: se cita la línea 1 y el token está en la 2 (siguiente).
+    # Producción lee offset=1, limit=2 → verifica; el bench debe coincidir.
+    assert bj.cita_ok(f"según {fixture}:1 eso queda claro", caso) is True
 
     # 2) misma ruta y línea pero SIN el token esperado → False
     caso_token = {"cita_archivo": "modulo.py", "cita_contiene": ["mongodb"]}

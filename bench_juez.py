@@ -58,15 +58,21 @@ def respuesta_ok(texto, caso):
 
 
 def _linea_de(ruta, numero):
-    """Contenido real de la línea `numero` de `ruta`, o None si la ruta no es
-    un archivo legible o la línea no existe (más allá del EOF, etc.)."""
+    """Contenido real de la VENTANA de 2 líneas que empieza en `numero`
+    (líneas `numero` y `numero+1`), o None si la ruta no es un archivo legible
+    o `numero` cae más allá del EOF.
+
+    La ventana es a propósito: es la MISMA que lee la verificación de
+    producción (`juez.Judge.prep`: `read_file(path, offset=n, limit=2)`), y el
+    bench no debe ser más estricto que el contrato que mide. La línea
+    siguiente a `numero` cuenta; beyond-EOF sigue siendo None."""
     try:
         lineas = Path(ruta).read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
         return None
     if not (1 <= numero <= len(lineas)):
         return None
-    return lineas[numero - 1]
+    return "\n".join(lineas[numero - 1:numero + 1])
 
 
 def cita_ok(texto, caso):
@@ -75,9 +81,14 @@ def cita_ok(texto, caso):
 
     None si el caso no pide cita (`cita_archivo` ausente). Si pide: True si
     alguna cita del texto apunta a una ruta que termina en `cita_archivo` y
-    cuya línea —LEÍDA DEL DISCO con ese número— contiene (case-insensitive)
-    al menos un `cita_contiene`; False en cualquier otro caso (incluida una
-    cita a línea inexistente)."""
+    cuya VENTANA de 2 líneas —LEÍDA DEL DISCO empezando en ese número—
+    contiene (case-insensitive) al menos un `cita_contiene`; False en
+    cualquier otro caso (incluida una cita a línea inexistente).
+
+    La ventana (líneas n y n+1) replica `juez.Judge.prep`, que verifica con
+    `read_file(offset=n, limit=2)`: un rango citado como `ruta:89-93` con el
+    token en la línea 90 verifica en producción, así que el bench también lo
+    cuenta como verificado."""
     esperado = caso.get("cita_archivo")
     if not esperado:
         return None

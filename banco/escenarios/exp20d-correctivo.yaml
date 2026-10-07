@@ -1,0 +1,15 @@
+id: exp20d-correctivo
+descripcion: calibración del instrumento — cita_ok con la misma ventana de 2 líneas que la verificación de producción
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: ventana-cita
+    linea: "Correctivo de calibración del exp/20 (lo encontró la auditoría sobre el baseline): bench_juez.cita_ok lee UNA sola línea por cita, pero la verificación de PRODUCCIÓN (juez.Judge.prep) lee una VENTANA de 2: read_file(path, offset=n, limit=2) — las líneas n y n+1. Un rango citado como ruta:89-93 con el token en la línea 90 verifica en producción y el bench lo marcaba mal (más estricto que el contrato que mide). Corregí _linea_de/cita_ok para mirar las líneas n y n+1 (misma ventana que Judge.prep; beyond-EOF sigue False), y actualizá/agregá el test de cita_ok con un caso de ventana: token en la línea siguiente a la citada → True. UN edit_file por archivo como máximo (bench_juez.py + el test en tests/test_smoke.py). Antes de cerrar: `python3 -m pytest tests/ -q` (auto, sin pipes) hasta verde — no shipped rojo."
+    hitl: s
+    timeout: 900
+  - id: salir
+    linea: "salir"
+    timeout: 60
