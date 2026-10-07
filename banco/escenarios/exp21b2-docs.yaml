@@ -1,0 +1,15 @@
+id: exp21b2-docs
+descripcion: enmienda de design.md — la fase B2 que reemplazó los parches por el patrón
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: enmienda
+    linea: "Enmendá docs/design.md: al final de la sección de exp/21, agregá la subsección '### Fase B2 — de parche a patrón (la crítica del dueño)' contando ESTO y solo esto: la fase B puso dos parches (línea de prompt enumerando sinónimos prohibidos + _ALIAS_VERDICT clavado al único medido) que perseguían el token observado — un sinónimo nuevo los atravesaba, y la degradación sola convertía el crash en entrega sin juzgar. La crítica del dueño del harness los tumbó. El reemplazo es el patrón propio del harness (error-como-feedback, como el supervisor con args): loop de reparación que cita la respuesta inválida VERBATIM + motivo + contrato (marcador observable '[juez] verdict ilegible → reintento con feedback'), fallback semántico al lado seguro del contrato binario (retry con el crudo citado, acotado por max_rounds L8), canonicalización str/strip/lower (ruido de codificación, no semántica). Test que refuta el parche por existencia: 'needs_changes' resuelto SIN alias, por el feedback. Re-medición: respuesta_ok 94.1% sostenido sin parches (delta 0.0000), cita_ok 93.8% y en la corrida de actualización 16/16 (100%); el marcador disparó 0 veces en ambas corridas — la línea honesta de contrato bastó y el loop queda como armadura probada por tests. Baseline vigente: 94.1 / 100 sobre el sha del patrón. Residual único de respuesta: trampa-delete-file (hallazgo 2 de exp/20). UN solo edit_file. Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes)."
+    hitl: s
+    timeout: 900
+  - id: salir
+    linea: "salir"
+    timeout: 60

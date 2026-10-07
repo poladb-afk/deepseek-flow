@@ -1774,3 +1774,24 @@ actualización del baseline reprodujo 94.1% (baseline vigente: `respuesta_ok`
 **Residuales medidos que NO eran de este exp**: trampa-delete-file sigue
 fallando (3/3 corridas — la alucinación de tool inexistente, hallazgo 2 de
 exp/20) y quedan near-miss de citas (hallazgo 3).
+
+### Fase B2 — de parche a patrón (la crítica del dueño)
+
+La fase B puso dos parches (la línea de prompt enumerando sinónimos
+prohibidos y `_ALIAS_VERDICT` clavado al único sinónimo medido) que
+perseguían el token observado: un sinónimo nuevo los atravesaba, y la
+degradación sola convertía el crash en entrega sin juzgar. La crítica del
+dueño del harness los tumbó. El reemplazo es el patrón propio del harness
+(error-como-feedback, como el supervisor con args): un loop de reparación
+que cita la respuesta inválida VERBATIM, más el motivo y el contrato
+(marcador observable `[juez] verdict ilegible → reintento con feedback`),
+con fallback semántico al lado seguro del contrato binario (retry con el
+crudo citado, acotado por `max_rounds` L8) y canonicalización
+`str`/`strip`/`lower` (ruido de codificación, no semántica). El test que
+refuta el parche por existencia: `needs_changes` resuelto SIN alias, por el
+feedback. Re-medición: `respuesta_ok` 94.1% sostenido sin parches (delta
+0.0000), `cita_ok` 93.8% y en la corrida de actualización 16/16 (100%); el
+marcador disparó 0 veces en ambas corridas — la línea honesta de contrato
+bastó y el loop queda como armadura probada por tests. Baseline vigente:
+94.1 / 100 sobre el sha del patrón. Residual único de respuesta:
+trampa-delete-file (hallazgo 2 de exp/20).
