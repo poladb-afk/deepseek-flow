@@ -382,6 +382,45 @@ def test_effective_n_multi_carpeta_total(tmp_path):
     assert Path(shared["informe"]).is_file()
 
 
+def test_elegir_exposicion_nombre_desconocido():
+    """Un nombre de MCP_EXPOSE sin implementación (typo) no se expone y el
+    aviso lo menciona (antes: continue mudo)."""
+    from mcp_server import elegir_exposicion
+
+    expuestas, aviso = elegir_exposicion(
+        {"list_files", "no_existe"}, {"list_files": lambda: None}, {"list_files": "lista"}
+    )
+    assert expuestas == ["list_files"]
+    assert aviso and "no_existe" in aviso and "sin implementación" in aviso
+
+
+def test_elegir_exposicion_sin_descripcion():
+    """Un nombre con implementación pero sin esquema en TOOLS se expone
+    igual, y el aviso avisa que va sin descripción (antes: vacía muda)."""
+    from mcp_server import elegir_exposicion
+
+    expuestas, aviso = elegir_exposicion(
+        {"list_files", "read_file"},
+        {"list_files": lambda: None, "read_file": lambda: None},
+        {"list_files": "lista"},  # read_file no tiene descripción
+    )
+    assert expuestas == ["list_files", "read_file"]
+    assert aviso and "read_file" in aviso and "sin descripción" in aviso
+
+
+def test_elegir_exposicion_normal_sin_aviso():
+    """Caso normal: todo expuesto y aviso None."""
+    from mcp_server import elegir_exposicion
+
+    expuestas, aviso = elegir_exposicion(
+        {"list_files", "read_file"},
+        {"list_files": lambda: None, "read_file": lambda: None},
+        {"list_files": "lista", "read_file": "lee"},
+    )
+    assert expuestas == ["list_files", "read_file"]
+    assert aviso is None
+
+
 def test_imports_batchflow_exactos():
     """Cobertura de abstracciones: las piezas nuevas importan exactamente
     pocketflow.BatchFlow (effective_n) y pocketflow.AsyncParallelBatchFlow

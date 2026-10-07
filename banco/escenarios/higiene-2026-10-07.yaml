@@ -1,0 +1,19 @@
+id: higiene-2026-10-07
+descripcion: el harness aplica la cola de higiene (H1 archivo suelto, H2 clave_de, H3 mcp_server)
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: h1-h2
+    linea: "Leé banco/specs/higiene_2026-10-07.md (spec verificada, confía en ella) y aplicá H1 y H2: (H1) mové informe_jsonl_runs.txt a salidas/ con `git mv informe_jsonl_runs.txt salidas/informe_jsonl_runs.txt` (run_command; el destino está ignorado, queda como artefacto local); (H2) supervisor.py clave_de ignora su parámetro herramienta — firma nueva clave_de(args) con docstring honesto y los DOS call sites actualizados. Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes ni &&)."
+    hitl: s
+    timeout: 1200
+  - id: h3
+    linea: "Ahora H3 de banco/specs/higiene_2026-10-07.md: mcp_server.py tiene dos caminos silenciosos en el allowlist (nombre sin implementación → continue mudo; con implementación pero sin descripción → descripción vacía). Extraé la función pura elegir_exposicion (firma y semántica exactas de la spec), usala desde main() con el aviso a stderr, y agregá los 3 tests de la spec en tests/test_smoke.py. UN edit_file por archivo (2 en total). Verificá con `python3 -m pytest tests/ -q`."
+    hitl: s
+    timeout: 1200
+  - id: salir
+    linea: "salir"
+    timeout: 60

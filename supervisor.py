@@ -75,8 +75,9 @@ def repetidas(exitosas, previas=None):
     return fuera | {h for h, n in veces.items() if n >= 2}
 
 
-def clave_de(herramienta, args):
-    """La firma canónica de una llamada: herramienta + args ordenados."""
+def clave_de(args):
+    """La firma canónica de los args de una llamada: json con claves ordenadas
+    — la herramienta la aporta la tupla (herramienta, clave) de quien llama."""
     return json.dumps(args or {}, sort_keys=True, ensure_ascii=False)
 
 # Congelada: task supervisor_dispatch (bmo/train/tasks/supervisor_dispatch.yaml).
@@ -269,7 +270,7 @@ class EjecutarPaso(Node):
         ))
         args = plan.get("args", {}) or {}
         assert isinstance(args, dict), "args debe ser dict"
-        clave = clave_de(herramienta, args)
+        clave = clave_de(args)
         firma = (herramienta, clave)
         if firma in previas and previas[firma].get("resultado"):
             print("  [L8] llamada idéntica a una previa: se reutiliza el resultado")
@@ -295,7 +296,7 @@ class EjecutarPaso(Node):
             fallos[exec_res["herramienta"]] = 0  # el éxito limpia el contador
             shared.setdefault("exitosas", []).append(exec_res["herramienta"])
             h, a = exec_res["herramienta"], exec_res["args"]
-            firma = (h, clave_de(h, a))
+            firma = (h, clave_de(a))
             registro = shared.setdefault("previas", {}).setdefault(firma, {"n": 0, "resultado": None})
             registro["n"] += 1  # el intento cuenta aunque haya sido cacheado
             if not exec_res.get("repetida"):
