@@ -4032,3 +4032,55 @@ def test_bench_correr_evalua_y_agrega_con_responder_fake(tmp_path):
     assert destino.is_file()
     assert "respuesta_ok" in destino.read_text(encoding="utf-8")
     assert not (bj.BASELINE).is_file() or True  # el baseline real no se toca
+
+
+def test_bench_correr_contiene_excepcion_por_caso(tmp_path):
+    """CONTENCIÓN por caso (correctivo del exp/20): un responder que Lanza
+    para UN caso no mata el bench entero. La fila del caso explosivo queda
+    registrada como fallo (respuesta_ok=False, cita_ok=None, respuesta=None)
+    con la excepción en razones, y el bench completo devuelve n filas."""
+    import bench_juez as bj
+
+    casos = [
+        {"id": "bueno1", "pregunta": "q1", "contiene": ["ollama"]},
+        {"id": "explosivo", "pregunta": "q2", "contiene": ["x"]},
+        {"id": "bueno2", "pregunta": "q3", "contiene": ["ollama"]},
+    ]
+
+    def fake(pregunta):
+        if pregunta == "q2":
+            raise RuntimeError("verdict inválido")
+        return ("menciona ollama", None)
+
+    bench = bj.correr(casos, responder=fake)
+
+    # el bench completo devuelve n filas pese al caso explosivo
+    assert bench["n"] == 3
+    por_id = {f["id"]: f for f in bench["filas"]}
+    # los casos sanos siguen evaluándose normalmente
+    assert por_id["bueno1"]["respuesta_ok"] is True
+    assert por_id["bueno2"]["respuesta_ok"] is True
+    # el caso explosivo queda registrado como fallo con la excepción
+    exp = por_id["explosivo"]
+    assert exp["respuesta_ok"] is False
+    assert exp["cita_ok"] is None
+    assert exp["respuesta"] is None
+    assert len(exp["razones"]) == 1
+    assert exp["razones"][0].startswith("excepción: RuntimeError: ")
+    assert "verdict inválido" in exp["razones"][0]
+    # 2 de 3 pasaron
+    assert bench["respuesta_ok"] == round(2 / 3, 4)
+
+
+def test_bench_correr_recorta_causa_de_excepcion():
+    """La causa de la excepción se recorta a ~200 chars para que una traza
+    gigante no ensucie la fila."""
+    import bench_juez as bj
+
+    def fake(pregunta):
+        raise ValueError("E" * 500)
+
+    bench = bj.correr([{"id": "x", "pregunta": "q"}], responder=fake)
+    razon = bench["filas"][0]["razones"][0]
+    assert razon.startswith("excepción: ValueError: ")
+    assert len(razon) == len("excepción: ValueError: ") + 200

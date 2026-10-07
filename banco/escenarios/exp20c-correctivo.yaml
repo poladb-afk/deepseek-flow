@@ -1,0 +1,15 @@
+id: exp20c-correctivo
+descripcion: correctivo — inconsistencia aritmética en el test de contención
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: fix-test
+    linea: "Correctivo mínimo en tests/test_smoke.py: test_bench_correr_contiene_excepcion_por_caso es internamente inconsistente — afirma que bueno2 pasa respuesta_ok y que el explosivo falla, pero luego espera el agregado en round(1/3, 4); con dos sanos y uno explosivo el agregado correcto es round(2/3, 4). Corregí ESA línea. La regla del turno: ANTES de dar por terminado corré `python3 -m pytest tests/ -q` (auto, sin pipes) y no cierres hasta verlo verde — el turno anterior shipped rojo por saltarse la verificación."
+    hitl: s
+    timeout: 600
+  - id: salir
+    linea: "salir"
+    timeout: 60

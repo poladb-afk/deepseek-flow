@@ -163,9 +163,30 @@ def correr(casos, responder=None):
         responder = responder_con_juez
 
     filas = []
-    for caso in casos:
+    n = len(casos)
+    for i, caso in enumerate(casos, 1):
+        # PROGRESO: un print ANTES de correr cada caso, para que una corrida
+        # parcial sea visible en vivo y se sepa DÓNDE murió si muere.
+        print(f"[bench] {i}/{n} {caso['id']}…", flush=True)
         t0 = time.perf_counter()
-        texto, advertencia = responder(caso["pregunta"])
+        try:
+            texto, advertencia = responder(caso["pregunta"])
+        except Exception as e:  # noqa: BLE001 — el caso fallido es un DATO del bench, no su muerte
+            seg = time.perf_counter() - t0
+            causa = str(e)[:200]
+            filas.append({
+                "id": caso["id"],
+                "pregunta": caso["pregunta"],
+                "trampa": bool(caso.get("trampa", False)),
+                "respuesta_ok": False,
+                "cita_ok": None,
+                "seg": round(seg, 2),
+                "razones": [f"excepción: {type(e).__name__}: {causa}"],
+                "advertencia": None,
+                "respuesta": None,
+            })
+            print(f"[bench] {i}/{n} {caso['id']} fail", flush=True)
+            continue
         seg = time.perf_counter() - t0
         ok = respuesta_ok(texto, caso)
         cita = cita_ok(texto, caso)
@@ -180,6 +201,7 @@ def correr(casos, responder=None):
             "advertencia": advertencia,
             "respuesta": texto,
         })
+        print(f"[bench] {i}/{n} {caso['id']} {'ok' if ok else 'fail'}", flush=True)
 
     n = len(filas)
     con_cita = [f for f in filas if f["cita_ok"] is not None]

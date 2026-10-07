@@ -1,0 +1,15 @@
+id: exp20b-correctivo
+descripcion: contención por caso en bench_juez — un caso que explota no tira el bench
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: contencion
+    linea: "Correctivo del exp/20, encontrado en la PRIMERA corrida real: un caso hizo explotar la aserción 'verdict inválido' de juez.py y mató el bench entero (las filas anteriores estaban solo en memoria, informe nunca escrito). Dos cambios en bench_juez.py, función correr: (1) CONTENCIÓN por caso — el llamado a responder va en try/except; si explota, la fila se registra con respuesta_ok=False, cita_ok=None, respuesta=None y razones=['excepción: {tipo}: {causa recortada a ~200 chars}'] (el caso fallido es un dato del bench, no su muerte; mismo criterio que el aislamiento por pregunta de juez_lote); (2) PROGRESO — un print por caso ANTES de correrlo ('[bench] i/N id…', flush) y el ok/fail al terminar, para que una corrida parcial sea visible en vivo y se sepa DÓNDE murió si muere. Más UN test en tests/test_smoke.py: correr con un responder fake que lanza para UN caso y responde bien para el resto → la fila del caso explosivo queda registrada como fallo con la excepción en razones, y el bench completo devuelve n filas. UN edit_file por archivo (2 en total). Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes)."
+    hitl: s
+    timeout: 900
+  - id: salir
+    linea: "salir"
+    timeout: 60
