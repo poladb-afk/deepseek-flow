@@ -1,0 +1,19 @@
+id: deuda1-bugs
+descripcion: el harness aplica los fixes 1 y 3 (embeddings, carga_trazas) y el 2 (minar_errores) de la spec verificada
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: fix-embeddings-carga
+    linea: "Leé banco/specs/deuda_2026-10-07.md (spec verificada, confía en ella) y aplicá SOLO los Fix 1 y Fix 3: (1) utils/embeddings.py — el prefijo de e5 se decide ANTES de cargar el modelo en la primera llamada; (3) carga_trazas.py — criterios/task/modulo no-string revientan el INSERT de sqlite. Ambos con sus tests appendeados en tests/test_smoke.py como indica cada sección. Escribí primero, después python3 -m pytest tests/ -q y corregí hasta verde."
+    hitl: s
+    timeout: 1200
+  - id: fix-minar
+    linea: "Ahora aplicá el Fix 2 de banco/specs/deuda_2026-10-07.md: minar_errores.py — destino_del_reintento usa eventos.index(ev) que empareja mal eventos duplicados (y es O(n²)). Elegí la variante que prefieras de la spec, actualizando los tests existentes si cambia la firma, y agregá el test repro con DOS errores idénticos en tests/test_minar_errores.py. python3 -m pytest tests/ -q hasta verde."
+    hitl: s
+    timeout: 1200
+  - id: salir
+    linea: "salir"
+    timeout: 60

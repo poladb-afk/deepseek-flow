@@ -45,16 +45,41 @@ def test_destino_reintento_distingue_exito_abandono_y_otra_tool():
     err = _ev("edit_file", "error", 0.0, 10.0)
 
     con_exito = [err, _ev("edit_file", "ok", 0.2, 12.0)]
-    d = destino_del_reintento(con_exito, err)
+    d = destino_del_reintento(con_exito, 0)
     assert d["ok"] is True and d["delta_seg"] == pytest.approx(2.0)
 
     # vuelve a llamar a la MISMA tool y vuelve a fallar: hubo reintento, sin éxito
     refalla = [err, _ev("edit_file", "error", 0.1, 11.0)]
-    d = destino_del_reintento(refalla, err)
+    d = destino_del_reintento(refalla, 0)
     assert d["ok"] is False
 
     # no hay próxima llamada a la tool: abandono
-    assert destino_del_reintento([err, _ev("read_file", "ok", 0.1, 11.0)], err) is None
+    assert destino_del_reintento([err, _ev("read_file", "ok", 0.1, 11.0)], 0) is None
+
+    # índice fuera de rango: sin excepción, sin reintento inventado
+    assert destino_del_reintento([err], 5) is None
+
+
+def test_destino_reintento_usa_la_posicion_y_no_la_igualdad_de_dict():
+    """Fix 2: dos eventos duplicados (mismo dict) NO deben colapsar al primero.
+
+    Con `eventos.index(ev)` el reintento del SEGUNDO error se buscaba desde la
+    posición del primero (emparejo incorrecto). Con la posición explícita cada
+    error mira su propio "siguiente"."""
+    from minar_errores import destino_del_reintento
+
+    # dos errores IDÉNTICOS (dict igual) y un ok al final para el segundo
+    err = _ev("edit_file", "error", 0.0, 10.0)
+    otra_err = _ev("edit_file", "error", 0.0, 10.0)
+    assert err == otra_err  # son comparables por igualdad: el bug era real
+    eventos = [err, otra_err, _ev("edit_file", "ok", 0.2, 12.0)]
+
+    # el PRIMER error ve el segundo error como su próximo (reintento sin éxito)
+    d0 = destino_del_reintento(eventos, 0)
+    assert d0["ok"] is False
+    # el SEGUNDO error ve el ok (reintento exitoso) — con index() esto mentía
+    d1 = destino_del_reintento(eventos, 1)
+    assert d1["ok"] is True and d1["delta_seg"] == pytest.approx(2.0)
 
 
 def test_minar_sesion_cuenta_autocorreccion_y_abandono_por_separado():

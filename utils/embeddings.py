@@ -31,8 +31,9 @@ def get_modelo():
 
 
 def embed(textos, consulta=False):
+    modelo = get_modelo()  # primero carga: setea _nombre_modelo
     # la familia e5 exige prefijos query:/passage:; paraphrase no los usa
     prefijo = ""
     if _nombre_modelo and "e5" in _nombre_modelo:
         prefijo = "query: " if consulta else "passage: "
-    return [list(v) for v in get_modelo().embed([prefijo + t for t in textos])]
+    return [list(v) for v in modelo.embed([prefijo + t for t in textos])]

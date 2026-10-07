@@ -3601,3 +3601,67 @@ def test_puntuar_lote_que_falla_devuelve_none(monkeypatch):
     monkeypatch.setattr(laya_mod, "preguntar_lote", boom)
 
     assert ctx._puntuar("c", ["a", "b"], "LAYA_MODEL_PREFILTRO") is None
+
+
+def test_embed_decide_prefijo_despues_de_cargar(monkeypatch):
+    """Fix 1: en la PRIMERA llamada de un proceso con e5 activo el prefijo
+    debe decidirse sobre el nombre EFECTIVAMENTE cargado, no sobre la global
+    (que arranca en None). Un fake de get_modelo deja _nombre_modelo en un
+    nombre con 'e5' y captura el input: el texto debe llegar prefijado."""
+    import utils.embeddings as emb
+
+    capturado = {}
+
+    class FakeModelo:
+        def embed(self, textos):
+            capturado["textos"] = list(textos)
+            return [[0.0, 0.1] for _ in textos]
+
+    def fake_get_modelo():
+        emb._nombre_modelo = "intfloat/multilingual-e5-large"
+        return FakeModelo()
+
+    monkeypatch.setattr(emb, "_nombre_modelo", None)
+    monkeypatch.setattr(emb, "get_modelo", fake_get_modelo)
+
+    r = emb.embed(["hola"])  # UNA sola llamada
+
+    assert capturado["textos"] == ["passage: hola"], capturado
+    assert r == [[0.0, 0.1]]
+
+
+def test_carga_trazas_serializa_criteria_no_string(tmp_path):
+    """Fix 3: un criteria lista/dict del task yaml reventaba el INSERT de
+    sqlite3 (InterfaceError). Debe serializarse a JSON y la carga seguir.
+
+    NOTA: la carpeta debe vivir dentro de AGENT_ALLOWED_DIRS (la contención
+    de _resolve vale también en tests), así que se usa un dir temporal bajo
+    la raíz del repo, no tmp_path."""
+    import json as _json
+    import sqlite3
+
+    import carga_trazas
+
+    base = RAIZ / "_tmp_test_carga_trazas"
+    base.mkdir(exist_ok=True)
+    try:
+        carpeta = base / "trazas"
+        carpeta.mkdir(exist_ok=True)
+        registro = {
+            "answers": {"next": "router"},
+            "fields": {"task": "clasificar", "criteria": ["a", "b"], "steps": []},
+        }
+        (carpeta / "uno.jsonl").write_text(_json.dumps(registro) + "\n", encoding="utf-8")
+
+        db = base / "trazas.db"
+        total, rotas = carga_trazas.cargar(str(carpeta), db=str(db))
+        assert total == 1 and rotas == 0
+
+        con = sqlite3.connect(db)
+        try:
+            celda = con.execute("SELECT criterios FROM trazas").fetchone()[0]
+        finally:
+            con.close()
+        assert _json.loads(celda) == ["a", "b"]
+    finally:
+        shutil.rmtree(base, ignore_errors=True)

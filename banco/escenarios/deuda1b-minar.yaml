@@ -1,0 +1,15 @@
+id: deuda1b-minar
+descripcion: continuación de deuda1 — fix 2 (minar_errores) + correctivo de ruff F401
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: fix-minar-y-f401
+    linea: "Leé banco/specs/deuda_2026-10-07.md (spec verificada) y aplicá el Fix 2: minar_errores.py — destino_del_reintento usa eventos.index(ev) (búsqueda por igualdad de dict) que empareja mal eventos duplicados y es O(n²); elegí la variante que prefieras de la spec (actualizá los tests existentes si cambia la firma) y agregá el test repro con DOS errores idénticos en tests/test_minar_errores.py. Además un correctivo del turno anterior: ruff marca F401 en tests/test_smoke.py (import tempfile sin uso, línea ~3642) — borralo. Para verificar usá EXACTAMENTE `python3 -m pytest tests/ -q` (sin pipes ni 2>&1: es solo-lectura auto y no gasta aprobación) y `ruff check .`. Corregí hasta ambos verdes."
+    hitl: s
+    timeout: 1200
+  - id: salir
+    linea: "salir"
+    timeout: 60

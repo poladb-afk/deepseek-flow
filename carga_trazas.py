@@ -32,6 +32,14 @@ CREATE INDEX idx_trazas_carpeta ON trazas(carpeta);
 """
 
 
+def _texto(v):
+    """None/str pasan; cualquier otro tipo se serializa a JSON (criteria
+    puede venir como lista/dict del task yaml y sqlite3 solo acepta str)."""
+    if v is None or isinstance(v, str):
+        return v
+    return json.dumps(v, ensure_ascii=False)
+
+
 def cargar(carpeta, db="trazas.db", glob="*.jsonl"):
     folder, err = _resolve(carpeta)
     if err:
@@ -62,7 +70,7 @@ def cargar(carpeta, db="trazas.db", glob="*.jsonl"):
                 con.execute(
                     "INSERT INTO trazas (archivo, carpeta, registro, modulo, task, criterios, pasos, json_valido) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (str(archivo), str(archivo.parent), n, modulo, task, criterios, pasos, valido),
+                    (str(archivo), str(archivo.parent), n, _texto(modulo), _texto(task), _texto(criterios), pasos, valido),
                 )
     con.commit()
     con.close()

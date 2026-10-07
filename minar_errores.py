@@ -90,10 +90,16 @@ def es_rechazo_probable(ev):
     )
 
 
-def destino_del_reintento(eventos, ev):
-    """Dado un evento de ERROR de la tool T en ts X, busca el PRÓXIMO evento
-    de T en la MISMA sesión (lista ya ordenada por ts) y devuelve None (no
+def destino_del_reintento(eventos, idx):
+    """Dado el evento de ERROR en la POSICIÓN `idx` de `eventos` (tool T en
+    ts X), busca el PRÓXIMO evento de T (desde idx+1) y devuelve None (no
     hubo reintento: abandono) o {ok: bool, delta_seg: float}.
+
+    Se recibe la POSICIÓN y no el dict: `eventos.index(ev)` busca por
+    IGUALDAD de dict, así que dos eventos idénticos (mismos nodo/accion/seg/ts,
+    posible con ts redondeado a ms) resolvían ambos al PRIMERO → el reintento
+    del segundo se buscaba desde la posición del primero (emparejo incorrecto,
+    y O(n²) acumulado al minar todos los errores).
 
     El PRÓXIMO evento de T, sea ok o error: si volvió a llamar a T, hubo
     reintento aunque también fallara. La cantidad de reintentos se reconstruye
@@ -101,11 +107,10 @@ def destino_del_reintento(eventos, ev):
 
     `eventos` debe venir ordenado por ts (así lo entrega `_leer_eventos`, que
     lee el archivo en orden de escritura = orden temporal)."""
-    tool = ev.get("nodo")
-    try:
-        idx = eventos.index(ev)
-    except ValueError:
+    if idx < 0 or idx >= len(eventos):
         return None
+    ev = eventos[idx]
+    tool = ev.get("nodo")
     for siguiente in eventos[idx + 1:]:
         if siguiente.get("nodo") == tool:
             return {
@@ -135,7 +140,7 @@ def minar_sesion(eventos):
         "abandono": 0, "_deltas": [],
     })
     rechazos = 0
-    for ev in eventos:
+    for idx, ev in enumerate(eventos):
         if es_rechazo_probable(ev):
             rechazos += 1
         if ev.get("accion") != "error":
@@ -145,7 +150,7 @@ def minar_sesion(eventos):
         info["errores"] += 1
         if es_timeout(ev):
             info["timeouts"] += 1
-        destino = destino_del_reintento(eventos, ev)
+        destino = destino_del_reintento(eventos, idx)
         if destino is None:
             info["abandono"] += 1
         else:
@@ -196,9 +201,9 @@ def minar_runs(directorio=DIR_RUNS):
             # reconstruyo los deltas para recalcular la mediana GLOBAL por tool
             if info["delta_mediano_seg"] is not None:
                 # re-mido sobre los errores de esta sesión (barato: listas chicas)
-                for ev in eventos:
+                for idx, ev in enumerate(eventos):
                     if ev.get("accion") == "error" and ev.get("nodo") == tool:
-                        d = destino_del_reintento(eventos, ev)
+                        d = destino_del_reintento(eventos, idx)
                         if d is not None:
                             agg["_deltas"].append(d["delta_seg"])
 
