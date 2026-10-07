@@ -23,6 +23,10 @@ aprobación). Además, la mera presencia de redirección (`>`, `<`, `>>`),
 sustitución `$(...)`, backticks o `xargs` degrada a 'preguntar': escriben
 o ejecutan lo que no podemos ver clasificar por prefijo. `python3 -c`
 pregunta SIEMPRE (código arbitrario, aunque hoy lo usemos para repros).
+Excepción semántica: el token `2>&1` se descarta ANTES de escanear, porque
+duplicar stderr al stdout ya capturado es una LECTURA de descriptor, no una
+escritura; toda redirección REAL conserva su carácter cazable (`> f`,
+`2> f`, `2>&1 > f` queda `> f`, `> f 2>&1` queda `> f`).
 
 `cd` es neutro (test exhaustivo 2026-10-06: el modelo prefijó `cd <dir> &&`
 en 5/5 run_command y el compuesto degradaba a preguntar aunque el fondo
@@ -115,6 +119,12 @@ def _segmento_es_auto(segmento):
     tokens = _tokens(segmento)
     if not tokens:
         return True
+    # `2>&1` es una duplicación de descriptor de LECTURA (manda stderr al
+    # stdout ya capturado), así que quitarlo no puede ocultar ninguna
+    # escritura: toda redirección REAL conserva su carácter cazable —
+    # `> f` queda, `2> f` queda, `2>&1 > f` queda como `> f`, `> f 2>&1`
+    # queda como `> f`. Se descarta ANTES del escaneo de peligro.
+    segmento = segmento.replace("2>&1", "")
     # Redirección / sustitución / xargs: nunca auto, ni siquiera para echo.
     if _PELIGRO_SHELL.search(segmento):
         return False

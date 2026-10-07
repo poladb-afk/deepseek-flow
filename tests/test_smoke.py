@@ -1534,6 +1534,27 @@ def test_policy_reglas_de_composicion():
     assert clasificar("git push origin main && rm -rf /") == "confirmar_doble"
 
 
+def test_policy_2_amp_1_es_lectura():
+    """Fix 12 (spec banco_robusto_2026-10-07): `2>&1` duplica stderr al
+    stdout ya capturado — es LECTURA de descriptor, no redirección que
+    escribe. Se descarta antes del escaneo, pero toda redirección REAL
+    conserva su carácter cazable: la matriz de abajo demuestra que ninguna
+    escritura se escapa."""
+    from utils.policy import clasificar
+
+    # AUTO: `2>&1` solo, con pipe, y en comandos de solo-lectura whitelisted
+    assert clasificar("python3 -m pytest tests/ -q 2>&1") == "auto"
+    assert clasificar("python3 -m pytest tests/ -q 2>&1 | tail -20") == "auto"
+    assert clasificar("grep algo archivo 2>&1") == "auto"
+    assert clasificar("cat x | head -3 2>&1") == "auto"
+
+    # PREGUNTAR: redirecciones reales (el strip no oculta ninguna)
+    assert clasificar("echo hola > f") == "preguntar"
+    assert clasificar("echo hola > f 2>&1") == "preguntar"  # `> f` sobrevive
+    assert clasificar("comando 2> err.txt") == "preguntar"  # fd a archivo, no `2>&1`
+    assert clasificar("comando 2>&1 > f") == "preguntar"  # orden importa: queda `> f`
+
+
 def test_run_command_auto_no_pide_input(monkeypatch):
     import modules.coding as coding
 

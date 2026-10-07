@@ -1,0 +1,19 @@
+id: banco-3-policy
+descripcion: el harness aplica el fix 12 — 2>&1 es lectura, no redirección que escribe
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: fix-policy
+    linea: "Leé banco/specs/banco_robusto_2026-10-07.md (spec verificada, confía en ella) y aplicá el Fix 12: en utils/policy.py, _segmento_es_auto quita el token 2>&1 ANTES del escaneo de _PELIGRO_SHELL (regla semántica: duplicar stderr al stdout no escribe; toda redirección real conserva su carácter cazable), con el comentario que lo justifica, y el docstring del módulo actualizado en la sección de redirección. UN solo edit_file para policy.py. Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes)."
+    hitl: s
+    timeout: 1200
+  - id: fix-policy-tests
+    linea: "Ahora el candado del Fix 12: la matriz completa de tests de la spec (los 8 casos: 2>&1 solo, con pipe, grep; > f, > f 2>&1, 2> f, 2>&1 > f quedan preguntar; cat | head 2>&1 auto) en tests/test_smoke.py junto a los tests de policy existentes. UN solo edit_file. Verificá con `python3 -m pytest tests/ -q`."
+    hitl: s
+    timeout: 1200
+  - id: salir
+    linea: "salir"
+    timeout: 60
