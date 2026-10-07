@@ -1669,10 +1669,11 @@ def test_hook_no_rompe_la_ejecucion(tmp_path, monkeypatch):
         fs_tools.HOOKS_POST["read_file"].remove(hook_malo)
 
 
-def test_hook_pre_denylist_veta_antes_de_ejecutar(tmp_path, monkeypatch):
+def test_hook_pre_denylist_veta_antes_de_ejecutar(tmp_path, monkeypatch, capsys):
     """Mesa 2 (residual): el denylist de run_command corre ANTES de la
     implementación (hook PRE). Un comando prohibido se veta sin ejecutarse
-    NI aprobarse (input explota si se llamara)."""
+    NI aprobarse (input explota si se llamara). El hook imprime un aviso
+    [denylist] antes de devolver el veto (paridad con _hook_py_compile)."""
     import subprocess
 
     import modules.coding as coding
@@ -1696,12 +1697,16 @@ def test_hook_pre_denylist_veta_antes_de_ejecutar(tmp_path, monkeypatch):
         coding.IMPL,
     )
     assert res["content"].startswith("ERROR") and "denylist" in res["content"]
+    salida = capsys.readouterr().out
+    assert "[denylist]" in salida and "rm -rf /" in salida
 
     res = fs_tools.run_tool_call(
         _tc("run_command", {"command": ":(){ :|:& };:"}),
         coding.IMPL,
     )
     assert res["content"].startswith("ERROR") and "denylist" in res["content"]
+    salida = capsys.readouterr().out
+    assert "[denylist]" in salida and ":(){ :|:& };:" in salida
 
     # un comando normal NO es vetado: restauramos el run real y verificamos
     # que llega a la implementación (echo inofensivo, HITL_AUTO lo corre auto).

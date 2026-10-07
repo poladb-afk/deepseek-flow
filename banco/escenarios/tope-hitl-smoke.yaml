@@ -1,0 +1,17 @@
+id: tope-hitl-smoke
+descripcion: smoke E2E del agotamiento elegante — max_hitl 1 con dos escrituras pedidas
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch:
+  - salidas/tmp_tope
+turnos:
+  - id: dos-escrituras
+    max_hitl: 1
+    linea: "Creá dos archivos de texto triviales con write_file: salidas/tmp_tope/uno.txt con el contenido 'uno' y salidas/tmp_tope/dos.txt con el contenido 'dos'. Nada más."
+    hitl: s
+    timeout: 600
+  - id: salir
+    linea: "salir"
+    timeout: 60

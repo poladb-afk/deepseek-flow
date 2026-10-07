@@ -99,7 +99,8 @@ MARCADORES = {
     "hitl_prompt": r"\(s/n\)",
     "compaccion": r"\[compacción\]",
     "sintaxis": r"⚠ SINTAXIS",
-    "veto": r"PROHIBID|[Vv]etad",
+    "veto_l8": r"\[laya\] \S+ está vetada|\[L8\] \S+ vetada",
+    "veto_denylist": r"\[denylist\]",
     "recuperacion": r"\[recuperación\]",
     "dsml_ignorado": r"\[DSML\] tool calls como texto: IGNORADOS",
     "sanitizado": r"\[sanitizado\]",
@@ -241,6 +242,7 @@ def correr(escenario, dir_salida):
         tid = turno.get("id", f"t{i}")
         politica = turno.get("hitl", "none")
         timeout = int(turno.get("timeout", 120))
+        tope_hitl = turno.get("max_hitl", MAX_HITL_POR_TURNO)
         evento("turno-inicio", {"n": i, "id": tid})
         t0 = time.time()
 
@@ -260,6 +262,7 @@ def correr(escenario, dir_salida):
             estado = "corriendo"
             inicio = time.time()
             hitl_dados = 0
+            hitl_topes = 0
             while time.time() - inicio < timeout:
                 chat.leer()
                 if not chat.vivo:
@@ -267,7 +270,20 @@ def correr(escenario, dir_salida):
                     # "¡Chao!" distingue salida limpia de crash a mitad)
                     estado = "ok" if "¡Chao" in limpiar(ventana + chat.nuevo) else "proceso-muerto"
                     break
-                if hitl_pendiente(chat) and hitl_dados < MAX_HITL_POR_TURNO:
+                if hitl_pendiente(chat) and hitl_dados >= tope_hitl:
+                    # presupuesto agotado: rechazar y registrar, no colgar
+                    # (default seguro — el rechazo es feedback para el
+                    # modelo, que cierra el turno en prosa)
+                    time.sleep(0.5)
+                    chat.enviar("n")
+                    lineas_prompt = [ln for ln in limpiar(ventana + chat.nuevo).splitlines() if ln.strip()]
+                    evento("hitl-tope", {"n": i, "id": tid,
+                                         "prompt": (lineas_prompt[-1] if lineas_prompt else "")[:120]})
+                    hitl_topes += 1
+                    ventana += chat.nuevo
+                    chat.nuevo = ""
+                    continue
+                if hitl_pendiente(chat) and hitl_dados < tope_hitl:
                     # el HITL ya no se aprueba a ciegas: se mira el objetivo
                     ventana_completa = limpiar(ventana + chat.nuevo)
                     lineas_con_texto = [ln for ln in ventana_completa.splitlines() if ln.strip()]
@@ -299,7 +315,8 @@ def correr(escenario, dir_salida):
         marcadores = contar_marcadores(limpiar(ventana + chat.nuevo))
         duracion = round(time.time() - t0)
         evento("turno-fin", {"n": i, "id": tid, "estado": estado, "seg": duracion,
-                             "hitl": locals().get("hitl", 0), "marcadores": marcadores})
+                             "hitl": locals().get("hitl", 0),
+                             "hitl_tope": locals().get("hitl_topes", 0), "marcadores": marcadores})
         resultados.append({"id": tid, "estado": estado, "seg": duracion,
                            "hitl": locals().get("hitl", 0), "marcadores": marcadores})
         if estado in ("proceso-muerto", "timeout"):
@@ -339,6 +356,12 @@ def cargar_escenario(ruta):
     ids = [t.get("id") for t in esc["turnos"]]
     if len(ids) != len(set(ids)):
         raise ValueError(f"ids de turno duplicados en {ruta}")
+    for turno in esc["turnos"]:
+        # knob declarativo por turno: default = MAX_HITL_POR_TURNO; si
+        # viene debe ser un int >= 1 (nunca un tope 0 que colgaría el turno).
+        tope = turno.get("max_hitl", MAX_HITL_POR_TURNO)
+        if not isinstance(tope, int) or isinstance(tope, bool) or tope < 1:
+            raise ValueError(f"max_hitl inválido en {ruta}: {tope!r} (int >= 1)")
     return esc
 
 

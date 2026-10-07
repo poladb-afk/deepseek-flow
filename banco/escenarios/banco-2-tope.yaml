@@ -1,0 +1,19 @@
+id: banco-2-tope
+descripcion: el harness aplica el fix 11 — agotamiento elegante del tope HITL + knob max_hitl
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: fix-tope-driver
+    linea: "Leé banco/specs/banco_robusto_2026-10-07.md (spec verificada, confía en ella) y aplicá el Fix 11 completo en banco/banco.py: knob max_hitl por turno (default MAX_HITL_POR_TURNO, el nombre real del constante), validación en cargar_escenario (int >= 1 o ValueError), y agotamiento elegante en el while de correr (al tope con prompt pendiente: enviar \"n\", evento \"hitl-tope\" con turno/id/prompt recortado, contar los topes del turno y sumarlos al detalle del turno-fin). UNO o DOS edit_file para banco.py. De paso un correctivo del turno anterior: en tests/test_banco.py el fixture de veto_denylist dice 'no se ejecutó ni se pidió aprobación' pero el print real de modules/coding.py termina con el COMANDO vetado (f-string); corregilo a una línea verbatim del print real (p. ej. terminando en ': rm -rf /'). Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes)."
+    hitl: s
+    timeout: 1200
+  - id: fix-tope-tests
+    linea: "Ahora el candado del Fix 11 en tests/test_banco.py: tests de cargar_escenario validando max_hitl (int válido pasa y queda en el dict; \"0\", \"x\" y -1 → ValueError). UN solo edit_file. Verificá con `python3 -m pytest tests/ -q`."
+    hitl: s
+    timeout: 1200
+  - id: salir
+    linea: "salir"
+    timeout: 60

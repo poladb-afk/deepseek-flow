@@ -33,7 +33,8 @@ def test_los_marcadores_matchean_las_lineas_reales_del_chat():
         "hitl_prompt": "¿Escribir? → /x/hola.txt (s/n): ",
         "compaccion": "[compacción] zona fría: 30 mensajes → resumen; ventana caliente: 11",
         "sintaxis": "contenido\n⚠ SINTAXIS: invalid syntax (roto.py, line 1)",
-        "veto": "comando PROHIBIDO por la denylist dura",
+        "veto_l8": "  [laya] search_files está vetada (dos fallos) → elige DeepSeek",
+        "veto_denylist": "  [denylist] comando vetado (daño irreversible): rm -rf /",
         "recuperacion": "  [recuperación] tool calls llegaron como texto (DSML) → ejecutando",
         "sanitizado": "  [sanitizado] la respuesta descarriló a un prompt ajeno: cortada",
         "ronda": "  ⚙ ronda 3/8",
@@ -44,7 +45,19 @@ def test_los_marcadores_matchean_las_lineas_reales_del_chat():
     for nombre, patron in MARCADORES.items():
         assert re.search(patron, muestras[nombre]), f"marcador {nombre} no matchea su línea real"
     conteo = contar_marcadores("\n".join(muestras.values()))
-    assert conteo["laya"] == 1 and conteo["ronda"] == 1 and conteo["veto"] == 1
+    assert conteo["ronda"] == 1
+    assert conteo["veto_l8"] == 1 and conteo["veto_denylist"] == 1
+    # la segunda línea real de veto L8 (formato `[L8] X vetada`) es positiva
+    assert re.search(MARCADORES["veto_l8"], "  [L8] db_schema vetada y elegida igual → finish")
+    # Fixtures NEGATIVOS reales: las dos líneas contaminantes medidas hoy NO
+    # matchean ninguna clave de veto (el viejo `PROHIBID|[Vv]etad` sí lo hacía).
+    contaminantes = (
+        "+        if PROHIBIDOS.search(limpia):",
+        "vetado por la denylist del driver; lo documenta la auditoría)",
+    )
+    for linea in contaminantes:
+        c = contar_marcadores(linea)
+        assert not c.get("veto_l8") and not c.get("veto_denylist"), f"falso positivo en {linea!r}"
 
 
 def test_limpiar_quita_ansi_y_crlf():
@@ -161,3 +174,28 @@ def test_escenario_con_env_lo_expone_y_sin_env_sigue_valido(tmp_path):
     assert esc["env"] == {"MAX_TOOL_ROUNDS": "40"}
     for ruta in ("smoke.yaml", "exp4-bajo.yaml"):
         cargar_escenario(ESCENARIOS / ruta)  # sin env o con env: ambas válidas
+
+
+def test_max_hitl_por_turno_se_valida_y_llega_al_dict(tmp_path):
+    """Fix 11: knob declarativo `max_hitl` por turno. Un entero válido pasa
+    y queda en el dict del escenario; los inválidos levantan ValueError."""
+    import yaml as _yaml
+
+    def _cargar(max_hitl):
+        ruta = tmp_path / "esc.yaml"
+        turno = {"id": "t1", "linea": "hola", "timeout": 5}
+        if max_hitl is not None:
+            turno["max_hitl"] = max_hitl
+        ruta.write_text(_yaml.safe_dump(
+            {"id": "esc", "turnos": [turno]}, allow_unicode=True), encoding="utf-8")
+        return cargar_escenario(ruta)
+
+    esc = _cargar(3)
+    assert esc["turnos"][0]["max_hitl"] == 3
+    for malo in ("0", "x", -1):
+        try:
+            _cargar(malo)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"max_hitl={malo!r} debería levantar ValueError")

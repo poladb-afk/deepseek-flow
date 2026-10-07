@@ -1,0 +1,19 @@
+id: banco-1-marcadores
+descripcion: el harness aplica el fix 10 — marcadores de veto anclados + print de la denylist
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: fix-marcadores
+    linea: "Leé banco/specs/banco_robusto_2026-10-07.md (spec verificada, confía en ella) y aplicá el Fix 10, partes (b) y candado 1-3: en banco/banco.py reemplazá la clave \"veto\" del dict MARCADORES por las dos claves ancladas veto_l8 y veto_denylist; en tests/test_banco.py actualizá los fixtures del test de marcadores (positivos = líneas reales, negativos = las dos contaminantes medidas, eliminando el fixture viejo de mayúsculas). UN edit_file por archivo (2 en total). Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes ni && ni 2>&1)."
+    hitl: s
+    timeout: 1200
+  - id: fix-print-denylist
+    linea: "Ahora el Fix 10, parte (a) y su candado: en modules/coding.py el hook _vetar_comando_prohibido debe IMPRIMIR el aviso [denylist] antes de devolver el veto (paridad con _hook_py_compile, estilo colorear/flush); y el test de la denylist en tests/test_smoke.py se extiende para capturar stdout (capsys) y afirmar el print. UN edit_file por archivo (2 en total). Verificá con `python3 -m pytest tests/ -q`."
+    hitl: s
+    timeout: 1200
+  - id: salir
+    linea: "salir"
+    timeout: 60

@@ -33,7 +33,7 @@ from utils.aprobaciones import registrar as registrar_aprobacion
 from utils.call_llm import _setting
 from utils.fs_tools import _resolve
 from utils.policy import clasificar, explicar
-from utils.terminal import highlight_diff
+from utils.terminal import colorear, highlight_diff
 
 TIMEOUT_S = 120
 SALIDA_MAX = 4000  # chars: el resultado entra al historial y al costo
@@ -70,6 +70,8 @@ def _vetar_comando_prohibido(tool_call):
     except Exception:  # noqa: BLE001
         return None
     if comando and _PROHIBIDOS.search(comando):
+        print(colorear(f"  [denylist] comando vetado (daño irreversible): {comando}",
+                       "aviso"), flush=True)
         return (
             "ERROR: comando prohibido por la denylist de seguridad (daño "
             "irreversible en el host); no se ejecutó ni se pidió aprobación. "
