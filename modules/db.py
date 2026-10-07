@@ -61,6 +61,26 @@ def _sentencias(texto):
     return [p for p in partes if p.strip()]
 
 
+def _sin_literales(consulta):
+    """La consulta con el contenido de los literales ('...' y "...")
+    reemplazado por vacío: para escanear palabras clave del SQL sin falsear
+    por texto de usuario. Misma noción de literal que _sentencias."""
+    partes, actual, comilla = [], [], None
+    for ch in consulta:
+        if comilla:
+            if ch == comilla:
+                comilla = None
+            continue  # el contenido del literal no se escanea
+        if ch in ("'", '"'):
+            comilla = ch
+        elif ch == ";":
+            partes.append(";")  # el troceado de sentencias no se falsea
+        else:
+            actual.append(ch)
+    partes.append("".join(actual))
+    return "".join(partes)
+
+
 _RE_LIMIT = re.compile(r"\blimit\b", re.IGNORECASE)
 
 
@@ -74,11 +94,15 @@ def sql(consulta):
             return "ERROR: solo SELECT"
         if len(_sentencias(consulta)) > 1:
             return "ERROR: una sola sentencia"
-        if PROHIBIDOS.search(consulta):
+        # los chequeos escanean la consulta SIN literales: un 'delete' o un
+        # 'limit' dentro de un string es texto de usuario, no SQL. La consulta
+        # que se EJECUTA sigue siendo la original.
+        limpia = _sin_literales(consulta)
+        if PROHIBIDOS.search(limpia):
             return "ERROR: solo SELECT"
         # la ley es 'LIMIT forzado si no lo trae': hay que mirar la CLÁUSULA
         # LIMIT, no una subcadena (un LIKE '%unlimited%' la suprimía).
-        if not _RE_LIMIT.search(consulta):
+        if not _RE_LIMIT.search(limpia):
             consulta = f"{consulta.rstrip(';').rstrip()} LIMIT {MAX_FILAS}"
         try:
             filas = con.execute(consulta).fetchall()

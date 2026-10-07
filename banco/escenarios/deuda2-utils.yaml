@@ -1,0 +1,23 @@
+id: deuda2-utils
+descripcion: el harness aplica los fixes 4-7 (websearch, compaccion, memoria, db) de la spec verificada, turnos chicos
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: fix-websearch-compaccion
+    linea: "Leé banco/specs/deuda_2026-10-07.md (spec verificada, confía en ella) y aplicá SOLO los Fix 4 y Fix 5: (4) utils/websearch.py — capturar la excepción de DDGS().text y devolver ERROR como texto, con su test; (5) utils/compaccion.py — eliminar la función muerta _recortar_cola y usar unidades[-ventana:] directo. Reglas del turno: MÁXIMO 3 edit_file en total (el test de websearch va en UN solo append a tests/test_smoke.py, junto con nada más). Para verificar usá EXACTAMENTE `python3 -m pytest tests/ -q` — es solo-lectura auto y no gasta aprobación; NO corras ruff ni comandos con pipes o 2>&1 (eso pide s/n y gasta el tope del turno)."
+    hitl: s
+    timeout: 1200
+  - id: fix-memoria
+    linea: "Ahora aplicá el Fix 6 de banco/specs/deuda_2026-10-07.md: modules/memoria.py — guardar_resumen_sesion pisa sesion_FECHA.md del mismo día; sufijo horario si el destino ya existe. UN edit para el módulo y UN solo append con su test a tests/test_smoke.py (2 edit_file en total). Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes)."
+    hitl: s
+    timeout: 1200
+  - id: fix-db
+    linea: "Ahora el Fix 7 de banco/specs/deuda_2026-10-07.md: modules/db.py — PROHIBIDOS y _RE_LIMIT escanean dentro de literales ('delete' en un string rechaza de más, 'limit' en un string salta el LIMIT forzado); helper _sin_literales aplicado a AMBOS chequeos, la consulta ejecutada sigue siendo la original. UN edit para el módulo y UN solo append con los tests a tests/test_smoke.py (2 edit_file en total). Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes)."
+    hitl: s
+    timeout: 1200
+  - id: salir
+    linea: "salir"
+    timeout: 60

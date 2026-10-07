@@ -11,7 +11,12 @@ def search_web(consulta, k=5):
     if _setting("SEARCH_PROVIDER", "ddgs") != "ddgs":
         return f"ERROR: SEARCH_PROVIDER={_setting('SEARCH_PROVIDER')} no implementado; usa ddgs"
 
-    resultados = DDGS().text(consulta, max_results=int(k)) or []
+    try:
+        resultados = DDGS().text(consulta, max_results=int(k)) or []
+    except Exception as e:  # noqa: BLE001  (degrada a texto: el resto del
+        # harness no se cae por una búsqueda sin red; research ve el error
+        # como dato y sigue con las queries que sí pueden salir)
+        return f"ERROR: búsqueda web falló ({type(e).__name__}: {e})"
     lineas = []
     for r in resultados:
         url = r.get("href") or r.get("url") or ""

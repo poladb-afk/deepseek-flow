@@ -143,13 +143,6 @@ def _unidades(messages):
     return cortes
 
 
-def _recortar_cola(unidades):
-    """Toma las últimas `ventana` unidades SIN partir ninguna: si la unidad
-    más vieja de la ventana es una cabeza assistant+tools, entra completa
-    (puede dejar la ventana en más de N mensajes: la unidad manda)."""
-    return list(unidades)
-
-
 def _resumen(cantidad):
     """El resumen sintético de la zona fría: user con prefijo fijo, el
     conteo de vueltas omitidas y un placeholder instructivo. Determinista."""
@@ -193,7 +186,7 @@ def compactar(messages, max_chars, ventana=VENTANA_DEFAULT):
     # de corte arranca en el índice 1 (o menos), no hay zona fría: no-op.
     if len(unidades) <= ventana + 1:
         return original
-    cola = _recortar_cola(unidades[-ventana:])
+    cola = unidades[-ventana:]
     corte = cola[0][0]  # índice del primer mensaje de la ventana caliente
 
     # El system (índice 0) siempre intacto. La zona fría arranca en 1.

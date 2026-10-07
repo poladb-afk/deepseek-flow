@@ -147,6 +147,12 @@ def guardar_resumen_sesion(contenido):
     es bookkeeping, no una acción nueva. Devuelve el path o None."""
     raiz = _raiz()
     destino = raiz / f"sesion_{date.today().isoformat()}.md"
+    if destino.exists():
+        from datetime import datetime
+
+        destino = raiz / (
+            f"sesion_{date.today().isoformat()}-{datetime.now().strftime('%H%M')}.md"
+        )
     try:
         raiz.mkdir(parents=True, exist_ok=True)
         destino.write_text(contenido.rstrip() + "\n", encoding="utf-8")

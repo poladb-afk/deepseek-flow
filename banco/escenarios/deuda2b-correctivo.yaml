@@ -1,0 +1,15 @@
+id: deuda2b-correctivo
+descripcion: correctivo — el test inventado de compacción con premisa falsa
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "25"
+scratch: []
+turnos:
+  - id: fix-test-compaccion
+    linea: "Correctivo del turno anterior (dejaste la suite roja y vos mismo lo diagnosticaste bien: 'compactar sigue midiendo caracteres, no mensajes'). En tests/test_smoke.py está test_compactar_cuenta_mensajes_no_caracteres con una premisa FALSA (afirma que 9 mensajes no se compactan con max_chars=1). REEMPLAZALO por un test con la premisa REAL: compactar dispara por CARACTERES (_tamano > max_chars) siempre que haya mensajes suficientes (>= ventana+2); con menos de ventana+2 mensajes es no-op aunque los caracteres pasen el tope. Usá de oráculo lo que tu probe ya midió: 9 mensajes + max_chars=1 -> compacta (conserva system y la ventana caliente, mensajes totales bajan); 7 mensajes + max_chars=1 -> no-op; 9 mensajes + max_chars=10**9 -> no-op. UN solo edit_file. Verificá con `python3 -m pytest tests/ -q` (LA SUITE COMPLETA, no -k; sin pipes ni 2>&1)."
+    hitl: s
+    timeout: 1200
+  - id: salir
+    linea: "salir"
+    timeout: 60

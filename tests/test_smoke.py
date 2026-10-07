@@ -196,6 +196,68 @@ def test_mermaid_export():
     assert "Planner" in texto and "research" in texto
 
 
+def _db_tmp(tmp_path):
+    """Crea una sqlite real mínima con una tabla `trazas` y DB_PATH apuntada
+    ahí (vía setting). Devuelve el módulo ya listo."""
+    import sqlite3
+
+    import modules.db as db
+
+    ruta = tmp_path / "trazas.db"
+    con = sqlite3.connect(ruta)
+    con.execute("CREATE TABLE trazas (id INTEGER PRIMARY KEY, criterios TEXT)")
+    con.execute("INSERT INTO trazas (criterios) VALUES ('x'), ('y')")
+    con.commit()
+    con.close()
+    return db
+
+
+def test_sql_no_confunde_delete_en_literal(tmp_path, monkeypatch):
+    """Fix 7: un 'delete' dentro de un literal es texto de usuario, no SQL:
+    el chequeo PROHIBIDOS corre sobre la consulta SIN literales, así que NO
+    devuelve 'solo SELECT' (antes: falso positivo)."""
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "trazas.db"))
+    db = _db_tmp(tmp_path)
+
+    r = db.sql("SELECT * FROM trazas WHERE criterios = 'delete'")
+    assert not r.startswith("ERROR"), f"falso positivo por 'delete' en literal: {r[:80]}"
+
+
+def test_sql_sigue_rechazando_delete_real(tmp_path, monkeypatch):
+    """Fix 7 no abre la puerta: un DELETE de verdad sigue rechazado."""
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "trazas.db"))
+    db = _db_tmp(tmp_path)
+
+    assert db.sql("DELETE FROM trazas").startswith("ERROR")
+
+
+def test_sql_fuerza_limit_ante_limit_en_literal(tmp_path, monkeypatch):
+    """Fix 7: un 'limit' dentro de un literal NO es una cláusula LIMIT, así
+    que el LIMIT forzado SÍ se aplica (antes: '... = \\'limit\\'' lo suprimía
+    y devolvía filas sin techo). Se verifica con una tabla de más filas que
+    MAX_FILAS: el resultado no puede superar el tope."""
+    import sqlite3
+
+    import modules.db as db
+    from modules.db import MAX_FILAS
+
+    ruta = tmp_path / "trazas.db"
+    con = sqlite3.connect(ruta)
+    con.execute("CREATE TABLE trazas (id INTEGER PRIMARY KEY, criterios TEXT)")
+    con.executemany(
+        "INSERT INTO trazas (criterios) VALUES (?)",
+        [("limit",) for _ in range(MAX_FILAS + 20)],
+    )
+    con.commit()
+    con.close()
+    monkeypatch.setenv("DB_PATH", str(ruta))
+
+    r = db.sql("SELECT id FROM trazas WHERE criterios = 'limit'")
+    assert not r.startswith("ERROR"), f"la consulta con 'limit' en literal falló: {r[:80]}"
+    filas = [ln for ln in r.splitlines() if ln.strip()]
+    assert len(filas) - 2 <= MAX_FILAS, "'limit' en un literal suprimió el LIMIT forzado"
+
+
 def test_mermaid_flujos_batch_y_lote():
     """El export de grafos cubre los flujos nuevos: el batch puro
     (effective_n multi) y la rama async del lote. Un flujo anidado declara su
@@ -3665,3 +3727,55 @@ def test_carga_trazas_serializa_criteria_no_string(tmp_path):
         assert _json.loads(celda) == ["a", "b"]
     finally:
         shutil.rmtree(base, ignore_errors=True)
+
+
+def test_compactar_dispara_por_caracteres_con_umbral_de_mensajes():
+    """El disparador de `compactar` es el TAMAÑO en CARACTERES (`_tamano >
+    max_chars`), pero con la compuerta de mensajes: con `ventana + 2` o más
+    mensajes (9 >= 6+2) compacta en cuanto los caracteres pasan el tope;
+    por debajo de `ventana + 2` es no-op aunque los caracteres lo superen."""
+    from utils.compaccion import compactar
+
+    system = {"role": "system", "content": "s" * 5000}
+    turnos = [{"role": "user", "content": "u" * 5000} for _ in range(8)]
+    messages = [system] + turnos  # 9 mensajes >= ventana+2
+
+    # 9 mensajes + max_chars=1: los caracteres pasan el tope -> COMPACTA.
+    out = compactar(messages, max_chars=1)
+    assert out is not messages and out != messages
+    assert out[0] == messages[0]  # system conservado
+    assert out[0]["role"] == "system"
+    assert len(out) < len(messages)  # los totales bajan
+    # la ventana caliente sobrevive byte a byte al final del compactado
+    assert out[-6:] == messages[-6:]
+
+    # 7 mensajes (menos de ventana+2) + max_chars=1: no-op por la compuerta.
+    mensajes_7 = [system] + turnos[:6]  # 7 mensajes < 8
+    assert compactar(mensajes_7, max_chars=1) == mensajes_7
+
+    # 9 mensajes pero max_chars enorme: los caracteres NO pasan el tope -> no-op.
+    assert compactar(messages, max_chars=10**9) == messages
+
+
+def test_guardar_resumen_sesion_no_pisa_el_mismo_dia(tmp_path, monkeypatch):
+    """Fix 6: dos sesiones el mismo día NO se pisan. La primera conserva el
+    nombre clásico `sesion_FECHA.md`; la segunda usa sufijo horario, así que
+    quedan DOS archivos distintos y cada uno con su contenido."""
+    import modules.memoria as mem
+
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+
+    p1 = mem.guardar_resumen_sesion("uno")
+    p2 = mem.guardar_resumen_sesion("dos")
+
+    assert p1 is not None and p2 is not None
+    assert p1 != p2, "la segunda sesión del día pisó el archivo de la primera"
+    # la primera conserva el nombre clásico
+    from datetime import date
+
+    assert p1.name == f"sesion_{date.today().isoformat()}.md"
+    # ambas existen con su contenido propio
+    assert p1.read_text(encoding="utf-8").strip() == "uno"
+    assert p2.read_text(encoding="utf-8").strip() == "dos"
+    sesiones = sorted(f.name for f in tmp_path.glob("sesion_*.md"))
+    assert len(sesiones) == 2
