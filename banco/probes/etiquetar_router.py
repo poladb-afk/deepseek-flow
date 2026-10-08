@@ -140,7 +140,12 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog="etiquetar_router")
     parser.add_argument("n", nargs="?", type=int, default=20)
     parser.add_argument("--salida", default=None)
-    parser.add_argument("--extra", default=None, help="archivo con una pregunta por línea")
+    parser.add_argument(
+        "--extra", default=None,
+        help="preguntas extra: una por línea, o JSONL con la clave 'pregunta' "
+             "(el log del chat exp/34 o el de decisiones con LAYA_LOG_PREGUNTA=1, "
+             "salidas/routing.jsonl)",
+    )
     args = parser.parse_args(argv)
     salida = Path(args.salida or RAIZ / "banco" / ("calibracion_router_" + date.today().isoformat() + ".jsonl"))
     candidatas = preguntas_de_escenarios()
