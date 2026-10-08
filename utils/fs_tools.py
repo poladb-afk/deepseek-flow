@@ -105,6 +105,27 @@ def _resolve(raw):
     return None, "ruta fuera de los directorios permitidos: " + ", ".join(str(r) for r in roots)
 
 
+def escribir_salida(ruta, texto):
+    """El ÚNICO camino de escritura de un flujo (C01 de la auditoría externa).
+
+    Los flujos escribían con Path.write_text() una ruta de SALIDA elegida por
+    el modelo, sin pasar por _resolve: medido, con las raíces acotadas
+    write_file rechazaba la ruta externa y los flujos la escribían igual.
+    Misma forma que _resolve —(ruta, None) o (None, error)— para que cada
+    llamador decida: la tool del chat devuelve ERROR y el CLI corta. El HITL
+    de write_file sigue siendo el de modules/escritura: acá NO se agrega
+    fricción (los flujos también corren desde la CLI y desde el banco)."""
+    destino, err = _resolve(ruta)
+    if err:
+        return None, err
+    try:
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(texto, encoding="utf-8")
+    except OSError as e:
+        return None, f"no se pudo escribir {destino}: {e.strerror or e}"
+    return destino, None
+
+
 def list_files(path=None, depth=2):
     if path is None:
         roots = allowed_roots()

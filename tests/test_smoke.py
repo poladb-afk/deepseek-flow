@@ -12,6 +12,17 @@ sys.path.insert(0, str(RAIZ))
 os.environ.setdefault("AGENT_ALLOWED_DIRS", str(RAIZ.parent.parent))
 
 
+@pytest.fixture(autouse=True)
+def _permitir_salidas_de_tmp(tmp_path_factory, monkeypatch):
+    """Las salidas de los flujos pasan por la contención de AGENT_ALLOWED_DIRS
+    (exp/26): el tmp de pytest se declara como raíz permitida para que los
+    tests sigan escribiendo ahí. Los tests que PRUEBAN la contención fijan su
+    propio AGENT_ALLOWED_DIRS después (monkeypatch: gana el último setenv)."""
+    monkeypatch.setenv(
+        "AGENT_ALLOWED_DIRS", f"{RAIZ.parent.parent}:{tmp_path_factory.getbasetemp()}"
+    )
+
+
 def test_action_space_completo():
     from nodes import TOOLS
 
@@ -4399,6 +4410,7 @@ def test_no_progress_se_resetea_con_la_pregunta_nueva():
     _, tools = step.prep(shared)
     assert tools is not None                   # el presupuesto se reinició
 
+
 def test_aprobaciones_no_deja_las_tools_retiradas(capsys):
     """exp/13 (residual): /aprobaciones devolvía 'continue' ANTES del reset del
     presupuesto, así que tras un corte por no-progreso el comando reentraba a
@@ -4418,3 +4430,40 @@ def test_aprobaciones_no_deja_las_tools_retiradas(capsys):
     assert len(shared["messages"]) == antes    # no entra al historial
     _, tools = step.prep(shared)
     assert tools is not None                   # el presupuesto se reinició
+
+
+def test_ningun_flujo_escribe_fuera_de_las_raices(tmp_path, monkeypatch):
+    """exp/26 (C01 P0 de la auditoría externa): los flujos escribían con
+    Path.write_text() una ruta de salida elegida por el modelo. Medido: con
+    las raíces acotadas, write_file RECHAZABA la ruta externa y los flujos la
+    escribían igual. Ahora todos pasan por utils.fs_tools.escribir_salida."""
+    import auditoria
+    import effective_n
+    import informe
+    import research
+    import supervisor
+
+    allowed = tmp_path / "allowed"
+    allowed.mkdir()
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(allowed))
+    fuera = tmp_path / "FUERA.md"
+
+    casos = [
+        (informe.WriteReport(), {"salida": str(fuera)}, "# informe"),
+        (auditoria.ReduceGlobal(), {"salida": str(fuera)}, "# auditoria"),
+        (research.Synthesizer(), {"salida": str(fuera)},
+         {"action": "finalize", "content": "# research"}),
+        (supervisor.Sintetizar(),
+         {"salida": str(fuera), "tarea": "t", "hechos": []}, "cierre"),
+        (effective_n.WriteReport(), {"salida": str(fuera)},
+         {"markdown": "# effective", "total": 2, "efectivo": 1}),
+    ]
+    for nodo, shared, exec_res in casos:
+        with pytest.raises(ValueError, match="fuera de los directorios permitidos"):
+            nodo.post(shared, None, exec_res)
+    assert not fuera.exists()
+
+    # el camino legítimo (dentro de las raíces) sigue escribiendo igual
+    dentro = allowed / "informe.md"
+    informe.WriteReport().post({"salida": str(dentro)}, None, "# ok")
+    assert dentro.read_text(encoding="utf-8") == "# ok"

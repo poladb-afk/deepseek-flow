@@ -25,7 +25,7 @@ from pathlib import Path
 from pocketflow import AsyncFlow, AsyncParallelBatchNode, Node
 
 from utils.call_llm import _setting, call_llm, call_llm_async
-from utils.fs_tools import SKIP_DIRS, _resolve
+from utils.fs_tools import SKIP_DIRS, _resolve, escribir_salida
 
 MAX_FILES = 30
 SAMPLE_TASKS = 2
@@ -176,11 +176,11 @@ Carpeta: `{folder}` · {len(analisis)} archivos · {total_reg} registros
 """
 
     def post(self, shared, prep_res, exec_res):
-        path = Path(shared["salida"])
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(exec_res, encoding="utf-8")
-        shared["informe"] = str(path.resolve())
-        print(f"Informe escrito: {path.resolve()}")
+        destino, err = escribir_salida(shared["salida"], exec_res)
+        if err:
+            raise ValueError(f"ERROR: {err}")
+        shared["informe"] = str(destino)
+        print(f"Informe escrito: {destino}")
 
 
 def create_informe_flow():

@@ -10,12 +10,12 @@ dispara el retry del Node y se re-pregunta.
 Uso: python3 main.py research "tema" [--salida research.md]
 """
 import argparse
-from pathlib import Path
 
 from pocketflow import BatchNode, Flow, Node
 
 from utils.call_llm import call_llm
 from utils.estructura import extraer_yaml
+from utils.fs_tools import escribir_salida
 from utils.websearch import search_web
 
 MAX_ROUNDS = 2
@@ -122,10 +122,10 @@ content: |
             shared["feedback"] = exec_res.get("feedback", "")
             print(f"  🤔 huecos (ronda {shared['ronda']}): {shared['feedback'][:120]}")
             return "research"
-        salida = Path(shared["salida"])
-        salida.parent.mkdir(parents=True, exist_ok=True)
-        salida.write_text(exec_res["content"], encoding="utf-8")
-        shared["informe"] = str(salida.resolve())
+        destino, err = escribir_salida(shared["salida"], exec_res["content"])
+        if err:
+            raise ValueError(f"ERROR: {err}")
+        shared["informe"] = str(destino)
         print(f"\n✅ informe escrito: {shared['informe']}")
         return "finalize"
 
