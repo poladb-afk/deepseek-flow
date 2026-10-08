@@ -109,17 +109,34 @@ def fingerprint(tool_calls):
     ).hexdigest()
 
 
-def dsml_con_presupuesto_agotado(content, parseados, tools):
+MENSAJE_SIN_RESPUESTA = (
+    "(sin respuesta: el stream se cortó sin contenido — reintentá el pedido)"
+)
+
+
+MENSAJE_DSML_SIN_TOOLS = (
+    "(sin texto: emitiste tool-calls en la ruta directa, donde no hay "
+    "herramientas disponibles — respondé sin ellas)"
+)
+
+
+def dsml_con_presupuesto_agotado(content, parseados, tools, ofrece_tools=True):
     """(nuevo_content, avisar): la recuperación DSML no re-armó tools que
     el tope retiró (ley L8 — medido en exp/4 que sí las ejecutaba: el
     write_file corría después del retiro). Con tools presentes la
     recuperación de siempre; sin tools, el markup se corta y el mensaje
-    que queda es honesto y accionable."""
+    que queda es honesto y accionable.
+
+    `ofrece_tools=False` (DirectAnswer) distingue "nunca se ofrecieron" de
+    "las retiró el tope": el mensaje de presupuesto agotado era FALSO en la
+    ruta directa y descartaba la llamada (medido, exp/36)."""
     if tools is not None or not parseados:
         return content, False
     m = RE_DSML.search(content or "")
     limpio = (content or "")[: m.start()].rstrip() if m else ""
-    return (limpio or MENSAJE_DSML_AGOTADO), True
+    if not limpio:
+        return (MENSAJE_DSML_AGOTADO if ofrece_tools else MENSAJE_DSML_SIN_TOOLS), True
+    return limpio, True
 
 
 def historiar(msg):
@@ -148,19 +165,21 @@ class GetQuestion(Node):
                 text = input("\nTú: ").strip()
             except EOFError:
                 return "exit"
+            # UX (mesa 8): /aprobaciones es un comando de TERMINAL. Se atiende
+            # acá, en el bucle de entrada: devolverlo por post() lo mandaba al
+            # modelo con el historial intacto y sin reiniciar el presupuesto
+            # (medido en la barrida: una llamada extra no pedida).
+            if text.strip().lower() == "/aprobaciones":
+                from utils.aprobaciones import resumen
+
+                print("\n" + resumen())
+                continue
             if text:
                 return text
 
     def post(self, shared, prep_res, exec_res):
         if exec_res.lower() in EXIT_WORDS:
             return "exit"
-        # UX (mesa 8): /aprobaciones muestra el historial HITL de la sesión.
-        # Es un comando de terminal, no llega al modelo ni al historial.
-        if exec_res.strip().lower() == "/aprobaciones":
-            from utils.aprobaciones import resumen
-
-            print("\n" + resumen())
-            return "continue"
         shared["messages"].append({"role": "user", "content": exec_res})
         # Todo presupuesto es POR PREGUNTA (ley L8): el techo de rondas y el
         # contador de no-progreso se reinician acá. Sin este reset, un corte
@@ -253,7 +272,8 @@ class AgentStep(Node):
             # ley L8: retiradas las tools, el texto DSML no las re-arma —
             # el presupuesto no se by-pasea desde el canal de texto (exp/12)
             exec_res.content, avisar = dsml_con_presupuesto_agotado(
-                exec_res.content, parseados, tools)
+                exec_res.content, parseados, tools,
+                ofrece_tools=getattr(self, "ofrece_tools", True))
             if avisar:
                 print(colorear("  [DSML] tool calls como texto: IGNORADOS "
                                "(presupuesto agotado; 'seguí' lo reinicia)", "aviso"))
@@ -262,6 +282,10 @@ class AgentStep(Node):
                 # el historial queda canónico: tool_calls, sin el markup crudo
                 exec_res.content = None
                 exec_res.tool_calls = parseados
+        if not getattr(exec_res, "tool_calls", None) and not (exec_res.content or "").strip():
+            # el stream se cortó sin deltas (401/429/red): sin esto el usuario
+            # ve el rótulo vacío y queda content:null en el historial (medido)
+            exec_res.content = MENSAJE_SIN_RESPUESTA
         if not getattr(exec_res, "tool_calls", None):
             contenido, cortado = sanitizar(exec_res.content or "")
             if cortado:
@@ -454,5 +478,11 @@ class LayaRouter(Node):
 class DirectAnswer(AgentStep):
     """AgentStep sin herramientas: la pregunta se responde de una."""
 
+    ofrece_tools = False  # el DSML acá es texto: nunca se ofrecieron tools
+
     def prep(self, shared):
-        return shared["messages"], None
+        # Reusa el prep de AgentStep (compacción incluida): la ruta directa
+        # mandaba el historial entero sin techo (medido, exp/36) y solo se
+        # salva por la ventana de caracteres del API. Sin tools.
+        mensajes, _ = super().prep(shared)
+        return mensajes, None

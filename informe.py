@@ -33,7 +33,6 @@ TASK_CHARS = 300
 DEFAULT_FOLDER = _setting("INFORME_CARPETA", ".")  # portable; local: INFORME_CARPETA en .env
 # Semáforo anti-429: acota cuántas llamadas a DeepSeek se solapan en el mapa
 MAPA_CONCURRENCIA = int(_setting("MAPA_CONCURRENCIA", "8"))
-_SEMAFORO = asyncio.Semaphore(MAPA_CONCURRENCIA)
 
 
 def collect_files(folder, pattern):
@@ -113,11 +112,19 @@ class AnalizeFile(AsyncParallelBatchNode):
     # effective_n.py reusa la MISMA clave con otra forma (huellas de contenido).
     # Colisión semántica consciente y sancionada: el vocabulario de shared NO
     # se unifica (los flujos comparten la clave pero nunca se ejecutan juntos).
+    def __init__(self, semaforo=None, **kwargs):
+        super().__init__(**kwargs)
+        # Semáforo POR CORRIDA (exp/36): uno de módulo se ata al event loop del
+        # primer asyncio.run y la SEGUNDA corrida del mismo proceso revienta con
+        # "is bound to a different event loop" — el retry del Node no la salva y
+        # la tool queda inusable el resto de la sesión (medido).
+        self.semaforo = semaforo or asyncio.Semaphore(MAPA_CONCURRENCIA)
+
     async def prep_async(self, shared):
         return shared["files"]
 
     async def exec_async(self, filepath):
-        async with _SEMAFORO:
+        async with self.semaforo:
             stats = stats_de(filepath)
             print(f"  ✓ {filepath.name}: {stats['total']} registros")
             return {"file": filepath, **stats, "resumen": await interpretar(filepath, stats)}
