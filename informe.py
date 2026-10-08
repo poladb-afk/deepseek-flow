@@ -25,7 +25,7 @@ from pathlib import Path
 from pocketflow import AsyncFlow, AsyncParallelBatchNode, Node
 
 from utils.call_llm import _setting, call_llm, call_llm_async
-from utils.fs_tools import SKIP_DIRS, _resolve, escribir_salida
+from utils.fs_tools import SKIP_DIRS, _resolve, escribir_salida, sin_enlaces
 
 MAX_FILES = 30
 SAMPLE_TASKS = 2
@@ -40,9 +40,9 @@ def collect_files(folder, pattern):
     files = []
     for dirpath, dirnames, filenames in os.walk(folder):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
-        for fname in filenames:
-            if fnmatch.fnmatch(fname, pattern):
-                files.append(Path(dirpath) / fname)
+        for fpath in sin_enlaces(Path(dirpath) / f for f in filenames):
+            if fnmatch.fnmatch(fpath.name, pattern):
+                files.append(fpath)
     return sorted(files)[:MAX_FILES]
 
 

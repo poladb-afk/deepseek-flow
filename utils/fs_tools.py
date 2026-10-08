@@ -27,6 +27,18 @@ CONTENT_MAX_BYTES = 4 * 1024 * 1024
 # Directorios que el listado salta: miles de entradas irrelevantes para el agente.
 SKIP_DIRS = {".git", "__pycache__", "node_modules"} | {".venv", ".venv-train"}
 
+
+def sin_enlaces(entradas):
+    """Política ÚNICA de recorrido: el agente no sigue enlaces simbólicos.
+
+    Comprobar la carpeta inicial NO comprueba cada archivo — medido
+    (2026-10-08): read_file rechazaba un enlace externo y search_files
+    devolvía su contenido. Todo recorrido (list/search, informes, índice)
+    pasa sus candidatos por acá. Si algún día se quieren permitir enlaces,
+    hay que resolver el destino REAL de cada candidato contra las raíces;
+    validar solo la raíz no alcanza."""
+    return [p for p in entradas if not p.is_symlink()]
+
 # Hooks post-tool (mesa 2): {nombre_tool: [fn]}. Cada fn(tool_call_dict,
 # resultado_str) -> str puede ENRIQUECER el resultado antes de que viaje al
 # modelo. Contrato de hierro: un hook NUNCA rompe la ejecución — si lanza,
@@ -146,7 +158,7 @@ def list_files(path=None, depth=2):
     def walk(d, level):
         nonlocal count
         try:
-            entries = sorted(d.iterdir(), key=lambda e: (e.is_file(), e.name.lower()))
+            entries = sorted(sin_enlaces(d.iterdir()), key=lambda e: (e.is_file(), e.name.lower()))
         except OSError as e:
             lines.append(f"{e.filename} [ERROR: {e.strerror}]")
             return
@@ -237,10 +249,11 @@ def search_files(query=None, glob=None, path=None):
             walks = os.walk(root)
         for dirpath, dirnames, filenames in walks:
             dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
-            for fname in filenames:
-                fpath = Path(dirpath) / fname
+            # os.walk no baja por enlaces de directorio, pero SÍ entrega los
+            # archivos enlazados: la política se aplica a cada candidato.
+            for fpath in sin_enlaces(Path(dirpath) / f for f in filenames):
                 rel_posix = fpath.relative_to(root).as_posix()
-                if not _name_matches(rel_posix, fname, pattern):
+                if not _name_matches(rel_posix, fpath.name, pattern):
                     continue
                 try:
                     size = fpath.stat().st_size
