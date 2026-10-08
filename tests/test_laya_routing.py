@@ -114,3 +114,62 @@ def test_registrar_decision_escribe_y_no_rompe(tmp_path, monkeypatch):
     # destino imposible (un directorio): se traga, no rompe el chat
     monkeypatch.setattr(call_llm, "_setting", lambda nombre, default=None: default)
     registrar_decision({"modo": "off"}, ruta=tmp_path)
+
+
+def test_registrar_decision_no_guarda_texto_por_default(tmp_path, monkeypatch):
+    """Privacidad: sin LAYA_LOG_PREGUNTA=1 el evento no lleva la pregunta."""
+    from utils import call_llm
+
+    archivo = tmp_path / "routing.jsonl"
+    monkeypatch.setattr(call_llm, "_setting", lambda nombre, default=None: default)
+    registrar_decision(
+        {"modo": "shadow"}, pregunta="¿quién ganó el último mundial?", ruta=archivo
+    )
+    assert "pregunta" not in json.loads(archivo.read_text(encoding="utf-8").strip())
+
+
+def test_registrar_decision_con_pregunta_opt_in(tmp_path, monkeypatch):
+    """Con LAYA_LOG_PREGUNTA=1 el evento lleva la pregunta normalizada y
+    recortada a 200: es lo que une el registro con el etiquetador."""
+    from utils import call_llm
+
+    archivo = tmp_path / "routing.jsonl"
+    monkeypatch.setattr(
+        call_llm, "_setting",
+        lambda nombre, default=None: "1" if nombre == "LAYA_LOG_PREGUNTA" else default,
+    )
+    registrar_decision({"modo": "shadow"}, pregunta="  hola\n  mundo  ", ruta=archivo)
+    assert json.loads(archivo.read_text(encoding="utf-8").strip())["pregunta"] == "hola mundo"
+
+    registrar_decision({"modo": "shadow"}, pregunta="x" * 500, ruta=archivo)
+    ultima = json.loads(archivo.read_text(encoding="utf-8").strip().splitlines()[-1])
+    assert len(ultima["pregunta"]) == 200
+
+
+def test_el_nodo_pasa_la_pregunta_al_registro(tmp_path, monkeypatch):
+    """exp/35: en modo sombra, con la pregunta habilitada, el evento sale del
+    nodo completo (pregunta + propuesta + confianza + ruta aplicada): el set
+    que después etiqueta banco/probes/etiquetar_router.py."""
+    import nodes
+    from utils import call_llm, laya
+
+    archivo = tmp_path / "routing.jsonl"
+    ajustes = {
+        "LAYA_MODO": "shadow",
+        "LAYA_LOG_ARCHIVO": str(archivo),
+        "LAYA_LOG_PREGUNTA": "1",
+    }
+    monkeypatch.setattr(
+        call_llm, "_setting", lambda nombre, default=None: ajustes.get(nombre, default)
+    )
+    monkeypatch.setattr(laya, "disponible", lambda *a, **k: True)
+    router = nodes.LayaRouter()
+    respuesta = {
+        "choice": "directo",
+        "probabilities": {"directo": 0.99, "herramientas": 0.01},
+    }
+    assert router.post({}, {"pregunta": "leé el archivo X"}, respuesta) == "herramientas"
+    linea = json.loads(archivo.read_text(encoding="utf-8").strip())
+    assert linea["pregunta"] == "leé el archivo X"
+    assert linea["propuesta"] == "directo" and linea["aplicada"] == "herramientas"
+    assert linea["p_directo"] == 0.99 and linea["modo"] == "shadow"

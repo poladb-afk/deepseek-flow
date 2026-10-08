@@ -1008,6 +1008,13 @@ probabilidades) y Python **decide** (qué ruta se ejecuta), en
   tenía: registraba el nodo y la acción, no el porqué.
 - `LayaRouter.exec` absorbe la guarda de exp/25 (una excepción de inferencia se
   lee como abstención) y `preguntar_detalle` conserva la respuesta completa.
+- **Los dos registros se unen**: con `LAYA_LOG_PREGUNTA=1` el evento de routing
+  agrega los primeros 200 caracteres de la pregunta (default 0: no guarda texto
+  del usuario), así que una corrida en modo sombra deja el set completo
+  (pregunta + propuesta + p(directo) + ruta aplicada) y
+  `banco/probes/etiquetar_router.py --extra salidas/routing.jsonl` lo etiqueta
+  para elegir alpha. Ese es el circuito para pasar de `shadow` a `enforce` con
+  evidencia propia.
 
 Costo: 0 llamadas nuevas (el modo sombra ahorra el voto); tests puros de la
 política en `tests/test_laya_routing.py` (sin modelo ni red).

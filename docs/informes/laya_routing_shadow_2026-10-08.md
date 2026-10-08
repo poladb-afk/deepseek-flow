@@ -37,7 +37,25 @@ Con `shadow` activado una sesión normal ya produce la muestra para elegir α
 - `tests/test_laya_routing.py`: 11 respuestas inválidas parametrizadas, límite
   del umbral, colapso conformal, los tres modos, el registro (escribe, se apaga
   y un destino imposible no rompe) — todo sin modelo ni red.
-- Gate de la rama: ruff + **245 passed**.
+- Gate de la rama: ruff + **248 passed**.
+
+## Unir los dos registros (hecho)
+
+El registro de preguntas (exp/34) y el de decisiones (exp/35) eran dos
+archivos. Ahora `LAYA_LOG_PREGUNTA=1` agrega los primeros 200 caracteres de la
+pregunta al evento de routing — **default 0**, para que el registro no guarde
+texto del usuario sin que el operador lo pida.
+
+El circuito completo, en dos comandos:
+
+```bash
+LAYA_MODO=shadow LAYA_LOG_PREGUNTA=1 python3 main.py    # una semana de uso normal
+python3 banco/probes/etiquetar_router.py 200 --extra salidas/routing.jsonl
+```
+
+El etiquetador ya lee JSONL con la clave `pregunta` (exp/33): no hace falta
+conversión. Lo que sale de ahí es el set para elegir alpha y recién entonces
+pasar a `enforce`.
 
 ## Límites declarados
 

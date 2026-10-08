@@ -146,12 +146,21 @@ def ruta_aplicada(propuesta, config):
     return propuesta if config.modo == "enforce" else "herramientas"
 
 
-def registrar_decision(evento, ruta=None):
-    """Una línea JSON por decisión. Bookkeeping: nunca rompe el chat."""
+def registrar_decision(evento, pregunta=None, ruta=None):
+    """Una línea JSON por decisión. Bookkeeping: nunca rompe el chat.
+
+    La pregunta NO se guarda por default (privacidad): con LAYA_LOG_PREGUNTA=1
+    se agregan sus primeros 200 caracteres, normalizados. Eso es lo que une los
+    dos registros: el etiquetador del router
+    (banco/probes/etiquetar_router.py --extra salidas/routing.jsonl) lee
+    justamente la clave "pregunta", así que una corrida en modo sombra deja el
+    set completo (pregunta + propuesta + confianza + ruta aplicada)."""
     from utils.call_llm import _setting
 
     if _setting("LAYA_LOG_DECISIONES", "1") != "1":
         return
+    if pregunta and _setting("LAYA_LOG_PREGUNTA", "0") == "1":
+        evento = {**evento, "pregunta": " ".join(str(pregunta).split())[:200]}
     try:
         destino = Path(ruta or _setting("LAYA_LOG_ARCHIVO", "salidas/routing.jsonl"))
         destino.parent.mkdir(parents=True, exist_ok=True)

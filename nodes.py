@@ -450,16 +450,19 @@ class LayaRouter(Node):
         config = config_router()
         propuesta, causa, p_directo = decide(exec_res, config)
         aplicada = ruta_aplicada(propuesta, config)
-        registrar_decision({
-            "modo": config.modo,
-            "propuesta": propuesta,
-            "aplicada": aplicada,
-            "causa": causa,
-            "p_directo": p_directo,
-            "q": config.q,
-            "umbral": config.umbral,
-            "laya": config.version,
-        })
+        registrar_decision(
+            {
+                "modo": config.modo,
+                "propuesta": propuesta,
+                "aplicada": aplicada,
+                "causa": causa,
+                "p_directo": p_directo,
+                "q": config.q,
+                "umbral": config.umbral,
+                "laya": config.version,
+            },
+            pregunta=prep_res.get("pregunta") if isinstance(prep_res, dict) else None,
+        )
         print(f"  [laya] {propuesta} — {causa} (modo {config.modo})")
         if aplicada != "directo":
             return "herramientas"  # off y shadow conservan las herramientas
