@@ -4220,3 +4220,100 @@ def test_degradacion_terminal_sin_draft_relevanta(monkeypatch):
     monkeypatch.setattr(juez, "create_juez_flow", lambda: FlowQueRevientaSinDraft())
     with _pytest.raises(RuntimeError, match="el Draft tampoco pudo"):
         juez.responder_con_juez("¿q?")
+
+
+def test_presupuesto_perfiles_por_operacion_y_precedencia(monkeypatch):
+    """exp/13 (opción C): el techo de rondas es adaptativo por operación.
+    Precedencia: override explícito > perfil declarado > MAX_TOOL_ROUNDS.
+    El default se lee EN RUNTIME del global del módulo (no congelado en
+    import): patch('nodes.MAX_TOOL_ROUNDS') debe ganarle al default."""
+    import nodes
+
+    # sin operación ni override → default del módulo
+    assert nodes.presupuesto({}) == nodes.MAX_TOOL_ROUNDS
+    # perfil declarado, sin override
+    assert nodes.presupuesto({"operacion": "consulta"}) == nodes.PERFILES_PRESUPUESTO["consulta"]
+    assert nodes.presupuesto({"operacion": "banco"}) == nodes.PERFILES_PRESUPUESTO["banco"]
+    assert nodes.presupuesto({"operacion": "aplicacion"}) == nodes.PERFILES_PRESUPUESTO["aplicacion"]
+    # operación desconocida → default
+    assert nodes.presupuesto({"operacion": "otra"}) == nodes.MAX_TOOL_ROUNDS
+    # override explícito gana sobre el perfil
+    assert nodes.presupuesto({"operacion": "consulta", "max_tool_rounds": 99}) == 99
+    # patch del default: presupuesto() lee el global VIVO, no lo congeló en import
+    monkeypatch.setattr(nodes, "MAX_TOOL_ROUNDS", 42)
+    assert nodes.presupuesto({}) == 42
+    assert nodes.presupuesto({"operacion": "consulta"}) == nodes.PERFILES_PRESUPUESTO["consulta"]
+
+
+def test_fingerprint_paginado_no_dispara_y_repetido_si():
+    """exp/13 (opción D): la huella de la ronda incluye los argumentos, así
+    la paginación legítima (offset distinto) da huella distinta y NO cuenta
+    como no-progreso; repetir la misma llamada SÍ."""
+    import nodes
+
+    def tc(path, offset=None):
+        args = {"path": path}
+        if offset is not None:
+            args["offset"] = offset
+        import json as _json
+        return [{"function": {"name": "read_file", "arguments": _json.dumps(args)}}]
+
+    assert nodes.fingerprint(tc("a", 1)) != nodes.fingerprint(tc("a", 2))
+    assert nodes.fingerprint(tc("a", 1)) == nodes.fingerprint(tc("a", 1))
+    # el orden de los tool_calls no altera la huella (misma ronda lógica)
+    dos = tc("a") + tc("b")
+    assert nodes.fingerprint(dos) == nodes.fingerprint(list(reversed(dos)))
+
+
+def test_execute_tools_post_acumula_y_resetea_no_progress():
+    """exp/13: ExecuteTools.post incrementa no_progress ante ronda idéntica y
+    lo resetea cuando hay progreso real (huella distinta). El warning viaja
+    en la conversación (último resultado), no en la terminal."""
+    import json as _json
+
+    from nodes import ExecuteTools, fingerprint
+
+    def tc(path):
+        return [{"function": {"name": "read_file",
+                              "arguments": _json.dumps({"path": path})}}]
+
+    nodo = ExecuteTools()
+    shared = {"messages": []}
+    # ronda 1: mismo path → sin_progress 0 (primera vez)
+    nodo.post(shared, tc("a"), [{"content": "r1"}])
+    assert shared["no_progress"] == 0
+    # ronda 2: idéntica → 1 y warning en el contenido
+    nodo.post(shared, tc("a"), [{"content": "r2"}])
+    assert shared["no_progress"] == 1
+    assert "Sin progreso" in shared["messages"][-1]["content"]
+    # ronda 3: distinta → reset
+    nodo.post(shared, tc("b"), [{"content": "r3"}])
+    assert shared["no_progress"] == 0
+    assert shared["_fp"] == fingerprint(tc("b"))
+
+
+def test_no_progress_se_resetea_con_la_pregunta_nueva():
+    """exp/13 (opción D): el corte por no-progreso es POR PREGUNTA (ley L8).
+    Sin el reset en GetQuestion.post el contador quedaba pegado, AgentStep
+    retiraba las tools para siempre y el protocolo de continuación de exp/4
+    ('un mensaje nuevo reinicia el presupuesto') era falso."""
+    import json as _json
+
+    from nodes import UMBRAL_SIN_PROGRESO, AgentStep, ExecuteTools, GetQuestion
+
+    def tc(path):
+        return [{"function": {"name": "read_file",
+                              "arguments": _json.dumps({"path": path})}}]
+
+    step, tools_node, ask = AgentStep(), ExecuteTools(), GetQuestion()
+    shared = {"messages": [{"role": "system", "content": "s"}], "tool_rounds": 0}
+    for i in range(UMBRAL_SIN_PROGRESO + 1):
+        tools_node.post(shared, tc("a.py"),
+                        [{"role": "tool", "tool_call_id": f"t{i}", "content": "r"}])
+    assert shared["no_progress"] == UMBRAL_SIN_PROGRESO
+    _, tools = step.prep(shared)
+    assert tools is None                       # corte: se retiran las tools
+    ask.post(shared, None, "otra pregunta")    # mensaje nuevo del usuario
+    assert shared["no_progress"] == 0
+    _, tools = step.prep(shared)
+    assert tools is not None                   # el presupuesto se reinició

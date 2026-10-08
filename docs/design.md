@@ -156,6 +156,9 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 |---|---|
 | `messages` | Historial completo: system (fijo) + user + assistant (con `tool_calls` cuando pidió herramientas) + tool (resultados). Es lo único que DeepSeek recibe en cada vuelta |
 | `tool_rounds` | Rondas de herramientas gastadas en la pregunta actual; lo resetea `GetQuestion` |
+| `no_progress` / `_fp` | Repeticiones idénticas de la ronda de tools (huella de nombre+argumentos) y su huella anterior; los resetea `GetQuestion` (exp/13, escape por no-progreso) |
+| `compacciones` / `_compaccion_huella` | Compactaciones aplicadas al historial y huella del historial ya compactado (evita re-compactar la misma ronda) |
+| `operacion` / `max_tool_rounds` | Perfil de presupuesto declarado por el invocador y override explícito del techo; los lee `presupuesto()` (hoy el chat no los siembra) |
 
 ## Nodos
 
@@ -196,7 +199,8 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Límite | Qué | Dónde |
 |---|---|---|
 | Contención | Ninguna ruta sale de `AGENT_ALLOWED_DIRS` (resueltas con `Path.resolve`) | `fs_tools._resolve` |
-| Rondas | `MAX_TOOL_ROUNDS` por pregunta; al llegar, `AgentStep` retira las tools y el modelo debe responder | `AgentStep.prep` |
+| Rondas | `presupuesto(shared)` por pregunta (override > perfil de `operacion` > `MAX_TOOL_ROUNDS`); al llegar, `AgentStep` retira las tools y el modelo debe responder. Se reinicia con cada mensaje del usuario | `nodes.presupuesto`, `AgentStep.prep` |
+| No-progreso | Repeticiones idénticas de la ronda de tools (`fingerprint` de nombre+argumentos) a `UMBRAL_SIN_PROGRESO`: se retiran las tools sin esperar el techo, con el evento `corte_no_progreso` en la traza | `nodes.fingerprint`, `ExecuteTools.post`, `AgentStep.prep` |
 | Contexto | `READ_MAX_CHARS` por lectura, listados truncados | `fs_tools` |
 
 ## Segundo flujo: informe map-reduce

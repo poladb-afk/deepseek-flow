@@ -1,3 +1,4 @@
+import hashlib
 import json
 import re
 import time
@@ -58,6 +59,56 @@ MENSAJE_DSML_AGOTADO = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Techo adaptativo de rondas por operación (exp/13, opción C del consejo).
+# MAX_TOOL_ROUNDS sigue siendo el DEFAULT y el símbolo parcheable por tests.
+# presupuesto() lo lee del global VIVO de este módulo (globals()) — no como
+# default de argumento ni capturándolo en import — así patch('nodes.
+# MAX_TOOL_ROUNDS') (o cualquier asignación al global) sí tiene efecto.
+# Los PERFILES y UMBRAL_SIN_PROGRESO, en cambio, se leen con _setting al
+# importar: cambiar el .env con el proceso vivo NO los mueve (hay que
+# reiniciar).
+# ---------------------------------------------------------------------------
+PERFILES_PRESUPUESTO = {
+    "consulta":   int(_setting("MAX_TOOL_ROUNDS_CONSULTA", "8")),
+    "banco":      int(_setting("MAX_TOOL_ROUNDS_BANCO", "25")),
+    "aplicacion": int(_setting("MAX_TOOL_ROUNDS_APLICACION", "40")),
+}
+
+# repeticiones idénticas de una ronda de tools antes de cortar por inanición
+UMBRAL_SIN_PROGRESO = int(_setting("UMBRAL_SIN_PROGRESO", "3"))
+
+
+def presupuesto(shared):
+    """Techo de rondas de tools para ESTA pregunta. Si el invocador declaró
+    shared['operacion'] con perfil, se usa; si no, MAX_TOOL_ROUNDS. El
+    default se lee EN RUNTIME del global del módulo (nodes), de modo que
+    patch('nodes.MAX_TOOL_ROUNDS') —o un .env distinto— sí se respeta; un
+    perfil declarado gana sobre el default, pero nunca sobre un override
+    explícito que el llamador ponga en shared['max_tool_rounds']."""
+    override = shared.get("max_tool_rounds")
+    if override is not None:
+        return int(override)
+    perfil = PERFILES_PRESUPUESTO.get(shared.get("operacion", ""))
+    if perfil is not None:
+        return perfil
+    return globals().get("MAX_TOOL_ROUNDS", MAX_TOOL_ROUNDS)
+
+
+def fingerprint(tool_calls):
+    """Hash estable de (nombre, argumentos) de una ronda de tools. NO mira
+    el resultado: el resultado cambia aunque la llamada sea idéntica. Al
+    incluir arguments, la paginación legítima (offset=1,2,3) da hashes
+    distintos y NO dispara el no-progreso."""
+    pares = sorted(
+        (tc["function"]["name"], tc["function"].get("arguments") or "")
+        for tc in (tool_calls or [])
+    )
+    return hashlib.sha1(
+        json.dumps(pares, ensure_ascii=False).encode()
+    ).hexdigest()
+
+
 def dsml_con_presupuesto_agotado(content, parseados, tools):
     """(nuevo_content, avisar): la recuperación DSML no re-armó tools que
     el tope retiró (ley L8 — medido en exp/4 que sí las ejecutaba: el
@@ -111,7 +162,14 @@ class GetQuestion(Node):
             print("\n" + resumen())
             return "continue"
         shared["messages"].append({"role": "user", "content": exec_res})
+        # Todo presupuesto es POR PREGUNTA (ley L8): el techo de rondas y el
+        # contador de no-progreso se reinician acá. Sin este reset, un corte
+        # por no-progreso dejaba las tools retiradas para el resto de la
+        # sesión (el contador solo se reseteaba en ExecuteTools.post, que ya
+        # no corría) y el protocolo de continuación de exp/4 quedaba falso.
         shared["tool_rounds"] = 0
+        shared["no_progress"] = 0
+        shared.pop("_fp", None)
         return "continue"
 
 
@@ -163,8 +221,18 @@ class AgentStep(Node):
                     shared["messages"] = nuevo
                     shared["compacciones"] = shared.get("compacciones", 0) + 1
                     shared["_compaccion_huella"] = huella(nuevo)
+        # Techo adaptativo por operación (exp/13) + escape por no-progreso:
+        # si el modelo repite la MISMA ronda de tools demasiadas veces, se
+        # retiran las tools sin esperar el techo — el loop no se paga hasta
+        # el máximo. presupuesto() lee MAX_TOOL_ROUNDS en runtime.
+        tope = presupuesto(shared)
+        agotado = shared.get("tool_rounds", 0) >= tope
+        sin_progreso = shared.get("no_progress", 0) >= UMBRAL_SIN_PROGRESO
+        if sin_progreso and not agotado:
+            # incidente visible desde .runs: el corte NO fue por techo
+            evento_tool("corte_no_progreso", True, 0.0)
         # Al llegar al límite de rondas se retiran las tools: el modelo debe responder ya.
-        tools = None if shared.get("tool_rounds", 0) >= MAX_TOOL_ROUNDS else TOOLS
+        tools = None if (agotado or sin_progreso) else TOOLS
         return shared["messages"], tools
 
     def exec(self, inputs):
@@ -244,15 +312,32 @@ class ExecuteTools(Node):
     def post(self, shared, prep_res, exec_res):
         shared["tool_rounds"] = shared.get("tool_rounds", 0) + 1
         ronda = shared["tool_rounds"]
+        tope = presupuesto(shared)
+        # No-progreso (exp/13, opción D): se compara la HUELLA de esta ronda
+        # de tools con la anterior. Igual → acumula; distinta → resetea. El
+        # warning viaja en la conversación (misma vía que la nota), no en la
+        # terminal: es lo único que el modelo lee.
+        fp = fingerprint(prep_res)
+        if fp == shared.get("_fp"):
+            shared["no_progress"] = shared.get("no_progress", 0) + 1
+        else:
+            shared["no_progress"] = 0
+        shared["_fp"] = fp
+        if shared["no_progress"] >= 1 and exec_res:
+            exec_res[-1]["content"] = (
+                f"{exec_res[-1]['content']}\n⚠ Sin progreso: repetiste la "
+                f"misma llamada {shared['no_progress'] + 1}ª vez — cambiá de "
+                "estrategia o cerrá el estado."
+            )
         # la nota de presupuesto viaja en la conversación (no en la
         # terminal): es la única vista del tope que tiene el modelo.
-        nota = nota_presupuesto(ronda, MAX_TOOL_ROUNDS)
+        nota = nota_presupuesto(ronda, tope)
         if nota and exec_res:
             exec_res[-1]["content"] = f"{exec_res[-1]['content']}\n{nota}"
         shared["messages"].extend(exec_res)
         # pulido de terminal (mesa 8): la ronda consumida se etiqueta para
         # que una secuencia de varias rondas muestre su avance (n/MAX).
-        print(colorear("  " + progreso_ronda(ronda, MAX_TOOL_ROUNDS), "info"), flush=True)
+        print(colorear("  " + progreso_ronda(ronda, tope), "info"), flush=True)
         return "default"
 
 

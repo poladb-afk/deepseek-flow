@@ -217,6 +217,10 @@ def guardar_baseline(bench, ruta=BASELINE, sha=None):
 ACCIONES_CANONICAS = {
     # chat (nodes.py)
     ("GetQuestion", "continue"), ("GetQuestion", "exit"),
+    # marca de incidente del corte por no-progreso (nodes.py la emite con
+    # evento_tool): no es una tool, pero viaja en la traza y el linter la
+    # tiene que reconocer para no contarla como acción desconocida
+    ("corte_no_progreso", "ok"),
     ("LayaRouter", "directo"), ("LayaRouter", "herramientas"),
     ("AgentStep", "tool"), ("AgentStep", "answer"),
     ("DirectAnswer", "tool"), ("DirectAnswer", "answer"),
