@@ -3,7 +3,9 @@
 Patch mínimo en BaseNode._run/_run_async (lo único que todos los nodos
 atraviesan, sync o async). Cada evento: nodo, acción devuelta, duración.
 TRACE=0 lo apaga. Los archivos .runs/ son artefactos, van al .gitignore."""
+import atexit
 import json
+import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -43,9 +45,12 @@ def activar(ruta_base=None):
 
     directorio = Path(ruta_base or Path(__file__).resolve().parent.parent / ".runs")
     directorio.mkdir(exist_ok=True)
-    archivo = directorio / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.jsonl"
+    # el pid evita la colisión medida: dos procesos en el mismo segundo
+    # abrían el MISMO archivo con "w" y se truncaban entre sí
+    archivo = directorio / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.getpid()}.jsonl"
     # sumidero a vida de proceso: se escribe por evento y se cierra al salir
     _salida = open(archivo, "w", encoding="utf-8")  # noqa: SIM115
+    atexit.register(_salida.close)
 
     def evento(nodo, accion, inicio):
         _escribir(
@@ -61,7 +66,14 @@ def activar(ruta_base=None):
 
     def _run_trazado(self, shared):
         inicio = time.time()
-        accion = _run_original(self, shared)
+        try:
+            accion = _run_original(self, shared)
+        except BaseException as e:
+            # Un nodo que lanza TAMBIÉN deja evento: sin esto la traza miente
+            # por omisión (medido: 0 eventos del nodo fallido) y ningún "cero
+            # excepciones" posterior es falsable. La excepción se propaga.
+            evento(self, f"error:{type(e).__name__}", inicio)
+            raise
         evento(self, accion, inicio)
         return accion
 
@@ -73,7 +85,11 @@ def activar(ruta_base=None):
 
         async def _run_async_trazado(self, shared):
             inicio = time.time()
-            accion = await _run_async_original(self, shared)
+            try:
+                accion = await _run_async_original(self, shared)
+            except BaseException as e:
+                evento(self, f"error:{type(e).__name__}", inicio)
+                raise
             evento(self, accion, inicio)
             return accion
 

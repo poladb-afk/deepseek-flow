@@ -4676,3 +4676,40 @@ def test_router_laya_no_mata_el_chat_si_la_inferencia_falla(monkeypatch):
     ):
         monkeypatch.setattr(laya, "preguntar", lambda *a, _r=respuesta, **k: _r)
         assert router.exec({"pregunta": "hola"}) == ("herramientas", 0.0)
+def test_traza_registra_el_nodo_que_falla_y_no_colisiona(tmp_path):
+    """exp/27 (C18 de la auditoría externa): el parche de _run no tenía
+    finally, así que un nodo que lanza NO dejaba evento (la traza mentía por
+    omisión) y el nombre del archivo se resolvía por segundo (dos procesos se
+    truncaban entre sí)."""
+    import json as _json
+
+    import pocketflow
+    from pocketflow import Node
+
+    from utils import tracing
+
+    class NodoQueExplota(Node):
+        def exec(self, _):
+            raise RuntimeError("boom")
+
+    run_original = pocketflow.BaseNode._run
+    run_async_original = pocketflow.AsyncNode._run_async
+    salida_original, activo_original = tracing._salida, tracing._activo
+    try:
+        tracing._activo = False
+        archivo = tracing.activar(ruta_base=str(tmp_path))
+        assert archivo.name.endswith(f"_{os.getpid()}.jsonl")
+        with pytest.raises(RuntimeError, match="boom"):
+            NodoQueExplota().run({})
+        eventos = [
+            _json.loads(linea)
+            for linea in Path(archivo).read_text(encoding="utf-8").splitlines()
+        ]
+        assert any(e["accion"] == "error:RuntimeError" for e in eventos), eventos
+    finally:
+        # el parche es global a propósito en producción: el test lo deshace
+        pocketflow.BaseNode._run = run_original
+        pocketflow.AsyncNode._run_async = run_async_original
+        if tracing._salida is not None and not tracing._salida.closed:
+            tracing._salida.close()
+        tracing._salida, tracing._activo = salida_original, activo_original
