@@ -2,6 +2,7 @@ import hashlib
 import json
 import re
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 from pocketflow import Node
@@ -14,6 +15,33 @@ from utils.terminal import colorear, progreso_ronda
 from utils.tracing import evento_tool
 
 EXIT_WORDS = {"salir", "exit", "quit"}
+
+
+def registrar_pregunta(texto, ruta=None):
+    """Guarda la pregunta del usuario en un JSONL local (exp/34).
+
+    Para qué: el trace (.runs) guarda nodo/acción/segundos pero NUNCA el texto,
+    y los logs del banco corren con echo off — sin esto no hay forma de armar
+    un set de calibración con el tráfico REAL (exp/33 tuvo que usar escenarios,
+    y salió sesgado a "herramientas"). Una línea acá y en una semana hay
+    muestra natural para recalibrar el α del router.
+
+    Es bookkeeping: la ruta la fija el operador (no el modelo) y cualquier
+    fallo —disco, permisos— se traga para no romper el chat. PREGUNTAS_LOG=0
+    lo apaga y PREGUNTAS_ARCHIVO elige el destino (default
+    salidas/preguntas.jsonl, que está en .gitignore)."""
+    if _setting("PREGUNTAS_LOG", "1") != "1":
+        return
+    try:
+        destino = Path(ruta or _setting("PREGUNTAS_ARCHIVO", "salidas/preguntas.jsonl"))
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        with open(destino, "a", encoding="utf-8") as f:
+            f.write(json.dumps(
+                {"ts": round(time.time(), 3), "pregunta": texto[:4000]},
+                ensure_ascii=False,
+            ) + "\n")
+    except Exception:  # bookkeeping: nunca corta el chat
+        pass
 
 # Recuperación del canal de tools: a veces DeepSeek emite las llamadas como
 # TEXTO con su markup interno (DSML) en vez del canal estructurado — el chat
@@ -161,6 +189,7 @@ class GetQuestion(Node):
 
             print("\n" + resumen())
             return "continue"
+        registrar_pregunta(exec_res)
         shared["messages"].append({"role": "user", "content": exec_res})
         # Todo presupuesto es POR PREGUNTA (ley L8): el techo de rondas y el
         # contador de no-progreso se reinician acá. Sin este reset, un corte
