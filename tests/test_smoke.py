@@ -4734,3 +4734,46 @@ def test_research_recorta_consultas_y_valida_tipos(monkeypatch):
     )
     with pytest.raises(ValueError, match="no textual"):
         research.Synthesizer().exec(("tema", ["material"], 0))
+def test_juez_no_entrega_con_cita_rota(monkeypatch):
+    """exp/29 (C07 de la auditoría externa): la verificación de citas se le
+    CONTABA al LLM; con verdict ok el flujo entregaba un borrador citando una
+    ruta inexistente. Ahora la cita rota es un hecho del código y fuerza el
+    retry."""
+    import juez
+
+    monkeypatch.setattr(juez, "call_llm", lambda *a, **k: "verdict: ok\n")
+    v = juez.Judge().exec(("¿q?", "según /ruta/falsa.md:99", ["[ROTA] /ruta/falsa.md:99 → ERROR: no existe"], False))
+    assert v["verdict"] == "retry"
+    assert any("no resuelven" in p for p in v["problems"])
+
+    # sin citas rotas, el verdict ok pasa como siempre
+    v2 = juez.Judge().exec(("¿q?", "borrador", ["/real.md:1 → contenido real:\nx"], False))
+    assert v2["verdict"] == "ok"
+
+
+def test_cita_rota_detecta_error_y_fuera_de_rango():
+    """exp/29: los dos modos objetivos de cita inválida, como función pura."""
+    from juez import _cita_rota
+
+    assert _cita_rota("ERROR: no existe: /x", "3") is True
+    assert _cita_rota("[/real.md — líneas 9–9 de 8]\n", "9") is True
+    assert _cita_rota("[/real.md — líneas 3–4 de 8]\ncontenido", "3") is False
+
+
+def test_refinamiento_recibe_el_borrador_anterior(monkeypatch):
+    """exp/29: el Draft corregía a ciegas — ahora recibe su intento exacto."""
+    import juez
+
+    prompts = []
+
+    def capturar(prompt, *a, **k):
+        prompts.append(prompt)
+        return "borrador nuevo"
+
+    monkeypatch.setattr(juez, "call_llm", capturar)
+    inputs = juez.Draft().prep(
+        {"question": "¿q?", "draft": "BORRADOR_VIEJO", "feedback": "- cita dudosa"}
+    )
+    juez.Draft().exec(inputs)
+    assert "BORRADOR_VIEJO" in prompts[0]
+    assert "cita dudosa" in prompts[0]

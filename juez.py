@@ -45,10 +45,10 @@ class Draft(Node):
             frag = read_file(str(ruta), offset=1, limit=200)
             if not frag.startswith("ERROR"):
                 contexto += f"\n--- {ruta} ---\n{frag}\n"
-        return shared["question"], contexto, shared.get("feedback")
+        return shared["question"], contexto, shared.get("feedback"), shared.get("draft")
 
     def exec(self, inputs):
-        question, contexto, feedback = inputs
+        question, contexto, feedback, anterior = inputs
         prompt = f"Responde en español, preciso y conciso:\n\n{question}"
         if contexto:
             prompt += (
@@ -61,6 +61,12 @@ class Draft(Node):
                 "\n\nUn juez encontró estos problemas en tu intento "
                 f"anterior; corrígelos:\n{feedback}"
             )
+            if anterior:
+                # corregía a ciegas: el refinamiento recibe su borrador EXACTO
+                prompt += (
+                    "\n\n--- tu intento anterior (verbatim) ---\n"
+                    f"{anterior[:2000]}\n--- fin ---"
+                )
         return call_llm(prompt)
 
     def post(self, shared, prep_res, exec_res):
@@ -85,6 +91,17 @@ def _canonico(verdict):
     semántica. Definición ÚNICA: la comparten la validación, la normalización
     de _validar y el probe."""
     return verdict.strip().lower() if isinstance(verdict, str) else verdict
+
+
+def _cita_rota(frag, linea):
+    """Una cita NO resuelve si read_file devolvió ERROR o si la línea citada
+    está más allá del final del archivo (fuera de rango: el fragmento llega
+    vacío y sin ERROR). Es un hecho del código, no una opinión del juez."""
+    if frag.startswith("ERROR"):
+        return True
+    cabecera = frag.splitlines()[0] if frag else ""
+    m = re.search(r"de (\d+)\]$", cabecera)
+    return bool(m) and int(linea) > int(m.group(1))
 
 
 def _veredicto_valido(d):
@@ -132,8 +149,9 @@ class Judge(Node):
         citas = []
         for path, linea in CITA_RE.findall(shared["draft"] or "")[:MAX_CITAS]:
             frag = read_file(path, offset=int(linea), limit=2)
-            if frag.startswith("ERROR"):
-                citas.append(f"{path}:{linea} → {frag}")
+            if _cita_rota(frag, linea):
+                # el marcador viaja al prompt Y habilita la compuerta de exec
+                citas.append(f"[ROTA] {path}:{linea} → {frag}")
             else:
                 real = "\n".join(frag.splitlines()[1:3])[:300]
                 citas.append(f"{path}:{linea} → contenido real:\n{real}")
@@ -172,10 +190,30 @@ suggestions:
 ```
 
 El campo verdict SOLO puede ser ok o retry, literal."""
+        rotas = sum(1 for c in citas if c.startswith("[ROTA]"))
+
+        def _compuerta(v):
+            """Hecho del código por encima del juicio del modelo (C07): con
+            verdict ok el flujo ENTREGABA un borrador citando una ruta
+            inexistente (medido). Si alguna cita no resuelve, hay retry."""
+            if rotas and v.get("verdict") == "ok":
+                print(colorear(
+                    "  [juez] cita rota con verdict ok → retry (hecho del código)",
+                    "aviso"), flush=True)
+                return {
+                    "verdict": "retry",
+                    "problems": [
+                        f"{rotas} cita(s) del borrador no resuelven contra los "
+                        "archivos reales (ruta inexistente o línea fuera de rango)",
+                        *v.get("problems", []),
+                    ],
+                }
+            return v
+
         crudo = call_llm(prompt)
         veredicto, motivo = _validar(crudo)
         if veredicto is not None:
-            return veredicto
+            return _compuerta(veredicto)
         # Error-como-feedback (patrón del harness, exp/21 fase B2): un
         # verdict ilegible NO es un crash ni una entrega sin juzgar; es UN
         # reintento INFORMADO que cita al modelo su propia respuesta inválida
@@ -197,7 +235,7 @@ El campo verdict SOLO puede ser ok o retry, literal."""
         crudo2 = call_llm(prompt + "\n\n" + feedback)
         veredicto, _ = _validar(crudo2)
         if veredicto is not None:
-            return veredicto
+            return _compuerta(veredicto)
         # Fallback semántico: ni con feedback validó. El lado SEGURO del
         # contrato binario — si no se puede confirmar ok, no está ok. El
         # borrador da una vuelta más con este problema como feedback, acotado
