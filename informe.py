@@ -24,7 +24,7 @@ from pathlib import Path
 
 from pocketflow import AsyncFlow, AsyncParallelBatchNode, Node
 
-from utils.call_llm import _setting, call_llm, call_llm_async
+from utils.call_llm import _entero, _setting, call_llm, call_llm_async
 from utils.fs_tools import SKIP_DIRS, _resolve
 
 MAX_FILES = 30
@@ -32,7 +32,7 @@ SAMPLE_TASKS = 2
 TASK_CHARS = 300
 DEFAULT_FOLDER = _setting("INFORME_CARPETA", ".")  # portable; local: INFORME_CARPETA en .env
 # Semáforo anti-429: acota cuántas llamadas a DeepSeek se solapan en el mapa
-MAPA_CONCURRENCIA = int(_setting("MAPA_CONCURRENCIA", "8"))
+MAPA_CONCURRENCIA = _entero("MAPA_CONCURRENCIA", 8)
 _SEMAFORO = asyncio.Semaphore(MAPA_CONCURRENCIA)
 
 

@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from pocketflow import Node
 
 from modules import discover
-from utils.call_llm import _setting, call_llm_agent, call_llm_agent_stream
+from utils.call_llm import _entero, _real, _setting, call_llm_agent, call_llm_agent_stream
 from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
 from utils.fs_tools import TOOLS as CORE_TOOLS
 from utils.terminal import colorear, progreso_ronda
@@ -70,13 +70,13 @@ MENSAJE_DSML_AGOTADO = (
 # reiniciar).
 # ---------------------------------------------------------------------------
 PERFILES_PRESUPUESTO = {
-    "consulta":   int(_setting("MAX_TOOL_ROUNDS_CONSULTA", "8")),
-    "banco":      int(_setting("MAX_TOOL_ROUNDS_BANCO", "25")),
-    "aplicacion": int(_setting("MAX_TOOL_ROUNDS_APLICACION", "40")),
+    "consulta":   _entero("MAX_TOOL_ROUNDS_CONSULTA", 8),
+    "banco":      _entero("MAX_TOOL_ROUNDS_BANCO", 25),
+    "aplicacion": _entero("MAX_TOOL_ROUNDS_APLICACION", 40),
 }
 
 # repeticiones idénticas de una ronda de tools antes de cortar por inanición
-UMBRAL_SIN_PROGRESO = int(_setting("UMBRAL_SIN_PROGRESO", "3"))
+UMBRAL_SIN_PROGRESO = _entero("UMBRAL_SIN_PROGRESO", 3)
 
 
 def presupuesto(shared):
@@ -206,7 +206,7 @@ class AgentStep(Node):
         # la huella del historial compactado evita re-compactar si coincide.
         from utils.compaccion import PREFIJO_COMPACCION, compactar, huella, serializar
 
-        tope = int(_setting("COMPACTION_CHARS", "60000"))
+        tope = _entero("COMPACTION_CHARS", 60000)
         mensajes = shared["messages"]
         if tope > 0 and len(serializar(mensajes)) > tope:
             h = huella(mensajes)
@@ -391,7 +391,7 @@ def voto_confirmacion_router(pregunta):
         # precisión con 83% de cobertura a 0.7, y subirlo junto al router le
         # cortaría la mitad de las decisiones locales.
         if resp in ("herramientas", "directo") and veredicto(
-            conf, alto=float(_setting("LAYA_UNSURE_HIGH_VOTO", "0.7"))
+            conf, alto=_real("LAYA_UNSURE_HIGH_VOTO", 0.7)
         ) == "met":
             # acuerdo confiable (directo→directo, el ahorro) o desacuerdo
             # confiable (herramientas→lado seguro): DeepSeek no hace falta

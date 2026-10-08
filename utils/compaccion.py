@@ -106,8 +106,8 @@ def validar_historial(messages):
                 break
             if vistos != ids:
                 fallas.append(
-                    f"[{i}] assistant con tool_calls {sorted(ids)} sin sus "
-                    f"tools inmediatas (vistas: {sorted(vistos)})")
+                    f"[{i}] assistant con tool_calls {sorted(ids, key=str)} sin sus "
+                    f"tools inmediatas (vistas: {sorted(vistos, key=str)})")
     return fallas
 
 
@@ -194,4 +194,8 @@ def compactar(messages, max_chars, ventana=VENTANA_DEFAULT):
         return original
 
     frios = corte - 1
-    return [original[0], _resumen(frios)] + original[corte:]
+    nuevo = [original[0], _resumen(frios)] + original[corte:]
+    # Si la ventana caliente sola ya pesa más que el tope, la compacción NO
+    # achica (medido: 9 mensajes/60.403 chars → 8/60.644) y el llamador
+    # re-compactaría en cada ronda sin bajar nunca. Si no achica, no se toca.
+    return nuevo if _tamano(nuevo) < _tamano(original) else original

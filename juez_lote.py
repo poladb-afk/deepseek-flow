@@ -36,13 +36,13 @@ from pathlib import Path
 from pocketflow import AsyncNode, AsyncParallelBatchFlow
 
 from juez import create_juez_flow
-from utils.call_llm import _setting
+from utils.call_llm import _entero
 from utils.fs_tools import _resolve
 
 DEFAULT_SALIDA = "salidas/juez_lote.md"
 # Semáforo anti-429 entre preguntas (mismo criterio que informe.py): no
 # limita el paralelismo de las corridas, solo cuántas llamadas LLM se solapan.
-JUEZ_LOTE_CONCURRENCIA = int(_setting("JUEZ_LOTE_CONCURRENCIA", "8"))
+JUEZ_LOTE_CONCURRENCIA = _entero("JUEZ_LOTE_CONCURRENCIA", 8)
 
 
 def leer_preguntas(path):

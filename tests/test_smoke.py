@@ -4317,3 +4317,81 @@ def test_no_progress_se_resetea_con_la_pregunta_nueva():
     assert shared["no_progress"] == 0
     _, tools = step.prep(shared)
     assert tools is not None                   # el presupuesto se reinició
+
+
+def test_un_typo_en_un_setting_numerico_no_mata_el_chat(monkeypatch):
+    """exp/37 (barrida): un ".env" con COMPACTION_CHARS=sesenta mil reventaba
+    en AgentStep.prep — que corre FUERA del retry del nodo — y mataba el chat.
+    _entero/_real avisan y usan el default."""
+    import nodes
+    from utils import call_llm
+
+    monkeypatch.setattr(
+        call_llm, "_setting",
+        lambda nombre, default=None: "sesenta mil" if nombre == "COMPACTION_CHARS" else default,
+    )
+    shared = {"messages": [{"role": "system", "content": "s"}], "tool_rounds": 0}
+    mensajes, tools = nodes.AgentStep().prep(shared)   # no debe levantar
+    assert mensajes and tools is not None
+
+
+def test_compactar_no_devuelve_mas_contexto_del_que_recibio():
+    """exp/37: si la ventana caliente sola pesa más que el tope, la compacción
+    no achica (medido: 9 mensajes/60.403 chars → 8/60.644) y el llamador
+    re-compactaba en cada ronda sin bajar nunca."""
+    from utils.compaccion import compactar
+
+    mensajes = [{"role": "system", "content": "s" * 100}]
+    mensajes += [{"role": "user", "content": "u"}, {"role": "assistant", "content": "a"}]
+    mensajes += [{"role": "user", "content": "x" * 10040} for _ in range(6)]
+    salida = compactar(mensajes, 60000)
+    assert len(salida) == len(mensajes), "compactó sin achicar"
+    assert salida == mensajes
+
+
+def test_validar_historial_no_levanta_con_ids_none():
+    """exp/37: el docstring promete que NUNCA levanta; sorted(ids) con None
+    explotaba con TypeError."""
+    from utils.compaccion import validar_historial
+
+    historial = [
+        {"role": "system", "content": "s"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": None, "type": "function", "function": {"name": "read_file", "arguments": "{}"}},
+        ]},
+        {"role": "tool", "tool_call_id": "c1", "content": "r"},
+    ]
+    fallas = validar_historial(historial)      # no debe levantar
+    assert fallas                              # y sí detecta la inconsistencia
+
+
+def test_el_linter_reconoce_las_acciones_y_tools_que_faltaban():
+    """exp/37: el linter marcaba como desconocidas una arista real del juez
+    (Judge/retry, juez.py:233) y cuatro tools de módulos (visión y a2a), lo que
+    inflaba las violaciones de 214 trazas (27 de 38)."""
+    from evals import _accion_valida
+
+    assert _accion_valida("Judge", "retry")
+    assert all(_accion_valida(t, "ok") for t in ("ver_imagen", "ver_pdf", "agentes_remotos", "a2a_tarea"))
+    # el README ya no documenta un subcomando que no existe
+    readme = (RAIZ / "README.md").read_text(encoding="utf-8")
+    assert "main.py carga_trazas" not in readme
+    assert "python3 carga_trazas.py" in readme
+
+
+def test_researcher_no_reintenta_el_lote_por_una_busqueda(monkeypatch):
+    """exp/37 (P6): un fallo de búsqueda hacía que el retry del BatchNode
+    re-ejecutara el lote entero y se perdieran las búsquedas ya pagadas. Ahora
+    el fallo es un dato de ese ítem."""
+    import research
+
+    llamadas = {"n": 0}
+
+    def busca(query, k=4):
+        llamadas["n"] += 1
+        raise RuntimeError("sin red")
+
+    monkeypatch.setattr(research, "search_web", busca)
+    salida = research.Researcher().exec("consulta 1")   # no debe levantar
+    assert "ERROR de búsqueda: RuntimeError" in salida
+    assert llamadas["n"] == 1

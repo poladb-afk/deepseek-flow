@@ -180,6 +180,9 @@ def _arrancar():
     global _servidor
     if _servidor is not None:
         return _servidor.server_address[1]
+    # OJO: acá el valor inválido DEBE fallar (lo atrapa aprobar() y devuelve
+    # False al instante). Endurecerlo con _entero arrancaría el servidor en el
+    # puerto default y la aprobación esperaría los 300 s del timeout.
     puerto = int(_setting("HITL_WEB_PORT", str(PUERTO_DEFAULT)))
     _servidor = ThreadingHTTPServer((HOST, puerto), _Handler)
     threading.Thread(target=_servidor.serve_forever, daemon=True).start()
