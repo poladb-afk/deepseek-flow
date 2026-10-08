@@ -18,13 +18,12 @@ Uso:
 import argparse
 import asyncio
 from datetime import date
-from pathlib import Path
 
 from pocketflow import AsyncBatchFlow, AsyncFlow, Node
 
 from informe import AnalizeFile, collect_files, tabla_markdown
 from utils.call_llm import call_llm
-from utils.fs_tools import _resolve
+from utils.fs_tools import _resolve, escribir_salida
 
 
 class CarpetaScan(Node):
@@ -95,11 +94,11 @@ class ReduceGlobal(Node):
         )
 
     def post(self, shared, prep_res, exec_res):
-        salida = Path(shared["salida"])
-        salida.parent.mkdir(parents=True, exist_ok=True)
-        salida.write_text(exec_res, encoding="utf-8")
-        shared["auditoria"] = str(salida.resolve())
-        print(f"Auditoría escrita: {salida.resolve()}")
+        destino, err = escribir_salida(shared["salida"], exec_res)
+        if err:
+            raise ValueError(f"ERROR: {err}")
+        shared["auditoria"] = str(destino)
+        print(f"Auditoría escrita: {destino}")
 
 
 def create_auditoria_flow():

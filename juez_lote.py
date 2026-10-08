@@ -37,7 +37,7 @@ from pocketflow import AsyncNode, AsyncParallelBatchFlow
 
 from juez import create_juez_flow
 from utils.call_llm import _setting
-from utils.fs_tools import _resolve
+from utils.fs_tools import _resolve, escribir_salida
 
 DEFAULT_SALIDA = "salidas/juez_lote.md"
 # Semáforo anti-429 entre preguntas (mismo criterio que informe.py): no
@@ -210,18 +210,18 @@ lote paralelo. `speedup = suma / pared` (>1 acelera; con una sola pregunta es
 
     async def post_async(self, shared, prep_res, exec_res):
         self._seg_par = time.perf_counter() - self._t0
-        path = self.salida
-        path.parent.mkdir(parents=True, exist_ok=True)
         texto = self._markdown(shared)
-        path.write_text(texto, encoding="utf-8")
+        destino, err = escribir_salida(self.salida, texto)
+        if err:
+            raise ValueError(f"ERROR: {err}")
         resultados = shared.get("resultados", [])
         n = len(resultados)
         fallidas = sum(1 for r in resultados if r.get("error"))
         suma = sum(r["segundos"] for r in resultados)
-        shared["informe"] = str(path.resolve())
+        shared["informe"] = str(destino)
         shared["metricas"] = {"n": n, "fallidas": fallidas,
                               "seg_secuencial": suma, "seg_paralelo": self._seg_par}
-        print(f"\nInforme: {path.resolve()} ({n} preguntas, "
+        print(f"\nInforme: {destino} ({n} preguntas, "
               f"{suma:.2f}s secuencial → {self._seg_par:.2f}s paralelo)")
         return exec_res
 

@@ -24,7 +24,6 @@ Uso: python3 main.py supervisor "tarea" [--salida supervisor.md]
 """
 import argparse
 import json
-from pathlib import Path
 
 from pocketflow import Flow, Node
 
@@ -33,6 +32,7 @@ from utils import fs_tools
 from utils.call_llm import call_llm
 from utils.estructura import extraer_yaml
 from utils.fs_tools import TOOLS as BASE_TOOLS
+from utils.fs_tools import escribir_salida
 
 MAX_PASOS = 5
 HECHOS_MAX_LINEAS = 15
@@ -324,15 +324,15 @@ class Sintetizar(Node):
         )
 
     def post(self, shared, prep_res, exec_res):
-        salida = Path(shared["salida"])
-        salida.parent.mkdir(parents=True, exist_ok=True)
         pasos = "\n".join(f"- {h}" for h in shared.get("hechos", [])) or "(ninguno)"
-        salida.write_text(
+        destino, err = escribir_salida(
+            shared["salida"],
             f"# Supervisor — {shared['tarea']}\n\n{exec_res}\n\n"
             f"## Pasos (la auditoría de la corrida)\n\n{pasos}\n",
-            encoding="utf-8",
         )
-        shared["informe"] = str(salida.resolve())
+        if err:
+            raise ValueError(f"ERROR: {err}")
+        shared["informe"] = str(destino)
         print(f"\n✅ síntesis escrita: {shared['informe']}\n\n{exec_res}")
 
 

@@ -32,7 +32,7 @@ from pathlib import Path
 from pocketflow import BatchFlow, BatchNode, Flow, Node
 
 from informe import DEFAULT_FOLDER, collect_files
-from utils.fs_tools import _resolve
+from utils.fs_tools import _resolve, escribir_salida
 
 MAX_EJEMPLOS = 5  # contradicciones mostradas en el informe
 
@@ -248,10 +248,10 @@ distintos cuentan como duplicado igual.)
         shared.update(exec_res)  # total, efectivo, markdown
         salida = shared.get("salida") or self.params.get("salida")
         if salida:
-            path = Path(salida)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(exec_res["markdown"], encoding="utf-8")
-            shared["informe"] = str(path.resolve())
+            destino, err = escribir_salida(salida, exec_res["markdown"])
+            if err:
+                raise ValueError(f"ERROR: {err}")
+            shared["informe"] = str(destino)
         shared["resumen"] = (
             f"{exec_res['total']} registros → Effective N {exec_res['efectivo']} "
             f"({exec_res['total'] - exec_res['efectivo']} duplicados)"
@@ -336,12 +336,12 @@ class EffectiveNMulti(BatchFlow):
             # (shared["informe"]/["resumen"]/["folder"] con los de esa carpeta)
             shared.update(informes[0])
             return
-        path = Path(self.salida)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(informe_conjunto(informes), encoding="utf-8")
-        shared["informe"] = str(path.resolve())
+        destino, err = escribir_salida(self.salida, informe_conjunto(informes))
+        if err:
+            raise ValueError(f"ERROR: {err}")
+        shared["informe"] = str(destino)
         shared["resumen"] = resumen_conjunto(informes)
-        print(f"Informe conjunto escrito: {path.resolve()}")
+        print(f"Informe conjunto escrito: {destino}")
 
     def _run(self, shared):
         """Inicializa la cola de jobs y reenvía el batch: cada rama deja su
