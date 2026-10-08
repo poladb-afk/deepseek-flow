@@ -18,7 +18,12 @@ from utils.call_llm import call_llm
 from utils.estructura import extraer_yaml
 from utils.websearch import search_web
 
+# REINTENTOS del ciclo de cobertura: la corrida hace la búsqueda inicial y
+# hasta MAX_ROUNDS repeticiones (2 → 3 ciclos; medido con LLM falso).
 MAX_ROUNDS = 2
+# El prompt pide 3 consultas, pero el tope lo aplica el CÓDIGO (ley L8): con
+# 20 consultas del modelo se buscaban las 20 (medido).
+MAX_QUERIES = 3
 RESULTADOS_POR_QUERY = 4
 
 
@@ -45,9 +50,17 @@ queries:
   - "consulta 3"
 ```"""
         plan = extraer_yaml(call_llm(prompt))
-        queries = plan["queries"]
-        assert isinstance(queries, list) and queries and all(isinstance(q, str) and q.strip() for q in queries), "queries inválidas"
-        return queries
+        queries = plan.get("queries")
+        # Frontera modelo→código: un tipo equivocado se valida con excepción
+        # (el retry del Node re-pregunta) y el tope se recorta acá. El assert
+        # anterior desaparecía con python -O y un str se iteraba carácter a
+        # carácter (17 búsquedas basura, medido).
+        if not isinstance(queries, list):
+            raise ValueError(f"queries inválidas: {queries!r}")
+        limpias = [q.strip() for q in queries if isinstance(q, str) and q.strip()]
+        if not limpias:
+            raise ValueError(f"queries inválidas: {queries!r}")
+        return limpias[:MAX_QUERIES]
 
     def post(self, shared, prep_res, exec_res):
         shared["queries"] = exec_res
@@ -107,9 +120,15 @@ content: |
   el informe final en markdown (solo el contenido, sin ```yaml)
 ```"""
         decision = extraer_yaml(call_llm(prompt))
-        assert decision["action"] in ("research", "finalize"), "acción inválida"
-        if decision["action"] == "finalize":
-            assert str(decision.get("content", "")).strip(), "informe vacío"
+        accion = decision.get("action")
+        if accion not in ("research", "finalize"):
+            raise ValueError(f"acción inválida: {accion!r}")
+        if accion == "finalize":
+            # el contenido tiene que ser TEXTO: con content: 42 el post hacía
+            # write_text(42) -> TypeError, y post NO se reintenta (medido)
+            contenido = decision.get("content")
+            if not isinstance(contenido, str) or not contenido.strip():
+                raise ValueError(f"informe vacío o no textual: {contenido!r}")
         return decision
 
     def post(self, shared, prep_res, exec_res):

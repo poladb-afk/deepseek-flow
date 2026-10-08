@@ -4317,3 +4317,26 @@ def test_no_progress_se_resetea_con_la_pregunta_nueva():
     assert shared["no_progress"] == 0
     _, tools = step.prep(shared)
     assert tools is not None                   # el presupuesto se reinició
+
+
+def test_research_recorta_consultas_y_valida_tipos(monkeypatch):
+    """exp/28 (C13 + C06a de la auditoría externa): el prompt pide 3 consultas
+    y el código aceptaba 20 (las buscaba todas); un content no textual rompía
+    en post, que PocketFlow NO reintenta. El tope y los tipos los aplica el
+    código, no la obediencia del modelo."""
+    import research
+
+    monkeypatch.setattr(
+        research, "call_llm", lambda *a, **k: 'queries: ["a", "b", "c", "d", "e"]\n'
+    )
+    assert research.Planner().exec(("tema", "")) == ["a", "b", "c"]
+
+    monkeypatch.setattr(research, "call_llm", lambda *a, **k: "queries: una sola consulta\n")
+    with pytest.raises(ValueError, match="queries inválidas"):
+        research.Planner().exec(("tema", ""))
+
+    monkeypatch.setattr(
+        research, "call_llm", lambda *a, **k: "action: finalize\ncontent: 42\n"
+    )
+    with pytest.raises(ValueError, match="no textual"):
+        research.Synthesizer().exec(("tema", ["material"], 0))
