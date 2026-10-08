@@ -4317,3 +4317,34 @@ def test_no_progress_se_resetea_con_la_pregunta_nueva():
     assert shared["no_progress"] == 0
     _, tools = step.prep(shared)
     assert tools is not None                   # el presupuesto se reinició
+
+
+def test_recorrido_no_sigue_enlaces_simbolicos(tmp_path, monkeypatch):
+    """exp/22 (C02 de la auditoría externa): comprobar la RAÍZ no comprueba
+    cada archivo — medido: read_file rechazaba un enlace externo y
+    search_files devolvía su contenido. La política es una sola: ningún
+    recorrido del agente sigue enlaces."""
+    from informe import collect_files
+    from utils.fs_tools import read_file, search_files
+
+    allowed = tmp_path / "allowed"
+    allowed.mkdir()
+    fuera = tmp_path / "fuera.txt"
+    fuera.write_text("EXTERNAL_MARKER_123\n", encoding="utf-8")
+    (allowed / "propio.txt").write_text("contenido propio\n", encoding="utf-8")
+    enlace = allowed / "enlace.txt"
+    try:
+        enlace.symlink_to(fuera)
+    except (OSError, NotImplementedError):
+        pytest.skip("el entorno no permite enlaces simbólicos")
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(allowed))
+    # read_file ya lo rechazaba; search_files filtraba de menos
+    assert "ERROR" in read_file(str(enlace))
+    assert "L1: EXTERNAL_MARKER_123" not in search_files(
+        query="EXTERNAL_MARKER_123", path=str(allowed)
+    )
+    # el recorrido legítimo no se rompe
+    assert "propio.txt" in search_files(query="contenido propio", path=str(allowed))
+    # el informe comparte la MISMA política (helper único)
+    assert enlace not in collect_files(str(allowed), "*.txt")

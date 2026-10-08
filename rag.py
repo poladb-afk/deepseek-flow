@@ -22,7 +22,7 @@ from pathlib import Path
 import numpy as np
 from pocketflow import BatchNode, Flow, Node
 
-from utils.fs_tools import SKIP_DIRS, _resolve
+from utils.fs_tools import SKIP_DIRS, _resolve, sin_enlaces
 
 INDICE_DIR = Path(__file__).resolve().parent / "rag_index"
 CHUNK_CHARS = 1200
@@ -44,9 +44,8 @@ def archivos_de(carpeta, patron):
     archivos = []
     for dirpath, dirnames, filenames in os.walk(carpeta):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and "rag_index" not in d]
-        for fname in filenames:
-            fpath = Path(dirpath) / fname
-            if not fnmatch.fnmatch(fname, patron):
+        for fpath in sin_enlaces(Path(dirpath) / f for f in filenames):
+            if not fnmatch.fnmatch(fpath.name, patron):
                 continue
             try:
                 if fpath.stat().st_size > MAX_ARCHIVO:
