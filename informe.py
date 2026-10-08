@@ -35,39 +35,69 @@ DEFAULT_FOLDER = _setting("INFORME_CARPETA", ".")  # portable; local: INFORME_CA
 MAPA_CONCURRENCIA = int(_setting("MAPA_CONCURRENCIA", "8"))
 
 
-def collect_files(folder, pattern):
+def collect_files(folder, pattern, max_files=MAX_FILES):
+    """Los archivos elegibles, ordenados. `max_files=None` = TODOS: el
+    cargador de SQLite no debe heredar el muestreo del informe (medido: con
+    31 archivos cargaba 30 y no lo declaraba — C12 de la auditoría externa)."""
     files = []
     for dirpath, dirnames, filenames in os.walk(folder):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        # exp/22 (C02): ningún recorrido sigue enlaces — la política es una sola.
         for fpath in sin_enlaces(Path(dirpath) / f for f in filenames):
             if fnmatch.fnmatch(fpath.name, pattern):
                 files.append(fpath)
-    return sorted(files)[:MAX_FILES]
+    files.sort()
+    return files if max_files is None else files[:max_files]
+
+
+def leer_registro(linea):
+    """(registro, motivo): la lectura COMPARTIDA por el informe y el cargador.
+
+    Que un renglón sea JSON válido no implica que tenga la forma del registro
+    de decisiones: `[]`, `null` y `{"answers": null}` reventaban con
+    AttributeError (medido — C11). Se clasifica por motivo para que el conteo
+    no se pierda y un renglón roto no tumbe el lote: "json" (ilegible) o
+    "forma" (legible con estructura equivocada)."""
+    try:
+        rec = json.loads(linea)
+    except json.JSONDecodeError:
+        return None, "json"
+    if not isinstance(rec, dict):
+        return None, "forma"
+    for clave in ("answers", "fields"):
+        # clave AUSENTE es válida (volcados viejos traen solo una); clave
+        # PRESENTE que no sea dict (incluido null) es forma inválida: aguas
+        # abajo se encadena .get() sobre ella y reventaba con AttributeError.
+        if clave in rec and not isinstance(rec[clave], dict):
+            return None, "forma"
+    return rec, None
 
 
 def stats_de(filepath):
-    """Hechos exactos: cuenta registros y decisiones por módulo."""
-    total, errores = 0, 0
+    """Hechos exactos: cuenta registros, JSON roto y forma inválida."""
+    total, errores, forma = 0, 0, 0
     modulos, ejemplos = Counter(), []
     with open(filepath, encoding="utf-8") as f:
         for line in f:
-            line = line.strip()
-            if not line:
+            if not line.strip():
                 continue
             total += 1
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
+            rec, motivo = leer_registro(line)
+            if motivo == "json":
                 errores += 1
+                continue
+            if motivo:
+                forma += 1
                 continue
             nxt = rec.get("answers", {}).get("next")
             if nxt:
                 modulos[nxt] += 1
             if len(ejemplos) < SAMPLE_TASKS:
-                task = rec.get("fields", {}).get("task")
+                task = (rec.get("fields") or {}).get("task")
                 if task:
                     ejemplos.append(str(task)[:TASK_CHARS])
-    return {"total": total, "errores": errores, "modulos": dict(modulos), "ejemplos": ejemplos}
+    return {"total": total, "errores": errores, "forma": forma,
+            "modulos": dict(modulos), "ejemplos": ejemplos}
 
 
 def tabla_markdown(analisis):
@@ -75,7 +105,8 @@ def tabla_markdown(analisis):
     filas = []
     for a in analisis:
         dist = ", ".join(f"{m}: {n}" for m, n in sorted(a["modulos"].items(), key=lambda x: -x[1]))
-        filas.append(f"| `{a['file']}` | {a['total']} | {a['errores']} | {dist or '—'} |")
+        rotos = a["errores"] + a.get("forma", 0)
+        filas.append(f"| `{a['file']}` | {a['total']} | {rotos} | {dist or '—'} |")
     return "\n".join(filas)
 
 
@@ -83,7 +114,7 @@ async def interpretar(filepath, stats):
     ejemplos = "\n".join(f"- {e}" for e in stats["ejemplos"]) or "(sin ejemplos)"
     dist = ", ".join(f"{m}: {n}" for m, n in sorted(stats["modulos"].items(), key=lambda x: -x[1])) or "(sin decisiones)"
     prompt = f"""Archivo de trazas de decisiones: {filepath}
-Registros: {stats['total']} (líneas con JSON roto: {stats['errores']})
+Registros: {stats['total']} (JSON roto: {stats['errores']}; forma inválida: {stats.get('forma', 0)})
 Decisiones por módulo: {dist}
 Tareas de ejemplo:
 {ejemplos}
@@ -99,11 +130,15 @@ class ScanFiles(Node):
 
     def exec(self, inputs):
         folder, pattern = inputs
-        return collect_files(folder, pattern)
+        return collect_files(folder, pattern, max_files=None)
 
     def post(self, shared, prep_res, exec_res):
-        shared["files"] = exec_res
-        print(f"Encontrados {len(exec_res)} archivos ({prep_res[1]} en {prep_res[0]})")
+        elegidos = exec_res[:MAX_FILES]
+        shared["files"] = elegidos
+        omitidos = len(exec_res) - len(elegidos)
+        cola = (f"; se analizan {len(elegidos)} y se omiten {omitidos} "
+                f"(tope MAX_FILES={MAX_FILES})") if omitidos else ""
+        print(f"Encontrados {len(exec_res)} archivos ({prep_res[1]} en {prep_res[0]}){cola}")
 
 
 class AnalizeFile(AsyncParallelBatchNode):

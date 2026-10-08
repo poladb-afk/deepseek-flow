@@ -4560,3 +4560,94 @@ def test_rag_invalida_la_cache_al_reindexar(tmp_path, monkeypatch):
 
     rag.SaveIndex().post({}, None, ("lexico", 1, False))
     assert rag._cargar()[2][0]["texto"] == "BETA"   # el índice se publicó
+def test_lector_tolera_formas_invalidas_sin_perder_conteo(tmp_path):
+    """exp/24 (C11 de la auditoría externa): JSON válido con forma equivocada
+    reventaba con AttributeError en stats_de; cada categoría se cuenta aparte
+    y un renglón roto no tumba el lote."""
+    from informe import stats_de
+
+    archivo = tmp_path / "trazas.jsonl"
+    archivo.write_text(
+        '{"answers": {"next": "router"}, "fields": {"task": "clasificar"}}\n'
+        "[]\n"
+        "null\n"
+        '{"answers": null}\n'
+        "{roto\n",
+        encoding="utf-8",
+    )
+    stats = stats_de(archivo)
+    assert stats["total"] == 5
+    assert stats["errores"] == 1     # JSON ilegible
+    assert stats["forma"] == 3       # [], null y {"answers": null}
+    assert stats["modulos"] == {"router": 1}
+
+
+def test_carga_trazas_procesa_todos_los_archivos():
+    """exp/24 (C12): el cargador no hereda el muestreo de MAX_FILES del
+    informe — con 31 archivos cargaba 30 y no lo declaraba."""
+    import json as _json
+    import sqlite3
+
+    import carga_trazas
+    from informe import MAX_FILES
+
+    base = RAIZ / "_tmp_test_carga_masiva"
+    base.mkdir(exist_ok=True)
+    db = base / "trazas.db"
+    try:
+        for i in range(MAX_FILES + 1):
+            (base / f"t{i:02d}.jsonl").write_text(
+                _json.dumps({"answers": {"next": "x"}, "fields": {"task": f"t{i}"}}) + "\n",
+                encoding="utf-8",
+            )
+        total, rotas = carga_trazas.cargar(str(base), db=str(db))
+        assert total == MAX_FILES + 1 and rotas == 0
+        con = sqlite3.connect(db)
+        try:
+            assert con.execute("SELECT COUNT(*) FROM trazas").fetchone()[0] == MAX_FILES + 1
+        finally:
+            con.close()
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
+def test_recarga_fallida_conserva_la_base_anterior(tmp_path, monkeypatch):
+    """exp/24 (C12): el DROP vive dentro de la transacción. Medido antes: un
+    fallo a mitad dejaba la tabla anterior vacía (pérdida real de datos)."""
+    import json as _json
+    import sqlite3
+
+    import carga_trazas
+
+    base = RAIZ / "_tmp_test_recarga"
+    carpeta = base / "trazas"
+    carpeta.mkdir(parents=True, exist_ok=True)
+    db = base / "trazas.db"
+    try:
+        (carpeta / "uno.jsonl").write_text(
+            _json.dumps({"answers": {"next": "x"}, "fields": {"task": "ok"}}) + "\n",
+            encoding="utf-8",
+        )
+        carga_trazas.cargar(str(carpeta), db=str(db))
+
+        def explotar(_):
+            raise RuntimeError("fallo a mitad de la recarga")
+
+        monkeypatch.setattr(carga_trazas, "_texto", explotar)
+        with pytest.raises(RuntimeError, match="a mitad"):
+            carga_trazas.cargar(str(carpeta), db=str(db))
+
+        con = sqlite3.connect(db)
+        try:
+            assert con.execute("SELECT COUNT(*) FROM trazas").fetchone()[0] == 1
+        finally:
+            con.close()
+
+        # una carpeta sin archivos tampoco toca la base
+        vacia = base / "vacia"
+        vacia.mkdir()
+        monkeypatch.undo()
+        with pytest.raises(ValueError, match="la base no se toca"):
+            carga_trazas.cargar(str(vacia), db=str(db))
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
