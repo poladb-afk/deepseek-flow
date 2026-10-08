@@ -4319,6 +4319,74 @@ def test_no_progress_se_resetea_con_la_pregunta_nueva():
     assert tools is not None                   # el presupuesto se reinició
 
 
+def test_calibracion_conformal_se_lee_y_no_tolera_basura(tmp_path):
+    """exp/31: el artefacto de calibración es un JSONL {"conf", "correcto"};
+    sin archivo o vacío se avisa con excepción (el router degrada)."""
+    import json as _json
+
+    from utils.conformal import leer_calibracion, q_de_calibracion
+
+    ruta = tmp_path / "calib.jsonl"
+    ruta.write_text(
+        "\n".join([_json.dumps({"conf": 0.97, "correcto": True})] * 20
+                    + [_json.dumps({"conf": 0.60, "correcto": False})] * 10) + "\n",
+        encoding="utf-8",
+    )
+    casos = leer_calibracion(ruta)
+    assert len(casos) == 30
+    assert q_de_calibracion(casos, 0.10) == 0.60      # índice ceil(31*0.9)=28
+    assert q_de_calibracion(casos, 0.02) is None      # sin cota con n=30
+
+    with pytest.raises(FileNotFoundError):
+        leer_calibracion(tmp_path / "no-existe.jsonl")
+    vacia = tmp_path / "vacia.jsonl"
+    vacia.write_text("", encoding="utf-8")
+    with pytest.raises(ValueError):
+        leer_calibracion(vacia)
+
+
+def test_router_usa_el_conjunto_conformal_cuando_hay_calibracion(tmp_path, monkeypatch):
+    """exp/31: con calibración, el router decide local por COLAPSO del conjunto
+    (acepta 0.70 con q=0.60) donde el umbral fijo 0.85 lo mandaría a
+    herramientas; sin calibración, el comportamiento de siempre."""
+    import json as _json
+
+    import nodes
+    from utils import call_llm, laya
+
+    calib = tmp_path / "calib.jsonl"
+    calib.write_text(
+        "\n".join([_json.dumps({"conf": 0.97, "correcto": True})] * 20
+                    + [_json.dumps({"conf": 0.60, "correcto": False})] * 10) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(laya, "disponible", lambda *a, **k: True)
+    monkeypatch.setattr(nodes, "voto_confirmacion_router", lambda *a, **k: "directo")
+    router = nodes.LayaRouter()
+
+    # sin calibración: 0.70 < 0.85 → herramientas (degradación intacta)
+    monkeypatch.setattr(call_llm, "_setting",
+                        lambda nombre, default=None: "" if nombre == "LAYA_CALIBRACION_ROUTER" else default)
+    assert router.post({}, "¿q?", ("directo", 0.70)) == "herramientas"
+
+    # con calibración α=0.10 (q=0.60, umbral 0.40): 0.70 colapsa → decide local
+    monkeypatch.setattr(
+        call_llm, "_setting",
+        lambda nombre, default=None: str(calib) if nombre == "LAYA_CALIBRACION_ROUTER"
+        else ("0.10" if nombre == "LAYA_ALPHA" else default),
+    )
+    assert router.post({}, "¿q?", ("directo", 0.70)) == "directo"
+    # 0.55 deja las dos etiquetas plausibles (0.45 >= 0.40) → ambiguo → herramientas
+    assert router.post({}, "¿q?", ("directo", 0.55)) == "herramientas"
+    # un archivo ilegible no rompe: cae al umbral fijo
+    monkeypatch.setattr(
+        call_llm, "_setting",
+        lambda nombre, default=None: str(tmp_path / "roto.jsonl") if nombre == "LAYA_CALIBRACION_ROUTER"
+        else default,
+    )
+    assert router.post({}, "¿q?", ("directo", 0.70)) == "herramientas"
+
+
 def test_conformal_cuantil_y_muestra_finita():
     """exp/30: el umbral SALE de la calibración con la corrección de muestra
     finita; con n chico y alpha exigente no hay cota y se deriva siempre."""

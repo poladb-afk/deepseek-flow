@@ -409,6 +409,30 @@ def voto_confirmacion_router(pregunta):
     return r.get("veredicto", "herramientas")
 
 
+def q_conformal_router():
+    """El q conformal del router, o None si no hay calibración utilizable.
+
+    Degradación por default: sin archivo (o con alpha imposible para ese n) el
+    router usa el umbral fijo de siempre (LAYA_UNSURE_HIGH). Con archivo, el
+    umbral SALE de los datos y la regla pasa a ser "aceptar solo si el
+    conjunto conformal colapsa" (utils/conformal.py, exp/30/31)."""
+    from utils.call_llm import _setting
+    from utils.conformal import leer_calibracion, q_de_calibracion
+
+    ruta = _setting("LAYA_CALIBRACION_ROUTER", "")
+    if not ruta:
+        return None
+    try:
+        alpha = float(_setting("LAYA_ALPHA", "0.10"))
+        q = q_de_calibracion(leer_calibracion(ruta), alpha)
+    except Exception as e:
+        print(f"  [laya] calibración no utilizable ({type(e).__name__}) → umbral fijo")
+        return None
+    if q is None:
+        print("  [laya] sin cota para ese alpha con este n → umbral fijo")
+    return q
+
+
 class LayaRouter(Node):
     """If inteligente: Laya (local, ms) decide si la pregunta necesita
     herramientas o se responde directa. La confianza aplica los umbrales
@@ -431,12 +455,20 @@ class LayaRouter(Node):
         return resp, conf
 
     def post(self, shared, prep_res, exec_res):
+        from utils.conformal import conjunto
         from utils.laya import veredicto
 
         eleccion, confianza = exec_res
         print(f"  [laya] {eleccion} (conf {confianza:.2f})")
         if eleccion == "directo":
-            if veredicto(confianza) != "met":
+            q = q_conformal_router()
+            if q is not None:
+                # compuerta conformal (exp/30/31): se decide local solo si el
+                # conjunto de etiquetas plausibles es un singleton
+                if len(conjunto(confianza, q)) != 1:
+                    print(f"  [laya] conjunto ambiguo (q={q:.3f}) → herramientas")
+                    return "herramientas"
+            elif veredicto(confianza) != "met":
                 return "herramientas"  # dudoso: caer al lado seguro
             # post() NO tiene retry en PocketFlow: si el voto revienta (YAML
             # roto del modelo), caemos al lado seguro en vez de cortar el chat.

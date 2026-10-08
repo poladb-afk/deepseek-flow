@@ -18,7 +18,9 @@ entra: la propia Laya documenta caída con espacios grandes de etiquetas.
 
 Código puro: sin LLM, sin red, sin estado. Determinista.
 """
+import json
 import math
+from pathlib import Path
 
 
 def cuantil_conformal(puntajes, alpha):
@@ -64,6 +66,41 @@ def conjunto(conf, q):
         nombre for nombre, p in (("elegida", conf), ("otra", 1.0 - conf)) if p >= umbral
     )
     return plausibles or ("elegida", "otra")
+
+
+def leer_calibracion(ruta):
+    """Los casos de calibración desde un JSONL (o un JSON con clave "casos").
+
+    Formato: una línea por caso, {"conf": 0.93, "correcto": true}. Es el
+    artefacto que produce banco/probes/etiquetar_router.py (etiquetado ciego,
+    en distribución). El test del fine-tune NO sirve para calibrar: la cota
+    dejaría de valer."""
+    path = Path(ruta)
+    if not path.is_file():
+        raise FileNotFoundError(f"sin calibración: {path}")
+    if path.suffix == ".json":
+        datos = json.loads(path.read_text(encoding="utf-8"))
+        crudos = datos.get("casos", datos) if isinstance(datos, dict) else datos
+    else:
+        crudos = [
+            json.loads(linea)
+            for linea in path.read_text(encoding="utf-8").splitlines()
+            if linea.strip()
+        ]
+    casos = [
+        {"conf": float(c["conf"]), "correcto": bool(c["correcto"])}
+        for c in crudos
+        if "conf" in c and "correcto" in c
+    ]
+    if not casos:
+        raise ValueError(f"calibración vacía o sin forma: {path}")
+    return casos
+
+
+def q_de_calibracion(casos, alpha):
+    """El q conformal de esos casos, o None si con ese n no hay cota posible."""
+    q = cuantil_conformal([puntaje(c["conf"], c["correcto"]) for c in casos], alpha)
+    return None if q == math.inf else q
 
 
 def cobertura_loo(casos, alpha):
