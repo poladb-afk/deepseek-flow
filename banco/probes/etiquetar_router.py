@@ -56,12 +56,26 @@ veredicto: herramientas|directo
 
 
 def preguntas_de_archivo(ruta):
-    """Una pregunta por línea (fuente externa: tráfico propio, issues, etc.)."""
+    """Preguntas de un archivo: el JSONL del log del chat (exp/34, clave
+    "pregunta") o una por línea. Así el tráfico REAL del chat entra al set de
+    calibración sin conversiones."""
     path = Path(ruta)
     if not path.is_file():
         return []
-    limpias = [" ".join(linea.split()) for linea in path.read_text(encoding="utf-8").splitlines()]
-    return [pregunta for pregunta in limpias if len(pregunta) >= MIN_LARGO]
+    salida = []
+    for linea in path.read_text(encoding="utf-8").splitlines():
+        if not linea.strip():
+            continue
+        texto = linea
+        if linea.lstrip().startswith("{"):
+            try:
+                texto = json.loads(linea).get("pregunta", "")
+            except json.JSONDecodeError:
+                texto = ""
+        limpia = " ".join(texto.split())
+        if len(limpia) >= MIN_LARGO:
+            salida.append(limpia)
+    return salida
 
 
 def preguntas_de_escenarios():

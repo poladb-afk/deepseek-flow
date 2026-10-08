@@ -4469,3 +4469,25 @@ def test_sonda_conformal_reproduce_la_evidencia_del_router():
         m = cobertura_loo(casos, alpha)
         assert m["cobertura"] >= 1 - alpha - 0.02, (alpha, m)
     assert len([c for c in datos["casos"] if c["conf"] >= 0.85]) == 25
+
+
+def test_etiquetador_acepta_el_log_de_preguntas_del_chat(tmp_path):
+    """exp/34: el --extra del etiquetador lee el JSONL del log del chat, así el
+    tráfico real entra a la calibración sin conversiones."""
+    import json as _json
+    import sys
+
+    sys.path.insert(0, str(RAIZ / "banco" / "probes"))
+    from etiquetar_router import preguntas_de_archivo
+
+    archivo = tmp_path / "preguntas.jsonl"
+    archivo.write_text(
+        _json.dumps({"ts": 1.0, "pregunta": "¿quién ganó el último mundial?"}) + "\n"
+        + "una pregunta suelta sin json\n"
+        + _json.dumps({"ts": 2.0, "pregunta": "corta"}) + "\n",
+        encoding="utf-8",
+    )
+    assert preguntas_de_archivo(archivo) == [
+        "¿quién ganó el último mundial?",
+        "una pregunta suelta sin json",
+    ]
