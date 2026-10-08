@@ -4317,3 +4317,64 @@ def test_no_progress_se_resetea_con_la_pregunta_nueva():
     assert shared["no_progress"] == 0
     _, tools = step.prep(shared)
     assert tools is not None                   # el presupuesto se reinició
+
+
+def test_conformal_cuantil_y_muestra_finita():
+    """exp/30: el umbral SALE de la calibración con la corrección de muestra
+    finita; con n chico y alpha exigente no hay cota y se deriva siempre."""
+    from utils.conformal import cuantil_conformal
+
+    puntajes = [i / 100 for i in range(1, 31)]      # 0.01 .. 0.30, n=30
+    # alpha=0.05 -> índice ceil(31*0.95)=30 -> el máximo de los puntajes
+    assert cuantil_conformal(puntajes, 0.05) == 0.30
+    # alpha=0.02 -> índice 31 > 30: sin cota posible con este n
+    assert cuantil_conformal(puntajes, 0.02) == float("inf")
+    with pytest.raises(ValueError):
+        cuantil_conformal(puntajes, 0.0)
+    with pytest.raises(ValueError):
+        cuantil_conformal([], 0.10)
+
+
+def test_conformal_colapsa_o_deriva():
+    """exp/30: la regla de la cascada — se decide local solo si el conjunto
+    de etiquetas plausibles es un singleton; vacío o doble = derivar."""
+    from utils.conformal import conjunto
+
+    assert conjunto(0.9, 0.2) == ("elegida",)              # 0.9 >= 0.8, 0.1 < 0.8
+    assert conjunto(0.5, 0.6) == ("elegida", "otra")       # ambas >= 0.4
+    assert conjunto(0.6, 0.2) == ("elegida", "otra")       # 0.6 < 0.8: vacío
+    assert conjunto(0.99, float("inf")) == ("elegida", "otra")
+
+
+def test_conformal_cobertura_loo_respeta_la_cota():
+    """exp/30: el LOO recalibra sin el caso evaluado; la cobertura estimada no
+    baja de 1-alpha (con margen por ser una estimación con n chico)."""
+    from utils.conformal import cobertura_loo
+
+    casos = [{"conf": 0.95 + i / 500, "correcto": True} for i in range(20)]
+    casos += [{"conf": 0.60, "correcto": False} for _ in range(10)]
+    for alpha in (0.05, 0.20):
+        m = cobertura_loo(casos, alpha)
+        assert m["cobertura"] >= 1 - alpha - 0.03, (alpha, m)
+        assert 0.0 <= m["aceptadas"] <= 1.0
+        assert m["precision"] is None or 0.0 <= m["precision"] <= 1.0
+
+
+def test_sonda_conformal_reproduce_la_evidencia_del_router():
+    """exp/30: con la evidencia ya medida (30 casos), la regla conformal
+    respeta la cobertura prometida; si falta la evidencia, se saltea."""
+    import json
+
+    from utils.conformal import cobertura_loo
+
+    ruta = RAIZ / "salidas" / "evals" / "laya_evidencia_router.json"
+    if not ruta.is_file():
+        pytest.skip("sin evidencia del router: corré sonda_laya.py router")
+    datos = json.loads(ruta.read_text(encoding="utf-8"))
+    casos = [
+        {"conf": c["conf"], "correcto": bool(c["correcto"])} for c in datos["casos"]
+    ]
+    for alpha in (0.10, 0.20):
+        m = cobertura_loo(casos, alpha)
+        assert m["cobertura"] >= 1 - alpha - 0.02, (alpha, m)
+    assert len([c for c in datos["casos"] if c["conf"] >= 0.85]) == 25
