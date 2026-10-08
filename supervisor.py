@@ -276,10 +276,21 @@ class EjecutarPaso(Node):
             print("  [L8] llamada idéntica a una previa: se reutiliza el resultado")
             return {"herramienta": herramienta, "args": args,
                     "resultado": previas[firma]["resultado"][:4000], "n": n, "repetida": True}
-        try:
-            resultado = str(REGISTRO[herramienta](**args))
-        except Exception as e:  # noqa: BLE001  (el error es un hecho, no un crash)
-            resultado = f"ERROR ({type(e).__name__}): {e}"
+        # Por run_tool_call, NO directo a la implementación (exp/36): es el
+        # único camino que corre los hooks pre/post, y el denylist duro de
+        # run_command vive en HOOKS_PRE. Medido: el mismo "rm -rf /" que el chat
+        # veta se EJECUTABA por acá. Los errores vuelven como "ERROR: ..." igual
+        # que en el chat (el hecho es un dato, no un crash).
+        resultado = fs_tools.run_tool_call(
+            {
+                "id": f"sup-{n}",
+                "function": {
+                    "name": herramienta,
+                    "arguments": json.dumps(args, ensure_ascii=False),
+                },
+            },
+            REGISTRO,
+        )["content"]
         return {"herramienta": herramienta, "args": args, "resultado": resultado[:4000], "n": n}
 
     def post(self, shared, prep_res, exec_res):

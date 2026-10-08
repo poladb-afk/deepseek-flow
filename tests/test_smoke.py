@@ -620,7 +620,9 @@ def test_supervisor_reintenta_con_feedback(tmp_path, monkeypatch):
     salida = tmp_path / "sup.md"
     sup.supervisar("busca el puerto", str(salida))
     texto = salida.read_text(encoding="utf-8")
-    assert "ERROR (RuntimeError): boom" in texto  # el fallo queda auditado
+    # exp/36: el paso ejecuta por run_tool_call, así que el error llega con el
+    # MISMO formato que en el chat (ERROR: Tipo: msg)
+    assert "ERROR: RuntimeError: boom" in texto  # el fallo queda auditado
     assert intentos["n"] == 2  # falló, reintentó con feedback y prosperó
     assert "1 search_files" in texto and "2 search_files" in texto
 
@@ -651,7 +653,7 @@ def test_supervisor_veta_tras_dos_fallos(tmp_path, monkeypatch):
     salida = tmp_path / "sup.md"
     sup.supervisar("tarea imposible", str(salida))
     texto = salida.read_text(encoding="utf-8")
-    assert texto.count("ERROR (RuntimeError)") == 2  # dos fallos y veto: no hay tercero
+    assert texto.count("ERROR: RuntimeError:") == 2  # dos fallos y veto: no hay tercero
 
 
 def test_heartbeat_vencidas():
@@ -3410,9 +3412,13 @@ def test_get_question_slash_aprobaciones(monkeypatch, capsys):
     ap.limpiar()
     ap.registrar("run_command", "echo hola", True, "auto")
     shared = {"messages": [], "tool_rounds": 0}
-    accion = nodes.GetQuestion().post(shared, None, "/aprobaciones")
+    # exp/36: el comando se atiende en el BUCLE DE ENTRADA y no vuelve a post,
+    # así no llega al modelo ni consume el presupuesto de la vuelta anterior.
+    entradas = iter(["/aprobaciones", "hola"])
+    monkeypatch.setattr("builtins.input", lambda *a, **k: next(entradas))
+    pregunta = nodes.GetQuestion().exec(None)
     salida = capsys.readouterr().out
-    assert accion == "continue"
+    assert pregunta == "hola"          # el comando se consumió en el bucle
     assert "✓ [auto] run_command: echo hola" in salida
     assert shared["messages"] == []  # no entra al historial del modelo
     # una pregunta normal sí entra al historial
@@ -4411,27 +4417,6 @@ def test_no_progress_se_resetea_con_la_pregunta_nueva():
     assert tools is not None                   # el presupuesto se reinició
 
 
-def test_aprobaciones_no_deja_las_tools_retiradas(capsys):
-    """exp/13 (residual): /aprobaciones devolvía 'continue' ANTES del reset del
-    presupuesto, así que tras un corte por no-progreso el comando reentraba a
-    AgentStep con las tools ya retiradas y gastaba el turno sin tools. El
-    reset es POR PREGUNTA (ley L8) y el comando cuenta como pregunta nueva."""
-    import utils.aprobaciones as ap
-
-    ap.limpiar()
-    shared, step, ask = _corte_por_no_progreso()
-
-    antes = len(shared["messages"])
-    ask.post(shared, None, "/aprobaciones")    # comando, no pregunta al modelo
-    capsys.readouterr()
-    assert shared["no_progress"] == 0          # el corte no sobrevive al comando
-    assert shared["tool_rounds"] == 0
-    assert "_fp" not in shared
-    assert len(shared["messages"]) == antes    # no entra al historial
-    _, tools = step.prep(shared)
-    assert tools is not None                   # el presupuesto se reinició
-
-
 def test_ningun_flujo_escribe_fuera_de_las_raices(tmp_path, monkeypatch):
     """exp/26 (C01 P0 de la auditoría externa): los flujos escribían con
     Path.write_text() una ruta de salida elegida por el modelo. Medido: con
@@ -4498,3 +4483,56 @@ def test_recorrido_no_sigue_enlaces_simbolicos(tmp_path, monkeypatch):
     assert "propio.txt" in search_files(query="contenido propio", path=str(allowed))
     # el informe comparte la MISMA política (helper único)
     assert enlace not in collect_files(str(allowed), "*.txt")
+
+
+def test_supervisor_no_puede_saltear_el_denylist(monkeypatch):
+    """exp/36 (barrida): EjecutarPaso llamaba REGISTRO[tool](**args) directo,
+    salteando HOOKS_PRE — y el denylist duro de run_command solo corre por
+    run_tool_call. Medido: el mismo 'rm -rf /' que el chat veta, por el
+    supervisor se ejecutaba."""
+    import json as _json
+
+    import supervisor as sup
+    from utils.fs_tools import HOOKS_PRE
+
+    visto = {}
+
+    def veto(tool_call):
+        visto["comando"] = _json.loads(tool_call["function"]["arguments"])["command"]
+        return "ERROR: comando prohibido por la denylist (test)"
+
+    monkeypatch.setitem(HOOKS_PRE, "run_command", [veto])
+    monkeypatch.setattr(sup, "call_llm", lambda *a, **k: 'args: {command: "rm -rf /"}\n')
+
+    res = sup.EjecutarPaso().exec(("tarea", [], "run_command", 1, 0, {}))
+    assert res["resultado"].startswith("ERROR: comando prohibido")
+    assert visto["comando"] == "rm -rf /"
+
+
+def test_informe_dos_corridas_en_el_mismo_proceso(tmp_path, monkeypatch):
+    """exp/36 (barrida): el semáforo de módulo se ataba al primer event loop y
+    la SEGUNDA corrida del proceso fallaba con RuntimeError (la tool quedaba
+    inusable). Ahora cada corrida trae su semáforo."""
+    import asyncio
+    import json as _json
+
+    import informe
+
+    async def resumen_falso(*a, **k):
+        return "resumen"
+
+    monkeypatch.setattr(informe, "interpretar", resumen_falso)
+    monkeypatch.setattr(informe, "MAPA_CONCURRENCIA", 1)   # fuerza contención
+
+    for i in range(2):
+        carpeta = tmp_path / f"d{i}"
+        carpeta.mkdir()
+        for j in range(3):
+            (carpeta / f"a{j}.jsonl").write_text(
+                _json.dumps({"answers": {"next": "x"}, "fields": {"task": "t"}}) + "\n",
+                encoding="utf-8",
+            )
+        salida = tmp_path / f"out{i}.md"
+        shared = {"folder": str(carpeta), "glob": "*.jsonl", "salida": str(salida)}
+        asyncio.run(informe.create_informe_flow().run_async(shared))
+        assert salida.is_file(), f"la corrida {i + 1} no escribió el informe"
