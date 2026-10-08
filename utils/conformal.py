@@ -103,6 +103,32 @@ def q_de_calibracion(casos, alpha):
     return None if q == math.inf else q
 
 
+def evaluar(casos, q):
+    """(n, cobertura, aceptadas, precision) con un q YA calibrado en OTRO set.
+
+    Es la evaluación honesta de la cascada: calibrar en A y medir en B.
+    Cobertura = la etiqueta verdadera entró al conjunto; aceptadas = fracción
+    de decisiones tomables localmente (conjunto singleton); precision =
+    cuántas de esas eran correctas."""
+    n = len(casos)
+    if n == 0:
+        raise ValueError("sin casos para evaluar")
+    dentro = aceptadas = aciertos = 0
+    for caso in casos:
+        if puntaje(caso["conf"], caso["correcto"]) <= q:
+            dentro += 1
+        if len(conjunto(caso["conf"], q)) == 1:
+            aceptadas += 1
+            if caso["correcto"]:
+                aciertos += 1
+    return {
+        "n": n,
+        "cobertura": dentro / n,
+        "aceptadas": aceptadas / n,
+        "precision": (aciertos / aceptadas) if aceptadas else None,
+    }
+
+
 def cobertura_loo(casos, alpha):
     """(cobertura, aceptadas, precision) por leave-one-out.
 

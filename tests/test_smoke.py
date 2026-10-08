@@ -4319,6 +4319,29 @@ def test_no_progress_se_resetea_con_la_pregunta_nueva():
     assert tools is not None                   # el presupuesto se reinició
 
 
+def test_conformal_evaluar_calibrado_en_otro_conjunto():
+    """exp/33: calibrar en A y medir en B — la evaluación honesta de la
+    cascada: cobertura (la verdad entra al conjunto) y aceptadas (singleton)."""
+    from utils.conformal import evaluar, q_de_calibracion
+
+    A = [{"conf": 0.97, "correcto": True}] * 20 + [{"conf": 0.60, "correcto": False}] * 10
+    q = q_de_calibracion(A, 0.10)
+    assert q == 0.60                       # índice ceil(31*0.9)=28 sobre 30 casos
+    B = [
+        {"conf": 0.95, "correcto": True},   # colapsa (0.05 < 0.40): aceptada
+        {"conf": 0.70, "correcto": True},   # colapsa (0.30 < 0.40): aceptada
+        {"conf": 0.55, "correcto": False},  # 0.45 >= 0.40: ambigua
+        {"conf": 0.45, "correcto": True},   # 0.55 >= 0.40: ambigua
+    ]
+    m = evaluar(B, q)
+    assert m["n"] == 4
+    assert m["cobertura"] == 1.0
+    assert m["aceptadas"] == 0.5
+    assert m["precision"] == 1.0
+    with pytest.raises(ValueError):
+        evaluar([], q)
+
+
 def test_calibracion_conformal_se_lee_y_no_tolera_basura(tmp_path):
     """exp/31: el artefacto de calibración es un JSONL {"conf", "correcto"};
     sin archivo o vacío se avisa con excepción (el router degrada)."""
