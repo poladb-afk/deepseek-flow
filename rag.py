@@ -125,7 +125,14 @@ class SaveIndex(Node):
         return modo, len(chunks), bool(vectores_todos)
 
     def post(self, shared, prep_res, exec_res):
+        global _indice_cache
         modo, n, con_vectores = exec_res
+        # El índice en disco acaba de cambiar: la caché de ESTA sesión queda
+        # vieja y rag_search devolvería el índice anterior aunque el disco ya
+        # tenga el nuevo (medido: indexar A, consultar, indexar B y seguir
+        # viendo A). Se paga una recarga en la próxima búsqueda, no un
+        # reinicio del chat.
+        _indice_cache = None
         shared["indice"] = str(INDICE_DIR)
         print(f"Índice ({modo}) listo: {n} fragmentos" + (", con vectores" if con_vectores else ""))
 

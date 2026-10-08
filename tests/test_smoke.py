@@ -4536,3 +4536,27 @@ def test_informe_dos_corridas_en_el_mismo_proceso(tmp_path, monkeypatch):
         shared = {"folder": str(carpeta), "glob": "*.jsonl", "salida": str(salida)}
         asyncio.run(informe.create_informe_flow().run_async(shared))
         assert salida.is_file(), f"la corrida {i + 1} no escribió el informe"
+def test_rag_invalida_la_cache_al_reindexar(tmp_path, monkeypatch):
+    """exp/23 (C10 de la auditoría externa): el índice en disco puede ser
+    nuevo y la búsqueda de la MISMA sesión devolver el anterior —
+    _indice_cache solo se llenaba y nadie la invalidaba al reindexar."""
+    import json as _json
+
+    import rag
+
+    monkeypatch.setattr(rag, "INDICE_DIR", tmp_path)
+    monkeypatch.setattr(rag, "_indice_cache", None)
+
+    def escribir(texto):
+        (tmp_path / "chunks.json").write_text(
+            _json.dumps({"modo": "lexico", "chunks": [{"texto": texto, "ruta": "a.txt"}]}),
+            encoding="utf-8",
+        )
+
+    escribir("ALFA")
+    assert rag._cargar()[2][0]["texto"] == "ALFA"
+    escribir("BETA")
+    assert rag._cargar()[2][0]["texto"] == "ALFA"   # caché vieja, a propósito
+
+    rag.SaveIndex().post({}, None, ("lexico", 1, False))
+    assert rag._cargar()[2][0]["texto"] == "BETA"   # el índice se publicó
