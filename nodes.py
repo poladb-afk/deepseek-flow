@@ -154,6 +154,16 @@ class GetQuestion(Node):
     def post(self, shared, prep_res, exec_res):
         if exec_res.lower() in EXIT_WORDS:
             return "exit"
+        # Todo presupuesto es POR PREGUNTA (ley L8): el techo de rondas y el
+        # contador de no-progreso se reinician acá. Sin este reset, un corte
+        # por no-progreso dejaba las tools retiradas para el resto de la
+        # sesión (el contador solo se reseteaba en ExecuteTools.post, que ya
+        # no corría) y el protocolo de continuación de exp/4 quedaba falso.
+        # Va ANTES del comando de terminal: /aprobaciones también es una
+        # pregunta nueva, y sin el reset gastaba el turno sin tools.
+        shared["tool_rounds"] = 0
+        shared["no_progress"] = 0
+        shared.pop("_fp", None)
         # UX (mesa 8): /aprobaciones muestra el historial HITL de la sesión.
         # Es un comando de terminal, no llega al modelo ni al historial.
         if exec_res.strip().lower() == "/aprobaciones":
@@ -162,14 +172,6 @@ class GetQuestion(Node):
             print("\n" + resumen())
             return "continue"
         shared["messages"].append({"role": "user", "content": exec_res})
-        # Todo presupuesto es POR PREGUNTA (ley L8): el techo de rondas y el
-        # contador de no-progreso se reinician acá. Sin este reset, un corte
-        # por no-progreso dejaba las tools retiradas para el resto de la
-        # sesión (el contador solo se reseteaba en ExecuteTools.post, que ya
-        # no corría) y el protocolo de continuación de exp/4 quedaba falso.
-        shared["tool_rounds"] = 0
-        shared["no_progress"] = 0
-        shared.pop("_fp", None)
         return "continue"
 
 

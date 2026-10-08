@@ -1,7 +1,7 @@
 """Sonda del verdict estocástico del juez (exp/21, fase A).
 
 Pregunta que responde: ¿QUÉ formas toma el `verdict` del Judge cuando su
-YAML no valida contra el contrato (`verdict in ("ok", "retry")`)? exp/20
+YAML no valida contra el contrato (`juez._veredicto_valido`)? exp/20
 midió `AssertionError: verdict inválido` en 5/17 y 3/17 casos, siempre
 distintos: ~1 de cada 4-5 evaluaciones. Acá capturamos los crudos reales
 en vez de adivinarlos.
@@ -50,11 +50,14 @@ IDS_VICTIMAS = [
 ]
 
 # El Judge pide el veredicto con esta frase; sirve para separar sus llamadas
-# de las del Draft dentro del mismo flujo.
-MARCA_JUDGE = "Evalúa el borrador"
+# de las del Draft dentro del mismo flujo. Se IMPORTA del contrato (antes era
+# una copia: un cambio de redacción habría etiquetado todo como draft).
+MARCA_JUDGE = juez.MARCA_JUDGE
 
-# Contrato de producción (juez.Judge.exec): solo ok/retry son válidos.
-VERDICTS_VALIDOS = ("ok", "retry")
+# Contrato de producción: es UNA fuente, y se importa (no se copia). La
+# copia local que vivía acá derivó sin que ningún test lo notara:
+# juez._veredicto_valido canonicaliza str/strip/lower y exige que
+# `problems`, si está, sea lista.
 
 
 def leer_preguntas(path=PREGUNTAS_JSONL):
@@ -109,9 +112,9 @@ def clasificar(crudo):
         }
 
     crudo_verdict = datos["verdict"]
-    valido = crudo_verdict in VERDICTS_VALIDOS
+    valido, _motivo = juez._veredicto_valido(datos)
     if valido:
-        shape = "ok" if crudo_verdict == "ok" else "retry"
+        shape = "ok" if juez._canonico(crudo_verdict) == "ok" else "retry"
     else:
         # etiqueta corta y legible de la forma inválida real
         shape = f"{crudo_verdict!r} (inválido)"

@@ -70,8 +70,11 @@ def _vetar_comando_prohibido(tool_call):
     except Exception:  # noqa: BLE001
         return None
     if comando and _PROHIBIDOS.search(comando):
-        print(colorear(f"  [denylist] comando vetado (daño irreversible): {comando}",
-                       "aviso"), flush=True)
+        # Fix 10a: línea VERBATIM de la spec — el ancla de
+        # MARCADORES["veto_denylist"] es el formato impreso, no el vocabulario
+        # ni el comando que eligió el modelo.
+        print(colorear("  [denylist] comando vetado (daño irreversible): "
+                       "no se ejecutó ni se pidió aprobación", "error"), flush=True)
         return (
             "ERROR: comando prohibido por la denylist de seguridad (daño "
             "irreversible en el host); no se ejecutó ni se pidió aprobación. "

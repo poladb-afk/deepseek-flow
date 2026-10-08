@@ -147,12 +147,17 @@ def guardar_resumen_sesion(contenido):
     es bookkeeping, no una acción nueva. Devuelve el path o None."""
     raiz = _raiz()
     destino = raiz / f"sesion_{date.today().isoformat()}.md"
+    # El nombre se hace único contra lo que YA existe, no contra el reloj: con
+    # el sufijo horario solo (HHMM) dos sesiones del mismo minuto se pisaban.
     if destino.exists():
         from datetime import datetime
 
-        destino = raiz / (
-            f"sesion_{date.today().isoformat()}-{datetime.now().strftime('%H%M')}.md"
-        )
+        marca = datetime.now().strftime("%H%M")
+        destino = raiz / f"sesion_{date.today().isoformat()}-{marca}.md"
+        n = 2
+        while destino.exists():
+            destino = raiz / f"sesion_{date.today().isoformat()}-{marca}-{n}.md"
+            n += 1
     try:
         raiz.mkdir(parents=True, exist_ok=True)
         destino.write_text(contenido.rstrip() + "\n", encoding="utf-8")

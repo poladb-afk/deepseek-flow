@@ -180,6 +180,17 @@ def test_sql_permita_punto_coma_en_literal():
     assert not r.startswith("ERROR"), f"sobre-rechazo por ';' en literal: {r[:80]}"
 
 
+def test_sql_punto_coma_en_literal_sin_depender_de_trazas_db(tmp_path, monkeypatch):
+    """Misma ley que arriba, pero SIN el skip por falta de trazas.db: es la
+    mitad positiva del guard del ';' (la que se falseaba), ahora con base
+    propia. Candado del troceado que comparten _sentencias y _sin_literales."""
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "trazas.db"))
+    db = _db_tmp(tmp_path)
+
+    r = db.sql("SELECT * FROM trazas WHERE criterios = 'x;y'")
+    assert not r.startswith("ERROR"), f"sobre-rechazo por ';' en literal: {r[:80]}"
+
+
 def test_sql_rechaza_multi_sentencia():
     """El guard sigue bloqueando lo que sí es multi-sentencia real."""
     from modules.db import sql
@@ -196,9 +207,11 @@ def test_mermaid_export():
     assert "Planner" in texto and "research" in texto
 
 
-def _db_tmp(tmp_path):
+def _db_tmp(tmp_path, criterios=("x", "y")):
     """Crea una sqlite real mínima con una tabla `trazas` y DB_PATH apuntada
-    ahí (vía setting). Devuelve el módulo ya listo."""
+    ahí (vía setting). Devuelve el módulo ya listo. `criterios` es el contenido
+    a sembrar: los tests que necesitan más filas que MAX_FILAS lo pasan acá en
+    vez de re-armar la base a mano."""
     import sqlite3
 
     import modules.db as db
@@ -206,7 +219,8 @@ def _db_tmp(tmp_path):
     ruta = tmp_path / "trazas.db"
     con = sqlite3.connect(ruta)
     con.execute("CREATE TABLE trazas (id INTEGER PRIMARY KEY, criterios TEXT)")
-    con.execute("INSERT INTO trazas (criterios) VALUES ('x'), ('y')")
+    con.executemany("INSERT INTO trazas (criterios) VALUES (?)",
+                    [(c,) for c in criterios])
     con.commit()
     con.close()
     return db
@@ -236,21 +250,10 @@ def test_sql_fuerza_limit_ante_limit_en_literal(tmp_path, monkeypatch):
     que el LIMIT forzado SÍ se aplica (antes: '... = \\'limit\\'' lo suprimía
     y devolvía filas sin techo). Se verifica con una tabla de más filas que
     MAX_FILAS: el resultado no puede superar el tope."""
-    import sqlite3
-
-    import modules.db as db
     from modules.db import MAX_FILAS
 
-    ruta = tmp_path / "trazas.db"
-    con = sqlite3.connect(ruta)
-    con.execute("CREATE TABLE trazas (id INTEGER PRIMARY KEY, criterios TEXT)")
-    con.executemany(
-        "INSERT INTO trazas (criterios) VALUES (?)",
-        [("limit",) for _ in range(MAX_FILAS + 20)],
-    )
-    con.commit()
-    con.close()
-    monkeypatch.setenv("DB_PATH", str(ruta))
+    monkeypatch.setenv("DB_PATH", str(tmp_path / "trazas.db"))
+    db = _db_tmp(tmp_path, criterios=["limit"] * (MAX_FILAS + 20))
 
     r = db.sql("SELECT id FROM trazas WHERE criterios = 'limit'")
     assert not r.startswith("ERROR"), f"la consulta con 'limit' en literal falló: {r[:80]}"
@@ -785,7 +788,7 @@ def test_votacion_2de3_en_el_supervisor(tmp_path, monkeypatch, capsys):
     assert "[votos] ['db_schema', 'sql', 'sql']" in consola  # mayoría sql
 
 
-def test_votacion_laya_segura_no_gasta(tmp_path, monkeypatch):
+def test_votacion_laya_segura_no_gasta(tmp_path, monkeypatch, capsys):
     import supervisor as sup
 
     def nunca(*a, **k):
@@ -799,7 +802,10 @@ def test_votacion_laya_segura_no_gasta(tmp_path, monkeypatch):
     )
     salida = tmp_path / "sup.md"
     sup.supervisar("tarea", str(salida))
-    assert "0.99" in salida.read_text(encoding="utf-8") or True  # cerró por laya, sin DeepSeek
+    # la confianza de Laya se ve en TERMINAL, no en el informe; si hubiera
+    # votado DeepSeek, elegir_con_deepseek (parcheado para explotar) lo delata.
+    assert "[laya (conf 0.99)]" in capsys.readouterr().out
+    assert salida.read_text(encoding="utf-8").strip()  # el informe se escribió
 
 
 def test_dsml_a_tool_calls():
@@ -1758,7 +1764,10 @@ def test_hook_pre_denylist_veta_antes_de_ejecutar(tmp_path, monkeypatch, capsys)
     )
     assert res["content"].startswith("ERROR") and "denylist" in res["content"]
     salida = capsys.readouterr().out
-    assert "[denylist]" in salida and "rm -rf /" in salida
+    # Fix 10a: el ancla es la línea impresa VERBATIM de la spec, y el comando
+    # que eligió el modelo NO viaja adentro de ella.
+    assert "  [denylist] comando vetado (daño irreversible): no se ejecutó ni se pidió aprobación" in salida
+    assert "rm -rf /" not in salida
 
     res = fs_tools.run_tool_call(
         _tc("run_command", {"command": ":(){ :|:& };:"}),
@@ -1766,7 +1775,8 @@ def test_hook_pre_denylist_veta_antes_de_ejecutar(tmp_path, monkeypatch, capsys)
     )
     assert res["content"].startswith("ERROR") and "denylist" in res["content"]
     salida = capsys.readouterr().out
-    assert "[denylist]" in salida and ":(){ :|:& };:" in salida
+    assert "  [denylist] comando vetado (daño irreversible): no se ejecutó ni se pidió aprobación" in salida
+    assert ":(){ :|:& };:" not in salida
 
     # un comando normal NO es vetado: restauramos el run real y verificamos
     # que llega a la implementación (echo inofensivo, HITL_AUTO lo corre auto).
@@ -3794,6 +3804,46 @@ def test_carga_trazas_serializa_criteria_no_string(tmp_path):
         shutil.rmtree(base, ignore_errors=True)
 
 
+def test_search_web_degrada_a_error_sin_red(monkeypatch):
+    """Fix 4 (deuda): una búsqueda que falla NO propaga la excepción —
+    devuelve un string 'ERROR: …' que research ve como dato y sigue con las
+    queries que sí pueden salir. Es el candado que pedía la spec."""
+    import ddgs
+
+    import utils.websearch as ws
+
+    llamadas = []
+
+    class SinRed:
+        def text(self, consulta, max_results=5):
+            llamadas.append((consulta, max_results))
+            raise RuntimeError("sin red")
+
+    monkeypatch.setenv("SEARCH_PROVIDER", "ddgs")
+    monkeypatch.setattr(ddgs, "DDGS", SinRed)
+
+    r = ws.search_web("x", k=3)
+
+    # si esto falla, el test no llegó a la llamada que debía reventar
+    assert llamadas == [("x", 3)]
+    assert isinstance(r, str) and r.startswith("ERROR: búsqueda web falló"), r
+
+
+def test_tasks_dir_una_sola_fuente_para_las_sondas(tmp_path, monkeypatch):
+    """Las tres sondas comparten utils.rutas.tasks_dir (antes: el mismo default
+    copiado en cada una). El setting manda; sin setting, el default histórico."""
+    from pathlib import Path
+
+    from utils.rutas import tasks_dir
+
+    monkeypatch.setenv("BMO_TASKS_DIR", str(tmp_path / "tasks"))
+    assert tasks_dir() == tmp_path / "tasks"
+
+    monkeypatch.delenv("BMO_TASKS_DIR", raising=False)
+    sin_setting = tasks_dir()
+    assert isinstance(sin_setting, Path) and sin_setting.name == "tasks"
+
+
 def test_compactar_dispara_por_caracteres_con_umbral_de_mensajes():
     """El disparador de `compactar` es el TAMAÑO en CARACTERES (`_tamano >
     max_chars`), pero con la compuerta de mensajes: con `ventana + 2` o más
@@ -3844,6 +3894,22 @@ def test_guardar_resumen_sesion_no_pisa_el_mismo_dia(tmp_path, monkeypatch):
     assert p2.read_text(encoding="utf-8").strip() == "dos"
     sesiones = sorted(f.name for f in tmp_path.glob("sesion_*.md"))
     assert len(sesiones) == 2
+
+def test_guardar_resumen_sesion_no_pisa_el_mismo_minuto(tmp_path, monkeypatch):
+    """Fix 6 (residual): el sufijo del segundo archivo era solo HHMM, así que
+    una TERCERA sesión dentro del mismo minuto volvía a pisar a la segunda.
+    El nombre se hace único contra lo que YA existe, no contra el reloj."""
+    import modules.memoria as mem
+
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+
+    rutas = [mem.guardar_resumen_sesion(f"contenido {i}") for i in range(3)]
+
+    assert all(p is not None for p in rutas)
+    assert len(set(rutas)) == 3, f"dos sesiones del mismo minuto se pisaron: {rutas}"
+    for i, p in enumerate(rutas):
+        assert p.read_text(encoding="utf-8").strip() == f"contenido {i}"
+    assert len(list(tmp_path.glob("sesion_*.md"))) == 3
 
 
 # ---------------------------------------------------------------------------
@@ -4032,11 +4098,18 @@ def test_bench_correr_evalua_y_agrega_con_responder_fake(tmp_path):
     preguntas = tmp_path / "preguntas.jsonl"
     preguntas.write_text("\n".join(
         __import__("json").dumps(c) for c in casos), encoding="utf-8")
+    # estado del baseline REAL antes de escribir el informe: el assert
+    # compara contra esto, así que puede fallar de verdad.
+    def _baseline():
+        return (bj.BASELINE.is_file(),
+                bj.BASELINE.stat().st_mtime_ns if bj.BASELINE.is_file() else None)
+
+    baseline_antes = _baseline()
     destino = bj.generar(preguntas=preguntas, dir_salida=tmp_path / "evals",
                          responder=fake, sha="deadbeef")
     assert destino.is_file()
     assert "respuesta_ok" in destino.read_text(encoding="utf-8")
-    assert not (bj.BASELINE).is_file() or True  # el baseline real no se toca
+    assert _baseline() == baseline_antes, "generar() sin --baseline tocó el baseline real"
 
 
 def test_bench_correr_contiene_excepcion_por_caso(tmp_path):
@@ -4292,11 +4365,10 @@ def test_execute_tools_post_acumula_y_resetea_no_progress():
     assert shared["_fp"] == fingerprint(tc("b"))
 
 
-def test_no_progress_se_resetea_con_la_pregunta_nueva():
-    """exp/13 (opción D): el corte por no-progreso es POR PREGUNTA (ley L8).
-    Sin el reset en GetQuestion.post el contador quedaba pegado, AgentStep
-    retiraba las tools para siempre y el protocolo de continuación de exp/4
-    ('un mensaje nuevo reinicia el presupuesto') era falso."""
+def _corte_por_no_progreso():
+    """Deja la sesión en el estado del corte: contador en el umbral y tools
+    retiradas. Devuelve (shared, step, ask) listos para postear la pregunta.
+    Lo comparten los dos tests del reset (pregunta normal y /aprobaciones)."""
     import json as _json
 
     from nodes import UMBRAL_SIN_PROGRESO, AgentStep, ExecuteTools, GetQuestion
@@ -4313,7 +4385,36 @@ def test_no_progress_se_resetea_con_la_pregunta_nueva():
     assert shared["no_progress"] == UMBRAL_SIN_PROGRESO
     _, tools = step.prep(shared)
     assert tools is None                       # corte: se retiran las tools
+    return shared, step, ask
+
+
+def test_no_progress_se_resetea_con_la_pregunta_nueva():
+    """exp/13 (opción D): el corte por no-progreso es POR PREGUNTA (ley L8).
+    Sin el reset en GetQuestion.post el contador quedaba pegado, AgentStep
+    retiraba las tools para siempre y el protocolo de continuación de exp/4
+    ('un mensaje nuevo reinicia el presupuesto') era falso."""
+    shared, step, ask = _corte_por_no_progreso()
     ask.post(shared, None, "otra pregunta")    # mensaje nuevo del usuario
     assert shared["no_progress"] == 0
+    _, tools = step.prep(shared)
+    assert tools is not None                   # el presupuesto se reinició
+
+def test_aprobaciones_no_deja_las_tools_retiradas(capsys):
+    """exp/13 (residual): /aprobaciones devolvía 'continue' ANTES del reset del
+    presupuesto, así que tras un corte por no-progreso el comando reentraba a
+    AgentStep con las tools ya retiradas y gastaba el turno sin tools. El
+    reset es POR PREGUNTA (ley L8) y el comando cuenta como pregunta nueva."""
+    import utils.aprobaciones as ap
+
+    ap.limpiar()
+    shared, step, ask = _corte_por_no_progreso()
+
+    antes = len(shared["messages"])
+    ask.post(shared, None, "/aprobaciones")    # comando, no pregunta al modelo
+    capsys.readouterr()
+    assert shared["no_progress"] == 0          # el corte no sobrevive al comando
+    assert shared["tool_rounds"] == 0
+    assert "_fp" not in shared
+    assert len(shared["messages"]) == antes    # no entra al historial
     _, tools = step.prep(shared)
     assert tools is not None                   # el presupuesto se reinició

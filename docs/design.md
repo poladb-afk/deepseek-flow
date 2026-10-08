@@ -164,7 +164,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 
 | Nodo | Tipo | prep | exec | post |
 |---|---|---|---|---|
-| GetQuestion | Node | — | `input()` (ignora vacías; EOF → exit) | `salir/exit/quit` → `exit`; si no, agrega mensaje user, resetea `tool_rounds` → `continue` |
+| GetQuestion | Node | — | `input()` (ignora vacías; EOF → exit) | `salir/exit/quit` → `exit`; si no, resetea el presupuesto por pregunta (ley L8) y agrega el mensaje user → `continue`; `/aprobaciones` imprime el historial HITL y NO entra al historial |
 | AgentStep | Node (max_retries=3, wait=5) | historial + tools (sin tools si ya gastó el límite) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
 | ExecuteTools | Node | último `tool_calls` | ejecuta cada llamada (`run_tool_call`) | agrega mensajes tool, suma `tool_rounds` → `default` |
 | ExitChat | Node | — | — | imprime despedida |
@@ -199,7 +199,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Límite | Qué | Dónde |
 |---|---|---|
 | Contención | Ninguna ruta sale de `AGENT_ALLOWED_DIRS` (resueltas con `Path.resolve`) | `fs_tools._resolve` |
-| Rondas | `presupuesto(shared)` por pregunta (override > perfil de `operacion` > `MAX_TOOL_ROUNDS`); al llegar, `AgentStep` retira las tools y el modelo debe responder. Se reinicia con cada mensaje del usuario | `nodes.presupuesto`, `AgentStep.prep` |
+| Rondas | `presupuesto(shared)` por pregunta (override > perfil de `operacion` > `MAX_TOOL_ROUNDS`); al llegar, `AgentStep` retira las tools y el modelo debe responder. Se reinicia con cada pregunta nueva del usuario (el comando `/aprobaciones` incluido, que no agrega mensaje) | `nodes.presupuesto`, `AgentStep.prep` |
 | No-progreso | Repeticiones idénticas de la ronda de tools (`fingerprint` de nombre+argumentos) a `UMBRAL_SIN_PROGRESO`: se retiran las tools sin esperar el techo, con el evento `corte_no_progreso` en la traza | `nodes.fingerprint`, `ExecuteTools.post`, `AgentStep.prep` |
 | Contexto | `READ_MAX_CHARS` por lectura, listados truncados | `fs_tools` |
 
@@ -314,8 +314,9 @@ flowchart LR
 `Draft` recibe en prep el contenido real de los archivos mencionados en
 la pregunta (los hechos los reúne el código). `Judge` extrae las citas
 `ruta:línea` del borrador, lee las líneas reales, y evalúa en YAML
-(`verdict: ok/retry`) — `extraer_yaml` + asserts: un YAML roto lanza y el
-retry del Node re-pregunta. Tope de rondas `JUEZ_ROUNDS` (default 2, ley L8),
+(`verdict: ok/retry`) — `extraer_yaml` + `_veredicto_valido`: un veredicto
+que no valida **no lanza** — el Judge reintenta citando el crudo inválido como
+feedback (fase B2 de exp/21, abajo). Tope de rondas `JUEZ_ROUNDS` (default 2, ley L8),
 configurable por corrida con `--rondas N` o `shared["max_rounds"]`; la tool
 `answer_verified(pregunta, rondas?)` lo expone.
 
@@ -1765,6 +1766,8 @@ falla **SEMÁNTICA**. Resultado: 8 ok válidas, 1 `needs_changes`.
 1. **Prompt endurecido** — el verdict SOLO `ok` o `retry`, literal.
 2. **Normalización** `str`/`strip`/`lower` + `_ALIAS_VERDICT` con SOLO el
    sinónimo medido (`needs_changes`): el contrato se aprieta, no se afloja.
+   *(Superado por la fase B2, abajo: el alias se eliminó — el verdict se
+   repara con feedback; la canonicalización quedó.)*
 3. **Degradación terminal en `responder_con_juez`** — flujo roto tras los
    retries con draft presente → se entrega el borrador con advertencia
    (patrón L8); sin draft se re-raise. `main.py juez` y `juez_lote` heredan.

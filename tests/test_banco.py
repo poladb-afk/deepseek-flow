@@ -34,7 +34,8 @@ def test_los_marcadores_matchean_las_lineas_reales_del_chat():
         "compaccion": "[compacción] zona fría: 30 mensajes → resumen; ventana caliente: 11",
         "sintaxis": "contenido\n⚠ SINTAXIS: invalid syntax (roto.py, line 1)",
         "veto_l8": "  [laya] search_files está vetada (dos fallos) → elige DeepSeek",
-        "veto_denylist": "  [denylist] comando vetado (daño irreversible): rm -rf /",
+        "veto_denylist": ("  [denylist] comando vetado (daño irreversible): "
+                          "no se ejecutó ni se pidió aprobación"),
         "recuperacion": "  [recuperación] tool calls llegaron como texto (DSML) → ejecutando",
         "sanitizado": "  [sanitizado] la respuesta descarriló a un prompt ajeno: cortada",
         "ronda": "  ⚙ ronda 3/8",

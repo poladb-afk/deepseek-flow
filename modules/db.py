@@ -39,20 +39,35 @@ def db_schema():
     )
 
 
-def _sentencias(texto):
-    """Trocea por ';' ignorando los que están dentro de literales ('...' o
-    "..."). Devuelve las partes no vacías: > 1 significa multi-sentencia.
-    Un ';' dentro de una cadena es legal, no una segunda sentencia."""
-    partes, actual, comilla = [], [], None
+def _mascara_literales(texto):
+    """Una máscara por carácter: True si ese carácter está DENTRO de un
+    literal ('...' o "..."), delimitadores incluidos.
+
+    Es la ÚNICA noción de literal del módulo: la comparten _sentencias y
+    _sin_literales, que antes eran dos escáneres copiados capaces de derivar
+    uno del otro sin que ningún test lo notara."""
+    mascara, comilla = [], None
     for ch in texto:
         if comilla:
-            actual.append(ch)
+            mascara.append(True)
             if ch == comilla:
                 comilla = None
         elif ch in ("'", '"'):
             comilla = ch
-            actual.append(ch)
-        elif ch == ";":
+            mascara.append(True)
+        else:
+            mascara.append(False)
+    return mascara
+
+
+def _sentencias(texto):
+    """Trocea por ';' ignorando los que están dentro de literales ('...' o
+    "..."). Devuelve las partes no vacías: > 1 significa multi-sentencia.
+    Un ';' dentro de una cadena es legal, no una segunda sentencia."""
+    mascara = _mascara_literales(texto)
+    partes, actual = [], []
+    for i, ch in enumerate(texto):
+        if ch == ";" and not mascara[i]:
             partes.append("".join(actual))
             actual = []
         else:
@@ -62,23 +77,14 @@ def _sentencias(texto):
 
 
 def _sin_literales(consulta):
-    """La consulta con el contenido de los literales ('...' y "...")
-    reemplazado por vacío: para escanear palabras clave del SQL sin falsear
-    por texto de usuario. Misma noción de literal que _sentencias."""
-    partes, actual, comilla = [], [], None
-    for ch in consulta:
-        if comilla:
-            if ch == comilla:
-                comilla = None
-            continue  # el contenido del literal no se escanea
-        if ch in ("'", '"'):
-            comilla = ch
-        elif ch == ";":
-            partes.append(";")  # el troceado de sentencias no se falsea
-        else:
-            actual.append(ch)
-    partes.append("".join(actual))
-    return "".join(partes)
+    """La consulta con el contenido de los literales ('...' y "...") y sus
+    comillas reemplazados por vacío: para escanear palabras clave del SQL sin
+    falsear por texto de usuario. Misma noción de literal que _sentencias, y
+    el texto de fuera queda EN ORDEN (los ';' incluidos: los dos consumidores
+    son búsquedas de palabra suelta, no ancladas)."""
+    mascara = _mascara_literales(consulta)
+    return "".join(consulta[i] for i in range(len(consulta))
+                   if not mascara[i] and consulta[i] not in ("'", '"'))
 
 
 _RE_LIMIT = re.compile(r"\blimit\b", re.IGNORECASE)

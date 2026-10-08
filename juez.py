@@ -74,6 +74,19 @@ def _recorte(texto, n=300):
     return texto[:n] + ("…" if len(texto) > n else "")
 
 
+# Marcador del prompt del Judge: distingue SUS llamadas de las del Draft.
+# Lo importa el probe (banco/probes/verdict_juez.py), que antes lo copiaba:
+# si cambia la redacción, cambia acá y no en dos sitios.
+MARCA_JUDGE = "Evalúa el borrador"
+
+
+def _canonico(verdict):
+    """Canonicaliza el verdict: case/whitespace son ruido de codificación, no
+    semántica. Definición ÚNICA: la comparten la validación, la normalización
+    de _validar y el probe."""
+    return verdict.strip().lower() if isinstance(verdict, str) else verdict
+
+
 def _veredicto_valido(d):
     """Valida el veredicto contra AMBAS condiciones del contrato.
 
@@ -86,7 +99,7 @@ def _veredicto_valido(d):
     if not isinstance(d, dict):
         return False, "el YAML no es un diccionario de veredicto"
     crudo = d.get("verdict")
-    canon = crudo.strip().lower() if isinstance(crudo, str) else crudo
+    canon = _canonico(crudo)
     if canon not in ("ok", "retry"):
         return False, f"verdict inválido: {crudo!r} (se esperaba ok o retry)"
     if "problems" in d and not isinstance(d["problems"], list):
@@ -108,7 +121,7 @@ def _validar(crudo):
     ok, motivo = _veredicto_valido(d)
     if not ok:
         return None, motivo
-    d["verdict"] = d["verdict"].strip().lower()
+    d["verdict"] = _canonico(d["verdict"])
     d.setdefault("problems", [])
     return d, ""
 
@@ -145,7 +158,7 @@ Borrador a evaluar:
 Citas del borrador verificadas contra los archivos (contenido real):
 {citas_txt}{aviso}
 
-Evalúa el borrador: precisión factual (las citas DEBEN coincidir con el
+{MARCA_JUDGE}: precisión factual (las citas DEBEN coincidir con el
 contenido real; una cita que no coincide es un problema grave),
 completitud respecto de la pregunta y claridad.
 
