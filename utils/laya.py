@@ -13,6 +13,7 @@ Detalles medidos:
   "confidence" es otra cosa (margen).
 Si laya o el checkpoint no están, disponible() da False y quien llama
 degrada a su camino de siempre — Laya es un acelerador, no dependencia."""
+import gc
 import os
 import threading
 from pathlib import Path
@@ -22,8 +23,24 @@ from utils.call_llm import _setting
 _lock = threading.RLock()  # reentrante: preguntar() lockea y llama a agente(), que lockea de nuevo
 _agentes = {}  # setting → agente (router y supervisor cargan checkpoints distintos)
 _errores = {}  # setting → error (por checkpoint: el fallo de uno no envenena al otro)
+_uso = {}  # setting → contador de uso (para desalojar el MENOS usado, no el primero)
 
 DEFAULT_MODEL = "convaiinnovations/laya-multilingual"
+
+# La ley medida (exp/7) es un checkpoint por proceso: 2,86 GiB de RSS CADA UNO.
+# En un chat son alcanzables cuatro (router, voto, prefiltro y supervisor
+# in-process): ~11 GiB. Este tope convierte la ley en contrato — al pasarse,
+# se descarga el menos usado y la RAM vuelve al SO.
+MAX_EN_PROCESO = int(_setting("LAYA_MAX_EN_PROCESO", "2"))
+
+
+def _descargar(clave):
+    """Suelta el agente de esa clave y devuelve su memoria al SO."""
+    agente_ = _agentes.pop(clave, None)
+    _uso.pop(clave, None)
+    if agente_ is not None:
+        del agente_
+        gc.collect()
 
 
 def agente(setting="LAYA_MODEL"):
@@ -43,10 +60,21 @@ def agente(setting="LAYA_MODEL"):
                     import laya
 
                     _agentes[clave] = laya.load(clave)
+                    # desalojo del menos usado; el recién cargado queda
+                    # afuera del sorteo (su contador de uso todavía es 0)
+                    while len(_agentes) > MAX_EN_PROCESO:
+                        otros = [c for c in _agentes if c != clave]
+                        if not otros:
+                            break
+                        candidato = min(otros, key=lambda c: (_uso.get(c, 0), c))
+                        print(f"  [laya] tope {MAX_EN_PROCESO} en proceso: descargo "
+                              f"{Path(candidato).name}")
+                        _descargar(candidato)
                 except Exception as e:  # sin modelo local: degradar, no romper
                     _errores[clave] = f"{type(e).__name__}: {e}"
     if clave in _errores and clave not in _agentes:
         raise RuntimeError(f"laya no disponible: {_errores[clave]}")
+    _uso[clave] = _uso.get(clave, 0) + 1
     return _agentes[clave]
 
 
