@@ -4651,3 +4651,28 @@ def test_recarga_fallida_conserva_la_base_anterior(tmp_path, monkeypatch):
             carga_trazas.cargar(str(vacia), db=str(db))
     finally:
         shutil.rmtree(base, ignore_errors=True)
+def test_router_laya_no_mata_el_chat_si_la_inferencia_falla(monkeypatch):
+    """exp/25 (C14 de la auditoría externa): una excepción de inferencia se
+    escapaba del Flow (main solo atrapa KeyboardInterrupt) y una etiqueta
+    fuera de contrato cerraba el chat en silencio. La frontera devuelve
+    siempre una decisión válida: el lado seguro."""
+    import nodes
+    from utils import laya
+
+    monkeypatch.setattr(laya, "disponible", lambda *a, **k: True)
+    router = nodes.LayaRouter()
+
+    def explotar(*a, **k):
+        raise RuntimeError("CUDA out of memory")
+
+    monkeypatch.setattr(laya, "preguntar", explotar)
+    assert router.exec({"pregunta": "hola"}) == ("herramientas", 0.0)
+
+    for respuesta in (
+        {"necesita_herramientas": ("quizas", 0.99)},           # fuera de contrato
+        {"necesita_herramientas": ("directo", float("nan"))},  # confianza no utilizable
+        {"necesita_herramientas": ("directo", 7)},             # fuera de [0, 1]
+        {},                                                    # contrato incompleto
+    ):
+        monkeypatch.setattr(laya, "preguntar", lambda *a, _r=respuesta, **k: _r)
+        assert router.exec({"pregunta": "hola"}) == ("herramientas", 0.0)

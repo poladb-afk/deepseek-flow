@@ -452,8 +452,24 @@ class LayaRouter(Node):
 
         if not disponible():
             return ("herramientas", 0.0)
-        resp, conf = preguntar(estado, PREGUNTA_ROUTER)["necesita_herramientas"]
-        return resp, conf
+        try:
+            resp, conf = preguntar(estado, PREGUNTA_ROUTER)["necesita_herramientas"]
+        except Exception as e:
+            # Frontera de integración (C14): una excepción de inferencia
+            # salía del Flow y MATABA el chat (main solo atrapa
+            # KeyboardInterrupt). Mismo default seguro que "sin checkpoint".
+            print(f"  [laya] falló ({type(e).__name__}) → herramientas")
+            return ("herramientas", 0.0)
+        # El checkpoint es un modelo, no una garantía: se valida el contrato
+        # antes de que una etiqueta rara cierre el chat en silencio
+        # ("Flow ends: 'quizas' not found").
+        if resp not in ("directo", "herramientas"):
+            print(f"  [laya] respuesta fuera de contrato ({resp!r}) → herramientas")
+            return ("herramientas", 0.0)
+        if not isinstance(conf, (int, float)) or conf != conf or not 0.0 <= conf <= 1.0:
+            print(f"  [laya] confianza inválida ({conf!r}) → herramientas")
+            return ("herramientas", 0.0)
+        return resp, float(conf)
 
     def post(self, shared, prep_res, exec_res):
         from utils.laya import veredicto
