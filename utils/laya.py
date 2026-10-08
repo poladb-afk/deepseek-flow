@@ -84,6 +84,17 @@ def preguntar(estado, preguntas, setting="LAYA_MODEL"):
     return _extraer(resultado["answers"])
 
 
+def preguntar_detalle(estado, preguntas, setting="LAYA_MODEL"):
+    """La respuesta COMPLETA de laya (choice + probabilities + confianzas).
+
+    preguntar() la reduce a (respuesta, confianza) y pierde el vector, que es
+    lo que la política del router necesita para decidir con probabilidades
+    reales por etiqueta y no con una confianza reconstruida (exp/35)."""
+    with _lock:
+        resultado = agente(setting).system_one(estado, preguntas, lang="es")
+    return resultado["answers"]
+
+
 def preguntar_lote(estados, preguntas, setting="LAYA_MODEL"):
     """La versión en lote de preguntar(): los MISMOS contratos evaluados
     sobre N estados en forward(s) compartido(s) (Agent.predict_batch).

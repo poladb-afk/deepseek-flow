@@ -409,30 +409,6 @@ def voto_confirmacion_router(pregunta):
     return r.get("veredicto", "herramientas")
 
 
-def q_conformal_router():
-    """El q conformal del router, o None si no hay calibración utilizable.
-
-    Degradación por default: sin archivo (o con alpha imposible para ese n) el
-    router usa el umbral fijo de siempre (LAYA_UNSURE_HIGH). Con archivo, el
-    umbral SALE de los datos y la regla pasa a ser "aceptar solo si el
-    conjunto conformal colapsa" (utils/conformal.py, exp/30/31)."""
-    from utils.call_llm import _setting
-    from utils.conformal import leer_calibracion, q_de_calibracion
-
-    ruta = _setting("LAYA_CALIBRACION_ROUTER", "")
-    if not ruta:
-        return None
-    try:
-        alpha = float(_setting("LAYA_ALPHA", "0.10"))
-        q = q_de_calibracion(leer_calibracion(ruta), alpha)
-    except Exception as e:
-        print(f"  [laya] calibración no utilizable ({type(e).__name__}) → umbral fijo")
-        return None
-    if q is None:
-        print("  [laya] sin cota para ese alpha con este n → umbral fijo")
-    return q
-
-
 class LayaRouter(Node):
     """If inteligente: Laya (local, ms) decide si la pregunta necesita
     herramientas o se responde directa. La confianza aplica los umbrales
@@ -447,40 +423,57 @@ class LayaRouter(Node):
         return {"pregunta": str(shared["messages"][-1]["content"])[:1000]}
 
     def exec(self, estado):
-        from utils.laya import disponible, preguntar
+        from utils.laya import disponible, preguntar_detalle
+        from utils.laya_routing import config_router
 
-        if not disponible():
-            return ("herramientas", 0.0)
-        resp, conf = preguntar(estado, PREGUNTA_ROUTER)["necesita_herramientas"]
-        return resp, conf
+        if config_router().modo == "off" or not disponible():
+            return None
+        try:
+            return preguntar_detalle(estado, PREGUNTA_ROUTER).get("necesita_herramientas")
+        except Exception as e:
+            # Frontera de integración (exp/25): una excepción de inferencia no
+            # puede matar el chat; la política la lee como abstención.
+            print(f"  [laya] falló ({type(e).__name__}) → herramientas")
+            return None
 
     def post(self, shared, prep_res, exec_res):
-        from utils.conformal import conjunto
-        from utils.laya import veredicto
+        from utils.laya_routing import (
+            config_router,
+            decide,
+            registrar_decision,
+            ruta_aplicada,
+        )
 
-        eleccion, confianza = exec_res
-        print(f"  [laya] {eleccion} (conf {confianza:.2f})")
-        if eleccion == "directo":
-            q = q_conformal_router()
-            if q is not None:
-                # compuerta conformal (exp/30/31): se decide local solo si el
-                # conjunto de etiquetas plausibles es un singleton
-                if len(conjunto(confianza, q)) != 1:
-                    print(f"  [laya] conjunto ambiguo (q={q:.3f}) → herramientas")
-                    return "herramientas"
-            elif veredicto(confianza) != "met":
-                return "herramientas"  # dudoso: caer al lado seguro
-            # post() NO tiene retry en PocketFlow: si el voto revienta (YAML
-            # roto del modelo), caemos al lado seguro en vez de cortar el chat.
-            try:
-                voto = voto_confirmacion_router(prep_res)
-            except Exception as e:
-                print(f"  [voto] falló ({type(e).__name__}) → herramientas")
-                return "herramientas"
-            if voto != "directo":  # 2-de-2: desacuerdo → lado seguro
-                print(f"  [voto] deepseek dice {voto} → herramientas")
-                return "herramientas"
-        return eleccion
+        # La POLÍTICA vive en utils/laya_routing (exp/35): acá solo se ejecuta
+        # su resultado. La clasificación (Laya) y la decisión (Python) están
+        # separadas y la segunda se testea sin modelo.
+        config = config_router()
+        propuesta, causa, p_directo = decide(exec_res, config)
+        aplicada = ruta_aplicada(propuesta, config)
+        registrar_decision({
+            "modo": config.modo,
+            "propuesta": propuesta,
+            "aplicada": aplicada,
+            "causa": causa,
+            "p_directo": p_directo,
+            "q": config.q,
+            "umbral": config.umbral,
+            "laya": config.version,
+        })
+        print(f"  [laya] {propuesta} — {causa} (modo {config.modo})")
+        if aplicada != "directo":
+            return "herramientas"  # off y shadow conservan las herramientas
+        # post() NO tiene retry en PocketFlow: si el voto revienta (YAML
+        # roto del modelo), caemos al lado seguro en vez de cortar el chat.
+        try:
+            voto = voto_confirmacion_router(prep_res)
+        except Exception as e:
+            print(f"  [voto] falló ({type(e).__name__}) → herramientas")
+            return "herramientas"
+        if voto != "directo":  # 2-de-2: desacuerdo → lado seguro
+            print(f"  [voto] deepseek dice {voto} → herramientas")
+            return "herramientas"
+        return "directo"
 
 
 class DirectAnswer(AgentStep):

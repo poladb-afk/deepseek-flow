@@ -4363,28 +4363,37 @@ def test_router_usa_el_conjunto_conformal_cuando_hay_calibracion(tmp_path, monke
     monkeypatch.setattr(laya, "disponible", lambda *a, **k: True)
     monkeypatch.setattr(nodes, "voto_confirmacion_router", lambda *a, **k: "directo")
     router = nodes.LayaRouter()
+    apagado = "0"  # el log de decisiones no escribe en los tests
+
+    def detalle(p_directo):
+        return {"choice": "directo",
+                "probabilities": {"directo": p_directo, "herramientas": 1.0 - p_directo}}
 
     # sin calibración: 0.70 < 0.85 → herramientas (degradación intacta)
-    monkeypatch.setattr(call_llm, "_setting",
-                        lambda nombre, default=None: "" if nombre == "LAYA_CALIBRACION_ROUTER" else default)
-    assert router.post({}, "¿q?", ("directo", 0.70)) == "herramientas"
-
-    # con calibración α=0.10 (q=0.60, umbral 0.40): 0.70 colapsa → decide local
     monkeypatch.setattr(
         call_llm, "_setting",
-        lambda nombre, default=None: str(calib) if nombre == "LAYA_CALIBRACION_ROUTER"
-        else ("0.10" if nombre == "LAYA_ALPHA" else default),
+        lambda nombre, default=None: apagado if nombre == "LAYA_LOG_DECISIONES"
+        else ("" if nombre == "LAYA_CALIBRACION_ROUTER" else default),
     )
-    assert router.post({}, "¿q?", ("directo", 0.70)) == "directo"
+    assert router.post({}, "¿q?", detalle(0.70)) == "herramientas"
+
+    # con calibración α=0.10 (q=0.60, piso 0.40): 0.70 colapsa → decide local
+    monkeypatch.setattr(
+        call_llm, "_setting",
+        lambda nombre, default=None: apagado if nombre == "LAYA_LOG_DECISIONES"
+        else (str(calib) if nombre == "LAYA_CALIBRACION_ROUTER"
+              else ("0.10" if nombre == "LAYA_ALPHA" else default)),
+    )
+    assert router.post({}, "¿q?", detalle(0.70)) == "directo"
     # 0.55 deja las dos etiquetas plausibles (0.45 >= 0.40) → ambiguo → herramientas
-    assert router.post({}, "¿q?", ("directo", 0.55)) == "herramientas"
+    assert router.post({}, "¿q?", detalle(0.55)) == "herramientas"
     # un archivo ilegible no rompe: cae al umbral fijo
     monkeypatch.setattr(
         call_llm, "_setting",
-        lambda nombre, default=None: str(tmp_path / "roto.jsonl") if nombre == "LAYA_CALIBRACION_ROUTER"
-        else default,
+        lambda nombre, default=None: apagado if nombre == "LAYA_LOG_DECISIONES"
+        else (str(tmp_path / "roto.jsonl") if nombre == "LAYA_CALIBRACION_ROUTER" else default),
     )
-    assert router.post({}, "¿q?", ("directo", 0.70)) == "herramientas"
+    assert router.post({}, "¿q?", detalle(0.70)) == "herramientas"
 
 
 def test_conformal_cuantil_y_muestra_finita():
