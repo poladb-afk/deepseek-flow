@@ -552,6 +552,11 @@ class LayaRouter(Node):
             if voto != "directo":  # 2-de-2: desacuerdo → lado seguro
                 print(f"  [voto] deepseek dice {voto} → herramientas")
                 return "herramientas"
+            # La ruta directa GANÓ sus compuertas: sin este return caía al
+            # guard de abajo (que ve "directo" como etiqueta fuera de
+            # contrato) y la ruta directa era inalcanzable. Lo introdujo el
+            # fix de exp/39 y lo cazó el test de la compuerta de exp/33.
+            return "directo"
         # La etiqueta del checkpoint es un DATO, no una acción: fuera del
         # contrato (otra cadena, None, mayúsculas) el Flow terminaba en vacío
         # — "Flow ends: 'uso_herramientas' not found", sin responder y sin
