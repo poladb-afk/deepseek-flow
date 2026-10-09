@@ -4885,3 +4885,43 @@ def test_laya_tope_de_checkpoints_en_proceso(monkeypatch):
     assert set(laya._agentes) == {"a", "c"}
     # el recién cargado nunca se desaloja solo
     assert laya.agente("LAYA_C").clave == "c"
+def test_registrar_pregunta_es_bookkeeping_que_no_rompe(tmp_path, monkeypatch):
+    """exp/34: la pregunta del usuario queda en un JSONL local (el trace no
+    guarda texto y los logs del banco van con echo off, así que sin esto no
+    hay muestra natural para calibrar). Cualquier fallo se traga."""
+    import json as _json
+
+    import nodes
+
+    archivo = tmp_path / "preguntas.jsonl"
+    monkeypatch.setattr(
+        nodes, "_setting",
+        lambda nombre, default=None: {"PREGUNTAS_ARCHIVO": str(archivo)}.get(nombre, default),
+    )
+    nodo = nodes.GetQuestion()
+    nodo.post({"messages": []}, None, "¿cuánto es 2+2?")
+    nodo.post({"messages": []}, None, "otra pregunta")
+    lineas = [
+        _json.loads(linea)
+        for linea in archivo.read_text(encoding="utf-8").splitlines()
+    ]
+    assert [linea["pregunta"] for linea in lineas] == ["¿cuánto es 2+2?", "otra pregunta"]
+    assert all("ts" in linea for linea in lineas)
+
+    # PREGUNTAS_LOG=0 lo apaga
+    archivo.unlink()
+    monkeypatch.setattr(
+        nodes, "_setting",
+        lambda nombre, default=None: "0" if nombre == "PREGUNTAS_LOG" else default,
+    )
+    nodo.post({"messages": []}, None, "no se guarda")
+    assert not archivo.exists()
+
+    # un destino imposible (un directorio) no corta el chat
+    monkeypatch.setattr(
+        nodes, "_setting",
+        lambda nombre, default=None: (
+            str(tmp_path) if nombre == "PREGUNTAS_ARCHIVO" else default
+        ),
+    )
+    nodo.post({"messages": []}, None, "tampoco explota")
