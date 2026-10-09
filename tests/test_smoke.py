@@ -4665,17 +4665,21 @@ def test_router_laya_no_mata_el_chat_si_la_inferencia_falla(monkeypatch):
     def explotar(*a, **k):
         raise RuntimeError("CUDA out of memory")
 
-    monkeypatch.setattr(laya, "preguntar", explotar)
-    assert router.exec({"pregunta": "hola"}) == ("herramientas", 0.0)
+    monkeypatch.setattr(laya, "preguntar_detalle", explotar)
+    assert router.exec({"pregunta": "hola"}) is None     # la excepción no escapa
+    # y la POLÍTICA la lee como abstención: el lado seguro (exp/35)
+    # registrar_decision entra por import local dentro de post(): se parchea
+    # en su módulo, no como atributo de nodes (que no lo tiene).
+    monkeypatch.setattr("utils.laya_routing.registrar_decision", lambda *a, **k: None)
+    assert router.post({}, {"pregunta": "hola"}, None) == "herramientas"
 
     for respuesta in (
-        {"necesita_herramientas": ("quizas", 0.99)},           # fuera de contrato
-        {"necesita_herramientas": ("directo", float("nan"))},  # confianza no utilizable
-        {"necesita_herramientas": ("directo", 7)},             # fuera de [0, 1]
-        {},                                                    # contrato incompleto
+        {"choice": "quizas", "probabilities": {"quizas": 0.99}},  # fuera de contrato
+        {"choice": "directo"},                                   # sin probabilidades
+        {"probabilities": {"directo": 0.9}},                     # sin etiqueta
+        {},                                                      # contrato incompleto
     ):
-        monkeypatch.setattr(laya, "preguntar", lambda *a, _r=respuesta, **k: _r)
-        assert router.exec({"pregunta": "hola"}) == ("herramientas", 0.0)
+        assert router.post({}, {"pregunta": "hola"}, respuesta) == "herramientas"
 def test_traza_registra_el_nodo_que_falla_y_no_colisiona(tmp_path):
     """exp/27 (C18 de la auditoría externa): el parche de _run no tenía
     finally, así que un nodo que lanza NO dejaba evento (la traza mentía por
@@ -4992,28 +4996,37 @@ def test_router_usa_el_conjunto_conformal_cuando_hay_calibracion(tmp_path, monke
     monkeypatch.setattr(laya, "disponible", lambda *a, **k: True)
     monkeypatch.setattr(nodes, "voto_confirmacion_router", lambda *a, **k: "directo")
     router = nodes.LayaRouter()
+    apagado = "0"  # el log de decisiones no escribe en los tests
+
+    def detalle(p_directo):
+        return {"choice": "directo",
+                "probabilities": {"directo": p_directo, "herramientas": 1.0 - p_directo}}
 
     # sin calibración: 0.70 < 0.85 → herramientas (degradación intacta)
-    monkeypatch.setattr(call_llm, "_setting",
-                        lambda nombre, default=None: "" if nombre == "LAYA_CALIBRACION_ROUTER" else default)
-    assert router.post({}, "¿q?", ("directo", 0.70)) == "herramientas"
-
-    # con calibración α=0.10 (q=0.60, umbral 0.40): 0.70 colapsa → decide local
     monkeypatch.setattr(
         call_llm, "_setting",
-        lambda nombre, default=None: str(calib) if nombre == "LAYA_CALIBRACION_ROUTER"
-        else ("0.10" if nombre == "LAYA_ALPHA" else default),
+        lambda nombre, default=None: apagado if nombre == "LAYA_LOG_DECISIONES"
+        else ("" if nombre == "LAYA_CALIBRACION_ROUTER" else default),
     )
-    assert router.post({}, "¿q?", ("directo", 0.70)) == "directo"
+    assert router.post({}, "¿q?", detalle(0.70)) == "herramientas"
+
+    # con calibración α=0.10 (q=0.60, piso 0.40): 0.70 colapsa → decide local
+    monkeypatch.setattr(
+        call_llm, "_setting",
+        lambda nombre, default=None: apagado if nombre == "LAYA_LOG_DECISIONES"
+        else (str(calib) if nombre == "LAYA_CALIBRACION_ROUTER"
+              else ("0.10" if nombre == "LAYA_ALPHA" else default)),
+    )
+    assert router.post({}, "¿q?", detalle(0.70)) == "directo"
     # 0.55 deja las dos etiquetas plausibles (0.45 >= 0.40) → ambiguo → herramientas
-    assert router.post({}, "¿q?", ("directo", 0.55)) == "herramientas"
+    assert router.post({}, "¿q?", detalle(0.55)) == "herramientas"
     # un archivo ilegible no rompe: cae al umbral fijo
     monkeypatch.setattr(
         call_llm, "_setting",
-        lambda nombre, default=None: str(tmp_path / "roto.jsonl") if nombre == "LAYA_CALIBRACION_ROUTER"
-        else default,
+        lambda nombre, default=None: apagado if nombre == "LAYA_LOG_DECISIONES"
+        else (str(tmp_path / "roto.jsonl") if nombre == "LAYA_CALIBRACION_ROUTER" else default),
     )
-    assert router.post({}, "¿q?", ("directo", 0.70)) == "herramientas"
+    assert router.post({}, "¿q?", detalle(0.70)) == "herramientas"
 
 
 def test_conformal_cuantil_y_muestra_finita():

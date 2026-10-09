@@ -985,6 +985,41 @@ Medición (exp2-medicion): tool nativa usada (cero run_command), informe
 leído y resumido en 25 s, y el baseline verificado INTACTO tras la
 corrida (filecmp).
 
+### exp/35 — la política del router, separada de la clasificación (2026-10-08)
+
+El informe externo señaló lo que faltaba: una decisión probabilística no debe
+mezclarse con la política que la aplica. Ahora Laya **estima** (opción +
+probabilidades) y Python **decide** (qué ruta se ejecuta), en
+`utils/laya_routing.py`:
+
+- `decide(respuesta, config)` es **pura**: sin probabilidades usables, con
+  etiqueta fuera de contrato, NaN/infinito, `bool`, texto o suma distinta de 1
+  → **abstención** (herramientas). Nunca "directo" por defecto. Se EXIGEN las
+  dos probabilidades: `answer_confidence` es max(p) y `confidence` es entropía
+  normalizada — el wrapper viejo las mezclaba en cascada.
+- Con calibración, la ruta directa exige que el **conjunto conformal colapse**
+  con las probabilidades reales de cada etiqueta (exp/30/31); sin calibración,
+  el umbral fijo de siempre.
+- `LAYA_MODO`: `off` (no ejecuta Laya), `shadow` (registra la propuesta y
+  **conserva herramientas**: mide sin cambiar la conducta y sin gastar el voto
+  de DeepSeek) y `enforce` (default: aplica la propuesta). El modo sombra es la
+  forma de juntar evidencia antes de apretar nada.
+- Cada decisión deja una línea en `salidas/routing.jsonl` (propuesta, ruta
+  aplicada, causa, p(directo), q, umbral, versión de laya). El trace no la
+  tenía: registraba el nodo y la acción, no el porqué.
+- `LayaRouter.exec` absorbe la guarda de exp/25 (una excepción de inferencia se
+  lee como abstención) y `preguntar_detalle` conserva la respuesta completa.
+- **Los dos registros se unen**: con `LAYA_LOG_PREGUNTA=1` el evento de routing
+  agrega los primeros 200 caracteres de la pregunta (default 0: no guarda texto
+  del usuario), así que una corrida en modo sombra deja el set completo
+  (pregunta + propuesta + p(directo) + ruta aplicada) y
+  `banco/probes/etiquetar_router.py --extra salidas/routing.jsonl` lo etiqueta
+  para elegir alpha. Ese es el circuito para pasar de `shadow` a `enforce` con
+  evidencia propia.
+
+Costo: 0 llamadas nuevas (el modo sombra ahorra el voto); tests puros de la
+política en `tests/test_laya_routing.py` (sin modelo ni red).
+
 ## Cómo crecer desde aquí
 
 - Escribir archivos → herramienta write_file con confirmación humana
