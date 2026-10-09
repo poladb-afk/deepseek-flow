@@ -1,0 +1,15 @@
+# tests/test_smoke.py es APPEND-ONLY y es el punto de colisión de todas las
+# ramas exp/*: en el landing de las 18 ramas, 15 de 16 merges chocaron ahí y
+# sólo ahí, por agregar tests al final del archivo. `union` resuelve esos
+# choques concatenando los dos lados, que es exactamente la resolución correcta
+# para un append.
+#
+# El riesgo del driver: si dos ramas MODIFICAN la misma región (no la agregan),
+# quedan las DOS versiones. Con nombres de test repetidos, Python se queda con
+# la última EN SILENCIO y un test desaparece. Después de cada merge:
+#
+#   grep -oE '^def (test_[a-zA-Z0-9_]+)' tests/test_smoke.py \
+#     | awk '{print $2}' | sort | uniq -d
+#
+# (vacío = sano). Un merge con union NO exime de correr ./calidad.sh.
+tests/test_smoke.py merge=union
