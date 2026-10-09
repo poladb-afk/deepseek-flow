@@ -51,6 +51,27 @@ def _setting(name, default=None):
     return default
 
 
+def _entero(nombre, default):
+    """Un setting entero a prueba de typos: si no parsea, avisa y usa el
+    default. Sin esto, un ".env" con "COMPACTION_CHARS=sesenta mil" reventaba
+    en AgentStep.prep — que corre FUERA del retry del nodo — y mataba el chat
+    (medido en la barrida)."""
+    try:
+        return int(_setting(nombre, str(default)))
+    except (TypeError, ValueError):
+        print(f"  [config] {nombre} no es un entero válido → uso {default}")
+        return int(default)
+
+
+def _real(nombre, default):
+    """Igual que _entero, para umbrales con decimales."""
+    try:
+        return float(_setting(nombre, str(default)))
+    except (TypeError, ValueError):
+        print(f"  [config] {nombre} no es un número válido → uso {default}")
+        return float(default)
+
+
 def get_api_key():
     key = os.environ.get("DEEPSEEK_API_KEY") or _setting("LLM_API_KEY")
     if not key:

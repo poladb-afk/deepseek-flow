@@ -130,7 +130,7 @@ python3 main.py evals                   # evals: bench del router + linter de tr
 python3 main.py heartbeat [--ahora]    # piezas programadas (cron nocturno)
 python3 main.py visor [trace.jsonl]    # HTML del trace (default: el último)
 python3 main.py index [carpeta]          # indexar para RAG
-python3 main.py carga_trazas.py          # (script aparte) jsonl → SQLite
+python3 carga_trazas.py                  # (script aparte) jsonl → SQLite
 python3 sonda_router.py [ckpt]        # (script aparte) router con compuerta
 python3 main.py mcp-server               # exponer capacidades vía MCP
 python3 main.py grafo [flujo]            # exportar los grafos a mermaid

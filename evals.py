@@ -229,7 +229,7 @@ ACCIONES_CANONICAS = {
     # informe
     ("ScanFiles", "None"), ("AnalizeFile", "None"), ("WriteReport", "None"),
     # juez
-    ("Draft", "None"), ("Judge", "entregar"), ("Entregar", "None"),
+    ("Draft", "None"), ("Judge", "retry"), ("Judge", "entregar"), ("Entregar", "None"),
     # juez_lote
     ("CorrerJuez", "None"),
     # auditoria
@@ -264,7 +264,7 @@ TOOLS_CONOCIDAS = {
     "answer_verified", "mcp_tools", "mcp_call", "search_web", "deep_research",
     "run_supervisor", "sql", "db_schema", "memory_search", "memory_save",
     # tools que los flujos exponen como herramientas del chat (modules/*)
-    "debate", "juez_lote",
+    "debate", "juez_lote", "ver_imagen", "ver_pdf", "agentes_remotos", "a2a_tarea",
     # alias históricos vistos en trazas viejas (una acción 'bash' error, nunca
     # llegó a ser tool CORE): se reconocen para no contarlos como desconocidos
     "bash",

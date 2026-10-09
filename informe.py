@@ -24,7 +24,7 @@ from pathlib import Path
 
 from pocketflow import AsyncFlow, AsyncParallelBatchNode, Node
 
-from utils.call_llm import _setting, call_llm, call_llm_async
+from utils.call_llm import _entero, _setting, call_llm, call_llm_async
 from utils.fs_tools import SKIP_DIRS, _resolve, escribir_salida, sin_enlaces
 
 MAX_FILES = 30
@@ -32,7 +32,10 @@ SAMPLE_TASKS = 2
 TASK_CHARS = 300
 DEFAULT_FOLDER = _setting("INFORME_CARPETA", ".")  # portable; local: INFORME_CARPETA en .env
 # Semáforo anti-429: acota cuántas llamadas a DeepSeek se solapan en el mapa
-MAPA_CONCURRENCIA = int(_setting("MAPA_CONCURRENCIA", "8"))
+# exp/37: _entero no revienta el módulo con un valor mal formado.
+# El semáforo NO vuelve a ser de módulo: exp/36 lo hizo por corrida
+# (self.semaforo) porque el de módulo se ataba al primer event loop.
+MAPA_CONCURRENCIA = _entero("MAPA_CONCURRENCIA", 8)
 
 
 def collect_files(folder, pattern, max_files=MAX_FILES):

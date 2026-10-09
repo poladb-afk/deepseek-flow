@@ -73,7 +73,13 @@ class Researcher(BatchNode):
 
     def exec(self, query):
         print(f"  🌐 buscando: {query}")
-        crudos = search_web(query, k=RESULTADOS_POR_QUERY)
+        try:
+            crudos = search_web(query, k=RESULTADOS_POR_QUERY)
+        except Exception as e:
+            # El fallo de UNA búsqueda es un dato, no un motivo para re-ejecutar
+            # el lote entero: el retry del BatchNode re-corre exec completo y
+            # las búsquedas ya pagadas se pierden (medido en la barrida).
+            return f"### {query}\n(ERROR de búsqueda: {type(e).__name__}: {e})"
         hechos = call_llm(
             f"Extrae hasta 5 hechos concretos y breves relevantes para esta consulta, "
             f"citando la URL de cada uno.\n\nConsulta: {query}\n\nResultados:\n{crudos}"
