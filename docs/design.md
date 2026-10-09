@@ -1043,6 +1043,18 @@ juez_lote, auditoria, research, supervisor, effective_n y
 effective_n_multi. Un flujo anidado declara el nombre de su contenedor
 (`JuezLoteFlow`, `EffectiveNMulti`) aunque su start sea una hoja.
 
+### Guard de calles muertas — ningún grafo termina en vacío
+
+`tests/test_grafos_sin_calles_muertas.py` recorre esos flujos (y revisa debate
+y rag, que se construyen inline, contra su fuente) y falla si un nodo puede
+devolver una **acción sin arista** o una **variable** en `post()` — la clase
+de bug que cerraba el chat en silencio (`Flow ends: 'uso_herramientas' not
+found`, medido en la barrida). Los nodos sin aristas solo se admiten si están
+en la lista explícita de `TERMINALES`, así que un terminal nuevo es una
+decisión y no un accidente. Cerró el caso real: `LayaRouter.post` devolvía la
+etiqueta cruda del checkpoint; ahora una etiqueta fuera de contrato cae al
+lado seguro.
+
 ### Memoria entre sesiones — la biblioteca consultable
 [modules/memoria.py](../modules/memoria.py) · `memoria/*.md` (ignorada)
 

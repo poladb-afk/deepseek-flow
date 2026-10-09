@@ -489,7 +489,13 @@ class LayaRouter(Node):
             if voto != "directo":  # 2-de-2: desacuerdo → lado seguro
                 print(f"  [voto] deepseek dice {voto} → herramientas")
                 return "herramientas"
-        return eleccion
+        # La etiqueta del checkpoint es un DATO, no una acción: fuera del
+        # contrato (otra cadena, None, mayúsculas) el Flow terminaba en vacío
+        # — "Flow ends: 'uso_herramientas' not found", sin responder y sin
+        # despedirse (medido en la barrida). El lado seguro es herramientas.
+        if eleccion != "herramientas":
+            print(f"  [laya] etiqueta fuera de contrato ({eleccion!r}) → herramientas")
+        return "herramientas"
 
 
 class DirectAnswer(AgentStep):
