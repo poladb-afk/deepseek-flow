@@ -4853,3 +4853,35 @@ def test_researcher_no_reintenta_el_lote_por_una_busqueda(monkeypatch):
     salida = research.Researcher().exec("consulta 1")   # no debe levantar
     assert "ERROR de búsqueda: RuntimeError" in salida
     assert llamadas["n"] == 1
+def test_laya_tope_de_checkpoints_en_proceso(monkeypatch):
+    """exp/32: la ley medida es un checkpoint por proceso (2,86 GiB de RSS);
+    el tope descarga el MENOS usado en vez de acumular hasta los cuatro
+    alcanzables en un chat (router + voto + prefiltro + supervisor)."""
+    import sys
+    from types import SimpleNamespace
+
+    from utils import laya
+
+    class AgenteFalso:
+        def __init__(self, clave):
+            self.clave = clave
+
+    monkeypatch.setattr(laya, "_agentes", {})
+    monkeypatch.setattr(laya, "_errores", {})
+    monkeypatch.setattr(laya, "_uso", {})
+    monkeypatch.setattr(laya, "MAX_EN_PROCESO", 2)
+    monkeypatch.setattr(
+        laya, "_setting",
+        lambda nombre, default=None: {"LAYA_A": "a", "LAYA_B": "b", "LAYA_C": "c"}.get(nombre, default),
+    )
+    monkeypatch.setitem(sys.modules, "laya", SimpleNamespace(load=lambda clave: AgenteFalso(clave)))
+
+    assert laya.agente("LAYA_A").clave == "a"
+    assert laya.agente("LAYA_B").clave == "b"
+    assert set(laya._agentes) == {"a", "b"}
+    # A se usa de nuevo (pasa a ser el más usado) y entra C: sale B
+    laya.agente("LAYA_A")
+    laya.agente("LAYA_C")
+    assert set(laya._agentes) == {"a", "c"}
+    # el recién cargado nunca se desaloja solo
+    assert laya.agente("LAYA_C").clave == "c"
