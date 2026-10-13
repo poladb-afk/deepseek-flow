@@ -45,6 +45,7 @@ SUBCOMANDOS = {
     "grafo": "utils.viz",
     "evals": "evals",
     "bench_juez": "bench_juez",
+    "replay": "replay",
 }
 
 

@@ -1066,6 +1066,51 @@ encontrados y cerrados:
   corrigen las anotaciones (call_llm.py y esta doc) para que el contrato
   documentado sea el real.
 
+## exp/41 — replay de trazas: la Mesa 1 cierra su pendiente original (2026-10-13)
+
+`replay.py` (`python3 main.py replay`): las caminatas REALES de `.runs/`
+validadas contra los grafos VIVOS del código actual. La pregunta de la
+Mesa 1 desde el origen — cuando el código cambia, ¿el harness de hoy
+todavía ejecuta lo que ejecutó en producción? — respondida con evidencia
+de disco, no con la lista congelada del linter (que admite historia por
+diseño y por eso no puede detectar drift).
+
+**Límite honesto** (arriba en cada informe): la traza guarda la caminata
+(nodo/acción/duración), no el contenido. Este replay detecta regresión
+ESTRUCTURAL; la semántica (misma caminata, peor respuesta) es de los
+benches con contenido. Instrumento de señal, no gate.
+
+Cuatro niveles, funciones puras testeables sin disco:
+
+- **A — emisibilidad**: cada (nodo, accion) histórico tiene que ser
+  emisible por el código de HOY (clase viva + acción cableada). Es el
+  guard de calles muertas (exp/39) generalizado a caminatas reales.
+  Incluye la recursión DENTRO de los Flow/BatchFlow anidados: el flujo
+  interno de auditoría (CarpetaScan/Seccion) vive en `start_node`, no en
+  successors — sin recursión quedaba "desconocido" (16 falsos medidos);
+  el propio guard de exp/39 tiene ese punto ciego.
+- **B — adyacencia del chat**: los runs de nodos del CHAT tienen que
+  seguir siendo aristas del chat actual (unión ±router). La primera
+  corrida marcó 246 "rotas" — todas falsas, y el por qué es un hallazgo
+  del propio instrumento: el chat despacha supervisor/debate/juez por
+  tools y SUS eventos quedan en el mismo archivo (corridas de otros
+  grafos intercaladas en la traza del chat). El nivel juzga solo los runs
+  de nodos del chat; el resto es de nivel A.
+- **C — registro de tools**: eventos de tool contra el action space VIVO
+  (importado de nodes, no lista de mantenimiento).
+- **D — política del router sobre tráfico real**: las decisiones de
+  `salidas/routing.jsonl` (exp/35) re-evaluadas con la compuerta de HOY
+  (umbral/q de config_router): apretó (un directo aprobado que hoy no
+  pasaría) o aflojó (uno bloqueado que hoy pasaría). n=13 hoy; crece solo
+  con el tráfico.
+
+**Primera corrida (214 trazas, 8.827 eventos, 139 del chat)**: A=0,
+A′=0, B=0, D=0, C=2 — los dos `grep` con error son artefactos de tests
+del 6/10 (0.0 s). Baseline fijado (`salidas/evals/replay_baseline.json`,
+patrón evals: comparar sin pisar; `--actualizar-baseline` guarda). 16
+tests nuevos. El pendiente restante de la Mesa 1 (bench de decisiones
+del voto como dataset permanente) sigue abierto.
+
 ## Cómo crecer desde aquí
 
 - Escribir archivos → herramienta write_file con confirmación humana
