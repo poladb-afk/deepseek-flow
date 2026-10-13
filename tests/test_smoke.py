@@ -2872,13 +2872,20 @@ def test_ver_pdf_demasiado_grande_sin_llamar(tmp_path, monkeypatch):
 
 class _ServidorA2A:
     """Servidor HTTP mínimo que habla (a medias) el protocolo A2A: sirve el
-    agent card en /.well-known/agent.json y responde JSON-RPC en /.
-    Usa ThreadingHTTPServer de stdlib; registra el último payload recibido."""
+    agent card en los well-known que se pidan (path de la spec actual y/o el
+    legado) y responde JSON-RPC en /. Usa ThreadingHTTPServer de stdlib;
+    registra el último payload recibido."""
+
+    # El drift de spec (exp/40): la spec actual sirve el card en
+    # agent-card.json; el legado, en agent.json. El default del fake expone
+    # AMBOS (un server moderno con compatibilidad).
+    CARD_NUEVO = "/.well-known/agent-card.json"
+    CARD_LEGADO = "/.well-known/agent.json"
 
     def __init__(self):
         self.ultimo = None
 
-    def arrancar(self, responder=None, card=None):
+    def arrancar(self, responder=None, card=None, card_paths=None):
         import json as _json
         import threading
         from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -2888,6 +2895,7 @@ class _ServidorA2A:
             "name": "eco", "description": "agente de prueba",
             "skills": [{"id": "echo", "description": "repite texto"}],
         }
+        card_paths = card_paths if card_paths is not None else (self.CARD_NUEVO, self.CARD_LEGADO)
         responder = responder or (lambda payload: {"jsonrpc": "2.0", "id": payload.get("id"), "result": {"echo": payload["params"]["message"]}})
         estado = self
 
@@ -2896,7 +2904,7 @@ class _ServidorA2A:
                 pass
 
             def do_GET(self):
-                if self.path.split("?")[0] == "/.well-known/agent.json":
+                if self.path.split("?")[0] in card_paths:
                     cuerpo = _json.dumps(card).encode()
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")
@@ -2962,15 +2970,59 @@ def test_a2a_lista_y_tarea(monkeypatch):
 
         r = a2a.a2a_tarea("eco", "hola mundo")
         payload = json.loads(r)
-        assert payload["echo"] == {"role": "user", "parts": [{"type": "text", "text": "hola mundo"}]}
+        # el echo devuelve el message tal cual llegó (messageId incluido, exp/40)
+        echo = payload["echo"]
+        assert echo["role"] == "user"
+        assert echo["parts"] == [{"type": "text", "text": "hola mundo"}]
+        assert isinstance(echo["messageId"], str) and echo["messageId"]
 
-        # la FORMA del request enviado: JSON-RPC 2.0 message/send
+        # la FORMA del request enviado: JSON-RPC 2.0 message/send, con el
+        # messageId que exige la spec actual (exp/40: los servers viejos lo
+        # ignoran como campo extra)
         enviado = srv.ultimo
         assert enviado["jsonrpc"] == "2.0"
         assert enviado["method"] == "message/send"
         assert enviado["params"]["message"]["role"] == "user"
         assert enviado["params"]["message"]["parts"] == [{"type": "text", "text": "hola mundo"}]
+        assert isinstance(enviado["params"]["message"]["messageId"], str)
+        assert enviado["params"]["message"]["messageId"]
         assert isinstance(enviado["id"], int)
+    finally:
+        httpd.shutdown()
+
+
+def test_a2a_card_path_nuevo(monkeypatch):
+    """El path de la spec ACTUAL (agent-card.json) resuelve solo: el cliente
+    lo prueba primero (exp/40)."""
+    import json as _json
+
+    import modules.a2a as a2a
+
+    srv = _ServidorA2A()
+    base, httpd = srv.arrancar(card_paths=(_ServidorA2A.CARD_NUEVO,))
+    try:
+        monkeypatch.setenv("A2A_AGENTS", _json.dumps({"eco": base}))
+        listado = a2a.agentes_remotos()
+        assert "agente de prueba" in listado
+        assert "inaccesible" not in listado
+    finally:
+        httpd.shutdown()
+
+
+def test_a2a_card_path_legado_fallback(monkeypatch):
+    """Un server que solo sirve el path LEGADO (agent.json) también resuelve:
+    el 404 del path nuevo cae al fallback (exp/40)."""
+    import json as _json
+
+    import modules.a2a as a2a
+
+    srv = _ServidorA2A()
+    base, httpd = srv.arrancar(card_paths=(_ServidorA2A.CARD_LEGADO,))
+    try:
+        monkeypatch.setenv("A2A_AGENTS", _json.dumps({"eco": base}))
+        listado = a2a.agentes_remotos()
+        assert "agente de prueba" in listado
+        assert "inaccesible" not in listado
     finally:
         httpd.shutdown()
 

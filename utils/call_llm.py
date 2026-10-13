@@ -109,14 +109,24 @@ def _kwargs_agente(messages, tools=None):
     """Contrato de modo thinking compartido por la versión clásica y la de
     streaming (MISMA lógica: no puede haber deriva entre las dos).
 
-    Thinking: la API rechaza tools+thinking juntos (A1, como bmo) y
-    también los FLIPS de modo dentro de una conversación (400
-    'reasoning_content must be passed back', medido en ambas direcciones:
-    ON→OFF entre turnos, OFF→ON al tope de rondas). El modo es pegajoso:
-    con tráfico de tools en el historial va desactivado aunque esta
-    llamada no traiga tools; conversación limpia va con thinking normal
-    (correr directo en disabled midió descarrilos: prompts ajenos, tags
-    que parten palabras)."""
+    Thinking — la regla REAL (docs oficiales, verificados 2026-10-13):
+    tools+thinking SÍ son compatibles; lo que exige la API es que, con
+    `tools` en el request, el `reasoning_content` se devuelva COMPLETO en
+    todas las requests subsecuentes (incluidos turnos sin tool calls).
+    El crash histórico 'reasoning_content must be passed back' (A1) era
+    esa regla rompiéndose: se desactivaba thinking, quedaba reasoning en
+    el historial, y el par (tools, reasoning ausente) no validaba. La
+    anotación original decía 'la API rechaza tools+thinking juntos' —
+    falso para la API actual; la sonda de exp/38 no reprodujo el rechazo
+    (3 llamadas reales, flips ON→OFF→ON con tools: sin 400).
+
+    El modo pegajoso se mantiene como DECISIÓN: este cliente descarta el
+    reasoning_content (no lo devuelve nunca), así que thinking debe ir
+    desactivado en todo tráfico agéntico — la alternativa documentada
+    (preservar reasoning_content en el historial) habilitaría razonar en
+    las rondas de tools al costo de reenviar el reasoning en cada vuelta.
+    Conversación limpia va con thinking normal (correr directo en
+    disabled midió descarrilos: prompts ajenos, tags que parten palabras)."""
     # el reasoning_content del modo thinking no viaja (parte del mismo
     # contrato de consistencia de modo)
     limpio = [
