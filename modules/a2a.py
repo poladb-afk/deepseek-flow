@@ -4,10 +4,18 @@ Igual que `mcp` en el eje de servidores, pero del lado de los AGENTES: en
 vez de tools dentro de un servidor, hablamos con agentes remotos que
 exponen el protocolo A2A (agent2agent):
 
-  - `GET  {base}/.well-known/agent.json`  → el agent card (nombre,
-    descripción, skills, capacidades).
+  - `GET {base}/.well-known/agent-card.json` → el agent card (nombre,
+    descripción, skills, capacidades). Es el path de la spec ACTUAL; si
+    da 404 se reintenta con el path legado `/.well-known/agent.json`
+    (el de las versiones 0.2.x, el único que existía cuando se escribió
+    este módulo — drift de spec encontrado 2026-10-13).
   - `POST {base}/`  → JSON-RPC 2.0 `message/send` para enviar una tarea:
-    `params = {message: {role: "user", parts: [{type: "text", text: ...}]}}`.
+    `params = {message: {messageId, role: "user", parts: [...]}}`.
+    `messageId` (UUID) lo exige la spec actual; los servers viejos lo
+    ignoran como campo extra. Los `parts` viajan con `type` (formato
+    legado): la spec actual usa oneOf sin discriminador, pero un campo
+    extra es tolerado más seguro que un part sin `type` para un server
+    viejo.
 
 Configuración: `A2A_AGENTS` en `.env` es un JSON `{"nombre": "http://host:puerto"}`
 de agentes remotos. Sin setting (o vacío) las tools devuelven un mensaje
@@ -21,6 +29,7 @@ transporte se vuelve texto.
 Sin dependencias nuevas: `requests` (ya presente)."""
 import itertools
 import json
+import uuid
 
 import requests
 
@@ -54,18 +63,33 @@ def _agentes():
     return {str(k): str(v).rstrip("/") for k, v in data.items() if v}
 
 
+# El agent card: primero el path de la spec ACTUAL, luego el legado. Los dos
+# caminos con el mismo timeout corto; solo si AMBOS fallan el agente es
+# 'inaccesible' (degradación igual a la de siempre).
+_CARD_PATHS = ("/.well-known/agent-card.json", "/.well-known/agent.json")
+
+
 def _card(nombre, base):
-    """Trae el agent card del agente. Devuelve (card|None, error|None)."""
-    try:
-        r = requests.get(f"{base}/.well-known/agent.json", timeout=TIMEOUT_CARD_S)
-    except requests.RequestException as e:
-        return None, f"inaccesible ({type(e).__name__})"
-    if r.status_code != 200:
-        return None, f"inaccesible (HTTP {r.status_code})"
-    try:
-        return r.json(), None
-    except ValueError:
-        return None, "inaccesible (card no es JSON)"
+    """Trae el agent card del agente. Devuelve (card|None, error|None).
+
+    Prueba el path de la spec actual (agent-card.json) y cae al legado
+    (agent.json) SOLO ante 404: ese es el caso 'el path no existe en este
+    server'. Un agente caído o un error HTTP distinto no merecen segundo
+    intento (doblarían el timeout de detección sin posibilidad de éxito)."""
+    for path in _CARD_PATHS:
+        try:
+            r = requests.get(f"{base}{path}", timeout=TIMEOUT_CARD_S)
+        except requests.RequestException as e:
+            return None, f"inaccesible ({type(e).__name__})"
+        if r.status_code == 404:
+            continue  # este path no existe: probar el otro antes de rendirse
+        if r.status_code != 200:
+            return None, f"inaccesible (HTTP {r.status_code})"
+        try:
+            return r.json(), None
+        except ValueError:
+            return None, "inaccesible (card no es JSON)"
+    return None, "inaccesible (sin card en ningún path conocido)"
 
 
 def agentes_remotos():
@@ -113,6 +137,9 @@ def a2a_tarea(nombre, mensaje):
         "method": "message/send",
         "params": {
             "message": {
+                # messageId: OBLIGATORIO en la spec actual; los servers
+                # legados lo ignoran como campo extra (drift, 2026-10-13)
+                "messageId": str(uuid.uuid4()),
                 "role": "user",
                 "parts": [{"type": "text", "text": str(mensaje)}],
             }

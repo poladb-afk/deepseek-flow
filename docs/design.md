@@ -36,8 +36,10 @@ partía una palabra, una palabra espuria ("¿EnAnswered?"). Dos capas de
 respuesta:
 
 1. **Causa raíz (la más probable)**: `call_llm_agent` desactivaba el
-   thinking SIEMPRE, aunque la llamada fuera sin tools — y la
-   restricción A1 (API rechaza tools+thinking) solo aplica con tools.
+   thinking SIEMPRE, aunque la llamada fuera sin tools — y la restricción
+   A1 (con `tools` en el request, la API exige devolver el
+   `reasoning_content` completo; corregido el 2026-10-13, la versión
+   original decía "API rechaza tools+thinking") solo aplica con tools.
    Sin tools ahora va con thinking normal; verificado en vivo: respuestas
    limpias en ambos caminos.
 2. **Defensa en profundidad**: `sanitizar()` en `AgentStep.post` corta
@@ -123,10 +125,16 @@ sesión larga) + E2E con `MAX_TOOL_ROUNDS=1` reproduciendo el escenario
 exacto del crash (ronda de tools → llamada sin tools sobre historial
 agéntico → vuelta directa): responde completo, sin 400.
 
-Nota de límites: la regla exacta del validador de DeepSeek es opaca (el
-mensaje habla de reasoning_content pero estalla por consistencia de
-modo); lo que está medido es que el modo pegajoso elimina los tres
-crashes conocidos.
+Nota de límites: la regla del validador dejó de ser opaca — los docs
+oficiales (verificados 2026-10-13) la documentan: con `tools` en el
+request, el `reasoning_content` debe devolverse COMPLETO en todas las
+requests subsecuentes; sin tools se ignora. Los tres crashes eran esa
+regla rompiéndose (había tráfico agéntico + reasoning ausente tras el
+flip de modo), y la sonda de exp/38 confirmó que el flip SOLO ya no
+rechaza. El modo pegajoso se mantiene por decisión (este cliente descarta
+el reasoning): la alternativa documentada —preservarlo en el historial—
+habilitaría thinking en las rondas de tools al costo de reenviarlo en
+cada vuelta.
 
 ## Sanitizado de respuestas descarriladas
 
@@ -173,8 +181,13 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 
 - `call_llm(messages)` → texto (smoke test).
 - `call_llm_agent(messages, tools=None)` → mensaje del asistente, con
-  `extra_body={"thinking": {"type": "disabled"}}` porque la API de DeepSeek
-  rechaza tools con thinking activo (misma razón que bmo, anotación A1).
+  `extra_body={"thinking": {"type": "disabled"}}` cuando hay tráfico de
+  tools. La razón DOCUMENTADA (docs oficiales, verificados 2026-10-13):
+  con `tools` en el request la API exige devolver el `reasoning_content`
+  completo en todas las requests subsecuentes; este cliente lo descarta,
+  así que thinking va desactivado en todo tráfico agéntico (la anotación
+  A1 original —"rechaza tools+thinking juntos"— describía el síntoma, no
+  la regla; ver la sección del modo pegajoso).
 - `call_llm_agent_stream(messages, tools=None)` → igual contrato, con
   `stream=True`; imprime el CONTENT en vivo y devuelve el mensaje
   ensamblado (content + tool_calls). La versión clásica sigue disponible
@@ -1019,6 +1032,39 @@ probabilidades) y Python **decide** (qué ruta se ejecuta), en
 
 Costo: 0 llamadas nuevas (el modo sombra ahorra el voto); tests puros de la
 política en `tests/test_laya_routing.py` (sin modelo ni red).
+
+### exp/40 — drift de spec hallado al corroborar con fuentes oficiales (2026-10-13)
+
+Corroboración completa de la evidencia del harness contra las fuentes
+oficiales (docs de DeepSeek, spec de A2A, repo de PocketFlow, el paper de
+Conformal Cascade). La mayoría confirmada al detalle (vision: imágenes
+solo en user con 400 medido y documentado, límites 32/48 MiB, magic
+bytes, 1024 tokens/imagen, PDFs fuera de la Files API; PocketFlow 100
+líneas cero deps; el paper de conformal fiel a lo citado). Dos drifts
+encontrados y cerrados:
+
+- **A2A habla el wire format viejo**: la spec actual sirve el agent card
+  en `/.well-known/agent-card.json` (el módulo usaba el legado
+  `agent.json`) y exige `messageId` en el message. Fix: el cliente prueba
+  el path nuevo primero y cae al legado SOLO ante 404 (un agente caído no
+  merece segundo intento: doblaría el timeout de detección); el payload
+  suma `messageId` (UUID) — los servers viejos lo ignoran como campo
+  extra. Los `parts` siguen con `type` (legado): la spec actual usa oneOf
+  sin discriminador, pero un campo extra es más seguro de tolerar que un
+  part sin `type` para un server viejo. Tests: card solo-nuevo,
+  solo-legado (fallback) y messageId presente.
+- **La anotación A1 describía el síntoma, no la regla**: los docs
+  oficiales documentan que tools+thinking SÍ son compatibles; la regla
+  real es que, con `tools` en el request, el `reasoning_content` debe
+  devolverse COMPLETO en todas las requests subsecuentes. Los tres
+  crashes históricos eran esa regla rompiéndose (razonamiento ausente +
+  tráfico agéntico tras el flip de modo) — consistente con la sonda de
+  exp/38, donde el flip SOLO ya no reproducía el 400. El modo pegajoso NO
+  cambia (decisión: este cliente descarta el reasoning; preservarlo
+  habilitaría thinking en las rondas de tools al costo de reenviarlo en
+  cada vuelta — candidato a exp futuro si el costo duele). Solo se
+  corrigen las anotaciones (call_llm.py y esta doc) para que el contrato
+  documentado sea el real.
 
 ## Cómo crecer desde aquí
 
