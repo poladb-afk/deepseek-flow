@@ -4332,6 +4332,72 @@ def test_verdict_reparacion_por_feedback_sin_alias(monkeypatch):
     assert "ok o retry" in prompts[1]
 
 
+def test_juez_no_entrega_con_herramienta_alucinada(monkeypatch):
+    """exp/42: el Draft alucinó `delete_file` (3/3 corridas). Con verdict ok
+    el flujo lo entregaba porque el Judge nunca veía el action space. Ahora
+    el inventario real lo aporta el código y una herramienta inventada fuerza
+    el retry, sin tocar el contrato observable (los veredictos)."""
+    import juez
+
+    monkeypatch.setattr(juez, "call_llm", lambda *a, **k: "verdict: ok\n")
+    # (a) borrador que menciona usar delete_file + verdict ok → retry
+    v = juez.Judge().exec(
+        ("¿q?", "podés usar la herramienta delete_file para borrarlo",
+         [], False)
+    )
+    assert v["verdict"] == "retry"
+    assert any("action space" in p for p in v["problems"])
+
+    # (b) borrador honesto (no menciona herramientas inventadas) + ok → ok
+    v2 = juez.Judge().exec(("¿q?", "borrador sin herramientas raras", [], False))
+    assert v2["verdict"] == "ok"
+
+
+def test_tools_alucinadas_funcion_pura():
+    """exp/42: el contraste contra el action space es un hecho del código.
+    Función pura: detecta la herramienta inventada en una línea con contexto
+    de tool; NO marca nombres reales (read_file, sql) ni snake_case suelto
+    sin contexto.
+
+    exp/42 sesión 4: dos regresiones MEDIDAS con LLM real — (a) un segmento
+    de ruta citado en línea con contexto de tool y (b) discutir una función
+    interna del código no son claims de herramienta. La trampa NO se afloja:
+    'usá la herramienta delete_file' sigue marcando delete_file."""
+    from juez import _tools_alucinadas
+
+    inv = {"read_file", "sql", "run_supervisor"}
+    # delete_file NO está en el inventario y la línea habla de una tool
+    assert _tools_alucinadas(
+        "podés usar la herramienta delete_file para borrar", inv
+    ) == ["delete_file"]
+    # nombres reales: no se marcan
+    assert _tools_alucinadas("usá read_file para leer", inv) == []
+    # sql no tiene `_`: no es candidato (sesgo hacia no dar falsos positivos)
+    assert _tools_alucinadas("usá sql para consultar", inv) == []
+    # snake_case SIN contexto de tool: no se marca
+    assert _tools_alucinadas("el valor mi_dato quedó raro", inv) == []
+
+    # (a) SEGMENTO DE RUTA (medido en search-vacio): citar 'utils/fs_tools.py'
+    # en una línea con contexto de tool NO marca el segmento `fs_tools`.
+    assert _tools_alucinadas(
+        "usá la herramienta documentada en utils/fs_tools.py para esto", inv
+    ) == []
+    assert _tools_alucinadas(
+        "la herramienta está en ../utils/fs_tools.py y se usa así", inv
+    ) == []
+
+    # (b) FUNCIÓN INTERNA (medido en thinking-tools): hablar de la función
+    # call_llm_agent (o de reasoning_content) NO marca nada. Nota: un token
+    # como 'tool_calls' se auto-dispara como contexto por su substring 'tool';
+    # el caso medido que depende del fix de 'función' es call_llm_agent.
+    assert _tools_alucinadas("la función call_llm_agent hace X", inv) == []
+
+    # LA TRAMPA NO SE AFLOJA: sigue marcando la tool inventada.
+    assert _tools_alucinadas("usá la herramienta delete_file", inv) == [
+        "delete_file"
+    ]
+
+
 def test_degradacion_terminal_con_draft(monkeypatch):
     """Candado exp/21 (b): si el flujo revienta con draft presente,
     responder_con_juez entrega (draft, advertencia) en vez de morir."""
@@ -4790,6 +4856,8 @@ def test_research_recorta_consultas_y_valida_tipos(monkeypatch):
     )
     with pytest.raises(ValueError, match="no textual"):
         research.Synthesizer().exec(("tema", ["material"], 0))
+
+
 def test_juez_no_entrega_con_cita_rota(monkeypatch):
     """exp/29 (C07 de la auditoría externa): la verificación de citas se le
     CONTABA al LLM; con verdict ok el flujo entregaba un borrador citando una

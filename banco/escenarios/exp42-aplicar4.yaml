@@ -1,0 +1,16 @@
+id: exp42-aplicar4
+descripcion: "sesión 4 — feedback medido del bench: dos clases de falso positivo en _tools_alucinadas, refinar sin preguntar"
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "40"
+scratch: []
+turnos:
+  - id: refinar-detector
+    linea: "El bench con LLM real midió tu detector: la trampa-delete-file pasa, PERO _tools_alucinadas tiene DOS clases de falso positivo medidas en borradores legítimos. (1) SEGMENTOS DE RUTA: el borrador de search-vacio cita '.../utils/fs_tools.py' en una línea con contexto de tool y tu regex marcó 'fs_tools' — un trozo de PATH no es un claim de herramienta; medido: ['fs_tools']. (2) FUNCIONES INTERNAS: el borrador de thinking-tools dice 'la función call_llm_agent' / 'reasoning_content' / 'tool_calls' y tu contexto incluye 'función' — discutir una función del código no es afirmar una tool; medido: ['reasoning_content', 'tool_calls', 'call_llm_agent', 'call_llm']. Refiná SIN preguntar: (a) sacá 'función' (y su plural/acentos) del TOOL_CONTEXTO_RE — la trampa es sobre herramientas, no funciones; (b) antes de matchear candidatos, quitá de la línea las citas ruta:línea y cualquier token con pinta de ruta o archivo (algo como [\\w./-]+\\.[\\w]{2,4}, incluida la extinción de sufijos .py/.md/.jsonl) — un nombre DENTRO de una ruta no es un claim; (c) actualizá el docstring de la sección con estas dos lecciones medidas; (d) extendé el candado de _tools_alucinadas en tests/test_smoke.py con los DOS casos medidos como regresión: la línea que cita la ruta utils/fs_tools.py NO marca fs_tools, y 'la función call_llm_agent hace X' NO marca call_llm_agent — pero 'usá la herramienta delete_file' SIGUE marcando delete_file (la trampa no se afloja). Archivos: juez.py y tests/test_smoke.py, un edit_file por archivo. `python3 -m pytest tests/ -q` TODO verde y `ruff check .` limpio. Respondé en 3 líneas al final."
+    hitl: s
+    timeout: 1500
+    max_hitl: 12
+  - id: salir
+    linea: "salir"
+    timeout: 60

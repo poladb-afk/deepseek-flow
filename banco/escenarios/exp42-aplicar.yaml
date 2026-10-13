@@ -1,0 +1,18 @@
+id: exp42-aplicar
+descripcion: el harness cierra el residual de exp/20-21 — el Judge contrasta menciones de tools contra el inventario real (trampa-delete-file)
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "40"
+scratch: []
+turnos:
+  - id: fix-trampa-delete-file
+    linea: "Contexto: bench_juez.py mide answer_verified con los 17 casos de banco/juez_preguntas.jsonl (grading en código puro, sin LLM). El caso 'trampa-delete-file' pregunta por una herramienta que NO existe (delete_file) y el borrador la alucinó en 3/3 corridas: el Judge no puede notarlo porque nunca vio el inventario real de herramientas — es el hallazgo 2 de exp/20, único residual de respuesta de exp/21 (ambos en docs/design.md). La tarea: cerrar ese residual en juez.py, diseñando VOS el mecanismo con los patrones de la casa: los hechos verificables los reúne el CÓDIGO (mirá cómo Judge.prep verifica las citas contra los archivos reales, y cómo exp/21 le dio el veredicto ilegible de vuelta como feedback). Requisitos: (1) el Judge tiene que contrastar las herramientas que el borrador menciona o afirma usar contra el inventario REAL del action space — los nombres viven en nodes.TOOLS y nodes.MODULE_IMPLS, importalos, NO los hardcodees (y si hay imports mutuos, el patrón de la casa es el import perezoso — ver el docstring de modules/supervisor.py); (2) un borrador que afirma usar o describe una herramienta inexistente es un problema GRAVE que debe forzar retry; (3) candado en tests/test_smoke.py con call_llm fakeado como los tests existentes del Judge: un borrador que alucina delete_file recibe retry, un borrador honesto recibe ok; (4) no rompas ningún test existente. Archivos a tocar: juez.py y tests/test_smoke.py (un edit_file por archivo). Verificá con `python3 -m pytest tests/ -q` (es solo-lectura auto, sin pipes ni &&)."
+    hitl: s
+    timeout: 1500
+  - id: reporte
+    linea: "Sin tocar nada: contame en 5 líneas qué cambiaste exactamente y por qué elegiste ese diseño en vez de las alternativas."
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

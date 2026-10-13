@@ -1,0 +1,16 @@
+id: exp42-aplicar3
+descripcion: "sesión 3 — decisión cerrada del conductor: opción 1 de la sesión 1, sin más preguntas; completar y dejar todo verde"
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "40"
+scratch: []
+turnos:
+  - id: cerrar
+    linea: "Decisión cerrada, no es cuestión de gusto: la OPCIÓN 1 DE LA SESIÓN 1 (la de tu propia nota de memoria), no la de reescribir tests. Los tests existentes son candados de regresión y NO se reescriben para acomodar un detalle interno: el contrato observable del Judge (sus veredictos) no cambió, solo dónde se computa un hecho. Ejecutá sin preguntar más: (1) en juez.py, computá las alucinadas DENTRO de Judge.exec (ya recibe el borrador; llamá a _tools_alucinadas ahí, con el inventario por import perezoso) y devolvé la tupla prep→exec a sus 4 campos de siempre — los 6 tests rotos vuelven a verde SOLOS, sin tocarlos; (2) mantené regex, compuerta extendida y aviso del prompt como están; (3) agregá el candado nuevo en tests/test_smoke.py con call_llm fakeado: (a) borrador que menciona usar delete_file + verdict ok del modelo → retry por la compuerta, (b) borrador honesto + verdict ok → ok, (c) _tools_alucinadas como función pura: detecta delete_file en línea con contexto de tool, NO marca read_file ni sql, NO marca snake_case sin contexto; (4) de paso corregí las dos líneas en blanco antes del def de la línea ~4789 de tests/test_smoke.py (el typo de formato que vos viste); (5) verificá: `python3 -m pytest tests/ -q` TODO verde y `ruff check .` limpio. Dos archivos, un edit_file por archivo como máximo (agrupá los cambios). Al terminar respondé en 3 líneas: qué quedó, cuántos tests verdes, ruff."
+    hitl: s
+    timeout: 1500
+    max_hitl: 12
+  - id: salir
+    linea: "salir"
+    timeout: 60

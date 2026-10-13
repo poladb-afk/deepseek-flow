@@ -1,0 +1,16 @@
+id: exp42-aplicar2
+descripcion: sesión 2 — el conductor responde la pregunta de la nota de memoria (opción 1) y el harness completa el fix + candado
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "40"
+scratch: []
+turnos:
+  - id: opcion-1-y-candado
+    linea: "Respondiendo tu nota de memoria (exp-42-juez-detector...): el rechazo de esas 3 ediciones fue el TOPE de aprobaciones del driver del banco (6 por turno), no una decisión de diseño mía. Tomá tu OPCIÓN 1: computá las alucinadas DENTRO de Judge.exec (ya recibe el borrador; el inventario lo sigue aportando el código con el import perezoso), devolviendo la tupla prep→exec a sus 4 campos de siempre — así los 6 tests rotos vuelven a verde sin tocarlos. Mantené todo lo demás como está (las regex, la compuerta extendida, el aviso en el prompt). Y completá lo que faltaba del pedido original: el candado en tests/test_smoke.py con call_llm fakeado como los tests existentes del Judge — (a) un borrador que menciona usar delete_file, con verdict ok del modelo, recibe retry por la COMPUERTA (hecho del código, no del prompt); (b) un borrador honesto con verdict ok llega a ok; (c) tests de _tools_alucinadas como función pura: detecta delete_file en línea con contexto de tool, NO marca read_file ni sql, NO marca snake_case sin contexto de tool. Al terminar `python3 -m pytest tests/ -q` tiene que estar TODO verde. Dos archivos: juez.py y tests/test_smoke.py (un edit_file por archivo, podés agrupar los cambios por archivo)."
+    hitl: s
+    timeout: 1500
+    max_hitl: 12
+  - id: salir
+    linea: "salir"
+    timeout: 60
