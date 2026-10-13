@@ -1,0 +1,16 @@
+id: exp42-aplicar5
+descripcion: "sesión 5 — cierre: eliminar la aserción defectuosa que el propio harness diagnosticó"
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+env:
+  MAX_TOOL_ROUNDS: "40"
+scratch: []
+turnos:
+  - id: cerrar-verde
+    linea: "OK para borrarla: eliminá SOLO la aserción defectuosa de 'la función devuelve reasoning_content al llamador' en tests/test_smoke.py (la que vos mismo diagnosticaste: 'llamador' dispara el verbo de contexto y el test estaba mal escrito — el detector está bien). No toques nada más: ni juez.py ni otras aserciones. Después verificá `python3 -m pytest tests/ -q` (tiene que dar TODO verde) y `ruff check .` (limpio). Respondé en UNA línea con el conteo final de tests."
+    hitl: s
+    timeout: 900
+    max_hitl: 20
+  - id: salir
+    linea: "salir"
+    timeout: 60

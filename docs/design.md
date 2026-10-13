@@ -1111,6 +1111,69 @@ patrón evals: comparar sin pisar; `--actualizar-baseline` guarda). 16
 tests nuevos. El pendiente restante de la Mesa 1 (bench de decisiones
 del voto como dataset permanente) sigue abierto.
 
+## exp/42 — el residual de la trampa-delete-file, cerrado POR el harness (2026-10-13)
+
+Primera pieza del harness aplicada por el propio harness (conductor GLM
+dirigiendo por banco, 5 sesiones reales con DeepSeek). El residual:
+`trampa-delete-file` (hallazgo 2 de exp/20) fallaba 3/3 — el Draft
+alucinaba la tool inexistente y el Judge no podía notarlo porque nunca
+vio el inventario real.
+
+**El mecanismo** (diseño del harness, fiel a los patrones de la casa):
+`_tools_alucinadas(draft, inventario)` contrasta los nombres que el
+borrador menciona COMO herramienta contra el action space real
+(`_inventario_tools()`, import perezoso de nodes — el ciclo de
+modules/juez.py lo prohíbe a nivel de módulo). El inventario lo aporta
+el CÓDIGO en `Judge.exec` (la tupla prep→exec quedó en sus 4 campos:
+los tests existentes son candados y no se reescriben para acomodar un
+detalle interno); la `_compuerta` existente se extendió — verdict ok +
+tool inventada → retry, el mismo patrón que la cita rota.
+
+**El ciclo medir→corregir→remedir, con el bench como vara:**
+- Corrida 1: la trampa PASA (117 s: el gate fuerza el retry y el borrador
+  converge a "no existe"), pero el bench marca REGRESIÓN (76,5% vs
+  94,1%) — dos clases de FALSO POSITIVO medidas: segmentos de ruta
+  (`fs_tools` extraído de `utils/fs_tools.py`) y funciones internas
+  mencionadas como "la función X" (`call_llm_agent`, `reasoning_content`)
+  porque el contexto incluía "función".
+- Sesión 4 (feedback medido al harness): el contexto perdió "función", y
+  las rutas/citas (`[\w./-]+\.[\w]{2,4}`) se quitan de la línea ANTES de
+  matchear candidatos. Candados de regresión con los DOS casos medidos.
+- Corrida 2: la trampa sigue pasando y MÁS RÁPIDA (63,6 s);
+  memoria-slug y trampa-pdf-filesapi (degradados por el gate) se
+  recuperan; el detector queda limpio sobre los borradores que fallan.
+
+**Lo que NO es del fix (hallazgos nuevos, medidos):**
+1. **Drift del modelo**: deepseek-flash hoy REHÚSA responder fuera del
+   contexto verificado ("solo líneas 1–200 de 548; no voy a inventar") —
+   compaction-chars, search-vacio y sanitizar-markers fallan por la
+   ventana de 200 líneas que arma `Draft.prep` (read_file limit=200), no
+   por el gate (borradores limpios). Candidato a exp: ventana más ancha
+   o paginación a pedido del Draft.
+2. **El caso thinking-tools envejeció con exp/40**: exigía el token
+   "rechaza" que la corrección de la anotación A1 reescribió; el
+   borrador citaba las líneas nuevas y explicaba la regla real. El caso
+   se actualizó al ground truth vigente (["thinking",
+   "reasoning_content"]).
+3. Residual conocido del detector: "tool" como subcadena auto-activa el
+   contexto ("tool_calls" se flaggea a sí mismo al mencionarse) — solo
+   visible en borradores que discuten el tema tools; documentado, sin
+   acción.
+
+**Desempeño del harness como aplicador** (5 sesiones, 336 eventos,
+~1.092 s de reloj de nodos, 120 llamadas a tools, **0 errores de tools**):
+diseñó con los patrones de la casa sin que se los diera; dejó NOTA DE
+MEMORIA al frenarse por presupuesto y las sesiones siguientes ARRANCARON
+con memory_search (la biblioteca como handoff, funcionando tal como fue
+diseñada); autodiagnosticó su propio test mal escrito ("llamador" dispara
+el verbo de contexto). Dos fricciones medidas del LADO del conductor: el
+tope de HITL por turno (6→12→20: dos sesiones clippeadas) y que cuando
+disiente del conductor DEBATE en vez de aplicar (sesión 2: contrapropuso
+reescribir los tests, que era lo que el conductor había vetado).
+
+316 tests verdes + ruff limpio (verificado por el conductor, no por
+auto-reporte). Escenarios de las 5 sesiones en `banco/escenarios/exp42-aplicar*.yaml`.
+
 ## Cómo crecer desde aquí
 
 - Escribir archivos → herramienta write_file con confirmación humana
@@ -1916,9 +1979,12 @@ comparación; **CERO excepciones** (antes 3-5 por corrida). La corrida de
 actualización del baseline reprodujo 94.1% (baseline vigente: `respuesta_ok`
 94.1%, `cita_ok` 87.5%; dos corridas post-fix estables en 94.1).
 
-**Residuales medidos que NO eran de este exp**: trampa-delete-file sigue
+**Residuales medidos que NO eran de este exp**: ~~trampa-delete-file sigue
 fallando (3/3 corridas — la alucinación de tool inexistente, hallazgo 2 de
-exp/20) y quedan near-miss de citas (hallazgo 3).
+exp/20)~~ — **✅ cerrado en exp/42** (el Judge contrasta contra el
+inventario real; ver la sección de exp/42). Quedan los near-miss de citas
+(hallazgo 3) y, nuevo de exp/42, la ventana de 200 líneas del Draft frente
+al modelo que hoy rehúsa fuera de lo verificado.
 
 ### Fase B2 — de parche a patrón (la crítica del dueño)
 
