@@ -25,7 +25,11 @@ def evals(dir_runs=None, salida=None):
         return f"ERROR: {err}"
     if not carpeta.is_dir():
         return f"ERROR: no es una carpeta de trazas: {carpeta}"
-    destino_dir = salida or DIR_SALIDA
+    # la carpeta de salida la elige el MODELO: pasa por la misma contención
+    # que dir_runs (medido: salida=/tmp/... escribía fuera de las raíces)
+    destino_dir, err = _arg(salida, DIR_SALIDA)
+    if err:
+        return f"ERROR: {err}"
     try:
         # sin actualizar el baseline: el ancla de medición no se pisa desde el chat
         destino = generar(dir_runs=carpeta, dir_salida=destino_dir, actualizar_baseline=False)

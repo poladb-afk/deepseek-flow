@@ -51,7 +51,7 @@ HOOKS_POST = {}
 # corre ANTES de ejecutar la implementación. Sirve para DENYLIST y guardas
 # que deben decidir antes de que el efecto ocurra (un hook post ya llegaría
 # tarde para un comando que ya corrió). Contrato de hierro, igual que los
-# post: un hook NUNCA rompe la ejecución — si lanza, se ignora.
+# post, salvo que un PRE que lanza VETA (fail-closed): es una guarda.
 HOOKS_PRE = {}
 
 
@@ -387,12 +387,16 @@ def run_tool_call(tool_call, extra_impls=None):
 
     # Hooks pre-tool: la última palabra antes del efecto (denylist). Un hook
     # que devuelve texto CANCELA la ejecución (el texto es el resultado); si
-    # devuelve None, no opina. Un hook que lanza no rompe nada: se ignora.
+    # devuelve None, no opina. Un hook PRE que LANZA falla CERRADO: es una
+    # guarda de seguridad y "no pude decidir" no puede significar "adelante"
+    # (antes se ignoraba y la implementación corría igual). Los POST siguen
+    # siendo fail-open: enriquecen, no autorizan.
     for hook in HOOKS_PRE.get(fn["name"], ()):
         try:
             veto = hook(tool_call)
-        except Exception:  # noqa: BLE001
-            veto = None
+        except Exception as e:  # noqa: BLE001
+            veto = (f"ERROR: la guarda previa de {fn['name']} falló "
+                    f"({type(e).__name__}); la herramienta no se ejecutó.")
         if veto is not None:
             return {"role": "tool", "tool_call_id": tool_call["id"], "content": str(veto)}
 

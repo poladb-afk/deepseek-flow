@@ -365,6 +365,16 @@ class AgentStep(Node):
                 # el historial queda canónico: tool_calls, sin el markup crudo
                 exec_res.content = None
                 exec_res.tool_calls = parseados
+        if tools is None and getattr(exec_res, "tool_calls", None):
+            # ley L8 por el canal NATIVO (la mitad DSML ya estaba cerrada en
+            # exp/12): retiradas las tools, una tool call que el modelo emita
+            # igual NO se ejecuta (medido: tool_rounds=99 → acción "tool" y la
+            # implementación corría). Mismo mensaje honesto que el DSML.
+            print(colorear("  [L8] tool calls con las tools retiradas: IGNORADAS", "aviso"))
+            exec_res.tool_calls = None
+            if not (exec_res.content or "").strip():
+                exec_res.content = (MENSAJE_DSML_AGOTADO if getattr(self, "ofrece_tools", True)
+                                    else MENSAJE_DSML_SIN_TOOLS)
         if not getattr(exec_res, "tool_calls", None) and not (exec_res.content or "").strip():
             # el stream se cortó sin deltas (401/429/red): sin esto el usuario
             # ve el rótulo vacío y queda content:null en el historial (medido)
@@ -412,6 +422,17 @@ class AgentStep(Node):
         return "answer"
 
 
+_EXIT_NO_CERO = re.compile(r"^exit (?!0\b)-?\d+")
+
+
+def resultado_ok(contenido):
+    """Lo que la traza registra como ok/error de una tool. Un RECHAZADO del
+    humano o un comando con exit != 0 NO son éxitos (medido: los dos quedaban
+    'ok' en .runs y el linter/costos los contaban como sanos)."""
+    contenido = contenido or ""
+    return not (contenido.startswith(("ERROR", "RECHAZADO")) or _EXIT_NO_CERO.match(contenido))
+
+
 class ExecuteTools(Node):
     def prep(self, shared):
         return shared["messages"][-1]["tool_calls"]
@@ -427,7 +448,7 @@ class ExecuteTools(Node):
             # colgada, así que la tool EN CURSO se anuncia antes de correr.
             print(colorear(f"  → {nombre}", "tool"), flush=True)
             r = run_tool_call(tc, MODULE_IMPLS)
-            ok = not r["content"].startswith("ERROR")
+            ok = resultado_ok(r["content"])
             evento_tool(nombre, ok, time.time() - inicio)
             resultados.append(r)
         return resultados

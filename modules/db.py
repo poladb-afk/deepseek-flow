@@ -19,7 +19,9 @@ def _con():
         raise RuntimeError(
             f"no hay base en {ruta}: corre primero `python3 carga_trazas.py [carpeta]`"
         )
-    con = sqlite3.connect(ruta, timeout=5)
+    # solo lectura TAMBIÉN en la conexión (mode=ro): el filtro de palabras es
+    # la primera capa, no la única
+    con = sqlite3.connect(f"{Path(ruta).resolve().as_uri()}?mode=ro", uri=True, timeout=5)
     con.row_factory = sqlite3.Row
     return con
 
@@ -88,6 +90,11 @@ def _sin_literales(consulta):
 
 
 _RE_LIMIT = re.compile(r"\blimit\b", re.IGNORECASE)
+# CADA cláusula LIMIT debe ser un entero positivo literal, sin aritmética
+# (SQLite acepta expresiones: LIMIT -1 o LIMIT 0-1 = sin límite)
+_RE_LIMIT_NO_POSITIVO = re.compile(r"\blimit\b(?!\s+[1-9]\d*\b(?!\s*[-+*/(]))", re.IGNORECASE)
+_RE_COMENTARIO = re.compile(r"--|/\*")
+MAX_FILAS_DURO = 1000  # techo absoluto aunque la consulta traiga su LIMIT
 
 
 def sql(consulta):
@@ -106,12 +113,19 @@ def sql(consulta):
         limpia = _sin_literales(consulta)
         if PROHIBIDOS.search(limpia):
             return "ERROR: solo SELECT"
+        # un comentario puede esconder la cláusula que se escanea
+        # (medido: "select * from t -- limit" devolvía 200 filas sin tope)
+        if _RE_COMENTARIO.search(limpia):
+            return "ERROR: sin comentarios SQL (-- o /* */)"
+        # LIMIT presente pero no positivo (LIMIT -1 = sin límite en SQLite)
+        if _RE_LIMIT_NO_POSITIVO.search(limpia):
+            return "ERROR: LIMIT debe ser un entero positivo"
         # la ley es 'LIMIT forzado si no lo trae': hay que mirar la CLÁUSULA
         # LIMIT, no una subcadena (un LIKE '%unlimited%' la suprimía).
         if not _RE_LIMIT.search(limpia):
             consulta = f"{consulta.rstrip(';').rstrip()} LIMIT {MAX_FILAS}"
         try:
-            filas = con.execute(consulta).fetchall()
+            filas = con.execute(consulta).fetchmany(MAX_FILAS_DURO)
         except sqlite3.Error as e:
             return f"ERROR SQL: {e}"
         except Exception as e:  # noqa: BLE001 (el error es un hecho, no un crash:

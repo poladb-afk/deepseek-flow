@@ -1777,20 +1777,24 @@ def test_hook_pre_denylist_veta_antes_de_ejecutar(tmp_path, monkeypatch, capsys)
     assert res["content"].startswith("exit 0") and "denylist-ok" in res["content"]
 
 
-def test_hook_pre_que_lanza_no_rompe(tmp_path):
-    """Un hook PRE que lanza se ignora y la tool sigue (contrato de hierro)."""
+def test_hook_pre_que_lanza_falla_cerrado(tmp_path):
+    """Un hook PRE que lanza VETA (fail-closed): es una guarda de seguridad y
+    'no pude decidir' no puede significar 'adelante'. El chat no se rompe: el
+    veto vuelve como texto de tool."""
     from utils import fs_tools
 
     def hook_malo(tool_call):
         raise ValueError("boom")
 
-    fs_tools.HOOKS_PRE.setdefault("read_file", []).append(hook_malo)
+    corrio = []
+    fs_tools.HOOKS_PRE.setdefault("zz_guarda", []).append(hook_malo)
     try:
-        res = fs_tools.run_tool_call(_tc("read_file", {
-            "path": str(tmp_path / "no-existe.txt")}))
-        assert res["content"].startswith("ERROR")  # llegó a la impl y devolvió su ERROR
+        res = fs_tools.run_tool_call(_tc("zz_guarda", {}),
+                                     {"zz_guarda": lambda: corrio.append(1) or "corrió"})
+        assert not corrio, "la implementación NO debe correr si la guarda lanzó"
+        assert res["content"].startswith("ERROR: la guarda previa de zz_guarda falló (ValueError)")
     finally:
-        fs_tools.HOOKS_PRE["read_file"].remove(hook_malo)
+        fs_tools.HOOKS_PRE.pop("zz_guarda", None)
 
 
 def test_contratos_laya_congelados_sha1():
@@ -3191,9 +3195,10 @@ def test_elegir_por_laya_sin_modelo_es_noop(monkeypatch):
 
     monkeypatch.setattr(ul, "disponible", lambda setting=None: False)
     unidades = ["a", "b", "c", "d"]
-    # checkpoint indisponible: _puntuar → None → primeros N (default seguro)
+    # checkpoint indisponible: _puntuar → None → TODAS (no-op real: antes
+    # devolvía los primeros N y perdía recall en silencio)
     out = elegir_por_laya("consulta", unidades, 2, setting_modelo="LAYA_MODEL_PREFILTRO")
-    assert out == ["a", "b"]
+    assert out == unidades
     # con max<=0 o menos unidades que el tope, devuelve intactas
     assert elegir_por_laya("q", unidades, 0) == unidades
     assert elegir_por_laya("q", unidades[:2], 5) == unidades[:2]

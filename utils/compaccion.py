@@ -19,8 +19,9 @@ ver utils/call_llm.py):
 2. Dicts canónicos (solo role/content/tool_calls/tool_call_id).
 3. Ningún assistant con `tool_calls` sin sus `tool` inmediatas después.
 4. Primer mensaje = system.
+5. Ningún `tool` huérfano: responde a un tool_call del assistant previo.
 
-`validar_historial` verifica los cuatro. Se corre en los tests ANTES y
+`validar_historial` verifica los cinco. Se corre en los tests ANTES y
 DESPUÉS de compactar: compactar jamás puede romper un historial válido.
 """
 
@@ -80,11 +81,22 @@ def validar_historial(messages):
     if not (isinstance(primero, dict) and primero.get("role") == "system"):
         fallas.append("el primer mensaje no es system")
 
+    abiertos = set()  # ids del último assistant con tool_calls aún sin respuesta
     for i, m in enumerate(messages):
         if not isinstance(m, dict):
             fallas.append(f"[{i}] no es dict")
             continue
         rol = m.get("role")
+        if rol == "tool":
+            # 5º invariante (contrato de la API): todo tool responde a un
+            # tool_call del assistant inmediatamente anterior
+            if m.get("tool_call_id") not in abiertos:
+                fallas.append(f"[{i}] tool huérfano: {m.get('tool_call_id')!r} sin assistant que lo pida")
+            abiertos.discard(m.get("tool_call_id"))
+        elif rol == "assistant" and m.get("tool_calls"):
+            abiertos = {tc.get("id") for tc in m["tool_calls"] if isinstance(tc, dict)}
+        else:
+            abiertos = set()
         if rol not in _CLAVES:
             fallas.append(f"[{i}] rol desconocido: {rol!r}")
             continue
