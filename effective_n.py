@@ -31,7 +31,7 @@ from pathlib import Path
 
 from pocketflow import BatchFlow, BatchNode, Flow, Node
 
-from informe import DEFAULT_FOLDER, collect_files
+from informe import DEFAULT_FOLDER, collect_files, leer_registro
 from utils.fs_tools import _resolve, escribir_salida
 
 MAX_EJEMPLOS = 5  # contradicciones mostradas en el informe
@@ -86,17 +86,23 @@ class HashFile(BatchNode):
         return super()._run(shared)
 
     def exec(self, filepath):
-        n, rotos, con_steps, con_obs = 0, 0, 0, 0
+        n, rotos, forma, con_steps, con_obs = 0, 0, 0, 0, 0
         huellas, etiquetas, dist = [], {}, Counter()
         with open(filepath, encoding="utf-8") as f:
             for linea in f:
                 if not linea.strip():
                     continue
                 n += 1
-                try:
-                    rec = json.loads(linea)
-                except json.JSONDecodeError:
+                # Lector COMPARTIDO (informe.leer_registro): distingue JSON
+                # ilegible de JSON legible con estructura equivocada. Antes
+                # `[]`, `null` o {"fields": null} reventaban con AttributeError
+                # y tumbaban el análisis entero (C11).
+                rec, motivo = leer_registro(linea)
+                if motivo == "json":
                     rotos += 1
+                    continue
+                if motivo == "forma":
+                    forma += 1
                     continue
                 campos = rec.get("fields", {})
                 if campos.get("steps"):
@@ -113,6 +119,7 @@ class HashFile(BatchNode):
             "file": filepath,
             "n": n,
             "rotos": rotos,
+            "forma": forma,
             "con_steps": con_steps,
             "con_obs": con_obs,
             "huellas": huellas,
@@ -186,7 +193,7 @@ class WriteReport(Node):
         ]
 
         tabla = "\n".join(
-            f"| `{rel(a)}` | {a['n']} | {a['n'] - a['rotos'] - len(set(a['huellas']))} "
+            f"| `{rel(a)}` | {a['n']} | {a['n'] - a['rotos'] - a.get('forma', 0) - len(set(a['huellas']))} "
             f"| {len(set(a['huellas']))} | {a['con_steps']} | {a['con_obs']} |"
             for a in analisis
         )
@@ -292,12 +299,15 @@ def create_effective_n_flow():
     flow = Flow(start=scan)
 
     def _run(shared):
-        if not flow.params:
-            flow.set_params({
-                "folder": shared.get("folder"),
-                "glob": shared.get("glob", "*.jsonl"),
-                "salida": shared.get("salida"),
-            })
+        # Los params se re-derivan en CADA corrida: set_params REEMPLAZA
+        # (pocketflow: self.params = params) y con el guard `if not flow.params`
+        # la segunda corrida del mismo objeto reusaba la carpeta de la primera
+        # (medido: dos carpetas distintas → la primera procesada dos veces).
+        flow.set_params({
+            "folder": shared.get("folder"),
+            "glob": shared.get("glob", "*.jsonl"),
+            "salida": shared.get("salida"),
+        })
         return Flow._run(flow, shared)
 
     flow._run = _run

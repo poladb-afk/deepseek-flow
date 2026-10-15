@@ -420,16 +420,48 @@ def linter_runs(directorio=DIR_RUNS):
 # ---------------------------------------------------------------------------
 
 def costo_traza(eventos):
-    """Seg por nodo, cantidad de eventos de tool y nodo dominante de una traza."""
+    """Seg por nodo y por tool, sin contar dos veces lo anidado.
+
+    Los eventos de nodo son INCLUSIVOS (envuelven la corrida completa del nodo)
+    y cada tool emite el suyo DENTRO de ExecuteTools: sumar ambos daba 20 s
+    para 10 s de pared (medido, R16). Acá un evento contenido en la ventana de
+    otro se cuenta como anidado y no suma a "total" (la pared estimada); se
+    conservan "total_inclusivo" —la suma cruda, comparable con lo histórico— y
+    "anidados", para que la diferencia quede visible en vez de silenciosa."""
     seg_nodo = defaultdict(float)
     tools = 0
+    spans = []  # (inicio, fin, nodo, seg)
     for e in eventos:
-        seg_nodo[e["nodo"]] += float(e.get("seg", 0.0) or 0.0)
-        if e["nodo"] in TOOLS_CONOCIDAS:
+        seg = float(e.get("seg", 0.0) or 0.0)
+        nodo = e["nodo"]
+        seg_nodo[nodo] += seg
+        if nodo in TOOLS_CONOCIDAS:
             tools += 1
-    total = sum(seg_nodo.values())
+        inicio = float(e.get("ts", 0.0) or 0.0)
+        spans.append((inicio, inicio + seg, nodo, seg))
+
+    def _contiene(j, i):
+        """¿El span j envuelve al i? Ventanas idénticas: el nodo de flujo es el
+        contenedor y la tool la anidada (el orden real de la ejecución)."""
+        ai, bi, nodoi, segi = spans[i]
+        aj, bj, nodoj, segj = spans[j]
+        if i == j or not (aj - 1e-3 <= ai and bi <= bj + 1e-3):
+            return False
+        if segj > segi:
+            return True
+        return segj == segi and nodoj not in TOOLS_CONOCIDAS and nodoi in TOOLS_CONOCIDAS
+
+    total, anidados = 0.0, 0
+    for i in range(len(spans)):
+        if any(_contiene(j, i) for j in range(len(spans))):
+            anidados += 1
+            continue
+        total += spans[i][3]
+
+    inclusivo = sum(seg_nodo.values())
     dominante = max(seg_nodo.items(), key=lambda kv: kv[1])[0] if seg_nodo else "-"
-    return {"total": round(total, 3), "por_nodo": dict(seg_nodo),
+    return {"total": round(total, 3), "total_inclusivo": round(inclusivo, 3),
+            "anidados": anidados, "por_nodo": dict(seg_nodo),
             "tools": tools, "dominante": dominante}
 
 

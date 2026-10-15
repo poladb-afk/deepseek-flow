@@ -43,8 +43,12 @@ def cargar_estado():
 
 
 def guardar_estado(estado):
+    from utils.fs_tools import escribir_atomico
+
     ESTADO.parent.mkdir(exist_ok=True)
-    ESTADO.write_text(json.dumps(estado, ensure_ascii=False, indent=1), encoding="utf-8")
+    # atómico: una corrida que muere a mitad no deja el estado truncado (el
+    # próximo heartbeat leería un JSON roto y perdería los vencimientos)
+    escribir_atomico(ESTADO, json.dumps(estado, ensure_ascii=False, indent=1))
 
 
 def vencidas(tareas, estado, ahora=None):

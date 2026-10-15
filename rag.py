@@ -22,7 +22,7 @@ from pathlib import Path
 import numpy as np
 from pocketflow import BatchNode, Flow, Node
 
-from utils.fs_tools import SKIP_DIRS, _resolve, sin_enlaces
+from utils.fs_tools import SKIP_DIRS, _resolve, escribir_atomico, sin_enlaces
 
 INDICE_DIR = Path(__file__).resolve().parent / "rag_index"
 CHUNK_CHARS = 1200
@@ -120,8 +120,11 @@ class SaveIndex(Node):
             # nuevo con vectores viejos al lado, _cargar() ve largos distintos.
             # Si esta corrida no produce vectores, no debe quedar ninguno.
             ruta_vec.unlink(missing_ok=True)
-        with open(INDICE_DIR / "chunks.json", "w", encoding="utf-8") as f:
-            json.dump({"modo": modo, "chunks": chunks}, f, ensure_ascii=False)
+        # chunks.json se publica ÚLTIMO y de forma atómica: es el punto de
+        # commit del índice (si queda a medias, _cargar ve largos distintos e
+        # invalida; con el rename, o está el viejo entero o el nuevo entero)
+        escribir_atomico(INDICE_DIR / "chunks.json",
+                         json.dumps({"modo": modo, "chunks": chunks}, ensure_ascii=False))
         return modo, len(chunks), bool(vectores_todos)
 
     def post(self, shared, prep_res, exec_res):

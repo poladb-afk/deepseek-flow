@@ -132,10 +132,28 @@ def escribir_salida(ruta, texto):
         return None, err
     try:
         destino.parent.mkdir(parents=True, exist_ok=True)
-        destino.write_text(texto, encoding="utf-8")
+        escribir_atomico(destino, texto)
     except OSError as e:
         return None, f"no se pudo escribir {destino}: {e.strerror or e}"
     return destino, None
+
+
+def escribir_atomico(destino, texto):
+    """Publica `texto` en `destino` con un rename atómico.
+
+    Un corte a mitad de la escritura (Ctrl+C, disco lleno, kill) deja el
+    archivo VIEJO intacto en vez de uno truncado: `os.replace` es la operación
+    atómica del filesystem. Vive acá para que TODOS los escritores del harness
+    compartan la misma garantía (H14: publicación no atómica)."""
+    destino = Path(destino)
+    tmp = destino.with_name(destino.name + ".tmp")
+    try:
+        tmp.write_text(texto, encoding="utf-8")
+        os.replace(tmp, destino)
+    except OSError:
+        with contextlib.suppress(OSError):
+            tmp.unlink(missing_ok=True)
+        raise
 
 
 def list_files(path=None, depth=2):
@@ -193,19 +211,27 @@ def read_file(path, offset=1, limit=400):
     if not resolved.is_file():
         return f"ERROR: no es un archivo regular: {resolved}"
 
-    try:
-        text = resolved.read_text(encoding="utf-8", errors="replace")
-    except OSError as e:
-        return f"ERROR: {e.strerror}"
-    if "\x00" in text[:4000]:
-        return "ERROR: archivo binario"
-
     offset = max(1, int(offset))
     limit = min(500, max(1, int(limit)))
-    lines = text.splitlines()
-    selected = lines[offset - 1 : offset - 1 + limit]
-    last = min(offset + limit - 1, len(lines))
-    out = f"[{resolved} — líneas {offset}–{last} de {len(lines)}]\n" + "\n".join(selected)
+    try:
+        # Lectura ACOTADA: se recorre en streaming y solo se retienen las
+        # `limit` líneas pedidas, contando el total sin materializarlo. Antes
+        # se leía y dividía el archivo ENTERO antes de paginar: hacía falta
+        # RAM proporcional al archivo para devolver 400 líneas (H13).
+        with resolved.open("r", encoding="utf-8", errors="replace") as fh:
+            if "\x00" in fh.read(4000):
+                return "ERROR: archivo binario"
+            fh.seek(0)
+            total, seleccion = 0, []
+            for n, linea in enumerate(fh, 1):
+                total += 1
+                if offset <= n < offset + limit:
+                    seleccion.append(linea.rstrip("\r\n")[:READ_MAX_CHARS])
+    except OSError as e:
+        return f"ERROR: {e.strerror}"
+
+    last = min(offset + limit - 1, total)
+    out = f"[{resolved} — líneas {offset}–{last} de {total}]\n" + "\n".join(seleccion)
     if len(out) > READ_MAX_CHARS:
         half = READ_MAX_CHARS // 2
         out = out[:half] + "\n[... cortado: usa offset/limit para ver el resto ...]\n" + out[-half:]

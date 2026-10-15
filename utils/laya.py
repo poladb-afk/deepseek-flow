@@ -74,11 +74,11 @@ def agente(setting="LAYA_MODEL"):
                         os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
                     import laya
 
-                    _agentes[clave] = laya.load(clave)
-                    _errores.pop(clave, None)  # el acierto limpia el error residual
-                    # desalojo del menos usado; el recién cargado queda
-                    # afuera del sorteo (su contador de uso todavía es 0)
-                    while len(_agentes) > MAX_EN_PROCESO:
+                    # Desalojo ANTES de cargar: el pico de memoria no supera
+                    # el tope. Antes se cargaba y recién después se desalojaba,
+                    # así que había un instante con MAX+1 checkpoints vivos
+                    # (~2,86 GiB extra por checkpoint, ley medida en exp/7).
+                    while len(_agentes) >= MAX_EN_PROCESO:
                         otros = [c for c in _agentes if c != clave]
                         if not otros:
                             break
@@ -86,6 +86,8 @@ def agente(setting="LAYA_MODEL"):
                         print(f"  [laya] tope {MAX_EN_PROCESO} en proceso: descargo "
                               f"{Path(candidato).name}")
                         _descargar(candidato)
+                    _agentes[clave] = laya.load(clave)
+                    _errores.pop(clave, None)  # el acierto limpia el error residual
                 except Exception as e:  # sin modelo local: degradar, no romper
                     _errores[clave] = (time.monotonic(), f"{type(e).__name__}: {e}")
     if clave in _errores and clave not in _agentes:
@@ -147,8 +149,13 @@ def preguntar_lote(estados, preguntas, setting="LAYA_MODEL"):
     Devuelve una lista alineada con estados: [{id_pregunta: (respuesta,
     confianza)}]. Misma ley de degradación: si algo falla, lanza — el
     llamador (contexto._puntuar) cae al default seguro."""
+    # Límite opcional del lote (LAYA_BATCH_SIZE): la dependencia NO acota por
+    # su cuenta — con batch_size=None manda TODOS los estados en un forward y
+    # el pico de memoria crece con N (el prefiltro puede mandar cientos).
+    lote = _entero("LAYA_BATCH_SIZE", 0)
+    extra = {"batch_size": lote} if lote > 0 else {}
     with _lock:  # reentrante, igual que preguntar: agente() lockea de nuevo
-        resultados = agente(setting).predict_batch(list(estados), preguntas, lang="es")
+        resultados = agente(setting).predict_batch(list(estados), preguntas, lang="es", **extra)
     return [_extraer(r["answers"]) for r in resultados]
 
 

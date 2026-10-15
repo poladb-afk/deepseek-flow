@@ -2559,7 +2559,13 @@ def test_evals_costos_ordena_por_costo(tmp_path):
     assert [s["archivo"] for s in sesiones] == [
         "20260101_110000.jsonl", "20260101_100000.jsonl"]
     cara = sesiones[0]
-    assert cara["total"] == 15.0
+    # Contrato nuevo (A22): "total" es la PARED estimada — el AgentStep de 10 s
+    # envuelve al ExecuteTools de 5 s, que envuelve a la tool. Sumar los
+    # inclusivos daba 15 s para 10 s de corrida; la suma cruda sigue disponible
+    # en "total_inclusivo" y lo anidado se cuenta aparte.
+    assert cara["total"] == 10.0
+    assert cara["total_inclusivo"] == 15.0
+    assert cara["anidados"] == 2
     assert cara["dominante"] == "AgentStep"
     assert cara["tools"] == 1
     assert cara["fecha"] == "2026-01-01 11:00:00"

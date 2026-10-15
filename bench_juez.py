@@ -190,7 +190,11 @@ def correr(casos, responder=None):
                 "pregunta": caso["pregunta"],
                 "trampa": bool(caso.get("trampa", False)),
                 "respuesta_ok": False,
-                "cita_ok": None,
+                # Si el caso PEDÍA cita, el fallo cuenta como cita incumplida
+                # (0.0), no como "no aplicable": excluirlo del denominador
+                # inflaba cita_ok (medido: 2 casos que exigían cita, 1 con
+                # respuesta → cita_ok = 1.0). None queda para los que no piden.
+                "cita_ok": 0.0 if caso.get("cita_archivo") else None,
                 "seg": round(seg, 2),
                 "razones": [f"excepción: {type(e).__name__}: {causa}"],
                 "advertencia": None,

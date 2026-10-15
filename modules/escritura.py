@@ -9,7 +9,7 @@ import difflib
 from utils import hitl_web
 from utils.aprobaciones import registrar as registrar_aprobacion
 from utils.call_llm import _setting
-from utils.fs_tools import _resolve
+from utils.fs_tools import _resolve, escribir_atomico
 from utils.terminal import highlight_diff
 
 PREVIEW_LINES = 30
@@ -94,7 +94,7 @@ def write_file(path, content):
 
     try:
         resolved.parent.mkdir(parents=True, exist_ok=True)
-        resolved.write_text(content, encoding="utf-8")
+        escribir_atomico(resolved, content)
     except OSError as e:
         return f"ERROR al escribir: {e.strerror}"
     return f"Escrito: {resolved} ({len(content)} caracteres)"

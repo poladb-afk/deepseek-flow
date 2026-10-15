@@ -80,6 +80,11 @@ class Researcher(BatchNode):
             # el lote entero: el retry del BatchNode re-corre exec completo y
             # las búsquedas ya pagadas se pierden (medido en la barrida).
             return f"### {query}\n(ERROR de búsqueda: {type(e).__name__}: {e})"
+        if isinstance(crudos, str) and crudos.startswith("ERROR"):
+            # El fallo de la búsqueda vuelve como texto, no como excepción:
+            # mandarlo como "Resultados:" hacía que el modelo extrajera hechos
+            # del mensaje de error (medido). Se corta antes del LLM.
+            return f"### {query}\n(búsqueda sin resultados: {crudos})"
         hechos = call_llm(
             f"Extrae hasta 5 hechos concretos y breves relevantes para esta consulta, "
             f"citando la URL de cada uno.\n\nConsulta: {query}\n\nResultados:\n{crudos}"
