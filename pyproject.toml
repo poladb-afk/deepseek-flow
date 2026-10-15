@@ -17,6 +17,10 @@ exclude = [
     "salidas",
     "memoria",
     "heartbeat",
+    # material de auditoría externa (informes, evidencia y su script de un solo
+    # uso): no es código del harness, su lint no dice nada del proyecto y sin
+    # este exclude calidad.sh quedaba rojo por 91 incidencias de ese script.
+    "docs/informes",
 ]
 
 [tool.ruff.lint]

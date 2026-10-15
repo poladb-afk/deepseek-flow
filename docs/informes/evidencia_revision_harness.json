@@ -1,0 +1,1769 @@
+{
+  "archive_sha256": "425991fd6d77bd1802b57d4c05c87cae0461b157497ae8568ceda0ae1bb7079a",
+  "files": 194,
+  "python_files": 74,
+  "python_lines": 17219,
+  "reproductions": [
+    {
+      "prueba": "ls",
+      "observado": {
+        "nivel": "auto",
+        "explicacion": "lista un directorio (solo lee)"
+      }
+    },
+    {
+      "prueba": "ls\ntouch audit_marker",
+      "observado": {
+        "nivel": "auto",
+        "explicacion": "lista un directorio (solo lee)"
+      }
+    },
+    {
+      "prueba": "ls & touch audit_marker",
+      "observado": {
+        "nivel": "auto",
+        "explicacion": "lista un directorio (solo lee)"
+      }
+    },
+    {
+      "prueba": "find . -delete",
+      "observado": {
+        "nivel": "auto",
+        "explicacion": "busca archivos (solo lee)"
+      }
+    },
+    {
+      "prueba": "find . -exec touch audit_marker +",
+      "observado": {
+        "nivel": "auto",
+        "explicacion": "busca archivos (solo lee)"
+      }
+    },
+    {
+      "prueba": "find . -fprintf audit_marker \"%p\"",
+      "observado": {
+        "nivel": "auto",
+        "explicacion": "busca archivos (solo lee)"
+      }
+    },
+    {
+      "prueba": "sort README.md -o audit_marker",
+      "observado": {
+        "nivel": "auto",
+        "explicacion": "ordena líneas (solo lee)"
+      }
+    },
+    {
+      "prueba": "pytest -p arbitrary_plugin",
+      "observado": {
+        "nivel": "auto",
+        "explicacion": "corre tests (solo lee)"
+      }
+    },
+    {
+      "prueba": "git diff --output=audit_marker",
+      "observado": {
+        "nivel": "auto",
+        "explicacion": "cambios sin commitear (solo lee)"
+      }
+    },
+    {
+      "prueba": "cat /etc/passwd",
+      "observado": {
+        "nivel": "auto",
+        "explicacion": "muestra un archivo (solo lee)"
+      }
+    },
+    {
+      "prueba": "ls && rm -rf /",
+      "observado": {
+        "nivel": "confirmar_doble",
+        "explicacion": "lista un directorio (solo lee)"
+      }
+    },
+    {
+      "prueba": "git -C . push",
+      "observado": {
+        "nivel": "preguntar",
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"
+      }
+    },
+    {
+      "prueba": "rm -r -f demo",
+      "observado": {
+        "nivel": "preguntar",
+        "explicacion": "borra archivos"
+      }
+    },
+    {
+      "prueba": "despacho 'ls\\ntouch audit_marker'",
+      "observado": {
+        "subprocess_invocado": true,
+        "aprobacion_solicitada": false,
+        "resultado": {
+          "role": "tool",
+          "tool_call_id": "audit",
+          "content": "exit 0\nmock"
+        }
+      }
+    },
+    {
+      "prueba": "despacho 'find . -delete'",
+      "observado": {
+        "subprocess_invocado": true,
+        "aprobacion_solicitada": false,
+        "resultado": {
+          "role": "tool",
+          "tool_call_id": "audit",
+          "content": "exit 0\nmock"
+        }
+      }
+    },
+    {
+      "prueba": "despacho 'sort README.md -o audit_marker'",
+      "observado": {
+        "subprocess_invocado": true,
+        "aprobacion_solicitada": false,
+        "resultado": {
+          "role": "tool",
+          "tool_call_id": "audit",
+          "content": "exit 0\nmock"
+        }
+      }
+    },
+    {
+      "prueba": "hook pre falla",
+      "observado": {
+        "implementacion_invocada": true,
+        "resultado": {
+          "role": "tool",
+          "tool_call_id": "audit",
+          "content": "efecto ejecutado"
+        }
+      }
+    },
+    {
+      "prueba": "Ctrl+C conserva acciones pendientes",
+      "observado": {
+        "tool_calls": [
+          [
+            "run_command",
+            "{\"command\":\"echo audit\"}"
+          ]
+        ],
+        "content": null
+      }
+    }
+  ],
+  "tools": [
+    {
+      "file": "modules/a2a.py",
+      "line": 141,
+      "name": "agentes_remotos",
+      "required": []
+    },
+    {
+      "file": "modules/a2a.py",
+      "line": 141,
+      "name": "a2a_tarea",
+      "required": [
+        "nombre",
+        "mensaje"
+      ]
+    },
+    {
+      "file": "modules/auditoria.py",
+      "line": 7,
+      "name": "run_auditoria",
+      "required": [
+        "carpetas"
+      ]
+    },
+    {
+      "file": "modules/coding.py",
+      "line": 98,
+      "name": "run_command",
+      "required": [
+        "command"
+      ]
+    },
+    {
+      "file": "modules/coding.py",
+      "line": 98,
+      "name": "edit_file",
+      "required": [
+        "path",
+        "old_string",
+        "new_string"
+      ]
+    },
+    {
+      "file": "modules/db.py",
+      "line": 132,
+      "name": "sql",
+      "required": [
+        "consulta"
+      ]
+    },
+    {
+      "file": "modules/db.py",
+      "line": 132,
+      "name": "db_schema",
+      "required": []
+    },
+    {
+      "file": "modules/debate.py",
+      "line": 7,
+      "name": "debate",
+      "required": [
+        "tema"
+      ]
+    },
+    {
+      "file": "modules/escritura.py",
+      "line": 21,
+      "name": "write_file",
+      "required": [
+        "path",
+        "content"
+      ]
+    },
+    {
+      "file": "modules/juez.py",
+      "line": 11,
+      "name": "answer_verified",
+      "required": [
+        "pregunta"
+      ]
+    },
+    {
+      "file": "modules/juez.py",
+      "line": 11,
+      "name": "juez_lote",
+      "required": [
+        "preguntas"
+      ]
+    },
+    {
+      "file": "modules/mcp.py",
+      "line": 10,
+      "name": "mcp_tools",
+      "required": []
+    },
+    {
+      "file": "modules/mcp.py",
+      "line": 10,
+      "name": "mcp_call",
+      "required": [
+        "servidor",
+        "herramienta"
+      ]
+    },
+    {
+      "file": "modules/memoria.py",
+      "line": 169,
+      "name": "memory_search",
+      "required": []
+    },
+    {
+      "file": "modules/memoria.py",
+      "line": 169,
+      "name": "memory_save",
+      "required": [
+        "titulo",
+        "contenido"
+      ]
+    },
+    {
+      "file": "modules/rag.py",
+      "line": 10,
+      "name": "rag_search",
+      "required": [
+        "consulta"
+      ]
+    },
+    {
+      "file": "modules/rag.py",
+      "line": 10,
+      "name": "rag_index",
+      "required": []
+    },
+    {
+      "file": "modules/research.py",
+      "line": 7,
+      "name": "deep_research",
+      "required": [
+        "tema"
+      ]
+    },
+    {
+      "file": "modules/supervisor.py",
+      "line": 8,
+      "name": "run_supervisor",
+      "required": [
+        "tarea"
+      ]
+    },
+    {
+      "file": "modules/vision.py",
+      "line": 223,
+      "name": "ver_imagen",
+      "required": [
+        "path"
+      ]
+    },
+    {
+      "file": "modules/vision.py",
+      "line": 223,
+      "name": "ver_pdf",
+      "required": [
+        "path"
+      ]
+    },
+    {
+      "file": "modules/websearch.py",
+      "line": 7,
+      "name": "search_web",
+      "required": [
+        "consulta"
+      ]
+    },
+    {
+      "file": "utils/fs_tools.py",
+      "line": 321,
+      "name": "list_files",
+      "required": []
+    },
+    {
+      "file": "utils/fs_tools.py",
+      "line": 321,
+      "name": "read_file",
+      "required": [
+        "path"
+      ]
+    },
+    {
+      "file": "utils/fs_tools.py",
+      "line": 321,
+      "name": "search_files",
+      "required": []
+    }
+  ],
+  "sensitive_calls": [
+    {
+      "file": "auditoria.py",
+      "line": 97,
+      "call": "escribir_salida(shared['salida'], exec_res)"
+    },
+    {
+      "file": "banco/banco.py",
+      "line": 211,
+      "call": "dir_salida.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "banco/banco.py",
+      "line": 225,
+      "call": "eventos_f.open('a', encoding='utf-8')"
+    },
+    {
+      "file": "banco/banco.py",
+      "line": 144,
+      "call": "destino.open('a', encoding='utf-8')"
+    },
+    {
+      "file": "banco/banco.py",
+      "line": 331,
+      "call": "resumen.open('w', encoding='utf-8')"
+    },
+    {
+      "file": "banco/banco.py",
+      "line": 138,
+      "call": "os.execvpe(sys.executable, [sys.executable, 'main.py'], env)"
+    },
+    {
+      "file": "banco/banco.py",
+      "line": 343,
+      "call": "shutil.rmtree(objetivo, ignore_errors=True)"
+    },
+    {
+      "file": "banco/banco.py",
+      "line": 345,
+      "call": "objetivo.unlink()"
+    },
+    {
+      "file": "banco/probes/etiquetar_router.py",
+      "line": 110,
+      "call": "open(salida, 'a', encoding='utf-8')"
+    },
+    {
+      "file": "banco/probes/verdict_juez.py",
+      "line": 189,
+      "call": "salida.parent.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "banco/probes/verdict_juez.py",
+      "line": 206,
+      "call": "escribir_salida(filas)"
+    },
+    {
+      "file": "banco/probes/verdict_juez.py",
+      "line": 190,
+      "call": "salida.open('w', encoding='utf-8')"
+    },
+    {
+      "file": "bench_juez.py",
+      "line": 268,
+      "call": "ruta.parent.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "bench_juez.py",
+      "line": 277,
+      "call": "ruta.write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding='utf-8')"
+    },
+    {
+      "file": "bench_juez.py",
+      "line": 375,
+      "call": "dir_salida.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "bench_juez.py",
+      "line": 377,
+      "call": "destino.write_text(md, encoding='utf-8')"
+    },
+    {
+      "file": "carga_trazas.py",
+      "line": 67,
+      "call": "con.execute('BEGIN IMMEDIATE')"
+    },
+    {
+      "file": "carga_trazas.py",
+      "line": 68,
+      "call": "con.execute('DROP TABLE IF EXISTS trazas')"
+    },
+    {
+      "file": "carga_trazas.py",
+      "line": 70,
+      "call": "con.execute(sentencia)"
+    },
+    {
+      "file": "carga_trazas.py",
+      "line": 72,
+      "call": "open(archivo, encoding='utf-8')"
+    },
+    {
+      "file": "carga_trazas.py",
+      "line": 84,
+      "call": "con.execute('INSERT INTO trazas (archivo, carpeta, registro, modulo, task, criterios, pasos, json_valido) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', (str(archivo), str(archivo.parent), n, _texto(respuestas.get('next')), _texto(campos.get('task')), _texto(campos.get('criteria')), len(campos.get('steps') or []), 0 if motivo else 1))"
+    },
+    {
+      "file": "effective_n.py",
+      "line": 54,
+      "call": "open(path, 'rb')"
+    },
+    {
+      "file": "effective_n.py",
+      "line": 339,
+      "call": "escribir_salida(self.salida, informe_conjunto(informes))"
+    },
+    {
+      "file": "effective_n.py",
+      "line": 91,
+      "call": "open(filepath, encoding='utf-8')"
+    },
+    {
+      "file": "effective_n.py",
+      "line": 251,
+      "call": "escribir_salida(salida, exec_res['markdown'])"
+    },
+    {
+      "file": "evals.py",
+      "line": 193,
+      "call": "ruta.parent.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "evals.py",
+      "line": 202,
+      "call": "ruta.write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding='utf-8')"
+    },
+    {
+      "file": "evals.py",
+      "line": 574,
+      "call": "dir_salida.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "evals.py",
+      "line": 576,
+      "call": "destino.write_text(md, encoding='utf-8')"
+    },
+    {
+      "file": "evals.py",
+      "line": 52,
+      "call": "subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True, timeout=5)"
+    },
+    {
+      "file": "heartbeat.py",
+      "line": 46,
+      "call": "ESTADO.parent.mkdir(exist_ok=True)"
+    },
+    {
+      "file": "heartbeat.py",
+      "line": 47,
+      "call": "ESTADO.write_text(json.dumps(estado, ensure_ascii=False, indent=1), encoding='utf-8')"
+    },
+    {
+      "file": "heartbeat.py",
+      "line": 65,
+      "call": "destino.parent.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "heartbeat.py",
+      "line": 81,
+      "call": "LOG.parent.mkdir(exist_ok=True)"
+    },
+    {
+      "file": "heartbeat.py",
+      "line": 82,
+      "call": "open(LOG, 'a', encoding='utf-8')"
+    },
+    {
+      "file": "informe.py",
+      "line": 83,
+      "call": "open(filepath, encoding='utf-8')"
+    },
+    {
+      "file": "informe.py",
+      "line": 224,
+      "call": "escribir_salida(shared['salida'], exec_res)"
+    },
+    {
+      "file": "juez_lote.py",
+      "line": 214,
+      "call": "escribir_salida(self.salida, texto)"
+    },
+    {
+      "file": "juez_lote.py",
+      "line": 114,
+      "call": "exec_res.get('error')"
+    },
+    {
+      "file": "minar_errores.py",
+      "line": 336,
+      "call": "destino.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "minar_errores.py",
+      "line": 340,
+      "call": "md_path.write_text(escribir_md(informe, sha, fecha), encoding='utf-8')"
+    },
+    {
+      "file": "minar_errores.py",
+      "line": 347,
+      "call": "json_path.write_text(json.dumps(salida_json, indent=2, ensure_ascii=False), encoding='utf-8')"
+    },
+    {
+      "file": "minar_errores.py",
+      "line": 315,
+      "call": "subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], capture_output=True, text=True, timeout=5)"
+    },
+    {
+      "file": "modules/a2a.py",
+      "line": 60,
+      "call": "requests.get(f'{base}/.well-known/agent.json', timeout=TIMEOUT_CARD_S)"
+    },
+    {
+      "file": "modules/a2a.py",
+      "line": 122,
+      "call": "requests.post(f'{base}/', json=payload, timeout=TIMEOUT_TAREA_S)"
+    },
+    {
+      "file": "modules/coding.py",
+      "line": 263,
+      "call": "evaluados.sort(key=lambda c: c[0], reverse=True)"
+    },
+    {
+      "file": "modules/coding.py",
+      "line": 148,
+      "call": "input(f'{prompt} (s/n): ').strip().lower()"
+    },
+    {
+      "file": "modules/coding.py",
+      "line": 199,
+      "call": "subprocess.run(command, shell=True, capture_output=True, text=True, timeout=TIMEOUT_S, stdin=subprocess.DEVNULL, cwd=Path.cwd())"
+    },
+    {
+      "file": "modules/coding.py",
+      "line": 261,
+      "call": "evaluados.append((ratio, i + 1, '\\n'.join(ventana)))"
+    },
+    {
+      "file": "modules/coding.py",
+      "line": 337,
+      "call": "_approve(f'¿Aplicar? → {resolved}')"
+    },
+    {
+      "file": "modules/coding.py",
+      "line": 343,
+      "call": "resolved.write_text(nuevo, encoding='utf-8')"
+    },
+    {
+      "file": "modules/coding.py",
+      "line": 148,
+      "call": "input(f'{prompt} (s/n): ').strip()"
+    },
+    {
+      "file": "modules/coding.py",
+      "line": 181,
+      "call": "_approve('¿Seguro? (1/2)')"
+    },
+    {
+      "file": "modules/coding.py",
+      "line": 184,
+      "call": "_approve('¿Confirmás de nuevo? (2/2)')"
+    },
+    {
+      "file": "modules/coding.py",
+      "line": 193,
+      "call": "_approve('¿Ejecutar?')"
+    },
+    {
+      "file": "modules/coding.py",
+      "line": 148,
+      "call": "input(f'{prompt} (s/n): ')"
+    },
+    {
+      "file": "modules/db.py",
+      "line": 32,
+      "call": "con.execute(\"SELECT name, sql FROM sqlite_master WHERE type IN ('table','index')\").fetchall()"
+    },
+    {
+      "file": "modules/db.py",
+      "line": 32,
+      "call": "con.execute(\"SELECT name, sql FROM sqlite_master WHERE type IN ('table','index')\")"
+    },
+    {
+      "file": "modules/db.py",
+      "line": 114,
+      "call": "con.execute(consulta).fetchall()"
+    },
+    {
+      "file": "modules/db.py",
+      "line": 114,
+      "call": "con.execute(consulta)"
+    },
+    {
+      "file": "modules/escritura.py",
+      "line": 52,
+      "call": "input(f'{prompt} (s/n): ').strip().lower()"
+    },
+    {
+      "file": "modules/escritura.py",
+      "line": 90,
+      "call": "_approve(f'¿Escribir? → {resolved}')"
+    },
+    {
+      "file": "modules/escritura.py",
+      "line": 96,
+      "call": "resolved.parent.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "modules/escritura.py",
+      "line": 97,
+      "call": "resolved.write_text(content, encoding='utf-8')"
+    },
+    {
+      "file": "modules/escritura.py",
+      "line": 52,
+      "call": "input(f'{prompt} (s/n): ').strip()"
+    },
+    {
+      "file": "modules/escritura.py",
+      "line": 52,
+      "call": "input(f'{prompt} (s/n): ')"
+    },
+    {
+      "file": "modules/memoria.py",
+      "line": 138,
+      "call": "raiz.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "modules/memoria.py",
+      "line": 139,
+      "call": "destino.write_text(texto, encoding='utf-8')"
+    },
+    {
+      "file": "modules/memoria.py",
+      "line": 162,
+      "call": "raiz.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "modules/memoria.py",
+      "line": 163,
+      "call": "destino.write_text(contenido.rstrip() + '\\n', encoding='utf-8')"
+    },
+    {
+      "file": "modules/vision.py",
+      "line": 128,
+      "call": "requests.post(f'{_api_base()}/chat/completions', headers={'Authorization': f'Bearer {get_api_key()}'}, json={'model': _model(), 'messages': messages}, timeout=TIMEOUT_S)"
+    },
+    {
+      "file": "modules/vision.py",
+      "line": 203,
+      "call": "requests.post(f'{_api_base()}/chat/completions', headers={'Authorization': f'Bearer {get_api_key()}'}, json={'model': _model(), 'messages': messages}, timeout=TIMEOUT_S)"
+    },
+    {
+      "file": "modules/vision.py",
+      "line": 171,
+      "call": "subprocess.run(['pdftoppm', '-png', '-r', '110', str(resolved), base], capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL)"
+    },
+    {
+      "file": "nodes.py",
+      "line": 37,
+      "call": "destino.parent.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "nodes.py",
+      "line": 38,
+      "call": "open(destino, 'a', encoding='utf-8')"
+    },
+    {
+      "file": "nodes.py",
+      "line": 209,
+      "call": "exec_res.lower()"
+    },
+    {
+      "file": "nodes.py",
+      "line": 193,
+      "call": "input('\\nTú: ').strip()"
+    },
+    {
+      "file": "nodes.py",
+      "line": 317,
+      "call": "(exec_res.content or '').strip()"
+    },
+    {
+      "file": "nodes.py",
+      "line": 193,
+      "call": "input('\\nTú: ')"
+    },
+    {
+      "file": "rag.py",
+      "line": 114,
+      "call": "INDICE_DIR.mkdir(exist_ok=True)"
+    },
+    {
+      "file": "rag.py",
+      "line": 37,
+      "call": "open(path, 'rb')"
+    },
+    {
+      "file": "rag.py",
+      "line": 122,
+      "call": "ruta_vec.unlink(missing_ok=True)"
+    },
+    {
+      "file": "rag.py",
+      "line": 123,
+      "call": "open(INDICE_DIR / 'chunks.json', 'w', encoding='utf-8')"
+    },
+    {
+      "file": "research.py",
+      "line": 150,
+      "call": "escribir_salida(shared['salida'], exec_res['content'])"
+    },
+    {
+      "file": "research.py",
+      "line": 147,
+      "call": "exec_res.get('feedback', '')"
+    },
+    {
+      "file": "sonda_laya.py",
+      "line": 368,
+      "call": "destino.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "sonda_laya.py",
+      "line": 371,
+      "call": "md_path.write_text(escribir_md(informe), encoding='utf-8')"
+    },
+    {
+      "file": "sonda_laya.py",
+      "line": 372,
+      "call": "json_path.write_text(json.dumps(informe, indent=2, ensure_ascii=False), encoding='utf-8')"
+    },
+    {
+      "file": "sonda_laya.py",
+      "line": 286,
+      "call": "subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=RAIZ, capture_output=True, text=True, timeout=10).stdout.strip()"
+    },
+    {
+      "file": "sonda_laya.py",
+      "line": 286,
+      "call": "subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=RAIZ, capture_output=True, text=True, timeout=10)"
+    },
+    {
+      "file": "supervisor.py",
+      "line": 302,
+      "call": "exec_res['resultado'].startswith('ERROR')"
+    },
+    {
+      "file": "supervisor.py",
+      "line": 339,
+      "call": "escribir_salida(shared['salida'], f'# Supervisor — {shared['tarea']}\\n\\n{exec_res}\\n\\n## Pasos (la auditoría de la corrida)\\n\\n{pasos}\\n')"
+    },
+    {
+      "file": "supervisor.py",
+      "line": 313,
+      "call": "exec_res.get('repetida')"
+    },
+    {
+      "file": "tests/test_banco.py",
+      "line": 190,
+      "call": "ruta.write_text(_yaml.safe_dump({'id': 'esc', 'turnos': [turno]}, allow_unicode=True), encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_minar_errores.py",
+      "line": 139,
+      "call": "(tmp_path / 'ok.jsonl').write_text('{\"ts\": 1.0, \"nodo\": \"edit_file\", \"accion\": \"error\", \"seg\": 0.0}\\n{\"ts\": 2.0, \"nodo\": \"edit_file\", \"accion\": \"ok\", \"seg\": 0.2}\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_minar_errores.py",
+      "line": 144,
+      "call": "(tmp_path / 'roto.jsonl').write_text('{esto no es json}\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_minar_errores.py",
+      "line": 145,
+      "call": "(tmp_path / 'vacio.jsonl').write_text('', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_minar_errores.py",
+      "line": 247,
+      "call": "(tmp_path / 'larga.jsonl').write_text('{\"nodo\": \"read_file\", \"accion\": \"ok\", \"seg\": 200.0}\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_minar_errores.py",
+      "line": 249,
+      "call": "(tmp_path / 'limpia.jsonl').write_text('{\"nodo\": \"read_file\", \"accion\": \"ok\", \"seg\": 0.5}\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_minar_errores.py",
+      "line": 251,
+      "call": "(tmp_path / 'roto.jsonl').write_text('{no es json}\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_minar_errores.py",
+      "line": 252,
+      "call": "(tmp_path / 'vacia.jsonl').write_text('', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_minar_errores.py",
+      "line": 254,
+      "call": "evaluar_runs(tmp_path, umbral_seg=120.0)"
+    },
+    {
+      "file": "tests/test_minar_errores.py",
+      "line": 313,
+      "call": "Path(salida).parent.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "tests/test_minar_errores.py",
+      "line": 314,
+      "call": "Path(salida).write_text('fake', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 78,
+      "call": "base.mkdir(parents=True)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 98,
+      "call": "base.mkdir(parents=True)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 232,
+      "call": "con.execute('CREATE TABLE trazas (id INTEGER PRIMARY KEY, criterios TEXT)')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 233,
+      "call": "con.executemany('INSERT INTO trazas (criterios) VALUES (?)', [(c,) for c in criterios])"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 318,
+      "call": "(tmp_path / 'uno.jsonl').write_text('\\n'.join((_json.dumps(c) for c in casos)) + '\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 321,
+      "call": "(tmp_path / 'dos.jsonl').write_text(_json.dumps(casos[0]) + '\\n' + _json.dumps({'id': '4', 'fields': {'task': 'c'}, 'answers': {'next': 'finish'}}) + '\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 337,
+      "call": "carpeta.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 338,
+      "call": "(carpeta / nombre).write_text(_json.dumps({'id': task, 'fields': {'task': task}, 'answers': {'next': nxt}}) + '\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 473,
+      "call": "preguntas.write_text('¿Qué hace effective_n?\\n\\n# comentario\\n¿Qué hace juez?\\n¿Qué hace el RAG?\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 538,
+      "call": "preguntas.write_text('uno\\ndos\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 551,
+      "call": "runs.mkdir()"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 553,
+      "call": "(runs / 'sesion.jsonl').write_text('{\"nodo\": \"GetQuestion\", \"accion\": \"exit\", \"seg\": 1.0}\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 558,
+      "call": "me.evals(dir_runs=str(runs), salida=str(salida))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 570,
+      "call": "me.evals(dir_runs=str(tmp_path / 'no_existe'))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 725,
+      "call": "traza.write_text('\\n'.join((json.dumps(e) for e in eventos)) + '\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 748,
+      "call": "traza.write_text(json.dumps({'ts': 1, 'nodo': 'A', 'accion': 'x', 'seg': 0.1}) + '\\n')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 755,
+      "call": "traza.write_text(traza.read_text() + json.dumps({'ts': 2, 'nodo': 'B', 'accion': 'y', 'seg': 0.2}) + '\\n')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 1145,
+      "call": "nodes.AgentStep().exec(([{'role': 'user', 'content': 'esquema'}], ['tool']))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 1151,
+      "call": "nodes.AgentStep().exec(([{'role': 'user', 'content': 'esquema'}], None))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 1209,
+      "call": "nodes.AgentStep().exec(([{'role': 'user', 'content': 'x'}], None))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 1213,
+      "call": "nodes.AgentStep().exec(([{'role': 'user', 'content': 'x'}], None))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 1218,
+      "call": "nodes.DirectAnswer().exec(([{'role': 'user', 'content': 'x'}], None))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 1241,
+      "call": "nodes.AgentStep().exec(([{'role': 'user', 'content': 'x'}], None))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 1371,
+      "call": "env.write_text(\"# comentario\\nexport LLM_API_KEY=sk-abc\\nexport   OTRA=sin-espacios-raros\\nNORMAL=valor-plano\\nexport CON_COMILLAS='citado'\\n\", encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 1483,
+      "call": "archivo.write_text('def suma(a, b):\\n    return a + b\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 1499,
+      "call": "archivo.write_text('base = 1\\nbase = base + 1\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 1703,
+      "call": "roto.write_text('def f(:\\n    pass\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2004,
+      "call": "urllib.request.urlopen(req, timeout=5)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2073,
+      "call": "(tmp_path / 'nota_2026-10-05_prueba.md').write_text('Hallazgo de LaYa\\n\\nEl router degrada al lado SEGURO.\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2075,
+      "call": "(tmp_path / 'sesion_2026-10-05.md').write_text('Tema: streaming\\n\\nSe implementó el modo clásico y el stream.\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2247,
+      "call": "(tmp_path / 'chunks.json').write_text(json.dumps({'modo': 'semantico', 'chunks': [{'path': 'a', 'texto': 'x'}] * 4}), encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2273,
+      "call": "(tmp_path / 'chunks.json').write_text(json.dumps({'modo': 'semantico', 'chunks': [{'path': 'a', 'texto': 'x'}] * 2}), encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2290,
+      "call": "(tmp_path / 'chunks.json').write_text(json.dumps({'modo': 'lexico', 'chunks': [{'path': 'a', 'texto': 'hola mundo'}]}), encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2313,
+      "call": "preg.write_text('pregunta buena\\npregunta ROMPE ahora\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2390,
+      "call": "ruta.write_text('{\"score\": 0.8, \"ece\": 0.10}', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2396,
+      "call": "ruta.write_text('{\"score\": 0.95, \"ece\": 0.02}', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2402,
+      "call": "ruta.write_text('{\"score\": null, \"ece\": null}', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2415,
+      "call": "evals.correr_bench()"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2526,
+      "call": "limpia.write_text(json.dumps(_linea('GetQuestion', 'exit')) + '\\n' + json.dumps(_linea('ExitChat', 'None')) + '\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2529,
+      "call": "sucia.write_text('\\n'.join((json.dumps(e) for e in [_linea('GetQuestion', 'continue'), _linea('LayaRouter', 'herramientas'), _linea('AgentStep', 'tool'), _linea('AgentStep', 'answer')])) + '\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2536,
+      "call": "evals.linter_runs(tmp_path)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2563,
+      "call": "evals.costos_runs(tmp_path)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2706,
+      "call": "img.write_bytes(PNG_1x1)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2747,
+      "call": "falso.write_text('no soy una imagen', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2763,
+      "call": "grande.write_bytes(PNG_1x1)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2784,
+      "call": "pdf.write_bytes(b'%PDF-1.4 + firma + EOF')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2840,
+      "call": "falso.write_text('no soy un pdf', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2856,
+      "call": "pdf.write_bytes(b'%PDF-1.4\\n')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 3113,
+      "call": "et.exec(tool_calls)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 3219,
+      "call": "(tmp_path / 'a.md').write_text('nota sobre pytest y compacción\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 3220,
+      "call": "(tmp_path / 'b.md').write_text('otra nota cualquiera\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 3419,
+      "call": "nodes.GetQuestion().exec(None)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 3519,
+      "call": "(tmp_path / 'nota_a.md').write_text('contenido secreto A\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 3520,
+      "call": "(tmp_path / 'nota_b.md').write_text('contenido secreto B\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 3655,
+      "call": "mod.evals(dir_runs=None, salida='salidas/banco')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 3800,
+      "call": "base.mkdir(exist_ok=True)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 3973,
+      "call": "fixture.write_text('linea uno\\nla clave es OLLAMA\\nlinea tres\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4045,
+      "call": "roto.write_text('{\"id\": \"a\", \"pregunta\": \"x\"\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4052,
+      "call": "sin_id.write_text('{\"pregunta\": \"x\"}\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4059,
+      "call": "sin_preg.write_text('{\"id\": \"a\"}\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4071,
+      "call": "vacio.write_text('\\n\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4078,
+      "call": "ok.write_text('{\"id\": \"a\", \"pregunta\": \"uno\"}\\n{\"id\": \"b\", \"pregunta\": \"dos\"}\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4091,
+      "call": "fixture.write_text('linea uno\\nla clave es OLLAMA\\nlinea tres\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4116,
+      "call": "preguntas.write_text('\\n'.join((__import__('json').dumps(c) for c in casos)), encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4191,
+      "call": "juez.Judge().exec(inputs)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4201,
+      "call": "juez.Judge().exec(('¿q?', 'borrador', [], False))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4215,
+      "call": "juez.Judge().exec(('¿q?', 'borrador', [], False))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4226,
+      "call": "juez.Judge().exec(('¿q?', 'borrador', [], False))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4244,
+      "call": "juez.Judge().exec(('¿q?', 'borrador', [], False))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4274,
+      "call": "juez.Judge().exec(('¿q?', 'borrador', [], False))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4432,
+      "call": "allowed.mkdir()"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4466,
+      "call": "allowed.mkdir()"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4468,
+      "call": "fuera.write_text('EXTERNAL_MARKER_123\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4469,
+      "call": "(allowed / 'propio.txt').write_text('contenido propio\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4507,
+      "call": "sup.EjecutarPaso().exec(('tarea', [], 'run_command', 1, 0, {}))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4570,
+      "call": "archivo.write_text('{\"answers\": {\"next\": \"router\"}, \"fields\": {\"task\": \"clasificar\"}}\\n[]\\nnull\\n{\"answers\": null}\\n{roto\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4595,
+      "call": "base.mkdir(exist_ok=True)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4624,
+      "call": "carpeta.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4749,
+      "call": "juez.Judge().exec(('¿q?', 'según /ruta/falsa.md:99', ['[ROTA] /ruta/falsa.md:99 → ERROR: no existe'], False))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4754,
+      "call": "juez.Judge().exec(('¿q?', 'borrador', ['/real.md:1 → contenido real:\\nx'], False))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4781,
+      "call": "juez.Draft().exec(inputs)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4857,
+      "call": "research.Researcher().exec('consulta 1')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4916,
+      "call": "archivo.unlink()"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4946,
+      "call": "evaluar(B, q)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4963,
+      "call": "ruta.write_text('\\n'.join([_json.dumps({'conf': 0.97, 'correcto': True})] * 20 + [_json.dumps({'conf': 0.6, 'correcto': False})] * 10) + '\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4976,
+      "call": "vacia.write_text('', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4991,
+      "call": "calib.write_text('\\n'.join([_json.dumps({'conf': 0.97, 'correcto': True})] * 20 + [_json.dumps({'conf': 0.6, 'correcto': False})] * 10) + '\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 5103,
+      "call": "archivo.write_text(_json.dumps({'ts': 1.0, 'pregunta': '¿quién ganó el último mundial?'}) + '\\n' + 'una pregunta suelta sin json\\n' + _json.dumps({'ts': 2.0, 'pregunta': 'corta'}) + '\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 77,
+      "call": "shutil.rmtree(base)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 88,
+      "call": "shutil.rmtree(base, ignore_errors=True)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 97,
+      "call": "shutil.rmtree(base)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 108,
+      "call": "shutil.rmtree(base, ignore_errors=True)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 1910,
+      "call": "urllib.request.urlopen(req, timeout=5).read()"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2550,
+      "call": "(tmp_path / nombre).write_text('\\n'.join((json.dumps(e) for e in eventos)) + '\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2798,
+      "call": "pag1.write_bytes(b'\\x89PNG' + b'fake' * 10)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2800,
+      "call": "pag2.write_bytes(b'\\x89PNG' + b'fake' * 10)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2802,
+      "call": "subprocess.CompletedProcess(args, 0, '', '')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 3234,
+      "call": "(tmp_path / nombre).write_text(f'contenido {nombre} sobre compacción\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 3803,
+      "call": "carpeta.mkdir(exist_ok=True)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 3808,
+      "call": "(carpeta / 'uno.jsonl').write_text(_json.dumps(registro) + '\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 3821,
+      "call": "shutil.rmtree(base, ignore_errors=True)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4529,
+      "call": "carpeta.mkdir()"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4551,
+      "call": "(tmp_path / 'chunks.json').write_text(_json.dumps({'modo': 'lexico', 'chunks': [{'texto': texto, 'ruta': 'a.txt'}]}), encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4611,
+      "call": "shutil.rmtree(base, ignore_errors=True)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4627,
+      "call": "(carpeta / 'uno.jsonl').write_text(_json.dumps({'answers': {'next': 'x'}, 'fields': {'task': 'ok'}}) + '\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4648,
+      "call": "vacia.mkdir()"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4653,
+      "call": "shutil.rmtree(base, ignore_errors=True)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4669,
+      "call": "router.exec({'pregunta': 'hola'})"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4730,
+      "call": "research.Planner().exec(('tema', ''))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4734,
+      "call": "research.Planner().exec(('tema', ''))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4740,
+      "call": "research.Synthesizer().exec(('tema', ['material'], 0))"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4952,
+      "call": "evaluar([], q)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 81,
+      "call": "(base / f'archivo_{i:02d}.txt').write_text('')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 101,
+      "call": "(base / f'archivo_{i:02d}.txt').write_text('')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 1978,
+      "call": "urllib.request.urlopen(req, timeout=5)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 2032,
+      "call": "urllib.request.urlopen(req, timeout=5)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4531,
+      "call": "(carpeta / f'a{j}.jsonl').write_text(_json.dumps({'answers': {'next': 'x'}, 'fields': {'task': 't'}}) + '\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4599,
+      "call": "(base / f't{i:02d}.jsonl').write_text(_json.dumps({'answers': {'next': 'x'}, 'fields': {'task': f't{i}'}}) + '\\n', encoding='utf-8')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 1910,
+      "call": "urllib.request.urlopen(req, timeout=5)"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 3816,
+      "call": "con.execute('SELECT criterios FROM trazas').fetchone()"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4607,
+      "call": "con.execute('SELECT COUNT(*) FROM trazas').fetchone()"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4642,
+      "call": "con.execute('SELECT COUNT(*) FROM trazas').fetchone()"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 3816,
+      "call": "con.execute('SELECT criterios FROM trazas')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4607,
+      "call": "con.execute('SELECT COUNT(*) FROM trazas')"
+    },
+    {
+      "file": "tests/test_smoke.py",
+      "line": 4642,
+      "call": "con.execute('SELECT COUNT(*) FROM trazas')"
+    },
+    {
+      "file": "triaje_trazas.py",
+      "line": 77,
+      "call": "evaluaciones.items()"
+    },
+    {
+      "file": "triaje_trazas.py",
+      "line": 254,
+      "call": "evaluar_runs(args.carpeta, umbral_seg=args.umbral)"
+    },
+    {
+      "file": "triaje_trazas.py",
+      "line": 259,
+      "call": "destino.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "triaje_trazas.py",
+      "line": 261,
+      "call": "md_path.write_text(escribir_md(informe, sha, fecha), encoding='utf-8')"
+    },
+    {
+      "file": "triaje_trazas.py",
+      "line": 235,
+      "call": "subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], capture_output=True, text=True, timeout=5)"
+    },
+    {
+      "file": "utils/fs_tools.py",
+      "line": 72,
+      "call": "subprocess.run(['python3', '-m', 'py_compile', str(resolved)], capture_output=True, text=True, timeout=15)"
+    },
+    {
+      "file": "utils/fs_tools.py",
+      "line": 134,
+      "call": "destino.parent.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "utils/fs_tools.py",
+      "line": 135,
+      "call": "destino.write_text(texto, encoding='utf-8')"
+    },
+    {
+      "file": "utils/laya_routing.py",
+      "line": 166,
+      "call": "destino.parent.mkdir(parents=True, exist_ok=True)"
+    },
+    {
+      "file": "utils/laya_routing.py",
+      "line": 167,
+      "call": "open(destino, 'a', encoding='utf-8')"
+    },
+    {
+      "file": "utils/tracing.py",
+      "line": 47,
+      "call": "directorio.mkdir(exist_ok=True)"
+    },
+    {
+      "file": "utils/tracing.py",
+      "line": 52,
+      "call": "open(archivo, 'w', encoding='utf-8')"
+    },
+    {
+      "file": "visor.py",
+      "line": 91,
+      "call": "destino.write_text(f'<!doctype html>\\n<html lang=\"es\"><head><meta charset=\"utf-8\">\\n<title>trace — {ruta.name}</title>\\n<style>\\n body {{ font-family: ui-monospace, monospace; background: #1a1b26; color: #c0caf5; margin: 2rem; }}\\n h1 {{ font-size: 1.1rem; color: #7aa2f7; }}\\n .meta {{ color: #565f89; margin-bottom: 1.5rem; }}\\n table {{ border-collapse: collapse; width: 100%; margin-bottom: 2rem; }}\\n td, th {{ padding: 3px 10px; text-align: left; border-bottom: 1px solid #292e42; font-size: 0.85rem; }}\\n .num {{ text-align: right; color: #9aa5ce; white-space: nowrap; }}\\n .chip {{ display: i"
+    },
+    {
+      "file": "visor.py",
+      "line": 29,
+      "call": "open(ruta, encoding='utf-8')"
+    },
+    {
+      "file": "visor.py",
+      "line": 128,
+      "call": "open(ruta, encoding='utf-8')"
+    }
+  ],
+  "broad_exception_handlers": [
+    {
+      "file": "banco/probes/etiquetar_router.py",
+      "line": 174
+    },
+    {
+      "file": "banco/probes/etiquetar_router.py",
+      "line": 116
+    },
+    {
+      "file": "banco/probes/etiquetar_router.py",
+      "line": 122
+    },
+    {
+      "file": "banco/probes/thinking_flip.py",
+      "line": 49
+    },
+    {
+      "file": "banco/probes/verdict_juez.py",
+      "line": 91
+    },
+    {
+      "file": "banco/probes/verdict_juez.py",
+      "line": 163
+    },
+    {
+      "file": "bench_juez.py",
+      "line": 185
+    },
+    {
+      "file": "carga_trazas.py",
+      "line": 93
+    },
+    {
+      "file": "evals.py",
+      "line": 55
+    },
+    {
+      "file": "evals.py",
+      "line": 123
+    },
+    {
+      "file": "heartbeat.py",
+      "line": 76
+    },
+    {
+      "file": "juez.py",
+      "line": 136
+    },
+    {
+      "file": "juez.py",
+      "line": 294
+    },
+    {
+      "file": "juez_lote.py",
+      "line": 91
+    },
+    {
+      "file": "main.py",
+      "line": 97
+    },
+    {
+      "file": "main.py",
+      "line": 120
+    },
+    {
+      "file": "minar_errores.py",
+      "line": 318
+    },
+    {
+      "file": "modules/coding.py",
+      "line": 70
+    },
+    {
+      "file": "modules/db.py",
+      "line": 117
+    },
+    {
+      "file": "modules/evals.py",
+      "line": 32
+    },
+    {
+      "file": "modules/memoria.py",
+      "line": 116
+    },
+    {
+      "file": "modules/rag.py",
+      "line": 74
+    },
+    {
+      "file": "nodes.py",
+      "line": 43
+    },
+    {
+      "file": "nodes.py",
+      "line": 489
+    },
+    {
+      "file": "nodes.py",
+      "line": 529
+    },
+    {
+      "file": "research.py",
+      "line": 78
+    },
+    {
+      "file": "sonda_laya.py",
+      "line": 206
+    },
+    {
+      "file": "sonda_laya.py",
+      "line": 290
+    },
+    {
+      "file": "triaje_trazas.py",
+      "line": 238
+    },
+    {
+      "file": "utils/aprobaciones.py",
+      "line": 32
+    },
+    {
+      "file": "utils/call_llm.py",
+      "line": 202
+    },
+    {
+      "file": "utils/contexto.py",
+      "line": 107
+    },
+    {
+      "file": "utils/embeddings.py",
+      "line": 28
+    },
+    {
+      "file": "utils/fs_tools.py",
+      "line": 82
+    },
+    {
+      "file": "utils/fs_tools.py",
+      "line": 394
+    },
+    {
+      "file": "utils/fs_tools.py",
+      "line": 406
+    },
+    {
+      "file": "utils/hitl_web.py",
+      "line": 63
+    },
+    {
+      "file": "utils/hitl_web.py",
+      "line": 210
+    },
+    {
+      "file": "utils/hitl_web.py",
+      "line": 220
+    },
+    {
+      "file": "utils/laya.py",
+      "line": 73
+    },
+    {
+      "file": "utils/laya_routing.py",
+      "line": 53
+    },
+    {
+      "file": "utils/laya_routing.py",
+      "line": 169
+    },
+    {
+      "file": "utils/laya_routing.py",
+      "line": 77
+    },
+    {
+      "file": "utils/mcp_client.py",
+      "line": 96
+    },
+    {
+      "file": "utils/mcp_client.py",
+      "line": 74
+    },
+    {
+      "file": "utils/tracing.py",
+      "line": 71
+    },
+    {
+      "file": "utils/tracing.py",
+      "line": 90
+    },
+    {
+      "file": "utils/websearch.py",
+      "line": 16
+    }
+  ],
+  "scope": "AST de todos los Python; reproducciones con shell mock; sin API ni modelos reales; pytest completo no ejecutado"
+}
