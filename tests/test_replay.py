@@ -4,6 +4,7 @@ Los niveles son funciones PURAS sobre listas de eventos: se testean sin
 tocar disco ni red. Los grafos vivos se construyen una vez por módulo
 (importar replay dispara lo mismo que viz: todos los flujos del registro).
 """
+import os
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,28 @@ from utils.laya_routing import RouterConfig
 # ---------------------------------------------------------------------------
 # Fijuras: grafos vivos + una caminata realista del chat
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _router_on():
+    """HERMÉTICO: los grafos vivos se construyen con USE_LAYA_ROUTER=1.
+
+    `replay._grafos_vivos()` lee el setting por `_setting`, que mira PRIMERO
+    `os.environ` y recién después el `.env`. El banco exporta
+    USE_LAYA_ROUTER=0 para sus escenarios, y ese valor se hereda por el
+    pytest hijo: la variante con router (LayaRouter/DirectAnswer) desaparecía
+    del grafo y 4 tests fallaban por AMBIENTE, no por código. El fixture lo
+    pina a "1" (restaurando el valor previo al salir) para que la conducta
+    no dependa de dónde corre. Va ANTES de `vivos` (autouse + module)."""
+    previo = os.environ.get("USE_LAYA_ROUTER")
+    os.environ["USE_LAYA_ROUTER"] = "1"
+    try:
+        yield
+    finally:
+        if previo is None:
+            os.environ.pop("USE_LAYA_ROUTER", None)
+        else:
+            os.environ["USE_LAYA_ROUTER"] = previo
 
 
 @pytest.fixture(scope="module")
@@ -53,14 +76,14 @@ def _caminata_chat():
 
 def test_grafos_vivos_traen_las_variantes_del_chat(vivos):
     clases, aristas, _ = vivos
-    # nodos del chat con y sin router
-    for nodo in ("GetQuestion", "LayaRouter", "DirectAnswer", "AgentStep",
-                 "ExecuteTools", "ExitChat"):
+    # nodos del chat con y sin router (PreFetch desde exp/50 en ambas variantes)
+    for nodo in ("GetQuestion", "PreFetch", "LayaRouter", "DirectAnswer",
+                 "AgentStep", "ExecuteTools", "ExitChat"):
         assert nodo in clases, nodo
     # las aristas de ambas variantes: la del router y la de degradación
     assert ("GetQuestion", "exit", "ExitChat") in aristas
     assert ("LayaRouter", "herramientas", "AgentStep") in aristas
-    assert ("GetQuestion", "continue", "AgentStep") in aristas  # sin router
+    assert ("PreFetch", "continue", "AgentStep") in aristas  # sin router
     assert ("AgentStep", "tool", "ExecuteTools") in aristas
 
 

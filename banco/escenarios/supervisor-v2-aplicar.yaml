@@ -1,0 +1,28 @@
+id: supervisor-v2-aplicar
+descripcion: el despacho del supervisor se simplifica por veredicto del bench — un paso una llamada (tool+args juntos), leyes L8 como guardas de código
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+permitir_comandos:
+  - python3 -m pytest
+  - python3 -m ruff
+  - ruff
+  - cd /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow &&
+env:
+  MAX_TOOL_ROUNDS: "40"
+  COMPACTION_CHARS: "300000"
+  USE_LAYA_ROUTER: "0"
+  LAYA_MODEL_RIESGO: "0"
+scratch: []
+turnos:
+  - id: aplicar
+    linea: "Aplicá banco/specs/supervisor_v2.md al pie de la letra (secciones 1 a 5). Es una REESCRITURA de supervisor.py: leela entero primero, conservá los exports que consumen otros (supervisar/_TODAS/REGISTRO/create_supervisor_flow/hecho_de y los settings de leyes), jubilá ElegirSiguiente/EjecutarPaso/mayoría, mudá PREGUNTA_DESPACHO y elegir_con_deepseek a sonda_supervisor.py, y adaptá TODOS los tests que tocan lo viejo (cada test jubilado se nombra en tu reporte). Las guardas del §2 van PURAS y testeables. Andá directo a escribir; pytest SIN prefijo cd. Al final: python3 -m pytest tests/ -q (hoy 350 — pueden bajar con motivos) y ruff."
+    hitl: s
+    timeout: 1800
+    max_hitl: 25
+  - id: reporte
+    linea: "En 5 líneas: (1) la forma del flujo nuevo y sus aristas, (2) qué tests jubilaste y por qué, (3) qué guarda quedó en Ejecutar y cómo se testea sin LLM, (4) qué le pasa al heartbeat (nada = bien), (5) qué te quedó flojo."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

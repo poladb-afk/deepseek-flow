@@ -181,6 +181,19 @@ def _grafos_vivos():
         for nodo in _nodos_alcanzables(start):
             for accion, siguiente in nodo.successors.items():
                 aristas_chat.add((type(nodo).__name__, accion, type(siguiente).__name__))
+    # exp/50: PreFetch es un pasaje TRANSPARENTE entre GetQuestion y el resto.
+    # Las caminatas históricas (pre-exp/50) saltaban directo de GetQuestion a
+    # LayaRouter/AgentStep y siguen siendo válidas: se agregan las aristas
+    # transitivas (A -accion-> PreFetch -accion-> X implica A -accion-> X),
+    # para que el nivel B no reporte como rotas caminatas que solo cambiaron
+    # de forma, no de fondo.
+    aristas_chat |= {
+        (a, accion, c)
+        for (a, accion, b) in aristas_chat
+        if b == "PreFetch"
+        for (b2, accion2, c) in aristas_chat
+        if b2 == "PreFetch" and accion2 == accion and c != "PreFetch"
+    }
     return clases, aristas_chat
 
 

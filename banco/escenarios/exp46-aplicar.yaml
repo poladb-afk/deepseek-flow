@@ -1,0 +1,28 @@
+id: exp46-aplicar
+descripcion: la recencia deja de ser problema de Laya — regla dura antes del modelo, con respecto por la flywheel (shadow sigue consultando)
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+permitir_comandos:
+  - python3 -m pytest
+  - python3 -m ruff
+  - ruff
+env:
+  MAX_TOOL_ROUNDS: "30"
+  COMPACTION_CHARS: "200000"
+  # sesión de ESCRITURA: Laya apagada (los tests del fake la simulan)
+  USE_LAYA_ROUTER: "0"
+  LAYA_MODEL_RIESGO: "0"
+scratch: []
+turnos:
+  - id: aplicar
+    linea: "Aplicá banco/specs/exp46_regla_temporal.md al pie de la letra: la función pura regla_temporal con su RE_TEMPORAL EXACTO en utils/laya_routing.py, el cableado en nodes.py (enforce → centinela 'regla:temporal' SIN llamar a Laya; shadow → Laya corre igual para no cegar la flywheel; post detecta el centinela ANTES de decide y registra la causa), los 4 grupos de tests y las dos líneas de .env.example. No toques decide/ruta_aplical/umbrales. Al final: python3 -m pytest tests/ -q (deben crecer) y ruff."
+    hitl: s
+    timeout: 1200
+    max_hitl: 20
+  - id: reporte
+    linea: "En 3 líneas: (1) qué pasa hoy con '¿quién ganó el último mundial?' en enforce y en shadow, (2) qué clava el test del contador del fake, (3) algo que te haya quedado flojo."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

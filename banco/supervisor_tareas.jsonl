@@ -1,0 +1,6 @@
+{"id": "contar-utils", "tarea": "¿Cuántos archivos .py hay exactamente en la carpeta utils/? Respondé con el número y cómo lo obtuviste."}
+{"id": "constante-max-pasos", "tarea": "¿Cuál es el valor de MAX_PASOS en supervisor.py?"}
+{"id": "firma-veredicto", "tarea": "¿Qué devuelve la función veredicto() de utils/laya.py y con qué umbrales compara por defecto?"}
+{"id": "tablas-trazas", "tarea": "¿Cuántas tablas tiene la base trazas.db? Usá la tool de esquema."}
+{"id": "linea-marcadores", "tarea": "¿En qué línea de banco/banco.py está definido el dict MARCADORES? Da archivo:línea."}
+{"id": "conteo-routing", "tarea": "¿Cuántas decisiones (líneas) tiene hoy salidas/routing.jsonl? Decí el número."}

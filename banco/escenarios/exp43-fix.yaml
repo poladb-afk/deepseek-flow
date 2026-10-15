@@ -1,0 +1,25 @@
+id: exp43-fix
+descripcion: cierra los dos bugs verificados de la caza exp43 (gate del pendiente, marcador ecoado) — spec mecánica en disco
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+permitir_comandos:
+  - python3 -m pytest
+  - python3 -m ruff
+  - ruff
+env:
+  MAX_TOOL_ROUNDS: "30"
+  COMPACTION_CHARS: "200000"
+scratch: []
+turnos:
+  - id: fix
+    linea: "Aplicá banco/specs/exp43_fix_caza.md al pie de la letra (dos fixes + sus candados de test; el código va literal). Al final: python3 -m pytest tests/ -q (hoy 333, deben ser más)."
+    hitl: s
+    timeout: 1200
+    max_hitl: 20
+  - id: reporte
+    linea: "En 3 líneas: qué cambiaste, y pegá la línea del marcador nuevo."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

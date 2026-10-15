@@ -1,0 +1,26 @@
+id: exp43-caza
+descripcion: auditoría dirigida de exp/43 (etiqueta ambiental) — el harness caza bugs en su propio código nuevo, patrón exp/19
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+permitir_comandos:
+  - python3 -m pytest
+  - git diff
+  - git status
+  - git log
+env:
+  MAX_TOOL_ROUNDS: "40"
+  COMPACTION_CHARS: "200000"
+scratch: []
+turnos:
+  - id: caza
+    linea: "Cazá bugs en exp/43 (la etiqueta ambiental del router, recién aplicada). El diff: `git diff nodes.py utils/laya_routing.py banco/banco.py tests/` y los archivos nuevos banco/probes/etiquetar_ambiental.py, banco/probes/calibrar_voto.py, tests/test_voto_router.py. El diseño pretendido: banco/specs/exp43_etiqueta_ambiental.md y banco/specs/exp43_cierre.md. Método: (1) leé los dos specs completos; (2) trazá sobre el código REAL el ciclo de una pregunta en shadow (GetQuestion.post → LayaRouter.post → AgentStep.prep/exec/post → ExecuteTools si hay tools); (3) cazá en estas zonas: interacción de la etiqueta con recuperación DSML, sanitizado e intererrupción de stream; huérfanos (salir a mitad de pregunta, /aprobaciones, EOF); enforce vs shadow con LAYA_MODO cambiado; USE_VOTACION=0; gate LAYA_LOG_DECISIONES=0; casos límite de unir() (p_directo bool o string, resultado huérfano, decisión sin id vieja mezclada con líneas nuevas, líneas ilegibles); y falsos positivos del marcador etiqueta_ambiental del banco (lección del Fix 10: los marcadores matchean prosa ecoada). Por cada hallazgo: archivo:línea, el camino EXACTO que lo dispara (por qué es real y no teórico), severidad alta/media/baja, y si tiene test que lo cubra. NO toques nada — solo caza y reportá. Al final: tabla de hallazgos ordenada por severidad."
+    hitl: "n"
+    timeout: 1500
+    max_hitl: 20
+  - id: verificar-top
+    linea: "Sin tocar nada: de tu tabla, elegí el hallazgo de severidad más alta y VERIFICÁLO concretamente — demostrá el camino con los artefactos reales (salidas/routing_exp43_demo.jsonl tiene 4 líneas: 2 decisiones + 2 resultados; salidas/routing.jsonl tiene 44+ líneas viejas sin id que conviven con las nuevas). ¿unir() maneja bien el archivo MEZCLADO (líneas viejas sin id + nuevas con id)? Corré en tu cabeza o con un ejemplo mínimo cada paso. Si el hallazgo no sobrevive la verificación, decilo y pasá al siguiente."
+    hitl: "n"
+    timeout: 600
+  - id: salir
+    linea: "salir"
+    timeout: 60

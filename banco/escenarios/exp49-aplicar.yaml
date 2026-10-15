@@ -1,0 +1,28 @@
+id: exp49-aplicar
+descripcion: aprobación durable — checkpoint de selección (factor 8), reparación al rehidratar, y el humano como tool call (factor 7)
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+permitir_comandos:
+  - python3 -m pytest
+  - python3 -m ruff
+  - ruff
+  - cd /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow &&
+env:
+  MAX_TOOL_ROUNDS: "40"
+  COMPACTION_CHARS: "400000"
+  USE_LAYA_ROUTER: "0"
+  LAYA_MODEL_RIESGO: "0"
+scratch: []
+turnos:
+  - id: aplicar
+    linea: "Aplicá banco/specs/exp49_aprobacion_durable.md al pie de la letra (secciones 1 a 6: punto seguro 4 en AgentStep.post camino tool, reparar_pendientes PURA en utils/thread_store.py, resume con reparación + banner, modules/humano.py nuevo con request_human_input, tests, .env.example). El mensaje de reparación va LITERAL como está en la spec. pytest SIN prefijo cd (hoy 368, deben ser más) y ruff."
+    hitl: s
+    timeout: 1800
+    max_hitl: 25
+  - id: reporte
+    linea: "En 4 líneas: (1) dónde quedó el checkpoint de selección, (2) qué reparás y qué NO (pares viejos), (3) cómo se comporta request_human_input ante EOF, (4) algo flojo."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

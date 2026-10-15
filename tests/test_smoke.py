@@ -32,7 +32,7 @@ def test_action_space_completo():
         "run_informe", "write_file", "answer_verified", "run_auditoria",
         "rag_search", "rag_index", "debate",  # módulos
         "mcp_tools", "mcp_call", "search_web", "deep_research", "run_supervisor",
-        "sql", "db_schema", "run_effective_n", "evals",
+        "sql", "db_schema", "run_effective_n", "evals", "request_human_input",
     }
     assert esperadas <= nombres, f"faltan: {esperadas - nombres}"
 
@@ -572,7 +572,10 @@ def test_evals_tool_rechaza_carpeta_inexistente(tmp_path, monkeypatch):
 
 
 def test_pregunta_despacho_congelada():
-    from supervisor import OPCIONES, REGISTRO
+    # El contrato del despacho se mudó con la sonda (supervisor v2): su casa
+    # es sonda_supervisor.py. REGISTRO sigue viviendo en supervisor.py.
+    from sonda_supervisor import OPCIONES
+    from supervisor import REGISTRO
 
     # El contrato del fine-tune supervisor_dispatch (bmo): las 18 opciones,
     # en este orden. Cambiar esto desincroniza entrenamiento y producción.
@@ -587,73 +590,93 @@ def test_pregunta_despacho_congelada():
     assert all(o in REGISTRO or o == "finish" for o in OPCIONES)
 
 
-def test_supervisor_reintenta_con_feedback(tmp_path, monkeypatch):
+def test_supervisor_guarda_vetada_pura():
+    """Ley L8 como guarda PURA: una herramienta que falló dos veces devuelve
+    el TEXTO de veto (no ejecuta); con menos fallos, None (puede correr).
+    Reemplaza al test del prompt de veto (el menú en prosa y el 'PROHIBIDO
+    elegir' se jubilaron con el despacho viejo)."""
+    from supervisor import MAX_FALLOS_POR_HERRAMIENTA, TEXTO_VETO, guarda_vetada
+
+    assert guarda_vetada("search_files", {}) is None
+    assert guarda_vetada("search_files", {"search_files": 1}) is None
+    assert guarda_vetada("search_files", {"search_files": MAX_FALLOS_POR_HERRAMIENTA}) == TEXTO_VETO
+    assert guarda_vetada("search_files", {"otra": 5}) is None  # el fallo es por herramienta
+
+
+def test_supervisor_guarda_repetida_pura():
+    """El caché y el veto de repetición, puros:
+      - sin registro → corre (None);
+      - idéntica a una exitosa → ("cached", resultado);
+      - misma firma vista 2 veces → ("veto", TEXTO_VETO);
+      - sin-args ya exitosa → ("veto", TEXTO_VETO).
+    Reemplaza a test_supervisor_no_repite_sin_args (misma ley, forma pura)."""
+    from supervisor import TEXTO_VETO, guarda_repetida
+
+    firma = ("read_file", '{"path": "a.py"}')
+    assert guarda_repetida(firma, {}, [], set()) is None
+    previas = {firma: {"n": 1, "resultado": "contenido"}}
+    assert guarda_repetida(firma, previas, ["read_file"], set()) == ("cached", "contenido")
+    dos_veces = {firma: {"n": 2, "resultado": None}}
+    assert guarda_repetida(firma, dos_veces, ["read_file"], set()) == ("veto", TEXTO_VETO)
+    firma_sin = ("db_schema", "{}")
+    assert guarda_repetida(firma_sin, {}, ["db_schema"], {"db_schema"}) == ("veto", TEXTO_VETO)
+
+
+def test_supervisor_flujo_nuevo_guarda_antes_de_despachar(tmp_path, monkeypatch):
+    """El flujo v2 con fakes: UnPaso elige tool; Ejecutar corre la guarda
+    ANTES de run_tool_call. Una tool vetada NO se despacha (el fake contador
+    no sube) y el mensaje role=tool lleva el texto de veto. Cierra Sintetizar
+    con la sección Pasos."""
+    from pocketflow import Flow
+
     import supervisor as sup
 
-    args_llamadas = {"n": 0}
+    ejecuciones = {"n": 0}
 
-    def llm_fake(prompt):
-        if "Herramientas disponibles (nombre" in prompt:
-            if "2 search_files" in prompt:  # ya reintentó con éxito: cerrar
-                return "```yaml\nherramienta: finish\n```"
-            return "```yaml\nherramienta: search_files\n```"
-        if "Escribe en español el cierre" in prompt:
-            return "cierre de prueba"
-        args_llamadas["n"] += 1
-        # el feedback del error llega SOLO en el reintento
-        assert ("ya falló" in prompt) == (args_llamadas["n"] > 1), prompt[-300:]
-        return "```yaml\nargs:\n  query: puerto\n```"
+    def impl_fake(**kwargs):
+        ejecuciones["n"] += 1
+        return "no debería correr"
 
-    monkeypatch.setattr(sup, "call_llm", llm_fake)
-    monkeypatch.setattr("utils.laya.disponible", lambda *a, **k: False)
-    monkeypatch.setenv("USE_VOTACION", "0")
+    monkeypatch.setitem(sup.REGISTRO, "read_file", impl_fake)
 
-    intentos = {"n": 0}
+    class MsgFake:
+        def __init__(self, tool_calls=None, content=None):
+            self.tool_calls = tool_calls
+            self.content = content
 
-    def flaky(**kwargs):
-        intentos["n"] += 1
-        if intentos["n"] == 1:
-            raise RuntimeError("boom primera")
-        return "ok, 3 archivos"
+    class TCFake:
+        def __init__(self, name, args):
+            self.id, self.type = "c1", "function"
+            self.function = type("F", (), {"name": name, "arguments": args})()
 
-    monkeypatch.setitem(sup.REGISTRO, "search_files", flaky)
-    salida = tmp_path / "sup.md"
-    sup.supervisar("busca el puerto", str(salida))
-    texto = salida.read_text(encoding="utf-8")
-    # exp/36: el paso ejecuta por run_tool_call, así que el error llega con el
-    # MISMO formato que en el chat (ERROR: Tipo: msg)
-    assert "ERROR: RuntimeError: boom" in texto  # el fallo queda auditado
-    assert intentos["n"] == 2  # falló, reintentó con feedback y prosperó
-    assert "1 search_files" in texto and "2 search_files" in texto
+    # Una ronda de tool (read_file, ya vetada a 2 fallos) + cierre.
+    pasos_llm = {"n": 0}
 
+    def call_llm_agent_fake(messages, tools=None):
+        pasos_llm["n"] += 1
+        if pasos_llm["n"] == 1:
+            return MsgFake(tool_calls=[TCFake("read_file", '{"path": "a.py"}')])
+        return MsgFake(content="cerrado")
 
-def test_supervisor_veta_tras_dos_fallos(tmp_path, monkeypatch):
-    import supervisor as sup
+    monkeypatch.setattr(sup, "call_llm_agent", call_llm_agent_fake)
+    monkeypatch.setattr(sup, "call_llm", lambda *a, **k: "cierre de prueba")
 
-    elecciones = {"n": 0}
+    un_paso = sup.UnPaso()
+    ejecutar = sup.Ejecutar()
+    sintetizar = sup.Sintetizar()
+    un_paso - "tool" >> ejecutar
+    un_paso - "sintetizar" >> sintetizar
+    ejecutar - "default" >> un_paso
+    sub = Flow(start=un_paso)
 
-    def llm_fake(prompt):
-        if "Herramientas disponibles (nombre" in prompt:
-            elecciones["n"] += 1
-            if elecciones["n"] >= 3:  # con el veto activo, el prompt lo prohíbe
-                assert "PROHIBIDO elegir" in prompt
-            return "```yaml\nherramienta: search_files\n```"  # desobedece siempre
-        if "Escribe en español el cierre" in prompt:
-            return "cierre de prueba"
-        return "```yaml\nargs: {}\n```"
-
-    monkeypatch.setattr(sup, "call_llm", llm_fake)
-    monkeypatch.setattr("utils.laya.disponible", lambda *a, **k: False)
-    monkeypatch.setenv("USE_VOTACION", "0")
-
-    def siempre_falla(**kwargs):
-        raise RuntimeError("boom")
-
-    monkeypatch.setitem(sup.REGISTRO, "search_files", siempre_falla)
-    salida = tmp_path / "sup.md"
-    sup.supervisar("tarea imposible", str(salida))
-    texto = salida.read_text(encoding="utf-8")
-    assert texto.count("ERROR: RuntimeError:") == 2  # dos fallos y veto: no hay tercero
+    shared = sup.semilla("tarea", str(tmp_path / "sup.md"))
+    shared["fallos"] = {"read_file": sup.MAX_FALLOS_POR_HERRAMIENTA}  # ya vetada
+    sub.run(shared)
+    assert ejecuciones["n"] == 0  # la guarda cortó antes de run_tool_call
+    mensajes_tool = [m for m in shared["messages"] if m.get("role") == "tool"]
+    assert mensajes_tool and mensajes_tool[0]["content"] == sup.TEXTO_VETO
+    texto = (tmp_path / "sup.md").read_text(encoding="utf-8")
+    assert "## Pasos" in texto  # Sintetizar escribió la auditoría
 
 
 def test_heartbeat_vencidas():
@@ -670,40 +693,21 @@ def test_heartbeat_vencidas():
     assert vencidas(tareas, {"a.md": time.time() - 25 * 3600}) == tareas  # todo vencido
 
 
-def test_supervisor_no_repite_sin_args(tmp_path, monkeypatch):
-    import supervisor as sup
-
-    elecciones = {"n": 0}
-
-    def llm_fake(prompt):
-        if "Herramientas disponibles (nombre" in prompt:
-            elecciones["n"] += 1
-            return "```yaml\nherramienta: db_schema\n```"  # insiste en el schema
-        if "Escribe en español el cierre" in prompt:
-            return "cierre de prueba"
-        return "```yaml\nargs: {}\n```"
-
-    monkeypatch.setattr(sup, "call_llm", llm_fake)
-    monkeypatch.setattr("utils.laya.disponible", lambda *a, **k: False)
-    monkeypatch.setenv("USE_VOTACION", "0")
-    monkeypatch.setitem(sup.REGISTRO, "db_schema", lambda: "CREATE TABLE trazas ...")
-
-    salida = tmp_path / "sup.md"
-    sup.supervisar("tarea", str(salida))
-    texto = salida.read_text(encoding="utf-8")
-    assert texto.count("db_schema()") == 1  # la insistencia se corta a la primera
-
-
-def test_router_aristas_del_chat():
+def test_router_aristas_del_chat(monkeypatch):
     # lección medida en producción: DirectAnswer hereda el post de AgentStep
     # (devuelve "answer"), y la arista default mataba el chat tras la
-    # primera respuesta directa — PocketFlow terminaba el flujo con warning
+    # primera respuesta directa — PocketFlow terminaba el flujo con warning.
+    # El entorno del banco corre con USE_LAYA_ROUTER=0 (variante degradada):
+    # el test fija la variante CON router para probar sus aristas.
+    monkeypatch.setenv("USE_LAYA_ROUTER", "1")
     from flow import create_agent_flow
 
     flow = create_agent_flow()
-    # caminar el grafo desde ask
+    # caminar el grafo desde ask — exp/50: PreFetch vive entre ask y el router
     ask = flow.start_node
-    router = ask.successors.get("continue")
+    prefetch = ask.successors.get("continue")
+    assert prefetch is not None
+    router = prefetch.successors.get("continue")
     assert router is not None
     directo = router.successors.get("directo")
     assert directo is not None
@@ -768,57 +772,6 @@ def test_mayoria():
     assert mayoria(["sql", "db_schema", "finish"], desempate="sql") == "sql"
     assert mayoria(["sql"]) == "sql"  # voto único: sin mayoría, sin desempate
     assert mayoria([], desempate="finish") == "finish"
-
-
-def test_votacion_2de3_en_el_supervisor(tmp_path, monkeypatch, capsys):
-    import supervisor as sup
-
-    llamadas = {"n": 0}
-
-    def voto_directo(t, h, f, estilo="directo"):
-        llamadas["n"] += 1
-        return {"directo": "db_schema", "eliminacion": "sql"}[estilo]
-
-    monkeypatch.setattr(sup, "elegir_con_deepseek", voto_directo)
-
-    def llm_fake(prompt):
-        if "Escribe en español el cierre" in prompt:
-            return "cierre de prueba"
-        return "```yaml\nargs: {}\n```"  # args: sql() sin args
-
-    monkeypatch.setattr(sup, "call_llm", llm_fake)
-    monkeypatch.setattr("utils.laya.disponible", lambda *a, **k: True)
-    monkeypatch.setattr(
-        "utils.laya.preguntar",
-        lambda estado, preguntas, setting=None: {"elegir_proxima": ("sql", 0.5)},  # duda, pero vota
-    )
-
-    salida = tmp_path / "sup.md"
-    sup.supervisar("tarea", str(salida))
-    # cada convocatoria gasta exactamente 2 votos (A y B); laya pone el 3ro gratis
-    assert llamadas["n"] >= 2 and llamadas["n"] % 2 == 0
-    consola = capsys.readouterr().out
-    assert "[votos] ['db_schema', 'sql', 'sql']" in consola  # mayoría sql
-
-
-def test_votacion_laya_segura_no_gasta(tmp_path, monkeypatch, capsys):
-    import supervisor as sup
-
-    def nunca(*a, **k):
-        raise AssertionError("laya segura no debe convocar votos")
-
-    monkeypatch.setattr(sup, "elegir_con_deepseek", nunca)
-    monkeypatch.setattr("utils.laya.disponible", lambda *a, **k: True)
-    monkeypatch.setattr(
-        "utils.laya.preguntar",
-        lambda estado, preguntas, setting=None: {"elegir_proxima": ("finish", 0.99)},
-    )
-    salida = tmp_path / "sup.md"
-    sup.supervisar("tarea", str(salida))
-    # la confianza de Laya se ve en TERMINAL, no en el informe; si hubiera
-    # votado DeepSeek, elegir_con_deepseek (parcheado para explotar) lo delata.
-    assert "[laya (conf 0.99)]" in capsys.readouterr().out
-    assert salida.read_text(encoding="utf-8").strip()  # el informe se escribió
 
 
 def test_dsml_a_tool_calls():
@@ -1383,34 +1336,54 @@ def test_from_env_file_tolera_export(tmp_path):
     assert c._from_env_file(env, "NO_EXISTE") is None
 
 
-def test_supervisor_no_ejecuta_llamadas_identicas(tmp_path, monkeypatch):
+def test_supervisor_reutiliza_la_llamada_identica(tmp_path, monkeypatch):
+    """El caché en el flujo real: dos tool_calls idénticas en la MISMA ronda;
+    la segunda sale del caché (guarda_repetida → 'cached') y run_tool_call
+    sólo corre una vez. El resultado cacheado vuelve igual al historial."""
+    from pocketflow import Flow
+
     import supervisor as sup
 
     ejecuciones = {"n": 0}
-
-    def llm_fake(prompt):
-        if "Herramientas disponibles (nombre" in prompt:
-            return "```yaml\nherramienta: search_files\n```"  # insiste siempre
-        if "Escribe en español el cierre" in prompt:
-            return "cierre de prueba"
-        return "```yaml\nargs:\n  glob: '*.py'\n```"  # siempre los mismos args
-
-    monkeypatch.setattr(sup, "call_llm", llm_fake)
-    monkeypatch.setattr("utils.laya.disponible", lambda *a, **k: False)
-    monkeypatch.setenv("USE_VOTACION", "0")
 
     def contar(**kwargs):
         ejecuciones["n"] += 1
         return "42 archivos"
 
     monkeypatch.setitem(sup.REGISTRO, "search_files", contar)
-    salida = tmp_path / "sup.md"
-    sup.supervisar("tarea", str(salida))
-    # la primera corre; la idéntica segunda sale del cache; a la segunda firma
-    # la herramienta se veta y DeepSeek (que insiste) cae en finish
-    assert ejecuciones["n"] == 1
-    texto = salida.read_text(encoding="utf-8")
-    assert texto.count("42 archivos") >= 2  # el resultado cacheado vuelve a usarse
+
+    class MsgFake:
+        def __init__(self, tool_calls=None, content=None):
+            self.tool_calls, self.content = tool_calls, content
+
+    class TCFake:
+        def __init__(self, name, args, i):
+            self.id, self.type = f"c{i}", "function"
+            self.function = type("F", (), {"name": name, "arguments": args})()
+
+    pasos = {"n": 0}
+    args_id = '{"glob": "*.py"}'
+
+    def call_llm_agent_fake(messages, tools=None):
+        pasos["n"] += 1
+        if pasos["n"] == 1:  # dos llamadas IDÉNTICAS en la misma ronda
+            return MsgFake(tool_calls=[TCFake("search_files", args_id, 1),
+                                       TCFake("search_files", args_id, 2)])
+        return MsgFake(content="cerrado")
+
+    monkeypatch.setattr(sup, "call_llm_agent", call_llm_agent_fake)
+    monkeypatch.setattr(sup, "call_llm", lambda *a, **k: "cierre de prueba")
+
+    un_paso, ejecutar, sintetizar = sup.UnPaso(), sup.Ejecutar(), sup.Sintetizar()
+    un_paso - "tool" >> ejecutar
+    un_paso - "sintetizar" >> sintetizar
+    ejecutar - "default" >> un_paso
+
+    shared = sup.semilla("tarea", str(tmp_path / "sup.md"))
+    Flow(start=un_paso).run(shared)
+    assert ejecuciones["n"] == 1  # la idéntica no se despachó dos veces
+    tools = [m for m in shared["messages"] if m.get("role") == "tool"]
+    assert [m["content"] for m in tools] == ["42 archivos", "42 archivos"]
 
 
 def test_sanitizar_prompt_ajeno():
@@ -1826,7 +1799,7 @@ def test_contratos_laya_congelados_sha1():
     import json
 
     from nodes import PREGUNTA_ROUTER
-    from supervisor import PREGUNTA_DESPACHO
+    from sonda_supervisor import PREGUNTA_DESPACHO  # su casa desde supervisor v2
 
     canon = lambda p: hashlib.sha1(  # noqa: E731
         json.dumps(p, sort_keys=True, ensure_ascii=False).encode()
@@ -1844,13 +1817,17 @@ def test_sonda_router_importa_el_contrato():
     assert sonda_router.PREGUNTA_ROUTER is nodes.PREGUNTA_ROUTER
 
 
-def test_sonda_supervisor_importa_el_contrato():
-    """Misma garantía del lado del despacho: la sonda del supervisor deriva
-    de supervisor.PREGUNTA_DESPACHO (no hay copia que pueda derivar)."""
+def test_sonda_supervisor_es_la_casa_del_contrato():
+    """Con el supervisor v2 el contrato del despacho (PREGUNTA_DESPACHO y
+    elegir_con_deepseek) VIVE en sonda_supervisor.py: supervisor ya no lo
+    expone (se jubiló el Choose). La sonda lo mide como evidencia histórica."""
     import sonda_supervisor
     import supervisor
 
-    assert sonda_supervisor.PREGUNTA_DESPACHO is supervisor.PREGUNTA_DESPACHO
+    assert not hasattr(supervisor, "PREGUNTA_DESPACHO")
+    assert isinstance(sonda_supervisor.PREGUNTA_DESPACHO, dict)
+    assert "elegir_proxima" in sonda_supervisor.PREGUNTA_DESPACHO
+    assert callable(sonda_supervisor.elegir_con_deepseek)
 
 
 def test_search_files_con_path_a_archivo():
@@ -1898,15 +1875,26 @@ def test_hitl_web(monkeypatch):
 
     puerto = 8791
     monkeypatch.setenv("HITL_WEB_PORT", str(puerto))
-    monkeypatch.setenv("HITL_WEB_TIMEOUT", "300")
-    # servidor ya arrancado: aprobar() lo reutiliza (perezoso, una sola vez)
+    monkeypatch.setenv("HITL_WEB_TIMEOUT", "5")
+    monkeypatch.setattr(hitl, "_servidor", None)  # puerto propio (aislado)
     assert hitl._arrancar() == puerto
 
-    def post(decision):
-        # el form real manda también el token del pedido vigente
-        token = hitl._pendiente.token if hitl._pendiente is not None else ""
-        datos = urllib.parse.urlencode({"decision": decision, "token": token}).encode()
-        req = urllib.request.Request(f"http://127.0.0.1:{puerto}/decision", data=datos)
+    import time as _t
+
+    # exp/49b: pendientes MÚLTIPLES — el token vive en el dict _pendientes
+    def _token_unico():
+        for _ in range(100):
+            with hitl._lock:
+                if hitl._pendientes:
+                    return next(iter(hitl._pendientes))
+            _t.sleep(0.02)
+        return None
+
+    def post(respuesta):
+        token = _token_unico()
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{puerto}/decision?token={token}&respuesta={respuesta}",
+            data=b"")
         return urllib.request.urlopen(req, timeout=5).read()
 
     resultados = {}
@@ -1915,13 +1903,8 @@ def test_hitl_web(monkeypatch):
     hilo = threading.Thread(
         target=lambda: resultados.update(ok=hitl.aprobar("¿Escribir?", "diff de prueba")))
     hilo.start()
-    import time as _t
-    for _ in range(50):  # esperar el pedido pendiente antes de votar
-        if hitl._pendiente is not None:
-            break
-        _t.sleep(0.02)
-    assert hitl._pendiente is not None
-    post("aprobar")
+    assert _token_unico() is not None
+    post("s")
     hilo.join(5)
     assert resultados["ok"] is True
 
@@ -1929,11 +1912,8 @@ def test_hitl_web(monkeypatch):
     hilo = threading.Thread(
         target=lambda: resultados.update(ok=hitl.aprobar("¿Ejecutar?", "ls -la")))
     hilo.start()
-    for _ in range(50):
-        if hitl._pendiente is not None:
-            break
-        _t.sleep(0.02)
-    post("rechazar")
+    assert _token_unico() is not None
+    post("n")
     hilo.join(5)
     assert resultados["ok"] is False
 
@@ -1963,17 +1943,17 @@ def test_hitl_web_rechaza_post_cross_origin(monkeypatch):
 
     puerto = 8792
     monkeypatch.setenv("HITL_WEB_PORT", str(puerto))
-    monkeypatch.setenv("HITL_WEB_TIMEOUT", "300")
+    monkeypatch.setenv("HITL_WEB_TIMEOUT", "5")
     monkeypatch.setattr(hitl, "_servidor", None)  # puerto propio (aislado)
     assert hitl._arrancar() == puerto
 
-    def post(decision, origin):
+    def post(decision, origin, token):
         datos = urllib.parse.urlencode({"decision": decision}).encode()
         cabeceras = {"Content-Type": "application/x-www-form-urlencoded"}
         if origin is not None:
             cabeceras["Origin"] = origin
         req = urllib.request.Request(
-            f"http://127.0.0.1:{puerto}/decision", data=datos, headers=cabeceras)
+            f"http://127.0.0.1:{puerto}/decision?token={token}", data=datos, headers=cabeceras)
         try:
             return urllib.request.urlopen(req, timeout=5)
         except urllib.error.HTTPError as e:
@@ -1985,22 +1965,25 @@ def test_hitl_web_rechaza_post_cross_origin(monkeypatch):
     hilo = threading.Thread(
         target=lambda: resultados.update(ok=hitl.aprobar("¿Escribir?", "diff")))
     hilo.start()
-    for _ in range(50):
-        if hitl._pendiente is not None:
-            break
+    token = ""
+    for _ in range(100):
+        with hitl._lock:
+            if hitl._pendientes:
+                token = next(iter(hitl._pendientes))
+                break
         _t.sleep(0.02)
-    assert hitl._pendiente is not None
-    r = post("aprobar", origin="http://evil.example")
+    assert token, "no hay pedido pendiente"
+    r = post("aprobar", origin="http://evil.example", token=token)
     assert getattr(r, "status", getattr(r, "code", None)) == 403, "el POST cross-origin no fue rechazado"
     _t.sleep(0.1)
-    assert hitl._pendiente is not None, "un Origin ajeno decidió el pedido"
+    with hitl._lock:
+        assert token in hitl._pendientes, "un Origin ajeno decidió el pedido"
     assert not resultados.get("ok"), "el pedido se resolvió por un POST cross-origin"
 
     # 2) POST legítimo (sin Origin, mismo-origen vía loopback) con el token: sí decide
-    token = hitl._pendiente.token
     req = urllib.request.Request(
-        f"http://127.0.0.1:{puerto}/decision",
-        data=urllib.parse.urlencode({"decision": "aprobar", "token": token}).encode())
+        f"http://127.0.0.1:{puerto}/decision?token={token}&respuesta=s",
+        data=b"")
     urllib.request.urlopen(req, timeout=5)
     hilo.join(5)
     assert resultados["ok"] is True
@@ -3982,6 +3965,51 @@ def test_guardar_resumen_sesion_no_pisa_el_mismo_minuto(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# exp/49 — request_human_input: el humano como tool call (factor 7)
+# ---------------------------------------------------------------------------
+
+def test_request_human_input_devuelve_lo_tecleado(monkeypatch, capsys):
+    """Con `input` fakeado, la tool devuelve el texto y etiqueta la pregunta."""
+    import modules.humano as humano
+
+    monkeypatch.setattr("builtins.input", lambda: "la respuesta del humano")
+    r = humano.request_human_input("¿qué archivo?")
+    assert r == "la respuesta del humano"
+    salida = capsys.readouterr().out
+    assert "[humano] ¿qué archivo?" in salida
+
+
+def test_request_human_input_eof_no_es_crash(monkeypatch):
+    """EOF → '(sin respuesta del humano: ...)': dato, no excepción."""
+    import modules.humano as humano
+
+    def eof():
+        raise EOFError()
+
+    monkeypatch.setattr("builtins.input", eof)
+    r = humano.request_human_input("¿algo?")
+    assert r.startswith("(sin respuesta del humano")
+
+
+def test_request_human_input_en_el_registro_del_modulo():
+    """La tool queda en TOOLS/IMPL del módulo, como las demás."""
+    import modules.humano as humano
+
+    nombres = {t["function"]["name"] for t in humano.TOOLS}
+    assert "request_human_input" in nombres
+    assert "request_human_input" in humano.IMPL
+    assert humano.IMPL["request_human_input"] is humano.request_human_input
+
+
+def test_request_human_input_llega_al_action_space():
+    """El registro completo (discover) expone la tool al chat."""
+    from nodes import TOOLS
+
+    nombres = {t["function"]["name"] for t in TOOLS}
+    assert "request_human_input" in nombres
+
+
+# ---------------------------------------------------------------------------
 # exp/20 — candados del bench del juez (funciones puras, sin LLM)
 # ---------------------------------------------------------------------------
 
@@ -4620,10 +4648,18 @@ def test_supervisor_no_puede_saltear_el_denylist(monkeypatch):
         return "ERROR: comando prohibido por la denylist (test)"
 
     monkeypatch.setitem(HOOKS_PRE, "run_command", [veto])
-    monkeypatch.setattr(sup, "call_llm", lambda *a, **k: 'args: {command: "rm -rf /"}\n')
 
-    res = sup.EjecutarPaso().exec(("tarea", [], "run_command", 1, 0, {}))
-    assert res["resultado"].startswith("ERROR: comando prohibido")
+    # El flujo v2 despacha por run_tool_call dentro de Ejecutar.exec: el hook
+    # de la denylist corre igual que en el chat (no hay camino que lo saltee).
+    snap = {
+        "tool_calls": [{
+            "id": "c1", "type": "function",
+            "function": {"name": "run_command", "arguments": '{"command": "rm -rf /"}'},
+        }],
+        "fallos": {}, "exitosas": [], "previas": {}, "base": 0,
+    }
+    salidas = sup.Ejecutar().exec(snap)
+    assert salidas[0]["resultado"].startswith("ERROR: comando prohibido")
     assert visto["comando"] == "rm -rf /"
 
 
@@ -5230,3 +5266,340 @@ def test_etiquetador_acepta_el_log_de_preguntas_del_chat(tmp_path):
         "¿quién ganó el último mundial?",
         "una pregunta suelta sin json",
     ]
+
+
+# ---------------------------------------------------------------------------
+# bench_supervisor — verificación pura, contador, agente plano y contención
+# (banco/specs/bench_supervisor.md; sin LLM real, todo con fakes)
+# ---------------------------------------------------------------------------
+
+def _import_bench_supervisor():
+    import sys
+
+    sys.path.insert(0, str(RAIZ / "banco"))
+    import bench_supervisor
+    return bench_supervisor
+
+
+def test_bench_supervisor_verificaciones_pasan_y_fallan():
+    """Cada verificación con un texto que pasa y uno que no — incluida la
+    dinámica de contar-utils (el número se calcula AHORA: si cambia la carpeta,
+    cambia la verdad)."""
+    import sys
+
+    sys.path.insert(0, str(RAIZ / "banco"))
+    import bench_supervisor as bs
+
+    # contar-utils: el número REAL de .py en utils/ es la verdad dinámica
+    n_utils = len(list((RAIZ / "utils").glob("*.py")))
+    assert bs.verificar("contar-utils", f"hay {n_utils} archivos .py") is True
+    assert bs.verificar("contar-utils", f"hay {n_utils + 1} archivos .py") is False
+    # un número que CONTIENE al correcto como substring no lo satisface
+    assert bs.verificar("contar-utils", f"hay {int(f'{n_utils}1')} archivos") is False
+    # y la verdad es de verdad dinámica: contando otra carpeta cambia el número
+    n_tests = len(list((RAIZ / "tests").glob("*.py")))
+    assert n_tests != n_utils, "el fixture se rompería si utils/ y tests/ empataran"
+
+    # constante-max-pasos
+    assert bs.verificar("constante-max-pasos", "MAX_PASOS vale 5") is True
+    assert bs.verificar("constante-max-pasos", "MAX_PASOS vale 6") is False
+
+    # firma-veredicto: 'met' + uno de {uncertain, not met}
+    assert bs.verificar("firma-veredicto", "devuelve 'met' o 'uncertain'") is True
+    assert bs.verificar("firma-veredicto", "devuelve MET o NOT MET") is True
+    assert bs.verificar("firma-veredicto", "solo devuelve met") is False
+    assert bs.verificar("firma-veredicto", "no dice nada") is False
+
+    # linea-marcadores: el número REAL de la definición en banco/banco.py
+    lineas = bs._lineas_marcadores()
+    assert lineas, "banco/banco.py debería definir MARCADORES"
+    assert bs.verificar("linea-marcadores", f"está en banco/banco.py:{lineas[0]}") is True
+    assert bs.verificar("linea-marcadores", "está en banco/banco.py:9999") is False
+
+    # tablas-trazas: si hay trazas.db, el conteo real es la verdad; si no, None
+    import sqlite3
+
+    db = bs._buscar_db_trazas()
+    if db is None:
+        assert bs.verificar("tablas-trazas", "lo que sea") is None
+    else:
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        try:
+            n_tab = con.execute(
+                "SELECT count(*) FROM sqlite_master WHERE type='table'").fetchone()[0]
+        finally:
+            con.close()
+        assert bs.verificar("tablas-trazas", f"la base tiene {n_tab} tablas") is True
+        assert bs.verificar("tablas-trazas", f"la base tiene {n_tab + 1} tablas") is False
+
+    # conteo-routing: conteo real de salidas/routing.jsonl (o None si no existe)
+    routing = RAIZ / "salidas" / "routing.jsonl"
+    if routing.is_file():
+        n_rut = len(routing.read_text(encoding="utf-8").splitlines())
+        assert bs.verificar("conteo-routing", f"son {n_rut} decisiones") is True
+        assert bs.verificar("conteo-routing", "son 0 decisiones") == (n_rut == 0)
+    else:
+        assert bs.verificar("conteo-routing", "cualquier cosa") is None
+
+    # id sin verificación → KeyError (nunca un silencio)
+    with pytest.raises(KeyError):
+        bs.verificar("no-existe", "texto")
+
+
+def test_bench_supervisor_contador_envuelve_y_cuenta():
+    """El contador envuelve call_llm y call_llm_agent con fakes (sin red) y
+    cuenta cada invocación; restaurar() devuelve el módulo a lo original."""
+    import sys
+    from types import SimpleNamespace
+
+    sys.path.insert(0, str(RAIZ / "banco"))
+    import bench_supervisor as bs
+
+    # Un fake con la FORMA de un módulo real: las funciones viven en el
+    # `__dict__` del objeto (como los callables de utils.call_llm), así la
+    # restauración devuelve el MISMO objeto (identidad estable) y los conteos
+    # internos miden que el wrapper envuelve y no reemplaza.
+    cuenta = {"llm": 0, "agent": 0}
+
+    def call_llm(messages):
+        cuenta["llm"] += 1
+        return "respuesta-llm"
+
+    def call_llm_agent(messages, tools=None):
+        cuenta["agent"] += 1
+        return SimpleNamespace(content="respuesta-agent", tool_calls=None)
+
+    mod = SimpleNamespace(call_llm=call_llm, call_llm_agent=call_llm_agent)
+    orig_llm, orig_agent = mod.call_llm, mod.call_llm_agent
+    estado, restaurar = bs.contador(mod)
+
+    assert estado["llamadas"] == 0
+    assert mod.call_llm("hola") == "respuesta-llm"
+    assert mod.call_llm_agent("hola", tools=None).content == "respuesta-agent"
+    assert estado["llamadas"] == 2
+    # los fakes también incrementan: el contador envuelve, no reemplaza
+    assert cuenta["llm"] == 1 and cuenta["agent"] == 1
+
+    restaurar()
+    assert mod.call_llm is orig_llm and mod.call_llm_agent is orig_agent
+    mod.call_llm("hola")  # ya sin envolver: no cuenta
+    assert estado["llamadas"] == 2
+
+
+class _Msg:
+    """Mensaje del asistente fake: content + tool_calls en la forma del SDK."""
+
+    def __init__(self, content=None, tool_calls=None):
+        self.content = content
+        self.tool_calls = tool_calls
+
+
+class _TC:
+    def __init__(self, id, name, arguments):
+        self.id = id
+        self.function = type("F", (), {"name": name, "arguments": arguments})()
+
+
+def test_bench_supervisor_agente_plano_dos_rondas_y_tope():
+    """El bucle del agente plano con call_llm_agent fake: 2 rondas de tools y
+    respuesta → ejecuta las tools (IMPL fake) y devuelve el texto final. El
+    conteo de rondas respeta el tope y a la ÚLTIMA ronda se va SIN tools."""
+    import sys
+
+    sys.path.insert(0, str(RAIZ / "banco"))
+    import bench_supervisor as bs
+
+    # --- camino feliz: 2 rondas de tools y respuesta final ---
+    guion = [
+        _Msg("busco", [_TC("t1", "read_file", '{"path": "a.py"}')]),
+        _Msg("más", [_TC("t2", "sql", '{"consulta": "SELECT 1"}')]),
+        _Msg("la respuesta final es 42", None),
+    ]
+    capturado = {"tools_vistas": []}
+
+    def llm_fake(mensajes, tools=None):
+        capturado["tools_vistas"].append(tools)
+        return guion.pop(0)
+
+    ejecutadas = []
+
+    def run_fake(tool_call, impls):
+        ejecutadas.append(tool_call["function"]["name"])
+        return {"role": "tool", "tool_call_id": tool_call["id"], "content": f"ok {tool_call['id']}"}
+
+    r = bs.agente_plano("tarea", llm=llm_fake, impls={}, run=run_fake, max_rondas=8, max_tools=5)
+    assert r["texto"] == "la respuesta final es 42"
+    assert r["rondas"] == 3
+    assert r["tools_ejecutadas"] == 2
+    assert ejecutadas == ["read_file", "sql"]
+    # todas las rondas intermedias recibieron tools; ninguna tocó el registry real
+    assert capturado["tools_vistas"][0] is not None
+    assert capturado["tools_vistas"][1] is not None
+
+    # --- tope de rondas: SIEMPRE pide tools, a la última se retiran ---
+    guion2 = [_Msg("sigo", [_TC(f"t{i}", "read_file", "{}")]) for i in range(20)]
+    tools_por_ronda = []
+
+    def llm_siempre_tools(mensajes, tools=None):
+        tools_por_ronda.append(tools)
+        return guion2.pop(0)
+
+    def run_noop(tool_call, impls):
+        return {"role": "tool", "tool_call_id": tool_call["id"], "content": "ok"}
+
+    r2 = bs.agente_plano("tarea", llm=llm_siempre_tools, impls={}, run=run_noop, max_rondas=8)
+    assert r2["rondas"] == 8, "corta en el tope aunque el modelo siga pidiendo tools"
+    assert r2["tools_ejecutadas"] == 7, "a la última ronda (sin tools) no ejecuta nada"
+    assert tools_por_ronda[-1] is None, "la última ronda va SIN tools"
+    assert all(t is not None for t in tools_por_ronda[:-1])
+
+
+def test_bench_supervisor_tareas_jsonl_cargan_con_verificacion():
+    """banco/supervisor_tareas.jsonl carga, tiene las 6 tareas y cada id tiene
+    su verificación en VERIFICACIONES. Un id sin verificación es SystemExit."""
+    import sys
+
+    sys.path.insert(0, str(RAIZ / "banco"))
+    import bench_supervisor as bs
+
+    tareas = bs.cargar_tareas()
+    assert len(tareas) == 6
+    ids = [t["id"] for t in tareas]
+    assert ids == [
+        "contar-utils", "constante-max-pasos", "firma-veredicto",
+        "tablas-trazas", "linea-marcadores", "conteo-routing",
+    ]
+    for t in tareas:
+        assert t["id"] in bs.VERIFICACIONES
+        assert callable(bs.VERIFICACIONES[t["id"]])
+        assert t["tarea"].strip()
+
+    # un id sin verificación → SystemExit con mensaje claro
+    import json as _json
+
+    ruta = RAIZ / "banco" / "_tmp_tareas_sin_verif.jsonl"
+    try:
+        ruta.write_text(_json.dumps({"id": "fantasma", "tarea": "x"}) + "\n", encoding="utf-8")
+        with pytest.raises(SystemExit) as e:
+            bs.cargar_tareas(ruta)
+        assert "no tiene verificación" in str(e.value)
+    finally:
+        ruta.unlink(missing_ok=True)
+
+
+def test_bench_supervisor_contencion_por_tarea(tmp_path):
+    """Un crash de una vía en una tarea NO tira el bench: la celda queda como
+    error con el motivo y las otras siguen (patrón exp/20)."""
+    import sys
+    from types import SimpleNamespace
+
+    sys.path.insert(0, str(RAIZ / "banco"))
+    import bench_supervisor as bs
+
+    class ModFake:
+        def call_llm(self, messages):
+            return "x"
+
+        def call_llm_agent(self, messages, tools=None):
+            return SimpleNamespace(content="x", tool_calls=None)
+
+    tareas = [
+        {"id": "contar-utils", "tarea": "q1"},
+        {"id": "constante-max-pasos", "tarea": "q2"},
+    ]
+
+    n_utils = len(list((RAIZ / "utils").glob("*.py")))
+
+    def runner_sup(tarea):
+        if tarea == "q2":  # la segunda tarea: el supervisor revienta
+            raise RuntimeError("el supervisor explotó")
+        return f"hay {n_utils} archivos .py"  # gradúa True en contar-utils
+
+    def runner_plano(tarea):
+        return "MAX_PASOS es 5"
+
+    bench = bs.correr(tareas, vias=("supervisor", "plano"),
+                      runner_sup=runner_sup, runner_plano=runner_plano, llm_modulo=ModFake())
+    assert len(bench["filas"]) == 4
+    por_clave = {(f["id"], f["via"]): f for f in bench["filas"]}
+    # la celda que reventó queda contenida con motivo
+    rota = por_clave[("constante-max-pasos", "supervisor")]
+    assert rota["error"] is True
+    assert rota["ok"] is False
+    assert "RuntimeError" in rota["motivo"]
+    # las sanas siguen y se gradúan
+    assert por_clave[("contar-utils", "supervisor")]["ok"] is True
+    assert por_clave[("constante-max-pasos", "plano")]["ok"] is True
+
+
+def test_bench_supervisor_baseline_compara_y_no_pisa(tmp_path):
+    """Baseline: guardar → comparar reporta delta; bajar la calidad da
+    REGRESIÓN; sin --actualizar-baseline NO se pisa; sin baseline → PRIMERA
+    CORRIDA; una corrida sin filas no pisa un baseline válido."""
+    import json as _json
+
+    import bench_supervisor as bs
+
+    ruta = tmp_path / "bench_supervisor.json"
+    bench = {
+        "filas": [{"id": "x", "via": "supervisor"}],
+        "por_via": {"supervisor": {"calidad": 0.9}, "plano": {"calidad": 0.8}},
+        "veredicto": "plano empata o gana → el despacho se simplifica",
+    }
+    assert bs.guardar_baseline(bench, ruta=ruta, sha="abc123") is not None
+
+    comp = bs.comparar_baseline(bench, ruta=ruta)
+    assert comp["veredicto"] == "OK"
+    assert comp["delta"]["supervisor"] == 0.0
+
+    baja = {"por_via": {"supervisor": {"calidad": 0.5}, "plano": {"calidad": 0.8}}}
+    assert bs.comparar_baseline(baja, ruta=ruta)["veredicto"] == "REGRESIÓN"
+
+    antes = ruta.read_text(encoding="utf-8")
+    bs.comparar_baseline(baja, ruta=ruta)
+    assert ruta.read_text(encoding="utf-8") == antes  # no se pisa al comparar
+    assert _json.loads(antes)["por_via"]["supervisor"]["calidad"] == 0.9
+
+    assert bs.comparar_baseline(bench, ruta=tmp_path / "no.json")["veredicto"] == "PRIMERA CORRIDA"
+
+    # una corrida vacía no pisa un baseline válido
+    assert bs.guardar_baseline({"filas": [], "por_via": {}}, ruta=ruta) is None
+    assert _json.loads(ruta.read_text(encoding="utf-8"))["por_via"]["supervisor"]["calidad"] == 0.9
+
+
+def test_bench_supervisor_generar_escribe_md_y_jsonl(tmp_path):
+    """generar() corre con runners fake (sin LLM real), escribe el markdown y
+    el JSONL crudo al lado, y NO pisa el baseline real sin la flag."""
+    import json as _json
+    import sys
+    from types import SimpleNamespace
+
+    sys.path.insert(0, str(RAIZ / "banco"))
+    import bench_supervisor as bs
+
+    class ModFake:
+        def call_llm(self, messages):
+            return "x"
+
+        def call_llm_agent(self, messages, tools=None):
+            return SimpleNamespace(content="x", tool_calls=None)
+
+    def _baseline():
+        return (bs.BASELINE.is_file(),
+                bs.BASELINE.stat().st_mtime_ns if bs.BASELINE.is_file() else None)
+
+    antes = _baseline()
+    destino, jsonl = bs.generar(
+        vias=("supervisor", "plano"),
+        runner_sup=lambda t: "hay muchos .py",
+        runner_plano=lambda t: "MAX_PASOS es 5",
+        llm_modulo=ModFake(), sha="deadbeef", dir_salida=tmp_path / "evals",
+    )
+    texto = destino.read_text(encoding="utf-8")
+    assert "# Bench supervisor vs agente plano" in texto
+    assert "Veredicto" in texto
+    assert destino.name.startswith("bench_supervisor_") and destino.suffix == ".md"
+    assert jsonl.is_file()
+    filas = [_json.loads(linea) for linea in jsonl.read_text(encoding="utf-8").splitlines()]
+    assert len(filas) == 12  # 6 tareas × 2 vías
+    assert _baseline() == antes, "generar() sin --actualizar-baseline tocó el baseline real"

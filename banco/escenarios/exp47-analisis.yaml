@@ -1,0 +1,26 @@
+id: exp47-analisis
+descripcion: gap analysis del harness contra 12-factor-agents — el material oficial está en banco/material/12factor/, patrón exp/19
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow/salidas/informe_12factor_2026-10-14.md
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow/banco/material
+permitir_comandos:
+  - cd /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow &&
+env:
+  MAX_TOOL_ROUNDS: "40"
+  COMPACTION_CHARS: "400000"
+  USE_LAYA_ROUTER: "0"
+  LAYA_MODEL_RIESGO: "0"
+scratch: []
+turnos:
+  - id: analisis
+    linea: "Leé banco/specs/exp47_12factor.md y ejecutala: los 13 .md de banco/material/12factor/, una fila por factor con evidencia REAL del repo (grep antes de afirmar), el informe en salidas/informe_12factor_2026-10-14.md con la tabla, el top-3 de gaps y la sección sobre PocketFlow y el factor 8. Andá factor por factor, sin saltear el apéndice 13."
+    hitl: s
+    timeout: 1800
+    max_hitl: 5
+  - id: reporte
+    linea: "Sin tocar nada: la tabla en 13 líneas (factor → estado), el top-3 con una frase cada uno, y la divergencia informada que más te gustó."
+    hitl: n
+    timeout: 400
+  - id: salir
+    linea: "salir"
+    timeout: 60

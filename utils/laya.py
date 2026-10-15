@@ -16,16 +16,23 @@ degrada a su camino de siempre — Laya es un acelerador, no dependencia."""
 import gc
 import os
 import threading
+import time
 from pathlib import Path
 
-from utils.call_llm import _setting
+from utils.call_llm import _entero, _setting
 
 _lock = threading.RLock()  # reentrante: preguntar() lockea y llama a agente(), que lockea de nuevo
 _agentes = {}  # setting → agente (router y supervisor cargan checkpoints distintos)
-_errores = {}  # setting → error (por checkpoint: el fallo de uno no envenena al otro)
+_errores = {}  # setting → (ts, error) (por checkpoint: el fallo de uno no envenena al otro)
 _uso = {}  # setting → contador de uso (para desalojar el MENOS usado, no el primero)
 
 DEFAULT_MODEL = "convaiinnovations/laya-multilingual"
+
+# Un fallo de carga (OOM transitorio, checkpoint a medio copiar) se cachea,
+# pero VENCE: pasado el cooldown se reintenta la carga en la misma llamada.
+# Sin esto, un solo OOM del primer request envenenaba la sesión entera sin
+# un solo reintento (medido: 31/37 decisiones sin detalle de Laya).
+LAYA_ERROR_COOLDOWN = _entero("LAYA_ERROR_COOLDOWN", 60)
 
 # La ley medida (exp/7) es un checkpoint por proceso: 2,86 GiB de RSS CADA UNO.
 # En un chat son alcanzables cuatro (router, voto, prefiltro y supervisor
@@ -47,6 +54,14 @@ def agente(setting="LAYA_MODEL"):
     """El agente del checkpoint que ese setting nombra (caché por setting:
     el router del chat y el Choose del supervisor no son el mismo modelo)."""
     clave = _setting(setting, DEFAULT_MODEL)
+    if clave in _errores and clave not in _agentes:
+        with _lock:
+            # El error cacheado VENCE: si ya pasó el cooldown se borra DENTRO
+            # del lock (antes del try) y se reintenta la carga en esta llamada.
+            if clave in _errores and clave not in _agentes:
+                ts, _msg = _errores[clave]
+                if time.monotonic() - ts >= LAYA_ERROR_COOLDOWN:
+                    del _errores[clave]
     if clave not in _agentes and clave not in _errores:
         with _lock:
             if clave not in _agentes and clave not in _errores:
@@ -60,6 +75,7 @@ def agente(setting="LAYA_MODEL"):
                     import laya
 
                     _agentes[clave] = laya.load(clave)
+                    _errores.pop(clave, None)  # el acierto limpia el error residual
                     # desalojo del menos usado; el recién cargado queda
                     # afuera del sorteo (su contador de uso todavía es 0)
                     while len(_agentes) > MAX_EN_PROCESO:
@@ -71,9 +87,11 @@ def agente(setting="LAYA_MODEL"):
                               f"{Path(candidato).name}")
                         _descargar(candidato)
                 except Exception as e:  # sin modelo local: degradar, no romper
-                    _errores[clave] = f"{type(e).__name__}: {e}"
+                    _errores[clave] = (time.monotonic(), f"{type(e).__name__}: {e}")
     if clave in _errores and clave not in _agentes:
-        raise RuntimeError(f"laya no disponible: {_errores[clave]}")
+        ts, msg = _errores[clave]
+        raise RuntimeError(f"laya no disponible (hace {int(time.monotonic() - ts)}s): {msg}")
+    _errores.pop(clave, None)  # el acierto (agente presente) limpia el error residual
     _uso[clave] = _uso.get(clave, 0) + 1
     return _agentes[clave]
 

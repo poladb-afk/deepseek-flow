@@ -3,17 +3,19 @@
 Cuando el setting `HITL_WEB=1`, las aprobaciones de write_file,
 edit_file y run_command (módulos `escritura` y `coding`) no preguntan
 `s/n` por stdin: la función `aprobar(titulo, cuerpo)` levanta (perezoso,
-una sola vez) un servidor HTTP local en 127.0.0.1:8765 que sirve una
-página simple con el título, el cuerpo (dentro de `<pre>`) y dos forms
-con botones Aprobar / Rechazar que hacen POST a `/decision`.
+una sola vez por proceso) un servidor HTTP local en 127.0.0.1:8765 que
+sirve una página con TODOS los pedidos pendientes. Cada pedido lleva su
+propio Event y su propio token; los forms Aprobar / Rechazar postean a
+`/decision?token=…`.
 
 Contrato y contención:
 
 - Solo stdlib (`http.server` + `threading`). Sin dependencias nuevas.
-- Un solo pedido pendiente a la vez. Cada pedido lleva su PROPIO Event y
-  su propia decisión (objeto `_Pedido`), más un token secreto que viaja en
-  la página y en el form: un POST de un pedido anterior (o de otra
-  pestaña) no puede resolver el vigente.
+- PENDIENTES MÚLTIPLES: el server mantiene un dict `token → _Pedido`. Dos
+  `aprobar()` (en hilos distintos del mismo proceso) conviven: cada uno
+  espera SOLO su propio Event y un POST solo resuelve el pedido de SU
+  token. Un POST de un pedido anterior (o de otra pestaña) no puede
+  resolver el vigente.
 - Defensa anti-CSRF / DNS-rebinding: el POST a `/decision` solo se acepta
   si el header Host es de loopback y, si viene Origin, también es loopback.
   Una página ajena puede auto-postear, pero su Origin la delata y se
@@ -21,23 +23,29 @@ Contrato y contención:
 - `aprobar()` espera el Event con timeout (`HITL_WEB_TIMEOUT`, 300s de
   default) y devuelve True o False. Timeout o error => False: el mismo
   default seguro que el CLI (un rechazo nunca bloquea al agente).
-- El servidor escucha SOLO en 127.0.0.1 (loopback): no se expone a la
-  red. El puerto es configurable con `HITL_WEB_PORT` (default 8765).
+- PUERTO ELÁSTICO: si el puerto base (`HITL_WEB_PORT`, default 8765) está
+  ocupado por otro proceso, se prueban los siguientes hasta base+5. Si
+  ninguno queda libre, se degrada a False (default seguro): nunca romper
+  la acción. La URL efectiva se imprime UNA vez por server.
+- El servidor escucha SOLO en 127.0.0.1 (loopback): no se expone a la red.
 """
 import html
 import secrets
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlsplit
 
 from utils.call_llm import _setting
 
 HOST = "127.0.0.1"
 PUERTO_DEFAULT = 8765
+PUERTO_RANGO = 5          # base, base+1, ..., base+5
 TIMEOUT_DEFAULT = 300
 
-_lock = threading.Lock()          # serializa aprobar(): un pedido a la vez
-_pendiente = None                   # Pedido actual (o None): titulo, cuerpo, token, evento
-_servidor = None                  # ThreadingHTTPServer (arranque perezoso)
+_lock = threading.Lock()           # serializa el registro de pendientes
+_pendientes = {}                   # token -> _Pedido (cross-hilo, mismo proceso)
+_servidor = None                   # ThreadingHTTPServer (arranque perezoso)
+_url_impresa = False               # la URL efectiva se imprime UNA vez por server
 
 
 class _Pedido:
@@ -67,7 +75,7 @@ def _hosts_validos():
 
 
 def _origen_valido(handler):
-    """True si el POST viene de un contexto legítimo de la propia página:
+    """True si la petición viene de un contexto legítimo de la propia página:
     Host de loopback y, si viene Origin, que sea loopback (bloquea CSRF:
     una página ajena puede auto-postear, pero su Origin no es loopback)."""
     host = (handler.headers.get("Host") or "").strip()
@@ -75,7 +83,10 @@ def _origen_valido(handler):
         return False
     origin = (handler.headers.get("Origin") or "").strip()
     if origin:
-        puerto = _arrancar()
+        try:
+            puerto = _arrancar()
+        except Exception:
+            return False
         permitidos = {f"http://127.0.0.1:{puerto}", f"http://localhost:{puerto}"}
         if origin not in permitidos:
             return False
@@ -83,9 +94,11 @@ def _origen_valido(handler):
 
 _PAGINA = """<!DOCTYPE html>
 <html lang="es">
-<head><meta charset="utf-8"><title>HITL — {titulo}</title>
+<head><meta charset="utf-8"><title>HITL — aprobaciones pendientes</title>
 <style>
 body {{ font-family: system-ui, sans-serif; margin: 2rem; max-width: 60rem; }}
+.pedido {{ border: 1px solid #ddd; border-radius: .4rem; padding: 1rem;
+           margin-bottom: 1.5rem; }}
 pre {{ background: #f6f6f6; border: 1px solid #ddd; padding: 1rem;
        overflow: auto; white-space: pre-wrap; }}
 form {{ display: inline-block; margin-right: .5rem; }}
@@ -94,23 +107,45 @@ button {{ font-size: 1rem; padding: .6rem 1.4rem; cursor: pointer; }}
 .rechazar {{ background: #b71c1c; color: #fff; border: 0; }}
 </style></head>
 <body>
-<h2>{titulo}</h2>
-<pre>{cuerpo}</pre>
-<form method="post" action="/decision">
-  <input type="hidden" name="token" value="{token}">
-  <button class="aprobar" name="decision" value="aprobar">Aprobar</button>
-</form>
-<form method="post" action="/decision">
-  <input type="hidden" name="token" value="{token}">
-  <button class="rechazar" name="decision" value="rechazar">Rechazar</button>
-</form>
+<h1>HITL — {cuantos} pedido(s) pendiente(s)</h1>
+{pedidos}
 </body></html>
 """
+
+_PEDIDO_HTML = """<div class="pedido" id="{token}">
+<h2>{titulo}</h2>
+<pre>{cuerpo}</pre>
+<form method="post" action="/decision?token={token}&amp;respuesta=s">
+  <button class="aprobar">Aprobar</button>
+</form>
+<form method="post" action="/decision?token={token}&amp;respuesta=n">
+  <button class="rechazar">Rechazar</button>
+</form>
+</div>
+"""
+
+_SIN_PENDIENTES = "<p>No hay ningún pedido pendiente.</p>"
 
 _GRACIAS = """<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8"><title>HITL</title></head>
 <body><p>Decisión registrada: <b>{decision}</b>. Podés cerrar esta pestaña.</p></body></html>
 """
+
+
+def _pagina():
+    """HTML con TODOS los pendientes (cada uno con su título, cuerpo y forms)."""
+    with _lock:
+        pedidos = list(_pendientes.values())
+    if not pedidos:
+        return _SIN_PENDIENTES
+    bloques = [
+        _PEDIDO_HTML.format(
+            token=html.escape(p.token),
+            titulo=html.escape(p.titulo),
+            cuerpo=html.escape(p.cuerpo))
+        for p in pedidos
+    ]
+    return _PAGINA.format(cuantos=len(pedidos), pedidos="\n".join(bloques))
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -126,23 +161,15 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(datos)
 
     def do_GET(self):
-        global _pendiente
         if self.path.split("?")[0] not in ("/", "/index.html"):
             self._responder(404, "<p>404</p>")
             return
         # mismo corte que do_POST: un GET de página ajena (DNS-rebinding) no
-        # puede leer el pedido pendiente ni su token (hallazgo de auditoría)
+        # puede leer los pedidos pendientes ni sus tokens (hallazgo de auditoría)
         if not _origen_valido(self):
             self._responder(403, "<p>Origen no permitido.</p>")
             return
-        pedido = _pendiente
-        if pedido is None:
-            self._responder(200, "<p>No hay ningún pedido pendiente.</p>")
-            return
-        self._responder(200, _PAGINA.format(
-            titulo=html.escape(pedido.titulo),
-            cuerpo=html.escape(pedido.cuerpo),
-            token=html.escape(pedido.token)))
+        self._responder(200, _pagina())
 
     def do_POST(self):
         if self.path.split("?")[0] != "/decision":
@@ -153,40 +180,67 @@ class _Handler(BaseHTTPRequestHandler):
         if not _origen_valido(self):
             self._responder(403, "<p>Origen no permitido.</p>")
             return
+
+        consulta = parse_qs(urlsplit(self.path).query)
+        token = (consulta.get("token") or [""])[0]
+        respuesta = (consulta.get("respuesta") or [""])[0]
+
+        # Compatibilidad con el form viejo (decision=aprobar|rechazar en el
+        # cuerpo) y con el nuevo contrato del spec (respuesta=s|n).
         largo = int(self.headers.get("Content-Length") or 0)
-        datos = self.rfile.read(largo).decode("utf-8", errors="replace")
-        # el form manda decision=aprobar|rechazar y el token del pedido
-        decision, token = "rechazar", ""
-        for campo in datos.split("&"):
-            clave, _, valor = campo.partition("=")
-            if clave == "decision":
-                decision = valor
-            elif clave == "token":
-                token = valor
-        pedido = _pendiente
-        # token obligatorio y atado al pedido vigente: un POST de un pedido
-        # ya terminado (o de otra pestaña) no puede resolver este.
-        if pedido is None or not secrets.compare_digest(token, pedido.token):
-            self._responder(403, "<p>Decisión inválida o expirada.</p>")
+        if largo:
+            datos = self.rfile.read(largo).decode("utf-8", errors="replace")
+            for campo in datos.split("&"):
+                clave, _, valor = campo.partition("=")
+                if clave == "token" and not token:
+                    token = valor
+                elif clave == "respuesta" and not respuesta:
+                    respuesta = valor
+                elif clave == "decision":
+                    # aprobar -> s ; cualquier otra cosa -> n
+                    respuesta = "s" if valor == "aprobar" else "n"
+
+        with _lock:
+            pedido = _pendientes.get(token)
+        # token desconocido o ya resuelto/expirado: 404 claro, sin decidir nada
+        if pedido is None:
+            self._responder(404, "<p>Pedido desconocido o expirado.</p>")
             return
-        pedido.decision = (decision == "aprobar")
+        pedido.decision = respuesta == "s"
         pedido.evento.set()
         self._responder(200, _GRACIAS.format(
             decision="Aprobar" if pedido.decision else "Rechazar"))
 
 
 def _arrancar():
-    """Levanta el servidor una sola vez (perezoso) y devuelve el puerto."""
-    global _servidor
+    """Levanta el servidor una sola vez (perezoso) y devuelve el puerto.
+
+    Puerto elástico: si el base está ocupado, prueba base+1..base+PUERTO_RANGO.
+    Si ninguno queda libre, deja la excepción subir (aprobar() la atrapa y
+    devuelve False: default seguro, la acción del agente nunca se rompe).
+    """
+    global _servidor, _url_impresa
     if _servidor is not None:
         return _servidor.server_address[1]
     # OJO: acá el valor inválido DEBE fallar (lo atrapa aprobar() y devuelve
     # False al instante). Endurecerlo con _entero arrancaría el servidor en el
     # puerto default y la aprobación esperaría los 300 s del timeout.
-    puerto = int(_setting("HITL_WEB_PORT", str(PUERTO_DEFAULT)))
-    _servidor = ThreadingHTTPServer((HOST, puerto), _Handler)
+    base = int(_setting("HITL_WEB_PORT", str(PUERTO_DEFAULT)))
+    ultimo_error = None
+    for puerto in range(base, base + PUERTO_RANGO + 1):
+        try:
+            _servidor = ThreadingHTTPServer((HOST, puerto), _Handler)
+            break
+        except OSError as e:  # puerto ocupado: probar el siguiente
+            ultimo_error = e
+    else:
+        raise ultimo_error if ultimo_error is not None else OSError("sin puerto libre")
     threading.Thread(target=_servidor.serve_forever, daemon=True).start()
-    return _servidor.server_address[1]
+    efectivo = _servidor.server_address[1]
+    if not _url_impresa:
+        print(f"[hitl_web] escuchando en http://{HOST}:{efectivo}")
+        _url_impresa = True
+    return efectivo
 
 
 def _timeout():
@@ -198,31 +252,35 @@ def _timeout():
 
 
 def aprobar(titulo, cuerpo):
-    """Registra el pedido, sirve la página y espera la decisión del navegador.
+    """Registra el pedido, lo sirve en la página y espera SU decisión.
 
+    Cada llamada crea su token y su Event y espera SOLO el suyo: dos
+    aprobaciones en hilos distintos del proceso conviven sin bloquearse.
     Devuelve True si el navegador aprobó dentro del timeout, False en
     cualquier otro caso (rechazo, timeout o error): el default seguro.
     """
-    global _pendiente
+    try:
+        puerto = _arrancar()
+    except Exception as e:  # puerto ocupado/ inválido, etc.: default seguro
+        print(f"[hitl_web] no se pudo levantar el servidor: {e}")
+        return False
+
+    token = secrets.token_urlsafe(24)
+    pedido = _Pedido(str(titulo), str(cuerpo), token)
     with _lock:
-        try:
-            puerto = _arrancar()
-        except Exception as e:  # puerto ocupado, inválido, etc.: default seguro
-            print(f"[hitl_web] no se pudo levantar el servidor: {e}")
-            return False
+        _pendientes[token] = pedido
+    print(f"[hitl_web] aprobación pendiente en http://{HOST}:{puerto}/?token={token}")
 
-        pedido = _Pedido(str(titulo), str(cuerpo), secrets.token_urlsafe(24))
-        _pendiente = pedido
-        print(f"[hitl_web] aprobación pendiente en http://{HOST}:{puerto}")
-
-        try:
-            listo = pedido.evento.wait(_timeout())
-        except Exception as e:  # nunca colgar al agente por un fallo del HITL
-            print(f"[hitl_web] error esperando la decisión: {e}")
-            listo = False
-        decidido = pedido.decision
-        _pendiente = None
-        if not listo:
-            print("[hitl_web] timeout sin decisión: se rechaza (default seguro)")
-            return False
+    try:
+        listo = pedido.evento.wait(_timeout())
+    except Exception as e:  # nunca colgar al agente por un fallo del HITL
+        print(f"[hitl_web] error esperando la decisión: {e}")
+        listo = False
+    finally:
+        with _lock:
+            _pendientes.pop(token, None)  # deja de listarse al resolverse/expirar
+    decidido = pedido.decision
+    if not listo:
+        print("[hitl_web] timeout sin decisión: se rechaza (default seguro)")
+        return False
     return bool(decidido)

@@ -47,10 +47,58 @@ correctos** — integrado y activo. El crudo tiene techo (~15) porque parte
 del matiz es convención; la calibración quedó perfecta para el sistema:
 lo que despacha local no falla. El contrato
 entrenamiento≡producción (pregunta y estado byte a byte) es el que
-cuenta — documentado en design.md. Pendiente dentro de esta línea:
-promover el patrón a **Choose del supervisor** (falta la task de despacho
-con su catálogo) y un round dirigido de "hechos actuales" para el único
-falso-directo que resiste (mundial, 0.83).
+cuenta — documentado en design.md. ~~Pendiente dentro de esta línea:
+promover el patrón a **Choose del supervisor** y un round dirigido de
+"hechos actuales" (mundial)~~ — **cerrado el 2026-10-13 por evidencia**:
+el bench del supervisor midió el Choose 65 llamadas vs 14 del agente plano
+a calidad igual (6/6) → supervisor v2 sin Choose (design.md); y el mundial
+cerró por REGLA DURA, no por round (exp/46: la familia no juzga recencia).
+
+## Estado del tablero (2026-10-13, tras la revisión + la jornada Laya)
+
+**Corriendo solo (procesos, no ítems):**
+- **exp/43 — la flywheel**: router en shadow, cada pregunta deja par
+  decisión↔resultado unido por id; `etiquetar_ambiental.py` produce la
+  calibración. Veredicto pre-registrado (exp/45): con ≥100 decisiones, base
+  rate de "directo" <10% → apagar el router; si no → alpha de la curva
+  propia y enforce con calibración ambiental.
+- **exp/44 — juez de riesgo en observación**: tres preguntas de una
+  dimensión sobre (comando, último mensaje) en las bandas humanas; el s/n
+  del humano es la etiqueta. Primeros datos: el checkpoint base es débil →
+  fine-tune cuando el log acumule (siguiente de esta línea).
+
+**Cola priorizada:**
+1. ~~**exp/48** — persistencia/resume de corridas~~ **✅ hecho (2026-10-14)**:
+   `utils/thread_store.py` + 3 puntos seguros + `main.py resume <id>`;
+   E2E con kill -9 y continuidad verificados (design.md). Los otros flows
+   (supervisor, juez) heredan la base cuando duela.
+2. ~~**exp/49** — HITL como arista del grafo~~ **✅ hecho (2026-10-14, vía
+   PocketFlow-simple)**: checkpoint de SELECCIÓN (la pausa del factor 8) +
+   `reparar_pendientes` al rehidratar + `request_human_input` (el humano
+   como tool call). Corte demostrado E2E: aprobar con el proceso
+   reiniciado (design.md). **Fase B (exp/49b)**: arista formal
+   approved/rejected e hitl_web multi-pendiente (dos HITL en paralelo).
+3. **exp/50** — pre-fetch como política declarativa (nodo `PreFetch`,
+   apéndice 13): A/B ON/OFF, gana si baja ≥1 ronda sin subir errores.
+3. **exp/50** — pre-fetch como política declarativa (nodo `PreFetch`,
+   apéndice 13): A/B ON/OFF, gana si baja ≥1 ronda sin subir errores.
+4. **exp/45** — veredicto del router con datos propios (pre-registrado,
+   arriba; ~24/100 pares acumulados). Decide la suerte del router del chat.
+5. **Fine-tune del juez de riesgo** — con el log de exp/44 (dataset gratis
+   de las aprobaciones); umbrales del log propio, enforcement recién
+   después.
+6. **Mesa 3 (restos, re-priorizados)**: gate del juez (después del 5),
+   presupuesto dinámico/convergencia de loops (empezar DETERMINISTA con las
+   features de exp/9, Laya solo si no alcanza), Laya vía MCP como producto.
+7. **Mesa 1 (pendiente)**: bench de decisiones del voto como dataset —
+   ahora a medio camino: `calibrar_voto.py` (subproducto de exp/43) ya
+   genera la mitad.
+8. **Mesas 4/5/7/8** (agentes fractales, async, skills, web UX): sin
+   cambios de prioridad por la evidencia nueva.
+
+**Descartado hoy por evidencia:** Choose a escala (~2.400 casos — el bench
+lo volvió innecesario), round de "hechos actuales" (regla dura lo cierra),
+y el menú congelado de 18 se jubiló con el supervisor v2.
 
 ## Hechos
 

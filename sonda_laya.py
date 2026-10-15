@@ -40,7 +40,7 @@ SALIDA = RAIZ / "salidas" / "evals"
 # del contrato del fine-tune sin que ningún test lo note (mismo criterio que
 # sonda_router.py). Los tests son los mismos que leen evals.py y las sondas.
 from nodes import PREGUNTA_ROUTER, PREGUNTA_VOTO  # noqa: E402
-from supervisor import PREGUNTA_DESPACHO  # noqa: E402
+from sonda_supervisor import PREGUNTA_DESPACHO  # noqa: E402
 from utils.contexto import PREGUNTA_PREFILTRO  # noqa: E402
 from utils.rutas import tasks_dir  # noqa: E402
 

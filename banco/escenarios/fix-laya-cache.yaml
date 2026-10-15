@@ -1,0 +1,25 @@
+id: fix-laya-cache
+descripcion: el error de carga de un checkpoint deja de envenenar el proceso entero — reintento tras cooldown
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+permitir_comandos:
+  - python3 -m pytest
+  - python3 -m ruff
+  - ruff
+env:
+  MAX_TOOL_ROUNDS: "30"
+  COMPACTION_CHARS: "200000"
+scratch: []
+turnos:
+  - id: fix
+    linea: "Aplicá banco/specs/laya_cache_reintento.md al pie de la letra (el diseño del fix y los 4 tests van especificados; el código del fix va literal donde lo da). Al final: python3 -m pytest tests/ -q (hoy 334, deben ser más)."
+    hitl: s
+    timeout: 1200
+    max_hitl: 20
+  - id: reporte
+    linea: "En 3 líneas: qué cambiaste en utils/laya.py y qué clava el test del cooldown."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

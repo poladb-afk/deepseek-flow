@@ -42,6 +42,9 @@ def test_los_marcadores_matchean_las_lineas_reales_del_chat():
         "auto_lectura": "── run_command [auto: solo-lectura] ──",
         "interrumpido": "[interrumpido] generación cortada por el usuario",
         "dsml_ignorado": "  [DSML] tool calls como texto: IGNORADOS (presupuesto agotado)",
+        "etiqueta_ambiental": "  [router] etiqueta ambiental: directo (0 rondas)",
+        "riesgo": "  [riesgo] observa: modifica=si 0.82 · irreversible=no 0.91 · revisar=si 0.66",
+        "prefetch": "  [pre-fetch] /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow/flow.py",
     }
     for nombre, patron in MARCADORES.items():
         assert re.search(patron, muestras[nombre]), f"marcador {nombre} no matchea su línea real"
@@ -59,6 +62,14 @@ def test_los_marcadores_matchean_las_lineas_reales_del_chat():
     for linea in contaminantes:
         c = contar_marcadores(linea)
         assert not c.get("veto_l8") and not c.get("veto_denylist"), f"falso positivo en {linea!r}"
+    # Fixture NEGATIVO de la etiqueta ambiental: el TEMPLATE del código fuente
+    # (con {etiqueta}/{rondas}) lo cita la prosa de un agente que lee nodes.py
+    # y NO debe contar; la línea real (con dígitos) sí matchea (está arriba).
+    template = "  [router] etiqueta ambiental: {etiqueta} ({rondas} rondas)"
+    assert not re.search(MARCADORES["etiqueta_ambiental"], template), \
+        "el template del código fuente no debe matchear (prosa ecoada)"
+    assert re.search(MARCADORES["etiqueta_ambiental"],
+                     "  [router] etiqueta ambiental: directo (0 rondas)")
 
 
 def test_limpiar_quita_ansi_y_crlf():
