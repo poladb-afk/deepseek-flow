@@ -27,8 +27,12 @@ SEARCH_MAX_MATCHES = 200
 def _raiz():
     """Raíz de la biblioteca. Configurable para tests; por defecto
     `memoria/` bajo el CWD del proyecto."""
-    raw = _setting("MEMORIA_DIR", MEMORIA_DIR_DEFAULT)
-    return Path(raw).expanduser().resolve() if not Path(raw).is_absolute() else Path(raw)
+    raw = Path(_setting("MEMORIA_DIR", MEMORIA_DIR_DEFAULT)).expanduser()
+    if not raw.is_absolute():
+        # anclada al PROYECTO, no al CWD: arrancar el chat desde otra carpeta
+        # ya no crea una biblioteca nueva vacía en otro lado.
+        raw = Path(__file__).resolve().parent.parent / raw
+    return raw.resolve()
 
 
 def _slug(titulo):

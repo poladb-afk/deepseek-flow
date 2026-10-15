@@ -42,7 +42,8 @@ def test_contencion_de_rutas():
 
     _, err = _resolve("/etc/passwd")
     assert err and "fuera" in err
-    resolved, err = _resolve("Pocketflow/deepseek-flow/docs/design.md")
+    raiz = Path(__file__).resolve().parent.parent
+    resolved, err = _resolve(str(raiz / "docs" / "design.md"))
     assert err is None and resolved.is_file()
 
 
@@ -60,7 +61,8 @@ def test_extraer_yaml_tres_formatos():
 def test_search_files_por_nombre():
     from utils.fs_tools import search_files
 
-    r = search_files(glob="requirements.txt", path="Pocketflow/deepseek-flow")
+    raiz = Path(__file__).resolve().parent.parent
+    r = search_files(glob="requirements.txt", path=str(raiz))
     assert "requirements.txt" in r
 
 
@@ -2308,7 +2310,10 @@ def test_juez_lote_aisla_fallas(tmp_path, monkeypatch):
 
 def _bench_con(fake_agente):
     """Corre correr_bench() con un agente fake (system_one), sin cargar laya."""
-    from evals import correr_bench
+    from evals import TEST_ROUTER, correr_bench
+
+    if not TEST_ROUTER.is_file():
+        pytest.skip(f"falta el test del router: {TEST_ROUTER} (BMO_TASKS_DIR)")
 
     return correr_bench(agente=fake_agente)
 
@@ -2321,6 +2326,9 @@ def test_evals_bench_score_y_ece_ok():
 
     from evals import TEST_ROUTER
     from nodes import PREGUNTA_ROUTER  # noqa: F401  (contrato importado)
+
+    if not TEST_ROUTER.is_file():
+        pytest.skip(f"falta el test del router: {TEST_ROUTER}")
 
     esperados = {}
     for linea in TEST_ROUTER.read_text(encoding="utf-8").splitlines():
@@ -2390,6 +2398,9 @@ def test_evals_bench_laya_ausente_degrada(monkeypatch):
     """Sin laya: correr_bench devuelve estado 'no disponible' y un motivo, sin
     crashear (la degradación prometida)."""
     import evals
+
+    if not evals.TEST_ROUTER.is_file():
+        pytest.skip(f"falta el test del router: {evals.TEST_ROUTER}")
 
     def revienta(*a, **k):
         raise RuntimeError("laya no disponible: prueba")
@@ -3686,6 +3697,10 @@ def test_tool_evals_no_pisa_el_baseline(monkeypatch, tmp_path):
     monkeypatch.setattr("evals.costos_runs", lambda d=None: [])
     monkeypatch.setattr("evals.informe_markdown", lambda *a, **k: "# evals")
 
+    # .runs puede no existir en una PC nueva: el default apunta a uno vacío
+    vacio = Path("salidas/banco/runs_vacio")
+    vacio.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(mod, "DIR_RUNS", vacio)
     # rutas DENTRO de las raíces permitidas (tmp_path de pytest está fuera)
     r = mod.evals(dir_runs=None, salida="salidas/banco")
     assert "Informe de evals generado" in r
@@ -3860,7 +3875,7 @@ def test_search_web_degrada_a_error_sin_red(monkeypatch):
     """Fix 4 (deuda): una búsqueda que falla NO propaga la excepción —
     devuelve un string 'ERROR: …' que research ve como dato y sigue con las
     queries que sí pueden salir. Es el candado que pedía la spec."""
-    import ddgs
+    ddgs = pytest.importorskip("ddgs")
 
     import utils.websearch as ws
 
@@ -4676,6 +4691,7 @@ def test_informe_dos_corridas_en_el_mismo_proceso(tmp_path, monkeypatch):
         return "resumen"
 
     monkeypatch.setattr(informe, "interpretar", resumen_falso)
+    monkeypatch.setattr(informe, "call_llm", lambda *a, **k: "síntesis falsa")
     monkeypatch.setattr(informe, "MAPA_CONCURRENCIA", 1)   # fuerza contención
 
     for i in range(2):

@@ -35,7 +35,9 @@ from pathlib import Path
 # El test de 30 casos del fine-tune router_flow (bmo/train/kaggle-router).
 # Fuera del repo a propósito: es la evidencia de entrenamiento, no un artefacto
 # del harness. Su ausencia degrada el bench, nunca el resto del informe.
-TEST_ROUTER = Path("/home/roquedb/Documentos/00_IA/bmo/train/tasks/router_flow_test.jsonl")
+from utils.rutas import tasks_dir
+
+TEST_ROUTER = tasks_dir() / "router_flow_test.jsonl"  # BMO_TASKS_DIR lo mueve
 BASELINE = Path("salidas/evals/bench_router.json")
 DIR_RUNS = Path(".runs")
 DIR_SALIDA = Path("salidas/evals")

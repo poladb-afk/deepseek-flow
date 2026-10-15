@@ -100,6 +100,23 @@ _NEGRA_DOBLE = (
 #   xargs      construye y ejecuta comandos a partir de stdin
 _PELIGRO_SHELL = re.compile(r">|<|\$\(|`|\bxargs\b")
 
+# Separadores de composición que el shell ejecuta: &&, ||, |, &, ; y el
+# salto de línea. Basta que uno quede afuera para que un segmento entero
+# viaje sin clasificar (medido: 'ls\nrm -rf ~' y 'cat a & rm -rf b' daban auto).
+_SEPARADORES = re.compile(r"&&|\|\||\||&|;|\n|\r")
+
+# Flags que vuelven escritor/ejecutor a un comando de la whitelist.
+# find -delete/-exec borra o ejecuta; sort -o y git --output escriben;
+# pytest -p carga plugins y --basetemp borra el directorio que le pases.
+_FLAGS_PELIGROSOS = {
+    "find": ("-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint",
+             "-fprint0", "-fprintf", "-fls"),
+    "sort": ("-o", "--output"),
+    "git": ("--output", "--ext-diff", "--textconv"),
+    "pytest": ("-p", "--basetemp", "--rootdir", "-c", "--confcutdir"),
+}
+
+
 
 def _tokens(segmento):
     """Tokens del segmento, sin espacios vacíos. No interpretamos quoting:
@@ -128,7 +145,26 @@ def _segmento_es_auto(segmento):
     # Redirección / sustitución / xargs: nunca auto, ni siquiera para echo.
     if _PELIGRO_SHELL.search(segmento):
         return False
+    if _tiene_flag_peligroso(tokens):
+        return False
     return any(_empieza_con(tokens, prefijo) for prefijo in _WHITELIST_PREFIJOS)
+
+
+def _tiene_flag_peligroso(tokens):
+    """True si un comando de la whitelist trae un flag que escribe/ejecuta.
+    Compara el flag exacto y la forma pegada (--output=x, -ox)."""
+    if not tokens:
+        return False
+    base = "pytest" if tokens[:3] == ["python3", "-m", "pytest"] else tokens[0]
+    flags = _FLAGS_PELIGROSOS.get(base, ())
+    for tok in tokens[1:]:
+        for flag in flags:
+            if tok == flag or tok.startswith(flag + "="):
+                return True
+            # forma corta pegada: -ofile (solo flags de una letra)
+            if len(flag) == 2 and tok.startswith(flag) and not tok.startswith("--"):
+                return True
+    return False
 
 
 def _segmento_nivel(segmento):
@@ -161,7 +197,9 @@ def clasificar(comando):
 
     # Partimos por &&, | y ; (los separadores de composición que importan:
     # el shell ejecuta los tres, ver docstring).
-    segmentos = re.split(r"&&|\||;", comando)
+    # `2>&1` primero: su `&` no es un separador (sin esto el split lo
+    # partiría en "2>" y "1" y la redirección falsa degradaría todo).
+    segmentos = _SEPARADORES.split(comando.replace("2>&1", ""))
 
     # 1) La negra manda: si CUALQUIER segmento pide doble o preguntar, ese
     #    es el piso del compuesto (tomamos el nivel más alto encontrado).

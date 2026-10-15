@@ -54,9 +54,13 @@ _cuerpo = [""]  # cuerpo del próximo pedido HITL web (lo lee _approve)
 # cubre el resto con fricción; acá solo va lo que NUNCA debería ejecutarse
 # desde un chat automatizado (borrado de disco/fork bomb en el host).
 _PROHIBIDOS = _re.compile(
-    r"(?:^|[;&|`(]|\s)\s*"                       # inicio de segmento
-    r"(?:rm\s+-[a-zA-Z]*[rf][a-zA-Z]*\s+/\s*(?:$|[;&|])"  # rm -rf / (raíz)
-    r"|:\s*\(\s*\)\s*\{)"                        # :(){ :|:& };  fork bomb
+    r"(?:^|[;&|`(\n]|\s)\s*(?:sudo\s+)?"             # inicio de segmento (+ sudo)
+    r"(?:(?:/usr)?/bin/)?rm\s+"                       # rm, /bin/rm, /usr/bin/rm
+    r"(?=(?:\S*\s+)*?-(?:[a-zA-Z]*[rR][a-zA-Z]*|-recursive)\b)"  # algún flag recursivo
+    r"(?:\S+\s+)*?"                                  # flags en cualquier orden (-r -f)
+    r"(?:--no-preserve-root\s+)?"
+    r"(?:/\*?|~/?\*?|\$HOME/?\*?|/\.\*?)\s*(?:$|[;&|\n])"  # /, /*, ~, $HOME
+    r"|:\s*\(\s*\)\s*\{"                             # :(){ :|:& };  fork bomb
 )
 
 
@@ -162,6 +166,31 @@ def _clip(text, max_chars, marker):
     return text[:mitad] + f"\n{marker}\n" + text[-mitad:]
 
 
+def _sale_de_raices(command):
+    """True si algún token que parece ruta (absoluta, ~ o con ..) resuelve
+    fuera de las raíces permitidas. Conservador: ante la duda, True."""
+    import shlex
+
+    from utils.fs_tools import allowed_roots
+
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return True  # comillas desbalanceadas: no se puede verificar
+    roots = allowed_roots()
+    for tok in tokens:
+        if "=" in tok and tok.startswith("-"):
+            tok = tok.split("=", 1)[1]  # --flag=/ruta
+        if not (tok.startswith(("/", "~", "$")) or ".." in tok):
+            continue
+        if tok.startswith("$"):
+            return True  # $HOME, $VAR: el destino real no es visible
+        destino = (Path.cwd() / Path(tok).expanduser()).resolve()
+        if not any(destino == r or r in destino.parents for r in roots):
+            return True
+    return False
+
+
 def run_command(command):
     if not command or not str(command).strip():
         return "ERROR: comando vacío"
@@ -171,6 +200,10 @@ def run_command(command):
     # 'auto' = solo-lectura verificado → ejecuta directo, pero SIEMPRE
     # imprime el comando (transparencia: el usuario lo ve igual).
     nivel = clasificar(command)
+    if nivel == "auto" and _sale_de_raices(command):
+        # 'auto' significa "solo lee DENTRO del proyecto": un cat/grep/find a
+        # una ruta fuera de AGENT_ALLOWED_DIRS vuelve a pedir aprobación.
+        nivel = "preguntar"
     if _setting("HITL_AUTO", "1") != "1":
         nivel = "preguntar"  # HITL_AUTO=0: compatibilidad total con el s/n de hoy
 
