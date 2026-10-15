@@ -72,12 +72,11 @@ def test_search_files_conteo_exacto_al_truncar(tmp_path):
     más la sugerencia de find. El conteo se calcula ANTES de truncar."""
     from utils.fs_tools import SEARCH_MAX_FILES, search_files
 
-    # tmp_path (/tmp) cae fuera de los directorios permitidos de las tools;
-    # los tests deben vivir dentro del alcance real de la tool.
-    base = RAIZ.parent / "_tmp_search_files"
-    if base.exists():
-        shutil.rmtree(base)
-    base.mkdir(parents=True)
+    # El fixture vive en el tmp de pytest, que la fixture autouse ya suma a
+    # AGENT_ALLOWED_DIRS: queda dentro del alcance de la tool y no escribe
+    # fuera del repo (antes creaba una carpeta en el directorio padre).
+    base = tmp_path / "_tmp_search_files"
+    base.mkdir()
     try:
         for i in range(55):
             (base / f"archivo_{i:02d}.txt").write_text("")
@@ -94,10 +93,8 @@ def test_search_files_sin_aviso_bajo_el_tope(tmp_path):
     """Con menos archivos que el tope no hay aviso de truncado."""
     from utils.fs_tools import search_files
 
-    base = RAIZ.parent / "_tmp_search_files_bajo"
-    if base.exists():
-        shutil.rmtree(base)
-    base.mkdir(parents=True)
+    base = tmp_path / "_tmp_search_files_bajo"
+    base.mkdir()
     try:
         for i in range(10):
             (base / f"archivo_{i:02d}.txt").write_text("")
