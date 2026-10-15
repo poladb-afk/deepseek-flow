@@ -1,0 +1,23 @@
+id: exp43-cerrar
+descripcion: cierre mecánico de exp/43 — spec con código literal; el join decisión↔resultado quedó inerte dos veces por el mismo idiom
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+permitir_comandos:
+  - python3 -m pytest
+  - python3 -m ruff
+  - ruff
+env:
+  MAX_TOOL_ROUNDS: "40"
+scratch: []
+turnos:
+  - id: cierre
+    linea: "Leé banco/specs/exp43_cierre.md y aplicala AL PIE DE LA LETRA — es la tercera sesión de exp/43 y las dos anteriores fallaron por el mismo defecto: rediseñaron en vez de aplicar. Esta spec es MECÁNICA: el código de nodes.py va literal (ediciones A1, A2 y A3 con reemplazos exactos), y las secciones B (marcador en banco/banco.py), C (banco/probes/etiquetar_ambiental.py nuevo con la función pura unir y sus reglas exactas), D (tests append en tests/test_laya_routing.py, 6 grupos) y E (.env.example) están completamente especificadas. Regla dura: donde la spec da código, ese código va; donde da reglas de negocio (sección C), las reglas son exactas — conf = p_directo si propuesta==directo sino 1-p_directo, etiqueta por uso_tools, correcto = propuesta==etiqueta. NO toques el bloque del voto (config_voto/decide_voto/calibrar_voto/test_voto_router) ni decide/ruta_aplicada/registrar_decision/registrar_resultado. Al terminar: `python3 -m pytest tests/ -q` (baseline 324 passed, tienen que ser más) y ruff en lo tocado. Si algo de la spec te parece wrong, aplicala igual y decílo en el reporte — hoy manda cerrar."
+    hitl: s
+    timeout: 1500
+    max_hitl: 20
+  - id: reporte
+    linea: "Sin tocar nada: (1) pegá las 3 líneas nuevas clave de LayaRouter.post (uuid, evento con id, condicional shadow), (2) confirmá que _id_decision y _rondas_inicio ya no existen en nodes.py, (3) ¿pytest cuántos? (4) ¿algo de la spec te pareció incorrecto?"
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

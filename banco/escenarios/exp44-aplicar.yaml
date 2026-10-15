@@ -1,0 +1,25 @@
+id: exp44-aplicar
+descripcion: el harness construye su juez de riesgo de acciones en modo observación — el uso nº1 de la familia Jev/Laya en la wild
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+permitir_comandos:
+  - python3 -m pytest
+  - python3 -m ruff
+  - ruff
+env:
+  MAX_TOOL_ROUNDS: "30"
+  COMPACTION_CHARS: "200000"
+scratch: []
+turnos:
+  - id: aplicar
+    linea: "Aplicá banco/specs/exp44_riesgo.md al pie de la letra (secciones 1 a 6: utils/estado_sesion.py nuevo, utils/riesgo.py nuevo con el contrato EXACTO que está ahí, cableado en modules/coding.py, marcador en banco/banco.py, tests, .env.example). Reglas duras: el s/n NO cambia (solo observación), policy.py y la denylist no se tocan, y sin LAYA_MODEL_RIESGO todo es no-op. El contrato PREGUNTA_RIESGO va literal como está en la spec. Al final: python3 -m pytest tests/ -q (hoy 339, deben ser más)."
+    hitl: s
+    timeout: 1500
+    max_hitl: 20
+  - id: reporte
+    linea: "En 4 líneas: (1) dónde quedó el cableado en run_command, (2) qué bandas se juzgan y cuáles no, (3) qué clavan los tests, (4) qué te quedó flojo."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

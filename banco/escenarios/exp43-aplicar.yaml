@@ -1,0 +1,22 @@
+id: exp43-aplicar
+descripcion: el harness construye su etiqueta ambiental — decisión+resultado por id en el routing log, y el probe que la convierte en calibración (flywheel exp/43)
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+permitir_comandos:
+  - python3 -m pytest
+  - python3 -m ruff
+  - ruff
+env:
+  MAX_TOOL_ROUNDS: "40"
+scratch: []
+turnos:
+  - id: aplicar-spec
+    linea: "Leé banco/specs/exp43_etiqueta_ambiental.md (spec verificada, confía en ella) y aplicala COMPLETA: son sus 6 secciones (utils/laya_routing.py, nodes.py, banco/banco.py, banco/probes/etiquetar_ambiental.py nuevo, tests/test_laya_routing.py append, .env.example). La mecánica en una línea: en modo shadow cada decisión del router ya registrada gana un id; si DeepSeek termina la pregunta SIN haber ejecutado tools (tool_rounds == 0 al responder), la pregunta era directo en la práctica — eso se registra como línea resultado en el MISMO jsonl y después el probe lo une en un set de calibración para conformal. Patrones de la casa que aplican: bookkeeping nunca rompe el chat (mirá registrar_decision), imports perezosos en los post de nodes, funciones puras testeables sin modelo (el estilo de tests/test_laya_routing.py, especialmente test_el_nodo_pasa_la_pregunta_al_registro), y el py_compile hook ya te devuelve errores de sintaxis. Requisitos duros: (1) el id del pendiente en shared debe ser EXACTAMENTE el que viaja en la línea de decisión (el join 1:1 es el contrato); (2) el pendiente solo se consume cuando AgentStep.post va a devolver answer — con tool_calls sobrevive; (3) GetQuestion.post limpia huérfanos; (4) la tabla de verdad del join (propuesta × uso_tools) queda cubierta por tests; (5) no rompas ningún test existente. Verificá con `python3 -m pytest tests/ -q` (solo-lectura auto) y pasale ruff a los archivos tocados."
+    hitl: s
+    timeout: 1500
+  - id: reporte
+    linea: "Sin tocar nada: en máximo 6 líneas, qué escribiste, dónde quedó el join por id, y qué pieza te quedó más floja."
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

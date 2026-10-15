@@ -31,8 +31,11 @@ from pathlib import Path
 from utils import hitl_web
 from utils.aprobaciones import registrar as registrar_aprobacion
 from utils.call_llm import _setting
+from utils.estado_sesion import ultimo_usuario
 from utils.fs_tools import _resolve
 from utils.policy import clasificar, explicar
+from utils.riesgo import juzgar
+from utils.riesgo import registrar as registrar_riesgo
 from utils.terminal import colorear, highlight_diff
 
 TIMEOUT_S = 120
@@ -171,6 +174,18 @@ def run_command(command):
     if _setting("HITL_AUTO", "1") != "1":
         nivel = "preguntar"  # HITL_AUTO=0: compatibilidad total con el s/n de hoy
 
+    # exp/44 — OBSERVACIÓN de riesgo (el s/n NO cambia): solo en las bandas
+    # que un humano gatea (preguntar/confirmar_doble). `auto` y la denylist
+    # NO se juzgan: las reglas duras van primero. Sin LAYA_MODEL_RIESGO,
+    # juzgar() devuelve None y todo queda no-op.
+    juicios = None
+    if nivel in ("preguntar", "confirmar_doble"):
+        juicios = juzgar(command, ultimo_usuario())
+        if juicios:
+            resumen = " · ".join(f"{k.split('_')[0]}={v[0]} {v[1]:.2f}"
+                                 for k, v in juicios.items())
+            print(colorear(f"  [riesgo] observa: {resumen}", "info"))
+
     if nivel == "auto":
         print(f"\n── run_command [auto: solo-lectura] ──\n{command}")
     elif nivel == "confirmar_doble":
@@ -180,11 +195,17 @@ def run_command(command):
         _cuerpo[0] = command
         if not _approve("¿Seguro? (1/2)"):
             registrar_aprobacion("run_command", command, False, "confirmar_doble")
+            if juicios is not None:
+                registrar_riesgo(command, ultimo_usuario(), juicios, False)
             return "RECHAZADO por el usuario: el comando no se ejecutó. Puedes proponer otro o preguntar qué cambiaría."
         if not _approve("¿Confirmás de nuevo? (2/2)"):
             registrar_aprobacion("run_command", command, False, "confirmar_doble")
+            if juicios is not None:
+                registrar_riesgo(command, ultimo_usuario(), juicios, False)
             return "RECHAZADO por el usuario: el comando no se ejecutó (segunda confirmación). Puedes proponer otro o preguntar qué cambiaría."
         registrar_aprobacion("run_command", command, True, "confirmar_doble")
+        if juicios is not None:
+            registrar_riesgo(command, ultimo_usuario(), juicios, True)
     else:  # 'preguntar': el flujo de hoy
         print("\n── run_command ──")
         print(f"   ↳ {explicar(command)}")
@@ -192,8 +213,12 @@ def run_command(command):
         _cuerpo[0] = command
         if not _approve("¿Ejecutar?"):
             registrar_aprobacion("run_command", command, False, "preguntar")
+            if juicios is not None:
+                registrar_riesgo(command, ultimo_usuario(), juicios, False)
             return "RECHAZADO por el usuario: el comando no se ejecutó. Puedes proponer otro o preguntar qué cambiaría."
         registrar_aprobacion("run_command", command, True, "preguntar")
+        if juicios is not None:
+            registrar_riesgo(command, ultimo_usuario(), juicios, True)
 
     try:
         r = subprocess.run(

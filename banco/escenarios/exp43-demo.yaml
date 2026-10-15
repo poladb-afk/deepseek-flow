@@ -1,0 +1,17 @@
+id: exp43-demo
+descripcion: verificación en vivo de la etiqueta ambiental — shadow mode, log propio, una pregunta de tools y una de conocimiento
+env:
+  LAYA_MODO: "shadow"
+  LAYA_LOG_PREGUNTA: "1"
+  LAYA_LOG_ARCHIVO: "salidas/routing_exp43_demo.jsonl"
+scratch: []
+turnos:
+  - id: pregunta-tools
+    linea: "¿Cuántos archivos .py hay exactamente en la carpeta utils/?"
+    timeout: 240
+  - id: pregunta-conocimiento
+    linea: "¿Por qué el cielo es azul? Respondé en dos líneas."
+    timeout: 180
+  - id: salir
+    linea: "salir"
+    timeout: 60

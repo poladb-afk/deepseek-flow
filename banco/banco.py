@@ -107,6 +107,9 @@ MARCADORES = {
     "ronda": r"⚙ ronda \d+",
     "auto_lectura": r"run_command \[auto",
     "interrumpido": r"\[interrumpido\]",
+    "etiqueta_ambiental": r"\[router\] etiqueta ambiental: (directo|herramientas) \(\d+ rondas\)",
+    "riesgo": r"\[riesgo\] observa:",
+    "prefetch": r"\[pre-fetch\]",
 }
 
 

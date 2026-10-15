@@ -46,6 +46,7 @@ SUBCOMANDOS = {
     "evals": "evals",
     "bench_juez": "bench_juez",
     "replay": "replay",
+    "resume": "resume",
 }
 
 
@@ -128,7 +129,11 @@ def main():
     activar()
     if len(sys.argv) > 1 and sys.argv[1] in SUBCOMANDOS:
         modulo = importlib.import_module(SUBCOMANDOS[sys.argv[1]])
-        modulo.main(sys.argv[2:])
+        # los subcomandos devuelven un código de salida (o un valor no-int, que
+        # se ignora: informes, rutas...). `resume` lo usa: exit 1 en error.
+        codigo = modulo.main(sys.argv[2:])
+        if isinstance(codigo, int) and not isinstance(codigo, bool):
+            sys.exit(codigo)
         return
     shared = {
         "messages": [{"role": "system", "content": system_prompt()}],

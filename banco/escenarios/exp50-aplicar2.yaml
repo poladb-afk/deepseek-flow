@@ -1,0 +1,28 @@
+id: exp50-aplicar2
+descripcion: reintento de exp/50 — con la respuesta a la pregunta de la sesión anterior y sin investigaciones laterales
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+permitir_comandos:
+  - python3 -m pytest
+  - python3 -m ruff
+  - ruff
+  - cd /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow &&
+env:
+  MAX_TOOL_ROUNDS: "40"
+  COMPACTION_CHARS: "400000"
+  USE_LAYA_ROUTER: "1"
+  LAYA_MODEL_RIESGO: "0"
+scratch: []
+turnos:
+  - id: aplicar
+    linea: "Aplicá banco/specs/exp50_prefetch.md al pie de la letra (secciones 1 a 5; CRÍTICO la sección 3: LayaRouter.prep debe saltear los mensajes [pre-fetch] para leer la PREGUNTA real). RESPUESTA a tu pregunta de la sesión anterior: los 4 fallos de tests/test_replay.py eran un ARTEFACTO del entorno del banco (USE_LAYA_ROUTER=0 heredado por el pytest hijo; en el entorno del conductor el .env manda 1 y pasan). No los investigues más: de paso, hacé esos 4 tests HERMÉTICOS pineando USE_LAYA_ROUTER=1 con monkeypatch.setenv para que no dependan del ambiente — es un fix de robustez de una línea por test. Después andá DIRECTO a aplicar la spec. pytest SIN prefijo cd (hoy 392, deben ser más) y ruff."
+    hitl: s
+    timeout: 1500
+    max_hitl: 25
+  - id: reporte
+    linea: "En 4 líneas: (1) la regla v1 y sus topes, (2) cómo evitaste que el router lea el prefetch como pregunta, (3) los 4 tests herméticos, (4) algo flojo."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

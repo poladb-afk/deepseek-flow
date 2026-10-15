@@ -25,12 +25,28 @@ Código puro salvo la lectura de settings/calibración y el registro de la
 decisión (bookkeeping: si falla, no rompe el chat).
 """
 import json
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 ETIQUETAS = ("directo", "herramientas")
 MODOS = ("off", "shadow", "enforce")
+
+# exp/46: la recencia no la juzga Laya (límite de familia documentado en el
+# manual de Jev: sin fechas). Detección en código, generosa a propósito:
+# falso-herramientas es barato (el modelo con tools puede responder directo).
+RE_TEMPORAL = re.compile(
+    r"(?i)\b(?:últim[oa]s?|ultim[oa]s?|actual(?:es|mente)?|actuales|"
+    r"hoy|ahora|recientes?|novedades?|noticias?|latest|current|today|"
+    r"20[2-3]\d)\b"
+)
+
+
+def regla_temporal(pregunta):
+    """True si la pregunta pide recencia/hechos actuales: va al lado seguro
+    (herramientas) sin consultar a Laya. PURA, testeable."""
+    return bool(RE_TEMPORAL.search(pregunta or ""))
 
 
 @dataclass(frozen=True)
@@ -80,6 +96,54 @@ def config_router() -> RouterConfig:
     return RouterConfig(
         modo=modo, umbral=umbral, q=q, calibracion=calibracion, version=version_laya()
     )
+
+
+def config_voto() -> RouterConfig:
+    """Modo (no aplica), umbral fijo y q conformal del VOTO local (Mesa 3).
+
+    Mismo patrón que config_router(), una capa abajo: el voto local decide los
+    acuerdos y desacuerdos confiables ANTES del árbitro DeepSeek, y su umbral
+    (LAYA_UNSURE_HIGH_VOTO=0.7) también puede salir de los datos. La cota acá
+    es sobre la confianza ESCALAR del voto (answer_confidence), no sobre el
+    vector de probabilidades: el artefacto {conf, correcto} de
+    banco/probes/calibrar_voto.py es exactamente lo que consume
+    utils.conformal.conjunto. Sin calibración, umbral fijo de siempre."""
+    from utils.call_llm import _setting
+
+    try:
+        umbral = float(_setting("LAYA_UNSURE_HIGH_VOTO", "0.7"))
+    except (TypeError, ValueError):
+        umbral = 0.7
+    calibracion = _setting("LAYA_CALIBRACION_VOTO", "") or ""
+    q = None
+    if calibracion:
+        try:
+            from utils.conformal import leer_calibracion, q_de_calibracion
+
+            alpha = float(_setting("LAYA_ALPHA_VOTO", "0.10"))
+            q = q_de_calibracion(leer_calibracion(calibracion), alpha)
+        except Exception as e:
+            print(f"  [voto] calibración no utilizable ({type(e).__name__}) -> umbral fijo")
+            q = None
+    return RouterConfig(
+        modo="enforce", umbral=umbral, q=q, calibracion=calibracion, version=version_laya()
+    )
+
+
+def decide_voto(resp, conf, config):
+    """(confiable, causa). PURA: sin I/O. Acepta la decisión local del voto
+    solo si el conjunto conformal COLAPSA sobre la opción elegida; sin
+    calibración, si conf >= umbral fijo. Devuelve (bool, str) — la causa va al
+    print para trazabilidad."""
+    from utils.conformal import conjunto
+
+    if config.q is not None:
+        if conjunto(float(conf), config.q) == ("elegida",):
+            return True, f"conjunto colapsa (q={config.q:.3f})"
+        return False, f"conjunto ambiguo (q={config.q:.3f})"
+    if float(conf) >= config.umbral:
+        return True, f"conf {float(conf):.2f} >= umbral {config.umbral:.2f}"
+    return False, f"conf {float(conf):.2f} < umbral {config.umbral:.2f}"
 
 
 def _numero(valor):
@@ -154,7 +218,10 @@ def registrar_decision(evento, pregunta=None, ruta=None):
     dos registros: el etiquetador del router
     (banco/probes/etiquetar_router.py --extra salidas/routing.jsonl) lee
     justamente la clave "pregunta", así que una corrida en modo sombra deja el
-    set completo (pregunta + propuesta + confianza + ruta aplicada)."""
+    set completo (pregunta + propuesta + confianza + ruta aplicada).
+
+    exp/43: el `id` que une esta decisión con su resultado viaja DENTRO del
+    evento (lo genera nodes.LayaRouter.post); acá no se toca."""
     from utils.call_llm import _setting
 
     if _setting("LAYA_LOG_DECISIONES", "1") != "1":
@@ -166,5 +233,50 @@ def registrar_decision(evento, pregunta=None, ruta=None):
         destino.parent.mkdir(parents=True, exist_ok=True)
         with open(destino, "a", encoding="utf-8") as f:
             f.write(json.dumps({"ts": round(time.time(), 3), **evento}, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+def registrar_resultado(id_decision, rondas, ruta=None):
+    """La ETIQUETA ambiental de una pregunta (exp/43): una línea "resultado"
+    en el MISMO archivo que las decisiones, unida a su decisión por `id`.
+
+    Qué mide: en modo shadow la ruta aplicada es SIEMPRE herramientas, así que
+    DeepSeek corre con tools; si responde SIN llamar ninguna (rondas == 0) la
+    pregunta era "directo" EN LA PRÁCTICA. Es una etiqueta gratis, en la
+    distribución exacta de producción, que crece sola con el uso.
+
+    LÍMITE HONESTO (documentar en el código, spec exp/43): mide lo que DeepSeek
+    HIZO, no lo que la pregunta NECESITABA — un modelo que responde de memoria
+    una pregunta de archivos etiqueta "directo" aunque otro hubiese leído. Es
+    ruido declarado; el volumen lo compensa.
+
+    Misma ley que registrar_decision: gated por LAYA_LOG_DECISIONES y
+    bookkeeping (cualquier fallo —disco, permisos— se traga; nunca rompe el
+    chat)."""
+    from utils.call_llm import _setting
+
+    if _setting("LAYA_LOG_DECISIONES", "1") != "1":
+        return
+    if not id_decision:  # sin decisión no hay a qué unir el resultado
+        return
+    try:
+        rondas = int(rondas)
+    except (TypeError, ValueError):
+        return
+    try:
+        destino = Path(ruta or _setting("LAYA_LOG_ARCHIVO", "salidas/routing.jsonl"))
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        with open(destino, "a", encoding="utf-8") as f:
+            f.write(json.dumps(
+                {
+                    "ts": round(time.time(), 3),
+                    "evento": "resultado",
+                    "id": id_decision,
+                    "uso_tools": rondas > 0,
+                    "rondas": rondas,
+                },
+                ensure_ascii=False,
+            ) + "\n")
     except Exception:
         pass

@@ -1,0 +1,28 @@
+id: supervisor-v2-tests
+descripcion: cierra la adaptación de tests de supervisor v2 (la sesión anterior murió por RAM del host a mitad)
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+permitir_comandos:
+  - python3 -m pytest
+  - python3 -m ruff
+  - ruff
+  - cd /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow &&
+env:
+  MAX_TOOL_ROUNDS: "30"
+  COMPACTION_CHARS: "300000"
+  USE_LAYA_ROUTER: "0"
+  LAYA_MODEL_RIESGO: "0"
+scratch: []
+turnos:
+  - id: tests
+    linea: "La reescritura supervisor v2 (banco/specs/supervisor_v2.md) ya está aplicada en supervisor.py y sonda_supervisor.py — NO las toques salvo bug evidente. Quedan 14 tests rotos por la adaptación: corré `python3 -m pytest tests/ -q` y adaptá SOLO los tests (test_smoke.py: los del despacho viejo pasan a probar las guardas puras guarda_vetada/guarda_repetida y el flujo nuevo UnPaso/Ejecutar con fakes — jubilá los que probaron mecánica inexistente (votación 2de-3, reintento-con-feedback del prompt de args) nombrándolos en el reporte; el contrato sha1 del despacho se congela AHORA en test_sonda_laya o test_smoke importando de sonda_supervisor; test_sonda_laya.py y cualquier otro archivo que importe PREGUNTA_DESPACHO/elegir_con_deepseek de supervisor los importa de sonda_supervisor). Verde total al final: `python3 -m pytest tests/ -q` y ruff. Sin prefijo cd en pytest."
+    hitl: s
+    timeout: 1500
+    max_hitl: 25
+  - id: reporte
+    linea: "En 4 líneas: (1) cuántos tests quedaron y contra qué quedaron los adaptados, (2) la lista nominal de los jubilados, (3) dónde quedó congelado el contrato del despacho, (4) algo flojo."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

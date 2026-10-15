@@ -1,0 +1,22 @@
+id: exp50-ab-on
+descripcion: A/B pre-fetch ON — preguntas sobre archivos específicos
+env:
+  PREFETCH: "1"
+  COMPACTION_CHARS: "120000"
+scratch: []
+turnos:
+  - id: flow
+    linea: "¿Qué contiene la primera línea de código de flow.py? Citála textual."
+    timeout: 240
+  - id: funcion
+    linea: "¿Qué función está definida primera en utils/prefetch.py?"
+    timeout: 240
+  - id: docstring
+    linea: "¿De qué trata replay.py según su docstring? Dos líneas."
+    timeout: 240
+  - id: prefijo
+    linea: "¿Cuál es el prefijo textual que usan los mensajes de utils/prefetch.py?"
+    timeout: 240
+  - id: salir
+    linea: "salir"
+    timeout: 60

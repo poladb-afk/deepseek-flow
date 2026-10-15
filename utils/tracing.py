@@ -12,6 +12,7 @@ from pathlib import Path
 
 _activo = False
 _salida = None
+_id_thread = None
 
 
 def _escribir(dic):
@@ -33,6 +34,23 @@ def evento_tool(nombre, ok, seg):
             "seg": round(seg, 3),
         }
     )
+
+
+def thread_id():
+    """El id del thread del proceso (exp/48): idempotente — se resuelve UNA vez.
+
+    Si el tracing ya está activo, reusa el MISMO stem del archivo de `.runs`
+    (el thread y su trace quedan correlacionados por nombre). Si no, cae al
+    patrón `f"{datetime:%Y%m%d_%H%M%S}_{pid}"`, el mismo que usa `activar`
+    (así el thread es estable aunque el tracing esté apagado)."""
+    global _id_thread
+    if _id_thread is not None:
+        return _id_thread
+    if _salida is not None:
+        _id_thread = Path(_salida.name).stem
+    else:
+        _id_thread = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.getpid()}"
+    return _id_thread
 
 
 def activar(ruta_base=None):

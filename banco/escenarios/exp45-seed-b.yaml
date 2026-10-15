@@ -1,0 +1,27 @@
+id: exp45-seed-b
+descripcion: siembra 2 — herramientas, meta, seguimiento con elipsis (la clase difícil), resumen de archivo
+env:
+  COMPACTION_CHARS: "120000"
+scratch: []
+turnos:
+  - id: tools-meta
+    linea: "¿Qué herramientas tenés disponibles? Nombres y una línea cada una, sin ejecutar ninguna."
+    timeout: 180
+  - id: leer-roadmap
+    linea: "Leé la primera línea de docs/roadmap.md y citála textualmente."
+    timeout: 240
+  - id: seguimiento
+    linea: "¿Cuántas secciones tiene ese archivo?"
+    timeout: 180
+  - id: lista-vs-array
+    linea: "¿Qué es más rápido para recorrer, una lista enlazada o un array, y por qué?"
+    timeout: 180
+  - id: binario
+    linea: "Convertí 42 de decimal a binario mostrando los pasos."
+    timeout: 180
+  - id: resumen-readme
+    linea: "Resumime en dos líneas qué hace este proyecto según el README."
+    timeout: 240
+  - id: salir
+    linea: "salir"
+    timeout: 60

@@ -1,0 +1,30 @@
+id: bench-supervisor-aplicar
+descripcion: el harness construye su bench — supervisor reactivo vs agente plano con tool-calling nativo, mismo action space, grading determinista
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+permitir_comandos:
+  - python3 -m pytest
+  - python3 -m ruff
+  - ruff
+  - cd /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow &&
+env:
+  MAX_TOOL_ROUNDS: "30"
+  COMPACTION_CHARS: "200000"
+  # sesión de ESCRITURA de código: Laya apagada para no cargar checkpoints
+  # (2×2.86 GiB) que solo consumen RAM — el router no aporta acá
+  USE_LAYA_ROUTER: "0"
+  LAYA_MODEL_RIESGO: "0"
+scratch: []
+turnos:
+  - id: aplicar
+    linea: "Aplicá banco/specs/bench_supervisor.md al pie de la letra: banco/bench_supervisor.py nuevo + banco/supervisor_tareas.jsonl (las 6 tareas con los textos EXACTOS de la spec) + tests. El agente plano es un bucle mínimo con call_llm_agent sobre supervisor._TODAS/REGISTRO (anti-recursión ya viene), MISMO presupuesto que el supervisor (máx 5 ejecuciones de tools, a la última ronda sin tools), métricas envolviendo call_llm/call_llm_agent con contadores, grading dinámico por código puro, contención por tarea, salida md+jsonl en salidas/evals/ con baseline comparar-sin-pisar. Andá DIRECTO a escribir los archivos (leé la spec y supervisor.py/bench_juez.py como referencia, sin explorar de más). NOTA: el CWD ya es la raíz del repo — corré pytest como 'python3 -m pytest tests/ -q' SIN prefijo cd. NO corras el bench con LLM real (eso lo corre el conductor); solo pytest (hoy 339, deben ser más) y ruff."
+    hitl: s
+    timeout: 1500
+    max_hitl: 20
+  - id: reporte
+    linea: "En 4 líneas: (1) cómo garantizás que las dos vías ven el MISMO action space, (2) cómo contás llamadas remotas, (3) qué fija el grading dinámico, (4) qué te quedó flojo."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

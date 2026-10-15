@@ -1,0 +1,27 @@
+id: exp45-seed-a
+descripcion: siembra de tráfico natural para la flywheel — mezcla de clases (conocimiento, archivos, recencia, creativo, cómputo)
+env:
+  COMPACTION_CHARS: "120000"
+scratch: []
+turnos:
+  - id: cielo
+    linea: "¿Por qué el cielo es azul? Respondé en dos líneas."
+    timeout: 180
+  - id: contar-utils
+    linea: "¿Cuántos archivos .py hay exactamente en la carpeta utils/?"
+    timeout: 240
+  - id: ece
+    linea: "Explicame en una línea qué es un ECE (Expected Calibration Error)."
+    timeout: 180
+  - id: max-pasos
+    linea: "¿Dónde está definido MAX_PASOS y cuánto vale?"
+    timeout: 240
+  - id: version-python
+    linea: "¿Cuál es la última versión estable de Python?"
+    timeout: 180
+  - id: haiku
+    linea: "Escribí un haiku sobre los bucles infinitos."
+    timeout: 180
+  - id: salir
+    linea: "salir"
+    timeout: 60

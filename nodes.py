@@ -8,11 +8,12 @@ from types import SimpleNamespace
 from pocketflow import Node
 
 from modules import discover
-from utils.call_llm import _entero, _real, _setting, call_llm_agent, call_llm_agent_stream
+from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_stream
 from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
 from utils.fs_tools import TOOLS as CORE_TOOLS
 from utils.terminal import colorear, progreso_ronda
-from utils.tracing import evento_tool
+from utils.thread_store import checkpoint
+from utils.tracing import evento_tool, thread_id
 
 EXIT_WORDS = {"salir", "exit", "quit"}
 
@@ -220,7 +221,57 @@ class GetQuestion(Node):
         shared["tool_rounds"] = 0
         shared["no_progress"] = 0
         shared.pop("_fp", None)
+        shared.pop("_router_pendiente", None)
+        # exp/44: el último mensaje del usuario queda como EVIDENCIA DE
+        # INTENCIÓN para el juez de riesgo (import perezoso; los módulos no
+        # ven `shared`). Plumbing, no decide nada.
+        from utils.estado_sesion import recordar_usuario
+
+        recordar_usuario(exec_res)
         shared["messages"].append({"role": "user", "content": exec_res})
+        # exp/48: punto seguro 1 — la pregunta del usuario quedó registrada.
+        # Checkpoint del shared COMPLETO (bookkeeping: jamás corta el chat).
+        checkpoint(thread_id(), "GetQuestion", "continue", shared)
+        return "continue"
+
+
+class PreFetch(Node):
+    """exp/50: pre-fetch como POLÍTICA declarativa del chat (apéndice 13).
+
+    Corre una vez por mensaje user NUEVO (está entre GetQuestion y el paso —
+    la estructura del grafo ya lo garantiza) y lee, DETERMINÍSTICAMENTE, los
+    archivos que la pregunta menciona: si el modelo casi seguro va a pedirlos,
+    se los damos ya leídos en el contexto (utils/prefetch, PURO).
+
+    Ley de ausencia: sin match no appendea nada (no-op). El mensaje prefetch
+    es un user normal del historial — la compacción lo compacta como a
+    cualquiera, y user-tras-user es legal para la API (validar_historial verde
+    antes y después: candado de este nodo). Siempre devuelve "continue" (una
+    arista, sin decisión)."""
+
+    def prep(self, shared):
+        # La última pregunta del usuario en el historial (el último user que
+        # no sea un mensaje prefetch de una vuelta anterior, si lo hubiera).
+        from utils.prefetch import PREFIJO_PREFETCH
+
+        for m in reversed(shared.get("messages", [])):
+            if m.get("role") == "user" and not str(m.get("content", "")).startswith(PREFIJO_PREFETCH):
+                return str(m.get("content", ""))
+        return ""
+
+    def exec(self, pregunta):
+        from utils.prefetch import decidir
+
+        return decidir(pregunta)
+
+    def post(self, shared, prep_res, exec_res):
+        from utils.prefetch import mensaje
+
+        texto = mensaje(exec_res)
+        if texto:
+            shared["messages"].append({"role": "user", "content": texto})
+            for path, _ in exec_res:
+                print(colorear(f"  [pre-fetch] {path}", "info"))
         return "continue"
 
 
@@ -335,6 +386,10 @@ class AgentStep(Node):
     def post(self, shared, prep_res, exec_res):
         shared["messages"].append(historiar(exec_res))
         if getattr(exec_res, "tool_calls", None):
+            # exp/49: punto seguro 4 — la SELECCIÓN: las llamadas quedaron
+            # elegidas pero no ejecutadas (la pausa exacta del factor 8).
+            # Con el cierre de ronda de exp/48 son dos checkpoints por ronda.
+            checkpoint(thread_id(), type(self).__name__, "tool", shared)
             return "tool"
         if _setting("CHAT_STREAM", "1") == "1":
             # con streaming el contenido ya se imprimió en vivo (deltas sin
@@ -342,6 +397,18 @@ class AgentStep(Node):
             print()
         else:
             print(f"\nDeepSeek: {exec_res.content}")
+        pendiente = shared.pop("_router_pendiente", None)
+        if pendiente is not None:
+            from utils.laya_routing import registrar_resultado
+
+            rondas = shared.get("tool_rounds", 0)
+            registrar_resultado(pendiente, rondas)
+            etiqueta = "herramientas" if rondas else "directo"
+            print(colorear(f"  [router] etiqueta ambiental: {etiqueta} ({rondas} rondas)", "info"))
+        # exp/48: punto seguro 3 — la respuesta quedó registrada. El nodo es
+        # AgentStep (DirectAnswer hereda este post y su checkpoint usa el
+        # nombre de la clase real).
+        checkpoint(thread_id(), type(self).__name__, "answer", shared)
         return "answer"
 
 
@@ -394,6 +461,8 @@ class ExecuteTools(Node):
         # pulido de terminal (mesa 8): la ronda consumida se etiqueta para
         # que una secuencia de varias rondas muestre su avance (n/MAX).
         print(colorear("  " + progreso_ronda(ronda, tope), "info"), flush=True)
+        # exp/48: punto seguro 2 — la ronda de tools quedó registrada.
+        checkpoint(thread_id(), "ExecuteTools", "default", shared)
         return "default"
 
 
@@ -436,24 +505,25 @@ def voto_confirmacion_router(pregunta):
     LAYA_MODEL_VOTO, el voto de DeepSeek de siempre."""
     from utils.call_llm import _setting, call_llm
     from utils.estructura import extraer_yaml
-    from utils.laya import disponible, preguntar, veredicto
+    from utils.laya import disponible, preguntar
+    from utils.laya_routing import config_voto, decide_voto
 
     if _setting("USE_VOTACION", "1") != "1":
         return "directo"  # apagado: la palabra de Laya es final
     if disponible("LAYA_MODEL_VOTO"):
         estado = {"pregunta": str(pregunta)[:1000]}
         resp, conf = preguntar(estado, PREGUNTA_VOTO, setting="LAYA_MODEL_VOTO")["confirma_herramientas"]
-        # el umbral del voto es propio (0.7): la curva del veto da 96% de
-        # precisión con 83% de cobertura a 0.7, y subirlo junto al router le
-        # cortaría la mitad de las decisiones locales.
-        if resp in ("herramientas", "directo") and veredicto(
-            conf, alto=_real("LAYA_UNSURE_HIGH_VOTO", 0.7)
-        ) == "met":
+        # el umbral del voto es propio (0.7 por defecto): la curva del veto da
+        # 96% de precisión con 83% de cobertura a 0.7. Con LAYA_CALIBRACION_VOTO
+        # el umbral sale de los datos (cota conformal), igual que el router.
+        config = config_voto()
+        confiable, causa = decide_voto(resp, conf, config)
+        if resp in ("herramientas", "directo") and confiable:
             # acuerdo confiable (directo→directo, el ahorro) o desacuerdo
             # confiable (herramientas→lado seguro): DeepSeek no hace falta
-            print(f"  [voto] laya local: {resp} (conf {conf:.2f})")
+            print(f"  [voto] laya local: {resp} (conf {conf:.2f}) — {causa}")
             return resp
-        print(f"  [voto] laya local duda ({resp}, conf {conf:.2f}) → arbitra DeepSeek")
+        print(f"  [voto] laya local duda ({resp}, conf {conf:.2f}; {causa}) → arbitra DeepSeek")
     r = extraer_yaml(call_llm(
         f"Pregunta del usuario:\n{pregunta}\n\n"
         "¿Responderla requiere USAR HERRAMIENTAS (leer/buscar archivos, web, "
@@ -476,13 +546,36 @@ class LayaRouter(Node):
     lo mismo byte a byte."""
 
     def prep(self, shared):
-        return {"pregunta": str(shared["messages"][-1]["content"])[:1000]}
+        # exp/50: el mensaje `[pre-fetch]` entra ANTES del router (user tras
+        # user), así que `messages[-1]` puede ser el PREFETCH y no la pregunta.
+        # Saltamos los mensajes de pre-fetch para leer la PREGUNTA real: el
+        # router decide y el voto se confirman sobre la pregunta, no sobre el
+        # contexto que la política le inyectó.
+        from utils.prefetch import PREFIJO_PREFETCH
+
+        pregunta = ""
+        for m in reversed(shared["messages"]):
+            if m.get("role") != "user":
+                continue
+            contenido = str(m.get("content", ""))
+            if contenido.startswith(PREFIJO_PREFETCH):
+                continue  # pre-fetch: no es la pregunta
+            pregunta = contenido
+            break
+        return {"pregunta": pregunta[:1000]}
 
     def exec(self, estado):
         from utils.laya import disponible, preguntar_detalle
-        from utils.laya_routing import config_router
+        from utils.laya_routing import config_router, regla_temporal
 
-        if config_router().modo == "off" or not disponible():
+        # exp/46: la recencia no la juzga Laya (límite de familia: sin fechas).
+        # La regla dura va ANTES del modelo. En enforce corta acá sin gastar a
+        # Laya; en shadow NO corta: Laya corre igual para que la flywheel junte
+        # la etiqueta de esta clase y la regla se valide contra realidad.
+        modo = config_router().modo
+        if modo == "enforce" and regla_temporal(estado.get("pregunta")):
+            return "regla:temporal"
+        if modo == "off" or not disponible():
             return None
         try:
             return preguntar_detalle(estado, PREGUNTA_ROUTER).get("necesita_herramientas")
@@ -504,11 +597,25 @@ class LayaRouter(Node):
         # su resultado. La clasificación (Laya) y la decisión (Python) están
         # separadas y la segunda se testea sin modelo.
         config = config_router()
-        propuesta, causa, p_directo = decide(exec_res, config)
+        if exec_res == "regla:temporal":
+            # exp/46: la regla dura ya decidió ANTES del modelo (Laya no se
+            # llamó en enforce). Causa explícita, sin p_directo (no hay par
+            # (p, etiqueta) calibrable → sin pendiente que etiquetar).
+            propuesta, causa, p_directo = (
+                "herramientas",
+                "regla temporal (exp/46): recencia no la juzga Laya",
+                None,
+            )
+        else:
+            propuesta, causa, p_directo = decide(exec_res, config)
         aplicada = ruta_aplicada(propuesta, config)
+        from uuid import uuid4
+
+        id_decision = uuid4().hex[:8]
         registrar_decision(
             {
                 "modo": config.modo,
+                "id": id_decision,
                 "propuesta": propuesta,
                 "aplicada": aplicada,
                 "causa": causa,
@@ -519,6 +626,12 @@ class LayaRouter(Node):
             },
             pregunta=prep_res.get("pregunta") if isinstance(prep_res, dict) else None,
         )
+        if (
+            config.modo == "shadow"
+            and p_directo is not None
+            and _setting("LAYA_LOG_DECISIONES", "1") == "1"
+        ):
+            shared["_router_pendiente"] = id_decision
         print(f"  [laya] {propuesta} — {causa} (modo {config.modo})")
         if aplicada != "directo":
             return "herramientas"  # off y shadow conservan las herramientas

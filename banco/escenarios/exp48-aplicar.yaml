@@ -1,0 +1,28 @@
+id: exp48-aplicar
+descripcion: el harness construye la persistencia/resume del chat — thread serializable con checkpoints y rehidratación validada (factor 6, gap nº1 del análisis)
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+permitir_comandos:
+  - python3 -m pytest
+  - python3 -m ruff
+  - ruff
+  - cd /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow &&
+env:
+  MAX_TOOL_ROUNDS: "40"
+  COMPACTION_CHARS: "400000"
+  USE_LAYA_ROUTER: "0"
+  LAYA_MODEL_RIESGO: "0"
+scratch: []
+turnos:
+  - id: aplicar
+    linea: "Aplicá banco/specs/exp48_threads.md al pie de la letra (secciones 1 a 5: utils/thread_store.py nuevo, tres puntos seguros en nodes.py — buscá con grep dónde ya se instrumenta la traza, subcomando resume en main.py, tests/test_thread_store.py, .env.example). Reusa validar_historial de utils/compaccion, no lo reimplementes. Bookkeeping: checkpoint jamás rompe el chat. pytest SIN prefijo cd (hoy 348, deben ser más) y ruff al final."
+    hitl: s
+    timeout: 1800
+    max_hitl: 25
+  - id: reporte
+    linea: "En 5 líneas: (1) los tres puntos seguros elegidos (archivo:línea), (2) cómo sobrevivís a la cola cortada, (3) qué hace resume con un thread INVÁLIDO, (4) cuántos tests quedaron, (5) qué te quedó flojo."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

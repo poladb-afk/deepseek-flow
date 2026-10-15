@@ -173,3 +173,354 @@ def test_el_nodo_pasa_la_pregunta_al_registro(tmp_path, monkeypatch):
     assert linea["pregunta"] == "leé el archivo X"
     assert linea["propuesta"] == "directo" and linea["aplicada"] == "herramientas"
     assert linea["p_directo"] == 0.99 and linea["modo"] == "shadow"
+
+
+# ---------------------------------------------------------------------------
+# exp/43 — la etiqueta ambiental (decisión ──id──> resultado)
+# ---------------------------------------------------------------------------
+
+
+def test_registrar_resultado_escribe_la_linea_completa(tmp_path, monkeypatch):
+    """La línea "resultado" lleva ts, evento, id, uso_tools y rondas; es la
+    mitad derecha del join con la decisión."""
+    from utils import call_llm
+    from utils.laya_routing import registrar_resultado
+
+    archivo = tmp_path / "routing.jsonl"
+    monkeypatch.setattr(call_llm, "_setting", lambda nombre, default=None: default)
+    registrar_resultado("abcd1234", 3, ruta=archivo)
+    linea = json.loads(archivo.read_text(encoding="utf-8").strip())
+    assert linea["evento"] == "resultado" and linea["id"] == "abcd1234"
+    assert linea["uso_tools"] is True and linea["rondas"] == 3
+    assert "ts" in linea
+
+    registrar_resultado("ef", 0, ruta=archivo)
+    ult = json.loads(archivo.read_text(encoding="utf-8").strip().splitlines()[-1])
+    assert ult["uso_tools"] is False and ult["rondas"] == 0
+
+
+def test_registrar_resultado_gate_y_ruta_rota(tmp_path, monkeypatch):
+    """Apagado por setting no escribe; sin id no escribe; destino imposible se
+    traga (bookkeeping: nunca corta el chat)."""
+    from utils import call_llm
+    from utils.laya_routing import registrar_resultado
+
+    archivo = tmp_path / "routing.jsonl"
+    monkeypatch.setattr(
+        call_llm, "_setting",
+        lambda nombre, default=None: "0" if nombre == "LAYA_LOG_DECISIONES" else default,
+    )
+    registrar_resultado("abcd", 1, ruta=archivo)
+    assert not archivo.exists()
+
+    # gate abierto pero sin id: no hay a qué unir el resultado
+    monkeypatch.setattr(call_llm, "_setting", lambda nombre, default=None: default)
+    registrar_resultado(None, 1, ruta=archivo)
+    registrar_resultado("", 1, ruta=archivo)
+    assert not archivo.exists()
+
+    # ruta rota (un directorio): se traga
+    registrar_resultado("abcd", 1, ruta=tmp_path)
+
+
+def test_shadow_con_probabilidades_deja_el_pendiente_igual_al_id(tmp_path, monkeypatch):
+    """El pendiente es EXACTAMENTE el id de la línea de decisión escrita: el
+    join 1:1 decisión┄resultado es el contrato."""
+    import nodes
+    from utils import call_llm
+
+    archivo = tmp_path / "routing.jsonl"
+    ajustes = {"LAYA_MODO": "shadow", "LAYA_LOG_ARCHIVO": str(archivo)}
+    monkeypatch.setattr(
+        call_llm, "_setting", lambda nombre, default=None: ajustes.get(nombre, default)
+    )
+    shared = {}
+    router = nodes.LayaRouter()
+    respuesta = {"choice": "directo",
+                 "probabilities": {"directo": 0.9, "herramientas": 0.1}}
+    assert router.post(shared, {"pregunta": "q"}, respuesta) == "herramientas"
+    linea = json.loads(archivo.read_text(encoding="utf-8").strip())
+    assert shared["_router_pendiente"] == linea["id"]
+
+
+def test_shadow_con_log_apagado_no_deja_pendiente_ni_escribe(tmp_path, monkeypatch):
+    """Con el gate apagado no hay línea de decisión: sin línea no hay
+    pendiente ni resultado (el marcador mide líneas escritas, no el print)."""
+    import nodes
+    from utils import call_llm
+
+    archivo = tmp_path / "routing.jsonl"
+    ajustes = {"LAYA_MODO": "shadow", "LAYA_LOG_DECISIONES": "0",
+               "LAYA_LOG_ARCHIVO": str(archivo)}
+    monkeypatch.setattr(
+        call_llm, "_setting", lambda nombre, default=None: ajustes.get(nombre, default)
+    )
+    # nodes.py importó _setting a nivel de módulo: el gate del pendiente lee
+    # ESA referencia, así que el apagado se monkeypatchea también ahí.
+    monkeypatch.setattr(
+        nodes, "_setting", lambda nombre, default=None: ajustes.get(nombre, default)
+    )
+    shared = {}
+    router = nodes.LayaRouter()
+    respuesta = {"choice": "directo",
+                 "probabilities": {"directo": 0.9, "herramientas": 0.1}}
+    assert router.post(shared, {"pregunta": "q"}, respuesta) == "herramientas"
+    assert "_router_pendiente" not in shared
+    assert not archivo.exists()
+
+
+def test_enforce_y_shadow_sin_probabilidades_no_dejan_pendiente(monkeypatch):
+    """Enforce no etiqueta (mediría la política); sin p_directo no hay par
+    (p, etiqueta) calibrable."""
+    import nodes
+    from utils import call_llm
+
+    ajustes = {"LAYA_MODO": "enforce"}
+    monkeypatch.setattr(
+        call_llm, "_setting", lambda nombre, default=None: ajustes.get(nombre, default)
+    )
+    shared = {}
+    router = nodes.LayaRouter()
+    router.post(shared, {"pregunta": "q"}, {"choice": "directo",
+                                            "probabilities": {"directo": 0.9,
+                                                              "herramientas": 0.1}})
+    assert "_router_pendiente" not in shared
+
+    # shadow pero respuesta inválida (p_directo None)
+    ajustes["LAYA_MODO"] = "shadow"
+    shared = {}
+    assert router.post(shared, {"pregunta": "q"}, {}) == "herramientas"
+    assert "_router_pendiente" not in shared
+
+
+def test_agentstep_answer_consume_el_pendiente(tmp_path, monkeypatch):
+    """Al responder se registra el resultado con las rondas de la pregunta:
+    0 → directo; N → herramientas. El pop limpia el pendiente."""
+    from types import SimpleNamespace
+
+    import nodes
+    from utils import call_llm
+
+    archivo = tmp_path / "routing.jsonl"
+    monkeypatch.setattr(
+        call_llm, "_setting",
+        lambda nombre, default=None: str(archivo) if nombre == "LAYA_LOG_ARCHIVO" else default,
+    )
+    paso = nodes.AgentStep()
+    respuesta = SimpleNamespace(content="listo", tool_calls=None)
+
+    shared = {"messages": [], "tool_rounds": 0, "_router_pendiente": "id0"}
+    assert paso.post(shared, None, respuesta) == "answer"
+    linea = json.loads(archivo.read_text(encoding="utf-8").strip())
+    assert linea["id"] == "id0" and linea["uso_tools"] is False
+    assert "_router_pendiente" not in shared
+
+    shared = {"messages": [], "tool_rounds": 3, "_router_pendiente": "id3"}
+    paso.post(shared, None, respuesta)
+    ult = json.loads(archivo.read_text(encoding="utf-8").strip().splitlines()[-1])
+    assert ult["id"] == "id3" and ult["uso_tools"] is True and ult["rondas"] == 3
+
+
+def test_agentstep_con_tool_calls_no_consume_el_pendiente(tmp_path, monkeypatch):
+    """Con tool_calls (acción "tool") el pendiente SOBREVIVE y no hay línea:
+    la etiqueta espera a que el ciclo de la pregunta cierre."""
+    from types import SimpleNamespace
+
+    import nodes
+    from utils import call_llm
+
+    archivo = tmp_path / "routing.jsonl"
+    monkeypatch.setattr(
+        call_llm, "_setting",
+        lambda nombre, default=None: str(archivo) if nombre == "LAYA_LOG_ARCHIVO" else default,
+    )
+    paso = nodes.AgentStep()
+    respuesta = SimpleNamespace(
+        content=None,
+        tool_calls=[SimpleNamespace(id="x", function=SimpleNamespace(name="read_file", arguments="{}"))],
+    )
+    shared = {"messages": [], "tool_rounds": 1, "_router_pendiente": "idX"}
+    assert paso.post(shared, None, respuesta) == "tool"
+    assert shared["_router_pendiente"] == "idX"
+    assert not archivo.exists()
+
+
+def test_getquestion_limpia_un_pendiente_huerfano(monkeypatch):
+    """Una pregunta nueva empieza limpia: un ciclo abortado no etiqueta la
+    siguiente."""
+    import nodes
+
+    monkeypatch.setattr(nodes, "registrar_pregunta", lambda *a, **k: None)
+    shared = {"messages": [], "tool_rounds": 5, "_router_pendiente": "viejo"}
+    nodes.GetQuestion().post(shared, None, "otra pregunta")
+    assert "_router_pendiente" not in shared
+    assert shared["tool_rounds"] == 0
+
+
+def _decision(id_, propuesta, p_directo, ts=1.0, pregunta=None):
+    linea = {"ts": ts, "id": id_, "propuesta": propuesta, "p_directo": p_directo}
+    if pregunta is not None:
+        linea["pregunta"] = pregunta
+    return linea
+
+
+def _resultado(id_, uso_tools):
+    return {"ts": 2.0, "evento": "resultado", "id": id_,
+            "uso_tools": uso_tools, "rondas": 1 if uso_tools else 0}
+
+
+def test_unir_tabla_de_verdad():
+    """Los cuatro casos propuesta × uso_tools: conf es de la opción ELEGIDA y
+    `correcto` = propuesta == etiqueta."""
+    from banco.probes.etiquetar_ambiental import unir
+
+    lineas = [
+        _decision("a", "directo", 0.9),
+        _resultado("a", False),                 # directo/directo → correcto
+        _decision("b", "directo", 0.9),
+        _resultado("b", True),                  # directo/herramientas → falla
+        _decision("c", "herramientas", 0.2),
+        _resultado("c", False),                 # herramientas/directo → falla
+        _decision("d", "herramientas", 0.2),
+        _resultado("d", True),                  # herramientas/herramientas → correcto
+    ]
+    filas = unir(lineas)
+    assert [f["laya"] for f in filas] == ["directo", "directo", "herramientas", "herramientas"]
+    assert [f["etiqueta"] for f in filas] == ["directo", "herramientas", "directo", "herramientas"]
+    assert [f["correcto"] for f in filas] == [True, False, False, True]
+    # conf = confianza de la opción elegida
+    assert filas[0]["conf"] == pytest.approx(0.9)     # p_directo
+    assert filas[2]["conf"] == pytest.approx(0.8)     # 1 - p_directo
+
+    # la pregunta solo viaja si estaba logueada
+    with_preg = unir([_decision("a", "directo", 0.9, pregunta="¿hola?"), _resultado("a", False)])
+    assert with_preg[0]["pregunta"] == "¿hola?"
+    assert "pregunta" not in filas[0]
+
+
+def test_unir_salteos_y_huerfanos():
+    """Sin resultado (ciclo abortado) o sin p_directo (respuesta inválida) se
+    saltan; un resultado huérfano se ignora; el orden sigue el de las
+    decisiones."""
+    from banco.probes.etiquetar_ambiental import unir
+
+    lineas = [
+        _decision("abierta", "directo", 0.9),            # sin resultado → salta
+        _decision("sinp", "directo", None),
+        _resultado("sinp", False),                       # su resultado queda huérfano
+        _resultado("fantasma", True),                    # huérfano: sin decisión
+        _decision("ok", "herramientas", 0.1),
+        _resultado("ok", True),
+    ]
+    filas = unir(lineas)
+    assert len(filas) == 1
+    assert filas[0]["laya"] == "herramientas" and filas[0]["correcto"] is True
+    assert filas[0]["fuente"] == "etiqueta ambiental exp/43"
+
+
+# ---------------------------------------------------------------------------
+# exp/46 — la regla temporal (recencia no la juzga Laya: regla dura antes
+# del modelo; en shadow Laya corre igual para no cegar la flywheel)
+# ---------------------------------------------------------------------------
+
+def test_regla_temporal_pura():
+    from utils.laya_routing import regla_temporal
+
+    assert regla_temporal("¿Quién ganó el último mundial?")
+    assert regla_temporal("cual es el ultimo partido")  # sin tilde
+    assert regla_temporal("¿Qué versión de pytest hay en 2026?")
+    assert regla_temporal("noticias de hoy")
+    assert regla_temporal("the latest release?")
+    assert not regla_temporal("¿Por qué el cielo es azul?")
+    assert not regla_temporal("¿Cuál es la capital de Francia?")
+    assert not regla_temporal("")
+    assert not regla_temporal(None)
+
+
+@pytest.fixture
+def _laya_que_diria_directo(monkeypatch):
+    """Un falso de utils.laya que SIEMPRE propondría directo 0.99 y cuenta
+    cuántas veces se lo consultó (el contador clava la regla dura)."""
+    import nodes
+    from utils import laya
+
+    llamadas = {"n": 0}
+
+    def falso_detalle(estado, preguntas, setting="LAYA_MODEL"):
+        llamadas["n"] += 1
+        return {"necesita_herramientas": {
+            "choice": "directo",
+            "probabilities": {"directo": 0.99, "herramientas": 0.01},
+        }}
+
+    monkeypatch.setattr(laya, "disponible", lambda *a, **k: True)
+    monkeypatch.setattr(laya, "preguntar_detalle", falso_detalle)
+    monkeypatch.setattr(nodes, "voto_confirmacion_router", lambda p: "directo")
+    return llamadas
+
+
+def test_enforce_regla_temporal_no_consulta_a_laya(tmp_path, monkeypatch, _laya_que_diria_directo):
+    """El caso mundial: Laya diría directo 0.99 (su punto ciego histórico) y
+    la regla dura lo manda a herramientas SIN llamarla — la decisión queda
+    registrada con la causa de la regla."""
+    import json
+
+    import nodes
+    from utils import call_llm
+
+    archivo = tmp_path / "routing.jsonl"
+    ajustes = {"LAYA_MODO": "enforce", "LAYA_LOG_ARCHIVO": str(archivo)}
+    monkeypatch.setattr(
+        call_llm, "_setting", lambda nombre, default=None: ajustes.get(nombre, default)
+    )
+    router = nodes.LayaRouter()
+    estado = {"pregunta": "¿Quién ganó el último mundial?"}
+    res = router.exec(estado)
+    assert res == "regla:temporal"
+    assert _laya_que_diria_directo["n"] == 0
+    shared = {}
+    assert router.post(shared, estado, res) == "herramientas"
+    linea = json.loads(archivo.read_text(encoding="utf-8").strip())
+    assert "regla temporal" in linea["causa"]
+    assert linea["propuesta"] == "herramientas" and linea["p_directo"] is None
+
+
+def test_shadow_regla_temporal_sigue_consultando(tmp_path, monkeypatch, _laya_que_diria_directo):
+    """En shadow la regla NO ciega la flywheel: Laya corre igual (el par
+    (p, etiqueta) de esta clase es justamente el que valida la regla)."""
+    import json
+
+    import nodes
+    from utils import call_llm
+
+    archivo = tmp_path / "routing.jsonl"
+    ajustes = {"LAYA_MODO": "shadow", "LAYA_LOG_ARCHIVO": str(archivo)}
+    monkeypatch.setattr(
+        call_llm, "_setting", lambda nombre, default=None: ajustes.get(nombre, default)
+    )
+    router = nodes.LayaRouter()
+    estado = {"pregunta": "¿Quién ganó el último mundial?"}
+    res = router.exec(estado)
+    assert res != "regla:temporal" and _laya_que_diria_directo["n"] == 1
+    shared = {}
+    assert router.post(shared, estado, res) == "herramientas"  # shadow conserva
+    linea = json.loads(archivo.read_text(encoding="utf-8").strip())
+    assert linea["propuesta"] == "directo" and linea["p_directo"] == 0.99
+
+
+def test_sin_recencia_flujo_de_siempre(tmp_path, monkeypatch, _laya_que_diria_directo):
+    """Una pregunta de conocimiento estable en enforce: la regla no dispara y
+    decide() aplica (con 0.99 y umbral default 0.85, la propuesta directo
+    pasa la compuerta y el voto falso la confirma → ruta directo)."""
+    import nodes
+    from utils import call_llm
+
+    ajustes = {"LAYA_MODO": "enforce", "LAYA_LOG_ARCHIVO": str(tmp_path / "r.jsonl")}
+    monkeypatch.setattr(
+        call_llm, "_setting", lambda nombre, default=None: ajustes.get(nombre, default)
+    )
+    router = nodes.LayaRouter()
+    estado = {"pregunta": "¿Por qué el cielo es azul?"}
+    res = router.exec(estado)
+    assert res != "regla:temporal" and _laya_que_diria_directo["n"] == 1
+    assert router.post({}, estado, res) == "directo"

@@ -1174,6 +1174,334 @@ reescribir los tests, que era lo que el conductor había vetado).
 316 tests verdes + ruff limpio (verificado por el conductor, no por
 auto-reporte). Escenarios de las 5 sesiones en `banco/escenarios/exp42-aplicar*.yaml`.
 
+## exp/43 — la etiqueta ambiental del router: la flywheel (2026-10-13)
+
+La revisión del harness contra el ecosistema 2026 (System One/Jev, el paper
+de agentic routing) destapó la asimetría: el router produce "herramientas" en
+el 100% del tráfico registrado y la calibración existente (85 casos) era todo
+banco, todo "herramientas" — la clase "directo" no tenía datos propios. El
+mismo hallazgo lo hizo el propio harness en la sesión 3 de aplicación (midió
+44 decisiones, todas inválidas o herramientas). La pieza que faltaba no era
+otro round de fine-tune: era la ETIQUETA.
+
+**La insight**: en modo shadow la ruta aplicada es SIEMPRE herramientas, así
+que DeepSeek corre con tools — y si responde SIN llamar ninguna, la pregunta
+era "directo" EN LA PRÁCTICA. Esa es la etiqueta ambiental: gratis, en la
+distribución exacta de producción, y crece sola con el uso. Es además la
+definición OPERATIVA del objetivo del router (predecir si el bucle de tools
+va a arrancar), no una opinión de oráculo. Límite honesto (declarado en el
+código): mide lo que DeepSeek HIZO, no lo que la pregunta NECESITABA — un
+modelo que responde de memoria una pregunta de archivos etiqueta "directo";
+ruido que el volumen compensa.
+
+**La mecánica** (4 sesiones del banco, conductor GLM): cada decisión con
+probabilidades gana un `id` (`uuid4().hex[:8]`, dentro del evento de
+`registrar_decision`); en shadow con `p_directo` utilizable,
+`LayaRouter.post` deja `shared["_router_pendiente"]`; `AgentStep.post` al
+devolver "answer" lo consume y registra la línea `{"evento": "resultado",
+"id", "uso_tools", "rondas"}` en el MISMO routing log (enforce no etiqueta:
+directo retira las tools y mediría la política; `GetQuestion.post` limpia
+huérfanos; bookkeeping que nunca corta el chat). Terminal:
+`[router] etiqueta ambiental: directo (0 rondas)` — marcador contable por el
+banco. `banco/probes/etiquetar_ambiental.py` (código puro, join PURO
+testeable) une decisión↔resultado por id y emite el JSONL de calibración
+{conf, correcto} drop-in para `utils/conformal` — con `LAYA_LOG_PREGUNTA=1`
+la fila lleva la pregunta.
+
+**Verificado en vivo** (escenario exp43-demo, shadow, log propio): "¿cuántos
+.py en utils/?" → Laya herramientas 0.0016 → 1 ronda → etiqueta herramientas
+(Laya correcta, conf 0.998); "¿por qué el cielo es azul?" → Laya directo
+0.998 → 0 rondas → etiqueta directo (correcta, conf 0.998). Las DOS clases
+ocurren naturalmente con preguntas reales — la flywheel ya no depende del
+sesgo del banco. El etiquetador emitió ambas filas sin una llamada LLM.
+
+**El .env quedó en `LAYA_MODO=shadow` + `LAYA_LOG_PREGUNTA=1`**: el tráfico
+real acumula etiquetas desde ahora. El circuito de vuelta a enforce: muestra
+suficiente + balance de clases → `etiquetar_ambiental.py` → calibración →
+`LAYA_CALIBRACION_ROUTER` + alpha elegido de la curva propia.
+
+**Fricciones medidas del aplicador (4 sesiones, la saga completa en
+`banco/escenarios/exp43-*.yaml`)**: (1) el tope HITL por turno volvió a
+clippear una sesión (6 aprobadas, 2 rechazadas — receta conocida de exp/42:
+max_hitl 20); (2) una sesión DISINTIÓ de la spec y construyó en cambio la
+compuerta conformal del VOTO (`config_voto`/`decide_voto`,
+`banco/probes/calibrar_voto.py`, `tests/test_voto_router.py`) — trabajo
+verde, neutro por defecto (umbral 0.7 sin calibración) y coherente con la
+dirección de la casa, así que QUEDA como subproducto documentado, no pedido;
+(3) una sesión perdió la acción puntual por la COMPACTACIÓN (prompt largo +
+5 compactaciones → el modelo investigó bien pero no editó) — la lección
+operativa: specs largas VAN A DISCO y el prompt del turno queda en una
+línea; (4) la cuarta sesión, con spec mecánica en disco (código literal,
+precedente exp/12) y prompt corto, cerró completo. 316 → **333 tests** +
+ruff limpio, verificados por el conductor en cada corte.
+
+**La caza dirigida (exp43-caza, patrón exp/19 con hitl n — solo lee)**: el
+harness auditó su propio diff nuevo con zonas de caza regaloneadas (DSML,
+huérfanos, gates, unir límite, marcadores). Resultado: 2 bugs VERIFICADOS y
+cerrados en sesión exp43-fix (spec `banco/specs/exp43_fix_caza.md`), 1
+hallazgo refutado con honestidad (el archivo mezclado viejo/nuevo se maneja
+bien — traza pública en el transcript):
+
+- **H1 (medio)**: con `LAYA_LOG_DECISIONES=0` el pendiente se seteaba igual
+  y el print corría — el banco contaba `etiqueta_ambiental×1` sin ninguna
+  línea escrita (el patrón del Fix 10: medir el print, no el registro). Fix:
+  el gate entra en la condición del pendiente; candado
+  `test_shadow_con_log_apagado_no_deja_pendiente_ni_escribe`.
+- **H2 (medio)**: el marcador matcheaba prosa ecoada — el literal vive en el
+  f-string de nodes.py que las auditorías mandan leer. Fix: el patrón exige
+  la forma real con dígitos `(directo|herramientas) \(\d+ rondas\)` (el
+  template `{etiqueta}`/`{rondas}` no matchea) + fixture negativo en
+  test_banco (lección Fix 10 aplicada de entrada esta vez).
+
+Regresión final: demo re-corrida post-fix — 2/2 pares decisión↔resultado y
+marcador exacto 1/turno. **334 tests** + ruff limpio. De paso, la caza misma
+dejó 2 pares etiquetados en `salidas/routing.jsonl`: cada sesión del banco
+es ahora tráfico calibrable.
+
+## exp/44 — el juez de riesgo de acciones, en observación (2026-10-13)
+
+El uso nº1 de la familia Jev/Laya en la wild (LangChain AutoMode): juzgar
+cada ACCIÓN antes de ejecutarla. Este harness ya tenía las reglas duras
+(`policy.py` auto/preguntar/confirmar_doble + denylist) — el hueco semántico
+era la banda que decide SOLO un humano. exp/44 la instrumenta **sin cambiar
+ninguna conducta**: en las bandas humanas (preguntar/confirmar_doble),
+`run_command` consulta a Laya tres preguntas de UNA dimensión cada una
+(`modifica_estado`, `danio_irreversible`, `requiere_revision` — contrato
+`utils/riesgo.py`, congelado por sha1) sobre el estado `(comando, último
+mensaje del usuario)` — evidencia de intención, nunca el razonamiento del
+propio agente (lección del manual de Jev: se auto-aprueba) — imprime
+`[riesgo] observa:` y al conocerse el s/n registra
+`{"comando", "mensaje", "juicios", "aprobado"}` en `salidas/riesgo.jsonl`.
+La respuesta del humano ES la etiqueta (misma jugada ambiental que exp/43).
+Sin `LAYA_MODEL_RIESGO` todo es no-op. `utils/estado_sesion.py` es el
+plumbing del último mensaje (lo siembra `GetQuestion.post`).
+
+**Primera observación en vivo** (exp44-observa, checkpoint BASE sin
+fine-tune): 3 comandos juzgados + etiquetados. Lecciones: el base es débil
+— dijo "no requiere revisión" (0.58) para un `pip install` que el humano
+RECHAZÓ, y "modifica estado" para un `python3 -c print(40+2)`; y `mkdir`
+bien juzgado. La dirección es clara: el pipeline funciona, el checkpoint
+necesita el fine-tune cuando el log acumule (los pares ya caen solos con el
+uso del chat y del banco). Nota: el `rm -rf` del escenario nunca llegó al
+gate — deepseek-flash se negó solo a ejecutarlo y ofreció alternativa
+segura.
+
+## El bench del supervisor — el veredicto medido (2026-10-13)
+
+`banco/bench_supervisor.py` (grading dinámico en código puro: la verdad se
+calcula al momento, 6 tareas reales): el supervisor reactivo (Laya elige +
+mayoría 2-de-3 + args por DeepSeek) contra un agente DeepSeek PLANO con
+tool-calling nativo sobre el MISMO action space y presupuesto:
+
+| vía | calidad | llamadas remotas | reloj |
+|---|---|---|---|
+| supervisor | 6/6 | **65** | 358 s |
+| agente plano | 6/6 | **14** | 26 s |
+
+**4,6× llamadas y 14× tiempo por CERO ganancia de calidad** en esta clase de
+tareas de búsqueda/lectura. El veredicto del bench: el despacho se
+simplifica — el valor del supervisor nunca estuvo en el Choose, está en los
+vetos/self-healing/presupuesto (código, no Laya). El ítem del roadmap
+"Choose a escala (~2.400 casos)" queda DESCARTADO por evidencia: no hay
+brecha de calidad que cerrar comprimiendo llamadas del despacho. Límite
+honesto: n=6, tareas homogéneas de lookup; tareas reactivas multi-paso más
+complejas podrían favorecer al bucle reactivo — si se conserva, que sea por
+esa clase de trabajo, no por ahorro. Dos bugs del propio instrumento
+medidos y cerrados por el conductor: el contador no veía las llamadas del
+supervisor (binding: `from utils.call_llm import call_llm` directo — se
+envuelve también la referencia del módulo supervisor; primera corrida
+reportó 0 llamadas, imposible) y `cargar_tareas` recibía lista donde esperaba
+ruta.
+
+## exp/46 — la regla temporal: el "mundial" cerrado por regla dura (2026-10-13)
+
+El falso-directo resistente ("¿quién ganó el último mundial?", conf 0.83
+que pasa la compuerta) era un límite de FAMILIA, no de entrenamiento: estos
+modelos no juzgan fechas ni recencia (manual de Jev: "no dates — extract
+parts in code"). Rounds dirigidos no lo curan. La salida del runbook (regla
+dura ANTES que modelo): `regla_temporal(pregunta)` en
+`utils/laya_routing.py` — regex generosa (último/actual/hoy/2026/latest,
+es/en, con y sin tilde; falso-herramientas es barato: el modelo con tools
+responde directo si puede). En **enforce** corta antes de llamar a Laya
+(centinela `regla:temporal`, decisión registrada con su causa, sin gasto);
+en **shadow** NO corta — Laya corre igual para que la flywheel junte las
+etiquetas de exactamente esta clase y valide la regla contra realidad.
+Candados: 4 grupos de tests (la sesión cableó pero no los escribió; los
+escribió el conductor — el reporte de sesión decía otra cosa, verificación
+de conductor no opcional).
+
+## Fix: el caché de errores de Laya vence (2026-10-13)
+
+Medido en la revisión: 31/37 decisiones de producción salieron "sin detalle
+de Laya" y el fallo de carga quedaba cacheado PARA SIEMPRE en el proceso —
+un OOM transitorio degradaba la sesión entera sin reintento. Ahora
+`_errores` guarda `(ts, msg)` y el error VENCE: pasado
+`LAYA_ERROR_COOLDOWN` (default 60 s) se reintenta la carga; el acierto
+limpia el residual; dentro del cooldown el raise cacheado es rápido (un
+checkpoint roto permanente cuesta un reintento por minuto, aceptable). La
+ley de degradación no cambia. Tests con módulo laya falso
+(`tests/test_laya_cache_reintento.py`).
+
+**Estado del turn (verificación final del conductor): 350 tests + ruff
+limpio.** La sesión exp46-aplicar también dejó una lección operativa: corrió
+con `USE_LAYA_ROUTER=0` y `LAYA_MODEL_RIESGO=""` por escenario — las
+sesiones de ESCRITURA no cargan checkpoints (2×2.86 GiB de RAM que no
+aportan); la primera corrida sin eso saturó la RAM de la máquina y mató el
+banco.
+
+## Supervisor v2 — el despacho simplificado, el bench aplicado (2026-10-13)
+
+Decisión del dueño tras el veredicto del bench. El bucle reactivo queda; el
+Choose se jubila. **Un paso = UNA llamada** que elige herramienta Y args
+juntos (`call_llm_agent` con tool-calling nativo sobre `_TODAS`), y las
+leyes L8 viven como GUARDAS PURAS del ejecutor (`guarda_vetada`,
+`guarda_repetida` — cache de idénticas, veto sin-args, veto tras dos
+fallos; testeables sin LLM). El historial VIAJA COMPLETO entre pasos (fin
+de los hechos recortados a 160 chars: el modelo ve los resultados reales —
+la ganancia medida del agente plano). `Sintetizar` y la sección "Pasos" del
+informe se conservan; anti-recursión (L1) intacta; `supervisar`/`REGISTRO`/
+`_TODAS`/`create_supervisor_flow` intactos para heartbeat, módulo y bench.
+`PREGUNTA_DESPACHO` y `elegir_con_deepseek` se mudaron a
+`sonda_supervisor.py` (el checkpoint jubilado se sigue midiendo como
+evidencia, por args). `LAYA_MODEL_SUPERVISOR` comentado en `.env` — **los
+procesos del supervisor y del heartbeat dejan de cargar 2.86 GiB**.
+
+**Bench post-v2 (mismas 6 tareas, grading dinámico):**
+
+| vía | calidad | llamadas | reloj |
+|---|---|---|---|
+| supervisor v1 (Laya+mayoría+args) | 6/6 | 65 | 358 s |
+| **supervisor v2** | 6/6 | **20** | **50 s** |
+| agente plano | 6/6 | 14 | 23 s |
+
+**−69% llamadas y −86% reloj** con la calidad sostenida; el residual contra
+el plano (1.4×) es la síntesis final y algo más de uso de tools — el precio
+del informe auditable. E2E real verificado (respuesta honesta incluida:
+declaró que MAX_PASOS llegó por evidencia indirecta cuando el truncado de
+search_files no le mostró la línea). Fix de conductor en el cierre: el
+caché de idénticas no veía DENTRO de una tanda (el snapshot de prep es
+previo a la ronda y los modelos sí duplican llamadas en una misma ronda) —
+estado vivo local en `Ejecutar.exec`.
+
+**Saga de aplicación (3 sesiones + conductor)**: la reescritura murió a
+mitad por **saturación de RAM del host** (no de la sesión: corría sin
+checkpoints; fue el acumulado del ambiente — la sesión de tests posterior,
+con la RAM ya liberada, cerró sin incidente y con la RAM plana). Lección
+operativa consolidada: las sesiones de escritura van SIN checkpoints y el
+conductor verifica `free -g` antes de lanzar. La sesión de tests jubiló
+(con nombre en su reporte): votación 2-de-3 en el despacho,
+reintento-con-feedback del prompt de args, umbral del supervisor —
+mecánica que ya no existe; el contrato sha1 del despacho quedó congelado
+donde vive ahora (la sonda). Un `_diag_replay.py` rastrero de una sesión
+anterior se borró en la limpieza. **348 tests + ruff limpio.**
+
+## exp/47 — 12 factor agents: el gap analysis (2026-10-14)
+
+El material oficial de humanlayer/12-factor-agents quedó versionado local
+(`banco/material/12factor/`, 13 archivos) y una sesión del banco (patrón
+exp/19) auditó el harness factor por factor, con evidencia citada y
+verificada por el conductor. **Informe completo:
+`salidas/informe_12factor_2026-10-14.md`.** Resumen del tablero: 6 factores
+cubiertos con evidencia (1, 2, 3, 4, 9, 10), 6 parciales (5, 7, 8, 11, 12,
+apéndice 13) y 1 ausente (6). Las divergencias informadas — lo que el
+material recomienda y la casa RECHAZÓ con evidencia propia — son parte del
+resultado: pre-rank de tools (exp/15, KV-cache), triaje LLM de errores
+(exp/9, autocorrección 67%), errorCounter por tool (reemplazado por
+no-progress), persistir messages como memoria (descartado por costo).
+
+**La tesis "PocketFlow envuelve la metodología" se sostiene por el factor
+8 con sus propias palabras** ("the number one feature request... interrupt
+a working agent and resume later, ESPECIALLY between tool selection and
+invocation", factor-08 L73-74): el harness ya ejerce el control flow propio
+sin framework pesado; lo que le falta al factor 8 es justo el
+break-and-resume — y encaja como un nodo y una arista más, no como un
+framework. Los tres gaps derivados, ya en el roadmap como exp/48-50:
+
+| exp | pieza | factor | métrica de corte |
+|---|---|---|---|
+| exp/48 | persistencia/resume de corridas (thread serializable) | 6 | rehidratar sin violar invariantes; ≥50% rondas ahorradas en ≥20 rondas |
+| exp/49 | HITL como arista (`AskHuman` + approved/rejected) | 7/8 | aprobar con el proceso reiniciado; 2 HITL paralelos sin bloqueo |
+| exp/50 | pre-fetch como política declarativa (nodo `PreFetch`) | ap. 13 | A/B ON/OFF: ≥1 ronda menos sin subir errores |
+
+## exp/48 — el thread serializable: persistencia/resume del chat (2026-10-14)
+
+Aplicado por el harness (sesión exp48-aplicar) con el conductor auditando el
+diff completo. **La pieza**: `utils/thread_store.py` (puro) — `checkpoint()`
+appendea el `shared` COMPLETO por línea a `salidas/threads/<id>.jsonl`
+(bookkeeping que jamás corta el chat; `THREAD_PERSIST=0` apaga todo),
+`cargar()` lee la última línea COMPLETA tolerando cola cortada por crash, y
+`valido()` reusa `validar_historial` (los 4 invariantes del modo thinking).
+Tres **puntos seguros** en el grafo (mismos sitios que el trace):
+GetQuestion.post (pregunta registrada), ExecuteTools.post (ronda
+registrada), AgentStep.post answer (respuesta registrada — DirectAnswer
+persiste con su nombre de clase real). Subcomando `python3 main.py resume
+<id>`: rehidrata, completa faltantes con setdefault, y un thread con
+violaciones NO arranca (lado seguro — el modo thinking rompería a la
+primera llamada). 368 tests (+20, `tests/test_thread_store.py`) · ruff
+limpio.
+
+**E2E del conductor, dos casos reales:**
+- **Continuidad**: thread de una corrida completa (13 mensajes, 3 rondas)
+  → resume → pregunta de memoria ("¿qué números te di?") respondida SIN
+  tools — etiqueta ambiental "directo (0 rondas)": el historial restaurado
+  es memoria utilizable (y de paso alimentó la flywheel).
+- **kill -9 a mitad**: tarea multi-carpeta asesinada durante la ronda 1
+  (último checkpoint: ExecuteTools, rondas=1, 6 mensajes, 0 violaciones) →
+  resume con continuación → cierra limpio SIN re-ejecutar la ronda ya hecha
+  (el resultado restaurado viaja en el historial). Ahorro total de la ronda
+  realizada; la métrica formal (≥50% en tareas ≥20 rondas) queda para el
+  tráfico real, n=1 hoy.
+
+**Límites v1 (documentados)**: solo el chat (otros flows después); el
+resume abre un LINAJE NUEVO de thread (el id es por proceso — la
+continuidad es del contenido, no del id); sin pausa entre selección e
+invocación (eso es exp/49, que reusa esta base). Nota operativa del
+conductor: `pkill -f "main.py"` mata también al wrapper del conductor si su
+línea de comando contiene el patrón — matar por PID exacto.
+
+## exp/49 — la aprobación durable: el HITL sobrevive al proceso (2026-10-14)
+
+Corte pre-registrado en exp/47 ("aprobar con el proceso reiniciado"),
+resuelto por la vía PocketFlow-simple (decisión del conductor documentada):
+sin reestructurar el flujo con aristas approved/rejected todavía — la base
+de exp/48 + dos piezas. Aplicado por el harness, auditado por el conductor.
+
+- **Punto seguro 4 — la SELECCIÓN** (`AgentStep.post`, camino "tool"): el
+  checkpoint en el momento EXACTO que el factor 8 pide ("between tool
+  selection and tool invocation"). Dos checkpoints por ronda: selección y
+  cierre.
+- **`reparar_pendientes(shared)`** (PURA, `utils/thread_store.py`): un
+  proceso muerto entre selección y ejecución deja el último assistant con
+  `tool_calls` huérfanos — viola el invariante de la API y el resume lo
+  rechazaría. La reparación appendea, por cada huérfano, un mensaje tool
+  HONESTO ("no llegó a registrarse ejecutada — puede haber corrido a
+  medias; verificá el efecto antes de repetirla"). Acotada al final (pares
+  viejos rotos en el medio son corrupción, los caza el validador),
+  idempotente. `resume` la aplica y el banner informa cuántas.
+- **`modules/humano.py`** — `request_human_input(pregunta)`: el humano como
+  TOOL CALL (factor 7 literal): el modelo puede pedir aclaración antes de
+  asumir; una línea por `input()`, EOF/excepción → "(sin respuesta del
+  humano: …)" — dato, no crash; sin HITL (preguntar no es un efecto).
+
+**E2E del conductor (el corte, demostrado)**: chat con pedido de escritura,
+stdin abierto en silencio por fifo, `kill -9` mientras el `(s/n)` espera →
+último checkpoint `AgentStep tool` con la violación esperada ("assistant
+con tool_calls sin sus tools"); `resume` → banner "1 llamada interrumpida
+reparada" · 0 violaciones → el modelo re-propone el `write_file` →
+aprobación `s` → **archivo escrito** ("exp49 ok") y cierre limpio. La
+aprobación sobrevivió al proceso que la pidió.
+
+**Hallazgo de la auditoría (no previsto, valioso)**: con stdin por pipe, el
+EOF alcanza la aprobación y cuenta como RECHAZO (default seguro) — la ronda
+cierra sola y el modelo responde con elegancia. El escenario "muerte con
+aprobación PENDIENTE" solo existe con stdin abierto (terminal real o
+hitl_web); el fifo lo reprodujo fielmente. Límites v1 documentados:
+`request_human_input` es solo terminal (la vía web es 49b con el server
+multi-pendiente); la reparación es at-most-once honesto, no exactly-once
+(verificá efectos antes de repetir — el mensaje se lo dice al modelo).
+
+**378 tests (+10) · ruff limpio.**
+
 ## Cómo crecer desde aquí
 
 - Escribir archivos → herramienta write_file con confirmación humana

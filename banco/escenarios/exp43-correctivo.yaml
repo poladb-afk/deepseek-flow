@@ -1,0 +1,23 @@
+id: exp43-correctivo
+descripcion: cierra exp/43 — nodes.py quedó inconsistente (id siempre None) y faltan 4 secciones de la spec (marcador, probe, tests, .env.example)
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+permitir_comandos:
+  - python3 -m pytest
+  - python3 -m ruff
+  - ruff
+env:
+  MAX_TOOL_ROUNDS: "40"
+scratch: []
+turnos:
+  - id: correctivo
+    linea: "Seguimiento de exp43-aplicar (tu propio reporte dijo la verdad: quedò a medias porque el tope de HITL te rechazò dos edits; ahora tenès margen). Estado REAL del disco hoy: utils/laya_routing.py tiene registrar_resultado CORRECTO (no lo toques) y registrar_decision ORIGINAL (devuelve None, tampoco lo toques). nodes.py està INCONSISTENTE: LayaRouter.post hace 'id_decision = registrar_decision(...)' (siempre None), guarda shared['_id_decision'] y shared['_rondas_inicio'] INCONDICIONALMENTE, y AgentStep.post cierra con registrar_resultado(shared.get('_id_decision'), tool_rounds - _rondas_inicio) sin print — o sea: el join nunca ocurre. La spec es banco/specs/exp43_etiqueta_ambiental.md (verificada, confìa en ella). Relèela y: (A) REESCRIBÌ la parte de nodes.py para cumplir la spec EXACTA: el id se genera en LayaRouter.post con uuid4().hex[:8], viaja DENTRO del dict del evento de registrar_decision, y el pendiente se guarda como shared['_router_pendiente'] SOLO si config.modo == 'shadow' and p_directo is not None (borrà _id_decision/_rondas_inicio — tool_rounds ya se resetea por pregunta en GetQuestion.post, no hace falta delta); AgentStep.post en el camino del answer hace shared.pop('_router_pendiente', None), si hay pendiente llama registrar_resultado(pend, shared.get('tool_rounds', 0)) e imprime coloreado 'info': '  [router] etiqueta ambiental: directo (0 rondas)' o '  [router] etiqueta ambiental: herramientas (N rondas)' — con tool_calls el pendiente NO se consume; GetQuestion.post limpia huérfanos junto al reset de presupuesto. (B) Las 4 secciones que faltan COMPLETAS: banco/banco.py MARCADORES gana 'etiqueta_ambiental': r'\\[router\\] etiqueta ambiental'; banco/probes/etiquetar_ambiental.py NUEVO (join por id decisión↔resultado → JSONL de calibración {ts, pregunta?, laya, conf, etiqueta, correcto, fuente} con conf = p_directo si propuesta==directo sino 1-p_directo, etiqueta = directo si no uso_tools, correcto = propuesta==etiqueta; join como función PURA testeable, CLI aparte, escribe incremental, reporta n y balance); tests/test_laya_routing.py APPEND con los 6 grupos de la spec sección 5 (estilo monkeypatch de test_el_nodo_pasa_la_pregunta_al_registro, tabla de verdad completa del join); .env.example comentario corto en el bloque LAYA_MODO. Candados: no rompas ningùn test existente, py_compile ya te devuelve sintaxis. Verificà con `python3 -m pytest tests/ -q` y ruff en lo tocado."
+    hitl: s
+    timeout: 1500
+    max_hitl: 20
+  - id: reporte
+    linea: "Sin tocar nada: confirmà en 4 líneas — (1) el id del pendiente ¿es el mismo que viaja en la línea de decisión?, (2) ¿qué pasa en enforce y con p_directo None?, (3) ¿los 6 grupos de tests están?, (4) ¿qué te quedó flojo?"
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

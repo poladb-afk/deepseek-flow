@@ -1,0 +1,25 @@
+id: exp43-cerrar2
+descripcion: cuarta sesión exp/43 — prompt corto anti-compacción, spec mecánica ya en disco
+permitir:
+  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+permitir_comandos:
+  - python3 -m pytest
+  - python3 -m ruff
+  - ruff
+env:
+  MAX_TOOL_ROUNDS: "40"
+  COMPACTION_CHARS: "200000"
+scratch: []
+turnos:
+  - id: cierre
+    linea: "Aplicá banco/specs/exp43_cierre.md al pie de la letra (secciones A a E, el código va literal). No toques el bloque del voto. Al final: python3 -m pytest tests/ -q (hoy 324, deben ser más)."
+    hitl: s
+    timeout: 1200
+    max_hitl: 20
+  - id: reporte
+    linea: "Pegá las 3 líneas clave nuevas de LayaRouter.post (uuid, id en el evento, condicional shadow) y decidme cuántos tests quedaron."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60
