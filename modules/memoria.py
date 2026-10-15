@@ -11,6 +11,7 @@ Dos tools, código puro (sin LLM):
 - memory_save: escribe `memoria/nota_FECHA_slug.md` SIN HITL (es la
   libreta del agente) pero con contención dura: solo escribe DENTRO de
   `memoria/`, el slug se deriva del título y rechaza rutas o '..'."""
+import os
 import re
 import unicodedata
 from datetime import date
@@ -47,10 +48,12 @@ def _archivos_md():
     raiz = _raiz()
     if not raiz.is_dir():
         return []
-    return sorted(p for p in raiz.glob("*.md") if p.is_file())
+    # misma política que fs_tools.sin_enlaces: la biblioteca no sigue enlaces
+    # (medido: un memoria/enlace.md -> /otro/lado devolvía contenido externo)
+    return sorted(p for p in raiz.glob("*.md") if p.is_file() and not p.is_symlink())
 
 
-def memory_search(query):
+def memory_search(query=None):
     """Busca `query` (case-insensitive) dentro de los .md de la biblioteca.
     Devuelve las coincidencias (archivo + línea) y, siempre, el listado de
     los archivos de memoria/ para que el agente sepa qué hay disponible.
@@ -103,8 +106,8 @@ def memory_search(query):
 
 def _prefiltrar(query, archivos):
     """(archivos a consultar, si el prefiltro actuó). Con
-    MEMORIA_PREFILTRO=0 o sin Laya, devuelve todos: la memoria completa,
-    como siempre."""
+    MEMORIA_PREFILTRO=0 o sin juicio de Laya, devuelve todos y False: el
+    aviso "[prefiltro Laya: …]" aparece SOLO si Laya realmente puntuó."""
     if _setting("MEMORIA_PREFILTRO", "1") != "1":
         return archivos, False
     try:
@@ -134,7 +137,7 @@ def memory_save(titulo, contenido):
     raiz = _raiz()
     destino = raiz / f"nota_{date.today().isoformat()}_{slug}.md"
     # doble chequeo: el destino resuelto DEBE quedar dentro de memoria/
-    if raiz not in destino.resolve().parents:
+    if destino.is_symlink() or raiz not in destino.resolve().parents:
         return "ERROR: el destino queda fuera de la biblioteca de memoria."
     cuerpo = contenido if contenido is not None else ""
     texto = f"{titulo.strip()}\n\n{cuerpo}\n"
@@ -153,15 +156,20 @@ def guardar_resumen_sesion(contenido):
     destino = raiz / f"sesion_{date.today().isoformat()}.md"
     # El nombre se hace único contra lo que YA existe, no contra el reloj: con
     # el sufijo horario solo (HHMM) dos sesiones del mismo minuto se pisaban.
-    if destino.exists():
+    # lexists, no exists: un symlink COLGANTE da exists()=False y write_text
+    # lo seguía, creando el archivo fuera de memoria/ (medido)
+    if os.path.lexists(destino):
         from datetime import datetime
 
         marca = datetime.now().strftime("%H%M")
         destino = raiz / f"sesion_{date.today().isoformat()}-{marca}.md"
         n = 2
-        while destino.exists():
+        while os.path.lexists(destino):
             destino = raiz / f"sesion_{date.today().isoformat()}-{marca}-{n}.md"
             n += 1
+    # misma guarda que memory_save: el destino resuelto queda DENTRO de memoria/
+    if raiz not in destino.resolve().parents:
+        return None
     try:
         raiz.mkdir(parents=True, exist_ok=True)
         destino.write_text(contenido.rstrip() + "\n", encoding="utf-8")

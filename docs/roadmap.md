@@ -80,8 +80,6 @@ cerró por REGLA DURA, no por round (exp/46: la familia no juzga recencia).
    approved/rejected e hitl_web multi-pendiente (dos HITL en paralelo).
 3. **exp/50** — pre-fetch como política declarativa (nodo `PreFetch`,
    apéndice 13): A/B ON/OFF, gana si baja ≥1 ronda sin subir errores.
-3. **exp/50** — pre-fetch como política declarativa (nodo `PreFetch`,
-   apéndice 13): A/B ON/OFF, gana si baja ≥1 ronda sin subir errores.
 4. **exp/45** — veredicto del router con datos propios (pre-registrado,
    arriba; ~24/100 pares acumulados). Decide la suerte del router del chat.
 5. **Fine-tune del juez de riesgo** — con el log de exp/44 (dataset gratis
@@ -246,6 +244,7 @@ dedicado (gap del cookbook); loops fractales con presupuesto heredado (depth má
   (`RAG_PREFILTRO`/`RAG_PREFILTRO_N`) y `memory_search`
   (`MEMORIA_PREFILTRO`/`MEMORIA_PREFILTRO_N`). Sin checkpoint
   (`LAYA_MODEL_PREFILTRO`) el filtro es no-op: entran todos, como siempre
+  (hasta el 2026-10-15 recortaba a los primeros N: corregido en la consolidación)
   (no se pierde recall; cercado por tests con Laya simulado). Siguiente
   real: entrenar el checkpoint `router_prefiltro`.
   Y **¿el trabajo está listo?** — clasificador de convergencia de loops

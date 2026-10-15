@@ -6,4 +6,6 @@ fastembed>=0.4
 fastmcp>=3.0
 ddgs>=9.0
 laya==0.3.20
+requests>=2.31
 pytest>=8.0
+ruff==0.17.1

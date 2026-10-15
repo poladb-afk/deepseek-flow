@@ -167,6 +167,11 @@ def comparar_baseline(nuevo, ruta=BASELINE):
       - OK: score igual/mejor y ECE igual/mejor.
     Un baseline sin score (corrida degradada) no cuenta como referencia."""
     comparacion = {"veredicto": "PRIMERA CORRIDA", "anterior": None, "delta": {}}
+    if nuevo.get("score") is None:
+        # bench degradado (sin Laya o sin test): nada que comparar — antes
+        # reventaba con TypeError None - float si había baseline numérico
+        comparacion["veredicto"] = "SIN BENCH"
+        return comparacion
     if not ruta.is_file():
         return comparacion
     try:

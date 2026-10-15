@@ -225,13 +225,18 @@ def call_llm_agent_stream(messages, tools=None):
         if callable(cerrar):
             with contextlib.suppress(Exception):
                 cerrar()
-    tool_calls = [
+    # Un stream CORTADO (Ctrl+C o red) no despacha tool calls: sus argumentos
+    # pueden estar truncados y el usuario pidió parar (medido: tras Ctrl+C la
+    # llamada se conservaba y se ejecutaba). Tampoco viaja un fragmento sin
+    # nombre o sin id ("herramienta desconocida: None").
+    tool_calls = [] if cortado else [
         SimpleNamespace(
             id=acum["id"],
             type="function",
             function=SimpleNamespace(name=acum["name"], arguments=acum["arguments"]),
         )
         for _, acum in sorted(por_indice.items())
+        if acum["name"] and acum["id"]
     ]
     return SimpleNamespace(
         content="".join(contenido) or None,

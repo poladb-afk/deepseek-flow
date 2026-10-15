@@ -136,9 +136,10 @@ el reasoning): la alternativa documentada —preservarlo en el historial—
 habilitaría thinking en las rondas de tools al costo de reenviarlo en
 cada vuelta.
 
-## Sanitizado de respuestas descarriladas
+### Sanitizado: el episodio del system prompt ajeno
 
-Medido en producción (2026-10-05): una respuesta se cortó a mitad del
+(Detalle de la capa 2 de la sección «Sanitizado de respuestas descarriladas
+y thinking selectivo», arriba.) Medido en producción (2026-10-05): una respuesta se cortó a mitad del
 saludo y el modelo siguió emitiendo un system prompt AJENO (un "file
 exploration agent" genérico — texto de entrenamiento, no inyección de
 nadie: episodio estocástico de decodificación, no reproducible en 3
@@ -1850,8 +1851,10 @@ intacto).
 **Hooks pre-tool (`utils/fs_tools.HOOKS_PRE`).** El complemento que
 faltaba: `HOOKS_PRE = {nombre_tool: [fn]}` donde `fn(tool_call_dict) -> str|None`.
 Si el hook devuelve texto, **CANCELA** la ejecución (ese texto es el
-resultado); si devuelve `None`, no opina. Mismo contrato de hierro: un
-hook que lanza se ignora y la tool sigue. Corre ANTES de la
+resultado); si devuelve `None`, no opina. **Fail-closed** (consolidación
+2026-10-15): un hook PRE que lanza VETA — es una guarda y "no pude
+decidir" no puede significar "adelante"; el veto vuelve como texto de tool
+y el chat sigue. Los hooks POST conservan el contrato fail-open. Corre ANTES de la
 implementación porque hay guardas que un hook post ya llega tarde a
 evaluar (un comando que ya corrió). El primer uso es el residual de la
 mesa 2:

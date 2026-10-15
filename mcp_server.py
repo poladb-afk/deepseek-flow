@@ -43,6 +43,26 @@ def elegir_exposicion(permitir, impls, descripciones):
     return expuestas, aviso
 
 
+def envolver(nombre, fn, impls):
+    """La función que se registra en FastMCP: misma firma que la implementación
+    (FastMCP arma el schema desde ahí) pero el cuerpo despacha por
+    run_tool_call — el ÚNICO camino con HOOKS_PRE (denylist) y HOOKS_POST.
+    Antes se registraba la implementación cruda y un run_command expuesto
+    salteaba la denylist."""
+    import functools
+    import inspect
+    import json
+
+    @functools.wraps(fn)
+    def envuelta(**kwargs):
+        tc = {"id": f"mcp-{nombre}", "type": "function",
+              "function": {"name": nombre, "arguments": json.dumps(kwargs, ensure_ascii=False)}}
+        return fs_tools.run_tool_call(tc, impls)["content"]
+
+    envuelta.__signature__ = inspect.signature(fn)
+    return envuelta
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="mcp-server", description="Sirve el action space del chat vía MCP (stdio)"
@@ -65,7 +85,8 @@ def main(argv=None):
     expuestas, aviso = elegir_exposicion(permitir, impls, descripciones)
     server = FastMCP("deepseek-flow")
     for nombre in expuestas:
-        server.tool(impls[nombre], name=nombre, description=descripciones.get(nombre, ""))
+        server.tool(envolver(nombre, impls[nombre], impls), name=nombre,
+                    description=descripciones.get(nombre, ""))
 
     # stdout es el canal del protocolo MCP: todo aviso va a stderr
     if aviso:

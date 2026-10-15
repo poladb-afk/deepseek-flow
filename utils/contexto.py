@@ -67,14 +67,18 @@ def elegir_por_laya(consulta, unidades, max_unidades, setting_modelo=DEFAULT_MOD
 
     Devuelve las mejores `max_unidades` **en orden original** (la relevancia
     decide QUÉ entra, no el orden de presentación). Con `max_unidades <= 0`,
-    con una sola unidad, o sin Laya disponible, devuelve `unidades` intactas:
-    el default seguro es no perder recall."""
+    con una sola unidad, o sin juicio de Laya (no disponible o falla),
+    devuelve `unidades` intactas — TODAS, no las primeras N: el default
+    seguro es no perder recall."""
     unidades = list(unidades)
     if not unidades or max_unidades <= 0 or len(unidades) <= max_unidades:
         return unidades
     puntajes = _puntuar(consulta, unidades, setting_modelo)
     if puntajes is None:
-        return unidades[:max_unidades]  # sin juicio: no se pierde nada de más
+        # sin juicio NO se recorta: devolver los primeros N perdía recall en
+        # silencio y el llamador lo anunciaba como "prefiltro Laya" (medido:
+        # 12 notas → 8 sin Laya cargada). La regla de hierro es no-op.
+        return unidades
     # empate estable: el orden original desempata (determinismo)
     orden = sorted(range(len(unidades)), key=lambda i: (-puntajes[i], i))
     elegidos = sorted(orden[:max_unidades])  # vuelven en orden original

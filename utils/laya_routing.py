@@ -70,6 +70,22 @@ def version_laya() -> str:
         return "desconocida"
 
 
+def _umbral(nombre, default):
+    """Un umbral de probabilidad VÁLIDO: finito y en [0, 1]. Cualquier otra
+    cosa (typo, NaN, 1.5) usa el default — medido: LAYA_UNSURE_HIGH=nan hacía
+    que `p < nan` diera False y el router eligiera directo."""
+    from utils.call_llm import _setting
+
+    try:
+        valor = float(_setting(nombre, str(default)))
+    except (TypeError, ValueError):
+        return default
+    if valor != valor or not 0.0 <= valor <= 1.0:
+        print(f"  [laya] {nombre}={valor!r} fuera de [0, 1] -> {default}")
+        return default
+    return valor
+
+
 def config_router() -> RouterConfig:
     """Modo, umbral fijo, q conformal y versión de laya, desde settings."""
     from utils.call_llm import _setting
@@ -78,10 +94,7 @@ def config_router() -> RouterConfig:
     if modo not in MODOS:
         print(f"  [laya] LAYA_MODO desconocido ({modo!r}) -> enforce")
         modo = "enforce"
-    try:
-        umbral = float(_setting("LAYA_UNSURE_HIGH", "0.85"))
-    except (TypeError, ValueError):
-        umbral = 0.85
+    umbral = _umbral("LAYA_UNSURE_HIGH", 0.85)
     calibracion = _setting("LAYA_CALIBRACION_ROUTER", "") or ""
     q = None
     if calibracion:
@@ -110,10 +123,7 @@ def config_voto() -> RouterConfig:
     utils.conformal.conjunto. Sin calibración, umbral fijo de siempre."""
     from utils.call_llm import _setting
 
-    try:
-        umbral = float(_setting("LAYA_UNSURE_HIGH_VOTO", "0.7"))
-    except (TypeError, ValueError):
-        umbral = 0.7
+    umbral = _umbral("LAYA_UNSURE_HIGH_VOTO", 0.7)
     calibracion = _setting("LAYA_CALIBRACION_VOTO", "") or ""
     q = None
     if calibracion:

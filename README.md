@@ -67,7 +67,7 @@ Sin ese paso el harness funciona igual — el router del chat y el Choose del
 supervisor degradan al lado DeepSeek; solo se pierden los ifs locales (ms,
 costo 0).
 
-## Capacidades (24, al día de hoy)
+## Capacidades (29 tools, al día de hoy)
 
 | Origen | Herramientas |
 |---|---|
@@ -82,16 +82,17 @@ costo 0).
 | auditoria | `run_auditoria` — BatchFlow multi-carpeta + síntesis comparativa |
 | research | `deep_research` — web + loop de cobertura |
 | debate | `debate` — proponente vs crítico por colas + juez |
-| supervisor | `run_supervisor` — bucle reactivo: Laya elige la herramienta de cada paso |
+| supervisor | `run_supervisor` — v2: un paso = UNA llamada con tool-calling nativo (herramienta + args juntos); vetos, caché y presupuesto como guardas de código |
 | db | `sql` / `db_schema` — SELECT de solo lectura sobre SQLite |
 | effective_n | `run_effective_n` — deduplicación exacta por contenido (Effective N; 1 o varias carpetas, `BatchFlow`) |
 | evals | `evals` — el harness juzgándose a sí mismo: bench del router, linter de trazas, costo por sesión (tool del chat: informe a disco SIN pisar el baseline) |
 | rag | `rag_search` / `rag_index` — búsqueda semántica local (fastembed) |
 | memoria | `memory_search` / `memory_save` — biblioteca consultable entre sesiones |
-| vision/PDF | `ver_imagen` / `ver_pdf` — mira imágenes (data-URL base64) y lee PDFs (Files API); tipo por contenido, límites chequeados antes de llamar |
+| vision/PDF | `ver_imagen` / `ver_pdf` — mira imágenes (data-URL base64) y lee PDFs (rasterizados con `pdftoppm`, página → imagen); tipo por contenido, límites chequeados antes de llamar |
 | websearch | `search_web` — ddgs sin API key |
 | mcp | `mcp_tools` / `mcp_call` — consume servidores MCP externos |
 | a2a | `agentes_remotos` / `a2a_tarea` — consume agentes remotos (protocolo agent2agent); setting `A2A_AGENTS` |
+| humano | `request_human_input` — el modelo le pregunta al usuario cuando le falta información (factor 7) |
 
 ## Memoria entre sesiones
 
@@ -99,13 +100,14 @@ La memoria es una **biblioteca consultable**, no contexto auto-inyectado.
 Cada chat arranca con la memoria vacía (nada entra al system prompt); el
 agente la consulta por tools solo cuando el pedido lo justifica:
 
-- `memory_search(query)` — busca texto (insensible a mayúsculas) en los
+- `memory_search(query)` — `query` opcional (sin ella, lista la biblioteca); busca texto (insensible a mayúsculas) en los
   markdown de `memoria/` y devuelve archivo+línea, más el listado de la
   biblioteca. Código puro, sin LLM.
 - `memory_save(titulo, contenido)` — guarda `memoria/nota_FECHA_slug.md`
   con el título como primera línea. Sin HITL (es la libreta del agente)
   pero con contención dura: solo escribe dentro de `memoria/`, el nombre
-  sale de un slug del título (sin rutas ni `..`).
+  sale de un slug del título (sin rutas ni `..`). La biblioteca no sigue
+  enlaces simbólicos (ni al leer ni al escribir).
 
 Al salir del chat, si `MEMORIA=1` (default) y hubo al menos 2 preguntas,
 **una** llamada a `call_llm` resume la conversación y la guarda como
@@ -134,6 +136,9 @@ python3 carga_trazas.py                  # (script aparte) jsonl → SQLite
 python3 sonda_router.py [ckpt]        # (script aparte) router con compuerta
 python3 main.py mcp-server               # exponer capacidades vía MCP
 python3 main.py grafo [flujo]            # exportar los grafos a mermaid
+python3 main.py bench_juez               # bench de answer_verified (grading por código)
+python3 main.py replay [trace.jsonl]     # re-valida trazas .runs contra los grafos actuales
+python3 main.py resume <id>              # rehidrata un thread del chat (salidas/threads/)
 ```
 
 Cada corrida deja un trace por nodo en `.runs/*.jsonl`.
@@ -145,10 +150,11 @@ deepseek-flow/
 ├── main.py            # entry point + subcomandos
 ├── nodes.py / flow.py # el CORE: bucle del agente
 ├── modules/           # capacidades del chat (TOOLS + IMPL por archivo)
-├── informe|juez|juez_lote|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|evals|heartbeat|visor|carga_trazas.py
+├── informe|juez|juez_lote|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|evals|heartbeat|visor|replay|resume|bench_juez|carga_trazas.py
 │                      # piezas standalone (CLI) — los módulos las exponen
-├── utils/             # call_llm, fs_tools, embeddings, laya, estructura,
-│                      # mcp_client, tracing, viz, websearch
+├── utils/             # call_llm, fs_tools, policy, laya, laya_routing, conformal,
+│                      # compaccion, contexto, prefetch, riesgo, thread_store,
+│                      # hitl_web, mcp_client, tracing, viz, websearch…
 ├── memoria/           # biblioteca entre sesiones (ignorada)
 ├── salidas/           # informes generados por las corridas (ignorada)
 ├── tests/             # smoke tests (pytest)

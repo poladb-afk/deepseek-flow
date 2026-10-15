@@ -59,7 +59,7 @@ _PROHIBIDOS = _re.compile(
     r"(?=(?:\S*\s+)*?-(?:[a-zA-Z]*[rR][a-zA-Z]*|-recursive)\b)"  # algún flag recursivo
     r"(?:\S+\s+)*?"                                  # flags en cualquier orden (-r -f)
     r"(?:--no-preserve-root\s+)?"
-    r"(?:/\*?|~/?\*?|\$HOME/?\*?|/\.\*?)\s*(?:$|[;&|\n])"  # /, /*, ~, $HOME
+    r"(?:/\*?|~/?\*?|\$HOME/?\*?|/\.\*?)(?:\s+--no-preserve-root)?\s*(?:$|[;&|\n])"  # /, /*, ~, $HOME
     r"|:\s*\(\s*\)\s*\{"                             # :(){ :|:& };  fork bomb
 )
 
