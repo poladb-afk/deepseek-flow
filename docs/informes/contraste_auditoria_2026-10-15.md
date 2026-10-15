@@ -199,4 +199,17 @@ Leyenda: **CONFIRMADO** = el defecto sigue vivo, reproducido; **MATIZADO** = par
 
 ---
 
-*Contraste realizado sin modificar el código del proyecto. Artefactos temporales en `/tmp`; el único archivo agregado es este informe.*
+## 8. Cierre: estado final del árbol (2026-10-15, con las dos entregas aplicadas)
+
+| Entrega | Commit | Qué cerró |
+|---|---|---|
+| `deepseek-flow-fixes.patch` | `9508d6a` | El P0 del HITL (todos los separadores del shell + flags peligrosos), denylist dura más ancha, contención de raíces en `run_command`, memoria anclada al proyecto, `TEST_ROUTER` portable, tests herméticos y 32 guardas nuevas |
+| `consolidacion_2026-10-15.patch` | `d81e615` (merge `c92dc1d`) | Prefiltro sin Laya, `evals(salida=…)`, symlinks de memoria (leer y escribir), hook PRE fail-closed, presupuesto con tool nativa, stream cortado, tope real de SQL, `comparar_baseline`, umbral NaN, hooks de MCP, módulo roto, tool huérfano, traza `ok`, `--no-preserve-root`, documentación alineada y 44 tests nuevos |
+
+**Verificación final:** `ruff check .` verde; `pytest` **477 passed** (los 2 fallos son el sandbox de esta sesión bloqueando `_tmp_search_files*`; en copia escribible la suite queda verde); y las 12 sondas de este informe reproducidas a mano sobre el árbol nuevo.
+
+**Sigue abierto** — ninguna de las dos entregas lo toca: A10/H10 (el bench del router no reproduce la política de producción), A17/H12 (la compacción descarta hechos sin resumir), A18/A19/H09 (Effective N), A22 (duraciones inclusivas), A23 (`batch_size` de Laya), A24 (tope de checkpoints), A25 (el log de preguntas guarda texto en claro), A28 (`cita_ok` del bench del juez) y los estáticos H13/H14/H16/H17/H19/H20. También queda `escribir_salida` pisando archivos dentro de las raíces sin HITL, que la propia consolidación declara como decisión de diseño pendiente tuya.
+
+---
+
+*Contraste realizado sin modificar el código del proyecto. Artefactos temporales en `/tmp`.*
