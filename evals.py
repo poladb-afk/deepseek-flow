@@ -38,7 +38,13 @@ from pathlib import Path
 from utils.rutas import tasks_dir
 
 TEST_ROUTER = tasks_dir() / "router_flow_test.jsonl"  # BMO_TASKS_DIR lo mueve
-BASELINE = Path("salidas/evals/bench_router.json")
+# Baseline del bench del router. El v1 (2026-10-06: score 0.9667 / crudo 0.90 /
+# ECE 0.0658) se midió con la compuerta CRUDA, antes de que el bench
+# reprodujera la política de producción (conformal + modo + regla temporal): no
+# es comparable con el bench v2, así que queda como ancla histórica y el v2
+# escribe su propio archivo. La primera corrida v2 dirá "PRIMERA CORRIDA".
+BASELINE = Path("salidas/evals/bench_router_v2.json")
+BASELINE_HISTORICO = Path("salidas/evals/bench_router.json")
 DIR_RUNS = Path(".runs")
 DIR_SALIDA = Path("salidas/evals")
 
@@ -63,9 +69,12 @@ def _git_sha():
 # ---------------------------------------------------------------------------
 
 def _decision(eleccion, conf, veredicto):
-    """La compuerta EXACTA de producción (nodes.LayaRouter.post): 'directo'
-    solo si eligió directo Y el veredicto es 'met'; cualquier otra cosa
-    (uncertain, not met, herramientas) cae al lado SEGURO = herramientas."""
+    """La compuerta CRUDA del bench: 'directo' solo si el modelo eligió directo
+    Y el veredicto es 'met'; cualquier otra cosa cae al lado SEGURO.
+
+    NO es la compuerta de producción (ese docstring era falso, A10/H10): la
+    política real suma el umbral conformal, el modo y la regla temporal. Se
+    conserva porque es la serie histórica del bench (baseline v1)."""
     return "directo" if (eleccion == "directo" and veredicto(conf) == "met") else "herramientas"
 
 
@@ -99,19 +108,36 @@ def _casos_router():
 
 def _placeholder_bench(motivo):
     return {"estado": "no disponible", "motivo": motivo, "score": None,
-            "score_crudo": None, "ece": None, "n": 0, "filas": []}
+            "score_crudo": None, "score_compuerta": None, "score_aplicada": None,
+            "ece": None, "n": 0, "n_regla": 0, "modo": None, "filas": []}
 
 
 def correr_bench(agente=None):
-    """Corre el test por el camino de producción. `agente` es un objeto con
-    system_one(estado, preguntas, lang) — en producción utils.laya.agente()
-    (carga el checkpoint de LAYA_MODEL); en tests, un fake fiteado.
+    """Corre el test por el camino de PRODUCCIÓN (A10/H10).
 
-    Devuelve (resultado, motivo_error). resultado incluye score (con compuerta),
-    score_crudo, ece y el detalle por caso; `filas` es la evidencia del informe.
+    Desde el 2026-10-15 el bench aplica la MISMA política que el chat: mismo
+    truncamiento del estado (1000 chars, como LayaRouter.prep), misma regla
+    temporal ANTES del modelo cuando el modo es enforce (exp/46), y el mismo
+    decide + ruta_aplicada de utils.laya_routing (umbral conformal incluido).
+    `agente` es un objeto con system_one(estado, preguntas, lang): en
+    producción utils.laya.agente(); en tests, un fake fiteado.
+
+    Tres números, porque miden cosas distintas:
+      - `score`: la PROPUESTA de la política, independiente del modo. Es la
+        métrica comparable entre corridas y la que ancla el baseline v2.
+      - `score_aplicada`: lo que el grafo EJECUTA hoy con el modo configurado
+        (en off/shadow todo cae a herramientas: no sirve como serie).
+      - `score_crudo`: la ELECCIÓN cruda del modelo, sin compuerta (baseline v1:
+        0.90) y `score_compuerta`: elección + veredicto con umbral fijo (v1:
+        0.9667). Juntos reproducen la serie histórica del 2026-10-06.
+
+    El voto 2-de-2 NO se mide acá: exige el checkpoint del voto y convertiría
+    la corrida en dos modelos (se mide en banco/probes/calibrar_voto.py).
+    Devuelve (resultado, motivo_error); `filas` es la evidencia del informe.
     """
     from nodes import PREGUNTA_ROUTER  # el contrato, IMPORTADO no copiado
     from utils.laya import _confianza, veredicto
+    from utils.laya_routing import config_router, decide, regla_temporal, ruta_aplicada
 
     casos, err = _casos_router()
     if err:
@@ -126,34 +152,66 @@ def correr_bench(agente=None):
             motivo = f"laya no disponible: {type(e).__name__}: {e}"
             return _placeholder_bench(motivo), motivo
 
-    filas, ok, crudo_ok, confs, aciertos = [], 0, 0, [], []
+    config = config_router()
+    filas = []
+    ok = aplicada_ok = crudo_ok = compuerta_ok = n_crudo = n_regla = 0
+    confs, aciertos = [], []
     for caso in casos:
-        estado = {"pregunta": caso["fields"]["pregunta"]}
+        estado = {"pregunta": caso["fields"]["pregunta"][:1000]}  # corte de producción
+        esperado = caso["answers"]["necesita_herramientas"]
+
+        if config.modo == "enforce" and regla_temporal(estado["pregunta"]):
+            # producción corta acá SIN gastar a Laya: la regla dura manda
+            n_regla += 1
+            acierto = esperado == "herramientas"
+            ok += acierto
+            aplicada_ok += acierto
+            filas.append({"id": caso["id"], "esperado": esperado, "crudo": None,
+                          "compuerta": None, "conf": None,
+                          "propuesta": "herramientas", "aplicada": "herramientas",
+                          "causa": "regla:temporal", "ok": acierto})
+            continue
+
         r = agente.system_one(estado, PREGUNTA_ROUTER, lang="es")
         resp = r["answers"]["necesita_herramientas"]
         eleccion = resp.get("choice", resp.get("answer"))
         conf = _confianza(resp)
-        esperado = caso["answers"]["necesita_herramientas"]
-        decision = _decision(eleccion, conf, veredicto)
-        ok += decision == esperado
-        acierto_crudo = int(eleccion == esperado)
-        crudo_ok += acierto_crudo
-        # el ECE se mide sobre la decisión CRUDA (la confianza calibra la
-        # elección del modelo, no la compuerta posterior)
-        confs.append(float(conf))
-        aciertos.append(acierto_crudo)
+        propuesta, causa, _p = decide(resp, config)
+        aplicada = ruta_aplicada(propuesta, config)
+        compuerta = _decision(eleccion, conf, veredicto) if conf is not None else "herramientas"
+
+        n_crudo += 1
+        # la serie histórica del v1 son DOS métricas distintas: la elección
+        # pelada del modelo y esa elección pasada por la compuerta de umbral fijo
+        crudo_ok += eleccion == esperado
+        compuerta_ok += compuerta == esperado
+        if conf is not None:
+            # el ECE se mide sobre la decisión CRUDA (la confianza calibra la
+            # elección del modelo, no la compuerta posterior)
+            confs.append(float(conf))
+            aciertos.append(int(eleccion == esperado))
+        ok += propuesta == esperado
+        aplicada_ok += aplicada == esperado
         filas.append({
             "id": caso["id"], "esperado": esperado, "crudo": eleccion,
-            "conf": round(float(conf), 4), "decision": decision,
-            "ok": decision == esperado,
+            "compuerta": compuerta,
+            "conf": round(float(conf), 4) if conf is not None else None,
+            "propuesta": propuesta, "aplicada": aplicada, "causa": causa,
+            "ok": propuesta == esperado,
         })
 
     n = len(casos)
     return {
         "estado": "ok",
         "n": n,
+        "n_regla": n_regla,
+        "modo": config.modo,
+        "umbral": config.umbral,
+        "q": config.q,
         "score": round(ok / n, 4) if n else 0.0,
-        "score_crudo": round(crudo_ok / n, 4) if n else 0.0,
+        "score_aplicada": round(aplicada_ok / n, 4) if n else 0.0,
+        "score_crudo": round(crudo_ok / n_crudo, 4) if n_crudo else 0.0,
+        "score_compuerta": round(compuerta_ok / n_crudo, 4) if n_crudo else 0.0,
         "ece": round(ece(confs, aciertos), 4),
         "filas": filas,
     }, None
@@ -200,9 +258,12 @@ def guardar_baseline(bench, ruta=BASELINE, sha=None):
     ruta.parent.mkdir(parents=True, exist_ok=True)
     datos = {
         "score": bench["score"],
+        "score_aplicada": bench.get("score_aplicada"),
         "score_crudo": bench["score_crudo"],
+        "score_compuerta": bench.get("score_compuerta"),
         "ece": bench["ece"],
         "n": bench["n"],
+        "modo": bench.get("modo"),
         "fecha": datetime.now().isoformat(timespec="seconds"),
         "git_sha": sha if sha is not None else _git_sha(),
     }
@@ -517,9 +578,16 @@ def informe_markdown(bench, comparacion, linter, costos, sha, fecha):
         L.append(f"⚠️  **No disponible:** {bench.get('motivo', 'sin datos')}")
         L.append("")
     else:
-        L.append(f"- Casos: **{bench['n']}**")
-        L.append(f"- Acierto con compuerta (producción): **{_fmt_pct(bench['score'])}**")
-        L.append(f"- Acierto crudo (sin compuerta): {_fmt_pct(bench['score_crudo'])}")
+        L.append(f"- Casos: **{bench['n']}** · modo `{bench.get('modo') or '?'}` · "
+                 f"regla temporal aplicada en {bench.get('n_regla', 0)}")
+        L.append(f"- Acierto de la POLÍTICA (lo que decide, sin el modo): "
+                 f"**{_fmt_pct(bench['score'])}**")
+        L.append(f"- Acierto APLICADO (lo que el grafo ejecuta con ese modo): "
+                 f"{_fmt_pct(bench.get('score_aplicada'))}")
+        L.append(f"- Acierto crudo del modelo (sin compuerta, v1: 90.0%): "
+                 f"{_fmt_pct(bench['score_crudo'])}")
+        L.append(f"- Acierto con compuerta de umbral fijo (v1: 96.7%): "
+                 f"{_fmt_pct(bench.get('score_compuerta'))}")
         L.append(f"- ECE (10 bins): {bench['ece']:.4f}")
         L.append("")
         v = comparacion["veredicto"]
@@ -538,13 +606,15 @@ def informe_markdown(bench, comparacion, linter, costos, sha, fecha):
         L.append("")
         fallos = [f for f in bench["filas"] if not f["ok"]]
         if fallos:
-            L.append("### Casos fallados (con compuerta)")
+            L.append("### Casos fallados (política)")
             L.append("")
-            L.append("| id | esperado | crudo | conf | decisión |")
-            L.append("|----|----------|-------|------|----------|")
+            L.append("| id | esperado | crudo | compuerta | conf | propuesta | aplicada |")
+            L.append("|----|----------|-------|-----------|------|-----------|----------|")
             for f in fallos:
-                L.append(f"| {f['id']} | {f['esperado']} | {f['crudo']} | "
-                         f"{f['conf']:.2f} | {f['decision']} |")
+                conf = f"{f['conf']:.2f}" if f.get("conf") is not None else "—"
+                L.append(f"| {f['id']} | {f['esperado']} | {f.get('crudo')} | "
+                         f"{f.get('compuerta')} | {conf} | {f.get('propuesta')} | "
+                         f"{f.get('aplicada')} |")
             L.append("")
 
     # --- 2) linter

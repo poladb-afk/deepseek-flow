@@ -2340,8 +2340,14 @@ def test_evals_bench_score_y_ece_ok():
     class AgentePerfecto:
         def system_one(self, estado, preguntas, lang="es"):
             esperado = esperados[estado["pregunta"]]
+            # la política de producción (utils.laya_routing.decide) lee el PAR
+            # de probabilidades, no solo answer_confidence: el fake devuelve lo
+            # mismo que devuelve preguntar_detalle()
+            otras = {"directo": "herramientas", "herramientas": "directo"}
             return {"answers": {"necesita_herramientas":
-                                {"choice": esperado, "answer_confidence": 1.0}}}
+                                {"choice": esperado,
+                                 "probabilities": {esperado: 1.0,
+                                                   otras[esperado]: 0.0}}}}
 
     bench, err = _bench_con(AgentePerfecto())
     assert err is None and bench["estado"] == "ok"

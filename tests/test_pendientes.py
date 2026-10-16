@@ -312,3 +312,85 @@ def test_marcador_sin_respaldo_no_promete_memoria():
     assert "memoria/" not in marcador
     assert "compactados" in marcador
 
+# --------------------------------------------------------------------------
+# A10/H10 — el bench mide la política de producción (no una copia)
+# --------------------------------------------------------------------------
+class _AgenteFijo:
+    def __init__(self, choice="directo", conf=0.95):
+        self.choice, self.conf = choice, conf
+        self.llamadas = 0
+
+    def system_one(self, estado, preguntas, lang="es"):
+        self.llamadas += 1
+        return {"answers": {"necesita_herramientas": {
+            "choice": self.choice,
+            "probabilities": {"directo": self.conf,
+                              "herramientas": round(1 - self.conf, 4)},
+        }}}
+
+
+def _router_jsonl(tmp_path, casos):
+    f = tmp_path / "router.jsonl"
+    f.write_text("\n".join(json.dumps(c) for c in casos) + "\n", encoding="utf-8")
+    return f
+
+
+def test_bench_usa_la_politica_y_separa_las_metricas(tmp_path, monkeypatch):
+    """La propuesta sale de utils.laya_routing.decide y el modo decide qué se aplica."""
+    import evals
+
+    monkeypatch.setenv("LAYA_MODO", "shadow")
+    monkeypatch.setattr(evals, "TEST_ROUTER", _router_jsonl(tmp_path, [
+        {"id": "a", "fields": {"pregunta": "¿qué es un closure?"},
+         "answers": {"necesita_herramientas": "directo"}},
+        {"id": "b", "fields": {"pregunta": "leé config"},
+         "answers": {"necesita_herramientas": "herramientas"}},
+    ]))
+    r, err = evals.correr_bench(agente=_AgenteFijo())
+    assert err is None and r["modo"] == "shadow"
+    # la política propone directo (0.95 >= 0.85), pero en shadow NO se aplica
+    assert r["score"] == 0.5             # propuestas acertadas
+    assert r["score_aplicada"] == 0.5    # herramientas en los dos casos
+    assert r["score_crudo"] == 0.5       # elección pelada del modelo
+    assert r["filas"][0]["propuesta"] == "directo"
+    assert r["filas"][0]["aplicada"] == "herramientas"
+
+
+def test_bench_enforce_no_gasta_laya_con_la_regla_temporal(tmp_path, monkeypatch):
+    import evals
+
+    monkeypatch.setenv("LAYA_MODO", "enforce")
+    monkeypatch.setattr(evals, "TEST_ROUTER", _router_jsonl(tmp_path, [
+        {"id": "hoy", "fields": {"pregunta": "¿qué pasó hoy en el repo?"},
+         "answers": {"necesita_herramientas": "herramientas"}},
+        {"id": "normal", "fields": {"pregunta": "¿qué es un closure?"},
+         "answers": {"necesita_herramientas": "directo"}},
+    ]))
+    agente = _AgenteFijo()
+    r, _ = evals.correr_bench(agente=agente)
+    assert r["n_regla"] == 1
+    assert agente.llamadas == 1  # la regla dura corta ANTES del modelo
+    assert r["score"] == 1.0
+
+
+def test_bench_trunca_la_pregunta_como_produccion(tmp_path, monkeypatch):
+    """El estado que ve Laya lleva el mismo corte de 1000 chars que LayaRouter.prep."""
+    import evals
+
+    visto = {}
+
+    class Agente:
+        def system_one(self, estado, preguntas, lang="es"):
+            visto.update(estado)
+            return {"answers": {"necesita_herramientas": {
+                "choice": "herramientas",
+                "probabilities": {"directo": 0.1, "herramientas": 0.9}}}}
+
+    monkeypatch.setattr(evals, "TEST_ROUTER", _router_jsonl(tmp_path, [
+        {"id": "larga", "fields": {"pregunta": "x" * 5000},
+         "answers": {"necesita_herramientas": "herramientas"}},
+    ]))
+    evals.correr_bench(agente=Agente())
+    assert len(visto["pregunta"]) == 1000
+
+
