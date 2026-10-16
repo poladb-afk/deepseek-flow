@@ -4,13 +4,9 @@ El módulo mina cientos de trazas: por eso el cálculo (timeout, rechazo HITL,
 destino del reintento, agregados) se verifica acá sobre listas de eventos
 SINTÉTICAS, sin abrir ningún archivo. Si la lógica de "¿se autocorrigió?"
 miente, este test lo avisa antes de gastar una corrida sobre .runs real."""
-import sys
 from pathlib import Path
 
 import pytest
-
-RAIZ = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(RAIZ))
 
 
 def _ev(nodo, accion, seg, ts):

@@ -11,13 +11,11 @@ Agregar uno nuevo pasa a ser una decisión explícita, no un accidente.
 """
 import inspect
 import re
-from pathlib import Path
 
 import pytest
+from conftest import RAIZ
 
 from utils.viz import FLOWS
-
-RAIZ = Path(__file__).resolve().parent.parent
 
 # Nodos que LEGÍTIMAMENTE cierran un flujo (producen la salida del pipeline).
 TERMINALES = {

@@ -5,13 +5,7 @@ de calibración (tabla por bucket, curva de compuerta, ECE) se verifica acá,
 con casos sintéticos de confianza conocida, sin cargar ningún modelo. Si
 estos números mienten, el informe de evidencia miente, y este test es el
 que lo avisa antes de gastar una corrida."""
-import sys
-from pathlib import Path
-
 import pytest
-
-RAIZ = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(RAIZ))
 
 
 def test_tabla_confiabilidad_cubre_los_cinco_buckets_y_los_bordes():

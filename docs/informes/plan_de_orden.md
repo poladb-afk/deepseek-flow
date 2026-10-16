@@ -380,7 +380,7 @@ requires-python = ">=3.12"
 - [x] PR 1 — `test_docs_sin_deriva.py` en verde (b2f4530)
 - [x] PR 2 — `estado.md` creado, informes archivados, `design.md` en 753 líneas (fc21e53)
 - [x] PR 3 — sin cuerpos duplicados, rutas en `utils/rutas.py` (este commit)
-- [ ] PR 4 — mismo número de tests recolectados, `conftest.py`, markers
+- [ ] PR 4 — paso 1 ✅: `conftest.py` con `RAIZ`/`sys.path`/fixture de `AGENT_ALLOWED_DIRS`/`tc()` (8 copias → 1; collect idéntico y 518 passed). Falta partir `test_smoke.py` y los markers
 - [x] PR 5 — sin rutas personales, `LEER_BMO_ENV=0` (029b994)
 - [ ] PR 6 — C901 ≤ 12 en `run_command` y `search_files`
 - [x] PR 7 — CI en verde: run 38913431915 (f642824)

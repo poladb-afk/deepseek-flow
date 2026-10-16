@@ -12,9 +12,6 @@ from types import SimpleNamespace as NS
 
 import pytest
 
-RAIZ = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(RAIZ))
-
 
 # ---------------------------------------------------------------- 1 prefiltro
 def test_prefiltro_memoria_sin_laya_no_recorta_ni_miente(tmp_path, monkeypatch):

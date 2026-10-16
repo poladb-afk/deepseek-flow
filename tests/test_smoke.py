@@ -1,26 +1,14 @@
 """Smoke tests de lo estable — sin red, sin LLM, sin modelo."""
 import os
 import shutil
-import sys
 from pathlib import Path
 
 import pytest
 
-RAIZ = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(RAIZ))
-# raíces deterministas para los tests (el default portable es CWD)
-os.environ.setdefault("AGENT_ALLOWED_DIRS", str(RAIZ.parent.parent))
-
-
-@pytest.fixture(autouse=True)
-def _permitir_salidas_de_tmp(tmp_path_factory, monkeypatch):
-    """Las salidas de los flujos pasan por la contención de AGENT_ALLOWED_DIRS
-    (exp/26): el tmp de pytest se declara como raíz permitida para que los
-    tests sigan escribiendo ahí. Los tests que PRUEBAN la contención fijan su
-    propio AGENT_ALLOWED_DIRS después (monkeypatch: gana el último setenv)."""
-    monkeypatch.setenv(
-        "AGENT_ALLOWED_DIRS", f"{RAIZ.parent.parent}:{tmp_path_factory.getbasetemp()}"
-    )
+# RAIZ, el sys.path y la fixture autouse de AGENT_ALLOWED_DIRS viven en
+# conftest.py: una sola definición para toda la suite.
+from conftest import RAIZ
+from conftest import tc as _tc
 
 
 def test_action_space_completo():
@@ -1650,12 +1638,6 @@ def test_run_command_doble_confirmacion_aborta(monkeypatch):
     monkeypatch.setattr("builtins.input", lambda p: "n")
     r = coding.run_command("git push --dry-run")
     assert r.startswith("RECHAZADO")
-
-
-def _tc(nombre, args):
-    import json
-    return {"id": "call_x", "type": "function",
-            "function": {"name": nombre, "arguments": json.dumps(args)}}
 
 
 def test_hook_py_compile_tras_edit_y_write(tmp_path, monkeypatch, capsys):

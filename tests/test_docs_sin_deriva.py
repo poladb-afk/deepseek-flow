@@ -4,12 +4,9 @@ Lo que hoy se detectaba a mano (README con 24 tools cuando había 29, 18
 settings sin documentar, subcomandos sin README) pasa a ser un test: la
 documentación no puede volver a mentir en silencio."""
 import re
-import sys
 from collections import Counter
-from pathlib import Path
 
-RAIZ = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(RAIZ))
+from conftest import RAIZ
 
 # Lo que el harness lee pero no es "configuración del usuario"
 NO_DOCUMENTABLES = {"HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE", "DEEPSEEK_API_KEY"}

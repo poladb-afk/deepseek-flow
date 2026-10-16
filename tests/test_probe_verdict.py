@@ -9,13 +9,7 @@ canonicalización str/strip/lower (producción la acepta).
 Los esperados de CASOS son literales del contrato (fuente independiente): no
 se recalculan con la misma llamada que el probe hace, que sería tautológico.
 """
-import sys
-from pathlib import Path
-
-RAIZ = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(RAIZ))
-
-from banco.probes import verdict_juez as vj  # noqa: E402
+from banco.probes import verdict_juez as vj
 
 # (crudo del Judge, ¿producción lo acepta?, etiqueta esperada del probe)
 CASOS = [

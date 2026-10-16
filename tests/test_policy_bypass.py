@@ -8,14 +8,12 @@ un comando de la whitelist, la denylist dura y la contención de raíces de
 run_command.
 """
 import json
-from pathlib import Path
 
 import pytest
+from conftest import RAIZ
 
 from modules import coding
 from utils import policy
-
-RAIZ = Path(__file__).resolve().parent.parent
 
 
 @pytest.mark.parametrize("comando, esperado", [
