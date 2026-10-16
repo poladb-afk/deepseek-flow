@@ -45,7 +45,7 @@ lleva el motivo o el PR que lo cierra. Si algo se cierra sin test, se dice expl�
 | X3 | — | La limpieza del banco puede salir del repo | ✅ 2026-10-16 | `banco.objetivo_scratch`: solo dentro de `RAIZ` | `test_pendientes.py` |
 | X4 | — | `memory_save` del mismo título el mismo día pisa la nota | ✅ 2026-10-16 | `modules/memoria.py` sufijo incremental (A26 intacto) | `test_pendientes.py` |
 | X5 | H19 | El README describía un harness que ya no existe | ✅ 2026-10-15 | README (29 tools, supervisor v2, `ver_pdf`) | `test_docs_sin_deriva.py` |
-| X6 | H20 | No hay CI que corra el gate | ⏳ PR 7 del plan | `calidad.sh` es manual | — |
+| X6 | H20 | No hay CI que corra el gate | ✅ 2026-10-16 | `.github/workflows/calidad.yml` + badge en el README (verde al primer push) | — |
 | X9 | H19 | Rutas absolutas del autor y `.env` de otro proyecto | ✅ 2026-10-16 | `{RAIZ}`/`{HOME}` en 62 escenarios/specs · `LEER_BMO_ENV=0` · `heartbeat.example.jsonl` | `test_pendientes.py` |
 | X7 | — | `requirements.txt` fija `ruff==0.17.1` y el entorno tiene 0.15.15 | ⏳ entorno | verificado: la 0.17.1 da «All checks passed» | — |
 | X8 | H02 | `escribir_salida` pisa archivos dentro de las raíces sin HITL | ⏳ decisión | los flujos de la CLI reescriben a propósito; el chat ya no pisa (A09) | `test_pendientes.py` (lado chat) |
@@ -56,11 +56,10 @@ lleva el motivo o el PR que lo cierra. Si algo se cierra sin test, se dice expl�
 
 | Id | Qué falta | Dueño |
 |---|---|---|
-Los seis hallazgos de código (A04, A05, A07, A27, X3, X4) se cerraron el 2026-10-16; queda:
+Los seis hallazgos de código (A04, A05, A07, A27, X3, X4) y el CI (X6) se cerraron el 2026-10-16; queda:
 
 | Id | Qué falta | Dueño |
 |---|---|---|
-| X6 | CI (`.github/workflows/calidad.yml`) | PR 7 del plan |
 | X7 | `python3 -m pip install --user 'ruff==0.17.1'` (o bajar el pin) | operador |
 | X8 | Decidir si el chat debe no-clobber también en los defaults | operador |
 | — | H16: el juez verifica 5 citas, no toda la verdad (límite deliberado) | diseño |
