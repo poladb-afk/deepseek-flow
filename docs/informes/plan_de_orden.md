@@ -5,7 +5,7 @@
 
 ## Reglas para todos los PR
 
-1. **Gate verde en cada PR:** `./calidad.sh` → ruff limpio y pytest sin fallos, con la **misma cantidad de tests o más**.
+1. **Gate verde en cada PR:** `./calidad.sh` → ruff limpio, C901 ≤ 12 en las fronteras de seguridad (PR 6) y pytest sin fallos, con la **misma cantidad de tests o más**.
 2. **Sin cambio de conducta:** si un test existente cambia su aserción, el PR está mal partido. La única excepción es mover un test de archivo sin tocar su cuerpo.
 3. **Un PR = un tema.** Se revierte con `git revert` sin arrastrar otra cosa.
 4. **Primero se protege, después se mueve:** el PR 1 va antes que todos porque es el que detecta si un PR posterior rompe la documentación.
@@ -368,6 +368,10 @@ apunta afuera, y 12 de `run_command` (auto / preguntar / doble, aprobado y
 rechazado en cada paso, `HITL_AUTO=0`, con y sin observación de riesgo)
 comparando el texto devuelto, lo impreso y el orden exacto de
 `registrar_aprobacion`/`registrar_riesgo`. Suite completa: 518 passed.
+
+El candado quedó **dentro del gate**: `calidad.sh` ahora tiene 3 palancas
+(higiene → complejidad de las dos fronteras → pytest), así que la regresión
+la frena el CI, no la memoria de quien edite.
 
 ---
 
