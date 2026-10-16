@@ -12,10 +12,10 @@ lleva el motivo o el PR que lo cierra. Si algo se cierra sin test, se dice expl�
 | A01 | H01 | Bypass del HITL graduado (auto con efectos) | ✅ 2026-10-15 | `utils/policy.py` `_SEPARADORES` + `_FLAGS_PELIGROSOS` | `test_policy_bypass.py` |
 | A02 | H04 | Un stream cancelado conservaba tool calls | ✅ 2026-10-15 | `utils/call_llm.py`, `nodes.py` | `test_consolidacion.py` |
 | A03 | H05 | El presupuesto retiraba esquemas pero no frenaba nativas | ✅ 2026-10-15 | `nodes.py` (compuerta en el despacho) | `test_consolidacion.py` |
-| A04 | H11 | La ruta `aplicada` se registra antes del veto del voto | ⏳ abierto | `nodes.py`: `registrar_decision` antes de `voto_confirmacion_router` | — |
-| A05 | — | El voto recibe el dict y lo re-envuelve como pregunta | ⏳ abierto | `nodes.py`: `voto_confirmacion_router(prep_res)` | — |
+| A04 | H11 | La ruta `aplicada` se registra antes del veto del voto | ✅ 2026-10-16 | `nodes.py` registra la ruta FINAL + campos `voto`/`veto` | `test_pendientes.py` |
+| A05 | — | El voto recibe el dict y lo re-envuelve como pregunta | ✅ 2026-10-16 | `nodes.py` pasa `prep_res["pregunta"]` | `test_pendientes.py` |
 | A06 | H07 | Sin Laya, el prefiltro recortaba y decía «Laya» | ✅ 2026-10-15 | `utils/contexto.py` (sin juicio, no se recorta) | `test_consolidacion.py` |
-| A07 | H07 | El prefiltro puntúa rutas, no el contenido de las notas | ⏳ abierto | `utils/contexto.py` `{"bloque": str(unidad)}` | — |
+| A07 | H07 | El prefiltro puntúa rutas, no el contenido de las notas | ✅ 2026-10-16 | `contexto.elegir_por_laya(texto_de=…)` + `memoria._texto_de_nota` | `test_pendientes.py` |
 | A08 | H06 | La memoria seguía symlinks al leer | ✅ 2026-10-15 | `modules/memoria.py` (sin enlaces) | `test_consolidacion.py` |
 | A09 | H02 | `evals(salida=…)` escribía fuera de las raíces | ✅ 2026-10-15 | `modules/evals.py` `_arg` + no-clobber | `test_consolidacion.py` |
 | A10 | H10 | El bench del router no medía la política real | ✅ 2026-10-16 | `evals.correr_bench` usa `decide`/`ruta_aplicada` | `test_pendientes.py` |
@@ -35,15 +35,15 @@ lleva el motivo o el PR que lo cierra. Si algo se cierra sin test, se dice expl�
 | A24 | H14 | El tope de checkpoints se aplicaba tras cargar | ✅ 2026-10-16 | `utils/laya.py` desaloja antes | `test_pendientes.py` |
 | A25 | H19 | El log de preguntas guarda texto en claro | ✅ documentado 2026-10-15 | README «Privacidad y datos locales» (default sigue 1: alimenta la calibración) | `test_docs_sin_deriva.py` |
 | A26 | H06 | El resumen de sesión seguía un symlink colgante | ✅ 2026-10-15 | `modules/memoria.py` `guardar_nota` | `test_consolidacion.py` |
-| A27 | H03 | El dispatcher no valida la envoltura de la tool call | ⏳ abierto | `utils/fs_tools.py` `tool_call["function"]` (sin camino de producción: `historiar` siempre escribe las claves) | — |
+| A27 | H03 | El dispatcher no valida la envoltura de la tool call | ✅ 2026-10-16 | `utils/fs_tools.py` valida y devuelve error de tool | `test_pendientes.py` |
 | A28 | H16 | El bench del juez excluía de `cita_ok` el caso que lanzaba | ✅ 2026-10-16 | `bench_juez.py` cuenta cita incumplida | `test_pendientes.py` |
 | E1 | — | Un módulo roto tumbaba el chat | ✅ 2026-10-15 | `modules/__init__.py` saltea y avisa colisiones | `test_consolidacion.py` |
 | E2 | — | `validar_historial` aceptaba un `tool` huérfano | ✅ 2026-10-15 | `utils/compaccion.py` lo detecta | `test_consolidacion.py` |
 | E4 | — | `rm -rf / --no-preserve-root` no se vetaba | ✅ 2026-10-15 | `modules/coding.py` denylist | `test_policy_bypass.py` |
 | X1 | — | Un test daba por bueno el recorte del prefiltro | ✅ 2026-10-15 | `tests/test_smoke.py` contrato corregido | `test_consolidacion.py` |
 | X2 | — | `rag_search` heredaba el recorte sin juicio | ✅ 2026-10-15 | misma `elegir_por_laya` | `test_consolidacion.py` |
-| X3 | — | La limpieza del banco puede salir del repo | ⏳ abierto | `banco/banco.py` `RAIZ / path` con ruta absoluta o `..` | — |
-| X4 | — | `memory_save` del mismo título el mismo día pisa la nota | ⏳ abierto | `modules/memoria.py` (nombre por fecha+slug) | — |
+| X3 | — | La limpieza del banco puede salir del repo | ✅ 2026-10-16 | `banco.objetivo_scratch`: solo dentro de `RAIZ` | `test_pendientes.py` |
+| X4 | — | `memory_save` del mismo título el mismo día pisa la nota | ✅ 2026-10-16 | `modules/memoria.py` sufijo incremental (A26 intacto) | `test_pendientes.py` |
 | X5 | H19 | El README describía un harness que ya no existe | ✅ 2026-10-15 | README (29 tools, supervisor v2, `ver_pdf`) | `test_docs_sin_deriva.py` |
 | X6 | H20 | No hay CI que corra el gate | ⏳ PR 7 del plan | `calidad.sh` es manual | — |
 | X9 | H19 | Rutas absolutas del autor y `.env` de otro proyecto | ✅ 2026-10-16 | `{RAIZ}`/`{HOME}` en 62 escenarios/specs · `LEER_BMO_ENV=0` · `heartbeat.example.jsonl` | `test_pendientes.py` |
@@ -56,12 +56,11 @@ lleva el motivo o el PR que lo cierra. Si algo se cierra sin test, se dice expl�
 
 | Id | Qué falta | Dueño |
 |---|---|---|
-| A04 | Registrar la ruta FINAL después del voto (y guardar la propuesta aparte) | sin asignar |
-| A05 | Pasar `prep_res["pregunta"]` al voto en vez del dict | sin asignar |
-| A07 | Mandar contenido acotado de la nota al clasificador, no la ruta | sin asignar |
-| A27 | Validar envoltura (id/function/name) antes de los hooks | sin asignar |
-| X3 | Contener el `scratch` del banco (`Path(path).resolve()` dentro de `RAIZ`) | sin asignar |
-| X4 | No pisar la nota del día (sufijo incremental como el resumen de sesión) | sin asignar |
+Los seis hallazgos de código (A04, A05, A07, A27, X3, X4) se cerraron el 2026-10-16; queda:
+
+| Id | Qué falta | Dueño |
+|---|---|---|
 | X6 | CI (`.github/workflows/calidad.yml`) | PR 7 del plan |
 | X7 | `python3 -m pip install --user 'ruff==0.17.1'` (o bajar el pin) | operador |
 | X8 | Decidir si el chat debe no-clobber también en los defaults | operador |
+| — | H16: el juez verifica 5 citas, no toda la verdad (límite deliberado) | diseño |

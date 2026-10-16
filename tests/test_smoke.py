@@ -3220,8 +3220,10 @@ def test_elegir_por_laya_elige_y_conserva_orden(monkeypatch):
 
     # simula puntajes de Laya: "a" y "c" aportan; "b" y "d" no
     puntajes = {"bloque a": 0.9, "bloque b": 0.1, "bloque c": 0.8, "bloque d": 0.4}
+    # _puntuar suma texto_de (A07: el clasificador ve el CONTENIDO, no la ruta)
     monkeypatch.setattr(ctx, "_puntuar",
-                        lambda consulta, unidades, setting: {i: puntajes[u] for i, u in enumerate(unidades)})
+                        lambda consulta, unidades, setting, texto_de=None: {
+                            i: puntajes[u] for i, u in enumerate(unidades)})
 
     unidades = ["bloque a", "bloque b", "bloque c", "bloque d"]
     out = ctx.elegir_por_laya("q", unidades, 2)
@@ -3259,7 +3261,7 @@ def test_rag_prefiltro_actua_con_laya_simulado(monkeypatch):
     monkeypatch.setenv("RAG_PREFILTRO", "1")
     monkeypatch.setenv("RAG_PREFILTRO_N", "1")
     # el fragmento que contiene "cuerpo c" aporta; el resto no
-    monkeypatch.setattr(ctx, "_puntuar", lambda consulta, unidades, setting: {
+    monkeypatch.setattr(ctx, "_puntuar", lambda consulta, unidades, setting, texto_de=None: {
         i: (0.9 if "cuerpo c" in u else 0.1) for i, u in enumerate(unidades)})
     out = rag._prefiltrar("consulta", salida, 3)
     assert "[prefiltro Laya: 3 → 1 fragmentos]" in out
@@ -3292,7 +3294,9 @@ def test_memoria_prefiltro_actua(tmp_path, monkeypatch):
     monkeypatch.setenv("MEMORIA_PREFILTRO_N", "1")
     for nombre in ("a.md", "b.md", "c.md"):
         (tmp_path / nombre).write_text(f"contenido {nombre} sobre compacción\n", encoding="utf-8")
-    monkeypatch.setattr(ctx, "_puntuar", lambda consulta, unidades, setting: {
+    # con el patch, el clasificador sigue viendo las unidades (en memoria son
+    # Paths); en producción ve el CONTENIDO vía texto_de (A07)
+    monkeypatch.setattr(ctx, "_puntuar", lambda consulta, unidades, setting, texto_de=None: {
         i: (0.9 if "b.md" in str(u) else 0.1) for i, u in enumerate(unidades)})
     out = mem.memory_search("compacción")
     assert "[prefiltro Laya: 3 → 1 archivos]" in out

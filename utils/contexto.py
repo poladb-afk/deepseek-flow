@@ -62,7 +62,8 @@ def unidades_bloques(texto):
     return [b for b in bloques if b]
 
 
-def elegir_por_laya(consulta, unidades, max_unidades, setting_modelo=DEFAULT_MODEL_SETTING):
+def elegir_por_laya(consulta, unidades, max_unidades, setting_modelo=DEFAULT_MODEL_SETTING,
+                    texto_de=None):
     """Reordena/recorta `unidades` por relevancia a `consulta` según Laya.
 
     Devuelve las mejores `max_unidades` **en orden original** (la relevancia
@@ -73,7 +74,7 @@ def elegir_por_laya(consulta, unidades, max_unidades, setting_modelo=DEFAULT_MOD
     unidades = list(unidades)
     if not unidades or max_unidades <= 0 or len(unidades) <= max_unidades:
         return unidades
-    puntajes = _puntuar(consulta, unidades, setting_modelo)
+    puntajes = _puntuar(consulta, unidades, setting_modelo, texto_de)
     if puntajes is None:
         # sin juicio NO se recorta: devolver los primeros N perdía recall en
         # silencio y el llamador lo anunciaba como "prefiltro Laya" (medido:
@@ -85,7 +86,7 @@ def elegir_por_laya(consulta, unidades, max_unidades, setting_modelo=DEFAULT_MOD
     return [unidades[i] for i in elegidos]
 
 
-def _puntuar(consulta, unidades, setting_modelo):
+def _puntuar(consulta, unidades, setting_modelo, texto_de=None):
     """{índice: probabilidad} de que cada unidad aporte. None si Laya no
     está o algo falla (el llamador cae al default seguro).
 
@@ -96,9 +97,13 @@ def _puntuar(consulta, unidades, setting_modelo):
 
         if not disponible(setting_modelo):
             return None
-        # mismo truncamiento y MISMO orden que la versión secuencial
+        # mismo truncamiento y MISMO orden que la versión secuencial.
+        # A07: el clasificador tiene que ver el CONTENIDO de la unidad; con el
+        # default (str(unidad)) la memoria le mandaba la RUTA del archivo y
+        # puntuaba nombres en vez de notas. `texto_de` lo resuelve el llamador.
         estados = [
-            {"consulta": str(consulta)[:1000], "bloque": str(unidad)[:2000]}
+            {"consulta": str(consulta)[:1000],
+             "bloque": str(texto_de(unidad) if texto_de else unidad)[:2000]}
             for unidad in unidades
         ]
         contrato = {"aporta_contexto": PREGUNTA_PREFILTRO["aporta_contexto"]}

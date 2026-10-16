@@ -418,7 +418,17 @@ def run_tool_call(tool_call, extra_impls=None):
     pre-tool de HOOKS_PRE[tool] (denylist/guardas: pueden CANCELAR la
     ejecución devolviendo texto); tras la ejecución corre los post-tool de
     HOOKS_POST[tool] para enriquecer el resultado."""
-    fn = tool_call["function"]
+    # A27: la envoltura se valida ANTES de indexar. Indexar a ciegas dejaba
+    # escapar un KeyError ('function'/'name'/'id') que rompía el lote entero;
+    # ahora vuelve como error de tool, que es un dato para el modelo.
+    if not isinstance(tool_call, dict):
+        return {"role": "tool", "tool_call_id": "",
+                "content": "ERROR: tool call inválida (no es un dict)"}
+    id_llamada = str(tool_call.get("id") or "")
+    fn = tool_call.get("function")
+    if not isinstance(fn, dict) or not fn.get("name"):
+        return {"role": "tool", "tool_call_id": id_llamada,
+                "content": "ERROR: tool call con envoltura incompleta: falta function.name"}
     impls = {
         "list_files": list_files,
         "read_file": read_file,
@@ -440,7 +450,7 @@ def run_tool_call(tool_call, extra_impls=None):
             veto = (f"ERROR: la guarda previa de {fn['name']} falló "
                     f"({type(e).__name__}); la herramienta no se ejecutó.")
         if veto is not None:
-            return {"role": "tool", "tool_call_id": tool_call["id"], "content": str(veto)}
+            return {"role": "tool", "tool_call_id": id_llamada, "content": str(veto)}
 
     impl = impls.get(fn["name"])
     if impl is None:
@@ -458,4 +468,4 @@ def run_tool_call(tool_call, extra_impls=None):
         with contextlib.suppress(Exception):  # un hook que lanza no rompe nada
             result = hook(tool_call, result)
 
-    return {"role": "tool", "tool_call_id": tool_call["id"], "content": result}
+    return {"role": "tool", "tool_call_id": id_llamada, "content": result}

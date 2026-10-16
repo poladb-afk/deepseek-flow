@@ -105,6 +105,18 @@ def memory_search(query=None):
     return "\n".join([linea for linea in [cabecera, aviso] if linea] + bloques + ["", listado])
 
 
+def _texto_de_nota(ruta):
+    """El CONTENIDO de la nota para el clasificador (A07).
+
+    Antes el prefiltro recibía la ruta y elegía por nombre de archivo; el
+    contenido es lo que decide si la nota aporta. Una nota ilegible puntúa
+    como texto vacío, no rompe el prefiltro."""
+    try:
+        return ruta.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
 def _prefiltrar(query, archivos):
     """(archivos a consultar, si el prefiltro actuó). Con
     MEMORIA_PREFILTRO=0 o sin juicio de Laya, devuelve todos y False: el
@@ -120,7 +132,9 @@ def _prefiltrar(query, archivos):
     try:
         from utils.contexto import elegir_por_laya
 
-        elegidos = elegir_por_laya(query, archivos, maximo, setting_modelo="LAYA_MODEL_PREFILTRO")
+        elegidos = elegir_por_laya(query, archivos, maximo,
+                                   setting_modelo="LAYA_MODEL_PREFILTRO",
+                                   texto_de=_texto_de_nota)
     except Exception:  # el prefiltro nunca rompe la memoria
         return archivos, False
     if len(elegidos) >= len(archivos):
@@ -138,6 +152,22 @@ def guardar_nota(titulo, contenido):
         return None
     raiz = _raiz()
     destino = raiz / f"nota_{date.today().isoformat()}_{slug}.md"
+    # A26 primero: un enlace en el destino NO se sigue nunca (podría apuntar
+    # fuera de la biblioteca), ni con sufijo.
+    if destino.is_symlink():
+        return None
+    # X4: dos notas del mismo título el mismo día NO se pisan — la segunda va
+    # con sufijo (antes la primera se perdía en silencio).
+    if destino.exists():
+        n = 2
+        while True:
+            candidato = raiz / f"nota_{date.today().isoformat()}_{slug}-{n}.md"
+            if candidato.is_symlink():
+                return None
+            if not candidato.exists():
+                destino = candidato
+                break
+            n += 1
     # doble chequeo: el destino resuelto DEBE quedar dentro de memoria/
     if destino.is_symlink() or raiz not in destino.resolve().parents:
         return None

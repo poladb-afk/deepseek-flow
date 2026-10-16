@@ -471,7 +471,7 @@ class ExecuteTools(Node):
         resultados = []
         for tc in tool_calls:
             inicio = time.time()
-            nombre = tc["function"]["name"]
+            nombre = (tc.get("function") or {}).get("name") or "?"  # A27: sin KeyError
             # pulido de terminal (mesa 8): una ronda larga no debe parecer
             # colgada, así que la tool EN CURSO se anuncia antes de correr.
             print(colorear(f"  → {nombre}", "tool"), flush=True)
@@ -661,6 +661,28 @@ class LayaRouter(Node):
         from uuid import uuid4
 
         id_decision = uuid4().hex[:8]
+        pregunta = prep_res.get("pregunta") if isinstance(prep_res, dict) else None
+        print(f"  [laya] {propuesta} — {causa} (modo {config.modo})")
+
+        # A04/A05: el voto corre ANTES de registrar y recibe la PREGUNTA, no el
+        # dict del prep (que se re-serializaba como "{'pregunta': '...'}" y le
+        # cambiaba la entrada al checkpoint). El log guarda la ruta FINAL, con
+        # el voto y el veto como campos propios: antes decía "aplicada: directo"
+        # aunque el voto la vetara dos líneas después.
+        voto, veto = None, None
+        if aplicada == "directo":
+            # post() NO tiene retry en PocketFlow: si el voto revienta (YAML
+            # roto del modelo), caemos al lado seguro en vez de cortar el chat.
+            try:
+                voto = voto_confirmacion_router(pregunta)
+            except Exception as e:
+                voto, veto = "herramientas", f"el voto falló ({type(e).__name__})"
+                print(f"  [voto] falló ({type(e).__name__}) → herramientas")
+            if voto != "directo":  # 2-de-2: desacuerdo → lado seguro
+                veto = veto or f"el voto dijo {voto}"
+                print(f"  [voto] deepseek dice {voto} → herramientas")
+                aplicada = "herramientas"
+
         registrar_decision(
             {
                 "modo": config.modo,
@@ -668,12 +690,14 @@ class LayaRouter(Node):
                 "propuesta": propuesta,
                 "aplicada": aplicada,
                 "causa": causa,
+                "voto": voto,
+                "veto": veto,
                 "p_directo": p_directo,
                 "q": config.q,
                 "umbral": config.umbral,
                 "laya": config.version,
             },
-            pregunta=prep_res.get("pregunta") if isinstance(prep_res, dict) else None,
+            pregunta=pregunta,
         )
         if (
             config.modo == "shadow"
@@ -681,19 +705,8 @@ class LayaRouter(Node):
             and _setting("LAYA_LOG_DECISIONES", "1") == "1"
         ):
             shared["_router_pendiente"] = id_decision
-        print(f"  [laya] {propuesta} — {causa} (modo {config.modo})")
         if aplicada != "directo":
-            return "herramientas"  # off y shadow conservan las herramientas
-        # post() NO tiene retry en PocketFlow: si el voto revienta (YAML
-        # roto del modelo), caemos al lado seguro en vez de cortar el chat.
-        try:
-            voto = voto_confirmacion_router(prep_res)
-        except Exception as e:
-            print(f"  [voto] falló ({type(e).__name__}) → herramientas")
-            return "herramientas"
-        if voto != "directo":  # 2-de-2: desacuerdo → lado seguro
-            print(f"  [voto] deepseek dice {voto} → herramientas")
-            return "herramientas"
+            return "herramientas"  # off, shadow y veto conservan las herramientas
         return "directo"
 
 

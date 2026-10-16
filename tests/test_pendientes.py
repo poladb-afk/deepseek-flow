@@ -475,6 +475,105 @@ def test_los_escenarios_usan_placeholders():
     assert mod.sustituir_placeholders("{RAIZ}/x") == f"{raiz}/x"
     assert mod.sustituir_placeholders("{HOME}/x") == f"{Path.home()}/x"
 
+# --------------------------------------------------------------------------
+# Hallazgos abiertos de la auditoría — cierre 2026-10-16
+# --------------------------------------------------------------------------
+def test_router_registra_la_ruta_final_y_el_voto_recibe_la_pregunta(monkeypatch):
+    """A04 (la ruta aplicada se registra tras el voto) y A05 (el voto recibe la
+    pregunta, no el dict del prep)."""
+    import nodes
+    from utils import laya_routing
+
+    eventos, recibido = [], []
+
+    class Cfg:
+        modo = "enforce"
+        umbral = 0.85
+        q = None
+        version = "test"
+
+    monkeypatch.setattr(laya_routing, "config_router", lambda: Cfg())
+    monkeypatch.setattr(laya_routing, "decide",
+                        lambda resp, cfg: ("directo", "p(directo)=0.99 >= umbral 0.85", 0.99))
+    monkeypatch.setattr(laya_routing, "registrar_decision",
+                        lambda ev, pregunta=None, **k: eventos.append((ev, pregunta)))
+    monkeypatch.setattr(nodes, "voto_confirmacion_router",
+                        lambda pregunta: (recibido.append(pregunta), "herramientas")[1])
+
+    accion = nodes.LayaRouter().post({"messages": []}, {"pregunta": "hola"}, None)
+
+    assert accion == "herramientas"          # 2-de-2: el voto vetó
+    assert recibido == ["hola"]              # A05: la pregunta, no "{'pregunta': 'hola'}"
+    ev, preg = eventos[0]
+    assert ev["aplicada"] == "herramientas"  # A04: lo que se APLICÓ, no lo propuesto
+    assert ev["propuesta"] == "directo"
+    assert ev["voto"] == "herramientas" and "herramientas" in (ev["veto"] or "")
+    assert preg == "hola"
+
+
+def test_despachador_rechaza_envoltura_incompleta():
+    """A27: envoltura incompleta devuelve error de tool, no un KeyError."""
+    from utils.fs_tools import run_tool_call
+
+    for tool_call in ({}, {"function": {}}, {"function": {"name": None}}):
+        salida = run_tool_call(tool_call)
+        assert salida["role"] == "tool"
+        assert salida["content"].startswith("ERROR: tool call")
+
+
+def test_prefiltro_de_memoria_puntua_el_contenido(tmp_path, monkeypatch):
+    """A07: el clasificador ve el CONTENIDO de la nota, no su ruta."""
+    import modules.memoria as mem
+    from utils import laya
+
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+    monkeypatch.setenv("MEMORIA_PREFILTRO", "1")
+    monkeypatch.setenv("MEMORIA_PREFILTRO_N", "1")
+    (tmp_path / "a.md").write_text("nota sobre arqueología andina", encoding="utf-8")
+    (tmp_path / "b.md").write_text("nota sobre cocina", encoding="utf-8")
+
+    visto = {}
+
+    def falso(estados, preguntas, setting=None):
+        visto["bloques"] = [e["bloque"] for e in estados]
+        return [{"aporta_contexto": ("si", 0.9)} for _ in estados]
+
+    monkeypatch.setattr(laya, "disponible", lambda *a, **k: True)
+    monkeypatch.setattr(laya, "preguntar_lote", falso)
+    mem.memory_search("arqueología")
+
+    assert visto["bloques"], "el prefiltro no llamó al clasificador"
+    assert any("arqueología andina" in b for b in visto["bloques"])  # contenido
+    assert all(not b.endswith(".md") for b in visto["bloques"])      # no la ruta
+
+
+def test_memory_save_no_pisa_la_nota_del_dia(tmp_path, monkeypatch):
+    """X4: dos notas del mismo título el mismo día no se pisan."""
+    from modules import memoria
+
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+    r1 = memoria.memory_save("misma nota", "primera versión")
+    r2 = memoria.memory_save("misma nota", "segunda versión")
+    assert r1 != r2
+    assert "primera versión" in Path(r1.split("Guardado en ", 1)[1]).read_text(encoding="utf-8")
+    assert "segunda versión" in Path(r2.split("Guardado en ", 1)[1]).read_text(encoding="utf-8")
+
+
+def test_el_scratch_del_banco_no_sale_del_proyecto():
+    """X3: el scratch se borra solo dentro del proyecto."""
+    import importlib.util
+
+    raiz = Path(__file__).resolve().parent.parent
+    spec = importlib.util.spec_from_file_location("banco_mod2", raiz / "banco" / "banco.py")
+    mod = importlib.util.module_from_spec(spec)
+    with contextlib.suppress(SystemExit):
+        spec.loader.exec_module(mod)
+    assert mod.objetivo_scratch("salidas/scratch") is not None
+    assert mod.objetivo_scratch("/tmp/absoluto") is None
+    assert mod.objetivo_scratch("../fuera") is None
+    assert mod.objetivo_scratch(".") is None
+
+
 
 
 

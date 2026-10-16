@@ -341,7 +341,10 @@ def correr(escenario, dir_salida):
         f.write(f"\nTranscript: `{crudo.name}` · eventos: `{eventos_f.name}`\n")
 
     for path in escenario.get("scratch", []):
-        objetivo = RAIZ / path
+        objetivo = objetivo_scratch(path)
+        if objetivo is None:
+            print(f"  [scratch] fuera del proyecto, no se toca: {RAIZ / path}")
+            continue
         if objetivo.is_dir():
             shutil.rmtree(objetivo, ignore_errors=True)
         elif objetivo.exists():
@@ -350,6 +353,18 @@ def correr(escenario, dir_salida):
     chat.matar()
     print(f"Banco {escenario['id']}: {ok}/{len(escenario['turnos'])} OK → {resumen}")
     return 0 if ok == len(escenario["turnos"]) else 1
+
+
+def objetivo_scratch(path):
+    """El destino a borrar del scratch, o None si cae FUERA del proyecto.
+
+    X3: RAIZ / '/abs' da '/abs' y '..' se escapa — sin esta contención un
+    escenario podía borrar cualquier ruta del disco. Función pura para
+    testearla sin correr el banco."""
+    objetivo = (RAIZ / path).resolve()
+    if objetivo == RAIZ or RAIZ not in objetivo.parents:
+        return None
+    return objetivo
 
 
 def sustituir_placeholders(texto):
