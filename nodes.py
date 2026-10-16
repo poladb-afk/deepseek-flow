@@ -297,6 +297,31 @@ def sanitizar(texto):
     return limpio, limpio != texto
 
 
+def _respaldar_zona_fria(mensajes):
+    """Guarda en memoria/ los mensajes que la compacción va a descartar (A17).
+
+    Sin LLM a propósito: una transcripción literal es barata, no suma latencia
+    al turno ni un modo de fallo nuevo (y el resumen real de la sesión ya se
+    hace al salir, en main.resumen_de_sesion). Devuelve la ruta o None."""
+    from utils.compaccion import MAX_RESPALDO_CHARS, serializar, zona_fria
+
+    frios = zona_fria(mensajes)
+    if not frios:
+        return None
+    from datetime import datetime
+
+    from modules.memoria import guardar_nota
+
+    cuerpo = serializar(frios)
+    aviso = ""
+    if len(cuerpo) > MAX_RESPALDO_CHARS:
+        cuerpo = cuerpo[:MAX_RESPALDO_CHARS]
+        aviso = "\n\n[... transcripción truncada por tamaño ...]"
+    titulo = f"Compactación {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    destino = guardar_nota(titulo, cuerpo + aviso)
+    return str(destino) if destino else None
+
+
 class AgentStep(Node):
     def prep(self, shared):
         # Compacción de contexto (Mesa 6, 12-factor #5): si el historial
@@ -313,7 +338,10 @@ class AgentStep(Node):
         if tope > 0 and len(serializar(mensajes)) > tope:
             h = huella(mensajes)
             if shared.get("_compaccion_huella") != h:
-                nuevo = compactar(mensajes, tope)
+                # A17: la zona fría se RESPALDA antes de descartarla, así el
+                # marcador puede decir la verdad y memory_search la encuentra.
+                respaldo = _respaldar_zona_fria(mensajes)
+                nuevo = compactar(mensajes, tope, respaldo=respaldo)
                 if nuevo is not mensajes and len(nuevo) < len(mensajes):
                     frios = len(mensajes) - len(nuevo) + 1  # +1: el propio resumen
                     print(

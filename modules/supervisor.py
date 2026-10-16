@@ -24,9 +24,16 @@ TOOLS = [
 ]
 
 
-def run_supervisor(tarea, salida="salidas/supervisor.md"):
+def run_supervisor(tarea, salida=None):
     from supervisor import supervisar
+    from utils.fs_tools import salida_ya_existe
 
+    if salida is None:
+        salida = "salidas/supervisor.md"
+    else:
+        motivo = salida_ya_existe(salida)
+        if motivo:
+            return f"ERROR: {motivo}"
     ruta = supervisar(tarea, salida)
     return f"Síntesis del supervisor escrita: {ruta}. Lee el archivo con read_file."
 

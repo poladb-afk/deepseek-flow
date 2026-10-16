@@ -108,6 +108,10 @@ agente la consulta por tools solo cuando el pedido lo justifica:
   pero con contención dura: solo escribe dentro de `memoria/`, el nombre
   sale de un slug del título (sin rutas ni `..`). La biblioteca no sigue
   enlaces simbólicos (ni al leer ni al escribir).
+- Al **compactar** una sesión larga, la zona fría (lo que se descarta) se
+  respalda **literalmente** —sin LLM— en `memoria/nota_FECHA_compactacion-*.md`
+  y el marcador `[compacción]` nombra ese archivo: el detalle sigue siendo
+  recuperable con `memory_search` en vez de perderse.
 
 Al salir del chat, si `MEMORIA=1` (default) y hubo al menos 2 preguntas,
 **una** llamada a `call_llm` resume la conversación y la guarda como
@@ -115,6 +119,28 @@ Al salir del chat, si `MEMORIA=1` (default) y hubo al menos 2 preguntas,
 sale igual). Al **arrancar**, el chat muestra el catálogo de la biblioteca
 (nombre y conteo de notas) SIN inyectar su contenido — el arranque vacío
 es regla. `memoria/` no se versiona (está en `.gitignore`).
+
+## Privacidad y datos locales
+
+Todo lo que el harness escribe queda **en el repo o en `salidas/`**. Qué
+guarda cada sink, con qué default y cómo apagarlo:
+
+| Dato | Archivo | Default | Apagador |
+|---|---|---|---|
+| Pregunta del usuario, **texto en claro** (4000 chars) | `salidas/preguntas.jsonl` | **encendido** | `PREGUNTAS_LOG=0` |
+| Decisión del router (sin texto) | `salidas/routing.jsonl` | `LAYA_LOG_DECISIONES=1` | `LAYA_LOG_DECISIONES=0` |
+| Texto de la pregunta dentro del evento de routing | — | apagado | `LAYA_LOG_PREGUNTA=1` (200 chars) |
+| Juicio de riesgo de comandos (exp/44) | `salidas/riesgo.jsonl` | activo si hay `LAYA_MODEL_RIESGO` | sin modelo, es no-op |
+| Transcripción COMPLETA del `shared` por checkpoint | `salidas/threads/<id>.jsonl` | `THREAD_PERSIST=1` | `THREAD_PERSIST=0` |
+| Traza de nodos (nodo/acción/segundos, sin contenido) | `.runs/*.jsonl` | `TRACE=1` | `TRACE=0` |
+| Biblioteca de notas y resúmenes de sesión | `memoria/*.md` | `MEMORIA=1` | `MEMORIA=0` |
+| Respaldo de la zona fría al compactar | `memoria/nota_*_compactacion-*.md` | con la compacción | `COMPACTION_CHARS=0` |
+
+`PREGUNTAS_LOG` es el único sink con **texto del usuario encendido por
+default**: existe para calibrar el router con tráfico real (exp/33/43) y el
+archivo está en `.gitignore`. Si tratás datos sensibles, arrancá con
+`PREGUNTAS_LOG=0` y `THREAD_PERSIST=0`. No hay retención automática: los
+archivos crecen hasta que los borres.
 
 ## CLI completo
 

@@ -35,6 +35,10 @@ PREFIJO_COMPACCION = "[compacción]"
 # Ventana caliente por default: últimos N mensajes que NUNCA se tocan.
 VENTANA_DEFAULT = 6
 
+# Tope del respaldo literal de la zona fría antes de compactar (A17): la
+# transcripción completa va a memoria/ y no conviene que crezca sin límite.
+MAX_RESPALDO_CHARS = 200_000
+
 # Claves canónicas permitidas por rol (contrato de la API DeepSeek).
 _CLAVES = {
     "system": {"role", "content"},
@@ -155,17 +159,40 @@ def _unidades(messages):
     return cortes
 
 
-def _resumen(cantidad):
+def zona_fria(messages, ventana=VENTANA_DEFAULT):
+    """Los mensajes que compactar() descartaría, con la MISMA partición.
+
+    Lista vacía si no hay zona fría (historial corto o ventana completa). El
+    llamador la usa para RESPALDARLA antes de compactar (A17): el marcador no
+    debe prometer que el detalle está en memoria/ si nadie lo guardó."""
+    original = list(messages)
+    if len(original) < ventana + 2:
+        return []
+    unidades = _unidades(original)
+    if len(unidades) <= ventana + 1:
+        return []
+    corte = unidades[-ventana:][0][0]
+    if corte <= 1:
+        return []
+    return original[1:corte]
+
+
+def _resumen(cantidad, respaldo=None):
     """El resumen sintético de la zona fría: user con prefijo fijo, el
-    conteo de vueltas omitidas y un placeholder instructivo. Determinista."""
+    conteo de vueltas omitidas y —si el llamador respaldó la zona fría— la
+    ruta donde quedó. Determinista.
+
+    El texto viejo afirmaba que "los hechos durables están en memoria/" sin
+    que nadie los hubiera guardado: era falso en cuanto hubiera algo durable
+    en la zona fría. Ahora solo lo dice si hay respaldo y dice CUÁL es."""
+    donde = (f" El detalle completo quedó en {respaldo} (recuperable con "
+             "memory_search).") if respaldo else ""
     return {
         "role": "user",
         "content": (
             f"{PREFIJO_COMPACCION} {cantidad} mensajes anteriores (zona fría) "
-            "fueron compactados para no reenviar todo el historial. El "
-            "detalle de esas vueltas ya no está en este contexto; los hechos "
-            "durables están en memoria/ si hicieran falta (usá memory_search "
-            "para recuperarlos). Continuá desde la ventana caliente de abajo."
+            "fueron compactados para no reenviar todo el historial." + donde +
+            " Continuá desde la ventana caliente de abajo."
         ),
     }
 
@@ -174,7 +201,7 @@ def _resumen(cantidad):
 # Función principal
 # ---------------------------------------------------------------------------
 
-def compactar(messages, max_chars, ventana=VENTANA_DEFAULT):
+def compactar(messages, max_chars, ventana=VENTANA_DEFAULT, respaldo=None):
     """Devuelve el historial compactado. PURA y DETERMINISTA.
 
     (a) SIEMPRE conserva intactos el system (índice 0) y los ÚLTIMOS
@@ -187,6 +214,8 @@ def compactar(messages, max_chars, ventana=VENTANA_DEFAULT):
         menos de `ventana + 2` mensajes, se devuelve INTACTO (copia nueva).
 
     `max_chars` se mide sobre la serialización canónica (ver `serializar`).
+    `respaldo` es la ruta donde el LLAMADOR ya guardó la zona fría: va en el
+    texto del marcador. Esta función no escribe nada (sigue siendo pura).
     """
     original = list(messages)
     if _tamano(original) <= max_chars or len(original) < ventana + 2:
@@ -206,7 +235,7 @@ def compactar(messages, max_chars, ventana=VENTANA_DEFAULT):
         return original
 
     frios = corte - 1
-    nuevo = [original[0], _resumen(frios)] + original[corte:]
+    nuevo = [original[0], _resumen(frios, respaldo)] + original[corte:]
     # Si la ventana caliente sola ya pesa más que el tope, la compacción NO
     # achica (medido: 9 mensajes/60.403 chars → 8/60.644) y el llamador
     # re-compactaría en cada ronda sin bajar nunca. Si no achica, no se toca.

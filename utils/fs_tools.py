@@ -156,6 +156,22 @@ def escribir_atomico(destino, texto):
         raise
 
 
+def salida_ya_existe(ruta):
+    """No-clobber de las tools del CHAT (A09/H02): si el modelo eligió una
+    ruta de salida que YA existe, no se pisa. Devuelve el motivo o None.
+
+    Solo aplica cuando el modelo PASÓ la ruta: con el default del tool (que
+    se reescribe todos los días) no hay fricción. Los flujos de la CLI siguen
+    pudiendo reescribir sus informes."""
+    destino, err = _resolve(ruta)
+    if err:
+        return err
+    if destino.exists():
+        return (f"ya existe {destino}: elegí otro nombre de salida o borralo "
+                "vos. (Los flujos de la CLI sí pueden reescribirlo.)")
+    return None
+
+
 def list_files(path=None, depth=2):
     if path is None:
         roots = allowed_roots()

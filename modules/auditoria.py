@@ -24,7 +24,15 @@ TOOLS = [
 ]
 
 
-def run_auditoria(carpetas, glob="*.jsonl", salida="salidas/auditoria.md"):
+def run_auditoria(carpetas, glob="*.jsonl", salida=None):
+    from utils.fs_tools import salida_ya_existe
+
+    if salida is None:
+        salida = "salidas/auditoria.md"
+    else:
+        motivo = salida_ya_existe(salida)
+        if motivo:
+            return f"ERROR: {motivo}"
     if isinstance(carpetas, (list, tuple)):
         lista = [str(c).strip() for c in carpetas if str(c).strip()]
     else:

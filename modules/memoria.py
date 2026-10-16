@@ -18,6 +18,7 @@ from datetime import date
 from pathlib import Path
 
 from utils.call_llm import _setting
+from utils.fs_tools import escribir_atomico
 
 MEMORIA_DIR_DEFAULT = "memoria"
 SEARCH_MAX_FILES = 50
@@ -127,25 +128,38 @@ def _prefiltrar(query, archivos):
     return elegidos, True
 
 
-def memory_save(titulo, contenido):
-    """Escribe una nota en `memoria/nota_FECHA_slug.md` (título como primera
-    línea). Sin HITL: es la libreta del agente. Contención dura: solo
-    escribe DENTRO de memoria/ (slug del título, sin rutas ni '..')."""
+def guardar_nota(titulo, contenido):
+    """Escribe la nota y devuelve su Path (None si no se pudo). Contención
+    dura: solo dentro de memoria/, destino resuelto y sin symlinks. Lo
+    comparten la tool memory_save y el respaldo de la zona fría que hace la
+    compacción antes de descartar mensajes (A17)."""
     slug = _slug(titulo)
     if not slug:
-        return "ERROR: el título no contiene caracteres utilizables para el nombre del archivo."
+        return None
     raiz = _raiz()
     destino = raiz / f"nota_{date.today().isoformat()}_{slug}.md"
     # doble chequeo: el destino resuelto DEBE quedar dentro de memoria/
     if destino.is_symlink() or raiz not in destino.resolve().parents:
-        return "ERROR: el destino queda fuera de la biblioteca de memoria."
+        return None
     cuerpo = contenido if contenido is not None else ""
     texto = f"{titulo.strip()}\n\n{cuerpo}\n"
     try:
         raiz.mkdir(parents=True, exist_ok=True)
-        destino.write_text(texto, encoding="utf-8")
-    except OSError as e:
-        return f"ERROR al escribir: {e.strerror}"
+        escribir_atomico(destino, texto)
+    except OSError:
+        return None
+    return destino
+
+
+def memory_save(titulo, contenido):
+    """Escribe una nota en `memoria/nota_FECHA_slug.md` (título como primera
+    línea). Sin HITL: es la libreta del agente. Contención dura: solo
+    escribe DENTRO de memoria/ (slug del título, sin rutas ni '..')."""
+    if not _slug(titulo):
+        return "ERROR: el título no contiene caracteres utilizables para el nombre del archivo."
+    destino = guardar_nota(titulo, contenido)
+    if destino is None:
+        return "ERROR: no se pudo escribir la nota (fuera de la biblioteca o error de disco)."
     return f"Guardado en {destino}"
 
 

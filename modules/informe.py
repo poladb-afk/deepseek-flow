@@ -4,7 +4,7 @@ El progreso del pipeline se imprime en la terminal mientras corre."""
 import asyncio
 
 from informe import DEFAULT_FOLDER, create_informe_flow
-from utils.fs_tools import _resolve
+from utils.fs_tools import _resolve, salida_ya_existe
 
 TOOLS = [
     {
@@ -26,12 +26,19 @@ TOOLS = [
 ]
 
 
-def run_informe(carpeta=None, glob="*.jsonl", salida="salidas/informe.md"):
+def run_informe(carpeta=None, glob="*.jsonl", salida=None):
     folder, err = _resolve(carpeta or DEFAULT_FOLDER)
     if err:
         return f"ERROR: {err}"
     if not folder.is_dir():
         return f"ERROR: no es una carpeta: {folder}"
+    # el default se reescribe a diario; una ruta ELEGIDA por el modelo, no
+    if salida is None:
+        salida = "salidas/informe.md"
+    else:
+        motivo = salida_ya_existe(salida)
+        if motivo:
+            return f"ERROR: {motivo}"
     shared = {"folder": str(folder), "glob": glob, "salida": salida}
     asyncio.run(create_informe_flow().run_async(shared))
     return (

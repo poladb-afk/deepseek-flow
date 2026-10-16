@@ -10,6 +10,7 @@ import io
 import json
 import sys
 import types
+from pathlib import Path
 
 import pytest
 
@@ -232,3 +233,82 @@ def test_research_no_manda_el_error_al_llm(monkeypatch):
         salida = research.Researcher().exec("consulta")
     assert llamado == []
     assert "búsqueda sin resultados" in salida
+
+# --------------------------------------------------------------------------
+# A09/H02 — no-clobber en las tools del CHAT
+# --------------------------------------------------------------------------
+def test_salida_ya_existe(tmp_path, monkeypatch):
+    from utils.fs_tools import salida_ya_existe
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    destino = tmp_path / "informe.md"
+    assert salida_ya_existe(str(destino)) is None  # libre
+    destino.write_text("viejo", encoding="utf-8")
+    assert "ya existe" in salida_ya_existe(str(destino))
+
+
+def test_run_informe_no_pisa_una_salida_elegida(tmp_path, monkeypatch):
+    """Si el MODELO eligió la ruta y ya existe, se rechaza antes de correr el flujo."""
+    from modules.informe import run_informe
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    salida = tmp_path / "informe.md"
+    salida.write_text("viejo", encoding="utf-8")
+    r = run_informe(carpeta=str(tmp_path), salida=str(salida))
+    assert r.startswith("ERROR: ya existe")
+    assert salida.read_text(encoding="utf-8") == "viejo"
+
+
+def test_la_cli_sigue_pisando(tmp_path, monkeypatch):
+    """Sin la guarda (flujos de la CLI) escribir_salida reescribe como siempre."""
+    from utils.fs_tools import escribir_salida
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    destino = tmp_path / "out.md"
+    destino.write_text("viejo", encoding="utf-8")
+    _, err = escribir_salida(str(destino), "nuevo")
+    assert err is None and destino.read_text(encoding="utf-8") == "nuevo"
+
+
+# --------------------------------------------------------------------------
+# A17/H12 — la zona fría se respalda antes de descartarla
+# --------------------------------------------------------------------------
+def _historial_largo():
+    msgs = [{"role": "system", "content": "s"},
+            {"role": "user", "content": "OBJETIVO_ACTIVO"}]
+    for i in range(10):
+        msgs.append({"role": "assistant", "content": None,
+                     "tool_calls": [{"id": str(i), "type": "function",
+                                     "function": {"name": "read_file", "arguments": "{}"}}]})
+        msgs.append({"role": "tool", "tool_call_id": str(i), "content": "X" * 1000})
+    return msgs
+
+
+def test_zona_fria_coincide_con_lo_que_compactar_descarta():
+    from utils.compaccion import compactar, zona_fria
+
+    msgs = _historial_largo()
+    descartados = len(msgs) - len(compactar(msgs, 4000)) + 1  # +1: el resumen
+    assert len(zona_fria(msgs)) == descartados
+
+
+def test_compaccion_respalda_la_zona_fria(tmp_path, monkeypatch):
+    import nodes
+    from utils.compaccion import compactar
+
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path / "memoria"))
+    msgs = _historial_largo()
+    ruta = nodes._respaldar_zona_fria(msgs)
+    assert ruta is not None
+    assert "OBJETIVO_ACTIVO" in Path(ruta).read_text(encoding="utf-8")
+    assert ruta in compactar(msgs, 4000, respaldo=ruta)[1]["content"]
+
+
+def test_marcador_sin_respaldo_no_promete_memoria():
+    """El texto viejo afirmaba que los hechos estaban en memoria/ sin guardarlos."""
+    from utils.compaccion import compactar
+
+    marcador = compactar(_historial_largo(), 4000)[1]["content"]
+    assert "memoria/" not in marcador
+    assert "compactados" in marcador
+

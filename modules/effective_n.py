@@ -41,7 +41,15 @@ TOOLS = [
 ]
 
 
-def run_effective_n(carpetas=None, glob="*.jsonl", salida="salidas/effective_n.md"):
+def run_effective_n(carpetas=None, glob="*.jsonl", salida=None):
+    if salida is None:
+        salida = "salidas/effective_n.md"
+    else:
+        from utils.fs_tools import salida_ya_existe
+
+        motivo = salida_ya_existe(salida)
+        if motivo:
+            return f"ERROR: {motivo}"
     raw = carpetas or [DEFAULT_FOLDER]
     if isinstance(raw, str):
         raw = [raw]
