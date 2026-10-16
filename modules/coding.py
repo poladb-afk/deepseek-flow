@@ -177,68 +177,80 @@ def _sale_de_raices(command):
     return False
 
 
-def run_command(command):
-    if not command or not str(command).strip():
-        return "ERROR: comando vacío"
-    command = str(command)
+RECHAZO = ("RECHAZADO por el usuario: el comando no se ejecutó. "
+           "Puedes proponer otro o preguntar qué cambiaría.")
+RECHAZO_DOBLE = ("RECHAZADO por el usuario: el comando no se ejecutó (segunda confirmación). "
+                 "Puedes proponer otro o preguntar qué cambiaría.")
 
-    # HITL graduado (mesa 2): clasificá por riesgo antes del preview.
-    # 'auto' = solo-lectura verificado → ejecuta directo, pero SIEMPRE
-    # imprime el comando (transparencia: el usuario lo ve igual).
+
+def _nivel(command):
+    """Clasificación del comando + los dos ajustes de la casa.
+
+    'auto' = solo-lectura verificado → ejecuta directo, pero SIEMPRE se imprime
+    el comando (transparencia: el usuario lo ve igual) — y 'auto' solo vale
+    DENTRO del proyecto: un cat/grep/find a una ruta fuera de
+    AGENT_ALLOWED_DIRS vuelve a pedir aprobación. HITL_AUTO=0 devuelve el s/n
+    de siempre."""
     nivel = clasificar(command)
     if nivel == "auto" and _sale_de_raices(command):
-        # 'auto' significa "solo lee DENTRO del proyecto": un cat/grep/find a
-        # una ruta fuera de AGENT_ALLOWED_DIRS vuelve a pedir aprobación.
         nivel = "preguntar"
     if _setting("HITL_AUTO", "1") != "1":
-        nivel = "preguntar"  # HITL_AUTO=0: compatibilidad total con el s/n de hoy
+        nivel = "preguntar"
+    return nivel
 
-    # exp/44 — OBSERVACIÓN de riesgo (el s/n NO cambia): solo en las bandas
-    # que un humano gatea (preguntar/confirmar_doble). `auto` y la denylist
-    # NO se juzgan: las reglas duras van primero. Sin LAYA_MODEL_RIESGO,
-    # juzgar() devuelve None y todo queda no-op.
-    juicios = None
-    if nivel in ("preguntar", "confirmar_doble"):
-        juicios = juzgar(command, ultimo_usuario())
-        if juicios:
-            resumen = " · ".join(f"{k.split('_')[0]}={v[0]} {v[1]:.2f}"
-                                 for k, v in juicios.items())
-            print(colorear(f"  [riesgo] observa: {resumen}", "info"))
 
+def _observar_riesgo(command, nivel):
+    """exp/44 — OBSERVACIÓN de riesgo (el s/n NO cambia): solo en las bandas
+    que un humano gatea (preguntar/confirmar_doble). 'auto' y la denylist NO
+    se juzgan: las reglas duras van primero. Sin LAYA_MODEL_RIESGO, juzgar()
+    devuelve None y todo queda no-op."""
+    if nivel not in ("preguntar", "confirmar_doble"):
+        return None
+    juicios = juzgar(command, ultimo_usuario())
+    if juicios:
+        resumen = " · ".join(f"{k.split('_')[0]}={v[0]} {v[1]:.2f}"
+                             for k, v in juicios.items())
+        print(colorear(f"  [riesgo] observa: {resumen}", "info"))
+    return juicios
+
+
+def _registrar_riesgo(command, juicios, aprobado):
+    """El riesgo se registra UNA vez por corrida, junto a la aprobación o su
+    rechazo, y solo si hubo observación."""
+    if juicios is not None:
+        registrar_riesgo(command, ultimo_usuario(), juicios, aprobado)
+
+
+def _aprobar(command, nivel, juicios):
+    """Pide lo que el nivel exija, en orden, y registra cada respuesta.
+    Devuelve (aprobado, motivo del rechazo): el preview y el pedido viven
+    juntos para que no se pueda agregar un nivel sin su registro."""
     if nivel == "auto":
         print(f"\n── run_command [auto: solo-lectura] ──\n{command}")
-    elif nivel == "confirmar_doble":
+        return True, ""
+    if nivel == "confirmar_doble":
         print("\n── run_command [¡doble confirmación!] ──")
-        print(f"   ↳ {explicar(command)}")
-        print(command)
-        _cuerpo[0] = command
-        if not _approve("¿Seguro? (1/2)"):
-            registrar_aprobacion("run_command", command, False, "confirmar_doble")
-            if juicios is not None:
-                registrar_riesgo(command, ultimo_usuario(), juicios, False)
-            return "RECHAZADO por el usuario: el comando no se ejecutó. Puedes proponer otro o preguntar qué cambiaría."
-        if not _approve("¿Confirmás de nuevo? (2/2)"):
-            registrar_aprobacion("run_command", command, False, "confirmar_doble")
-            if juicios is not None:
-                registrar_riesgo(command, ultimo_usuario(), juicios, False)
-            return "RECHAZADO por el usuario: el comando no se ejecutó (segunda confirmación). Puedes proponer otro o preguntar qué cambiaría."
-        registrar_aprobacion("run_command", command, True, "confirmar_doble")
-        if juicios is not None:
-            registrar_riesgo(command, ultimo_usuario(), juicios, True)
+        preguntas = (("¿Seguro? (1/2)", RECHAZO),
+                     ("¿Confirmás de nuevo? (2/2)", RECHAZO_DOBLE))
     else:  # 'preguntar': el flujo de hoy
         print("\n── run_command ──")
-        print(f"   ↳ {explicar(command)}")
-        print(command)
-        _cuerpo[0] = command
-        if not _approve("¿Ejecutar?"):
-            registrar_aprobacion("run_command", command, False, "preguntar")
-            if juicios is not None:
-                registrar_riesgo(command, ultimo_usuario(), juicios, False)
-            return "RECHAZADO por el usuario: el comando no se ejecutó. Puedes proponer otro o preguntar qué cambiaría."
-        registrar_aprobacion("run_command", command, True, "preguntar")
-        if juicios is not None:
-            registrar_riesgo(command, ultimo_usuario(), juicios, True)
+        preguntas = (("¿Ejecutar?", RECHAZO),)
+    print(f"   ↳ {explicar(command)}")
+    print(command)
+    _cuerpo[0] = command
+    for pregunta, motivo in preguntas:
+        if _approve(pregunta):
+            continue
+        registrar_aprobacion("run_command", command, False, nivel)
+        _registrar_riesgo(command, juicios, False)
+        return False, motivo
+    registrar_aprobacion("run_command", command, True, nivel)
+    _registrar_riesgo(command, juicios, True)
+    return True, ""
 
+
+def _ejecutar(command):
+    """Corre el comando ya aprobado y arma la salida que ve el modelo."""
     try:
         r = subprocess.run(
             command,
@@ -256,6 +268,19 @@ def run_command(command):
         salida += (("\n" if salida else "") + "[stderr]\n" + r.stderr.strip()).rstrip()
     salida = recortar_chars(salida, SALIDA_MAX, "[... salida truncada ...]")
     return f"exit {r.returncode}\n{salida or '(sin salida)'}"
+
+
+def run_command(command):
+    if not command or not str(command).strip():
+        return "ERROR: comando vacío"
+    command = str(command)
+
+    nivel = _nivel(command)                               # clasificar + raíces + HITL_AUTO
+    juicios = _observar_riesgo(command, nivel)            # exp/44: solo bandas humanas
+    aprobado, motivo = _aprobar(command, nivel, juicios)  # auto / s-n / doble s-n
+    if not aprobado:
+        return motivo
+    return _ejecutar(command)                             # subprocess + timeout + recorte
 
 
 def _normalizar_ws(s):
@@ -321,6 +346,30 @@ def _lineas_ocurrencias(texto, old_string):
     return inicios
 
 
+def _error_no_aparece(resolved, texto, old_string):
+    """El error más caro de la casa (63% de los fallos medidos del harness):
+    dice QUÉ pasó, si el texto coincide salvo espacios y qué líneas se le
+    parecen. Va aparte para que edit_file se lea como su contrato."""
+    mensaje = (
+        f"ERROR: old_string no aparece en {resolved.name}. "
+        "Leé el archivo con read_file y copiá el texto EXACTO; no lo reescribas de memoria."
+    )
+    lineas_old = _normalizar_ws(old_string).split("\n")
+    lineas_txt = _normalizar_ws(texto).split("\n")
+    if _contiene_subsecuencia(lineas_txt, lineas_old):
+        mensaje += (
+            "\nNOTA: coincide salvo espacios/tabs — copiá la indentación "
+            "EXACTA del archivo (tabs vs espacios)."
+        )
+    candidatos = candidatos_similares(texto, old_string)
+    if candidatos:
+        mensaje += "\n¿Quisiste decir (línea n):"
+        for num, excerpt in candidatos:
+            recorte = excerpt if len(excerpt) <= 200 else excerpt[:200]
+            mensaje += f"\n  L{num}: {recorte!r}"
+    return mensaje
+
+
 def edit_file(path, old_string, new_string):
     resolved, err = _resolve(path)
     if err:
@@ -337,24 +386,7 @@ def edit_file(path, old_string, new_string):
     texto = resolved.read_text(encoding="utf-8", errors="replace")
     n = texto.count(old_string)
     if n == 0:
-        mensaje = (
-            f"ERROR: old_string no aparece en {resolved.name}. "
-            "Leé el archivo con read_file y copiá el texto EXACTO; no lo reescribas de memoria."
-        )
-        lineas_old = _normalizar_ws(old_string).split("\n")
-        lineas_txt = _normalizar_ws(texto).split("\n")
-        if _contiene_subsecuencia(lineas_txt, lineas_old):
-            mensaje += (
-                "\nNOTA: coincide salvo espacios/tabs — copiá la indentación "
-                "EXACTA del archivo (tabs vs espacios)."
-            )
-        candidatos = candidatos_similares(texto, old_string)
-        if candidatos:
-            mensaje += "\n¿Quisiste decir (línea n):"
-            for num, excerpt in candidatos:
-                recorte = excerpt if len(excerpt) <= 200 else excerpt[:200]
-                mensaje += f"\n  L{num}: {recorte!r}"
-        return mensaje
+        return _error_no_aparece(resolved, texto, old_string)
     if n > 1:
         lineas = _lineas_ocurrencias(texto, old_string)
         listado = ", ".join(str(x) for x in lineas)

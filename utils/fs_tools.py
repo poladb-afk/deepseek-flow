@@ -172,12 +172,46 @@ def salida_ya_existe(ruta):
     return None
 
 
+def _raices_listadas():
+    """Sin path: qué raíces se pueden tocar (y cuáles no existen)."""
+    roots = allowed_roots()
+    return "Directorios permitidos:\n" + "\n".join(
+        f"- {r}{' (no existe)' if not r.is_dir() else ''}" for r in roots
+    )
+
+
+def _listar(d, level, depth, lines, count):
+    """Agrega a lines el listado de d (recursivo) y devuelve el conteo
+    acumulado. count cuenta ENTRADAS listadas, no líneas: los avisos de
+    error/truncado no lo mueven."""
+    try:
+        entries = sorted(sin_enlaces(d.iterdir()), key=lambda e: (e.is_file(), e.name.lower()))
+    except OSError as e:
+        lines.append(f"{e.filename} [ERROR: {e.strerror}]")
+        return count
+    for e in entries:
+        if count >= LIST_MAX_ENTRIES:
+            lines.append(f"... [truncado: más de {LIST_MAX_ENTRIES} entradas]")
+            return count
+        if e.name in SKIP_DIRS:
+            continue
+        count += 1
+        if e.is_dir():
+            lines.append(f"{e}/")
+            if level < depth:
+                count = _listar(e, level + 1, depth, lines, count)
+        else:
+            try:
+                size = e.stat().st_size
+            except OSError:
+                size = 0
+            lines.append(f"{e} ({size} B)")
+    return count
+
+
 def list_files(path=None, depth=2):
     if path is None:
-        roots = allowed_roots()
-        return "Directorios permitidos:\n" + "\n".join(
-            f"- {r}{' (no existe)' if not r.is_dir() else ''}" for r in roots
-        )
+        return _raices_listadas()
     target, err = _resolve(path)
     if err:
         return f"ERROR: {err}"
@@ -187,34 +221,8 @@ def list_files(path=None, depth=2):
         return f"ERROR: no es un directorio: {target}"
 
     depth = min(3, max(1, int(depth)))
-    lines, count = [], 0
-
-    def walk(d, level):
-        nonlocal count
-        try:
-            entries = sorted(sin_enlaces(d.iterdir()), key=lambda e: (e.is_file(), e.name.lower()))
-        except OSError as e:
-            lines.append(f"{e.filename} [ERROR: {e.strerror}]")
-            return
-        for e in entries:
-            if count >= LIST_MAX_ENTRIES:
-                lines.append(f"... [truncado: más de {LIST_MAX_ENTRIES} entradas]")
-                return
-            if e.name in SKIP_DIRS:
-                continue
-            count += 1
-            if e.is_dir():
-                lines.append(f"{e}/")
-                if level < depth:
-                    walk(e, level + 1)
-            else:
-                try:
-                    size = e.stat().st_size
-                except OSError:
-                    size = 0
-                lines.append(f"{e} ({size} B)")
-
-    walk(target, 1)
+    lines = []
+    _listar(target, 1, depth, lines, 0)
     return "\n".join(lines)
 
 
@@ -263,29 +271,15 @@ def _name_matches(rel_posix, name, pattern):
     return fnmatch.fnmatch(name, p)
 
 
-def search_files(query=None, glob=None, path=None):
-    query = (query or "").strip() or None
-    glob = (glob or "").strip() or None
-    if not query and not glob:
-        return "ERROR: indica qué buscar: query (texto del contenido) y/o glob (patrón de nombre como '*.jsonl')"
-    roots = allowed_roots()
-    if path:
-        target, err = _resolve(path)
-        if err:
-            return f"ERROR: {err}"
-        if not target.exists():
-            return f"ERROR: no existe: {target}"
-        roots = [target]
-    pattern = glob or "*"
+def _candidatos(roots, pattern):
+    """Recorre las raíces y devuelve (Path, bytes) de cada archivo cuyo nombre
+    matchea el glob, sin bajar a SKIP_DIRS ni seguir enlaces (sin_enlaces).
 
-    file_hits, content_hits, skipped_big = [], [], 0
-    file_total = 0  # conteo EXACTO antes de truncar a la muestra SEARCH_MAX_FILES
+    Un root que es ARCHIVO se trata como único habitante de su carpeta: os.walk
+    sobre un archivo no visita nada, y ese falso negativo silencioso ya se
+    midió ("Ningún archivo contiene…" sobre un archivo que sí lo contenía)."""
     for root in roots:
         if root.is_file():
-            # os.walk sobre un ARCHIVO no visita nada: falso negativo
-            # silencioso (medido: "Ningún archivo contiene..." sobre un
-            # archivo que sí lo contiene). Lo tratamos como único
-            # habitante de su directorio padre.
             walks = [(str(root.parent), [], [root.name])]
         else:
             walks = os.walk(root)
@@ -298,48 +292,48 @@ def search_files(query=None, glob=None, path=None):
                 if not _name_matches(rel_posix, fpath.name, pattern):
                     continue
                 try:
-                    size = fpath.stat().st_size
+                    yield fpath, fpath.stat().st_size
                 except OSError:
                     continue
-                if not query:
-                    file_total += 1
-                    if len(file_hits) < SEARCH_MAX_FILES:
-                        file_hits.append((fpath, size))
-                    continue
-                if size > CONTENT_MAX_BYTES:
-                    skipped_big += 1
-                    continue
-                try:
-                    text = fpath.read_text(encoding="utf-8", errors="replace")
-                except OSError:
-                    continue
-                if "\x00" in text[:4000]:
-                    continue
-                hits = [
-                    (n, line.strip()[:200])
-                    for n, line in enumerate(text.splitlines(), 1)
-                    if query.lower() in line.lower()
-                ]
-                if hits and len(content_hits) < SEARCH_MAX_FILES:
-                    content_hits.append((fpath, hits))
 
-    if not query:
-        if not file_hits:
-            return f"Ningún archivo coincide con '{pattern}'."
-        shown = len(file_hits)
-        out = [f"{file_total} archivos coinciden con '{pattern}':"]
-        out += [f"- {p} ({s} B)" for p, s in sorted(file_hits)]
-        if file_total > shown:
-            scope = path or " ".join(str(r) for r in roots)
-            out.append(
-                f"... y {file_total - shown} archivos más "
-                f"(mostrando {shown} de {file_total}; para el listado completo: "
-                f"run_command 'find {scope} -name \"{pattern}\"' ya es solo-lectura auto)"
-            )
-        return "\n".join(out)
 
+def _coincidencias(fpath, query):
+    """Líneas del archivo que contienen la query (substring, sin regex).
+    None si no se puede leer o si es binario."""
+    try:
+        text = fpath.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    if "\x00" in text[:4000]:
+        return None
+    return [
+        (n, line.strip()[:200])
+        for n, line in enumerate(text.splitlines(), 1)
+        if query.lower() in line.lower()
+    ]
+
+
+def _formatear_nombres(file_hits, file_total, pattern, path, roots):
+    """Listado por nombre: el conteo es EXACTO y la muestra se declara."""
+    if not file_hits:
+        return f"Ningún archivo coincide con '{pattern}'."
+    shown = len(file_hits)
+    out = [f"{file_total} archivos coinciden con '{pattern}':"]
+    out += [f"- {p} ({s} B)" for p, s in sorted(file_hits)]
+    if file_total > shown:
+        scope = path or " ".join(str(r) for r in roots)
+        out.append(
+            f"... y {file_total - shown} archivos más "
+            f"(mostrando {shown} de {file_total}; para el listado completo: "
+            f"run_command 'find {scope} -name \"{pattern}\"' ya es solo-lectura auto)"
+        )
+    return "\n".join(out)
+
+
+def _formatear_contenido(content_hits, query, glob, skipped_big):
+    """Listado por contenido: rutas + L<n> listas para read_file."""
     if not content_hits:
-        scope = f" coincidentes con '{pattern}'" if glob else ""
+        scope = f" coincidentes con '{glob}'" if glob else ""
         return f"Ningún archivo{scope} contiene '{query}'."
     total_lines = sum(len(h) for _, h in content_hits)
     out = [f"'{query}' aparece en {len(content_hits)} archivos ({total_lines} líneas):"]
@@ -358,6 +352,41 @@ def search_files(query=None, glob=None, path=None):
     if shown >= SEARCH_MAX_MATCHES or len(content_hits) == SEARCH_MAX_FILES:
         out.append("[resultado truncado: acota con path o glob]")
     return "\n".join(out)
+
+
+def search_files(query=None, glob=None, path=None):
+    query = (query or "").strip() or None
+    glob = (glob or "").strip() or None
+    if not query and not glob:
+        return "ERROR: indica qué buscar: query (texto del contenido) y/o glob (patrón de nombre como '*.jsonl')"
+    roots = allowed_roots()
+    if path:
+        target, err = _resolve(path)
+        if err:
+            return f"ERROR: {err}"
+        if not target.exists():
+            return f"ERROR: no existe: {target}"
+        roots = [target]
+    pattern = glob or "*"
+
+    file_hits, content_hits, skipped_big = [], [], 0
+    file_total = 0  # conteo EXACTO antes de truncar a la muestra SEARCH_MAX_FILES
+    for fpath, size in _candidatos(roots, pattern):
+        if not query:
+            file_total += 1
+            if len(file_hits) < SEARCH_MAX_FILES:
+                file_hits.append((fpath, size))
+            continue
+        if size > CONTENT_MAX_BYTES:
+            skipped_big += 1
+            continue
+        hits = _coincidencias(fpath, query)
+        if hits and len(content_hits) < SEARCH_MAX_FILES:
+            content_hits.append((fpath, hits))
+
+    if not query:
+        return _formatear_nombres(file_hits, file_total, pattern, path, roots)
+    return _formatear_contenido(content_hits, query, glob, skipped_big)
 
 
 TOOLS = [

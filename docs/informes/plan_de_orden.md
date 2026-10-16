@@ -344,6 +344,31 @@ def run_command(command):
 - Pasan sin modificar `test_policy.py`, `test_hitl.py`, `test_fs_tools.py` y los tests de symlinks.
 - Una sola llamada a `registrar_riesgo` en `coding.py`.
 
+**Aplicado (2026-10-16), con una corrección medida:**
+
+`run_command` quedó en `_nivel` + `_observar_riesgo` + `_aprobar` + `_ejecutar`;
+la aprobación y el riesgo se registran UNA vez por corrida (el riesgo, vía
+`_registrar_riesgo`, que es la única llamada). `search_files` quedó en
+`_candidatos` → `_coincidencias` → `_formatear_nombres`/`_formatear_contenido`.
+
+El criterio, **tal como está escrito**, no lo cumplían solo esas dos
+funciones: `edit_file` (13) y `list_files` (13) viven en esos mismos archivos
+y también pasaban el tope de 12. Se bajaron sin cambiar conducta:
+`edit_file` → `_error_no_aparece` (el mensaje diagnóstico, que es el 63% de
+los fallos medidos) y `list_files` → `_listar` (el walk anidado, con el
+conteo por retorno para no cambiar cuándo aparece el aviso de truncado).
+
+**Cómo se verificó** (`salidas/pr6_diferencial.py`, no versionado): el módulo
+de `HEAD` y el nuevo se cargan juntos y se corren sobre los MISMOS casos,
+comparando salida **y** la secuencia de bookkeeping. 36 comparaciones, 0
+diferencias: 12 escenarios de `search_files` (truncado, binarios, archivos
+grandes, `path` a archivo, glob con barra, `**/`, rutas prohibidas), 8 de
+`list_files` (depth 1/3/99, truncado, archivo, inexistente), el symlink que
+apunta afuera, y 12 de `run_command` (auto / preguntar / doble, aprobado y
+rechazado en cada paso, `HITL_AUTO=0`, con y sin observación de riesgo)
+comparando el texto devuelto, lo impreso y el orden exacto de
+`registrar_aprobacion`/`registrar_riesgo`. Suite completa: 518 passed.
+
 ---
 
 ## PR 7 — CI
@@ -401,5 +426,5 @@ requires-python = ">=3.12"
 - [x] PR 3 — sin cuerpos duplicados, rutas en `utils/rutas.py` (este commit)
 - [x] PR 4 — `conftest.py` (8 copias → 1), `test_smoke.py` partido en 19 archivos temáticos (245 bloques movidos verbatim, mismos 518 tests, ningún archivo pasa de 664 líneas) y markers `laya`/`bmo`/`red`/`datos` (e2f291c + este commit)
 - [x] PR 5 — sin rutas personales, `LEER_BMO_ENV=0` (029b994)
-- [ ] PR 6 — C901 ≤ 12 en `run_command` y `search_files`
+- [x] PR 6 — C901 ≤ 12 en `run_command`, `search_files`, `edit_file` y `list_files` (36 comparaciones diferenciales contra HEAD, 0 diferencias; sin tocar tests)
 - [x] PR 7 — CI en verde: run 38913431915 (f642824)
