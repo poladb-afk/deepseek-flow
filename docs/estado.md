@@ -50,13 +50,12 @@ lleva el motivo o el PR que lo cierra. Si algo se cierra sin test, se dice expl�
 | X7 | — | `requirements.txt` fija `ruff==0.17.1` y el entorno tiene 0.15.15 | ⏳ entorno | verificado: la 0.17.1 da «All checks passed» | — |
 | X8 | H02 | `escribir_salida` pisa archivos dentro de las raíces sin HITL | ⏳ decisión | los flujos de la CLI reescriben a propósito; el chat ya no pisa (A09) | `test_pendientes.py` (lado chat) |
 | — | H16 | El juez verifica 5 citas, no toda la verdad | límite deliberado | `juez.py` `MAX_CITAS` | — |
-| — | H20 | La suite no es un gate integral por contrato | ⏳ PR 7 | 509 tests + gate manual | — |
+| — | H20 | La suite no es un gate integral por contrato | ✅ 2026-10-16 | `./calidad.sh` en CI con 3 palancas (ruff · C901 de las fronteras · 518 tests) | `test_contratos.py` + `.github/workflows/calidad.yml` |
 
 ## Abiertos, con su dueño
 
-| Id | Qué falta | Dueño |
-|---|---|---|
-Los seis hallazgos de código (A04, A05, A07, A27, X3, X4) y el CI (X6) se cerraron el 2026-10-16; queda:
+Los seis hallazgos de código (A04, A05, A07, A27, X3, X4) y todo H20 (X6 + el
+gate integral) se cerraron el 2026-10-16. Queda:
 
 | Id | Qué falta | Dueño |
 |---|---|---|
