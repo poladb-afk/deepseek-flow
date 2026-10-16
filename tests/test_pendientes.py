@@ -408,5 +408,73 @@ def test_cancelar_hitl_web_limpia_el_pedido(monkeypatch):
         hitl_web.aprobar("demo", "sin efectos")
     assert hitl_web._pendientes == {}
 
+# --------------------------------------------------------------------------
+# PR 5 — portabilidad: sin rutas personales ni .env ajeno
+# --------------------------------------------------------------------------
+def test_leer_bmo_env_default_no_lee_el_env_ajeno(tmp_path, monkeypatch):
+    """El harness es autónomo: sin LEER_BMO_ENV=1 no se lee el .env de bmo."""
+    from utils import call_llm
+
+    ajeno = tmp_path / "bmo.env"
+    ajeno.write_text("MARCADOR_SOLO_BMO=1\n", encoding="utf-8")
+    monkeypatch.setattr(call_llm, "BMO_ENV", ajeno)
+    monkeypatch.delenv("LEER_BMO_ENV", raising=False)
+    monkeypatch.delenv("MARCADOR_SOLO_BMO", raising=False)
+    assert call_llm._setting("MARCADOR_SOLO_BMO", "no") == "no"   # default: no lo lee
+    monkeypatch.setenv("LEER_BMO_ENV", "1")
+    assert call_llm._setting("MARCADOR_SOLO_BMO", "no") == "1"    # opt-in: sí
+
+
+def test_ningun_archivo_versionado_tiene_rutas_absolutas_del_autor():
+    """Portabilidad: las rutas ABSOLUTAS de la máquina del autor no viajan.
+
+    Se busca `/home/<usuario>` (la ruta puntual de esta máquina), no las
+    referencias relativas al HOME (`~/Documentos/00_IA/...`), que son
+    portables. Se saltean docs/ (informes históricos), LICENSE, .env.example
+    (documenta LEER_BMO_ENV), los archivos grandes (trazas.db), los JSONL de
+    calibración (transcripciones grabadas: reescribirlas falsearía el dato),
+    utils/call_llm.py (define BMO_ENV a propósito) y este mismo archivo.
+    """
+    import subprocess
+
+    raiz = Path(__file__).resolve().parent.parent
+    archivos = subprocess.run(["git", "ls-files"], capture_output=True, text=True,
+                              cwd=raiz, check=False).stdout.split()
+    permitidos = {"LICENSE", ".env.example", "utils/call_llm.py",
+                  "tests/test_pendientes.py"}
+    sospechosos = []
+    for rel in archivos:
+        if rel.startswith(("docs/", "banco/calibracion_")) or rel in permitidos:
+            continue
+        p = raiz / rel
+        try:
+            if p.stat().st_size > 2_000_000:
+                continue
+            texto = p.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if "/home/roquedb" in texto:
+            sospechosos.append(rel)
+    assert not sospechosos, f"rutas personales en archivos versionados: {sospechosos}"
+
+
+def test_los_escenarios_usan_placeholders():
+    """Los YAML del banco traen {RAIZ}/{HOME} y banco.py los expande."""
+    import importlib.util
+    import subprocess
+
+    raiz = Path(__file__).resolve().parent.parent
+    yaml_con_ruta = subprocess.run(
+        ["grep", "-rl", "{RAIZ}", "banco/escenarios"], capture_output=True, text=True,
+        cwd=raiz, check=False).stdout.split()
+    assert yaml_con_ruta, "ningún escenario usa {RAIZ}: ¿se perdieron los placeholders?"
+    spec = importlib.util.spec_from_file_location("banco_mod", raiz / "banco" / "banco.py")
+    mod = importlib.util.module_from_spec(spec)
+    with contextlib.suppress(SystemExit):  # el módulo define un main
+        spec.loader.exec_module(mod)
+    assert mod.sustituir_placeholders("{RAIZ}/x") == f"{raiz}/x"
+    assert mod.sustituir_placeholders("{HOME}/x") == f"{Path.home()}/x"
+
+
 
 

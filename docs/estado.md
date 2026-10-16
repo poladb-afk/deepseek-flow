@@ -46,6 +46,7 @@ lleva el motivo o el PR que lo cierra. Si algo se cierra sin test, se dice expl�
 | X4 | — | `memory_save` del mismo título el mismo día pisa la nota | ⏳ abierto | `modules/memoria.py` (nombre por fecha+slug) | — |
 | X5 | H19 | El README describía un harness que ya no existe | ✅ 2026-10-15 | README (29 tools, supervisor v2, `ver_pdf`) | `test_docs_sin_deriva.py` |
 | X6 | H20 | No hay CI que corra el gate | ⏳ PR 7 del plan | `calidad.sh` es manual | — |
+| X9 | H19 | Rutas absolutas del autor y `.env` de otro proyecto | ✅ 2026-10-16 | `{RAIZ}`/`{HOME}` en 62 escenarios/specs · `LEER_BMO_ENV=0` · `heartbeat.example.jsonl` | `test_pendientes.py` |
 | X7 | — | `requirements.txt` fija `ruff==0.17.1` y el entorno tiene 0.15.15 | ⏳ entorno | verificado: la 0.17.1 da «All checks passed» | — |
 | X8 | H02 | `escribir_salida` pisa archivos dentro de las raíces sin HITL | ⏳ decisión | los flujos de la CLI reescriben a propósito; el chat ya no pisa (A09) | `test_pendientes.py` (lado chat) |
 | — | H16 | El juez verifica 5 citas, no toda la verdad | límite deliberado | `juez.py` `MAX_CITAS` | — |

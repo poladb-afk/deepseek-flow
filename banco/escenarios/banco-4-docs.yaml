@@ -1,7 +1,7 @@
 id: banco-4-docs
 descripcion: cierre documental de la tanda banco_robusto — design.md
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

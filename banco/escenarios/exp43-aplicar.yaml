@@ -1,7 +1,7 @@
 id: exp43-aplicar
 descripcion: el harness construye su etiqueta ambiental — decisión+resultado por id en el routing log, y el probe que la convierte en calibración (flywheel exp/43)
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 permitir_comandos:
   - python3 -m pytest
   - python3 -m ruff

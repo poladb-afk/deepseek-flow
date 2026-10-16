@@ -1,7 +1,7 @@
 id: banco-3-policy
 descripcion: el harness aplica el fix 12 — 2>&1 es lectura, no redirección que escribe
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

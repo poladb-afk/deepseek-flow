@@ -1,7 +1,7 @@
 id: exp46-aplicar
 descripcion: la recencia deja de ser problema de Laya — regla dura antes del modelo, con respecto por la flywheel (shadow sigue consultando)
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 permitir_comandos:
   - python3 -m pytest
   - python3 -m ruff

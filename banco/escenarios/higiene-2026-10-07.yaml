@@ -1,7 +1,7 @@
 id: higiene-2026-10-07
 descripcion: el harness aplica la cola de higiene (H1 archivo suelto, H2 clave_de, H3 mcp_server)
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

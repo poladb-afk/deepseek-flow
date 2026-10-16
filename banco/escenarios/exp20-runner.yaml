@@ -1,7 +1,7 @@
 id: exp20-runner
 descripcion: el harness construye bench_juez.py — la vara del juez (exp/20)
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

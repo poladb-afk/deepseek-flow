@@ -780,7 +780,7 @@ def test_dsml_a_tool_calls():
     # (la primera versión del fix usaba una sola y jamás disparó)
     contenido = """<｜｜DSML｜｜ calls>
 <｜｜DSML｜｜ invoke name="read_file">
-<｜｜DSML｜｜ parameter name="path" string="true">/home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow/utils/laya.py</｜｜DSML｜｜ parameter>
+<｜｜DSML｜｜ parameter name="path" string="true">/tmp/proyecto/utils/laya.py</｜｜DSML｜｜ parameter>
 </｜｜DSML｜｜ invoke>
 <｜｜DSML｜｜ invoke name="deep_research">
 <｜｜DSML｜｜ parameter name="tema" string="true">PocketFlow</｜｜DSML｜｜ parameter>

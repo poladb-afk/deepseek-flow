@@ -1,7 +1,7 @@
 id: exp43-cerrar2
 descripcion: cuarta sesión exp/43 — prompt corto anti-compacción, spec mecánica ya en disco
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 permitir_comandos:
   - python3 -m pytest
   - python3 -m ruff

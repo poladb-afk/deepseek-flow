@@ -1,7 +1,7 @@
 id: exp44-aplicar
 descripcion: el harness construye su juez de riesgo de acciones en modo observación — el uso nº1 de la familia Jev/Laya en la wild
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 permitir_comandos:
   - python3 -m pytest
   - python3 -m ruff

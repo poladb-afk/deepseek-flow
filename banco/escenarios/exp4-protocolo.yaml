@@ -7,7 +7,7 @@ descripcion: protocolo de continuación con tope 2
 env:
   MAX_TOOL_ROUNDS: "2"
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow/prueba_rondas
+  - {RAIZ}/prueba_rondas
 scratch:
   - prueba_rondas
 turnos:

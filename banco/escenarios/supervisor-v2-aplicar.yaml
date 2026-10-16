@@ -1,12 +1,12 @@
 id: supervisor-v2-aplicar
 descripcion: el despacho del supervisor se simplifica por veredicto del bench — un paso una llamada (tool+args juntos), leyes L8 como guardas de código
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 permitir_comandos:
   - python3 -m pytest
   - python3 -m ruff
   - ruff
-  - cd /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow &&
+  - cd {RAIZ} &&
 env:
   MAX_TOOL_ROUNDS: "40"
   COMPACTION_CHARS: "300000"

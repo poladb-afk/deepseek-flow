@@ -5,7 +5,7 @@
 id: exp10-reintento
 descripcion: reintento único con feedback rico de edit_file
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow/prueba_edit
+  - {RAIZ}/prueba_edit
 scratch:
   - prueba_edit
 turnos:

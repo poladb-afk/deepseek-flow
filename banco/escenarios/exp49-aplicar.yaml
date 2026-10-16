@@ -1,12 +1,12 @@
 id: exp49-aplicar
 descripcion: aprobación durable — checkpoint de selección (factor 8), reparación al rehidratar, y el humano como tool call (factor 7)
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 permitir_comandos:
   - python3 -m pytest
   - python3 -m ruff
   - ruff
-  - cd /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow &&
+  - cd {RAIZ} &&
 env:
   MAX_TOOL_ROUNDS: "40"
   COMPACTION_CHARS: "400000"

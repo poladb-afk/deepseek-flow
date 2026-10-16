@@ -1,7 +1,7 @@
 id: exp42-aplicar3
 descripcion: "sesión 3 — decisión cerrada del conductor: opción 1 de la sesión 1, sin más preguntas; completar y dejar todo verde"
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "40"
 scratch: []

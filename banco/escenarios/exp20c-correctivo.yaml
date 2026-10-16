@@ -1,7 +1,7 @@
 id: exp20c-correctivo
 descripcion: correctivo — inconsistencia aritmética en el test de contención
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

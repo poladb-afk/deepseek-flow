@@ -1,7 +1,7 @@
 id: exp20d-correctivo
 descripcion: calibración del instrumento — cita_ok con la misma ventana de 2 líneas que la verificación de producción
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

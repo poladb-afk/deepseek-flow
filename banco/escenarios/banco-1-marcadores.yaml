@@ -1,7 +1,7 @@
 id: banco-1-marcadores
 descripcion: el harness aplica el fix 10 — marcadores de veto anclados + print de la denylist
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

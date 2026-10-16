@@ -44,7 +44,7 @@ def test_los_marcadores_matchean_las_lineas_reales_del_chat():
         "dsml_ignorado": "  [DSML] tool calls como texto: IGNORADOS (presupuesto agotado)",
         "etiqueta_ambiental": "  [router] etiqueta ambiental: directo (0 rondas)",
         "riesgo": "  [riesgo] observa: modifica=si 0.82 · irreversible=no 0.91 · revisar=si 0.66",
-        "prefetch": "  [pre-fetch] /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow/flow.py",
+        "prefetch": "  [pre-fetch] /tmp/proyecto/flow.py",
     }
     for nombre, patron in MARCADORES.items():
         assert re.search(patron, muestras[nombre]), f"marcador {nombre} no matchea su línea real"

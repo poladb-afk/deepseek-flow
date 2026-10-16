@@ -1,7 +1,7 @@
 id: tope-hitl-smoke
 descripcion: smoke E2E del agotamiento elegante — max_hitl 1 con dos escrituras pedidas
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch:

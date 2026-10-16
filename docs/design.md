@@ -614,9 +614,10 @@ y así hereda `HF_HUB_OFFLINE` antes del import, el caché de errores y el
 RLock. Un checkpoint por nombre: router, voto, supervisor y base (referencia).
 
 ### Heartbeat — las piezas de noche
-`python3 main.py heartbeat [--ahora|--seco]` · [heartbeat.py](../heartbeat.py) · [heartbeat.jsonl](../heartbeat.jsonl)
+`python3 main.py heartbeat [--ahora|--seco]` · [heartbeat.py](../heartbeat.py) · [heartbeat.example.jsonl](../heartbeat.example.jsonl)
 
-Pieza standalone: lee las tareas de `heartbeat.jsonl` (tarea + salida +
+Pieza standalone: lee las tareas de `heartbeat.jsonl` —o del
+`heartbeat.example.jsonl` versionado si no hay config local— (tarea + salida +
 `cada_horas`), corre las vencidas con el supervisor reactivo completo y
 deja informe + estado (`.heartbeat/estado.json`) + log de auditoría
 (`.heartbeat/log.jsonl`). El reloj lo pone el cron del sistema

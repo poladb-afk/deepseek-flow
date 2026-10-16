@@ -1,7 +1,7 @@
 id: exp21b2-docs
 descripcion: enmienda de design.md — la fase B2 que reemplazó los parches por el patrón
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

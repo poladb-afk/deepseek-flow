@@ -1,7 +1,7 @@
 id: exp42-aplicar
 descripcion: el harness cierra el residual de exp/20-21 — el Judge contrasta menciones de tools contra el inventario real (trampa-delete-file)
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "40"
 scratch: []

@@ -352,8 +352,16 @@ def correr(escenario, dir_salida):
     return 0 if ok == len(escenario["turnos"]) else 1
 
 
+def sustituir_placeholders(texto):
+    """Reemplaza los marcadores RAIZ y HOME entre llaves en los escenarios.
+
+    Las rutas de la máquina del autor no viajan en el repo (PR 5 del plan de
+    orden): los YAML traen '{RAIZ}/salidas/...' y acá se expanden."""
+    return texto.replace("{RAIZ}", str(RAIZ)).replace("{HOME}", str(Path.home()))
+
+
 def cargar_escenario(ruta):
-    esc = yaml.safe_load(Path(ruta).read_text(encoding="utf-8"))
+    esc = yaml.safe_load(sustituir_placeholders(Path(ruta).read_text(encoding="utf-8")))
     if not esc.get("id") or "turnos" not in esc:
         raise ValueError(f"escenario inválido: {ruta}")
     ids = [t.get("id") for t in esc["turnos"]]

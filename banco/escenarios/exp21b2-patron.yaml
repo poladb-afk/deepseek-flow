@@ -1,7 +1,7 @@
 id: exp21b2-patron
 descripcion: el harness reemplaza los parches del verdict por el patrón error-como-feedback (exp/21 fase B2)
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

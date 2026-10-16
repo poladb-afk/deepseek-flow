@@ -1,12 +1,12 @@
 id: exp50-aplicar2
 descripcion: reintento de exp/50 — con la respuesta a la pregunta de la sesión anterior y sin investigaciones laterales
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 permitir_comandos:
   - python3 -m pytest
   - python3 -m ruff
   - ruff
-  - cd /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow &&
+  - cd {RAIZ} &&
 env:
   MAX_TOOL_ROUNDS: "40"
   COMPACTION_CHARS: "400000"

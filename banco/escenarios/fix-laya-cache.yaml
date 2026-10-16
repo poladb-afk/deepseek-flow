@@ -1,7 +1,7 @@
 id: fix-laya-cache
 descripcion: el error de carga de un checkpoint deja de envenenar el proceso entero — reintento tras cooldown
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 permitir_comandos:
   - python3 -m pytest
   - python3 -m ruff

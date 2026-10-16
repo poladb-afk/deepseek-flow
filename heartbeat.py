@@ -1,7 +1,7 @@
 """Heartbeat: las piezas corriendo solas de noche, la salida lista a la
 mañana.
 
-Pieza standalone (como carga_trazas): lee `heartbeat.jsonl` (una tarea
+Pieza standalone (como carga_trazas): lee `heartbeat.jsonl` si existe (una tarea
 por línea), corre las que tienen el vencimiento cumplido con el supervisor
 reactivo completo (Choose de Laya + self-healing) y deja:
 
@@ -13,7 +13,8 @@ El reloj lo pone el cron del sistema — esta pieza solo decide qué toca:
 
     0 * * * * cd /ruta/a/deepseek-flow && timeout 3600 python3 heartbeat.py >> .heartbeat/cron.log 2>&1
 
-Formato de heartbeat.jsonl (una línea por tarea):
+Si no hay `heartbeat.jsonl` local usa `heartbeat.example.jsonl` (versionado,
+sin rutas de una máquina puntual). Formato (una línea por tarea):
 
     {"tarea": "auditá las trazas nuevas de ~/datos", "salida": "heartbeat/auditoria.md", "cada_horas": 24}
 
@@ -92,7 +93,11 @@ def registrar(tarea, resultado):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="heartbeat", description="Piezas programadas, listas a la mañana")
-    parser.add_argument("--config", default=str(RAIZ / "heartbeat.jsonl"))
+    # config local si existe; si no, el ejemplo versionado (PR 5 del plan de
+    # orden: el heartbeat.jsonl del autor no viaja en el repo)
+    config = RAIZ / "heartbeat.jsonl"
+    parser.add_argument("--config",
+                        default=str(config if config.is_file() else RAIZ / "heartbeat.example.jsonl"))
     parser.add_argument("--ahora", action="store_true", help="correr todas sin esperar vencimiento")
     parser.add_argument("--seco", action="store_true", help="solo listar qué correría")
     args = parser.parse_args(argv)

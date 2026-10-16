@@ -1,10 +1,10 @@
 id: exp47-analisis
 descripcion: gap analysis del harness contra 12-factor-agents — el material oficial está en banco/material/12factor/, patrón exp/19
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow/salidas/informe_12factor_2026-10-14.md
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow/banco/material
+  - {RAIZ}/salidas/informe_12factor_2026-10-14.md
+  - {RAIZ}/banco/material
 permitir_comandos:
-  - cd /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow &&
+  - cd {RAIZ} &&
 env:
   MAX_TOOL_ROUNDS: "40"
   COMPACTION_CHARS: "400000"

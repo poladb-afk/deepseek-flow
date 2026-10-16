@@ -1,7 +1,7 @@
 id: exp42-aplicar4
 descripcion: "sesión 4 — feedback medido del bench: dos clases de falso positivo en _tools_alucinadas, refinar sin preguntar"
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "40"
 scratch: []

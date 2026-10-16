@@ -1,7 +1,7 @@
 id: exp20b-correctivo
 descripcion: contención por caso en bench_juez — un caso que explota no tira el bench
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

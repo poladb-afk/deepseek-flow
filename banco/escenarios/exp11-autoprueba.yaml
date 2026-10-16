@@ -1,7 +1,7 @@
 id: exp11-autoprueba
 descripcion: auto-prueba en vivo del scope de aprobación
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow/prueba_scope
+  - {RAIZ}/prueba_scope
 scratch:
   - prueba_scope
 turnos:

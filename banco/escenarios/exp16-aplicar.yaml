@@ -1,7 +1,7 @@
 id: exp16-aplicar
 descripcion: el harness aplica el triaje de trazas
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 turnos:
   - id: aplicar
     linea: "Leé banco/specs/exp16_triaje.md (verificada, confía) y aplicalo: triaje_trazas.py standalone con la función pura seleccionar + main con informe md, y los tests. Escribí primero, después ./calidad.sh hasta verde."

@@ -1,7 +1,7 @@
 id: deuda2-utils
 descripcion: el harness aplica los fixes 4-7 (websearch, compaccion, memoria, db) de la spec verificada, turnos chicos
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

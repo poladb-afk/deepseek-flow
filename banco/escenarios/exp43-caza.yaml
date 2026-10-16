@@ -1,7 +1,7 @@
 id: exp43-caza
 descripcion: auditoría dirigida de exp/43 (etiqueta ambiental) — el harness caza bugs en su propio código nuevo, patrón exp/19
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 permitir_comandos:
   - python3 -m pytest
   - git diff

@@ -1,7 +1,7 @@
 id: exp43-correctivo
 descripcion: cierra exp/43 — nodes.py quedó inconsistente (id siempre None) y faltan 4 secciones de la spec (marcador, probe, tests, .env.example)
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 permitir_comandos:
   - python3 -m pytest
   - python3 -m ruff

@@ -1,7 +1,7 @@
 id: exp43-fix
 descripcion: cierra los dos bugs verificados de la caza exp43 (gate del pendiente, marcador ecoado) — spec mecánica en disco
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 permitir_comandos:
   - python3 -m pytest
   - python3 -m ruff

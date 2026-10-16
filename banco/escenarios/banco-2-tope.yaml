@@ -1,7 +1,7 @@
 id: banco-2-tope
 descripcion: el harness aplica el fix 11 — agotamiento elegante del tope HITL + knob max_hitl
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

@@ -1,7 +1,7 @@
 id: exp44-observa
 descripcion: primeros datapoints del juez de riesgo — 4 comandos de la banda humana, log propio
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   RIESGO_ARCHIVO: "salidas/riesgo_exp44.jsonl"
 scratch:

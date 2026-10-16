@@ -1,7 +1,7 @@
 id: deuda1b-minar
 descripcion: continuación de deuda1 — fix 2 (minar_errores) + correctivo de ruff F401
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

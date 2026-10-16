@@ -25,7 +25,7 @@ escribe resultados y TERMINA. No hay modo multi-checkpoint ni servidor.
 
 | nombre | checkpoint | test (bmo) | pregunta | estado por caso |
 |---|---|---|---|---|
-| router | .modelos/router_flow-1k | /home/roquedb/Documentos/00_IA/bmo/train/tasks/router_flow_test.jsonl | nodes.PREGUNTA_ROUTER ["necesita_herramientas"] | {"pregunta": fields["pregunta"]} |
+| router | .modelos/router_flow-1k | {HOME}/Documentos/00_IA/bmo/train/tasks/router_flow_test.jsonl | nodes.PREGUNTA_ROUTER ["necesita_herramientas"] | {"pregunta": fields["pregunta"]} |
 | voto | .modelos/router_voto | .../router_voto_test.jsonl | nodes.PREGUNTA_VOTO ["confirma_herramientas"] | {"pregunta": fields["pregunta"]} — VERIFICAR el formato real del archivo antes de asumir campos |
 | supervisor | .modelos/supervisor_dispatch-1k | .../supervisor_dispatch_test.jsonl | supervisor.PREGUNTA_DESPACHO ["elegir_proxima"] | {"tarea": fields["tarea"], "hechos": fields.get("hechos", "")} |
 | base | .modelos/laya-multilingual | mismo test que router | nodes.PREGUNTA_ROUTER | ídem router |

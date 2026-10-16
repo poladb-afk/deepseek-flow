@@ -1,7 +1,7 @@
 id: exp21a-sonda
 descripcion: el harness construye la sonda del verdict (exp/21, fase A)
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

@@ -1,7 +1,7 @@
 id: exp21c-docs
 descripcion: cierre numérico de exp/21 en design.md
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

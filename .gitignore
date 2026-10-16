@@ -16,3 +16,6 @@ informe_jsonl_runs.txt
 
 # memoria entre sesiones: la biblioteca se regenera, no se versiona
 memoria/*.md
+
+# config local del heartbeat (el ejemplo sí se versiona)
+heartbeat.jsonl

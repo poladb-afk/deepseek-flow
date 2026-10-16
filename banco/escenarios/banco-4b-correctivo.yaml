@@ -1,7 +1,7 @@
 id: banco-4b-correctivo
 descripcion: correctivo del cierre documental — frase garabateada en design.md
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 env:
   MAX_TOOL_ROUNDS: "25"
 scratch: []

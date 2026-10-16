@@ -1,7 +1,7 @@
 id: exp43-cerrar
 descripcion: cierre mecánico de exp/43 — spec con código literal; el join decisión↔resultado quedó inerte dos veces por el mismo idiom
 permitir:
-  - /home/roquedb/Documentos/00_IA/Pocketflow/deepseek-flow
+  - {RAIZ}
 permitir_comandos:
   - python3 -m pytest
   - python3 -m ruff
