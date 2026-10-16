@@ -5,6 +5,12 @@
 #   - funcional → pytest (tests/test_smoke.py).
 # El gate completo corre con ./calidad.sh
 
+[project]
+name = "deepseek-flow"
+version = "0.1.0"
+description = "Agente de terminal sobre PocketFlow con decisiones locales (Laya)."
+requires-python = ">=3.12"
+
 [tool.ruff]
 line-length = 120
 target-version = "py312"

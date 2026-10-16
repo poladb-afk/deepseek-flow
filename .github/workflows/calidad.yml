@@ -1,0 +1,22 @@
+name: calidad
+
+on: [push, pull_request]
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Dependencias LIVIANAS: es requirements.txt sin las pesadas/opcionales
+      # (laya, fastembed, fastmcp, ddgs). La suite las saltea o las simula —
+      # verificado en un venv mínimo: 517 passed, 1 skipped, 0 failed.
+      - run: pip install pocketflow openai pyyaml numpy requests pytest "ruff==0.17.1"
+      # OJO: no forzar TRACE=0 ni THREAD_PERSIST=0. Los tests de persistencia y
+      # de traza los encienden ellos mismos, y apagarlos desde el entorno deja
+      # 10 rojos (medido). PREGUNTAS_LOG=0 alcanza para no escribir artefactos.
+      - run: ./calidad.sh
+        env:
+          PREGUNTAS_LOG: "0"

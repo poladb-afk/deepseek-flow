@@ -1,5 +1,7 @@
 # deepseek-flow
 
+[![calidad](https://github.com/poladb-afk/deepseek-flow/actions/workflows/calidad.yml/badge.svg)](https://github.com/poladb-afk/deepseek-flow/actions/workflows/calidad.yml)
+
 Un agente de terminal construido sobre [PocketFlow](https://github.com/The-Pocket/PocketFlow)
 (el framework de 100 líneas) con **DeepSeek V4.1 Flash** como LLM y una
 arquitectura de **CORE + módulos**: un chat mínimo con capacidades de solo
