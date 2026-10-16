@@ -215,6 +215,11 @@ python3 -m pytest -m "not laya and not bmo and not red and not datos"   # subcon
 Cada test que se saltea por un recurso lo declara con un marker: el marker
 dice **qué** falta (`laya`, `bmo`, `red`, `datos`), el `skip` dice por qué.
 
+Dos candados de la propia suite: `tests/test_inventario.py` compara lo que
+pytest recolecta contra `tests/inventario_tests.txt` (un test que desaparece
+se nombra, en vez de dejar de correr en silencio) y falla si un archivo de
+test pasa de 800 líneas.
+
 ## Créditos
 
 - [PocketFlow](https://github.com/The-Pocket/PocketFlow) — el framework (100 líneas, cero dependencias).

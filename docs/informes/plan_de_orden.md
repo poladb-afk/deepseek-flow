@@ -280,6 +280,13 @@ y en cada test que hoy hace `pytest.skip(...)` por un recurso externo, `@pytest.
 2. **`test_policy_bypass.py` no se fusionó** en `test_policy.py`: ya era temático
    (su docstring explica de qué spec sale). Fusionarlo era churn sin ganancia.
 
+**Los candados quedaron versionados** (no en `salidas/`): `tests/test_inventario.py`
++ `tests/inventario_tests.txt` son la foto de los 527 tests — si uno desaparece,
+el test lo nombra; y ningún archivo de test puede pasar de 800 líneas, que era
+el otro criterio del plan. Corren en la palanca 3/3 del gate, o sea también en
+CI. Comprobado que muerden: con un test fantasma en la foto y con un archivo
+de 1.500 líneas, los dos se ponen rojos.
+
 **Cómo se verificó el paso 2** (mover 245 bloques sin tocar un cuerpo):
 `salidas/pr4_verificar2.py` extrae los bloques top-level de `HEAD:tests/test_smoke.py`
 y de los 19 archivos nuevos y compara texto y AST: **245 = 245, faltan 0, sobran 0,
@@ -372,6 +379,12 @@ comparando el texto devuelto, lo impreso y el orden exacto de
 El candado quedó **dentro del gate**: `calidad.sh` ahora tiene 3 palancas
 (higiene → complejidad de las dos fronteras → pytest), así que la regresión
 la frena el CI, no la memoria de quien edite.
+
+Además, los casos de la comparación diferencial quedaron **versionados** como
+tests de caracterización en `tests/test_fs_tools.py` (glob con barra y `**/`,
+binarios, archivos grandes, truncado de matches, tope de `LIST_MAX_ENTRIES` y
+de `depth`, errores y `list_files` sin path): lo que la comparación probó una
+vez, el test lo sostiene de acá en adelante.
 
 ---
 

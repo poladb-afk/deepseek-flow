@@ -101,3 +101,100 @@ def test_recorrido_no_sigue_enlaces_simbolicos(tmp_path, monkeypatch):
     assert "propio.txt" in search_files(query="contenido propio", path=str(allowed))
     # el informe comparte la MISMA política (helper único)
     assert enlace not in collect_files(str(allowed), "*.txt")
+
+
+# ---------------------------------------------------------------------------
+# Caracterización del refactor del PR 6 (C901 ≤ 12 en las fronteras)
+#
+# Estos son los casos que la comparación diferencial contra el código PREVIO al
+# refactor clavó como idénticos (36 comparaciones, 0 diferencias). Fijan lo que
+# el refactor no podía cambiar: globs con barra, **/, binarios, archivos
+# grandes, truncados, el tope de depth y los errores de list_files.
+# ---------------------------------------------------------------------------
+
+
+def test_search_files_glob_con_barra_usa_la_ruta_relativa(tmp_path, monkeypatch):
+    from utils.fs_tools import search_files
+
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "hondo.txt").write_text("x\n", encoding="utf-8")
+    (tmp_path / "suelto.txt").write_text("x\n", encoding="utf-8")
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+
+    # con barra se compara contra la ruta relativa (sub/hondo.txt)…
+    r = search_files(glob="sub/*.txt", path=str(tmp_path))
+    assert "hondo.txt" in r and "suelto.txt" not in r
+    # …y '**/' se recorta antes: pasa a matchear por nombre, en cualquier nivel
+    r = search_files(glob="**/*.txt", path=str(tmp_path))
+    assert "hondo.txt" in r and "suelto.txt" in r
+
+
+def test_search_files_sin_argumentos_pide_alguno():
+    from utils.fs_tools import search_files
+
+    assert search_files().startswith("ERROR: indica qué buscar")
+
+
+def test_search_files_salta_binarios_y_avisa_los_grandes(tmp_path, monkeypatch):
+    from utils import fs_tools
+    from utils.fs_tools import search_files
+
+    (tmp_path / "texto.txt").write_text("aguja\n", encoding="utf-8")
+    (tmp_path / "bin.dat").write_bytes(b"\x00aguja\x00")
+    (tmp_path / "grande.txt").write_text("x" * (1024 * 1024 + 10), encoding="utf-8")
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.setattr(fs_tools, "CONTENT_MAX_BYTES", 1024 * 1024)
+
+    r = search_files(query="aguja", path=str(tmp_path))
+    assert "texto.txt" in r
+    assert "bin.dat" not in r     # binario: no se lee ni se reporta
+    assert "grande.txt" not in r  # por encima del tope de contenido
+    assert "1 archivos de más de 1 MB omitidos" in r
+
+
+def test_search_files_declara_el_truncado_de_matches(tmp_path, monkeypatch):
+    from utils import fs_tools
+    from utils.fs_tools import search_files
+
+    for i in range(5):
+        (tmp_path / f"f{i}.txt").write_text("aguja\naguja\n", encoding="utf-8")
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.setattr(fs_tools, "SEARCH_MAX_MATCHES", 3)
+
+    r = search_files(query="aguja", path=str(tmp_path))
+    mostradas = [linea for linea in r.splitlines() if linea.strip().startswith("L")]
+    assert len(mostradas) == fs_tools.SEARCH_MAX_MATCHES  # corta justo en el tope…
+    assert "[resultado truncado: acota con path o glob]" in r  # …y lo declara
+
+
+def test_list_files_topa_las_entradas_y_el_depth(tmp_path, monkeypatch):
+    from utils import fs_tools
+    from utils.fs_tools import list_files
+
+    for i in range(10):
+        (tmp_path / f"f{i}.txt").write_text("x", encoding="utf-8")
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.setattr(fs_tools, "LIST_MAX_ENTRIES", 4)
+
+    r = list_files(str(tmp_path), 1)
+    assert "truncado: más de 4 entradas" in r
+    assert len(r.splitlines()) == 5  # 4 entradas + el aviso
+
+    # depth se topa en 3: pedir 99 es lo mismo que pedir 3 (y no recorre de más)
+    monkeypatch.setattr(fs_tools, "LIST_MAX_ENTRIES", 300)
+    (tmp_path / "a" / "b" / "c" / "d").mkdir(parents=True)
+    (tmp_path / "a" / "b" / "c" / "d" / "hondo.txt").write_text("x", encoding="utf-8")
+    r3 = list_files(str(tmp_path / "a"), 3)
+    assert list_files(str(tmp_path / "a"), 99) == r3
+    assert "d/" in r3 and "hondo.txt" not in r3  # baja 3 niveles y ahí se topa
+
+
+def test_list_files_errores_y_sin_path(tmp_path, monkeypatch):
+    from utils.fs_tools import list_files
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    assert list_files().startswith("Directorios permitidos:")
+    (tmp_path / "a.txt").write_text("x", encoding="utf-8")
+    assert list_files(str(tmp_path / "a.txt")).startswith("ERROR: no es un directorio")
+    assert list_files(str(tmp_path / "nope")).startswith("ERROR: no existe")
+    assert list_files("/etc").startswith("ERROR:")

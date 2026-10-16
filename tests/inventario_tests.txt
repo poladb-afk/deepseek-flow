@@ -1,0 +1,527 @@
+tests/test_banco.py::test_comando_dentro_de_permitir_comandos
+tests/test_banco.py::test_comando_git_push_es_denylist
+tests/test_banco.py::test_denylist_dura_es_la_declarada
+tests/test_banco.py::test_env_fuera_aunque_el_scope_lo_permita
+tests/test_banco.py::test_escenario_con_env_lo_expone_y_sin_env_sigue_valido
+tests/test_banco.py::test_escenario_sin_scope_sigue_siendo_valido
+tests/test_banco.py::test_escritura_dentro_del_scope
+tests/test_banco.py::test_escritura_fuera_del_scope
+tests/test_banco.py::test_extraccion_del_comando_ignora_banner_y_explicacion
+tests/test_banco.py::test_limpiar_quita_ansi_y_crlf
+tests/test_banco.py::test_los_escenarios_del_banco_son_validos
+tests/test_banco.py::test_los_marcadores_matchean_las_lineas_reales_del_chat
+tests/test_banco.py::test_max_hitl_por_turno_se_valida_y_llega_al_dict
+tests/test_banco.py::test_prompt_no_parseable_sigue_el_flujo
+tests/test_bench.py::test_banco_contar_marcadores
+tests/test_bench.py::test_bench_baseline_guarda_compara_y_no_pisa
+tests/test_bench.py::test_bench_cargar_casos_errores_claros
+tests/test_bench.py::test_bench_cita_ok_contra_fixture_real
+tests/test_bench.py::test_bench_correr_contiene_excepcion_por_caso
+tests/test_bench.py::test_bench_correr_evalua_y_agrega_con_responder_fake
+tests/test_bench.py::test_bench_correr_recorta_causa_de_excepcion
+tests/test_bench.py::test_bench_respuesta_ok_todos_uno_y_case_insensitive
+tests/test_bench.py::test_bench_supervisor_agente_plano_dos_rondas_y_tope
+tests/test_bench.py::test_bench_supervisor_baseline_compara_y_no_pisa
+tests/test_bench.py::test_bench_supervisor_contador_envuelve_y_cuenta
+tests/test_bench.py::test_bench_supervisor_contencion_por_tarea
+tests/test_bench.py::test_bench_supervisor_generar_escribe_md_y_jsonl
+tests/test_bench.py::test_bench_supervisor_tareas_jsonl_cargan_con_verificacion
+tests/test_bench.py::test_bench_supervisor_verificaciones_pasan_y_fallan
+tests/test_chat_flujo.py::test_agent_step_recupera_dsml_como_tool
+tests/test_chat_flujo.py::test_agent_step_sanitiza_y_reintenta
+tests/test_chat_flujo.py::test_dsml_a_tool_calls
+tests/test_chat_flujo.py::test_dsml_con_presupuesto_agotado_no_rearma_lo_retirado
+tests/test_chat_flujo.py::test_execute_tools_anuncia_y_etiqueta
+tests/test_chat_flujo.py::test_execute_tools_post_acumula_y_resetea_no_progress
+tests/test_chat_flujo.py::test_fingerprint_paginado_no_dispara_y_repetido_si
+tests/test_chat_flujo.py::test_no_progress_se_resetea_con_la_pregunta_nueva
+tests/test_chat_flujo.py::test_nota_presupuesto_solo_en_la_anteultima_ronda
+tests/test_chat_flujo.py::test_presupuesto_perfiles_por_operacion_y_precedencia
+tests/test_chat_flujo.py::test_sanitizar_markers_y_tags
+tests/test_chat_flujo.py::test_sanitizar_prompt_ajeno
+tests/test_chat_flujo.py::test_system_prompt_estable_y_trae_entorno
+tests/test_compaccion.py::test_agent_step_prep_compacta_y_cuenta
+tests/test_compaccion.py::test_compaccion_conserva_system_y_ventana_caliente
+tests/test_compaccion.py::test_compaccion_determinista
+tests/test_compaccion.py::test_compaccion_invariantes_antes_y_despues
+tests/test_compaccion.py::test_compaccion_no_parte_unidad_al_recortar
+tests/test_compaccion.py::test_compaccion_noop_historial_corto
+tests/test_compaccion.py::test_compaccion_noop_si_entra_en_max_chars
+tests/test_compaccion.py::test_compaccion_unidad_indivisible
+tests/test_compaccion.py::test_compactar_dispara_por_caracteres_con_umbral_de_mensajes
+tests/test_compaccion.py::test_compactar_no_devuelve_mas_contexto_del_que_recibio
+tests/test_compaccion.py::test_un_typo_en_un_setting_numerico_no_mata_el_chat
+tests/test_compaccion.py::test_validar_historial_no_levanta_con_ids_none
+tests/test_consolidacion.py::test_comparar_baseline_con_bench_degradado
+tests/test_consolidacion.py::test_denylist_no_preserve_root_en_cualquier_orden[rm -rf --no-preserve-root /]
+tests/test_consolidacion.py::test_denylist_no_preserve_root_en_cualquier_orden[rm -rf / --no-preserve-root]
+tests/test_consolidacion.py::test_discover_saltea_modulo_roto
+tests/test_consolidacion.py::test_evals_salida_fuera_de_raices_se_rechaza
+tests/test_consolidacion.py::test_mcp_server_envuelve_por_run_tool_call
+tests/test_consolidacion.py::test_memory_save_no_pisa_symlink
+tests/test_consolidacion.py::test_memory_search_no_sigue_symlinks
+tests/test_consolidacion.py::test_memory_search_sin_argumentos_lista
+tests/test_consolidacion.py::test_prefiltro_memoria_sin_laya_no_recorta_ni_miente
+tests/test_consolidacion.py::test_prefiltro_rag_sin_laya_no_recorta
+tests/test_consolidacion.py::test_presupuesto_agotado_ignora_tool_calls_nativos[None]
+tests/test_consolidacion.py::test_presupuesto_agotado_ignora_tool_calls_nativos[cierre parcial]
+tests/test_consolidacion.py::test_resumen_sesion_no_sigue_symlink_colgante
+tests/test_consolidacion.py::test_sql_conexion_solo_lectura
+tests/test_consolidacion.py::test_sql_limit_legitimo[select * from (select * from t limit 3)]
+tests/test_consolidacion.py::test_sql_limit_legitimo[select * from t limit 10 offset 5]
+tests/test_consolidacion.py::test_sql_limit_legitimo[select * from t limit 10]
+tests/test_consolidacion.py::test_sql_limit_legitimo[select * from t limit 5, 10]
+tests/test_consolidacion.py::test_sql_limit_no_positivo[select * from t LIMIT -1]
+tests/test_consolidacion.py::test_sql_limit_no_positivo[select * from t limit (select -1)]
+tests/test_consolidacion.py::test_sql_limit_no_positivo[select * from t limit 0-1]
+tests/test_consolidacion.py::test_sql_limit_no_positivo[select * from t limit 0]
+tests/test_consolidacion.py::test_sql_limit_no_positivo[select * from t limit 10-11]
+tests/test_consolidacion.py::test_sql_literal_con_doble_guion_sigue_valido
+tests/test_consolidacion.py::test_sql_sin_comentarios[select * from t -- limit]
+tests/test_consolidacion.py::test_sql_sin_comentarios[select * from t /* limit */]
+tests/test_consolidacion.py::test_sql_techo_duro
+tests/test_consolidacion.py::test_sql_tope_por_defecto
+tests/test_consolidacion.py::test_stream_completo_descarta_fragmento_sin_nombre
+tests/test_consolidacion.py::test_stream_cortado_no_despacha_tool_calls
+tests/test_consolidacion.py::test_traza_ok_refleja_exit_y_rechazo[ERROR: x-False]
+tests/test_consolidacion.py::test_traza_ok_refleja_exit_y_rechazo[Escrito: a.py-True]
+tests/test_consolidacion.py::test_traza_ok_refleja_exit_y_rechazo[RECHAZADO por el usuario-False]
+tests/test_consolidacion.py::test_traza_ok_refleja_exit_y_rechazo[exit -9\n-False]
+tests/test_consolidacion.py::test_traza_ok_refleja_exit_y_rechazo[exit 0\nbien-True]
+tests/test_consolidacion.py::test_traza_ok_refleja_exit_y_rechazo[exit 10 a\xf1os de historia-False]
+tests/test_consolidacion.py::test_traza_ok_refleja_exit_y_rechazo[exit 1\nmal-False]
+tests/test_consolidacion.py::test_umbral_invalido_usa_default[-0.1]
+tests/test_consolidacion.py::test_umbral_invalido_usa_default[1.5]
+tests/test_consolidacion.py::test_umbral_invalido_usa_default[abc]
+tests/test_consolidacion.py::test_umbral_invalido_usa_default[inf]
+tests/test_consolidacion.py::test_umbral_invalido_usa_default[nan]
+tests/test_consolidacion.py::test_validar_historial_detecta_tool_huerfano
+tests/test_contratos.py::test_contrato_prefiltro_congelado_sha1
+tests/test_contratos.py::test_contratos_laya_congelados_sha1
+tests/test_contratos.py::test_pregunta_despacho_congelada
+tests/test_contratos.py::test_pregunta_voto_congelada_sha1
+tests/test_contratos.py::test_sonda_router_importa_el_contrato
+tests/test_contratos.py::test_sonda_supervisor_es_la_casa_del_contrato
+tests/test_db.py::test_carga_trazas_procesa_todos_los_archivos
+tests/test_db.py::test_carga_trazas_serializa_criteria_no_string
+tests/test_db.py::test_evento_tool_deja_rastro
+tests/test_db.py::test_lector_tolera_formas_invalidas_sin_perder_conteo
+tests/test_db.py::test_recarga_fallida_conserva_la_base_anterior
+tests/test_db.py::test_sql_cierra_conexion_ante_error_no_sqlite
+tests/test_db.py::test_sql_fuerza_limit_ante_limit_en_literal
+tests/test_db.py::test_sql_limita_filas_de_verdad
+tests/test_db.py::test_sql_no_confunde_delete_en_literal
+tests/test_db.py::test_sql_permita_punto_coma_en_literal
+tests/test_db.py::test_sql_punto_coma_en_literal_sin_depender_de_trazas_db
+tests/test_db.py::test_sql_rechaza_lo_prohibido
+tests/test_db.py::test_sql_rechaza_multi_sentencia
+tests/test_db.py::test_sql_select_funciona
+tests/test_db.py::test_sql_sigue_rechazando_delete_real
+tests/test_db.py::test_traza_registra_el_nodo_que_falla_y_no_colisiona
+tests/test_docs_sin_deriva.py::test_ningun_setting_documentado_dos_veces
+tests/test_docs_sin_deriva.py::test_readme_cuenta_bien_las_tools
+tests/test_docs_sin_deriva.py::test_readme_lista_cada_subcomando
+tests/test_docs_sin_deriva.py::test_readme_menciona_cada_tool
+tests/test_docs_sin_deriva.py::test_todo_setting_usado_esta_documentado
+tests/test_evals.py::test_el_linter_reconoce_las_acciones_y_tools_que_faltaban
+tests/test_evals.py::test_evals_bench_contra_baseline_mejora_y_regresion
+tests/test_evals.py::test_evals_bench_ece_pesimista
+tests/test_evals.py::test_evals_bench_laya_ausente_degrada
+tests/test_evals.py::test_evals_bench_score_y_ece_ok
+tests/test_evals.py::test_evals_costos_ordena_por_costo
+tests/test_evals.py::test_evals_linter_detecta_accion_desconocida
+tests/test_evals.py::test_evals_linter_detecta_agentstep_sin_executetools
+tests/test_evals.py::test_evals_linter_detecta_executetools_largo_sin_tools
+tests/test_evals.py::test_evals_linter_detecta_turno_sin_router
+tests/test_evals.py::test_evals_linter_runs_reporta_por_invariante
+tests/test_evals.py::test_evals_linter_traza_limpia_sin_falsos_positivos
+tests/test_evals.py::test_evals_tool_del_chat
+tests/test_evals.py::test_evals_tool_rechaza_carpeta_inexistente
+tests/test_evals.py::test_tool_evals_no_pisa_el_baseline
+tests/test_flujos.py::test_cita_rota_detecta_error_y_fuera_de_rango
+tests/test_flujos.py::test_degradacion_terminal_con_draft
+tests/test_flujos.py::test_degradacion_terminal_sin_draft_relevanta
+tests/test_flujos.py::test_effective_n_flow
+tests/test_flujos.py::test_effective_n_multi_carpeta_batchflow
+tests/test_flujos.py::test_effective_n_multi_carpeta_total
+tests/test_flujos.py::test_effective_n_una_carpeta_igual_que_siempre
+tests/test_flujos.py::test_extraer_yaml_tres_formatos
+tests/test_flujos.py::test_heartbeat_vencidas
+tests/test_flujos.py::test_huella_ignora_id_y_created
+tests/test_flujos.py::test_informe_dos_corridas_en_el_mismo_proceso
+tests/test_flujos.py::test_juez_lote_aisla_fallas
+tests/test_flujos.py::test_juez_lote_informe_y_speedup
+tests/test_flujos.py::test_juez_lote_tool_del_chat
+tests/test_flujos.py::test_juez_no_entrega_con_cita_rota
+tests/test_flujos.py::test_juez_no_entrega_con_herramienta_alucinada
+tests/test_flujos.py::test_juez_rondas_configurables
+tests/test_flujos.py::test_refinamiento_recibe_el_borrador_anterior
+tests/test_flujos.py::test_research_recorta_consultas_y_valida_tipos
+tests/test_flujos.py::test_researcher_no_reintenta_el_lote_por_una_busqueda
+tests/test_flujos.py::test_supervisor_flujo_nuevo_guarda_antes_de_despachar
+tests/test_flujos.py::test_supervisor_guarda_repetida_pura
+tests/test_flujos.py::test_supervisor_guarda_vetada_pura
+tests/test_flujos.py::test_supervisor_reutiliza_la_llamada_identica
+tests/test_flujos.py::test_tools_alucinadas_funcion_pura
+tests/test_flujos.py::test_verdict_fallback_semantico_sin_raise
+tests/test_flujos.py::test_verdict_normaliza_mayus_y_espacios
+tests/test_flujos.py::test_verdict_problems_string_dispara_reparacion
+tests/test_flujos.py::test_verdict_reparacion_por_feedback_sin_alias
+tests/test_flujos.py::test_verdict_yaml_roto_dispara_loop_sin_excepcion
+tests/test_fs_tools.py::test_contencion_de_rutas
+tests/test_fs_tools.py::test_list_files_errores_y_sin_path
+tests/test_fs_tools.py::test_list_files_topa_las_entradas_y_el_depth
+tests/test_fs_tools.py::test_recorrido_no_sigue_enlaces_simbolicos
+tests/test_fs_tools.py::test_search_files_con_path_a_archivo
+tests/test_fs_tools.py::test_search_files_conteo_exacto_al_truncar
+tests/test_fs_tools.py::test_search_files_declara_el_truncado_de_matches
+tests/test_fs_tools.py::test_search_files_glob_con_barra_usa_la_ruta_relativa
+tests/test_fs_tools.py::test_search_files_por_nombre
+tests/test_fs_tools.py::test_search_files_salta_binarios_y_avisa_los_grandes
+tests/test_fs_tools.py::test_search_files_sin_argumentos_pide_alguno
+tests/test_fs_tools.py::test_search_files_sin_aviso_bajo_el_tope
+tests/test_grafos_sin_calles_muertas.py::test_el_router_no_devuelve_una_accion_fuera_de_contrato
+tests/test_grafos_sin_calles_muertas.py::test_los_flujos_inline_no_tienen_acciones_sueltas
+tests/test_grafos_sin_calles_muertas.py::test_los_terminales_son_los_previstos[auditoria]
+tests/test_grafos_sin_calles_muertas.py::test_los_terminales_son_los_previstos[chat]
+tests/test_grafos_sin_calles_muertas.py::test_los_terminales_son_los_previstos[effective_n]
+tests/test_grafos_sin_calles_muertas.py::test_los_terminales_son_los_previstos[effective_n_multi]
+tests/test_grafos_sin_calles_muertas.py::test_los_terminales_son_los_previstos[informe]
+tests/test_grafos_sin_calles_muertas.py::test_los_terminales_son_los_previstos[juez]
+tests/test_grafos_sin_calles_muertas.py::test_los_terminales_son_los_previstos[juez_lote]
+tests/test_grafos_sin_calles_muertas.py::test_los_terminales_son_los_previstos[research]
+tests/test_grafos_sin_calles_muertas.py::test_los_terminales_son_los_previstos[supervisor]
+tests/test_grafos_sin_calles_muertas.py::test_ningun_nodo_devuelve_una_accion_sin_arista[auditoria]
+tests/test_grafos_sin_calles_muertas.py::test_ningun_nodo_devuelve_una_accion_sin_arista[chat]
+tests/test_grafos_sin_calles_muertas.py::test_ningun_nodo_devuelve_una_accion_sin_arista[effective_n]
+tests/test_grafos_sin_calles_muertas.py::test_ningun_nodo_devuelve_una_accion_sin_arista[effective_n_multi]
+tests/test_grafos_sin_calles_muertas.py::test_ningun_nodo_devuelve_una_accion_sin_arista[informe]
+tests/test_grafos_sin_calles_muertas.py::test_ningun_nodo_devuelve_una_accion_sin_arista[juez]
+tests/test_grafos_sin_calles_muertas.py::test_ningun_nodo_devuelve_una_accion_sin_arista[juez_lote]
+tests/test_grafos_sin_calles_muertas.py::test_ningun_nodo_devuelve_una_accion_sin_arista[research]
+tests/test_grafos_sin_calles_muertas.py::test_ningun_nodo_devuelve_una_accion_sin_arista[supervisor]
+tests/test_hitl.py::test_approve_registra_aprobaciones
+tests/test_hitl.py::test_edit_file_diagnostico_whitespace_y_candidatos
+tests/test_hitl.py::test_edit_file_quirurgico
+tests/test_hitl.py::test_get_question_slash_aprobaciones
+tests/test_hitl.py::test_historial_aprobaciones
+tests/test_hitl.py::test_hitl_web
+tests/test_hitl.py::test_hitl_web_get_valida_origen
+tests/test_hitl.py::test_hitl_web_post_tardio_no_contamina_el_siguiente
+tests/test_hitl.py::test_hitl_web_puerto_ocupado_default_seguro
+tests/test_hitl.py::test_hitl_web_rechaza_post_cross_origin
+tests/test_hitl.py::test_request_human_input_devuelve_lo_tecleado
+tests/test_hitl.py::test_request_human_input_en_el_registro_del_modulo
+tests/test_hitl.py::test_request_human_input_eof_no_es_crash
+tests/test_hitl.py::test_request_human_input_llega_al_action_space
+tests/test_inventario.py::test_el_inventario_esta_ordenado_y_sin_repetidos
+tests/test_inventario.py::test_ningun_archivo_de_tests_pasa_de_800_lineas
+tests/test_inventario.py::test_no_se_perdio_ningun_test_del_inventario
+tests/test_laya.py::test_etiquetador_acepta_el_log_de_preguntas_del_chat
+tests/test_laya.py::test_laya_tope_de_checkpoints_en_proceso
+tests/test_laya.py::test_preguntar_lote_alinea_y_extrae
+tests/test_laya.py::test_puntuar_lote_que_falla_devuelve_none
+tests/test_laya.py::test_puntuar_una_llamada_y_formula
+tests/test_laya.py::test_registrar_pregunta_es_bookkeeping_que_no_rompe
+tests/test_laya_cache_reintento.py::test_cooldown_con_basura_usa_60
+tests/test_laya_cache_reintento.py::test_dentro_del_cooldown_no_reintenta
+tests/test_laya_cache_reintento.py::test_el_exito_limpia_el_error_residual
+tests/test_laya_cache_reintento.py::test_el_raise_reporta_la_edad
+tests/test_laya_cache_reintento.py::test_fallo_transitorio_se_recupera
+tests/test_laya_routing.py::test_agentstep_answer_consume_el_pendiente
+tests/test_laya_routing.py::test_agentstep_con_tool_calls_no_consume_el_pendiente
+tests/test_laya_routing.py::test_config_router_modo_desconocido_cae_a_enforce
+tests/test_laya_routing.py::test_conjunto_conformal_decide_por_colapso
+tests/test_laya_routing.py::test_el_nodo_pasa_la_pregunta_al_registro
+tests/test_laya_routing.py::test_enforce_regla_temporal_no_consulta_a_laya
+tests/test_laya_routing.py::test_enforce_y_shadow_sin_probabilidades_no_dejan_pendiente
+tests/test_laya_routing.py::test_etiqueta_fuera_de_contrato_abstiene
+tests/test_laya_routing.py::test_getquestion_limpia_un_pendiente_huerfano
+tests/test_laya_routing.py::test_modos_off_shadow_enforce
+tests/test_laya_routing.py::test_probabilidades_rechaza_bool_y_texto
+tests/test_laya_routing.py::test_registrar_decision_con_pregunta_opt_in
+tests/test_laya_routing.py::test_registrar_decision_escribe_y_no_rompe
+tests/test_laya_routing.py::test_registrar_decision_no_guarda_texto_por_default
+tests/test_laya_routing.py::test_registrar_resultado_escribe_la_linea_completa
+tests/test_laya_routing.py::test_registrar_resultado_gate_y_ruta_rota
+tests/test_laya_routing.py::test_regla_temporal_pura
+tests/test_laya_routing.py::test_respuesta_invalida_abstiene_nunca_directo[None]
+tests/test_laya_routing.py::test_respuesta_invalida_abstiene_nunca_directo[respuesta10]
+tests/test_laya_routing.py::test_respuesta_invalida_abstiene_nunca_directo[respuesta1]
+tests/test_laya_routing.py::test_respuesta_invalida_abstiene_nunca_directo[respuesta2]
+tests/test_laya_routing.py::test_respuesta_invalida_abstiene_nunca_directo[respuesta3]
+tests/test_laya_routing.py::test_respuesta_invalida_abstiene_nunca_directo[respuesta4]
+tests/test_laya_routing.py::test_respuesta_invalida_abstiene_nunca_directo[respuesta5]
+tests/test_laya_routing.py::test_respuesta_invalida_abstiene_nunca_directo[respuesta6]
+tests/test_laya_routing.py::test_respuesta_invalida_abstiene_nunca_directo[respuesta7]
+tests/test_laya_routing.py::test_respuesta_invalida_abstiene_nunca_directo[respuesta8]
+tests/test_laya_routing.py::test_respuesta_invalida_abstiene_nunca_directo[respuesta9]
+tests/test_laya_routing.py::test_shadow_con_log_apagado_no_deja_pendiente_ni_escribe
+tests/test_laya_routing.py::test_shadow_con_probabilidades_deja_el_pendiente_igual_al_id
+tests/test_laya_routing.py::test_shadow_regla_temporal_sigue_consultando
+tests/test_laya_routing.py::test_sin_recencia_flujo_de_siempre
+tests/test_laya_routing.py::test_umbral_fijo_incluye_el_limite
+tests/test_laya_routing.py::test_unir_salteos_y_huerfanos
+tests/test_laya_routing.py::test_unir_tabla_de_verdad
+tests/test_llm.py::test_call_llm_agent_filtra_reasoning
+tests/test_llm.py::test_call_llm_agent_modo_thinking_pegajoso
+tests/test_llm.py::test_from_env_file_tolera_export
+tests/test_llm.py::test_historial_canonico_sin_reasoning
+tests/test_memoria.py::test_catalogo_memoria_al_arranque
+tests/test_memoria.py::test_catalogo_memoria_nunca_rompe
+tests/test_memoria.py::test_catalogo_memoria_vacio
+tests/test_memoria.py::test_elegir_por_laya_elige_y_conserva_orden
+tests/test_memoria.py::test_elegir_por_laya_sin_modelo_es_noop
+tests/test_memoria.py::test_embed_decide_prefijo_despues_de_cargar
+tests/test_memoria.py::test_guardar_resumen_sesion_no_pisa_el_mismo_dia
+tests/test_memoria.py::test_guardar_resumen_sesion_no_pisa_el_mismo_minuto
+tests/test_memoria.py::test_memoria_prefiltro_actua
+tests/test_memoria.py::test_memoria_prefiltro_noop_sin_modelo
+tests/test_memoria.py::test_memory_save_contiene_el_slug
+tests/test_memoria.py::test_memory_save_escribe_con_titulo_primera_linea
+tests/test_memoria.py::test_memory_search_encuentra_y_lista
+tests/test_memoria.py::test_rag_indice_inconsistente_falla_cerrado
+tests/test_memoria.py::test_rag_indice_lexico_sin_vectores_ok
+tests/test_memoria.py::test_rag_indice_sobran_vectores_falla_cerrado
+tests/test_memoria.py::test_rag_invalida_la_cache_al_reindexar
+tests/test_memoria.py::test_rag_prefiltro_actua_con_laya_simulado
+tests/test_memoria.py::test_rag_prefiltro_extrae_fragmentos
+tests/test_memoria.py::test_rag_prefiltro_noop_sin_modelo
+tests/test_memoria.py::test_resumen_de_sesion_escribe_con_llm
+tests/test_memoria.py::test_resumen_de_sesion_rutas_visibles
+tests/test_memoria.py::test_resumen_de_sesion_se_apaga_y_no_rompe
+tests/test_memoria.py::test_unidades_bloques_no_parte_parrafos
+tests/test_minar_errores.py::test_destino_reintento_distingue_exito_abandono_y_otra_tool
+tests/test_minar_errores.py::test_destino_reintento_usa_la_posicion_y_no_la_igualdad_de_dict
+tests/test_minar_errores.py::test_es_rechazo_probable_es_solo_run_command_ok_instantaneo
+tests/test_minar_errores.py::test_es_timeout_solo_castiga_errores_largos
+tests/test_minar_errores.py::test_escribir_md_preceda_con_el_limite_honesto_y_la_tasa
+tests/test_minar_errores.py::test_heartbeat_default_sin_tipo_llama_al_supervisor
+tests/test_minar_errores.py::test_heartbeat_triaje_no_pasa_por_el_supervisor
+tests/test_minar_errores.py::test_minar_runs_saltea_trazas_ilegibles_sin_romper
+tests/test_minar_errores.py::test_minar_sesion_cuenta_autocorreccion_y_abandono_por_separado
+tests/test_minar_errores.py::test_minar_sesion_sin_errores_no_inventa_tools
+tests/test_minar_errores.py::test_triaje_escribir_md_pone_el_limite_honesto_arriba_y_el_ahorro
+tests/test_minar_errores.py::test_triaje_evaluar_runs_saltea_ilegibles_y_cuenta_vacias
+tests/test_minar_errores.py::test_triaje_leyenda_se_ordena_por_severidad
+tests/test_minar_errores.py::test_triaje_mismo_motivo_ordena_por_duracion_desc
+tests/test_minar_errores.py::test_triaje_seleccionar_clasifica_los_cuatro_casos
+tests/test_minar_errores.py::test_triaje_seleccionar_es_determinista_y_umbral_explicito
+tests/test_modulos.py::test_a2a_agente_caido_es_inaccesible
+tests/test_modulos.py::test_a2a_card_agente_caido_no_corta_el_listado
+tests/test_modulos.py::test_a2a_card_path_legado_fallback
+tests/test_modulos.py::test_a2a_card_path_nuevo
+tests/test_modulos.py::test_a2a_error_jsonrpc
+tests/test_modulos.py::test_a2a_lista_y_tarea
+tests/test_modulos.py::test_a2a_sin_setting
+tests/test_modulos.py::test_elegir_exposicion_nombre_desconocido
+tests/test_modulos.py::test_elegir_exposicion_normal_sin_aviso
+tests/test_modulos.py::test_elegir_exposicion_sin_descripcion
+tests/test_modulos.py::test_mime_por_contenido_ignora_el_nombre
+tests/test_modulos.py::test_search_web_degrada_a_error_sin_red
+tests/test_modulos.py::test_tasks_dir_una_sola_fuente_para_las_sondas
+tests/test_modulos.py::test_ver_imagen_data_url_bien_formada
+tests/test_modulos.py::test_ver_imagen_demasiado_grande_sin_llamar
+tests/test_modulos.py::test_ver_imagen_tipo_invalido_por_contenido
+tests/test_modulos.py::test_ver_pdf_demasiado_grande_sin_llamar
+tests/test_modulos.py::test_ver_pdf_no_pdf_por_contenido
+tests/test_modulos.py::test_ver_pdf_rasteriza_y_consulta
+tests/test_pendientes.py::test_agente_desaloja_antes_de_cargar
+tests/test_pendientes.py::test_bench_enforce_no_gasta_laya_con_la_regla_temporal
+tests/test_pendientes.py::test_bench_juez_cuenta_el_caso_que_lanza_como_cita_incumplida
+tests/test_pendientes.py::test_bench_trunca_la_pregunta_como_produccion
+tests/test_pendientes.py::test_bench_usa_la_politica_y_separa_las_metricas
+tests/test_pendientes.py::test_cancelar_hitl_web_limpia_el_pedido
+tests/test_pendientes.py::test_compaccion_respalda_la_zona_fria
+tests/test_pendientes.py::test_costo_traza_no_cuenta_dos_veces_lo_anidado
+tests/test_pendientes.py::test_costo_traza_suma_lo_no_anidado
+tests/test_pendientes.py::test_despachador_rechaza_envoltura_incompleta
+tests/test_pendientes.py::test_effective_n_distingue_json_ilegible
+tests/test_pendientes.py::test_effective_n_reutilizado_procesa_la_carpeta_nueva
+tests/test_pendientes.py::test_effective_n_tolera_forma_invalida[[]]
+tests/test_pendientes.py::test_effective_n_tolera_forma_invalida[null]
+tests/test_pendientes.py::test_effective_n_tolera_forma_invalida[{"fields": null, "answers": {}}]
+tests/test_pendientes.py::test_el_scratch_del_banco_no_sale_del_proyecto
+tests/test_pendientes.py::test_escribir_atomico_publica_y_no_deja_tmp
+tests/test_pendientes.py::test_escribir_salida_es_atomico
+tests/test_pendientes.py::test_la_cli_sigue_pisando
+tests/test_pendientes.py::test_leer_bmo_env_default_no_lee_el_env_ajeno
+tests/test_pendientes.py::test_los_escenarios_usan_placeholders
+tests/test_pendientes.py::test_marcador_sin_respaldo_no_promete_memoria
+tests/test_pendientes.py::test_memory_save_no_pisa_la_nota_del_dia
+tests/test_pendientes.py::test_ningun_archivo_versionado_tiene_rutas_absolutas_del_autor
+tests/test_pendientes.py::test_prefiltro_de_memoria_puntua_el_contenido
+tests/test_pendientes.py::test_preguntar_lote_pasa_batch_size
+tests/test_pendientes.py::test_preguntar_lote_sin_config_no_limita
+tests/test_pendientes.py::test_read_file_pagina_sin_materializar_el_archivo
+tests/test_pendientes.py::test_read_file_sigue_rechazando_binarios
+tests/test_pendientes.py::test_research_no_manda_el_error_al_llm
+tests/test_pendientes.py::test_router_registra_la_ruta_final_y_el_voto_recibe_la_pregunta
+tests/test_pendientes.py::test_run_informe_no_pisa_una_salida_elegida
+tests/test_pendientes.py::test_salida_ya_existe
+tests/test_pendientes.py::test_zona_fria_coincide_con_lo_que_compactar_descarta
+tests/test_policy.py::test_explicar_comando
+tests/test_policy.py::test_hook_no_rompe_la_ejecucion
+tests/test_policy.py::test_hook_pre_denylist_veta_antes_de_ejecutar
+tests/test_policy.py::test_hook_pre_que_lanza_falla_cerrado
+tests/test_policy.py::test_hook_py_compile_tras_edit_y_write
+tests/test_policy.py::test_ningun_flujo_escribe_fuera_de_las_raices
+tests/test_policy.py::test_policy_2_amp_1_es_lectura
+tests/test_policy.py::test_policy_clasifica_los_tres_niveles
+tests/test_policy.py::test_policy_reglas_de_composicion
+tests/test_policy.py::test_policy_rm_rf_paga_doble
+tests/test_policy.py::test_policy_semicolon_y_cd_neutro
+tests/test_policy.py::test_run_command_auto_no_pide_input
+tests/test_policy.py::test_run_command_doble_confirmacion_aborta
+tests/test_policy.py::test_run_command_hitl_auto_cero_compatibilidad
+tests/test_policy.py::test_run_command_hitl_y_rieles
+tests/test_policy.py::test_run_command_no_seguro_pide_input
+tests/test_policy.py::test_supervisor_no_puede_saltear_el_denylist
+tests/test_policy_bypass.py::test_auto_dentro_de_raices_sigue_auto
+tests/test_policy_bypass.py::test_auto_fuera_de_raices_pregunta
+tests/test_policy_bypass.py::test_denylist_no_veta_borrados_acotados[echo hola]
+tests/test_policy_bypass.py::test_denylist_no_veta_borrados_acotados[rm -f x]
+tests/test_policy_bypass.py::test_denylist_no_veta_borrados_acotados[rm -rf ./build]
+tests/test_policy_bypass.py::test_denylist_no_veta_borrados_acotados[rm -rf /tmp/mio]
+tests/test_policy_bypass.py::test_denylist_veta[/bin/rm -rf /]
+tests/test_policy_bypass.py::test_denylist_veta[:(){ :|:& };:]
+tests/test_policy_bypass.py::test_denylist_veta[ls\nrm -rf ~]
+tests/test_policy_bypass.py::test_denylist_veta[rm -r -f /]
+tests/test_policy_bypass.py::test_denylist_veta[rm -rf $HOME]
+tests/test_policy_bypass.py::test_denylist_veta[rm -rf /*]
+tests/test_policy_bypass.py::test_denylist_veta[rm -rf /]
+tests/test_policy_bypass.py::test_denylist_veta[rm -rf ~]
+tests/test_policy_bypass.py::test_denylist_veta[sudo rm -rf /]
+tests/test_policy_bypass.py::test_policy_bypass_cerrados[cat a & rm -rf b-confirmar_doble]
+tests/test_policy_bypass.py::test_policy_bypass_cerrados[echo hola\ntouch marcador-preguntar]
+tests/test_policy_bypass.py::test_policy_bypass_cerrados[find . -delete-preguntar]
+tests/test_policy_bypass.py::test_policy_bypass_cerrados[find . -exec rm {} \\;-preguntar]
+tests/test_policy_bypass.py::test_policy_bypass_cerrados[find / -fprint /tmp/x-preguntar]
+tests/test_policy_bypass.py::test_policy_bypass_cerrados[git diff --output=/tmp/x-preguntar]
+tests/test_policy_bypass.py::test_policy_bypass_cerrados[ls & touch marcador-preguntar]
+tests/test_policy_bypass.py::test_policy_bypass_cerrados[ls\nrm -rf ~-confirmar_doble]
+tests/test_policy_bypass.py::test_policy_bypass_cerrados[pytest --basetemp=/-preguntar]
+tests/test_policy_bypass.py::test_policy_bypass_cerrados[python3 -m pytest -p plugin_malo-preguntar]
+tests/test_policy_bypass.py::test_policy_bypass_cerrados[sort -o salida.txt a-preguntar]
+tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto[cd /x && python3 -m pytest tests/ -q]
+tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto[find . -name '*.py' | sort -rn | head -5]
+tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto[git log --oneline]
+tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto[grep -r x . 2>&1]
+tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto[ls]
+tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto[pytest -q]
+tests/test_prefetch.py::test_decidir_apagado_es_vacio
+tests/test_prefetch.py::test_decidir_fuera_del_perimetro_es_vacio
+tests/test_prefetch.py::test_decidir_respeta_el_tope_de_archivos
+tests/test_prefetch.py::test_decidir_ruta_existente_del_repo
+tests/test_prefetch.py::test_decidir_sin_match_o_inexistente
+tests/test_prefetch.py::test_layarouter_prep_saltea_el_prefetch
+tests/test_prefetch.py::test_marcador_prefetch_del_banco
+tests/test_prefetch.py::test_mensaje_con_prefijo_y_none_sin_match
+tests/test_prefetch.py::test_prefetch_node_appendea_y_valida
+tests/test_prefetch.py::test_prefetch_node_no_op_sin_match
+tests/test_prefetch.py::test_prefetch_prep_saltea_mensajes_prefetch
+tests/test_probe_verdict.py::test_probe_verdict_usa_el_contrato_de_produccion
+tests/test_replay.py::test_accion_renombrada_no_es_emisible
+tests/test_replay.py::test_adyacencia_rota_del_chat
+tests/test_replay.py::test_batch_interno_es_clase_viva
+tests/test_replay.py::test_caminata_valida_sin_violaciones
+tests/test_replay.py::test_chat_con_flujo_interno_adyacencia
+tests/test_replay.py::test_error_trazado_y_terminales_son_emisibles
+tests/test_replay.py::test_grafos_vivos_traen_las_variantes_del_chat
+tests/test_replay.py::test_grafos_vivos_traen_los_inline_y_las_tools
+tests/test_replay.py::test_main_replay_escribe
+tests/test_replay.py::test_no_chat_no_adyacencia
+tests/test_replay.py::test_nodo_desconocido_sin_clase_ni_tool
+tests/test_replay.py::test_replay_runs_end_to_end
+tests/test_replay.py::test_router_aflojo_compuerta
+tests/test_replay.py::test_router_apreto_compuerta
+tests/test_replay.py::test_router_conforme_y_sin_drift
+tests/test_replay.py::test_tools_del_action_space_y_fantasmas
+tests/test_riesgo.py::test_el_contrato_de_riesgo_queda_congelado_sha1
+tests/test_riesgo.py::test_el_contrato_tiene_las_tres_preguntas_de_una_dimension
+tests/test_riesgo.py::test_estado_sesion_recordar_y_leer
+tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[ 0 ]
+tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[0]
+tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[OFF]
+tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[no]
+tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[off]
+tests/test_riesgo.py::test_juzgar_con_fallo_degrade_a_none
+tests/test_riesgo.py::test_juzgar_pasa_el_estado_recortado
+tests/test_riesgo.py::test_juzgar_sin_setting_es_none
+tests/test_riesgo.py::test_registrar_escribe_la_linea_completa
+tests/test_riesgo.py::test_registrar_gate_apagado_no_escribe
+tests/test_riesgo.py::test_registrar_ruta_rota_no_levanta
+tests/test_router.py::test_calibracion_conformal_se_lee_y_no_tolera_basura
+tests/test_router.py::test_conformal_cobertura_loo_respeta_la_cota
+tests/test_router.py::test_conformal_colapsa_o_deriva
+tests/test_router.py::test_conformal_cuantil_y_muestra_finita
+tests/test_router.py::test_conformal_evaluar_calibrado_en_otro_conjunto
+tests/test_router.py::test_mayoria
+tests/test_router.py::test_router_aristas_del_chat
+tests/test_router.py::test_router_laya_no_mata_el_chat_si_la_inferencia_falla
+tests/test_router.py::test_router_usa_el_conjunto_conformal_cuando_hay_calibracion
+tests/test_router.py::test_sonda_conformal_reproduce_la_evidencia_del_router
+tests/test_router.py::test_split_umbrales_router_y_voto
+tests/test_router.py::test_voto_confirmacion_tres_niveles
+tests/test_smoke.py::test_action_space_completo
+tests/test_smoke.py::test_action_space_suma_coding
+tests/test_smoke.py::test_action_space_suma_memoria
+tests/test_smoke.py::test_action_space_suma_vision_y_a2a
+tests/test_smoke.py::test_imports_batchflow_exactos
+tests/test_sonda_laya.py::test_curva_compuerta_mueve_cobertura_y_precision_con_el_umbral
+tests/test_sonda_laya.py::test_ece_local_es_cero_si_calibra_y_uno_si_miente_siempre
+tests/test_sonda_laya.py::test_especificaciones_mapean_cada_checkpoint_a_su_pregunta
+tests/test_sonda_laya.py::test_tabla_confiabilidad_cubre_los_cinco_buckets_y_los_bordes
+tests/test_streaming.py::test_agent_step_post_no_reimprime_con_stream
+tests/test_streaming.py::test_agent_step_stream_imprime_limpio_si_sanitiza
+tests/test_streaming.py::test_agent_step_usa_stream_segun_setting
+tests/test_streaming.py::test_call_llm_agent_stream
+tests/test_streaming.py::test_call_llm_agent_stream_interrupcion
+tests/test_streaming.py::test_call_llm_agent_stream_thinking_pegajoso
+tests/test_streaming.py::test_stream_agrega_etiqueta_deepseek
+tests/test_streaming.py::test_stream_alimenta_historial_canonico_y_dsml
+tests/test_streaming.py::test_stream_error_sin_contenido_no_es_mudo
+tests/test_thread_store.py::test_cargar_id_inexistente_devuelve_none
+tests/test_thread_store.py::test_checkpoint_escribe_una_linea_por_evento
+tests/test_thread_store.py::test_checkpoint_fallo_de_escritura_no_levanta
+tests/test_thread_store.py::test_cola_cortada_devuelve_el_anterior
+tests/test_thread_store.py::test_cola_cortada_sin_newline_final
+tests/test_thread_store.py::test_persist_0_no_escribe_ni_crea_dir
+tests/test_thread_store.py::test_persist_default_escribe
+tests/test_thread_store.py::test_punto_seguro_agentstep_checkpointea_la_seleccion
+tests/test_thread_store.py::test_punto_seguro_agentstep_post_answer
+tests/test_thread_store.py::test_punto_seguro_executetools_post
+tests/test_thread_store.py::test_punto_seguro_getquestion_post
+tests/test_thread_store.py::test_reparar_pendientes_es_idempotente
+tests/test_thread_store.py::test_reparar_pendientes_historial_pareado_no_cambia
+tests/test_thread_store.py::test_reparar_pendientes_no_toca_pares_viejos_rotos_en_el_medio
+tests/test_thread_store.py::test_reparar_pendientes_repara_los_huerfanos_del_final
+tests/test_thread_store.py::test_reparar_pendientes_shared_sin_messages_no_explota
+tests/test_thread_store.py::test_resume_repara_una_seleccion_pendiente
+tests/test_thread_store.py::test_roundtrip_devuelve_el_ultimo
+tests/test_thread_store.py::test_shared_valido_con_compaccion_tambien_pasa
+tests/test_thread_store.py::test_thread_id_idempotente_por_proceso
+tests/test_thread_store.py::test_thread_id_reusa_el_stem_del_trace
+tests/test_thread_store.py::test_valido_assistant_sin_sus_tools_es_violacion
+tests/test_thread_store.py::test_valido_historial_valido_sin_violaciones
+tests/test_thread_store.py::test_valido_no_levanta_con_estructura_rara
+tests/test_thread_store.py::test_valido_reusa_el_validador_de_compaccion
+tests/test_thread_store.py::test_varias_lineas_rotas_al_final
+tests/test_ui.py::test_colorear_con_tty_pinta_y_respeta_apagados
+tests/test_ui.py::test_colorear_sin_tty_no_pinta
+tests/test_ui.py::test_colorear_tipo_desconocido_no_altera
+tests/test_ui.py::test_highlight_diff
+tests/test_ui.py::test_progreso_ronda
+tests/test_viz.py::test_mermaid_export
+tests/test_viz.py::test_mermaid_flujos_batch_y_lote
+tests/test_viz.py::test_tabla_markdown
+tests/test_viz.py::test_visor_genera_html
+tests/test_viz.py::test_visor_watch_regenera_al_crecer
+tests/test_voto_router.py::test_config_voto_calibracion_inexistente_cae_a_umbral_fijo
+tests/test_voto_router.py::test_config_voto_umbral_por_setting
+tests/test_voto_router.py::test_config_voto_umbral_roto_cae_a_default
+tests/test_voto_router.py::test_conformal_tiene_prioridad_sobre_umbral
+tests/test_voto_router.py::test_conjunto_conformal_confia_solo_si_colapsa
+tests/test_voto_router.py::test_decide_voto_devuelve_tupla_bool_str
+tests/test_voto_router.py::test_umbral_fijo_conf_baja_no_confiable
+tests/test_voto_router.py::test_umbral_fijo_incluye_el_limite
