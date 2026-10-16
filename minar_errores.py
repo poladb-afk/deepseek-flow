@@ -41,6 +41,8 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
+from utils.rutas import DIR_RUNS
+
 # Reuso EXACTO del parseo tolerante de evals.py: misma vara para todas las
 # trazas del proyecto (una traza rota es artefacto a saltear, no excepción).
 # Se importa (no se copia): una copia local derivaría sin que ningún test lo
@@ -50,7 +52,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from evals import _leer_eventos  # noqa: E402
 
 RAIZ = Path(__file__).resolve().parent
-DIR_RUNS = Path(".runs")
 DIR_SALIDA = Path("salidas/evals")
 
 # Un timeout de run_command firma en ~120 s de deadline; usamos 100 s como

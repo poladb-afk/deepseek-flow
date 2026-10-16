@@ -78,3 +78,23 @@ def highlight_diff(diff):
         else:
             lineas.append(linea)
     return "\n".join(lineas)
+
+
+def recortar_chars(texto, maximo, marca="[... recortado ...]"):
+    """Recorta por CARACTERES: mitad inicial + marca + mitad final.
+
+    Unificada en el PR 3: modules/coding.py y modules/escritura.py tenían dos
+    variantes distintas con el MISMO nombre _clip (chars y lineas)."""
+    if len(texto) <= maximo:
+        return texto
+    mitad = maximo // 2
+    return texto[:mitad] + f"\n{marca}\n" + texto[-mitad:]
+
+
+def recortar_lineas(texto, maximo, marca="[... recortado ...]"):
+    """Recorta por LINEAS: una vista previa de diff no se mide en chars."""
+    lineas = texto.splitlines()
+    if len(lineas) <= maximo:
+        return texto
+    mitad = maximo // 2
+    return "\n".join(lineas[:mitad] + [marca] + lineas[-mitad:])

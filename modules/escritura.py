@@ -6,15 +6,13 @@ El rechazo se devuelve al modelo como texto — es información para corregir,
 no un error. Si el archivo existe, la vista previa es un diff unificado."""
 import difflib
 
-from utils import hitl_web
+from utils.aprobaciones import pedir_aprobacion
 from utils.aprobaciones import registrar as registrar_aprobacion
-from utils.call_llm import _setting
 from utils.fs_tools import _resolve, escribir_atomico
-from utils.terminal import highlight_diff
+from utils.terminal import highlight_diff, recortar_lineas
 
 PREVIEW_LINES = 30
 DIFF_LINES = 60
-YES = {"s", "si", "sí", "y", "yes"}
 
 _cuerpo = [""]  # cuerpo del próximo pedido HITL web (lo lee _approve local)
 
@@ -37,23 +35,12 @@ TOOLS = [
 ]
 
 
-def _clip(text, max_lines, marker):
-    lines = text.splitlines()
-    if len(lines) <= max_lines:
-        return text
-    half = max_lines // 2
-    return "\n".join(lines[:half] + [marker] + lines[-half:])
+
 
 
 def _approve(prompt):
-    if _setting("HITL_WEB", "0") == "1":
-        return hitl_web.aprobar(prompt, _cuerpo[0])
-    try:
-        answer = input(f"{prompt} (s/n): ").strip().lower()
-    except (EOFError, KeyboardInterrupt):
-        print()
-        return False
-    return answer in YES
+    """Punto de parcheo de los tests: la lógica vive en utils/aprobaciones."""
+    return pedir_aprobacion(prompt, _cuerpo[0])
 
 
 def write_file(path, content):
@@ -80,10 +67,10 @@ def write_file(path, content):
                 lineterm="",
             )
         )
-        cuerpo = _clip(diff, DIFF_LINES, "[... diff truncado ...]")
+        cuerpo = recortar_lineas(diff, DIFF_LINES, "[... diff truncado ...]")
     else:
         print(f"(archivo nuevo, {len(content.splitlines())} líneas)")
-        cuerpo = _clip(content, PREVIEW_LINES, "[... contenido truncado ...]")
+        cuerpo = recortar_lineas(content, PREVIEW_LINES, "[... contenido truncado ...]")
     print(highlight_diff(cuerpo))
     _cuerpo[0] = cuerpo
 

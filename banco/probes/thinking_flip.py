@@ -24,10 +24,10 @@ sys.path.insert(0, str(RAIZ))
 from openai import OpenAI  # noqa: E402
 
 from nodes import TOOLS  # noqa: E402
-from utils.call_llm import _setting, get_api_key  # noqa: E402
+from utils.call_llm import DEFAULT_BASE_URL, DEFAULT_MODEL, _setting, get_api_key  # noqa: E402
 
-MODELO = _setting("LLM_MODEL", "deepseek-flash")
-BASE = _setting("LLM_BASE_URL", "https://api.deepseek.com")
+MODELO = _setting("LLM_MODEL", DEFAULT_MODEL)
+BASE = _setting("LLM_BASE_URL", DEFAULT_BASE_URL)
 DESHABILITADO = {"thinking": {"type": "disabled"}}
 
 

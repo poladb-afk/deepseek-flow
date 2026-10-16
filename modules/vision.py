@@ -31,7 +31,7 @@ from pathlib import Path
 
 import requests
 
-from utils.call_llm import _setting, get_api_key
+from utils.call_llm import DEFAULT_BASE_URL, DEFAULT_MODEL, _setting, get_api_key
 from utils.fs_tools import _resolve
 
 # Límites (se chequean ANTES de llamar; el error es texto, no un crash)
@@ -63,7 +63,7 @@ def _mime_por_contenido(data):
 
 
 def _api_base():
-    return _setting("LLM_BASE_URL", "https://api.deepseek.com").rstrip("/")
+    return _setting("LLM_BASE_URL", DEFAULT_BASE_URL).rstrip("/")
 
 
 def _leer_bytes(path, max_bytes, etiqueta):
@@ -217,7 +217,7 @@ def ver_pdf(path, pregunta="¿Qué dice este PDF?"):
 
 
 def _model():
-    return _setting("LLM_MODEL", "deepseek-flash")
+    return _setting("LLM_MODEL", DEFAULT_MODEL)
 
 
 TOOLS = [

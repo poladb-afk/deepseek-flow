@@ -28,7 +28,7 @@ import re as _re
 import subprocess
 from pathlib import Path
 
-from utils import hitl_web
+from utils.aprobaciones import pedir_aprobacion
 from utils.aprobaciones import registrar as registrar_aprobacion
 from utils.call_llm import _setting
 from utils.estado_sesion import ultimo_usuario
@@ -36,13 +36,12 @@ from utils.fs_tools import _resolve
 from utils.policy import clasificar, explicar
 from utils.riesgo import juzgar
 from utils.riesgo import registrar as registrar_riesgo
-from utils.terminal import colorear, highlight_diff
+from utils.terminal import colorear, highlight_diff, recortar_chars
 
 TIMEOUT_S = 120
 SALIDA_MAX = 4000  # chars: el resultado entra al historial y al costo
 PREVIEW_LINES = 30
 
-YES = {"s", "si", "sí", "y", "yes"}
 
 _cuerpo = [""]  # cuerpo del próximo pedido HITL web (lo lee _approve)
 
@@ -149,21 +148,8 @@ TOOLS = [
 
 
 def _approve(prompt):
-    if _setting("HITL_WEB", "0") == "1":
-        return hitl_web.aprobar(prompt, _cuerpo[0])
-    try:
-        answer = input(f"{prompt} (s/n): ").strip().lower()
-    except (EOFError, KeyboardInterrupt):
-        print()
-        return False
-    return answer in YES
-
-
-def _clip(text, max_chars, marker):
-    if len(text) <= max_chars:
-        return text
-    mitad = max_chars // 2
-    return text[:mitad] + f"\n{marker}\n" + text[-mitad:]
+    """Punto de parcheo de los tests: la lógica vive en utils/aprobaciones."""
+    return pedir_aprobacion(prompt, _cuerpo[0])
 
 
 def _sale_de_raices(command):
@@ -268,7 +254,7 @@ def run_command(command):
     salida = (r.stdout or "").strip()
     if r.stderr:
         salida += (("\n" if salida else "") + "[stderr]\n" + r.stderr.strip()).rstrip()
-    salida = _clip(salida, SALIDA_MAX, "[... salida truncada ...]")
+    salida = recortar_chars(salida, SALIDA_MAX, "[... salida truncada ...]")
     return f"exit {r.returncode}\n{salida or '(sin salida)'}"
 
 
@@ -389,7 +375,7 @@ def edit_file(path, old_string, new_string):
         )
     )
     print(f"\n── edit_file: {resolved} ──")
-    diff_mostrado = _clip(diff, SALIDA_MAX, "[... diff truncado ...]")
+    diff_mostrado = recortar_chars(diff, SALIDA_MAX, "[... diff truncado ...]")
     print(highlight_diff(diff_mostrado))
     _cuerpo[0] = diff_mostrado
     if not _approve(f"¿Aplicar? → {resolved}"):

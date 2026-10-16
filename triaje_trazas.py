@@ -36,6 +36,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from utils.rutas import DIR_RUNS
+
 # Reuso EXACTO del parseo y del linter de evals.py: misma vara para todas las
 # trazas del proyecto. Se importa (no se copia): una copia local derivaría sin
 # que ningún test lo note, y acá la única defensa contra mientes-la-tabla es que
@@ -44,7 +46,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from evals import _leer_eventos, linter_traza  # noqa: E402
 
 RAIZ = Path(__file__).resolve().parent
-DIR_RUNS = Path(".runs")
 DIR_SALIDA = Path("salidas/evals")
 
 # Umbral de duración total (suma de seg de toda la traza) para marcar un outlier.

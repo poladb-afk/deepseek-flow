@@ -377,10 +377,10 @@ requires-python = ">=3.12"
 
 ## Checklist final
 
-- [ ] PR 1 — `test_docs_sin_deriva.py` en verde
-- [ ] PR 2 — `estado.md` creado, informes archivados, `design.md` < 900 líneas
-- [ ] PR 3 — sin cuerpos duplicados, rutas en `utils/rutas.py`
+- [x] PR 1 — `test_docs_sin_deriva.py` en verde (b2f4530)
+- [x] PR 2 — `estado.md` creado, informes archivados, `design.md` en 753 líneas (fc21e53)
+- [x] PR 3 — sin cuerpos duplicados, rutas en `utils/rutas.py` (este commit)
 - [ ] PR 4 — mismo número de tests recolectados, `conftest.py`, markers
-- [ ] PR 5 — sin rutas personales fuera de `historico/`, `LEER_BMO_ENV`
+- [x] PR 5 — sin rutas personales, `LEER_BMO_ENV=0` (029b994)
 - [ ] PR 6 — C901 ≤ 12 en `run_command` y `search_files`
-- [ ] PR 7 — CI en verde
+- [x] PR 7 — CI en verde: run 38913431915 (f642824)

@@ -60,7 +60,8 @@ from collections import Counter
 from datetime import date, datetime
 from pathlib import Path
 
-DIR_RUNS = Path(".runs")
+from utils.rutas import DIR_RUNS
+
 DIR_SALIDA = Path("salidas/evals")
 BASELINE = Path("salidas/evals/replay_baseline.json")
 ROUTING_LOG = Path("salidas/routing.jsonl")

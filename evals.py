@@ -35,7 +35,7 @@ from pathlib import Path
 # El test de 30 casos del fine-tune router_flow (bmo/train/kaggle-router).
 # Fuera del repo a propósito: es la evidencia de entrenamiento, no un artefacto
 # del harness. Su ausencia degrada el bench, nunca el resto del informe.
-from utils.rutas import tasks_dir
+from utils.rutas import DIR_RUNS, DIR_SALIDA, tasks_dir
 
 TEST_ROUTER = tasks_dir() / "router_flow_test.jsonl"  # BMO_TASKS_DIR lo mueve
 # Baseline del bench del router. El v1 (2026-10-06: score 0.9667 / crudo 0.90 /
@@ -45,8 +45,6 @@ TEST_ROUTER = tasks_dir() / "router_flow_test.jsonl"  # BMO_TASKS_DIR lo mueve
 # escribe su propio archivo. La primera corrida v2 dirá "PRIMERA CORRIDA".
 BASELINE = Path("salidas/evals/bench_router_v2.json")
 BASELINE_HISTORICO = Path("salidas/evals/bench_router.json")
-DIR_RUNS = Path(".runs")
-DIR_SALIDA = Path("salidas/evals")
 
 # Umbral del invariante (d): un ExecuteTools más largo que esto sin eventos de
 # tools propios es el "ciego viejo" de la auditoría (una ronda inatribuible).

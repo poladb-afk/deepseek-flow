@@ -56,3 +56,25 @@ def eventos():
 def limpiar():
     """Vacía el buffer (arranque de sesión o tests)."""
     _eventos.clear()
+
+
+YES = {"s", "si", "sí", "y", "yes"}
+
+
+def pedir_aprobacion(prompt, cuerpo=""):
+    """El s/n del HITL: por navegador con HITL_WEB=1, si no por terminal.
+
+    Unificada acá (PR 3 del plan de orden): modules/coding.py y
+    modules/escritura.py tenían el MISMO cuerpo copiado. cuerpo es el contexto
+    que viaja al HITL web. Nunca lanza: EOF o Ctrl+C es RECHAZO."""
+    from utils import hitl_web
+    from utils.call_llm import _setting
+
+    if _setting("HITL_WEB", "0") == "1":
+        return hitl_web.aprobar(prompt, cuerpo)
+    try:
+        answer = input(f"{prompt} (s/n): ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+    return answer in YES
