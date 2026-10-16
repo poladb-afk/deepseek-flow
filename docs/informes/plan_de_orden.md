@@ -427,8 +427,8 @@ requires-python = ">=3.12"
 
 - [x] PR 1 — `test_docs_sin_deriva.py` en verde (b2f4530)
 - [x] PR 2 — `estado.md` creado, informes archivados, `design.md` en 753 líneas (fc21e53)
-- [x] PR 3 — sin cuerpos duplicados, rutas en `utils/rutas.py` (este commit)
-- [x] PR 4 — `conftest.py` (8 copias → 1), `test_smoke.py` partido en 19 archivos temáticos (245 bloques movidos verbatim, mismos 518 tests, ningún archivo pasa de 664 líneas) y markers `laya`/`bmo`/`red`/`datos` (e2f291c + este commit)
+- [x] PR 3 — sin cuerpos duplicados, rutas en `utils/rutas.py` (752cd2a)
+- [x] PR 4 — `conftest.py` (8 copias → 1), `test_smoke.py` partido en 19 archivos temáticos (245 bloques movidos verbatim, mismos 518 tests, ningún archivo pasa de 664 líneas) y markers `laya`/`bmo`/`red`/`datos` (e2f291c + 6db163a)
 - [x] PR 5 — sin rutas personales, `LEER_BMO_ENV=0` (029b994)
 - [x] PR 6 — C901 ≤ 12 en `run_command`, `search_files`, `edit_file` y `list_files` (36 comparaciones diferenciales contra HEAD, 0 diferencias; sin tocar tests)
 - [x] PR 7 — CI en verde: run 38913431915 (f642824)
