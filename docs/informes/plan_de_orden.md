@@ -268,6 +268,25 @@ y en cada test que hoy hace `pytest.skip(...)` por un recurso externo, `@pytest.
 - Ningún archivo de test pasa de ~800 líneas.
 - `pytest -m "not laya and not bmo and not red"` corre sin skips.
 
+**Aplicado (2026-10-16), con dos correcciones medidas:**
+
+1. **Hizo falta un cuarto marker, `datos`.** Los tres del plan no alcanzan para
+   "sin skips": hay 4 tests que se saltean sin `trazas.db` (artefacto local que
+   se genera con `carga_trazas.py`, no está en el repo) y 1 más que se saltea
+   si el filesystem no soporta symlinks. El subconjunto determinista es
+   `pytest -m "not laya and not bmo and not red and not datos"` → **509 passed,
+   9 deseados afuera, 0 skips** (medido). Con los tres markers solos da 514
+   passed acá (donde `trazas.db` existe) pero **seguiría salteando en CI**.
+2. **`test_policy_bypass.py` no se fusionó** en `test_policy.py`: ya era temático
+   (su docstring explica de qué spec sale). Fusionarlo era churn sin ganancia.
+
+**Cómo se verificó el paso 2** (mover 245 bloques sin tocar un cuerpo):
+`salidas/pr4_verificar2.py` extrae los bloques top-level de `HEAD:tests/test_smoke.py`
+y de los 19 archivos nuevos y compara texto y AST: **245 = 245, faltan 0, sobran 0,
+244 funciones con AST idéntico, 0 duplicadas**. Además
+`--collect-only | sed 's/^[^:]*:://' | sort` da **los mismos 518 nombres** que antes
+(el archivo cambia, el test no) y la suite entera sigue en **518 passed**.
+
 ---
 
 ## PR 5 — Datos personales y artefactos
@@ -380,7 +399,7 @@ requires-python = ">=3.12"
 - [x] PR 1 — `test_docs_sin_deriva.py` en verde (b2f4530)
 - [x] PR 2 — `estado.md` creado, informes archivados, `design.md` en 753 líneas (fc21e53)
 - [x] PR 3 — sin cuerpos duplicados, rutas en `utils/rutas.py` (este commit)
-- [ ] PR 4 — paso 1 ✅: `conftest.py` con `RAIZ`/`sys.path`/fixture de `AGENT_ALLOWED_DIRS`/`tc()` (8 copias → 1; collect idéntico y 518 passed). Falta partir `test_smoke.py` y los markers
+- [x] PR 4 — `conftest.py` (8 copias → 1), `test_smoke.py` partido en 19 archivos temáticos (245 bloques movidos verbatim, mismos 518 tests, ningún archivo pasa de 664 líneas) y markers `laya`/`bmo`/`red`/`datos` (e2f291c + este commit)
 - [x] PR 5 — sin rutas personales, `LEER_BMO_ENV=0` (029b994)
 - [ ] PR 6 — C901 ≤ 12 en `run_command` y `search_files`
 - [x] PR 7 — CI en verde: run 38913431915 (f642824)

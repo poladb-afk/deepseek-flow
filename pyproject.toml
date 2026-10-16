@@ -2,7 +2,7 @@
 #
 # Dos palancas, alineadas con la filosofía del proyecto:
 #   - higiene   → ruff (determinista, sin LLM): lo que el código cuenta solo.
-#   - funcional → pytest (tests/test_smoke.py).
+#   - funcional → pytest (tests/, un archivo por tema desde el PR 4).
 # El gate completo corre con ./calidad.sh
 
 [project]
@@ -44,3 +44,12 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Por qué un test se saltea: el marker dice el RECURSO, el skip su motivo.
+# Correr el subconjunto determinista:
+#   pytest -m "not laya and not bmo and not red and not datos"
+markers = [
+    "laya: requiere el paquete laya y un checkpoint local",
+    "bmo: requiere los archivos de bmo (BMO_TASKS_DIR)",
+    "red: requiere red o dependencias opcionales (ddgs, fastmcp)",
+    "datos: requiere artefactos locales ya generados (trazas.db, evidencia de sondas)",
+]

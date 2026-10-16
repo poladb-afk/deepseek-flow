@@ -40,7 +40,7 @@ lleva el motivo o el PR que lo cierra. Si algo se cierra sin test, se dice expl�
 | E1 | — | Un módulo roto tumbaba el chat | ✅ 2026-10-15 | `modules/__init__.py` saltea y avisa colisiones | `test_consolidacion.py` |
 | E2 | — | `validar_historial` aceptaba un `tool` huérfano | ✅ 2026-10-15 | `utils/compaccion.py` lo detecta | `test_consolidacion.py` |
 | E4 | — | `rm -rf / --no-preserve-root` no se vetaba | ✅ 2026-10-15 | `modules/coding.py` denylist | `test_policy_bypass.py` |
-| X1 | — | Un test daba por bueno el recorte del prefiltro | ✅ 2026-10-15 | `tests/test_smoke.py` contrato corregido | `test_consolidacion.py` |
+| X1 | — | Un test daba por bueno el recorte del prefiltro | ✅ 2026-10-15 | contrato corregido en `tests/test_memoria.py::test_memoria_prefiltro_actua` | `test_consolidacion.py` |
 | X2 | — | `rag_search` heredaba el recorte sin juicio | ✅ 2026-10-15 | misma `elegir_por_laya` | `test_consolidacion.py` |
 | X3 | — | La limpieza del banco puede salir del repo | ✅ 2026-10-16 | `banco.objetivo_scratch`: solo dentro de `RAIZ` | `test_pendientes.py` |
 | X4 | — | `memory_save` del mismo título el mismo día pisa la nota | ✅ 2026-10-16 | `modules/memoria.py` sufijo incremental (A26 intacto) | `test_pendientes.py` |
