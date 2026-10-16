@@ -1,6 +1,6 @@
 # Contraste de la auditoría externa contra el proyecto actual
 
-**Fecha:** 2026-10-15 · **Alcance:** los 5 documentos nuevos de `docs/informes/` frente al árbol de trabajo de este repo (HEAD `44420a4` + cambios sin commitear).
+**Fecha:** 2026-10-15 · **Alcance:** los 5 documentos nuevos de `./` frente al árbol de trabajo de este repo (HEAD `44420a4` + cambios sin commitear).
 **Método:** inventario reproducido con git, anclas de línea, `./calidad.sh` sobre el árbol vivo, re-ejecución de las sondas del propio auditor y verificación por clústeres (seguridad, streaming, memoria/SQLite y métricas, delegadas; sesión/compacción/infra, directa). Solo lectura sobre el repo; fixtures en `/tmp`. Ningún archivo del proyecto fue modificado (los 20 `M` de `git status` son el trabajo previo sin commitear del 2026-10-14).
 
 ---
@@ -11,11 +11,11 @@ Los 5 archivos son **nuevos y sin commitear** (`git status`: `??`), con marca de
 
 | Archivo | Líneas | Qué es |
 |---|---|---|
-| [auditoria_python_harness.md](docs/informes/auditoria_python_harness.md) | 533 | Auditoría de 28 hallazgos **A01–A28** con prioridad P0/P1/P2, evidencia JSON y corrección propuesta. Dictamen: la arquitectura PocketFlow+Laya es razonable; el riesgo está en las fronteras. |
-| [revision_integral_harness.md](docs/informes/revision_integral_harness.md) | 631 | Revisión integral: 21 hallazgos **H01–H21** (matriz), 26 reproducciones **R01–R26**, evidencia de tests/lint, "qué no debe reabrirse" y plan por fases. |
-| [descubrimientos_y_fixes_harness.md](docs/informes/descubrimientos_y_fixes_harness.md) | 806 | Los mismos 21 hallazgos **H01–H21** con decisión recomendada, fix mínimo, pruebas de aceptación T-Hxx, plan en 8 PR y registro de las 26 comprobaciones. Declara "propuestas, sin aplicar cambios al proyecto". |
-| [evidencia_revision_harness.json](docs/informes/evidencia_revision_harness.json) | 1.768 | Evidencia de máquina: `sha256` del ZIP, inventario (194 archivos / 74 .py / 17.219 líneas), 18 reproducciones, 25 tools, 244 llamadas sensibles, 48 `except` amplios. |
-| [reproducir_auditoria.py](docs/informes/reproducir_auditoria.py) | 345 | Script con **28 sondas** (`@probe('A01'…'A28')`). Requiere `/mnt/data/deepseek-flow-10-15-main.zip` y `pyfakefs` (no instalado): **no corre en este entorno tal cual**. |
+| [auditoria_python_harness.md](./auditoria_python_harness.md) | 533 | Auditoría de 28 hallazgos **A01–A28** con prioridad P0/P1/P2, evidencia JSON y corrección propuesta. Dictamen: la arquitectura PocketFlow+Laya es razonable; el riesgo está en las fronteras. |
+| [revision_integral_harness.md](./revision_integral_harness.md) | 631 | Revisión integral: 21 hallazgos **H01–H21** (matriz), 26 reproducciones **R01–R26**, evidencia de tests/lint, "qué no debe reabrirse" y plan por fases. |
+| [descubrimientos_y_fixes_harness.md](./descubrimientos_y_fixes_harness.md) | 806 | Los mismos 21 hallazgos **H01–H21** con decisión recomendada, fix mínimo, pruebas de aceptación T-Hxx, plan en 8 PR y registro de las 26 comprobaciones. Declara "propuestas, sin aplicar cambios al proyecto". |
+| [evidencia_revision_harness.json](./evidencia_revision_harness.json) | 1.768 | Evidencia de máquina: `sha256` del ZIP, inventario (194 archivos / 74 .py / 17.219 líneas), 18 reproducciones, 25 tools, 244 llamadas sensibles, 48 `except` amplios. |
+| [reproducir_auditoria.py](./reproducir_auditoria.py) | 345 | Script con **28 sondas** (`@probe('A01'…'A28')`). Requiere `/mnt/data/deepseek-flow-10-15-main.zip` y `pyfakefs` (no instalado): **no corre en este entorno tal cual**. |
 
 Los tres informes coinciden en el fondo: mismo diagnóstico, distinta numeración (A→H) y distinto nivel de detalle. No hay contradicciones internas entre ellos.
 
@@ -43,7 +43,7 @@ Los informes declaran explícitamente "pytest completo no ejecutado" (solo 17 ca
 
 | Palanca | Resultado | Lectura |
 |---|---|---|
-| `ruff check .` | **91 errores — los 91 en `docs/informes/reproducir_auditoria.py`** | El código del proyecto está limpio: `ruff check . --exclude docs/informes/reproducir_auditoria.py` → "All checks passed!". El paquete de auditoría **deja el gate de higiene en rojo** (`./calidad.sh` → ❌). |
+| `ruff check .` | **91 errores — los 91 en `./reproducir_auditoria.py`** | El código del proyecto está limpio: `ruff check . --exclude ./reproducir_auditoria.py` → "All checks passed!". El paquete de auditoría **deja el gate de higiene en rojo** (`./calidad.sh` → ❌). |
 | `pytest tests/ -q` | **401 pasan, 2 fallan en 67 s** | Las 2 fallas son ambientales: `test_search_files_*` intenta `mkdir` en `/home/roquedb/Documentos/00_IA/Pocketflow/_tmp_search_files*`, fuera del workspace de la sesión → `OSError: [Errno 30] Read-only file system`. No es un defecto del proyecto. |
 
 Es decir: el proyecto tiene hoy **403 tests** (vs. los 270 del snapshot y los 17 que el informe pudo correr) y la suite está verde salvo bloqueo de sandbox. El propio informe ya se autoimpone eso como límite (H20) y acierta al decir que su validación no equivale a un gate.
@@ -166,8 +166,8 @@ Leyenda: **CONFIRMADO** = el defecto sigue vivo, reproducido; **MATIZADO** = par
 
 | Archivo | Qué es |
 |---|---|
-| [correcciones_deepseek_flow.md](docs/informes/correcciones_deepseek_flow.md) | 665 líneas. Informe "código mal vs. código bien" con 6 correcciones y la evidencia medida de cada una. Declara el resultado global del gate: antes 9 failed/282 passed/5 skipped → después 326 passed/0 failed/9 skipped, con un test nuevo de 39 casos. |
-| [deepseek-flow-fixes.patch](docs/informes/deepseek-flow-fixes.patch) | Diff unificado (93+/11−) sobre 5 archivos: `utils/policy.py`, `modules/coding.py`, `modules/memoria.py`, `evals.py`, `tests/test_smoke.py`. Es el "después" del informe. |
+| [correcciones_deepseek_flow.md](./correcciones_deepseek_flow.md) | 665 líneas. Informe "código mal vs. código bien" con 6 correcciones y la evidencia medida de cada una. Declara el resultado global del gate: antes 9 failed/282 passed/5 skipped → después 326 passed/0 failed/9 skipped, con un test nuevo de 39 casos. |
+| [deepseek-flow-fixes.patch](./deepseek-flow-fixes.patch) | Diff unificado (93+/11−) sobre 5 archivos: `utils/policy.py`, `modules/coding.py`, `modules/memoria.py`, `evals.py`, `tests/test_smoke.py`. Es el "después" del informe. |
 
 **Verificado aplicándolo en copias `/tmp` del árbol actual** (el repo no se tocó; 8/9 hunks aplican):
 
@@ -194,7 +194,7 @@ Leyenda: **CONFIRMADO** = el defecto sigue vivo, reproducido; **MATIZADO** = par
 - **Batería en sitio:** todos los vectores de la auditoría cerraron (`preguntar`/`confirmar_doble`), los comandos legítimos siguen `auto`, la denylist veta 4/4 sin falsos positivos, `cat /etc/passwd` pide aprobación y `cat README.md` sigue `auto`. Los 6 archivos compilan.
 - **Gate:** `ruff check .` sigue en 91 errores — todos del script del auditor; excluyéndolo, "All checks passed!". `pytest`: **433 passed, 2 failed** — y esos 2 (`test_search_files_conteo_exacto_al_truncar`, `test_search_files_sin_aviso_bajo_el_tope`) fallan solo porque el sandbox de esta sesión bloquea la escritura en `/home/roquedb/Documentos/00_IA/Pocketflow/_tmp_search_files*`, fuera del workspace; en una copia escribible la suite queda verde.
 - **Test que faltaba, reconstruido:** `tests/test_policy_bypass.py` (32 casos: vectores cerrados, legítimos sin regresión, denylist con y sin falso positivo, `auto` fuera/dentro de raíces) pasa en verde y con ruff limpio. **No es el archivo del autor** (sus 39 casos no se entregaron): es una reconstrucción de la especificación §7 del informe.
-- Respaldo pre-patch en `salidas/patch_backup_20261015/` (gitignored). Para revertir: `patch -R -p3 < docs/informes/deepseek-flow-fixes.patch` o copiar desde el respaldo.
+- Respaldo pre-patch en `salidas/patch_backup_20261015/` (gitignored). Para revertir: `patch -R -p3 < ./deepseek-flow-fixes.patch` o copiar desde el respaldo.
 - Queda pendiente el detalle del regex: `rm -rf / --no-preserve-root` (flag después de la ruta) no lo veta la denylist — igual cae en `confirmar_doble`, así que no vuelve a `auto`.
 
 ---

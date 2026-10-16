@@ -184,14 +184,23 @@ deepseek-flow/
 ├── memoria/           # biblioteca entre sesiones (ignorada)
 ├── salidas/           # informes generados por las corridas (ignorada)
 ├── tests/             # smoke tests (pytest)
-└── docs/design.md     # el diseño completo, actualizado
+├── docs/estado.md     # el estado VIVO de cada hallazgo (una fila por id)
+├── docs/design.md     # el diseño vigente: grafos, contratos, leyes/límites
+└── docs/bitacora.md   # cómo se llegó acá: cada exp/N con su medición
 ```
 
 ## Documentación
 
-- **[docs/design.md](docs/design.md)** — diseño detallado: grafos, contratos
-  de `shared`, leyes/límites, hallazgos medidos (incluidos los de Laya).
+- **[docs/estado.md](docs/estado.md)** — el tablero vivo: una fila por hallazgo
+  (A/H/R) con su estado, la evidencia y el test que lo cubre. Empezá por acá.
+- **[docs/design.md](docs/design.md)** — lo que es verdad hoy: grafos,
+  contratos de `shared`, leyes/límites y el diseño de cada pieza.
+- **[docs/bitacora.md](docs/bitacora.md)** — el registro medido: cada `exp/N`,
+  las jornadas y los fixes de auditoría (de dónde salió cada decisión).
 - **[docs/roadmap.md](docs/roadmap.md)** — próximos pasos priorizados.
+- **[docs/informes/](docs/informes/)** — informes de diseño vigentes; las
+  auditorías y contrastes cerrados quedan en
+  [`docs/informes/archivo/2026-10/`](docs/informes/archivo/2026-10/).
 
 ## Testing
 

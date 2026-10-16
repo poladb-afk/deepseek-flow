@@ -393,4 +393,20 @@ def test_bench_trunca_la_pregunta_como_produccion(tmp_path, monkeypatch):
     evals.correr_bench(agente=Agente())
     assert len(visto["pregunta"]) == 1000
 
+# --------------------------------------------------------------------------
+# A21 — cancelar el HITL web no deja el pedido pendiente
+# --------------------------------------------------------------------------
+def test_cancelar_hitl_web_limpia_el_pedido(monkeypatch):
+    from utils import hitl_web
+
+    def _cortar(self, timeout=None):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(hitl_web, "_arrancar", lambda: 8765)
+    monkeypatch.setattr(hitl_web.threading.Event, "wait", _cortar)
+    with contextlib.suppress(KeyboardInterrupt):
+        hitl_web.aprobar("demo", "sin efectos")
+    assert hitl_web._pendientes == {}
+
+
 
