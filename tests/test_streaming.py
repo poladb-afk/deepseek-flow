@@ -368,3 +368,21 @@ def test_stream_reenvia_tools_y_mensajes_al_request(monkeypatch):
     assert msg.content == "ok"
     assert capturado["tools"] == tools
     assert capturado["messages"] == mensajes
+
+
+def test_stream_fallback_vacio_se_imprime(monkeypatch, capsys):
+    """Si el stream no trae contenido, el fallback reemplaza el mensaje DESPUÉS
+    del streaming: debe imprimirse o el usuario queda sin respuesta (medido en
+    vivo: la auditoría amplia murió en el tope y no mostró nada)."""
+    from types import SimpleNamespace
+
+    import nodes
+
+    monkeypatch.setenv("CHAT_STREAM", "1")
+    monkeypatch.setattr(nodes, "call_llm_agent_stream",
+                        lambda msgs, tools=None: SimpleNamespace(content="", tool_calls=None))
+    shared = {"messages": [{"role": "user", "content": "q"}], "tool_rounds": 0}
+    accion = nodes.AgentStep()._run(shared)
+    assert accion == "answer"
+    salida = capsys.readouterr().out
+    assert nodes.MENSAJE_SIN_RESPUESTA in salida

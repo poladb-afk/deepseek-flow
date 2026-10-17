@@ -228,6 +228,9 @@ class GetQuestion(Node):
         from utils.estado_sesion import recordar_usuario
 
         recordar_usuario(exec_res)
+        # Tarea vigente para la compacción: una continuación no pisa el objetivo.
+        if exec_res.strip().lower() not in {"seguí", "segui", "continúa", "continua", "continue"}:
+            shared["_objetivo"] = exec_res
         shared["messages"].append({"role": "user", "content": exec_res})
         # exp/48: punto seguro 1 — la pregunta del usuario quedó registrada.
         # Checkpoint del shared COMPLETO (bookkeeping: jamás corta el chat).
@@ -341,7 +344,8 @@ class AgentStep(Node):
                 # A17: la zona fría se RESPALDA antes de descartarla, así el
                 # marcador puede decir la verdad y memory_search la encuentra.
                 respaldo = _respaldar_zona_fria(mensajes)
-                nuevo = compactar(mensajes, tope, respaldo=respaldo)
+                nuevo = compactar(mensajes, tope, respaldo=respaldo,
+                                  objetivo=shared.get("_objetivo"))
                 if nuevo is not mensajes and len(nuevo) < len(mensajes):
                     frios = len(mensajes) - len(nuevo) + 1  # +1: el propio resumen
                     print(
@@ -368,6 +372,7 @@ class AgentStep(Node):
     def exec(self, inputs):
         messages, tools = inputs
         stream = _setting("CHAT_STREAM", "1") == "1"
+        reemplazado = False  # contenido reemplazado DESPUÉS del streaming en vivo
         if stream:
             # etiqueta antes del primer delta: sin ella las respuestas
             # llegan sin rótulo (nit de UX de la mesa 8, medido en prod)
@@ -388,6 +393,7 @@ class AgentStep(Node):
             if avisar:
                 print(colorear("  [DSML] tool calls como texto: IGNORADOS "
                                "(presupuesto agotado; 'seguí' lo reinicia)", "aviso"))
+                reemplazado = True
             elif parseados:
                 print(colorear("  [recuperación] tool calls llegaron como texto (DSML) → ejecutando", "aviso"))
                 # el historial queda canónico: tool_calls, sin el markup crudo
@@ -403,10 +409,12 @@ class AgentStep(Node):
             if not (exec_res.content or "").strip():
                 exec_res.content = (MENSAJE_DSML_AGOTADO if getattr(self, "ofrece_tools", True)
                                     else MENSAJE_DSML_SIN_TOOLS)
+                reemplazado = True
         if not getattr(exec_res, "tool_calls", None) and not (exec_res.content or "").strip():
             # el stream se cortó sin deltas (401/429/red): sin esto el usuario
             # ve el rótulo vacío y queda content:null en el historial (medido)
             exec_res.content = MENSAJE_SIN_RESPUESTA
+            reemplazado = True
         if not getattr(exec_res, "tool_calls", None):
             contenido, cortado = sanitizar(exec_res.content or "")
             if cortado:
@@ -419,6 +427,10 @@ class AgentStep(Node):
                 if stream and exec_res.content:
                     print(f"\nDeepSeek (limpio): {contenido}")
                 exec_res.content = contenido
+        if stream and reemplazado:
+            # con streaming el crudo ya se imprimió; si exec() lo REEMPLAZÓ
+            # (fallback/aviso), el usuario tiene que verlo o queda sin respuesta.
+            print(f"\nDeepSeek (aviso): {exec_res.content}")
         return exec_res
 
     def post(self, shared, prep_res, exec_res):

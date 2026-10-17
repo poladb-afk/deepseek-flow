@@ -212,3 +212,18 @@ def test_validar_historial_no_levanta_con_ids_none():
     ]
     fallas = validar_historial(historial)      # no debe levantar
     assert fallas                              # y sí detecta la inconsistencia
+
+
+def test_compaction_conserva_la_tarea_vigente():
+    """La zona fría se lleva la pregunta original; el marcador debe conservar
+    la tarea vigente (medido en vivo: a la ronda 11 el modelo ya no sabía qué
+    le habían pedido)."""
+    from utils.compaccion import PREFIJO_COMPACCION, compactar
+
+    mensajes = [{"role": "system", "content": "s"}]
+    for _ in range(12):
+        mensajes.append({"role": "user", "content": "u" * 500})
+        mensajes.append({"role": "assistant", "content": "a" * 500})
+    out = compactar(mensajes, 1000, objetivo="Auditá inconsistencias semánticas")
+    assert out[1]["content"].startswith(PREFIJO_COMPACCION)
+    assert "Tarea vigente: Auditá inconsistencias semánticas" in out[1]["content"]
