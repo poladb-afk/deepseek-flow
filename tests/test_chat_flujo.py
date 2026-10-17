@@ -287,3 +287,28 @@ def test_no_progress_se_resetea_con_la_pregunta_nueva():
     assert shared["no_progress"] == 0
     _, tools = step.prep(shared)
     assert tools is not None                   # el presupuesto se reinició
+
+
+def test_run_tool_call_devuelve_error_como_feedback():
+    """Los fallos del lado del modelo no rompen el lote: tool inexistente
+    (objeto alucinado), argumentos JSON inválidos (generación incompleta) y
+    argumento de tipo equivocado (wrong input type) vuelven como texto
+    ERROR, no excepción. Evidencia de F3: 255 runs de .runs muestran 68
+    errores de tool y 3 llamadas a tools inexistentes (`grep`, `bash`); el
+    patrón de Tambon dice que son los fallos típicos de código LLM."""
+    import json
+
+    from utils.fs_tools import run_tool_call
+
+    def tc(nombre, args):
+        return {"id": "c1", "type": "function",
+                "function": {"name": nombre, "arguments": args}}
+
+    r = run_tool_call(tc("herramienta_fantasma", "{}"))
+    assert r["content"].startswith("ERROR: herramienta desconocida")
+
+    r = run_tool_call(tc("read_file", "{no-json"))
+    assert r["content"].startswith("ERROR:")
+
+    r = run_tool_call(tc("read_file", json.dumps({"inventado": 1})))
+    assert r["content"].startswith("ERROR:")

@@ -410,3 +410,80 @@ def test_supervisor_no_puede_saltear_el_denylist(monkeypatch):
     salidas = sup.Ejecutar().exec(snap)
     assert salidas[0]["resultado"].startswith("ERROR: comando prohibido")
     assert visto["comando"] == "rm -rf /"
+
+
+def test_policy_flags_peligrosos_en_forma_pegada():
+    """Flags peligrosos de una letra en forma pegada (-o/ruta, -pVALOR)
+    degradan el segmento; el flag exacto y la forma --flag=valor ya estaban
+    cubiertos. Evidencia: mutantes de _tiene_flag_peligroso sobrevivían
+    (Fase 1, M1; informe f1_mutation.md)."""
+    from utils.policy import clasificar
+
+    assert clasificar("sort -o/tmp/x") == "preguntar"
+    assert clasificar("sort -o /tmp/x") == "preguntar"
+    assert clasificar("pytest -pno:cacheprovider") == "preguntar"
+    assert clasificar("pytest -p no:cacheprovider") == "preguntar"
+    # control: sin flag peligroso sigue auto
+    assert clasificar("sort archivo.txt") == "auto"
+
+
+def test_policy_descarta_2and1_y_conserva_redirecciones_reales():
+    """La excepción semántica documentada: 2>&1 es lectura de descriptor y
+    se descarta ANTES del escaneo; una redirección real sigue degradando.
+    Evidencia: mutantes del stripping de 2>&1 sobrevivían (Fase 1, M2)."""
+    from utils.policy import clasificar
+
+    assert clasificar("ls 2>&1") == "auto"
+    assert clasificar("ls 2>&1 | grep x") == "auto"
+    assert clasificar("pytest -q 2>&1") == "auto"
+    assert clasificar("ls 2>&1 > out.txt") == "preguntar"
+    assert clasificar("ls > out.txt 2>&1") == "preguntar"
+
+
+def test_aprobar_doble_confirmacion_y_motivos(monkeypatch, capsys):
+    """El flujo real de _aprobar: orden de las dos preguntas, motivo del
+    rechazo y línea de transparencia del modo auto. Los tests del flujo
+    monkeypatchean _approve entero; acá se simulan las respuestas humanas.
+    Evidencia: 42 mutantes de _aprobar sobrevivían (Fase 1, M8)."""
+    import modules.coding as coding
+    from modules.coding import RECHAZO, RECHAZO_DOBLE
+
+    def no_preguntar(_p):
+        raise AssertionError("auto no debe pedir aprobación")
+
+    monkeypatch.setattr(coding, "registrar_aprobacion", lambda *a, **k: None)
+
+    respuestas = iter([True, True])
+    monkeypatch.setattr(coding, "_approve", lambda _p: next(respuestas))
+    aprobado, motivo = coding._aprobar("echo hola", "confirmar_doble", None)
+    assert aprobado is True and motivo == ""
+    salida = capsys.readouterr().out
+    assert "doble confirmación" in salida and "echo hola" in salida
+
+    respuestas = iter([True, False])
+    monkeypatch.setattr(coding, "_approve", lambda _p: next(respuestas))
+    aprobado, motivo = coding._aprobar("echo hola", "confirmar_doble", None)
+    assert aprobado is False and motivo == RECHAZO_DOBLE
+
+    respuestas = iter([False])
+    monkeypatch.setattr(coding, "_approve", lambda _p: next(respuestas))
+    aprobado, motivo = coding._aprobar("echo hola", "preguntar", None)
+    assert aprobado is False and motivo == RECHAZO
+
+    monkeypatch.setattr(coding, "_approve", no_preguntar)
+    aprobado, motivo = coding._aprobar("cat x", "auto", None)
+    assert aprobado is True and motivo == ""
+    assert "auto: solo-lectura" in capsys.readouterr().out
+
+
+def test_policy_traversal_por_recorrido_de_symlinks_degrada():
+    """`find -L` y `grep -R` siguen symlinks al recorrer: con un enlace
+    dentro de las raíces pueden leer fuera de ellas, así que no son auto.
+    Evidencia: auditoría F2 (symlink escape vía recorrido)."""
+    from utils.policy import clasificar
+
+    assert clasificar("grep -R secreto .") == "preguntar"
+    assert clasificar("grep --dereference-recursive secreto .") == "preguntar"
+    assert clasificar("find . -L -name x") == "preguntar"
+    # control: la versión que NO sigue symlinks sigue siendo solo-lectura
+    assert clasificar("grep -r secreto .") == "auto"

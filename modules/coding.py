@@ -152,9 +152,62 @@ def _approve(prompt):
     return pedir_aprobacion(prompt, _cuerpo[0])
 
 
+NEUTROS_SHELL = {"", "&&", "||", "|", "&", ";", "\n", "\r"}
+
+
+def _dentro_de_raices(destino, roots):
+    """El destino está en una raíz permitida (o es una)."""
+    return any(destino == r or r in destino.parents for r in roots)
+
+
+def _resolver_token(tok, cwd_efectivo):
+    """Token → ruta resuelta (siguiendo symlinks) desde el cwd efectivo."""
+    p = Path(tok).expanduser()
+    if not p.is_absolute():
+        p = cwd_efectivo / p
+    try:
+        return p.resolve()
+    except OSError:
+        return p
+
+
+def _fuera_de_raices(tok, cwd_efectivo, roots):
+    """True si el token (ruta, --flag=/ruta o $VAR) puede tocar fuera."""
+    if tok in NEUTROS_SHELL:
+        return False
+    if tok.startswith("$"):
+        return True  # $HOME, $VAR: el destino real no es visible
+    if tok.startswith("-"):
+        if "=" not in tok:
+            return False
+        tok = tok.split("=", 1)[1]
+        if not tok:
+            return False
+    return not _dentro_de_raices(_resolver_token(tok, cwd_efectivo), roots)
+
+
+def _procesar_cd(tokens, i, cwd_efectivo, roots):
+    """Consume `cd <dir>`: devuelve (índice siguiente, cwd nuevo, salió)."""
+    j = i + 1
+    if j >= len(tokens) or tokens[j].startswith("-"):
+        return i + 1, cwd_efectivo, False
+    resuelto = _resolver_token(tokens[j], cwd_efectivo)
+    if not _dentro_de_raices(resuelto, roots):
+        return j + 1, cwd_efectivo, True
+    if resuelto.is_dir():
+        return j + 1, resuelto, False
+    return j + 1, cwd_efectivo, False
+
+
 def _sale_de_raices(command):
-    """True si algún token que parece ruta (absoluta, ~ o con ..) resuelve
-    fuera de las raíces permitidas. Conservador: ante la duda, True."""
+    """True si el comando puede tocar (leer/escribir) fuera de las raíces.
+
+    Auditoría F2: el chequeo lexical anterior dejaba pasar symlinks dentro de
+    las raíces que resuelven afuera (`cat link` → auto leía /etc) y `cd sub`
+    cambiaba el cwd del subshell sin que el chequeo lo supiera. Ahora cada
+    token se resuelve como ruta (siguiendo symlinks) contra el cwd EFECTIVO
+    del subshell, y `--flag=/ruta` también se resuelve. Conservador: ante la
+    duda, True (preguntar)."""
     import shlex
 
     from utils.fs_tools import allowed_roots
@@ -164,16 +217,18 @@ def _sale_de_raices(command):
     except ValueError:
         return True  # comillas desbalanceadas: no se puede verificar
     roots = allowed_roots()
-    for tok in tokens:
-        if "=" in tok and tok.startswith("-"):
-            tok = tok.split("=", 1)[1]  # --flag=/ruta
-        if not (tok.startswith(("/", "~", "$")) or ".." in tok):
+    cwd_efectivo = Path.cwd()
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        if tok == "cd":
+            i, cwd_efectivo, fuera = _procesar_cd(tokens, i, cwd_efectivo, roots)
+            if fuera:
+                return True
             continue
-        if tok.startswith("$"):
-            return True  # $HOME, $VAR: el destino real no es visible
-        destino = (Path.cwd() / Path(tok).expanduser()).resolve()
-        if not any(destino == r or r in destino.parents for r in roots):
+        if _fuera_de_raices(tok, cwd_efectivo, roots):
             return True
+        i += 1
     return False
 
 

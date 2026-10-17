@@ -198,3 +198,82 @@ def test_list_files_errores_y_sin_path(tmp_path, monkeypatch):
     assert list_files(str(tmp_path / "a.txt")).startswith("ERROR: no es un directorio")
     assert list_files(str(tmp_path / "nope")).startswith("ERROR: no existe")
     assert list_files("/etc").startswith("ERROR:")
+
+
+def test_hook_py_compile_avisa_sintaxis_y_respeta_el_contrato(monkeypatch, tmp_path):
+    """El hook post-escritura devuelve la sintaxis rota al modelo y corre
+    py_compile con captura de salida y timeout. Evidencia: 26 mutantes de
+    _hook_py_compile sobrevivían (Fase 1, M5)."""
+    import json
+    from types import SimpleNamespace
+
+    from utils import fs_tools
+
+    estado = {"rc": 1}
+    visto = {}
+
+    def fake_run(argv, **kwargs):
+        visto.update(kwargs)
+        visto["argv"] = argv
+        return SimpleNamespace(returncode=estado["rc"], stdout="",
+                               stderr="SyntaxError: invalid syntax" if estado["rc"] else "")
+
+    monkeypatch.setattr(fs_tools, "subprocess", SimpleNamespace(run=fake_run))
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+
+    roto = tmp_path / "roto.py"
+    roto.write_text("def f(:\n    pass\n", encoding="utf-8")
+    tc = {"function": {"name": "write_file",
+                       "arguments": json.dumps({"path": str(roto)})}}
+    res = fs_tools._hook_py_compile(tc, "OK")
+    assert res.startswith("OK")
+    assert "SINTAXIS" in res and "invalid syntax" in res
+    assert visto["capture_output"] is True
+    assert visto["text"] is True
+    assert visto["timeout"] == 15
+
+    estado["rc"] = 0
+    sano = tmp_path / "sano.py"
+    sano.write_text("x = 1\n", encoding="utf-8")
+    tc2 = {"function": {"name": "write_file",
+                        "arguments": json.dumps({"path": str(sano)})}}
+    assert fs_tools._hook_py_compile(tc2, "OK") == "OK"
+
+
+def test_search_files_borde_de_tamano_y_conteo_de_omitidos(tmp_path, monkeypatch):
+    """CONTENT_MAX_BYTES es estricto: el archivo de exactamente el tope se
+    lee; dos que lo superan se cuentan y se reportan. Evidencia: mutantes
+    del '>=' y del contador de omitidos sobrevivían (Fase 1, M6)."""
+    from utils.fs_tools import CONTENT_MAX_BYTES, search_files
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    exacto = tmp_path / "exacto.txt"
+    relleno = b"x" * (CONTENT_MAX_BYTES - len(b"needle")) + b"needle"
+    assert len(relleno) == CONTENT_MAX_BYTES
+    exacto.write_bytes(relleno)
+
+    salida = search_files(query="needle", path=str(tmp_path))
+    assert "exacto.txt" in salida and "omitidos" not in salida
+
+    for n in (1, 2):
+        (tmp_path / ("grande" + str(n) + ".txt")).write_bytes(b"y" * (CONTENT_MAX_BYTES + 1))
+    salida = search_files(query="needle", path=str(tmp_path))
+    assert "2 archivos de más de 4 MB omitidos" in salida
+
+
+def test_escribir_atomico_no_sigue_symlink_tmp(tmp_path):
+    """El .tmp de la publicación atómica es aleatorio y exclusivo: un symlink
+    plantado `<destino>.tmp` no redirige la escritura fuera de las raíces.
+    Evidencia: auditoría F2 — con el nombre fijo, el harness escribía el
+    archivo externo apuntado por el symlink."""
+    from utils.fs_tools import escribir_atomico
+
+    destino = tmp_path / "objetivo.txt"
+    afuera = tmp_path / "afuera.txt"
+    afuera.write_text("ORIGINAL-FUERA", encoding="utf-8")
+    (tmp_path / "objetivo.txt.tmp").symlink_to(afuera)
+
+    escribir_atomico(destino, "NUEVO")
+
+    assert afuera.read_text(encoding="utf-8") == "ORIGINAL-FUERA"
+    assert destino.read_text(encoding="utf-8") == "NUEVO"

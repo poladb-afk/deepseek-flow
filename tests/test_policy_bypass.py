@@ -98,3 +98,58 @@ def test_auto_dentro_de_raices_sigue_auto(monkeypatch):
     monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(RAIZ))
     monkeypatch.setattr(coding, "_approve", lambda *a, **k: False)
     assert coding.run_command("cat README.md").startswith("exit 0")
+
+
+def test_sale_de_raices_flags_con_ruta_y_tokens_sin_igual(monkeypatch, tmp_path):
+    """_sale_de_raices normaliza --flag=/ruta; un flag simple (-la) no rompe
+    y un token con '=' que no es flag no se interpreta como ruta.
+    Evidencia: 11 mutantes sobrevivientes (Fase 1, M3)."""
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.chdir(tmp_path)  # cwd dentro de las raíces (semántica de producción)
+    assert coding._sale_de_raices("cat --out=/etc/passwd") is True
+    assert coding._sale_de_raices("cat --out=" + str(tmp_path / "ok.txt")) is False
+    assert coding._sale_de_raices("ls -la") is False
+    assert coding._sale_de_raices("cat KEY=/etc/passwd") is False
+    assert coding._sale_de_raices("cat /etc/passwd") is True
+
+
+def test_run_command_ls_la_dentro_de_raices_sigue_auto(monkeypatch):
+    """Integración: un flag sin '=' llega a _sale_de_raices y el modo auto
+    completo ejecuta sin preguntar. Evidencia: mutantes que hacían estallar
+    el bucle de tokens sobrevivían (Fase 1, M3)."""
+    def no_preguntar(*_a, **_k):
+        raise AssertionError("auto no debe pedir aprobación")
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(RAIZ))
+    monkeypatch.setenv("HITL_AUTO", "1")
+    monkeypatch.setattr(coding, "_approve", no_preguntar)
+    assert coding.run_command("ls -la").startswith("exit 0")
+
+
+def test_auto_no_sigue_symlinks_fuera_de_raices(monkeypatch, tmp_path):
+    """El modo auto solo vale DENTRO de las raíces: un symlink dentro de la
+    raíz que apunta afuera no puede servir para leer afuera sin aprobación.
+    Evidencia: auditoría F2 — `cat link` clasificaba auto y leía el secreto
+    de afuera; `cd sub && cat link` lo mismo con el cwd cambiado."""
+    raiz = tmp_path / "raiz"
+    raiz.mkdir()
+    afuera = tmp_path / "afuera"
+    afuera.mkdir()
+    (afuera / "secreto.txt").write_text("SECRETO-FUERA", encoding="utf-8")
+    (raiz / "readme.txt").write_text("dentro", encoding="utf-8")
+    (raiz / "link").symlink_to(afuera / "secreto.txt")
+    (raiz / "sub").mkdir()
+    (raiz / "sub" / "link2").symlink_to(afuera / "secreto.txt")
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(raiz))
+    monkeypatch.chdir(raiz)
+
+    assert coding._sale_de_raices("cat link") is True
+    assert coding._sale_de_raices("cd sub && cat link2") is True
+    assert coding._sale_de_raices("cat readme.txt") is False  # control
+    assert coding._nivel("cat link") == "preguntar"
+
+    monkeypatch.setattr(coding, "_approve", lambda *a, **k: False)
+    salida = coding.run_command("cat link")
+    assert salida.startswith("RECHAZADO")
+    assert "SECRETO-FUERA" not in salida

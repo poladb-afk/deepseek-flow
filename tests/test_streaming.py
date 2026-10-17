@@ -335,3 +335,36 @@ def test_stream_agrega_etiqueta_deepseek(monkeypatch, capsys):
     assert accion == "answer"
     salida = capsys.readouterr().out
     assert "DeepSeek: " in salida and "hola" in salida
+
+
+def test_stream_reenvia_tools_y_mensajes_al_request(monkeypatch):
+    """El pedido del stream debe llevar el MISMO tools/messages que el
+    clásico; el ensamblado de deltas estaba probado, el contrato del request
+    no. Evidencia: mutantes que reemplazaban tools por None sobrevivían
+    (Fase 1, M4)."""
+    from types import SimpleNamespace
+
+    import utils.call_llm as c
+
+    capturado = {}
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            capturado.update(kwargs)
+
+            def gen():
+                delta = SimpleNamespace(content="ok", reasoning_content=None, tool_calls=None)
+                yield SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
+
+            return gen()
+
+    class FakeClient:
+        chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setattr(c, "_client", lambda: FakeClient())
+    tools = [{"type": "function", "function": {"name": "read_file", "parameters": {}}}]
+    mensajes = [{"role": "user", "content": "hola"}]
+    msg = c.call_llm_agent_stream(mensajes, tools=tools)
+    assert msg.content == "ok"
+    assert capturado["tools"] == tools
+    assert capturado["messages"] == mensajes

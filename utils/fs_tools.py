@@ -11,6 +11,7 @@ import fnmatch
 import json
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 from utils.call_llm import _entero, _setting
@@ -146,9 +147,18 @@ def escribir_atomico(destino, texto):
     atómica del filesystem. Vive acá para que TODOS los escritores del harness
     compartan la misma garantía (H14: publicación no atómica)."""
     destino = Path(destino)
-    tmp = destino.with_name(destino.name + ".tmp")
+    # mkstemp con nombre ALEATORIO y O_EXCL: un `<destino>.tmp` preexistente
+    # (symlink plantado en el repo) no puede redirigir la escritura fuera de
+    # las raíces. Medido en la auditoría F2: con el nombre fijo, un symlink
+    # `<archivo>.tmp` hacía que el harness escribiera el destino externo.
+    fd, tmp_nombre = tempfile.mkstemp(
+        prefix=destino.name + ".", suffix=".tmp", dir=destino.parent,
+    )
+    tmp = Path(tmp_nombre)
     try:
-        tmp.write_text(texto, encoding="utf-8")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(texto)
+        os.chmod(tmp, 0o644)
         os.replace(tmp, destino)
     except OSError:
         with contextlib.suppress(OSError):

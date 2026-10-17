@@ -110,10 +110,14 @@ _SEPARADORES = re.compile(r"&&|\|\||\||&|;|\n|\r")
 # pytest -p carga plugins y --basetemp borra el directorio que le pases.
 _FLAGS_PELIGROSOS = {
     "find": ("-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint",
-             "-fprint0", "-fprintf", "-fls"),
+             "-fprint0", "-fprintf", "-fls",
+             # traversal: siguen symlinks; con un enlace dentro de las raíces
+             # se lee fuera de ellas (auditoría F2, symlink escape)
+             "-L", "-H", "-follow"),
     "sort": ("-o", "--output"),
     "git": ("--output", "--ext-diff", "--textconv"),
     "pytest": ("-p", "--basetemp", "--rootdir", "-c", "--confcutdir"),
+    "grep": ("-R", "--dereference-recursive"),
 }
 
 
