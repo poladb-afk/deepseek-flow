@@ -355,3 +355,22 @@ def test_request_human_input_llega_al_action_space():
 
     nombres = {t["function"]["name"] for t in TOOLS}
     assert "request_human_input" in nombres
+
+
+def test_aprobaciones_emite_evento_hitl_sin_contenido(monkeypatch):
+    """La decisión HITL viaja a .runs en formato compacto (tipo/nivel/decisión)
+    sin el resumen: es lo que vuelve medible la fricción (F4/A31)."""
+    from utils import aprobaciones, tracing
+
+    capturado = []
+    monkeypatch.setattr(tracing, "evento_hitl",
+                        lambda *a, **k: capturado.append((a, k)))
+    aprobaciones.registrar("write_file", "contenido que no debe persistirse",
+                           False, "preguntar")
+    try:
+        assert capturado
+        args, _kwargs = capturado[0]
+        assert args == ("write_file", "preguntar", False)
+        assert "contenido que no debe persistirse" not in repr(capturado)
+    finally:
+        aprobaciones.limpiar()

@@ -29,6 +29,11 @@ def registrar(tipo, resumen, decision, nivel="preguntar"):
         })
         if len(_eventos) > _MAX:
             del _eventos[0]
+        # Traza compacta para el tablero: tipo/nivel/decisión/segundos, SIN
+        # resumen (F4: la tasa real de rechazo HITL no era medible).
+        from utils import tracing
+
+        tracing.evento_hitl(str(tipo), str(nivel), bool(decision))
     except Exception:  # noqa: BLE001  (UX: un fallo acá jamás corta la acción)
         pass
 

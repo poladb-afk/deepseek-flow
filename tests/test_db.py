@@ -339,3 +339,27 @@ def test_traza_registra_el_nodo_que_falla_y_no_colisiona(tmp_path):
         if tracing._salida is not None and not tracing._salida.closed:
             tracing._salida.close()
         tracing._salida, tracing._activo = salida_original, activo_original
+
+
+def test_tracing_no_deja_traza_vacia(tmp_path):
+    """Una corrida sin eventos no crea archivo: F4 midió 41/255 trazas
+    vacías que ensuciaban los denominadores. El archivo se abre recién al
+    primer evento (y el stem planeado ya es el de thread_id)."""
+    from utils import tracing
+
+    backup = (tracing._salida, tracing._ruta_salida, tracing._activo, tracing._id_thread)
+    try:
+        tracing._salida = None
+        tracing._activo = True
+        tracing._ruta_salida = tmp_path / "planeada.jsonl"
+        assert not tracing._ruta_salida.exists()
+        tracing.evento_tool("read_file", True, 0.1)
+        assert tracing._ruta_salida.exists()
+        tracing._salida.close()
+        tracing._salida = None
+        tracing._ruta_salida = tmp_path / "sin_eventos.jsonl"
+        assert not tracing._ruta_salida.exists()
+    finally:
+        if tracing._salida is not None and not tracing._salida.closed:
+            tracing._salida.close()
+        tracing._salida, tracing._ruta_salida, tracing._activo, tracing._id_thread = backup

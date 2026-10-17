@@ -461,6 +461,23 @@ def resultado_ok(contenido):
     return not (contenido.startswith(("ERROR", "RECHAZADO")) or _EXIT_NO_CERO.match(contenido))
 
 
+def codigo_error(contenido):
+    """Discriminador CORTO y sin contenido para la traza (F4: las trazas no
+    podían atribuir causas). Se guarda con la tool en .runs: `ERROR:TypeError`,
+    `ERROR:JSONDecodeError`, `ERROR:herramienta`, `RECHAZADO`, `exit_1`, o ""."""
+    contenido = (contenido or "").strip()
+    if contenido.startswith("RECHAZADO"):
+        return "RECHAZADO"
+    if contenido.startswith("ERROR"):
+        resto = contenido[5:].lstrip(": ").strip()
+        palabra = re.split(r"[:\s]", resto, maxsplit=1)[0] if resto else "?"
+        return "ERROR:" + (palabra[:40] or "?")
+    golpe = _EXIT_NO_CERO.match(contenido)
+    if golpe:
+        return golpe.group(0).strip().replace(" ", "_")
+    return ""
+
+
 class ExecuteTools(Node):
     def prep(self, shared):
         return shared["messages"][-1]["tool_calls"]
@@ -477,7 +494,8 @@ class ExecuteTools(Node):
             print(colorear(f"  → {nombre}", "tool"), flush=True)
             r = run_tool_call(tc, MODULE_IMPLS)
             ok = resultado_ok(r["content"])
-            evento_tool(nombre, ok, time.time() - inicio)
+            evento_tool(nombre, ok, time.time() - inicio,
+                        codigo=codigo_error(r["content"]))
             resultados.append(r)
         return resultados
 

@@ -312,3 +312,17 @@ def test_run_tool_call_devuelve_error_como_feedback():
 
     r = run_tool_call(tc("read_file", json.dumps({"inventado": 1})))
     assert r["content"].startswith("ERROR:")
+
+
+def test_codigo_error_discrimina_sin_contenido():
+    """La traza guarda un código corto de la causa, no el texto del error
+    (F4/A32: sin esto las causas eran inatribuibles)."""
+    from nodes import codigo_error
+
+    assert codigo_error("ERROR: JSONDecodeError: bad") == "ERROR:JSONDecodeError"
+    assert codigo_error("ERROR: herramienta desconocida: grep") == "ERROR:herramienta"
+    assert codigo_error("ERROR: ruta fuera de los directorios") == "ERROR:ruta"
+    assert codigo_error("RECHAZADO por el usuario") == "RECHAZADO"
+    assert codigo_error("exit 1\n[stderr] x") == "exit_1"
+    assert codigo_error("exit 0\nbien") == ""
+    assert codigo_error("hola") == ""
