@@ -2,8 +2,10 @@
 
 Decide cuánta fricción humana merece un comando de shell:
 
-  - 'auto'             solo-lectura verificado: se ejecuta sin preguntar
-                       (con una línea visible de transparencia).
+  - 'auto'             whitelist de solo-lectura PRESUNTA: se ejecuta sin
+                       preguntar (con una línea visible de transparencia).
+                       Límites conocidos: pytest ejecuta conftest/plugins y
+                       escribe cachés (A45); no es solo-lectura estricta.
   - 'preguntar'        el flujo HITL de siempre: un (s/n).
   - 'confirmar_doble'  dos (s/n) seguidos: la operación más peligrosa
                        (git push, rm -rf) paga la fricción extra.
@@ -33,6 +35,12 @@ en 5/5 run_command y el compuesto degradaba a preguntar aunque el fondo
 fuera `pytest` auto): cambia el cwd del subshell de ESTE comando, no escribe
 ni ejecuta nada — mismo nivel de confianza que `cat`, que ya lee cualquier
 ruta del disco.
+
+Límite conocido de la whitelist (A45): `pytest` ejecuta `conftest.py` y
+plugins del repo, y escribe cachés (`.pytest_cache`, `__pycache__`): "auto"
+no es solo-lectura en sentido estricto. Se ACEPTA porque correr tests es el
+flujo normal del agente; para exigir aprobación ante ejecución de código,
+HITL_AUTO=0 vuelve todo a s/n. El costo se documenta, no se esconde.
 
 Orden de evaluación: whitelist primero, negra después, default preguntar.
 """
@@ -250,8 +258,8 @@ _EXPLICACIONES = (
 
 # Solo-lectura conocida: la explicación dice POR QUÉ no pide fricción.
 _LECTURA = (
-    (("pytest",), "corre tests (solo lee)"),
-    (("python3", "-m", "pytest"), "corre tests (solo lee)"),
+    (("pytest",), "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"),
+    (("python3", "-m", "pytest"), "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"),
     (("grep",), "busca texto (solo lee)"),
     (("ls",), "lista un directorio (solo lee)"),
     (("cat",), "muestra un archivo (solo lee)"),
@@ -287,7 +295,7 @@ def explicar(comando):
         if tuple(tokens[: len(prefijo)]) == prefijo:
             return texto
     if nivel == AUTO:
-        return "solo-lectura verificado: no cambia nada"
+        return "sin efectos destructivos conocidos: no pide aprobación (puede escribir cachés si el comando lo hace)"
     if nivel == CONFIRMAR_DOBLE:
         return "operación destructiva o irreversible: pide doble confirmación"
     return "efecto no reconocido como solo-lectura: pide aprobación"

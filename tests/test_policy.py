@@ -487,3 +487,15 @@ def test_policy_traversal_por_recorrido_de_symlinks_degrada():
     assert clasificar("find . -L -name x") == "preguntar"
     # control: la versión que NO sigue symlinks sigue siendo solo-lectura
     assert clasificar("grep -r secreto .") == "auto"
+
+
+def test_explicar_pytest_admite_que_ejecuta_codigo():
+    """A45: la whitelist no puede rotular pytest como solo-lectura estricta;
+    ejecuta conftest/plugins del repo y escribe cachés. La decisión es
+    aceptarlo (con HITL_AUTO=0 como modo estricto), pero la explicación
+    tiene que decirlo."""
+    from utils.policy import explicar
+
+    texto = explicar("pytest -q")
+    assert "conftest" in texto and "cach" in texto
+    assert "solo lee" not in texto

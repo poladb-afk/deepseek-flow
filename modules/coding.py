@@ -281,6 +281,8 @@ def _aprobar(command, nivel, juicios):
     Devuelve (aprobado, motivo del rechazo): el preview y el pedido viven
     juntos para que no se pueda agregar un nivel sin su registro."""
     if nivel == "auto":
+        # Rótulo histórico: "solo-lectura" es PRESUNCIÓN por prefijo, no una
+        # garantía (pytest ejecuta conftest y escribe cachés: ver A45 en policy).
         print(f"\n── run_command [auto: solo-lectura] ──\n{command}")
         return True, ""
     if nivel == "confirmar_doble":

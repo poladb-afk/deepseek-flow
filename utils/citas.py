@@ -41,10 +41,10 @@ _EXCLUIR = {".git", ".venv", "__pycache__", "salidas", ".runs", "mutants",
 
 
 def _por_nombre_suelto(nombre):
-    """Nombre sin ruta (policy.py:88): si es ÚNICO en el árbol fuente del cwd,
-    es esa cita. Excluye artefactos (salidas/, mutants/, venvs): evita falsos
-    no_existe cuando el modelo abrevia tras citar la ruta completa (9/14 en
-    una sesión real)."""
+    """Nombre sin ruta (p. ej. una cita abreviada sin directorio): si es
+    ÚNICO en el árbol fuente del cwd, es esa cita. Excluye artefactos
+    (salidas/, mutants/, venvs): evita falsos no_existe cuando el modelo
+    abrevia tras citar la ruta completa (9/14 en una sesión real)."""
     if "/" in nombre or "\\" in nombre:
         return None
     candidatos = []

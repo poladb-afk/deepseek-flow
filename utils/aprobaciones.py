@@ -14,11 +14,13 @@ fricción. Sirve para dos cosas:
 Contrato: solo registra; nunca decide, nunca pide input, nunca rompe. Si algo
 falla al registrar, se ignora (es UX, no contención)."""
 
+from utils.policy import PREGUNTAR
+
 _MAX = 200  # tope del buffer circular: una sesión larga no crece sin techo
 _eventos = []  # lista de dicts: {tipo, resumen, nivel, decision}
 
 
-def registrar(tipo, resumen, decision, nivel="preguntar"):
+def registrar(tipo, resumen, decision, nivel=PREGUNTAR):
     """Registra UNA aprobación. `tipo` ∈ {write_file, edit_file, run_command};
     `decision` booleana (aprobado/rechazado); `nivel` el de policy (auto/
     preguntar/confirmar_doble). Best-effort: nunca lanza."""
@@ -50,7 +52,7 @@ def resumen():
               f"({aprobadas} aprobadas, {len(_eventos) - aprobadas} rechazadas)"]
     for e in _eventos:
         marca = "✓" if e["decision"] else "✗"
-        nivel = "" if e["nivel"] == "preguntar" else f" [{e['nivel']}]"
+        nivel = "" if e["nivel"] == PREGUNTAR else f" [{e['nivel']}]"
         lineas.append(f"  {marca}{nivel} {e['tipo']}: {e['resumen']}")
     return "\n".join(lineas)
 

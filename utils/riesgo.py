@@ -1,10 +1,11 @@
 """Riesgo: juicio local de una ACCIÓN antes de ejecutarla (exp/44, OBSERVA).
 
 El uso nº1 de la familia Jev/Laya: juzgar cada acción antes de correrla. Este
-harness ya tiene la mitad determinista (`utils/policy.py` clasifica y la
-denylist veta lo irreversible — las reglas duras mandan primero). La banda que
-hoy decide SOLO un humano es el hueco semántico: todo lo no reconocido paga
-`s/n`.
+harness ya tiene la mitad determinista (`utils/policy.py` clasifica la
+fricción: `auto`/`preguntar`/`confirmar_doble`; la denylist que SÍ veta lo
+irreversible vive en `modules/coding._PROHIBIDOS`, y el default no reconocido
+paga `s/n`). La banda que hoy decide SOLO un humano es el hueco semántico:
+todo lo no reconocido paga `s/n`.
 
 exp/44 es SOLO LA OBSERVACIÓN: Laya juzga, loguea, y NO cambia ninguna
 conducta — el `s/n` sigue igual. La etiqueta ambiental llega gratis: la
