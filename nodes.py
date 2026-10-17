@@ -13,7 +13,7 @@ from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
 from utils.fs_tools import TOOLS as CORE_TOOLS
 from utils.terminal import colorear, progreso_ronda
 from utils.thread_store import checkpoint
-from utils.tracing import evento_tool, thread_id
+from utils.tracing import evento_politica, evento_tool, thread_id
 
 EXIT_WORDS = {"salir", "exit", "quit"}
 
@@ -148,6 +148,12 @@ MENSAJE_DSML_SIN_TOOLS = (
     "herramientas disponibles — respondé sin ellas)"
 )
 
+AVISO_CIERRE = (
+    "(presupuesto de herramientas agotado) Respondé AHORA con lo que tengas: "
+    "hallazgos, límites y qué falta. No emitas tool calls; si te falta "
+    "información, decilo como límite."
+)
+
 
 def dsml_con_presupuesto_agotado(content, parseados, tools, ofrece_tools=True):
     """(nuevo_content, avisar): la recuperación DSML no re-armó tools que
@@ -222,6 +228,7 @@ class GetQuestion(Node):
         shared["no_progress"] = 0
         shared.pop("_fp", None)
         shared.pop("_router_pendiente", None)
+        shared.pop("_aviso_cierre", None)
         # exp/44: el último mensaje del usuario queda como EVIDENCIA DE
         # INTENCIÓN para el juez de riesgo (import perezoso; los módulos no
         # ven `shared`). Plumbing, no decide nada.
@@ -364,9 +371,14 @@ class AgentStep(Node):
         sin_progreso = shared.get("no_progress", 0) >= UMBRAL_SIN_PROGRESO
         if sin_progreso and not agotado:
             # incidente visible desde .runs: el corte NO fue por techo
-            evento_tool("corte_no_progreso", True, 0.0)
+            evento_politica("corte_no_progreso")
         # Al llegar al límite de rondas se retiran las tools: el modelo debe responder ya.
         tools = None if (agotado or sin_progreso) else TOOLS
+        if tools is None and not shared.get("_aviso_cierre"):
+            shared["_aviso_cierre"] = True
+            # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
+            # el modelo sigue emitiendo tool calls en vez de cerrar la respuesta.
+            return list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None
         return shared["messages"], tools
 
     def exec(self, inputs):

@@ -216,7 +216,7 @@ def decide(respuesta, config):
 
 
 def ruta_aplicada(propuesta, config):
-    """La ruta que EJECUTA el grafo: en force se aplica, en off y shadow no."""
+    """La ruta que EJECUTA el grafo: en enforce se aplica, en off y shadow no."""
     return propuesta if config.modo == "enforce" else "herramientas"
 
 

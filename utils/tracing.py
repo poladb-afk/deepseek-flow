@@ -63,6 +63,22 @@ def evento_hitl(tipo, nivel, decision, seg=0.0):
     )
 
 
+def evento_politica(nombre, detalle=""):
+    """Evento de POLÍTICA del loop (no es una tool ejecutada): accion propia
+    para que el tablero/minería no lo cuenten como un éxito de tool. Medido en
+    vivo: el corte por no-progreso se registraba como ok y sumaba un éxito
+    fantasma (auditoría de sesión real)."""
+    _escribir(
+        {
+            "ts": round(time.time(), 3),
+            "nodo": str(nombre),
+            "accion": "politica",
+            "seg": 0.0,
+            **({"detalle": str(detalle)} if detalle else {}),
+        }
+    )
+
+
 def thread_id():
     """El id del thread del proceso (exp/48): idempotente — se resuelve UNA vez.
 

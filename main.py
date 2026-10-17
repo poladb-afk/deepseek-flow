@@ -26,7 +26,11 @@ Trabajás en {cwd} y sus subdirectorios.
 Alcance máximo de las tools de archivos:
 {roots}
 
-Respondé en el idioma de cada pedido (español o inglés)."""
+Respondé en el idioma de cada pedido (español o inglés).
+
+Si el pedido es una auditoría o análisis amplio del repo, acotá el alcance y respondé con hallazgos y límites; no intentes leer todo.
+
+Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la verificaste, decila como no verificada."""
 
 
 SUBCOMANDOS = {
@@ -50,6 +54,20 @@ SUBCOMANDOS = {
 }
 
 
+def _preguntas_reales(mensajes):
+    """Cuenta los user-role que son PREGUNTAS: excluye los mensajes sintéticos
+    de prefetch y el marcador de compacción (medido en vivo: con 1 pregunta +
+    1 pre-fetch el resumen se disparaba igual, contradiciendo el docstring)."""
+    from utils.compaccion import PREFIJO_COMPACCION
+    from utils.prefetch import PREFIJO_PREFETCH
+
+    return sum(
+        1 for m in mensajes
+        if m.get("role") == "user"
+        and not str(m.get("content", "")).startswith((PREFIJO_PREFETCH, PREFIJO_COMPACCION))
+    )
+
+
 def resumen_de_sesion(shared):
     """Resumen automático al salir (bookkeeping, sin HITL): UNA sola llamada
     a call_llm comprime la conversación y la guarda como
@@ -64,7 +82,7 @@ def resumen_de_sesion(shared):
         print("\n[memoria] desactivada (MEMORIA=0): sin resumen de sesión")
         return
     mensajes = shared.get("messages", [])
-    n_users = sum(1 for m in mensajes if m.get("role") == "user")
+    n_users = _preguntas_reales(mensajes)
     if n_users < 2:
         print(f"\n[memoria] sesión corta ({n_users} pregunta): sin resumen")
         return

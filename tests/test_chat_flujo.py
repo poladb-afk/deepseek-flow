@@ -326,3 +326,41 @@ def test_codigo_error_discrimina_sin_contenido():
     assert codigo_error("exit 1\n[stderr] x") == "exit_1"
     assert codigo_error("exit 0\nbien") == ""
     assert codigo_error("hola") == ""
+
+
+def test_agotado_fuerza_respuesta_sin_tools():
+    """Al retirar las tools se agrega un aviso efímero de cierre: medido en
+    vivo, sin él el modelo sigue emitiendo tool calls en vez de responder
+    (auditoría de sesión real, A38). El aviso no se duplica y se resetea con
+    la pregunta nueva."""
+    from nodes import AVISO_CIERRE, AgentStep, GetQuestion
+
+    shared = {"messages": [{"role": "system", "content": "s"},
+                             {"role": "user", "content": "auditá el repo"}],
+              "tool_rounds": 8, "no_progress": 0}
+    mensajes, tools = AgentStep().prep(shared)
+    assert tools is None
+    assert mensajes[-1]["content"] == AVISO_CIERRE
+    assert shared.get("_aviso_cierre") is True
+
+    mensajes2, tools2 = AgentStep().prep(shared)
+    assert tools2 is None
+    # el aviso es EFÍMERO: se inyecta una vez; una segunda prep no lo duplica
+    assert all(m.get("content") != AVISO_CIERRE for m in mensajes2)
+
+    GetQuestion().post(shared, None, "otra pregunta")
+    assert "_aviso_cierre" not in shared
+
+
+def test_preguntas_reales_ignora_prefetch_y_compaccion():
+    """El resumen de sesión cuenta preguntas REALES: un mensaje sintético de
+    prefetch o el marcador de compacción no lo disparan (medido en vivo)."""
+    from main import _preguntas_reales
+
+    mensajes = [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": "auditá el repo"},
+        {"role": "user", "content": "[pre-fetch] /tmp/x (primeras 5 líneas):\nh"},
+        {"role": "user", "content": "[compacción] 3 mensajes anteriores compactados."},
+    ]
+    assert _preguntas_reales(mensajes) == 1

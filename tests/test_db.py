@@ -363,3 +363,22 @@ def test_tracing_no_deja_traza_vacia(tmp_path):
         if tracing._salida is not None and not tracing._salida.closed:
             tracing._salida.close()
         tracing._salida, tracing._ruta_salida, tracing._activo, tracing._id_thread = backup
+
+
+def test_evento_politica_no_se_confunde_con_tool():
+    """El corte por no-progreso es un evento de política, no un éxito de tool:
+    accion propia para no inflar métricas (medido en vivo: se registraba ok)."""
+    import io
+    import json
+
+    import utils.tracing as tracing
+
+    original = tracing._salida
+    tracing._salida = io.StringIO()
+    try:
+        tracing.evento_politica("corte_no_progreso")
+        linea = json.loads(tracing._salida.getvalue().strip())
+    finally:
+        tracing._salida = original
+    assert linea["nodo"] == "corte_no_progreso"
+    assert linea["accion"] == "politica"
