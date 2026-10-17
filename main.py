@@ -30,7 +30,7 @@ Respondé en el idioma de cada pedido (español o inglés).
 
 Si el pedido es una auditoría o análisis amplio del repo, acotá el alcance y respondé con hallazgos y límites; no intentes leer todo.
 
-Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la verificaste, decila como no verificada."""
+Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la verificaste, decila como no verificada. Citá siempre como ruta/archivo.py:línea (ruta relativa al repo, sin "líneas ~X")."""
 
 
 SUBCOMANDOS = {

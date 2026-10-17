@@ -364,3 +364,55 @@ def test_preguntas_reales_ignora_prefetch_y_compaccion():
         {"role": "user", "content": "[compacción] 3 mensajes anteriores compactados."},
     ]
     assert _preguntas_reales(mensajes) == 1
+
+
+def test_post_verifica_citas_y_corrige(monkeypatch, capsys):
+    """A40: si la respuesta cita una línea inexistente, se detecta contra el
+    disco y se pide UNA corrección (sin tools). Evidencia: sesiones reales con
+    citas de línea corridas (S5/S6)."""
+    from types import SimpleNamespace
+
+    import nodes
+
+    monkeypatch.setenv("CITAS_VERIFICAR", "1")
+    monkeypatch.setenv("CHAT_STREAM", "1")
+    visto = {}
+
+    def fake_llm(msgs, tools=None):
+        visto["msgs"] = msgs
+        return SimpleNamespace(content="corregido en utils/tracing.py:1")
+
+    monkeypatch.setattr(nodes, "call_llm_agent", fake_llm)
+    shared = {"messages": [{"role": "system", "content": "s"},
+                             {"role": "user", "content": "auditá"}]}
+    contenido = "hallazgo en utils/tracing.py:1 y malo en utils/tracing.py:99999"
+    exec_res = SimpleNamespace(content=contenido, tool_calls=None)
+    accion = nodes.AgentStep().post(shared, None, exec_res)
+
+    assert accion == "answer"
+    assert shared["messages"][-1]["content"] == "corregido en utils/tracing.py:1"
+    salida = capsys.readouterr().out
+    assert "[citas]" in salida and "99999" in salida and "corregidas" in salida
+    assert visto["msgs"][-2]["content"] == contenido
+    assert "99999" in visto["msgs"][-1]["content"]
+
+
+def test_post_no_corrige_si_las_citas_estan_bien(monkeypatch):
+    """Con citas verificadas no hay segunda llamada: la corrección es solo para
+    citas que no coinciden (costo cero en el camino feliz)."""
+    from types import SimpleNamespace
+
+    import nodes
+
+    monkeypatch.setenv("CITAS_VERIFICAR", "1")
+    monkeypatch.setenv("CHAT_STREAM", "0")
+
+    def no_llamar(msgs, tools=None):
+        raise AssertionError("no debía pedir corrección con citas válidas")
+
+    monkeypatch.setattr(nodes, "call_llm_agent", no_llamar)
+    shared = {"messages": [{"role": "system", "content": "s"},
+                             {"role": "user", "content": "auditá"}]}
+    exec_res = SimpleNamespace(content="hallazgo en utils/tracing.py:1", tool_calls=None)
+    assert nodes.AgentStep().post(shared, None, exec_res) == "answer"
+    assert shared["messages"][-1]["content"] == "hallazgo en utils/tracing.py:1"

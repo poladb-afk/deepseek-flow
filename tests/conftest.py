@@ -16,6 +16,9 @@ RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 # raíces deterministas para los tests (el default portable es CWD)
 os.environ.setdefault("AGENT_ALLOWED_DIRS", str(RAIZ.parent.parent))
+# La verificación de citas puede hacer una llamada LLM de corrección: en tests
+# se apaga por default (determinismo y costo); el test que la ejercita la prende.
+os.environ.setdefault("CITAS_VERIFICAR", "0")
 
 
 @pytest.fixture(autouse=True)

@@ -1,8 +1,10 @@
 """Historial de aprobaciones HITL de la sesión (mesa 8, UX).
 
-Registro EN MEMORIA (no toca disco, no es una traza: es UX) de cada
-aprobación humana que el chat pidió: qué se pedía (write/edit/run), si se
-aprobó y con qué nivel de riesgo. Sirve para dos cosas:
+Registro EN MEMORIA (buffer de UX) de cada aprobación humana que el chat
+pidió: qué se pedía (write/edit/run), si se aprobó y con qué nivel de riesgo.
+Además emite una TRAZA COMPACTA (tipo/nivel/decisión, SIN contenido) vía
+utils.tracing cuando el tracing está activo: eso alimenta el tablero de
+fricción. Sirve para dos cosas:
 
 - Que el usuario pueda ver, en cualquier momento, qué se aprobó en la
   sesión (`resumen()`), sin depender de scrollear el historial del chat.

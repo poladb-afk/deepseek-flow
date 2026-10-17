@@ -61,7 +61,7 @@ def juzgar(comando, mensaje):
     El estado lleva la EVIDENCIA DE INTENCIÓN: el comando propuesto y el
     último mensaje del usuario (recortados a 1000 chars).
 
-    El apagado EXPLÍCITO es "0"/"off" (medido): la cadena VACÍA no sirve —
+    El apagado EXPLÍCITO es "0"/"off"/"no" (medido): la cadena VACÍA no sirve —
     _setting la trata como no-seteada y cae al .env, así que las sesiones
     del banco con LAYA_MODEL_RIESGO="" cargaban el checkpoint (2.86 GiB
     invisibles) creyendo apagarlo."""

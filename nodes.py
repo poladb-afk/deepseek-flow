@@ -445,7 +445,49 @@ class AgentStep(Node):
             print(f"\nDeepSeek (aviso): {exec_res.content}")
         return exec_res
 
+    def _verificar_citas(self, shared, exec_res):
+        """Cita archivo:línea: se comprueba contra el disco; si alguna no
+        coincide, se pide UNA segunda pasada de corrección (sin tools). Best
+        effort: un fallo de verificación o de la llamada no rompe la respuesta."""
+        contenido = (exec_res.content or "").strip()
+        if not contenido or _setting("CITAS_VERIFICAR", "1") != "1":
+            return exec_res
+        from utils.citas import reporte, verificar_citas
+
+        try:
+            resultado = verificar_citas(contenido)
+        except Exception:  # noqa: BLE001 (verificación: nunca corta la respuesta)
+            return exec_res
+        if not resultado["total"]:
+            return exec_res
+        print(colorear(f"  [citas] {resultado['ok']}/{resultado['total']} verificadas", "info"), flush=True)
+        if not resultado["mal"]:
+            return exec_res
+        detalle = reporte(resultado)
+        print(colorear(detalle, "aviso"), flush=True)
+        try:
+            mensajes = list(shared.get("messages", [])) + [
+                {"role": "assistant", "content": contenido},
+                {"role": "user", "content": (
+                    "Verificá y corregí la respuesta. Estas citas NO coinciden con "
+                    "el archivo real:\n" + detalle + "\n\nReescribí la respuesta "
+                    "usando solo citas verificadas (o marcá como no verificado lo "
+                    "que no puedas verificar). No agregues hallazgos nuevos; "
+                    "devolvé solo la respuesta final.")},
+            ]
+            corregido = call_llm_agent(mensajes)
+            nuevo = (getattr(corregido, "content", None) or "").strip()
+        except Exception:  # noqa: BLE001 (la corrección es best-effort)
+            return exec_res
+        if nuevo:
+            exec_res.content = nuevo
+            if _setting("CHAT_STREAM", "1") == "1":
+                print(f"\nDeepSeek (citas corregidas): {nuevo}", flush=True)
+        return exec_res
+
     def post(self, shared, prep_res, exec_res):
+        if not getattr(exec_res, "tool_calls", None):
+            exec_res = self._verificar_citas(shared, exec_res)
         shared["messages"].append(historiar(exec_res))
         if getattr(exec_res, "tool_calls", None):
             # exp/49: punto seguro 4 — la SELECCIÓN: las llamadas quedaron
