@@ -64,3 +64,15 @@ def test_mencionar_archivo_sin_linea_no_es_cita():
 
     assert extraer("revisar utils/policy.py y utils/contexto.py") == []
     assert verificar_citas("revisar utils/policy.py")["total"] == 0
+
+
+def test_verificar_citas_jsonl(tmp_path, monkeypatch):
+    """La corrida continua citó `.runs/*.jsonl:5`; el verificador no cubría
+    jsonl y esas citas quedaban sin chequear. Ahora las cubre."""
+    from utils.citas import verificar_citas
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    traza = tmp_path / "traza.jsonl"
+    traza.write_text('{"nodo": "a"}\n{"nodo": "b"}\n', encoding="utf-8")
+    r = verificar_citas(f"ver {traza}:2")
+    assert r["total"] == 1 and r["ok"] == 1

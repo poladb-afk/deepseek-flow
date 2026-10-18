@@ -13,7 +13,7 @@ from pathlib import Path
 from utils.fs_tools import _resolve
 
 CITAS_RE = re.compile(
-    r"(?P<path>[A-Za-z0-9_./~-]+\.(?:py|md|toml|txt|json|yaml|yml))"
+    r"(?P<path>[A-Za-z0-9_./~-]+\.(?:py|md|toml|txt|jsonl|json|csv|log|yaml|yml))"
     r"(?::(?P<line>\d+)(?:-(?P<line2>\d+))?)?"
 )
 MAX_DETALLE = 160

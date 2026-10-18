@@ -73,6 +73,7 @@ lleva el motivo o el PR que lo cierra. Si algo se cierra sin test, se dice expl�
 | A59 | — | `votacion.mayoria`: el doc decía “mitad entera por arriba”; el default es piso absoluto 2 | ✅ 2026-10-17 | doc corregido (piso absoluto, no proporcional) | `test_votacion_mayoria_piso_absoluto` |
 | A60 | — | `citas` marcaba `ok` una cita resuelta por nombre suelto sin avisar que sustituye el archivo | ✅ 2026-10-17 | flag `resuelto_por_nombre` + detalle en el reporte (se mantiene `ok` a propósito) | — |
 | A61 | — | `contexto.py` promete “mismo truncamiento y MISMO orden que la versión secuencial”; no hay versión secuencial en el módulo | ✅ 2026-10-17 | comentario corregido: truncado fijo y orden declarado; única implementación es la de lote | — |
+| A62 | — | La verificación de citas no cubría `.jsonl`: el chat citó `.runs/*.jsonl:5` y quedaba sin chequear | ✅ 2026-10-18 | `CITAS_RE` cubre `jsonl|csv|log` (orden de alternancia corregido) | `test_verificar_citas_jsonl` |
 | X1 | — | Un test daba por bueno el recorte del prefiltro | ✅ 2026-10-15 | contrato corregido en `tests/test_memoria.py::test_memoria_prefiltro_actua` | `test_consolidacion.py` |
 | X2 | — | `rag_search` heredaba el recorte sin juicio | ✅ 2026-10-15 | misma `elegir_por_laya` | `test_consolidacion.py` |
 | X3 | — | La limpieza del banco puede salir del repo | ✅ 2026-10-16 | `banco.objetivo_scratch`: solo dentro de `RAIZ` | `test_pendientes.py` |
