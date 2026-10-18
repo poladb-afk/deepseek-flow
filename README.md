@@ -171,6 +171,16 @@ python3 main.py resume <id>              # rehidrata un thread del chat (salidas
 
 Cada corrida deja un trace por nodo en `.runs/*.jsonl`.
 
+### Alcance y presupuesto del chat
+
+`MAX_TOOL_ROUNDS` (default 8) corta las rondas de tools por pregunta; al
+agotarse, el agente cierra igual con un aviso de cierre forzado (medido en
+vivo: antes podía quedar en silencio). Con LLM real: el alcance **medio** (un
+directorio, ~20 archivos) entra en 8 rondas; el alcance **amplio** (repo
+completo) agota 8 y 16 rondas leyendo, así que conviene subir
+`MAX_TOOL_ROUNDS` (>=16) o acotar el pedido. El agente declara el alcance que
+cubrió y lo que quedó afuera.
+
 ## Estructura
 
 ```

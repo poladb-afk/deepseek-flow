@@ -97,7 +97,10 @@ def _puntuar(consulta, unidades, setting_modelo, texto_de=None):
 
         if not disponible(setting_modelo):
             return None
-        # mismo truncamiento y MISMO orden que la versión secuencial.
+        # Truncado fijo por estado: consulta 1000 chars, bloque 2000. Las
+        # claves van en el orden declarado {"consulta", "bloque"} (contrato
+        # congelado). No hay versión secuencial en este módulo: la única
+        # implementación es la de lote (A61 corrigió el comentario viejo).
         # A07: el clasificador tiene que ver el CONTENIDO de la unidad; con el
         # default (str(unidad)) la memoria le mandaba la RUTA del archivo y
         # puntuaba nombres en vez de notas. `texto_de` lo resuelve el llamador.
