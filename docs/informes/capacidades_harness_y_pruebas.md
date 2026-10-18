@@ -120,3 +120,9 @@ ante archivos que crecieron: corregido con `_contexto_extra` (**A63**, gate
 **562**). El caso `supervisor-umbral` del banco quedó obsoleto (setting mudado
 a `sonda_supervisor.py`); baseline sin tocar para no esconder la señal. Detalle
 en `salidas/auditoria_2026-10/subcomandos/subcomandos_live.md`.
+
+**Corrida 4 (2026-10-18, cierre del bench):** caso `supervisor-umbral` corregido
+(la sonda vive en `sonda_supervisor.py`) y baseline regenerado con backup del
+anterior. Full bench: **100% respuesta_ok / 87,5% cita_ok** (17 casos, 393,6 s;
+antes 70,6%/68,8%). Quedan `search-vacio` y `sanitizar-markers` con cita no
+exacta (A65): el modelo cita el inicio del bloque, no la línea pedida.
