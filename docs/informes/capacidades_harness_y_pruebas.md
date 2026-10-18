@@ -107,3 +107,8 @@ forzado, memoria entre sesiones, resume y subcomandos (recetas en §2).
 
 Artefactos: `salidas/auditoria_2026-10/live12/` (transcript, trace, `sesion.json`)
 y el informe `capacidades_chat_live.md` con el detalle por turno.
+
+**Corrida 2 (2026-10-18, recetas restantes):** rechazo HITL, doble confirmación,
+presupuesto/continuación (`seguí`), memoria entre sesiones, thread persist/resume
+y HITL web aprobado por HTTP: **todas ✅**. Detalle y observaciones en
+`capacidades_chat_extra.md` (artefactos `live13/`, `live14/`, `live15/`).
