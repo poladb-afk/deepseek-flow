@@ -549,8 +549,9 @@ class ExecuteTools(Node):
         return shared["messages"][-1]["tool_calls"]
 
     def exec(self, tool_calls):
-        # cada tool deja su evento propio en la traza (nombre + ok/error):
-        # sin eso, una ronda larga es inatribuible desde .runs (auditoría)
+        # cada tool deja su evento propio en la traza (nombre + ok/error +
+        # código de causa; ver evento_tool): sin eso, una ronda larga es
+        # inatribuible desde .runs (auditoría)
         resultados = []
         for tc in tool_calls:
             inicio = time.time()

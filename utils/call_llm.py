@@ -7,6 +7,11 @@ Los settings se resuelven en tiempo de ejecución en este orden:
 El harness es autónomo por default: leer el .env ajeno era una dependencia
 invisible (medido: la API key y el modelo salían de ahí sin avisar). La clave
 nunca se imprime ni se loguea.
+
+Una variable de entorno VACÍA cuenta como no seteada (`_setting` usa
+`if value:`) y se cae al .env: documentado acá porque el consumidor ya lo
+sufrió (medido en `utils/riesgo.py`: `LAYA_MODEL_RIESGO=` no apagaba el
+checkpoint).
 """
 import contextlib
 import os
@@ -91,7 +96,8 @@ def get_api_key():
         raise RuntimeError(
             "API key de DeepSeek no encontrada. Opciones:\n"
             "  1. export DEEPSEEK_API_KEY=...\n"
-            "  2. LLM_API_KEY=... en un .env (este proyecto o ~/Documentos/00_IA/bmo/.env)"
+            "  2. LLM_API_KEY=... en el .env de este proyecto "
+            "(el de bmo solo si LEER_BMO_ENV=1)"
         )
     return key
 
@@ -108,7 +114,15 @@ def _model():
 
 
 def call_llm(messages):
-    """Acepta el historial completo [{"role", "content"}, ...] o un string."""
+    """Una pasada SIMPLE, sin agente: sin tools, sin thinking, sin streaming.
+
+    Acepta el historial completo [{"role", "content"}, ...] o un string (lo
+    convierte a un mensaje user). Devuelve SOLO el texto de la respuesta
+    (`message.content`): si el proveedor devolviera `tool_calls` o
+    `reasoning_content`, se descartan; tampoco manda el `extra_body` de
+    thinking. `content` puede ser string o lista de bloques (visión): el
+    passthrough de OpenAI lo admite.
+    """
     if isinstance(messages, str):
         messages = [{"role": "user", "content": messages}]
     response = _client().chat.completions.create(

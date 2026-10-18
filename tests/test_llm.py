@@ -117,3 +117,17 @@ def test_from_env_file_tolera_export(tmp_path):
     assert c._from_env_file(env, "NORMAL") == "valor-plano"
     assert c._from_env_file(env, "CON_COMILLAS") == "citado"
     assert c._from_env_file(env, "NO_EXISTE") is None
+
+
+def test_get_api_key_error_menciona_bmo_condicional(monkeypatch):
+    """A68: el error ofrecía el .env de bmo como fuente incondicional; bmo
+    solo se lee con LEER_BMO_ENV=1. El mensaje debe decirlo."""
+    import pytest
+
+    import utils.call_llm as c
+
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.setattr(c, "_setting", lambda *a, **k: None)
+    with pytest.raises(RuntimeError) as exc:
+        c.get_api_key()
+    assert "LEER_BMO_ENV=1" in str(exc.value)
