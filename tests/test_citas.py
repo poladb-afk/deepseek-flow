@@ -55,3 +55,12 @@ def test_citas_placeholder_no_cuentan():
     from utils.citas import extraer
 
     assert extraer("por ejemplo archivo.py:10-20") == []
+
+
+def test_mencionar_archivo_sin_linea_no_es_cita():
+    """S11: un archivo nombrado sin `:línea` no es una cita verificable;
+    antes se contaba como :0 y generaba falsos linea_fuera."""
+    from utils.citas import extraer, verificar_citas
+
+    assert extraer("revisar utils/policy.py y utils/contexto.py") == []
+    assert verificar_citas("revisar utils/policy.py")["total"] == 0

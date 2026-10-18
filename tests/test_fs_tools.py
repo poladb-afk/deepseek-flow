@@ -277,3 +277,17 @@ def test_escribir_atomico_no_sigue_symlink_tmp(tmp_path):
 
     assert afuera.read_text(encoding="utf-8") == "ORIGINAL-FUERA"
     assert destino.read_text(encoding="utf-8") == "NUEVO"
+
+
+def test_run_tool_call_coerciona_el_retorno_a_str():
+    """A56: el contrato de salida de run_tool_call es str(); un dict queda
+    con repr de Python (no JSON). Se documenta y se fija con este test."""
+    from utils.fs_tools import run_tool_call
+
+    def impl(**_kwargs):
+        return {"a": 1}
+
+    tc = {"id": "c1", "type": "function",
+          "function": {"name": "demo", "arguments": "{}"}}
+    r = run_tool_call(tc, extra_impls={"demo": impl})
+    assert r["content"] == "{'a': 1}"

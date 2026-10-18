@@ -25,16 +25,18 @@ _PLACEHOLDERS = {"archivo.py", "archivo.md", "file.py", "ruta.py",
 def extraer(texto):
     """[(path, linea, linea2|None)] únicos y en orden de aparición.
 
-    Los rangos N-M se conservan (antes se truncaban al primer número y se
-    validaba como si el rango completo estuviera chequeado; A52)."""
+    Solo cuenta una cita si hay `:línea` (o rango): mencionar un archivo sin
+    línea NO es una cita verificable (S11: los nombres de archivo sueltos se
+    contaban como `:0` y generaban falsos linea_fuera). Los rangos N-M se
+    conservan (A52)."""
     vistos = set()
     out = []
     for m in CITAS_RE.finditer(texto or ""):
         path = m.group("path").strip("'\"()[]<>.,;").replace(chr(96), "")
-        if Path(path).name in _PLACEHOLDERS:
+        if Path(path).name in _PLACEHOLDERS or not m.group("line"):
             continue
         try:
-            linea = int(m.group("line") or 0)
+            linea = int(m.group("line"))
         except ValueError:
             continue
         linea2 = int(m.group("line2")) if m.group("line2") else None
@@ -77,10 +79,12 @@ def verificar_citas(texto):
     citas = []
     for path, linea, linea2 in extraer(texto):
         resolved, err = _resolve(path)
+        por_nombre = False
         if (err or resolved is None or not resolved.is_file()) and "/" not in path:
             alterno = _por_nombre_suelto(path)
             if alterno is not None:
                 resolved, err = alterno, None
+                por_nombre = True
         if err or resolved is None:
             citas.append({"path": path, "linea": linea, "linea2": linea2,
                           "estado": "fuera",
@@ -106,8 +110,12 @@ def verificar_citas(texto):
         if linea2 is not None:
             texto_linea += " … " + lineas[linea2 - 1].strip()
         citas.append({"path": path, "linea": linea, "linea2": linea2, "estado": "ok",
+                      "resuelto_por_nombre": por_nombre,
                       "detalle": texto_linea[:MAX_DETALLE] or "(línea vacía)"})
     mal = [c for c in citas if c["estado"] != "ok"]
+    for c in citas:
+        if c["estado"] == "ok" and c.get("resuelto_por_nombre"):
+            c["detalle"] = "resuelta por nombre único: " + c["detalle"]
     return {"citas": citas, "total": len(citas), "ok": len(citas) - len(mal), "mal": mal}
 
 

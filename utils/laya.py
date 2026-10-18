@@ -107,6 +107,11 @@ def disponible(setting="LAYA_MODEL"):
 
 
 def _confianza(respuesta):
+    """Confianza de una respuesta: `answer_confidence` (prob. de la opción
+    elegida) o, en su defecto, `max(probabilities)`. Si no hay ninguna de las
+    dos, cae a `confidence` (que es MARGEN, no probabilidad): ese fallback NO
+    es comparable con `answer_confidence` y no debería usarse para calibrar.
+    (A57: el doc del módulo ya aclaraba la diferencia, pero no este fallback.)"""
     if respuesta.get("answer_confidence") is not None:
         return respuesta["answer_confidence"]
     if "probabilities" in respuesta:
@@ -147,8 +152,8 @@ def preguntar_lote(estados, preguntas, setting="LAYA_MODEL"):
     """La versión en lote de preguntar(): los MISMOS contratos evaluados
     sobre N estados en forward(s) compartido(s) (Agent.predict_batch).
     Devuelve una lista alineada con estados: [{id_pregunta: (respuesta,
-    confianza)}]. Misma ley de degradación: si algo falla, lanza — el
-    llamador (contexto._puntuar) cae al default seguro."""
+    confianza)}]. NO degrada acá: propaga cualquier excepción. La degradación
+    (default seguro) la hace el llamador, p. ej. contexto._puntuar."""
     # Límite opcional del lote (LAYA_BATCH_SIZE): la dependencia NO acota por
     # su cuenta — con batch_size=None manda TODOS los estados en un forward y
     # el pico de memoria crece con N (el prefiltro puede mandar cientos).

@@ -67,8 +67,12 @@ lleva el motivo o el PR que lo cierra. Si algo se cierra sin test, se dice expl�
 | A53 | — | `policy.explicar` decía “la misma política que clasificar”; la explicación usa el primer token del string completo | ✅ 2026-10-17 | docstring precisa: el nivel sale de clasificar, la explicación describe el primer token (compuestos pueden nombrar un segmento inocente) | — |
 | A54 | — | `compaccion.validar_historial` promete “assistant previo” y solo valida el inmediatamente anterior | ✅ 2026-10-17 | docstring precisado | — |
 | A55 | — | Nombres de ejemplo en prosa (`archivo.py:10-20`) se tomaban como citas reales y disparaban corrección | ✅ 2026-10-17 | `_PLACEHOLDERS` excluye nombres de ejemplo | `test_citas_placeholder_no_cuentan` |
-| A56 | — | `run_tool_call` coercionaba a `str()` (dict → repr Python) sin documentarlo | ⏳ decisión (documentar) | hallazgo S10 | — |
-| A57 | — | `laya.preguntar_lote` / `_confianza`: docs imprecisos sobre degradación y fallback de confianza | ⏳ decisión (docs) | hallazgo S10 | — |
+| A56 | — | `run_tool_call` coercionaba a `str()` (dict → repr Python) sin documentarlo | ✅ 2026-10-17 | contrato de salida documentado (`str()`; tools deben devolver texto) | `test_run_tool_call_coerciona_el_retorno_a_str` |
+| A57 | — | `laya.preguntar_lote` / `_confianza`: docs imprecisos sobre degradación y fallback de confianza | ✅ 2026-10-17 | `preguntar_lote` propaga (degrada el llamador); `_confianza` aclara que el fallback es margen y no calibra | — |
+| A58 | — | `citas.extraer` contaba un archivo nombrado sin `:línea` como `:0` → falsos `linea_fuera` y correcciones innecesarias | ✅ 2026-10-17 | solo cuenta `archivo:línea` o rango; mención suelta no es cita | `test_mencionar_archivo_sin_linea_no_es_cita` |
+| A59 | — | `votacion.mayoria`: el doc decía “mitad entera por arriba”; el default es piso absoluto 2 | ✅ 2026-10-17 | doc corregido (piso absoluto, no proporcional) | `test_votacion_mayoria_piso_absoluto` |
+| A60 | — | `citas` marcaba `ok` una cita resuelta por nombre suelto sin avisar que sustituye el archivo | ✅ 2026-10-17 | flag `resuelto_por_nombre` + detalle en el reporte (se mantiene `ok` a propósito) | — |
+| A61 | — | `contexto.py` promete “mismo truncamiento y MISMO orden que la versión secuencial”; la secuencial no se contrastó | ⏳ abierto | hallazgo S11 no verificado | — |
 | X1 | — | Un test daba por bueno el recorte del prefiltro | ✅ 2026-10-15 | contrato corregido en `tests/test_memoria.py::test_memoria_prefiltro_actua` | `test_consolidacion.py` |
 | X2 | — | `rag_search` heredaba el recorte sin juicio | ✅ 2026-10-15 | misma `elegir_por_laya` | `test_consolidacion.py` |
 | X3 | — | La limpieza del banco puede salir del repo | ✅ 2026-10-16 | `banco.objetivo_scratch`: solo dentro de `RAIZ` | `test_pendientes.py` |

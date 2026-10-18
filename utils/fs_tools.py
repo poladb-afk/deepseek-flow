@@ -456,7 +456,11 @@ def run_tool_call(tool_call, extra_impls=None):
     implementaciones de los módulos. Antes de ejecutar corre los hooks
     pre-tool de HOOKS_PRE[tool] (denylist/guardas: pueden CANCELAR la
     ejecución devolviendo texto); tras la ejecución corre los post-tool de
-    HOOKS_POST[tool] para enriquecer el resultado."""
+    HOOKS_POST[tool] para enriquecer el resultado.
+
+    CONTRATO DE SALIDA (A56): el retorno de la implementación se COERCIONA a
+    `str()`. Las tools deben devolver texto; un dict queda con repr de Python
+    (`{'a': 1}`), no JSON. Los hooks POST reciben y devuelven strings."""
     # A27: la envoltura se valida ANTES de indexar. Indexar a ciegas dejaba
     # escapar un KeyError ('function'/'name'/'id') que rompía el lote entero;
     # ahora vuelve como error de tool, que es un dato para el modelo.
