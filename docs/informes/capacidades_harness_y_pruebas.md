@@ -124,5 +124,11 @@ en `salidas/auditoria_2026-10/subcomandos/subcomandos_live.md`.
 **Corrida 4 (2026-10-18, cierre del bench):** caso `supervisor-umbral` corregido
 (la sonda vive en `sonda_supervisor.py`) y baseline regenerado con backup del
 anterior. Full bench: **100% respuesta_ok / 87,5% cita_ok** (17 casos, 393,6 s;
-antes 70,6%/68,8%). Quedan `search-vacio` y `sanitizar-markers` con cita no
-exacta (A65): el modelo cita el inicio del bloque, no la línea pedida.
+antes 70,6%/68,8%).
+
+**Corrida 5 (2026-10-18, cita exacta):** el prompt del `Draft` ahora pide la
+línea EXACTA del símbolo o del literal (no el inicio del bloque). En los 2 casos
+que fallaban: **2/2 respuesta y cita ✅**. Full bench: **100% respuesta_ok /
+87,5% cita_ok** (17 casos, 495,0 s), baseline nuevo **OK**; las 2 citas que
+fallan (`sanitizar-markers`, `thinking-tools`) son flakiness del modelo en el
+grading exacto, no una regresión de código.

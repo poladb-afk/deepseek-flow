@@ -195,7 +195,12 @@ class Draft(Node):
             prompt += (
                 "\n\nContexto verificado de los archivos mencionados "
                 f"(contenido real; NO inventes nada que no esté acá):{contexto}"
-                "\nCita las fuentes en el formato ruta_absoluta:línea."
+                "\nCita las fuentes en el formato ruta_absoluta:línea. "
+                "Cuando cites una función, constante o setting, usá la línea "
+                "EXACTA donde aparece definido (no el inicio del bloque ni un "
+                "comentario cercano). Si el dato es un mensaje o valor literal, "
+                "citá la línea EXACTA donde aparece el literal (no la definición "
+                "de la función que lo devuelve)."
             )
         if feedback:
             prompt += (

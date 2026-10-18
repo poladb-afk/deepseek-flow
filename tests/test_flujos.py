@@ -688,3 +688,20 @@ def test_juez_draft_lee_simbolos_mas_alla_del_excerpt(tmp_path, monkeypatch):
     _, contexto, _, _ = juez.Draft().prep({"question": "¿Qué valor tiene TOKEN_CLAVE?"})
     assert "TOKEN_CLAVE" in contexto and "TOKEN_CLAVE = 42" in contexto
     assert "contexto de TOKEN_CLAVE" in contexto
+
+
+def test_juez_draft_pide_cita_exacta(monkeypatch):
+    """A65: el bench exige la línea exacta del símbolo; el prompt del Draft
+    ahora lo pide explícitamente (citaba el inicio del bloque)."""
+    import juez
+
+    visto = {}
+
+    def fake_llm(prompt):
+        visto["prompt"] = prompt
+        return "ok"
+
+    monkeypatch.setattr(juez, "call_llm", fake_llm)
+    juez.Draft().exec(("¿Qué hace sanitizar?", "contexto", None, None))
+    assert "línea EXACTA" in visto["prompt"]
+    assert "definido" in visto["prompt"]
