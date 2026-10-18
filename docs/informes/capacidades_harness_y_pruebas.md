@@ -112,3 +112,11 @@ y el informe `capacidades_chat_live.md` con el detalle por turno.
 presupuesto/continuación (`seguí`), memoria entre sesiones, thread persist/resume
 y HITL web aprobado por HTTP: **todas ✅**. Detalle y observaciones en
 `capacidades_chat_extra.md` (artefactos `live13/`, `live14/`, `live15/`).
+
+**Corrida 3 (2026-10-18, subcomandos):** los 17 subcomandos de la CLI
+ejecutados en vivo (deterministas + LLM + MCP con cliente real). El bench del
+juez destapó una regresión (70,6% vs 94,1%) por el excerpt fijo de 200 líneas
+ante archivos que crecieron: corregido con `_contexto_extra` (**A63**, gate
+**562**). El caso `supervisor-umbral` del banco quedó obsoleto (setting mudado
+a `sonda_supervisor.py`); baseline sin tocar para no esconder la señal. Detalle
+en `salidas/auditoria_2026-10/subcomandos/subcomandos_live.md`.

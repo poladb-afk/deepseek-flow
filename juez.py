@@ -28,6 +28,61 @@ MAX_CITAS = 5
 MAX_CTX_ARCHIVOS = 3
 
 
+def _contexto_extra(ruta, pregunta):
+    """Ventanas alrededor de identificadores de la pregunta que caen MÁS ALLÁ
+    de las primeras 200 líneas. El excerpt fijo de 200 era correcto cuando los
+    archivos eran chicos; al crecer (fs_tools 514, nodes 807) dejó afuera
+    `list_files`, `sanitizar`, `COMPACTION_CHARS` y friends → regresión del
+    bench del juez (70,6% vs 94,1% baseline). Código puro, best-effort."""
+    resolved, err = _resolve(str(ruta))
+    if err or resolved is None or not resolved.is_file():
+        return ""
+    try:
+        lineas = resolved.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    if len(lineas) <= 200:
+        return ""
+    tokens = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]{3,}", str(pregunta)))
+    ventanas, vistas = [], set()
+
+    def _agregar(i, etiqueta):
+        inicio, fin = max(1, i - 8), min(len(lineas), i + 8)
+        cuerpo = "\n".join(f"{n}: {lineas[n - 1]}" for n in range(inicio, fin + 1))
+        ventanas.append(f"(contexto de {etiqueta}: líneas {inicio}-{fin})\n{cuerpo}")
+        vistas.add(i)
+
+    for token in sorted(tokens):
+        if token.isupper() or "_" in token:
+            patron = re.compile(rf"\b{re.escape(token)}\b")
+        else:
+            patron = re.compile(
+                rf"(?:\bdef\s+{re.escape(token)}\b|\bclass\s+{re.escape(token)}\b|"
+                rf"\b{re.escape(token)}\b\s*=)")
+        for i, linea in enumerate(lineas[200:], start=201):
+            if patron.search(linea):
+                _agregar(i, token)
+                break
+        if len(ventanas) >= 6:
+            break
+    # Si la pregunta no nombra símbolos (p. ej. "¿qué tools trae el CORE?"),
+    # sumar las primeras definiciones después de la línea 200: son las
+    # candidatas naturales de la respuesta.
+    if len(ventanas) < 6:
+        for i, linea in enumerate(lineas[200:], start=201):
+            if i in vistas:
+                continue
+            if re.match(r"\s*(?:def|class)\s+[A-Za-z_]\w*", linea):
+                _agregar(i, "definición")
+            if len(ventanas) >= 6:
+                break
+    if not ventanas:
+        return ""
+    cabecera = (f"\n--- contexto adicional de {ruta} (símbolos después de la "
+                "línea 200; ESTAS líneas también son citables) ---")
+    return cabecera + "\n" + "\n".join(ventanas)
+
+
 def _archivos_de(texto):
     """Resuelve las rutas de archivo mencionadas en un texto (pregunta)."""
     rutas = []
@@ -130,6 +185,7 @@ class Draft(Node):
             frag = read_file(str(ruta), offset=1, limit=200)
             if not frag.startswith("ERROR"):
                 contexto += f"\n--- {ruta} ---\n{frag}\n"
+                contexto += _contexto_extra(ruta, shared["question"])
         return shared["question"], contexto, shared.get("feedback"), shared.get("draft")
 
     def exec(self, inputs):

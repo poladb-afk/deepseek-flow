@@ -671,3 +671,20 @@ def test_votacion_mayoria_piso_absoluto():
 
     assert mayoria(["sql", "sql", "b", "c", "d"]) == "sql"
     assert mayoria(["sql", "b", "c", "d", "e"], desempate="sql") == "sql"
+
+
+def test_juez_draft_lee_simbolos_mas_alla_del_excerpt(tmp_path, monkeypatch):
+    """A63: los archivos crecieron (fs_tools 514 líneas) y el excerpt fijo de
+    200 dejó afuera símbolos que el bench pide; el contexto dirigido los
+    agrega sin duplicar todo el archivo."""
+    import juez
+
+    grande = tmp_path / "grande.py"
+    lineas = ["x = 0"] * 240 + ["TOKEN_CLAVE = 42", "resto = 1"] + ["y = 0"] * 20
+    grande.write_text("\n".join(lineas), encoding="utf-8")
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.setattr(juez, "_archivos_de", lambda q: [grande])
+
+    _, contexto, _, _ = juez.Draft().prep({"question": "¿Qué valor tiene TOKEN_CLAVE?"})
+    assert "TOKEN_CLAVE" in contexto and "TOKEN_CLAVE = 42" in contexto
+    assert "contexto de TOKEN_CLAVE" in contexto
