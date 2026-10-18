@@ -705,3 +705,28 @@ def test_juez_draft_pide_cita_exacta(monkeypatch):
     juez.Draft().exec(("¿Qué hace sanitizar?", "contexto", None, None))
     assert "línea EXACTA" in visto["prompt"]
     assert "definido" in visto["prompt"]
+
+
+def test_juez_ancla_citas_a_literal_y_simbolo(tmp_path, monkeypatch):
+    """A65 flaky: si la cita apunta a la definición pero el dato está en un
+    literal o en otra línea cercana, se re-ancla a la línea que lo contiene."""
+    import juez
+
+    archivo = tmp_path / "m.py"
+    lineas = [
+        "# comentario",
+        "def search_files(query=None):",
+        "    ...",
+        "    return \"ERROR: indica qué buscar: query\"",
+        "",
+        "def sanitizar(texto):",
+        "    return texto",
+    ]
+    archivo.write_text("\n".join(lineas), encoding="utf-8")
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+
+    draft = (f"Devuelve `ERROR: indica qué buscar` (en {archivo}:2).\n"
+             f"**sanitizar** corta marcadores (en {archivo}:7).")
+    nuevo = juez._anclar_citas(draft)
+    assert f"{archivo}:4" in nuevo
+    assert f"{archivo}:6" in nuevo

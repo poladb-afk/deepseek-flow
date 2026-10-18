@@ -132,3 +132,11 @@ que fallaban: **2/2 respuesta y cita ✅**. Full bench: **100% respuesta_ok /
 87,5% cita_ok** (17 casos, 495,0 s), baseline nuevo **OK**; las 2 citas que
 fallan (`sanitizar-markers`, `thinking-tools`) son flakiness del modelo en el
 grading exacto, no una regresión de código.
+
+**Corrida 6 (2026-10-18, anclaje determinista):** `juez._anclar_citas` re-ancla
+una cita a la línea cercana (±30) que contiene el literal/negrita/símbolo del
+párrafo. Full bench: **100% respuesta / 87,5% cita** otra vez, pero **los fallos
+rotan** (`a2a-protocolo`, `trampa-pdf-filesapi`): citan `:5` o la descripción en
+vez de la implementación. Conclusión: el techo de 87,5% es flakiness del
+grading por línea exacta, no una regresión; para subirlo hay que aceptar
+grading por ventana (A65 sigue parcial).

@@ -12,6 +12,7 @@ autoacota).
 Uso: python3 main.py juez "pregunta" [--rondas N]
 """
 import argparse
+import contextlib
 import re
 
 from pocketflow import Flow, Node
@@ -453,6 +454,67 @@ def create_juez_flow():
     return Flow(start=draft)
 
 
+ANCLA_RE = re.compile(r"`([^`\n]{3,100})`|\*\*([^*\n]{3,100})\*\*|\"([^\"\n]{3,100})\"")
+ID_ANCLA_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]{3,}\b")
+
+
+def _anclas_de(texto):
+    """Literales/negritas entrecomillados + identificadores con pinta de código,
+    para re-anclar una cita a la línea que realmente contiene el dato."""
+    anclas = []
+    for m in ANCLA_RE.finditer(texto):
+        anclas.append(next(g for g in m.groups() if g))
+    for tok in ID_ANCLA_RE.findall(texto):
+        if "_" in tok or (tok.isupper() and len(tok) >= 4):
+            anclas.append(tok)
+    return [a.strip() for a in dict.fromkeys(anclas) if len(a.strip()) >= 3]
+
+
+def _anclar_citas(texto):
+    """Ajusta una cita archivo:línea a la línea cercana que contiene un ancla
+    del párrafo (literal, negrita o símbolo). No inventa: solo se mueve si el
+    ancla aparece dentro de ±30 líneas; si no, deja la cita como está.
+
+    Medido en el bench: el modelo citaba el `def` de una función cuando el
+    dato estaba en su cuerpo o en un mensaje literal (A65 flaky)."""
+    if not texto or not isinstance(texto, str):
+        return texto
+    lineas = texto.splitlines()
+    for i, linea in enumerate(lineas):
+        for m in list(CITA_RE.finditer(linea)):
+            ruta, num = m.group(1), int(m.group(2))
+            resolved, err = _resolve(ruta)
+            if err or resolved is None or not resolved.is_file():
+                continue
+            try:
+                contenido = resolved.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            if num < 1 or num > len(contenido):
+                continue
+            parrafo = " ".join(lineas[max(0, i - 2): i + 1])
+            anclas = _anclas_de(parrafo)
+            if not anclas:
+                continue
+
+            def _contiene(k, _contenido=contenido, _anclas=anclas):
+                return any(a.lower() in _contenido[k - 1].lower() for a in _anclas)
+
+            if _contiene(num):
+                continue
+            mejor = None
+            for delta in range(1, 31):
+                for k in (num - delta, num + delta):
+                    if 1 <= k <= len(contenido) and _contiene(k):
+                        mejor = k
+                        break
+                if mejor is not None:
+                    break
+            if mejor is not None:
+                lineas[i] = lineas[i].replace(f"{ruta}:{num}", f"{ruta}:{mejor}", 1)
+    return "\n".join(lineas)
+
+
 def responder_con_juez(pregunta, rondas=JUEZ_ROUNDS):
     shared = {"question": pregunta, "max_rounds": rondas}
     try:
@@ -469,7 +531,10 @@ def responder_con_juez(pregunta, rondas=JUEZ_ROUNDS):
             "el juez no pudo emitir un veredicto legible; se entrega el "
             "borrador sin veredicto."
         )
-    return shared["draft"], shared.get("advertencia")
+    draft = shared.get("draft") or ""
+    with contextlib.suppress(Exception):
+        draft = _anclar_citas(draft)
+    return draft, shared.get("advertencia")
 
 
 def main(argv=None):
