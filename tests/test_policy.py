@@ -499,3 +499,14 @@ def test_explicar_pytest_admite_que_ejecuta_codigo():
     texto = explicar("pytest -q")
     assert "conftest" in texto and "cach" in texto
     assert "solo lee" not in texto
+
+
+def test_policy_2and1_se_descarta_como_token_no_substring():
+    """A44: el doc dice que se descarta el TOKEN 2>&1; antes se borraba la
+    substring en cualquier posición (incluso dentro de un argumento). Ahora
+    solo se quita el token exacto y un > escondido en un argumento degrada."""
+    from utils.policy import clasificar
+
+    assert clasificar("ls 2>&1") == "auto"
+    assert clasificar("ls 2>&1 | grep x") == "auto"
+    assert clasificar("grep 'x2>&1y' README.md") == "preguntar"

@@ -13,31 +13,37 @@ from pathlib import Path
 from utils.fs_tools import _resolve
 
 CITAS_RE = re.compile(
-    r"(?P<path>[A-Za-z0-9_./~-]+\.(?:py|md|toml|txt|json|yaml|yml))(?::(?P<line>\d+))"
+    r"(?P<path>[A-Za-z0-9_./~-]+\.(?:py|md|toml|txt|json|yaml|yml))"
+    r"(?::(?P<line>\d+)(?:-(?P<line2>\d+))?)?"
 )
 MAX_DETALLE = 160
+# Nombres de ejemplo en prosa (archivo.py:10-20): no son citas reales.
+_PLACEHOLDERS = {"archivo.py", "archivo.md", "file.py", "ruta.py",
+                 "ejemplo.py", "path.py", "foo.py", "bar.py"}
 
 
 def extraer(texto):
-    """[(path, linea)] únicos y en orden de aparición."""
+    """[(path, linea, linea2|None)] únicos y en orden de aparición.
+
+    Los rangos N-M se conservan (antes se truncaban al primer número y se
+    validaba como si el rango completo estuviera chequeado; A52)."""
     vistos = set()
     out = []
     for m in CITAS_RE.finditer(texto or ""):
         path = m.group("path").strip("'\"()[]<>.,;").replace(chr(96), "")
+        if Path(path).name in _PLACEHOLDERS:
+            continue
         try:
-            linea = int(m.group("line"))
+            linea = int(m.group("line") or 0)
         except ValueError:
             continue
-        clave = (path, linea)
+        linea2 = int(m.group("line2")) if m.group("line2") else None
+        clave = (path, linea, linea2)
         if clave in vistos:
             continue
         vistos.add(clave)
         out.append(clave)
     return out
-
-
-_EXCLUIR = {".git", ".venv", "__pycache__", "salidas", ".runs", "mutants",
-            "node_modules", ".modelos", ".pytest_cache", ".ruff_cache"}
 
 
 def _por_nombre_suelto(nombre):
@@ -60,38 +66,53 @@ def _por_nombre_suelto(nombre):
     return candidatos[0] if len(candidatos) == 1 else None
 
 
+_EXCLUIR = {".git", ".venv", "__pycache__", "salidas", ".runs", "mutants",
+            "node_modules", ".modelos", ".pytest_cache", ".ruff_cache"}
+
+
 def verificar_citas(texto):
     """Verifica cada cita contra el disco. Nunca lanza: un fallo de lectura
-    queda como estado, no corta la respuesta."""
+    queda como estado, no corta la respuesta. Un rango N-M se valida en sus
+    dos extremos (A52)."""
     citas = []
-    for path, linea in extraer(texto):
+    for path, linea, linea2 in extraer(texto):
         resolved, err = _resolve(path)
         if (err or resolved is None or not resolved.is_file()) and "/" not in path:
             alterno = _por_nombre_suelto(path)
             if alterno is not None:
                 resolved, err = alterno, None
         if err or resolved is None:
-            citas.append({"path": path, "linea": linea, "estado": "fuera",
+            citas.append({"path": path, "linea": linea, "linea2": linea2,
+                          "estado": "fuera",
                           "detalle": (err or "fuera de raíces")[:MAX_DETALLE]})
             continue
         if not resolved.is_file():
-            citas.append({"path": path, "linea": linea, "estado": "no_existe",
-                          "detalle": "el archivo no existe"})
+            citas.append({"path": path, "linea": linea, "linea2": linea2,
+                          "estado": "no_existe", "detalle": "el archivo no existe"})
             continue
         try:
             lineas = resolved.read_text(encoding="utf-8", errors="replace").splitlines()
         except OSError as exc:
-            citas.append({"path": path, "linea": linea, "estado": "error_lectura",
-                          "detalle": type(exc).__name__})
+            citas.append({"path": path, "linea": linea, "linea2": linea2,
+                          "estado": "error_lectura", "detalle": type(exc).__name__})
             continue
-        if linea < 1 or linea > len(lineas):
-            citas.append({"path": path, "linea": linea, "estado": "linea_fuera",
-                          "detalle": f"el archivo tiene {len(lineas)} líneas"})
+        fin = linea2 if linea2 is not None else linea
+        if linea < 1 or fin > len(lineas) or fin < linea:
+            citas.append({"path": path, "linea": linea, "linea2": linea2,
+                          "estado": "linea_fuera",
+                          "detalle": f"rango {linea}-{fin}; el archivo tiene {len(lineas)} líneas"})
             continue
-        citas.append({"path": path, "linea": linea, "estado": "ok",
-                      "detalle": lineas[linea - 1].strip()[:MAX_DETALLE] or "(línea vacía)"})
+        texto_linea = lineas[linea - 1].strip()
+        if linea2 is not None:
+            texto_linea += " … " + lineas[linea2 - 1].strip()
+        citas.append({"path": path, "linea": linea, "linea2": linea2, "estado": "ok",
+                      "detalle": texto_linea[:MAX_DETALLE] or "(línea vacía)"})
     mal = [c for c in citas if c["estado"] != "ok"]
     return {"citas": citas, "total": len(citas), "ok": len(citas) - len(mal), "mal": mal}
+
+
+def _etiqueta(c):
+    return f"{c['path']}:{c['linea']}" + (f"-{c['linea2']}" if c.get("linea2") else "")
 
 
 def reporte(resultado, solo_mal=True):
@@ -101,5 +122,5 @@ def reporte(resultado, solo_mal=True):
         return ""
     lineas = [f"[citas] {resultado['ok']}/{resultado['total']} verificadas contra el disco:"]
     for c in seleccion:
-        lineas.append(f"- {c['path']}:{c['linea']} -> {c['estado']} ({c['detalle']})")
+        lineas.append(f"- {_etiqueta(c)} -> {c['estado']} ({c['detalle']})")
     return "\n".join(lineas)

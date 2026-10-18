@@ -62,7 +62,13 @@ lleva el motivo o el PR que lo cierra. Si algo se cierra sin test, se dice expl�
 | A41 | — | `corte_no_progreso` se registraba como tool ok: inflaba métricas de tools | ✅ 2026-10-17 | `utils/tracing.evento_politica` + uso en `nodes.AgentStep.prep` (accion="politica") | `test_evento_politica_no_se_confunde_con_tool` |
 | A42 | — | El resumen de sesión contaba mensajes sintéticos (prefetch/compacción) como preguntas del usuario | ✅ 2026-10-17 | `main._preguntas_reales` excluye `PREFIJO_PREFETCH` y `PREFIJO_COMPACCION` | `test_preguntas_reales_ignora_prefetch_y_compaccion` |
 | A43 | — | Doc `laya_routing` decía "en force" y el modo se llama `enforce` | ✅ 2026-10-17 | `utils/laya_routing.py:219` | — |
-| A44 | — | `policy` descarta `2>&1` como substring del comando, no como token (el doc dice token) | ⏳ decisión | hallazgo S6 verificado; impacto de clasificación, no de ejecución | — |
+| A44 | — | `policy` descartaba `2>&1` como substring del comando, no como token (el doc dice token) | ✅ 2026-10-17 | `_sin_dup_stderr`: solo el token exacto; lo pegado a un argumento degrada por prudencia | `test_policy_2and1_se_descarta_como_token_no_substring` |
+| A52 | — | `citas.extraer` truncaba rangos `N-M` al primer número y validaba como si el rango entero existiera | ✅ 2026-10-17 | `CITAS_RE` captura `line2` y `verificar_citas` valida ambos extremos | `test_verificar_citas_rango` |
+| A53 | — | `policy.explicar` decía “la misma política que clasificar”; la explicación usa el primer token del string completo | ✅ 2026-10-17 | docstring precisa: el nivel sale de clasificar, la explicación describe el primer token (compuestos pueden nombrar un segmento inocente) | — |
+| A54 | — | `compaccion.validar_historial` promete “assistant previo” y solo valida el inmediatamente anterior | ✅ 2026-10-17 | docstring precisado | — |
+| A55 | — | Nombres de ejemplo en prosa (`archivo.py:10-20`) se tomaban como citas reales y disparaban corrección | ✅ 2026-10-17 | `_PLACEHOLDERS` excluye nombres de ejemplo | `test_citas_placeholder_no_cuentan` |
+| A56 | — | `run_tool_call` coercionaba a `str()` (dict → repr Python) sin documentarlo | ⏳ decisión (documentar) | hallazgo S10 | — |
+| A57 | — | `laya.preguntar_lote` / `_confianza`: docs imprecisos sobre degradación y fallback de confianza | ⏳ decisión (docs) | hallazgo S10 | — |
 | X1 | — | Un test daba por bueno el recorte del prefiltro | ✅ 2026-10-15 | contrato corregido en `tests/test_memoria.py::test_memoria_prefiltro_actua` | `test_consolidacion.py` |
 | X2 | — | `rag_search` heredaba el recorte sin juicio | ✅ 2026-10-15 | misma `elegir_por_laya` | `test_consolidacion.py` |
 | X3 | — | La limpieza del banco puede salir del repo | ✅ 2026-10-16 | `banco.objetivo_scratch`: solo dentro de `RAIZ` | `test_pendientes.py` |

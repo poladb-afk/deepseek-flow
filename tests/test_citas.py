@@ -20,7 +20,7 @@ def test_extraer_deduplica_y_limpia_markdown(tmp_path):
     from utils.citas import extraer
 
     texto = "ver utils/a.py:3 y de nuevo utils/a.py:3; y tests/b.py:10."
-    assert extraer(texto) == [("utils/a.py", 3), ("tests/b.py", 10)]
+    assert extraer(texto) == [("utils/a.py", 3, None), ("tests/b.py", 10, None)]
 
 
 def test_cita_por_nombre_suelto_unico():
@@ -31,3 +31,27 @@ def test_cita_por_nombre_suelto_unico():
 
     r = verificar_citas("ver tracing.py:1")
     assert r["ok"] == 1 and r["citas"][0]["estado"] == "ok"
+
+
+def test_verificar_citas_rango(tmp_path, monkeypatch):
+    """A52: un rango N-M se valida en sus DOS extremos (antes se truncaba al
+    primer número y se reportaba ok como si el rango completo existiera)."""
+    from utils.citas import reporte, verificar_citas
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    codigo = tmp_path / "codigo.py"
+    codigo.write_text("uno\ndos\ntres\ncuatro\n", encoding="utf-8")
+
+    r = verificar_citas(f"{codigo}:2-3")
+    assert r["ok"] == 1 and r["citas"][0]["linea2"] == 3
+    r = verificar_citas(f"{codigo}:3-9")
+    assert r["ok"] == 0 and r["citas"][0]["estado"] == "linea_fuera"
+    assert "3-9" in reporte(r)
+
+
+def test_citas_placeholder_no_cuentan():
+    """Nombres de ejemplo en prosa (archivo.py:10-20) no son citas reales:
+    no deben disparar correcciones (medido en S10)."""
+    from utils.citas import extraer
+
+    assert extraer("por ejemplo archivo.py:10-20") == []

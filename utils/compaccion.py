@@ -19,7 +19,9 @@ ver utils/call_llm.py):
 2. Dicts canónicos (solo role/content/tool_calls/tool_call_id).
 3. Ningún assistant con `tool_calls` sin sus `tool` inmediatas después.
 4. Primer mensaje = system.
-5. Ningún `tool` huérfano: responde a un tool_call del assistant previo.
+5. Ningún `tool` huérfano: responde al tool_call del assistant
+   INMEDIATAMENTE anterior (la implementación solo verifica eso: un tool que
+   responda a un assistant más viejo también se marca huérfano).
 
 `validar_historial` verifica los cinco. Se corre en los tests ANTES y
 DESPUÉS de compactar: compactar jamás puede romper un historial válido.

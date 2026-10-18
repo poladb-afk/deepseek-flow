@@ -130,6 +130,14 @@ _FLAGS_PELIGROSOS = {
 
 
 
+def _sin_dup_stderr(segmento):
+    """Quita SOLO el token exacto `2>&1` (el doc dice token, no substring):
+    duplicar stderr al stdout ya capturado es lectura de descriptor. Un `2>&1`
+    pegado a otro texto (p. ej. dentro de un argumento) NO se toca: sigue
+    viéndose el `>` y el compuesto degrada por prudencia (A44)."""
+    return re.sub(r"(?:(?<=\s)|^)2>&1(?=\s|$)", "", segmento)
+
+
 def _tokens(segmento):
     """Tokens del segmento, sin espacios vacíos. No interpretamos quoting:
     el prefijo se compara literal (conservador — cualquier rareza que
@@ -153,7 +161,7 @@ def _segmento_es_auto(segmento):
     # escritura: toda redirección REAL conserva su carácter cazable —
     # `> f` queda, `2> f` queda, `2>&1 > f` queda como `> f`, `> f 2>&1`
     # queda como `> f`. Se descarta ANTES del escaneo de peligro.
-    segmento = segmento.replace("2>&1", "")
+    segmento = _sin_dup_stderr(segmento)
     # Redirección / sustitución / xargs: nunca auto, ni siquiera para echo.
     if _PELIGRO_SHELL.search(segmento):
         return False
@@ -211,7 +219,7 @@ def clasificar(comando):
     # el shell ejecuta los tres, ver docstring).
     # `2>&1` primero: su `&` no es un separador (sin esto el split lo
     # partiría en "2>" y "1" y la redirección falsa degradaría todo).
-    segmentos = _SEPARADORES.split(comando.replace("2>&1", ""))
+    segmentos = _SEPARADORES.split(_sin_dup_stderr(comando))
 
     # 1) La negra manda: si CUALQUIER segmento pide doble o preguntar, ese
     #    es el piso del compuesto (tomamos el nivel más alto encontrado).
@@ -281,8 +289,10 @@ _LECTURA = (
 
 def explicar(comando):
     """Explicación corta (una línea) de por qué `comando` tiene el nivel que
-    tiene. Determinista y sin LLM: la misma política que `clasificar`. Si el
-    comando no matchea ningún patrón conocido, describe el nivel por defecto."""
+    tiene. El NIVEL sale de `clasificar` (misma política, composición incluida);
+    la EXPLICACIÓN describe el primer token del comando entero, así que en un
+    compuesto puede nombrar un segmento inocente (p. ej. `ls && rm -rf /`
+    explica "lista un directorio" aunque el nivel sea confirmar_doble)."""
     if comando is None or not str(comando).strip():
         return "comando vacío o inválido → se pide aprobación (default seguro)"
     comando = str(comando).strip()
