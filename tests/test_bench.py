@@ -609,3 +609,28 @@ def test_bench_cita_ok_ventana_de_grading(tmp_path):
     assert bj.cita_ok(f"según {fixture}:10 eso", caso) is True   # ±10
     assert bj.cita_ok(f"según {fixture}:9 eso", caso) is False   # ±11
     assert bj.cita_ok(f"según {fixture}:20 eso", caso) is True   # exacta
+
+
+def test_bench_cita_ok_no_confunde_sufijos(tmp_path):
+    """Revisión del último commit (harness): `endswith` aceptaba
+    `otro_modulo.py` como si fuera `modulo.py`. La frontera de path lo corta."""
+    import bench_juez as bj
+
+    esperado = tmp_path / "modulo.py"
+    esperado.write_text("uno\nla clave es OLLAMA\n", encoding="utf-8")
+    otro = tmp_path / "otro_modulo.py"
+    otro.write_text("uno\nla clave es OLLAMA\n", encoding="utf-8")
+    caso = {"cita_archivo": "modulo.py", "cita_contiene": ["ollama"]}
+
+    assert bj.cita_ok(f"según {esperado}:2", caso) is True
+    assert bj.cita_ok(f"según {otro}:2", caso) is False
+
+
+def test_banco_casos_con_cita_tienen_token():
+    """A65/revisión: un caso con cita_archivo y cita_contiene vacío daría
+    cita_ok=True ante cualquier cita (falso positivo silencioso)."""
+    import bench_juez as bj
+
+    for caso in bj.cargar_casos():
+        if caso.get("cita_archivo"):
+            assert caso.get("cita_contiene"), f"caso sin token: {caso.get('id')}"

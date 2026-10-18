@@ -99,8 +99,14 @@ def cita_ok(texto, caso):
     if not esperado:
         return None
     tokens = [t.lower() for t in caso.get("cita_contiene", [])]
+    def _misma_ruta(ruta):
+        # Frontera de path: "supervisor.py" NO debe matchear
+        # "sonda_supervisor.py" (colisión de sufijo detectada en la revisión
+        # del último commit por el propio harness).
+        return ruta == esperado or ruta.endswith("/" + esperado)
+
     for ruta, numero in CITA_RE.findall(texto or ""):
-        if not ruta.endswith(esperado):
+        if not _misma_ruta(ruta):
             continue
         linea = _ventana_de(ruta, int(numero))
         if linea is None:
