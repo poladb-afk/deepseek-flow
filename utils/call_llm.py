@@ -153,7 +153,11 @@ def _kwargs_agente(messages, tools=None):
     (preservar reasoning_content en el historial) habilitaría razonar en
     las rondas de tools al costo de reenviar el reasoning en cada vuelta.
     Conversación limpia va con thinking normal (correr directo en
-    disabled midió descarrilos: prompts ajenos, tags que parten palabras)."""
+    disabled midió descarrilos: prompts ajenos, tags que parten palabras).
+
+    RESUMEN OPERATIVO: como este cliente NUNCA preserva reasoning_content,
+    toda llamada con tools o con historial agéntico viaja con thinking
+    DISABLED; no existe acá una combinación tools+thinking activa."""
     # el reasoning_content del modo thinking no viaja (parte del mismo
     # contrato de consistencia de modo)
     limpio = [
@@ -189,9 +193,10 @@ def call_llm_agent_stream(messages, tools=None):
     Al terminar devuelve un objeto con la forma que usa hoy el chat:
     .content completo ensamblado y .tool_calls reconstruidos desde los
     fragmentos del stream (llegan partidos con index; id y function.name
-    solo en el primer fragmento de cada llamada, function.arguments se
-    acumula por concatenación). Si el stream se corta a mitad, devuelve lo
-    acumulado sin explotar.
+    suelen venir en el primer fragmento, function.arguments se acumula por
+    concatenación). Devuelve .content=None si no hubo deltas y .tool_calls=None
+    si no hubo tool calls. Si el stream se corta a mitad, devuelve lo
+    acumulado sin explotar y DESCARTA las tool_calls (argumentos truncados).
 
     Interrupción del usuario (roadmap ítem 6): si el usuario aprieta Ctrl+C
     MIENTRAS se genera, con CHAT_STREAM_INTERRUPT=1 (default) se corta el
@@ -221,7 +226,9 @@ def call_llm_agent_stream(messages, tools=None):
                 acumulado = por_indice.setdefault(
                     idx, {"id": None, "name": None, "arguments": ""})
                 if getattr(frag, "id", None):
-                    acumulado["id"] = frag.id  # solo el primer fragmento lo trae
+                    # el primero suele traerlo; si otro lo repite, se pisa
+                    # (el código no asume "solo el primero")
+                    acumulado["id"] = frag.id
                 funcion = getattr(frag, "function", None)
                 if funcion is not None:
                     if getattr(funcion, "name", None):

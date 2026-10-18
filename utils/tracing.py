@@ -37,7 +37,8 @@ def evento_tool(nombre, ok, seg, codigo=None):
 
     `codigo` es un discriminador CORTO y sin contenido (p. ej. `ERROR:TypeError`,
     `RECHAZADO`, `exit_1`): permite agrupar causas sin guardar texto del error
-    (F4: la traza no podía atribuir causas)."""
+    (F4: la traza no podía atribuir causas). CONTRATO SOCIAL: lo arma el
+    llamador; tracing NO valida que sea corto ni que no traiga contenido."""
     evento = {
         "ts": round(time.time(), 3),
         "nodo": nombre,
@@ -50,8 +51,10 @@ def evento_tool(nombre, ok, seg, codigo=None):
 
 
 def evento_hitl(tipo, nivel, decision, seg=0.0):
-    """Decisión HITL compacta (SIN contenido): tipo, nivel, decisión, segundos.
-    Da tasa de fricción/ rechazo medible sin persistir lo que se aprobó (F4)."""
+    """Decisión HITL compacta (SIN contenido): tipo, nivel y decisión.
+    `seg` es opcional y hoy el chat pasa 0 (no mide latencia HITL): el campo
+    existe por compatibilidad con el esquema de traza, NO como medición.
+    Da tasa de fricción/rechazo medible sin persistir lo que se aprobó (F4)."""
     _escribir(
         {
             "ts": round(time.time(), 3),
@@ -67,7 +70,9 @@ def evento_politica(nombre, detalle=""):
     """Evento de POLÍTICA del loop (no es una tool ejecutada): accion propia
     para que el tablero/minería no lo cuenten como un éxito de tool. Medido en
     vivo: el corte por no-progreso se registraba como ok y sumaba un éxito
-    fantasma (auditoría de sesión real)."""
+    fantasma (auditoría de sesión real). Nota de esquema: `nodo` es la clave
+    genérica de la traza (acá lleva el nombre de la política) y `seg=0` porque
+    no hay duración de tool que medir."""
     _escribir(
         {
             "ts": round(time.time(), 3),
@@ -84,8 +89,10 @@ def thread_id():
 
     Si el tracing ya está activo, reusa el MISMO stem del archivo de `.runs`
     (el thread y su trace quedan correlacionados por nombre). Si no, cae al
-    patrón `f"{datetime:%Y%m%d_%H%M%S}_{pid}"`, el mismo que usa `activar`
-    (así el thread es estable aunque el tracing esté apagado)."""
+    MISMO FORMATO `f"{datetime:%Y%m%d_%H%M%S}_{pid}"` que usa `activar`, pero
+    NO al mismo valor: el timestamp se toma en esta llamada y `activar()`
+    resetea el id al planificar su archivo. Llamá `activar()` antes si
+    necesitás que thread_id coincida con el stem del trace."""
     global _id_thread
     if _id_thread is not None:
         return _id_thread
