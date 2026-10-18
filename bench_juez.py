@@ -57,22 +57,28 @@ def respuesta_ok(texto, caso):
     return not (alguno and not any(t.lower() in low for t in alguno))
 
 
-def _linea_de(ruta, numero):
-    """Contenido real de la VENTANA de 2 líneas que empieza en `numero`
-    (líneas `numero` y `numero+1`), o None si la ruta no es un archivo legible
-    o `numero` cae más allá del EOF.
+VENTANA_GRADING = 10  # tolerancia de líneas alrededor de la cita (drift del modelo)
 
-    La ventana es a propósito: es la MISMA que lee la verificación de
-    producción (`juez.Judge.prep`: `read_file(path, offset=n, limit=2)`), y el
-    bench no debe ser más estricto que el contrato que mide. La línea
-    siguiente a `numero` cuenta; beyond-EOF sigue siendo None."""
+
+def _ventana_de(ruta, numero):
+    """Contenido real de la ventana `numero ± VENTANA_GRADING`, o None si la
+    ruta no es un archivo legible o `numero` cae más allá del EOF.
+
+    La ventana es una DECISIÓN DE GRADING (2026-10-18): el bench mide si la
+    cita está CERCA de la evidencia, no si el número es exacto. Antes era de
+    2 líneas (n y n+1) replicando producción; el modelo real cita el `def` en
+    vez del cuerpo o abrevia (`:N`), y eso hacía rotar los fallos sin que la
+    respuesta fuese incorrecta. La tolerancia sigue siendo acotada: una cita
+    en otra zona del archivo (o en otro archivo) no cuenta."""
     try:
         lineas = Path(ruta).read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
         return None
     if not (1 <= numero <= len(lineas)):
         return None
-    return "\n".join(lineas[numero - 1:numero + 1])
+    inicio = max(1, numero - VENTANA_GRADING)
+    fin = min(len(lineas), numero + VENTANA_GRADING)
+    return "\n".join(lineas[inicio - 1:fin])
 
 
 def cita_ok(texto, caso):
@@ -81,14 +87,14 @@ def cita_ok(texto, caso):
 
     None si el caso no pide cita (`cita_archivo` ausente). Si pide: True si
     alguna cita del texto apunta a una ruta que termina en `cita_archivo` y
-    cuya VENTANA de 2 líneas —LEÍDA DEL DISCO empezando en ese número—
-    contiene (case-insensitive) al menos un `cita_contiene`; False en
-    cualquier otro caso (incluida una cita a línea inexistente).
+    la evidencia (`cita_contiene`) aparece dentro de ±VENTANA_GRADING líneas
+    de la cita; False en cualquier otro caso (incluida una cita a línea
+    inexistente o a otra zona del archivo).
 
-    La ventana (líneas n y n+1) replica `juez.Judge.prep`, que verifica con
-    `read_file(offset=n, limit=2)`: un rango citado como `ruta:89-93` con el
-    token en la línea 90 verifica en producción, así que el bench también lo
-    cuenta como verificado."""
+    El grading pasó de ventana de 2 (n, n+1; réplica de `juez.Judge.prep`) a
+    ±10 líneas (A65): la cita exacta resultó flaky y los fallos rotaban entre
+    casos con respuestas correctas. El cambio está versionado en este módulo y
+    el baseline se regenera después; no se toca la lógica de producción."""
     esperado = caso.get("cita_archivo")
     if not esperado:
         return None
@@ -96,7 +102,7 @@ def cita_ok(texto, caso):
     for ruta, numero in CITA_RE.findall(texto or ""):
         if not ruta.endswith(esperado):
             continue
-        linea = _linea_de(ruta, int(numero))
+        linea = _ventana_de(ruta, int(numero))
         if linea is None:
             continue
         if not tokens or any(t in linea.lower() for t in tokens):

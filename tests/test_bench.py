@@ -593,3 +593,19 @@ def test_bench_supervisor_generar_escribe_md_y_jsonl(tmp_path):
     filas = [_json.loads(linea) for linea in jsonl.read_text(encoding="utf-8").splitlines()]
     assert len(filas) == 12  # 6 tareas × 2 vías
     assert _baseline() == antes, "generar() sin --actualizar-baseline tocó el baseline real"
+
+
+def test_bench_cita_ok_ventana_de_grading(tmp_path):
+    """A65: el grading ahora tolera ±VENTANA_GRADING líneas (drift del
+    modelo): cita a 10 líneas de la evidencia → True; a 11 → False."""
+    import bench_juez as bj
+
+    fixture = tmp_path / "modulo.py"
+    lineas = [f"linea {i}" for i in range(1, 41)]
+    lineas[19] = "la clave es OLLAMA"  # línea 20
+    fixture.write_text("\n".join(lineas), encoding="utf-8")
+    caso = {"cita_archivo": "modulo.py", "cita_contiene": ["ollama"]}
+
+    assert bj.cita_ok(f"según {fixture}:10 eso", caso) is True   # ±10
+    assert bj.cita_ok(f"según {fixture}:9 eso", caso) is False   # ±11
+    assert bj.cita_ok(f"según {fixture}:20 eso", caso) is True   # exacta

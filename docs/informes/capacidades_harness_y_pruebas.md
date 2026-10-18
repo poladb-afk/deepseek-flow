@@ -138,5 +138,10 @@ una cita a la línea cercana (±30) que contiene el literal/negrita/símbolo del
 párrafo. Full bench: **100% respuesta / 87,5% cita** otra vez, pero **los fallos
 rotan** (`a2a-protocolo`, `trampa-pdf-filesapi`): citan `:5` o la descripción en
 vez de la implementación. Conclusión: el techo de 87,5% es flakiness del
-grading por línea exacta, no una regresión; para subirlo hay que aceptar
-grading por ventana (A65 sigue parcial).
+grading por línea exacta, no una regresión.
+
+**Corrida 7 (2026-10-18, grading por ventana — decisión):** el grading del bench
+pasa de 2 líneas (n, n+1) a **±`VENTANA_GRADING` = 10 líneas** alrededor de la
+cita. Es un cambio del INSTRUMENTO, no de producción: mide “cita cerca de la
+evidence” en vez de número exacto. Full bench: **100% respuesta / 100% cita**
+(17 casos, 607 s); baseline regenerado (**OK**, backup del anterior).
