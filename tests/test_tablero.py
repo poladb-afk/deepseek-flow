@@ -26,3 +26,23 @@ def test_tablero_genera_reporte(tmp_path):
     assert data["tools"]["errores"] == 1
     assert data["hitl"]["rechazados"] == 1
     assert data["causas"] == {"ERROR:ruta": 1}
+
+
+def test_politica_no_cuenta_como_tool(tmp_path):
+    """A71: un evento de política (corte por no-progreso) no es una tool:
+    no suma a tools.eventos/errores y sí a cortes_no_progreso."""
+    import tablero
+
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    lineas = [
+        {"ts": 1, "nodo": "corte_no_progreso", "accion": "politica", "seg": 0.0},
+        {"ts": 2, "nodo": "read_file", "accion": "ok", "seg": 0.1},
+    ]
+    (runs / "20260101_000000_1.jsonl").write_text(
+        "\n".join(json.dumps(x) for x in lineas) + "\n", encoding="utf-8")
+
+    data = tablero.recolectar(runs)
+    assert data["tools"]["eventos"] == 1
+    assert data["tools"]["errores"] == 0
+    assert data["retrabajo"]["cortes_no_progreso"] == 1
