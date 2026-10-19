@@ -1,10 +1,11 @@
 """exp/52-A — la forma del loop: ¿cuántas rondas de tools se gastan de más?
 
 **Pregunta.** El chat tiene un tope de rondas FIJO (`MAX_TOOL_ROUNDS`) y la
-única podada es no-progreso por repetición idéntica. Las trazas `.runs` no
-guardan nombres/argumentos de tools (solo `nodo`/`acción`/`seg`), así que acá
-se mide la FORMA del loop por pregunta: distribución de rondas, cola larga y
-qué ahorraría un corte más agresivo (counterfactual de RONDAS, no de calidad).
+única podada es no-progreso por repetición idéntica. Las trazas `.runs` guardan
+el NOMBRE de cada tool (`evento_tool` → `nodo=<tool>`, `acción=ok/error`) pero
+no sus argumentos; alcanza para medir la FORMA del loop y una novedad
+aproximada por nombre de tool: una ronda "no agrega novedad" si ninguna tool
+que llamó es la primera vez que aparece en la pregunta.
 
 **Criterio PRE-REGISTRADO para exp/52-B (antes de ver el artefacto):** una
 regla de corte es candidata si recorta **≥20% de las rondas de la cola**
@@ -42,6 +43,53 @@ def leer_sesion(ruta):
     return eventos
 
 
+def _es_tool(nodo, accion):
+    """Heurística de traza vieja: `evento_tool` usa nodo=<tool>, acción=ok/error
+    y las tools son snake_case; los nodos de flujo, CamelCase."""
+    return (isinstance(nodo, str) and nodo == nodo.lower()
+            and accion in ("ok", "error") and nodo not in ("ok", "error"))
+
+
+def rondas_sin_novedad(ciclo):
+    """Cantidad de rondas que no estrenaron NINGUNA tool (novedad por nombre).
+
+    Aproximación declarada: la traza no guarda argumentos, así que una segunda
+    lectura del MISMO archivo cuenta como novedad (misma tool, args distintos).
+    """
+    vistas, sin_novedad = set(), 0
+    for nombres in ciclo.get("tools_por_ronda", []):
+        nuevos = [n for n in nombres if n not in vistas]
+        if nombres and not nuevos:
+            sin_novedad += 1
+        vistas.update(nuevos)
+    return sin_novedad
+
+
+def simular_corte_novedad(ciclos_, k=2, min_rondas=3):
+    """Counterfactual de la regla estructural: cortar tras `k` rondas
+    consecutivas sin novedad (con un mínimo de rondas para no tocar cortos)."""
+    recortadas = afectados = toca_cortos = 0
+    for ciclo in ciclos_:
+        if ciclo["rondas"] <= min_rondas:
+            continue
+        vistas = set()
+        racha = 0
+        corte_en = None
+        for i, nombres in enumerate(ciclo.get("tools_por_ronda", [])):
+            nuevos = [n for n in nombres if n not in vistas]
+            vistas.update(nuevos)
+            racha = 0 if nuevos else racha + 1
+            if racha >= k:
+                corte_en = i
+                break
+        if corte_en is None:
+            continue
+        afectados += 1
+        recortadas += ciclo["rondas"] - (corte_en + 1)
+    return {"k": k, "rondas_recortadas": recortadas, "ciclos_afectados": afectados,
+            "toca_cortos": toca_cortos}
+
+
 def es_sesion_chat(eventos):
     """La sesión contiene el flujo del chat (GetQuestion es su entrada)."""
     return any(evento.get("nodo") == "GetQuestion" for evento in eventos)
@@ -65,7 +113,8 @@ def ciclos(eventos):
                 salida.append(actual)
                 actual = None
             if accion == "continue":
-                actual = {"rondas": 0, "respondio": False, "seg_agente": 0.0, "eventos": 0}
+                actual = {"rondas": 0, "respondio": False, "seg_agente": 0.0,
+                          "eventos": 0, "tools_por_ronda": []}
             continue
         if actual is None:
             continue
@@ -74,10 +123,13 @@ def ciclos(eventos):
             actual["seg_agente"] += float(evento.get("seg") or 0.0)
             if accion == "tool":
                 actual["rondas"] += 1
+                actual["tools_por_ronda"].append([])
             elif accion == "answer":
                 actual["respondio"] = True
         elif nodo == "ExecuteTools":
             actual["seg_agente"] += float(evento.get("seg") or 0.0)
+        elif _es_tool(nodo, accion) and actual["tools_por_ronda"]:
+            actual["tools_por_ronda"][-1].append(nodo)
     if actual is not None:
         salida.append(actual)
     return salida
@@ -156,6 +208,23 @@ def informe(ciclos_, caps=(2, 3, 4, 5, 6)):
             f"| {cap} | {s['rondas_recortadas']} | {pct:.0f}% | "
             f"{s['ciclos_afectados']} ({s['pct_ciclos']:.0f}%) | {s['toca_cortos']} |"
         )
+    sin_nov = [rondas_sin_novedad(c) for c in ciclos_]
+    lineas += [
+        "",
+        "## Novedad por NOMBRE de tool (aproximación sin argumentos)",
+        f"- rondas sin ninguna tool nueva: **{sum(sin_nov)}** "
+        f"de {r['rondas_totales']} ({(sum(sin_nov) / r['rondas_totales'] * 100) if r['rondas_totales'] else 0:.0f}%)",
+        f"- ciclos con al menos una ronda sin novedad: "
+        f"**{sum(1 for x in sin_nov if x)}/{len(sin_nov)}**",
+        "",
+        "| regla (cortar tras k rondas sin novedad, mínimo 3) | rondas recortadas | ciclos | toca ≤3 |",
+        "|---|---|---|---|",
+    ]
+    for k in (2, 3):
+        sim = simular_corte_novedad(ciclos_, k=k)
+        pct = (sim["rondas_recortadas"] / r["rondas_totales"] * 100) if r["rondas_totales"] else 0.0
+        lineas.append(f"| k={k} | {sim['rondas_recortadas']} ({pct:.0f}%) | "
+                      f"{sim['ciclos_afectados']} | {sim['toca_cortos']} |")
     lineas += [
         "",
         "## Criterio pre-registrado para exp/52-B",

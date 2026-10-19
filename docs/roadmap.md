@@ -97,15 +97,19 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     `@pytest.mark.parametrize` con ids estables; `cuerpos_test_duplicados`
     **12 → 0**; el inventario se actualizó con los ids parametrizados y la
     cobertura ahora cuenta CASOS (547 → 611), así parametrizar no la baja.
-19. **exp/52-B — convergencia determinista del loop (2026-10-19)**: exp/52-A
-    midió la forma: p90 16 rondas y la cola (≥5) gasta 85% de las rondas / 75%
-    del tiempo, con cap 5 recortando 61% sin tocar ciclos ≤3 (criterio
-    pre-registrado: ≥20% de la cola sin tocar cortos). Falta: (a) instrumentar
-    la traza con `evento_tool` (nombre + args recortados) para detectar
-    "ronda sin novedad"; (b) regla de corte estructural con setting y default
-    conservador; (c) A/B en replay offline y en banco; (d) recién entonces
-    activar y medir. Si el A/B no baja rondas sin bajar turnos OK, se documenta
-    el negativo.
+19. **exp/52-B — convergencia determinista del loop (2026-10-19)** —
+    **(a) instrumentación ✅** (`evento_tool.huella` = sha1 corto de
+    nombre+argumentos, sin contenido; replay OK) y **(b) regla ✅** detrás de
+    `CORTE_NOVEDAD=k` (default 0=off, mínimo 3, reset por pregunta; 6 tests).
+    Offline por NOMBRE de tool: 68% de las rondas sin tool nueva; la regla k=2
+    recortaría 65% sin tocar ciclos ≤3 (cota optimista, sin args).
+    **(c) A/B pendiente** — item 20.
+20. **A/B de exp/52-B en el banco (2026-10-19)**: escenarios que provoquen
+    rondas redundantes, brazos `CORTE_NOVEDAD=3` vs `0`, comparar rondas
+    ahorradas y turnos OK (criterio pre-registrado). Si no hay ahorro sin
+    bajar calidad, se documenta el negativo y el setting queda en 0. La
+    señal real usa huella de args, no nombres: la redundancia será menor que
+    la cota del 65%.
 16. **Revisión de ROI del router (condición pre-registrada)**: cuando haya
     **≥250 pares y ≥14 días** (hoy 125/5), correr
     `python3 banco/probes/etiquetar_ambiental.py && python3 banco/probes/veredicto_router.py`

@@ -136,6 +136,47 @@ def fingerprint(tool_calls):
     ).hexdigest()
 
 
+def huella_llamada(tc):
+    """Hash corto (sin contenido) de (nombre, argumentos) de UNA tool."""
+    funcion = tc.get("function") or {}
+    clave = json.dumps([funcion.get("name") or "?", funcion.get("arguments") or ""],
+                       ensure_ascii=False)
+    return hashlib.sha1(clave.encode()).hexdigest()[:8]
+
+
+def actualizar_novedad(shared, tool_calls):
+    """exp/52-B: novedad ACUMULADA por pregunta (tool+argumentos).
+
+    A diferencia del no-progreso (misma ronda repetida), acá una ronda sin
+    NINGUNA llamada nueva (p. ej. A, B, A, B) también cuenta como sin novedad.
+    Devuelve True si la ronda no estrenó ninguna llamada.
+    """
+    vistas = shared.setdefault("_huellas_vistas", set())
+    nuevas = [h for h in (huella_llamada(tc) for tc in tool_calls or []) if h not in vistas]
+    vistas.update(nuevas)
+    if nuevas:
+        shared["_racha_sin_novedad"] = 0
+    else:
+        shared["_racha_sin_novedad"] = shared.get("_racha_sin_novedad", 0) + 1
+    return not nuevas
+
+
+def corte_por_novedad_activo(shared):
+    """exp/52-B: `CORTE_NOVEDAD=k` (default 0 = off) corta tras k rondas
+    consecutivas sin llamadas nuevas, con mínimo `CORTE_NOVEDAD_MIN` rondas.
+
+    Default OFF a propósito: la regla se activa recién cuando el A/B del banco
+    valide que baja rondas sin bajar turnos OK. Se lee en runtime para que el
+    banco la prenda por escenario.
+    """
+    k = _entero("CORTE_NOVEDAD", 0)
+    if k <= 0:
+        return False
+    minimo = _entero("CORTE_NOVEDAD_MIN", 3)
+    return (shared.get("tool_rounds", 0) >= minimo
+            and shared.get("_racha_sin_novedad", 0) >= k)
+
+
 MENSAJE_SIN_RESPUESTA = (
     "(sin respuesta: el stream se cortó sin contenido — reintentá el pedido)"
 )
@@ -227,6 +268,10 @@ class GetQuestion(Node):
         shared.pop("_fp", None)
         shared.pop("_router_pendiente", None)
         shared.pop("_aviso_cierre", None)
+        # exp/52-B: la novedad es POR PREGUNTA (misma ley L8 que el presupuesto).
+        shared.pop("_huellas_vistas", None)
+        shared.pop("_racha_sin_novedad", None)
+        shared.pop("_corte_novedad", None)
         # exp/44: el último mensaje del usuario queda como EVIDENCIA DE
         # INTENCIÓN para el juez de riesgo (import perezoso; los módulos no
         # ven `shared`). Plumbing, no decide nada.
@@ -367,11 +412,17 @@ class AgentStep(Node):
         tope = presupuesto(shared)
         agotado = shared.get("tool_rounds", 0) >= tope
         sin_progreso = shared.get("no_progress", 0) >= UMBRAL_SIN_PROGRESO
+        corte_novedad = shared.pop("_corte_novedad", False)
         if sin_progreso and not agotado:
             # incidente visible desde .runs: el corte NO fue por techo
             evento_politica("corte_no_progreso")
+        elif corte_novedad and not agotado:
+            evento_politica(
+                "corte_sin_novedad",
+                f"{shared.get('_racha_sin_novedad', 0)} rondas sin llamadas nuevas",
+            )
         # Al llegar al límite de rondas se retiran las tools: el modelo debe responder ya.
-        tools = None if (agotado or sin_progreso) else TOOLS
+        tools = None if (agotado or sin_progreso or corte_novedad) else TOOLS
         if tools is None and not shared.get("_aviso_cierre"):
             shared["_aviso_cierre"] = True
             # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
@@ -560,7 +611,8 @@ class ExecuteTools(Node):
             r = run_tool_call(tc, MODULE_IMPLS)
             ok = resultado_ok(r["content"])
             evento_tool(nombre, ok, time.time() - inicio,
-                        codigo=codigo_error(r["content"]))
+                        codigo=codigo_error(r["content"]),
+                        huella=huella_llamada(tc))
             resultados.append(r)
         return resultados
 
@@ -578,6 +630,12 @@ class ExecuteTools(Node):
         else:
             shared["no_progress"] = 0
         shared["_fp"] = fp
+        # exp/52-B: novedad acumulada (tool+argumentos). Con CORTE_NOVEDAD=k
+        # (default 0=off) el loop se corta tras k rondas sin ninguna llamada
+        # nueva; la calidad se valida en el A/B del banco, no acá.
+        sin_novedad = actualizar_novedad(shared, prep_res or [])
+        if sin_novedad and corte_por_novedad_activo(shared) and not shared.get("_corte_novedad"):
+            shared["_corte_novedad"] = True
         if shared["no_progress"] >= 1 and exec_res:
             exec_res[-1]["content"] = (
                 f"{exec_res[-1]['content']}\n⚠ Sin progreso: repetiste la "

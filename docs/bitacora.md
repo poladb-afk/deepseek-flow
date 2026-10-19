@@ -1236,6 +1236,40 @@ traza (exp/52-B: evento_tool con nombre + args recortados) y recién ahí una
 regla estructural ("cortar si la ronda no agregó novedad") con A/B en replay y
 banco. Artefacto: `salidas/evals/exp52_rondas_2026-10-19.md`.
 
+## exp/52-B — convergencia por novedad: instrumentada, OFF por default (2026-10-19)
+
+**Qué se construyó** (continúa exp/52-A, que midió la forma del loop):
+
+- **Traza con huella**: `evento_tool` gana `huella` = sha1 corto de
+  (nombre, argumentos), SIN contenido (contrato social de F4 intacto). Verificado
+  end-to-end con una sesión de banco: `read_file` → `huella: 404c4c94`; replay
+  corre igual sobre las 333 trazas.
+- **Regla de corte**: `nodes.actualizar_novedad` lleva la novedad ACUMULADA por
+  pregunta (conjunto de huellas). Una ronda sin ninguna llamada nueva (incluso
+  intercaladas tipo A,B,A,B) cuenta para la racha. `CORTE_NOVEDAD=k` (default
+  **0 = off**) retira las tools tras k rondas seguidas sin novedad, con mínimo
+  `CORTE_NOVEDAD_MIN` (default 3); se resetea por pregunta (ley L8) y emite
+  `evento_politica("corte_sin_novedad")` cuando corta. 6 tests.
+
+**Evidencia offline** (sonda extendida, muestra de 480 ciclos): por NOMBRE de
+tool, **2.054 de 3.023 rondas (68%)** no estrenaron ninguna tool, y una regla
+"cortar tras 2 rondas sin novedad (mín. 3)" recortaría **1.952 rondas (65%)**
+en 152 ciclos sin tocar los de ≤3. **Es una cota optimista**: sin argumentos,
+una segunda lectura de OTRO archivo cuenta como novedad perdida; con huella de
+args la redundancia real será menor. Por eso la regla queda **apagada** hasta
+el A/B.
+
+**Por qué default off**: el criterio pre-registrado en exp/52-A exige validar
+calidad (turnos OK en banco) antes de activar. El A/B pendiente: escenarios que
+provoquen rondas redundantes, brazos `CORTE_NOVEDAD=3` vs `0`, comparar rondas
+ahorradas y turnos OK; si no hay ahorro sin bajar calidad, se documenta el
+negativo y el setting queda en 0.
+
+**Nota de replay:** el informe de replay corrió OK sobre 333 trazas pero sale
+con a_desconocidos +230 vs baseline: el baseline estaba calculado sobre menos
+trazas (crecimiento normal del artefacto), no es un efecto de esta
+instrumentación y no se pisa un baseline desde una sesión (regla del repo).
+
 ## Auditoría de test slop y comentarios narradores (2026-10-19)
 
 Cierre del thread de ruido por el lado no estructural: ¿hay subconjunto

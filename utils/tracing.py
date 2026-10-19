@@ -30,7 +30,7 @@ def _escribir(dic):
     _salida.flush()
 
 
-def evento_tool(nombre, ok, seg, codigo=None):
+def evento_tool(nombre, ok, seg, codigo=None, huella=None):
     """Evento de tool individual. Las tools que no son flujos (run_command,
     sql, write_file...) no atraviesan nodos: sin esto, un ExecuteTools de
     50s es inatribuible desde .runs (ciego medido en la auditoría).
@@ -38,7 +38,9 @@ def evento_tool(nombre, ok, seg, codigo=None):
     `codigo` es un discriminador CORTO y sin contenido (p. ej. `ERROR:TypeError`,
     `RECHAZADO`, `exit_1`): permite agrupar causas sin guardar texto del error
     (F4: la traza no podía atribuir causas). CONTRATO SOCIAL: lo arma el
-    llamador; tracing NO valida que sea corto ni que no traiga contenido."""
+    llamador; tracing NO valida que sea corto ni que no traiga contenido.
+    `huella` (exp/52-B) es un hash CORTO de (nombre, argumentos) de la llamada:
+    permite medir novedad/redundancia sin guardar contenido."""
     evento = {
         "ts": round(time.time(), 3),
         "nodo": nombre,
@@ -47,6 +49,8 @@ def evento_tool(nombre, ok, seg, codigo=None):
     }
     if codigo:
         evento["codigo"] = codigo
+    if huella:
+        evento["huella"] = huella
     _escribir(evento)
 
 

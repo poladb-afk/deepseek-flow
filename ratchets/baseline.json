@@ -50,10 +50,10 @@
         ],
         "nodes.py": [
           44,
-          457,
-          478,
-          714,
-          761
+          508,
+          529,
+          772,
+          819
         ],
         "research.py": [
           78
@@ -98,8 +98,8 @@
           144
         ],
         "utils/tracing.py": [
-          141,
-          160
+          145,
+          164
         ],
         "utils/websearch.py": [
           16
@@ -158,6 +158,7 @@
         "tests/test_memoria.py": 24,
         "tests/test_minar_errores.py": 16,
         "tests/test_modulos.py": 19,
+        "tests/test_novedad.py": 6,
         "tests/test_pendientes.py": 34,
         "tests/test_policy.py": 23,
         "tests/test_policy_bypass.py": 35,
@@ -179,7 +180,7 @@
         "tests/test_viz.py": 5,
         "tests/test_voto_router.py": 8
       },
-      "metrica": 616
+      "metrica": 622
     }
   },
   "version": 1
