@@ -24,26 +24,26 @@ sigue disponible para cuando haga falta profundidad. Decir "auditamos todo con
 esto" sería mentir sobre la cobertura.
 
 Determinista a propósito: SIN LLM, SIN red, SIN torch — JSON puro. El mismo
-parseo tolerante de evals.py (`_leer_eventos`): una traza corrupta es un
+parseo tolerante de `utils.trazas.leer_eventos`: una traza corrupta es un
 artefacto a saltear, nunca una excepción.
 
 Uso:
     python3 triaje_trazas.py [--carpeta .runs] [--umbral 120.0] [--salida salidas/evals]
 """
 import argparse
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
+from utils.git import sha_corto
 from utils.rutas import DIR_RUNS
 
-# Reuso EXACTO del parseo y del linter de evals.py: misma vara para todas las
-# trazas del proyecto. Se importa (no se copia): una copia local derivaría sin
-# que ningún test lo note, y acá la única defensa contra mientes-la-tabla es que
-# los números y las violaciones salgan del mismo linter que el resto del harness.
+# Reuso EXACTO del parseo (utils.trazas) y del linter (evals.py): misma vara
+# para todas las trazas del proyecto. Se importa, no se copia: una copia local
+# derivaría sin que ningún test lo note.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from evals import _leer_eventos, linter_traza  # noqa: E402
+from evals import linter_traza  # noqa: E402
+from utils.trazas import leer_eventos  # noqa: E402
 
 RAIZ = Path(__file__).resolve().parent
 DIR_SALIDA = Path("salidas/evals")
@@ -108,7 +108,7 @@ def evaluar_runs(directorio=DIR_RUNS, umbral_seg=UMBRAL_SEG_DEFAULT):
     duraciones = {}            # nombre → suma de seg
 
     for archivo in sorted(directorio.glob("*.jsonl")):
-        eventos = _leer_eventos(archivo)
+        eventos = leer_eventos(archivo)
         if not eventos:
             if archivo.stat().st_size > 0:
                 ilegibles.append(archivo.name)
@@ -154,7 +154,8 @@ def _ahorro(n_sel, n_legibles):
 
 # 3) SALIDAS (informe md, patrón minar_errores / laya_evidencia_*)
 
-def _fmt_pct(x):
+def _pct_directo(x):
+    """El valor YA viene en porcentaje (73.4 → "73.4%")."""
     return f"{x:.1f}%" if x is not None else "—"
 
 
@@ -189,7 +190,7 @@ def escribir_md(informe, sha, fecha):
              "todo con esto\" sería mentir sobre la cobertura.\n")
 
     o.append("## Resumen\n")
-    o.append(f"> **Ahorro de la auditoría nocturna: {_fmt_pct(informe['ahorro_pct'])}** "
+    o.append(f"> **Ahorro de la auditoría nocturna: {_pct_directo(informe['ahorro_pct'])}** "
              f"({informe['n_seleccionadas']}/{informe['legibles']} trazas se auditan; "
              f"el resto se saltea sin gastar una sola llamada LLM).\n")
     o.append("| métrica | valor |")
@@ -224,16 +225,6 @@ def escribir_md(informe, sha, fecha):
     return "\n".join(o) + "\n"
 
 
-def _git_sha():
-    """sha corto del código actual (best-effort: el informe no depende de git)."""
-    try:
-        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
-                           capture_output=True, text=True, timeout=5)
-        return r.stdout.strip() if r.returncode == 0 else ""
-    except Exception:  # noqa: BLE001 (git es best-effort, no dependencia)
-        return ""
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Triaje determinista de trazas: linter + outliers de duración.")
@@ -247,7 +238,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     informe = evaluar_runs(args.carpeta, umbral_seg=args.umbral)
-    sha = _git_sha()
+    sha = sha_corto()
     fecha = datetime.now().isoformat(timespec="seconds")
 
     destino = Path(args.salida)
@@ -260,7 +251,7 @@ def main(argv=None):
           f"vacías: {informe['vacias']}"
           + (f" · ilegibles: {len(informe['ilegibles'])}" if informe["ilegibles"] else ""))
     print(f"  seleccionadas: {informe['n_seleccionadas']}/{informe['legibles']} "
-          f"(ahorro {_fmt_pct(informe['ahorro_pct'])})")
+          f"(ahorro {_pct_directo(informe['ahorro_pct'])})")
     print(f"  → {md_path}")
     return md_path
 

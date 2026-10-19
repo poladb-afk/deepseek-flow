@@ -27,7 +27,6 @@ Uso:
 """
 import argparse
 import json
-import subprocess
 from collections import Counter, defaultdict
 from datetime import date, datetime
 from pathlib import Path
@@ -35,7 +34,10 @@ from pathlib import Path
 # El test de 30 casos del fine-tune router_flow (bmo/train/kaggle-router).
 # Fuera del repo a propósito: es la evidencia de entrenamiento, no un artefacto
 # del harness. Su ausencia degrada el bench, nunca el resto del informe.
+from utils.formato import pct
+from utils.git import sha_o_motivo
 from utils.rutas import DIR_RUNS, DIR_SALIDA, tasks_dir
+from utils.trazas import leer_eventos
 
 TEST_ROUTER = tasks_dir() / "router_flow_test.jsonl"  # BMO_TASKS_DIR lo mueve
 # Baseline del bench del router. El v1 (2026-10-06: score 0.9667 / crudo 0.90 /
@@ -49,17 +51,6 @@ BASELINE_HISTORICO = Path("salidas/evals/bench_router.json")
 # Umbral del invariante (d): un ExecuteTools más largo que esto sin eventos de
 # tools propios es el "ciego viejo" de la auditoría (una ronda inatribuible).
 UMBRAL_CEGUERA_SEG = 120.0
-
-
-def _git_sha():
-    """sha corto del código actual (subprocess, como pide el menú). Vacío si
-    git no está o el repo no está inicializado: el informe no depende de él."""
-    try:
-        r = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True,
-                           text=True, timeout=5)
-        return r.stdout.strip() if r.returncode == 0 else ""
-    except Exception as e:  # noqa: BLE001 (git es best-effort, no dependencia)
-        return f"(git no disponible: {type(e).__name__})"
 
 
 # 1) BENCH DEL ROUTER
@@ -261,7 +252,7 @@ def guardar_baseline(bench, ruta=BASELINE, sha=None):
         "n": bench["n"],
         "modo": bench.get("modo"),
         "fecha": datetime.now().isoformat(timespec="seconds"),
-        "git_sha": sha if sha is not None else _git_sha(),
+        "git_sha": sha if sha is not None else sha_o_motivo(),
     }
     ruta.write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding="utf-8")
     return datos
@@ -421,21 +412,6 @@ def linter_traza(eventos, umbral_seg=UMBRAL_CEGUERA_SEG):
     return viol
 
 
-def _leer_eventos(archivo):
-    """Eventos de un .jsonl; [] si el archivo es ilegible o una línea es JSON
-    inválido. Trazas y costos comparten este parseo (una traza corrupta es un
-    artefacto a saltear, nunca una excepción que tumbe el informe)."""
-    eventos = []
-    try:
-        for linea in Path(archivo).read_text(encoding="utf-8").splitlines():
-            linea = linea.strip()
-            if linea:
-                eventos.append(json.loads(linea))
-    except (json.JSONDecodeError, OSError):
-        return []
-    return eventos
-
-
 def linter_runs(directorio=DIR_RUNS):
     """Corre el linter sobre todos los .jsonl de `directorio`. Devuelve un
     resumen con total de trazas, violaciones por invariante y archivos peores.
@@ -449,7 +425,7 @@ def linter_runs(directorio=DIR_RUNS):
     archivos = sorted(directorio.glob("*.jsonl"))
     for archivo in archivos:
         total += 1
-        eventos = _leer_eventos(archivo)
+        eventos = leer_eventos(archivo)
         if not eventos and archivo.stat().st_size > 0:
             # tenía contenido y no se pudo parsear: traza corrupta (no una
             # traza legítimamente vacía)
@@ -524,7 +500,7 @@ def costos_runs(directorio=DIR_RUNS):
     directorio = Path(directorio)
     sesiones = []
     for archivo in sorted(directorio.glob("*.jsonl")):
-        eventos = _leer_eventos(archivo)
+        eventos = leer_eventos(archivo)
         if not eventos:
             continue
         info = costo_traza(eventos)
@@ -545,10 +521,6 @@ def _fecha_de(stem):
 
 
 # INFORME
-
-def _fmt_pct(x):
-    return f"{x * 100:.1f}%" if x is not None else "—"
-
 
 def informe_markdown(bench, comparacion, linter, costos, sha, fecha):
     L = []
@@ -571,13 +543,13 @@ def informe_markdown(bench, comparacion, linter, costos, sha, fecha):
         L.append(f"- Casos: **{bench['n']}** · modo `{bench.get('modo') or '?'}` · "
                  f"regla temporal aplicada en {bench.get('n_regla', 0)}")
         L.append(f"- Acierto de la POLÍTICA (lo que decide, sin el modo): "
-                 f"**{_fmt_pct(bench['score'])}**")
+                 f"**{pct(bench['score'])}**")
         L.append(f"- Acierto APLICADO (lo que el grafo ejecuta con ese modo): "
-                 f"{_fmt_pct(bench.get('score_aplicada'))}")
+                 f"{pct(bench.get('score_aplicada'))}")
         L.append(f"- Acierto crudo del modelo (sin compuerta, v1: 90.0%): "
-                 f"{_fmt_pct(bench['score_crudo'])}")
+                 f"{pct(bench['score_crudo'])}")
         L.append(f"- Acierto con compuerta de umbral fijo (v1: 96.7%): "
-                 f"{_fmt_pct(bench.get('score_compuerta'))}")
+                 f"{pct(bench.get('score_compuerta'))}")
         L.append(f"- ECE (10 bins): {bench['ece']:.4f}")
         L.append("")
         v = comparacion["veredicto"]
@@ -587,7 +559,7 @@ def informe_markdown(bench, comparacion, linter, costos, sha, fecha):
             a = comparacion["anterior"]
             d = comparacion["delta"]
             L.append("")
-            L.append(f"- Anterior: score {_fmt_pct(a.get('score'))} · ECE "
+            L.append(f"- Anterior: score {pct(a.get('score'))} · ECE "
                      f"{a.get('ece')} · {a.get('fecha', '?')} · sha `{(a.get('git_sha') or '?')[:10]}`")
             ds = d.get("score")
             de = d.get("ece")
@@ -658,7 +630,7 @@ def generar(dir_runs=DIR_RUNS, dir_salida=DIR_SALIDA, agente=None, sha=None,
     `actualizar_baseline=False` (tool del chat): compara pero NO pisa el
     baseline — el ancla de medición no se sobrescribe desde una conversación."""
     fecha = date.today().isoformat()
-    sha = sha if sha is not None else _git_sha()
+    sha = sha if sha is not None else sha_o_motivo()
 
     bench, _ = correr_bench(agente=agente)
     comparacion = comparar_baseline(bench)

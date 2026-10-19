@@ -1168,6 +1168,31 @@ con n=4 no alcanza para decir que la directiva aumente los fallos de formato.
 **Límites:** n chico, un modelo, una corrida; el efecto es tan grande que
 vale repetirlo con n mayor y otro modelo antes de generalizar (roadmap).
 
+**Réplica (n=8, dos modelos, tokens reales).** Con `--runs 8` y el usage de
+la API en vez de chars/4: deepseek-flash SLOC 201 → 41,5 (−79%), completion
+tokens 6.080 → 1.486 (−76%), tokens totales (prompt+completion) 6.367 → 1.858
+(−71%); deepseek-chat SLOC 152 → 50 (−67%), completion 1.486 → 510 (−66%),
+totales 1.747 → 840 (−52%). Docstrings 0,56/0,63 → 0 en ambos. El prompt
+cuesta +26/30% de entrada (la directiva) pero la ganancia neta es grande; por
+tarea también se sostiene. Caveat: 2/16 respuestas de flash con directiva
+vinieron sin bloque de código (código extraído: 0 errores de sintaxis; en
+chat 0/16). Artefactos: `forma_codigo_20261019_093809.json` (flash) y
+`..._094021.json` (chat), en salidas/probes/.
+
+**Paydown de duplicación (misma jornada).** El "signature tell" #1 de
+code-humanizer seguía en el harness: **4 copias de `_git_sha`** (dos
+semánticas distintas: sha largo con motivo vs. corto vacío), **4 de
+`_fmt_pct`** (una de ellas formateaba un valor que YA venía en porcentaje) y
+`_leer_eventos` en evals con wrapper en replay e imports privados en
+triaje/minar. Se extrajo a `utils/git.py` (`sha_corto`/`sha_largo`/
+`sha_o_motivo`), `utils/formato.py` (`pct`) y `utils/trazas.py`
+(`leer_eventos`); `triaje` conserva `_pct_directo` con su unidad documentada.
+Se van también los `from evals import _git_sha` (bench_juez,
+banco/bench_supervisor) y los `from evals import _leer_eventos` (replay,
+triaje, minar). **Ratchet de helpers: 20 → 10**; `excepts_amplios` bajó a 44
+por los `_git_sha` que se fueron. Tests: `tests/test_utils_compartidos.py`
+(7), incluido el best-effort cuando git no está.
+
 ## Sesión de prueba completa (2026-10-05): 19 turnos, las 18 capacidades
 
 Una sola sesión continua de chat ejerciendo todo el harness. Resultado

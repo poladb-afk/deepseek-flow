@@ -34,8 +34,9 @@ import time
 from datetime import date, datetime
 from pathlib import Path
 
-from evals import _git_sha
 from juez import CITA_RE
+from utils.formato import pct
+from utils.git import sha_o_motivo
 
 PREGUNTAS = Path("banco/juez_preguntas.jsonl")
 BASELINE = Path("salidas/evals/bench_juez.json")
@@ -278,7 +279,7 @@ def guardar_baseline(bench, ruta=BASELINE, sha=None):
     ruta.parent.mkdir(parents=True, exist_ok=True)
     datos = {
         "fecha": datetime.now().isoformat(timespec="seconds"),
-        "git_sha": sha if sha is not None else _git_sha(),
+        "git_sha": sha if sha is not None else sha_o_motivo(),
         "n": bench["n"],
         "respuesta_ok": bench["respuesta_ok"],
         "cita_ok": bench["cita_ok"],
@@ -289,10 +290,6 @@ def guardar_baseline(bench, ruta=BASELINE, sha=None):
 
 
 # INFORME
-
-def _fmt_pct(x):
-    return f"{x * 100:.1f}%" if x is not None else "—"
-
 
 def _fmt_cita(v):
     return {True: "✅", False: "🔴", None: "—"}.get(v, "—")
@@ -311,9 +308,9 @@ def informe_markdown(bench, comparacion, sha, fecha):
              "determinismo importa más que la velocidad.")
     L.append("")
     L.append(f"- Casos: **{bench['n']}**")
-    L.append(f"- `respuesta_ok` (principal): **{_fmt_pct(bench['respuesta_ok'])}**")
+    L.append(f"- `respuesta_ok` (principal): **{pct(bench['respuesta_ok'])}**")
     L.append(f"- `cita_ok` (sobre {bench['n_con_cita']} que aplican): "
-             f"**{_fmt_pct(bench['cita_ok'])}**")
+             f"**{pct(bench['cita_ok'])}**")
     total_seg = sum(f["seg"] for f in bench["filas"])
     L.append(f"- Tiempo total: {total_seg:.1f}s")
     L.append("")
@@ -324,8 +321,8 @@ def informe_markdown(bench, comparacion, sha, fecha):
         a = comparacion["anterior"]
         d = comparacion["delta"]
         L.append("")
-        L.append(f"- Anterior: respuesta_ok {_fmt_pct(a.get('respuesta_ok'))} · "
-                 f"cita_ok {_fmt_pct(a.get('cita_ok'))} · {a.get('fecha', '?')} · "
+        L.append(f"- Anterior: respuesta_ok {pct(a.get('respuesta_ok'))} · "
+                 f"cita_ok {pct(a.get('cita_ok'))} · {a.get('fecha', '?')} · "
                  f"sha `{(a.get('git_sha') or '?')[:10]}`")
         dr, dc = d.get("respuesta_ok"), d.get("cita_ok")
         L.append(f"- Delta respuesta_ok: {dr:+.4f}" if dr is not None else "- Delta respuesta_ok: —")
@@ -370,7 +367,7 @@ def generar(preguntas=PREGUNTAS, dir_salida=DIR_SALIDA, responder=None, sha=None
     compara contra el baseline pero NO lo pisa (regla que la tool del chat
     hereda); con la flag lo guarda. Devuelve el Path del informe."""
     fecha = date.today().isoformat()
-    sha = sha if sha is not None else _git_sha()
+    sha = sha if sha is not None else sha_o_motivo()
 
     casos = cargar_casos(preguntas)
     bench = correr(casos, responder=responder)

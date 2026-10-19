@@ -220,3 +220,28 @@ como 16 gates (muchos no son deterministas: quedan como review).
   cumplido**; 0/15 errores de sintaxis en el código extraído, 1/16 respuestas
   sin bloque de código. **Límite:** n=4, un modelo, una corrida — el efecto es
   grande, pero hay que repetirlo (roadmap).
+
+- **Paydown de duplicación (misma jornada): helpers 20 → 10.** El "signature
+  tell" #1 de code-humanizer seguía presente: `_git_sha` ×4 (dos semánticas),
+  `_fmt_pct` ×4 (una con la unidad equivocada), `_leer_eventos` en evals con
+  wrapper en replay e imports privados en triaje/minar. Se extrajo a
+  `utils/git.py`, `utils/formato.py` y `utils/trazas.py`, con 7 tests
+  (`tests/test_utils_compartidos.py`); los `except` amplios bajaron además de
+  48 a 44 al irse los `_git_sha`.
+
+### Réplica de exp/51 (n=8 por brazo y tarea, dos modelos)
+
+Misma sonda, con `--runs 8` y tokens **reales de la API** (usage, no
+chars/4). La conclusión se sostiene:
+
+| modelo | SLOC (mediana) | completion tokens | tokens totales (prompt+complet.) | docstrings | respuestas sin bloque |
+|---|---|---|---|---|---|
+| deepseek-flash | 201 → **41,5** (−79%) | 6.080 → **1.486** (−76%) | 6.367 → **1.858** (−71%) | 0,56 → **0** | 0/16 → 2/16 |
+| deepseek-chat | 152 → **50** (−67%) | 1.486 → **510** (−66%) | 1.747 → **840** (−52%) | 0,63 → **0** | 0/16 → 0/16 |
+
+El prompt cuesta +26%/+30% de tokens de entrada (el párrafo de la directiva),
+pero la ganancia neta es grande. Por tarea también se sostiene (flash:
+csv_stats 195,5→43 y config_loader 245,5→40 SLOC; chat: 150→62,5 y 152→41,5).
+**Caveat honesto:** en deepseek-flash 2/16 respuestas del brazo con directiva
+no trajeron bloque de código (código extraído: 0 errores de sintaxis en los
+dos modelos). Antes de generalizar conviene vigilar esa tasa; en chat fue 0.

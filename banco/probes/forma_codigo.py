@@ -20,6 +20,7 @@ Gasta centavos de API y no toca el repo: escribe en salidas/probes/ (ignorado).
 import argparse
 import ast
 import json
+import os
 import re
 import statistics
 import sys
@@ -31,7 +32,7 @@ RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ))
 
 import main  # noqa: E402  (necesita la raíz en sys.path)
-from utils.call_llm import call_llm  # noqa: E402
+import utils.call_llm as llm  # noqa: E402  (cliente directo: queremos usage real)
 
 TAREAS = [
     {
@@ -55,7 +56,7 @@ TAREAS = [
     },
 ]
 BRAZOS = (("sin_forma", False), ("con_forma", True))
-_METRICAS = ("sloc", "tokens_est", "funciones", "docstrings_densidad", "try",
+_METRICAS = ("sloc", "tokens_completion", "tokens_prompt", "funciones", "docstrings_densidad", "try",
              "except_amplios", "except_pass", "asserts", "none_checks",
              "comentarios", "banners", "docstrings_relleno")
 
@@ -70,7 +71,7 @@ def analizar_codigo(codigo):
     """Métricas objetivas del código generado (AST; sin LLM)."""
     lineas = codigo.splitlines()
     sloc = sum(1 for ln in lineas if ln.strip() and not ln.strip().startswith("#"))
-    filas = {"sloc": sloc, "tokens_est": round(len(codigo) / 4),
+    filas = {"sloc": sloc, "tokens_completion": None, "tokens_prompt": None,
              "funciones": 0, "docstrings_densidad": 0.0, "try": 0,
              "except_amplios": 0, "except_pass": 0, "asserts": 0,
              "none_checks": 0, "comentarios": len(lineas) - sloc,
@@ -109,6 +110,20 @@ def analizar_codigo(codigo):
     return filas
 
 
+def llamar(sistema, prompt):
+    """Una llamada de chat sin tools; devuelve (texto, usage) del proveedor."""
+    respuesta = llm._client().chat.completions.create(
+        model=llm._model(),
+        messages=[{"role": "system", "content": sistema},
+                  {"role": "user", "content": prompt}],
+    )
+    uso = respuesta.usage
+    return respuesta.choices[0].message.content or "", {
+        "completion_tokens": getattr(uso, "completion_tokens", None),
+        "prompt_tokens": getattr(uso, "prompt_tokens", None),
+    }
+
+
 def mediana(rows, metrica):
     valores = [r["metricas"][metrica] for r in rows if r.get("metricas")]
     return round(statistics.median(valores), 3) if valores else None
@@ -117,19 +132,21 @@ def mediana(rows, metrica):
 def main_probe(argv=None):
     parser = argparse.ArgumentParser(description="A/B de la directiva de forma del system prompt (exp/51)")
     parser.add_argument("--runs", type=int, default=4, help="corridas por brazo por tarea (default 4)")
+    parser.add_argument("--modelo", default=None,
+                        help="override del modelo (env LLM_MODEL); default: el configurado (deepseek-flash)")
     args = parser.parse_args(argv)
 
+    if args.modelo:
+        os.environ["LLM_MODEL"] = args.modelo
     filas = []
     t0 = time.perf_counter()
+    print(f"== exp/51 — modelo: {llm._model()} · runs={args.runs} ==", flush=True)
     for turno in range(args.runs):
         for tarea in TAREAS:
             for brazo, incluir_forma in BRAZOS:
                 etiqueta = f"{tarea['nombre']}/{brazo}/r{turno + 1}"
                 print(f"  · {etiqueta}…", flush=True)
-                crudo = call_llm([
-                    {"role": "system", "content": main.system_prompt(incluir_forma=incluir_forma)},
-                    {"role": "user", "content": tarea["prompt"]},
-                ])
+                crudo, uso = llamar(main.system_prompt(incluir_forma=incluir_forma), tarea["prompt"])
                 codigo = extraer_codigo(crudo)
                 fila = {"tarea": tarea["nombre"], "brazo": brazo, "run": turno + 1,
                         "codigo": codigo, "error": None, "metricas": None}
@@ -138,6 +155,8 @@ def main_probe(argv=None):
                 else:
                     try:
                         fila["metricas"] = analizar_codigo(codigo)
+                        fila["metricas"]["tokens_completion"] = uso["completion_tokens"]
+                        fila["metricas"]["tokens_prompt"] = uso["prompt_tokens"]
                     except SyntaxError as exc:
                         fila["error"] = f"syntax: {exc}"
                 filas.append(fila)
@@ -146,7 +165,8 @@ def main_probe(argv=None):
     salida.mkdir(parents=True, exist_ok=True)
     destino = salida / f"forma_codigo_{datetime.now():%Y%m%d_%H%M%S}.json"
     destino.write_text(json.dumps({"fecha": datetime.now().isoformat(timespec="seconds"),
-                                   "runs": args.runs, "filas": filas}, ensure_ascii=False, indent=1),
+                                   "modelo": llm._model(), "runs": args.runs, "filas": filas},
+                                  ensure_ascii=False, indent=1),
                        encoding="utf-8")
 
     print(f"\n== exp/51 — directiva de forma (n={args.runs} por brazo y tarea) ==")

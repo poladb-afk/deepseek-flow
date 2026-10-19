@@ -55,12 +55,13 @@ Uso:
 """
 import argparse
 import json
-import subprocess
 from collections import Counter
 from datetime import date, datetime
 from pathlib import Path
 
+from utils.git import sha_corto
 from utils.rutas import DIR_RUNS
+from utils.trazas import leer_eventos
 
 DIR_SALIDA = Path("salidas/evals")
 BASELINE = Path("salidas/evals/replay_baseline.json")
@@ -315,13 +316,6 @@ def nivel_d_router(lineas, config):
 
 # 3) CORRIDA sobre .runs + routing.jsonl
 
-def _leer_eventos(archivo):
-    """El mismo parseo tolerante de evals (importado, no copiado)."""
-    from evals import _leer_eventos as _leer
-
-    return _leer(archivo)
-
-
 def _leer_jsonl(ruta):
     ruta = Path(ruta)
     if not ruta.is_file():
@@ -351,7 +345,7 @@ def replay_runs(dir_runs=DIR_RUNS, routing_log=ROUTING_LOG, config=None):
     trazas_chat = 0
 
     for archivo in archivos:
-        eventos = _leer_eventos(archivo)
+        eventos = leer_eventos(archivo)
         if not eventos:
             continue
         total_eventos += len(eventos)
@@ -436,7 +430,7 @@ def guardar_baseline(informe, ruta=BASELINE, sha=None):
     ruta.parent.mkdir(parents=True, exist_ok=True)
     datos = {
         "fecha": datetime.now().isoformat(timespec="seconds"),
-        "git_sha": sha if sha is not None else _git_sha(),
+        "git_sha": sha if sha is not None else sha_corto(),
         "violaciones": informe["violaciones"],
         "trazas": informe["trazas"],
         "eventos": informe["eventos"],
@@ -446,15 +440,6 @@ def guardar_baseline(informe, ruta=BASELINE, sha=None):
 
 
 # 5) INFORME
-
-def _git_sha():
-    try:
-        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
-                           capture_output=True, text=True, timeout=5)
-        return r.stdout.strip() if r.returncode == 0 else ""
-    except Exception:  # noqa: BLE001 (git es best-effort, no dependencia)
-        return ""
-
 
 _NIVEL_NOMBRE = {
     "a": "acciones no emisibles por el código actual",
@@ -533,7 +518,7 @@ def generar(dir_runs=DIR_RUNS, dir_salida=DIR_SALIDA, routing_log=ROUTING_LOG,
             config=None, sha=None, actualizar_baseline=False):
     """Corre el replay y escribe UN informe markdown. Devuelve su Path."""
     fecha = date.today().isoformat()
-    sha = sha if sha is not None else _git_sha()
+    sha = sha if sha is not None else sha_corto()
     informe = replay_runs(dir_runs, routing_log=routing_log, config=config)
     comparacion = comparar_baseline(informe)
     if actualizar_baseline:

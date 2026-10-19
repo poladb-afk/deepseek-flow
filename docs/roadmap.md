@@ -47,12 +47,12 @@ Cada ítem indica qué pieza lo apoya y qué falta.
    genera la mitad.
 8. **Mesas 4/5/7/8** (agentes fractales, async, skills, web UX): sin
    cambios de prioridad por la evidencia nueva.
-9. **Paydown del ratchet (2026-10-19)**: el baseline de `helpers_duplicados`
-   quedó en 20 ocurrencias (8 nombres; los peores son `_git_sha` y `_fmt_pct`
-   con 4 copias). Unificar cada uno en `utils/` baja el número y el gate
-   reescribe el baseline solo: empezar por los benches (`evals.py`,
-   `bench_juez.py`, `replay.py`, `minar_errores.py`, `triaje_trazas.py`)
-   cuando se toquen. Las reglas blandas de `AGENTS.md` se gradúan a gate
+9. ~~**Paydown del ratchet**: 20 ocurrencias de helpers privados duplicados
+   (los peores `_git_sha` y `_fmt_pct` con 4 copias)~~ **✅ (2026-10-19)**:
+   `_git_sha` → `utils/git.py` (`sha_corto`/`sha_largo`/`sha_o_motivo`),
+   `_fmt_pct` → `utils/formato.py` (`pct`), `_leer_eventos` → `utils/trazas.py`
+   (`leer_eventos`) y se van los imports privados entre piezas. Ratchet de
+   helpers **20 → 10**. Las reglas blandas de `AGENTS.md` se gradúan a gate
    cuando duela.
 10. ~~**Paydown del ruido (2026-10-19)**: 55 `except` amplios (39% de los
     `try`; la referencia humana tiene 1,6%)~~ **✅ primera pasada (2026-10-19)**:
@@ -64,10 +64,16 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     pre-registrado con `banco/probes/forma_codigo.py`, n=4 por brazo y tarea,
     deepseek-flash: SLOC 193 → 44 (−77%), tokens −81%, docstrings 0,487 → 0,
     `try` −71% (detalle en la bitácora). Criterio cumplido.
-12. **Repetir exp/51 con más n y otro modelo (2026-10-19)**: el efecto es
-    grande pero n=4, un modelo y una corrida. Correr
-    `python3 banco/probes/forma_codigo.py --runs 8`, comparar con otro modelo
-    y medir también el efecto en el chat real (banco), no solo one-shot.
+12. ~~**Repetir exp/51 con más n y otro modelo**~~ **✅ (2026-10-19)**:
+    `--runs 8` en deepseek-flash y deepseek-chat, con tokens reales de la
+    API: SLOC −79%/−67%, tokens completion −76%/−66%, docstrings 0,56/0,63
+    → 0 (detalle en la bitácora y en el informe). Caveat a vigilar: 2/16
+    respuestas sin bloque en flash.
+13. **Medir la directiva en el chat real (2026-10-19)**: el efecto one-shot
+    está replicado; falta el turno real con tools/HITL. Agregar un escenario
+    de banco que pida escribir un archivo con y sin la directiva (setting
+    `PROMPT_FORMA=0|1`), correr los dos brazos y comparar el archivo generado
+    (tokens, docstrings, defensas). Es el único tramo que no está medido.
 
 **Descartado hoy por evidencia:** Choose a escala (~2.400 casos — el bench
 lo volvió innecesario), round de "hechos actuales" (regla dura lo cierra),

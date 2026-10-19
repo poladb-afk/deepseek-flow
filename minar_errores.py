@@ -6,7 +6,7 @@ Pregunta que responde (exp/9): ¿los errores de tools se AUTOCORRIGEN
 triaje automático con Laya agrega valor.
 
 Determinista a propósito: SIN LLM, SIN red, SIN torch — JSON puro. El mismo
-parseo que evals.py (`_leer_eventos`): una traza corrupta es un artefacto a
+parseo de `utils.trazas.leer_eventos`: una traza corrupta es un artefacto a
 saltear, nunca una excepción.
 
 --------------------------------------------------------------------------
@@ -35,21 +35,14 @@ Uso:
 import argparse
 import json
 import statistics
-import subprocess
-import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
+from utils.formato import pct
+from utils.git import sha_corto
 from utils.rutas import DIR_RUNS
-
-# Reuso EXACTO del parseo tolerante de evals.py: misma vara para todas las
-# trazas del proyecto (una traza rota es artefacto a saltear, no excepción).
-# Se importa (no se copia): una copia local derivaría sin que ningún test lo
-# note, y acá la única defensa contra mientes-la-tabla es que los números
-# salgan del mismo lector que el resto del harness.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from evals import _leer_eventos  # noqa: E402
+from utils.trazas import leer_eventos
 
 RAIZ = Path(__file__).resolve().parent
 DIR_SALIDA = Path("salidas/evals")
@@ -104,7 +97,7 @@ def destino_del_reintento(eventos, idx):
     reintento aunque también fallara. La cantidad de reintentos se reconstruye
     llamando esta función por cada error (cada uno mira su propio "siguiente").
 
-    `eventos` debe venir ordenado por ts (así lo entrega `_leer_eventos`, que
+    `eventos` debe venir ordenado por ts (así lo entrega `leer_eventos`, que
     lee el archivo en orden de escritura = orden temporal)."""
     if idx < 0 or idx >= len(eventos):
         return None
@@ -164,7 +157,7 @@ def minar_runs(directorio=DIR_RUNS):
     """Minería de TODAS las trazas .runs/*.jsonl. Devuelve el informe crudo
     (dict) que consumen `escribir_md` / el JSON de salida.
 
-    No corta con trazas corruptas: si `_leer_eventos` devuelve [] para un
+    No corta con trazas corruptas: si `leer_eventos` devuelve [] para un
     archivo con contenido, es una traza rota → se saltea (cuenta en
     `trazas_ilegibles`, no en errores)."""
     directorio = Path(directorio)
@@ -179,7 +172,7 @@ def minar_runs(directorio=DIR_RUNS):
     trazas_ilegibles = []
 
     for archivo in sorted(directorio.glob("*.jsonl")):
-        eventos = _leer_eventos(archivo)
+        eventos = leer_eventos(archivo)
         if not eventos:
             # tenía contenido y no se pudo parsear: traza corrupta (artefacto).
             if archivo.stat().st_size > 0:
@@ -233,10 +226,6 @@ def minar_runs(directorio=DIR_RUNS):
 
 # 3) SALIDAS (md legible + json máquina), patrón laya_evidencia_*
 
-def _fmt_pct(x):
-    return f"{x * 100:.1f}%" if x is not None else "—"
-
-
 def _fmt_seg(x):
     return f"{x:.3f}" if x is not None else "—"
 
@@ -261,7 +250,7 @@ def escribir_md(informe, sha, fecha):
              "categoría **separada** que NUNCA se suma a los errores reales.\n")
 
     o.append("## Tasa de autocorrección (la clave)\n")
-    o.append(f"> **{_fmt_pct(informe['tasa_autocorreccion'])}** de los errores fue seguido "
+    o.append(f"> **{pct(informe['tasa_autocorreccion'])}** de los errores fue seguido "
              f"de un reintento exitoso de la misma tool "
              f"({informe['reintentos_ok_total']}/{informe['errores_total']}).\n")
     if informe["tasa_autocorreccion"] is not None:
@@ -304,16 +293,6 @@ def escribir_md(informe, sha, fecha):
     return "\n".join(o) + "\n"
 
 
-def _git_sha():
-    """sha corto del código actual (best-effort: el informe no depende de git)."""
-    try:
-        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
-                           capture_output=True, text=True, timeout=5)
-        return r.stdout.strip() if r.returncode == 0 else ""
-    except Exception:  # noqa: BLE001 (git es best-effort, no dependencia)
-        return ""
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Minería de errores de tools en las trazas .runs/*.jsonl.")
@@ -324,7 +303,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     informe = minar_runs(args.carpeta)
-    sha = _git_sha()
+    sha = sha_corto()
     fecha = datetime.now().isoformat(timespec="seconds")
 
     destino = Path(args.salida)
@@ -347,7 +326,7 @@ def main(argv=None):
           f"({informe['sesiones_con_error']} con errores)")
     print(f"  errores: {informe['errores_total']} · timeouts: {informe['timeouts_total']} · "
           f"rechazos-probables: {informe['rechazos_probables_total']}")
-    print(f"  tasa de autocorrección: {_fmt_pct(informe['tasa_autocorreccion'])} "
+    print(f"  tasa de autocorrección: {pct(informe['tasa_autocorreccion'])} "
           f"({informe['reintentos_ok_total']}/{informe['errores_total']})")
     print(f"  → {md_path}")
     print(f"  → {json_path}")

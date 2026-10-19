@@ -3,14 +3,13 @@
     "excepts_amplios": {
       "detalle": {
         "bench_juez.py": [
-          193
+          194
         ],
         "carga_trazas.py": [
           93
         ],
         "evals.py": [
-          61,
-          147
+          138
         ],
         "heartbeat.py": [
           81
@@ -25,9 +24,6 @@
         "main.py": [
           132,
           155
-        ],
-        "minar_errores.py": [
-          313
         ],
         "modules/coding.py": [
           76
@@ -54,17 +50,11 @@
           714,
           761
         ],
-        "replay.py": [
-          455
-        ],
         "research.py": [
           78
         ],
         "sonda_laya.py": [
           205
-        ],
-        "triaje_trazas.py": [
-          233
         ],
         "utils/aprobaciones.py": [
           42
@@ -117,29 +107,13 @@
           16
         ]
       },
-      "metrica": 48
+      "metrica": 44
     },
     "helpers_duplicados": {
       "detalle": {
         "_approve": [
           "modules/coding.py",
           "modules/escritura.py"
-        ],
-        "_fmt_pct": [
-          "bench_juez.py",
-          "evals.py",
-          "minar_errores.py",
-          "triaje_trazas.py"
-        ],
-        "_git_sha": [
-          "evals.py",
-          "minar_errores.py",
-          "replay.py",
-          "triaje_trazas.py"
-        ],
-        "_leer_eventos": [
-          "evals.py",
-          "replay.py"
         ],
         "_listar": [
           "utils/fs_tools.py",
@@ -158,7 +132,7 @@
           "utils/mcp_client.py"
         ]
       },
-      "metrica": 20
+      "metrica": 10
     },
     "tests_definidos": {
       "detalle": {
@@ -201,10 +175,11 @@
         "tests/test_tablero.py": 2,
         "tests/test_thread_store.py": 26,
         "tests/test_ui.py": 5,
+        "tests/test_utils_compartidos.py": 7,
         "tests/test_viz.py": 5,
         "tests/test_voto_router.py": 8
       },
-      "metrica": 523
+      "metrica": 530
     }
   },
   "version": 1

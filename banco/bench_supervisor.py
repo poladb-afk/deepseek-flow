@@ -47,7 +47,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import supervisor
-from evals import _git_sha
+from utils.formato import pct
+from utils.git import sha_o_motivo
 
 RAIZ = Path(__file__).resolve().parent.parent
 TAREAS = RAIZ / "banco" / "supervisor_tareas.jsonl"
@@ -512,7 +513,7 @@ def guardar_baseline(bench, ruta=BASELINE, sha=None, fecha_actualizacion=None):
     ruta.parent.mkdir(parents=True, exist_ok=True)
     datos = {
         "fecha": datetime.now().isoformat(timespec="seconds"),
-        "git_sha": sha if sha is not None else _git_sha(),
+        "git_sha": sha if sha is not None else sha_o_motivo(),
         "por_via": bench["por_via"],
         "veredicto": bench["veredicto"],
     }
@@ -525,10 +526,6 @@ def guardar_baseline(bench, ruta=BASELINE, sha=None, fecha_actualizacion=None):
 # ---------------------------------------------------------------------------
 # INFORME
 # ---------------------------------------------------------------------------
-
-def _fmt_pct(x):
-    return f"{x * 100:.1f}%" if x is not None else "—"
-
 
 def _fmt_ok(v):
     return {True: "✅", False: "🔴", None: "－"}.get(v, "—")
@@ -552,7 +549,7 @@ def informe_markdown(bench, comparacion, sha, fecha):
         if via not in por_via:
             continue
         m = por_via[via]
-        L.append(f"- **{via}**: calidad {_fmt_pct(m['calidad'])} · "
+        L.append(f"- **{via}**: calidad {pct(m['calidad'])} · "
                  f"{m['llamadas']} llamadas remotas · {m['seg']:.1f}s "
                  f"(tope por tarea {m['tope_llamadas']})")
     L.append("")
@@ -621,7 +618,7 @@ def generar(tareas=TAREAS, dir_salida=DIR_SALIDA, vias=("supervisor", "plano"),
     `actualizar_baseline` compara contra el baseline pero NO lo pisa; con la
     flag lo guarda. Devuelve (Path_md, Path_jsonl)."""
     fecha = date.today().isoformat()
-    sha = sha if sha is not None else _git_sha()
+    sha = sha if sha is not None else sha_o_motivo()
 
     # main() ya cargó (y quizá recortó) la lista; el default y los tests
     # pueden pasar la RUTA — las dos formas entran acá.
