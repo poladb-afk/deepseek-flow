@@ -6,7 +6,9 @@ Un agente de terminal construido sobre [PocketFlow](https://github.com/The-Pocke
 (el framework de 100 líneas) con **DeepSeek V4.1 Flash** como LLM y una
 arquitectura de **CORE + módulos**: un chat mínimo con capacidades de solo
 lectura, y cada capacidad nueva que se agrega es un archivo que se deja en
-`modules/` (y se quita borrándolo).
+`modules/` (y se quita borrándolo). Los **skills declarativos** de `skills/`
+(condición + prompt + subset de tools) empaquetan modos de trabajo y se
+disparan por regex, sin LLM.
 
 ```mermaid
 flowchart TD
@@ -199,6 +201,7 @@ deepseek-flow/
 ├── nodes.py / flow.py # el CORE: bucle del agente
 ├── AGENTS.md          # el contrato para agentes: reglas + gate de cada una
 ├── modules/           # capacidades del chat (TOOLS + IMPL por archivo)
+├── skills/            # skills declarativas (condición regex + prompt + tools)
 ├── informe|juez|juez_lote|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|evals|heartbeat|visor|replay|resume|bench_juez|carga_trazas.py
 │                      # piezas standalone (CLI) — los módulos las exponen
 ├── ratchet.py         # las métricas no empeoran (baseline en ratchets/)

@@ -83,11 +83,13 @@ def _preguntas_reales(mensajes):
     1 pre-fetch el resumen se disparaba igual, contradiciendo el docstring)."""
     from utils.compaccion import PREFIJO_COMPACCION
     from utils.prefetch import PREFIJO_PREFETCH
+    from utils.skills import PREFIJO_SKILL
 
     return sum(
         1 for m in mensajes
         if m.get("role") == "user"
-        and not str(m.get("content", "")).startswith((PREFIJO_PREFETCH, PREFIJO_COMPACCION))
+        and not str(m.get("content", "")).startswith(
+            (PREFIJO_PREFETCH, PREFIJO_COMPACCION, PREFIJO_SKILL))
     )
 
 

@@ -1,0 +1,16 @@
+id: exp55-skills
+descripcion: "e2e de skills declarativas (exp/55): revisión inyecta prompt y recorta tools; el control no dispara"
+env:
+  PREGUNTAS_LOG: "0"
+  LAYA_LOG_ARCHIVO: "salidas/exp55/routing.jsonl"
+  COMPACTION_CHARS: "120000"
+turnos:
+  - id: skill-revision
+    linea: "Revisá el código de utils/formato.py y decime si hay algún problema."
+    timeout: 240
+  - id: control-sin-skill
+    linea: "escribime un haiku sobre el mar."
+    timeout: 180
+  - id: salir
+    linea: "salir"
+    timeout: 60

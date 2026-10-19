@@ -193,6 +193,19 @@ Medido: una llamada ≈ 5,5 s; el pipeline completo (12 mapas en paralelo +
 Topes: `MAX_FILES=30`, 2 tareas de ejemplo por archivo, reintentos 3/wait 5
 en mapa y reduce (el BatchNode reintenta **por archivo**, no por lote).
 
+## Skills declarativas (Mesa 7, exp/55)
+
+`skills/*.yaml` empaqueta un modo de trabajo: `condicion` (regex determinística
+sobre la pregunta), `instrucciones` (prompt que se inyecta con prefijo
+`[skill]`) y `tools` (subset que el loop anuncia mientras el skill está
+activo). `utils/skills.py` los carga (YAML roto se saltea) y expone funciones
+puras (`skill_para`, `mensaje`, `filtrar_tools`). En **enforce**, el
+`LayaRouter` evalúa el disparo en `post`: si matchea, fuerza herramientas,
+inyecta el contexto y anuncia el skill; `AgentStep` recorta la lista de tools
+al subset. En shadow no cambia conducta; `SKILLS=0` apaga. El recorte de tools
+es GUÍA (no sandbox): el action space sigue completo y la seguridad sigue en
+HITL/policy. Dos skills iniciales: `revision` y `tdd`.
+
 ## Módulos: el CORE y sus capacidades
 
 El chat es el **CORE**: capacidades base de solo lectura (`fs_tools`) más

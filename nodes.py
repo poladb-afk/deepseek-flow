@@ -272,6 +272,8 @@ class GetQuestion(Node):
         shared.pop("_huellas_vistas", None)
         shared.pop("_racha_sin_novedad", None)
         shared.pop("_corte_novedad", None)
+        # exp/55: el skill es POR PREGUNTA (se re-evalúa el disparo en el router).
+        shared.pop("_skill_activo", None)
         # exp/44: el último mensaje del usuario queda como EVIDENCIA DE
         # INTENCIÓN para el juez de riesgo (import perezoso; los módulos no
         # ven `shared`). Plumbing, no decide nada.
@@ -423,6 +425,12 @@ class AgentStep(Node):
             )
         # Al llegar al límite de rondas se retiran las tools: el modelo debe responder ya.
         tools = None if (agotado or sin_progreso or corte_novedad) else TOOLS
+        if tools is not None and shared.get("_skill_activo"):
+            # exp/55: mientras el skill está activo se anuncia SOLO su subset
+            # (guía, no sandbox: el action space completo sigue existiendo).
+            from utils.skills import filtrar_tools
+
+            tools = filtrar_tools(tools, shared["_skill_activo"])
         if tools is None and not shared.get("_aviso_cierre"):
             shared["_aviso_cierre"] = True
             # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
@@ -794,7 +802,26 @@ class LayaRouter(Node):
         # su resultado. La clasificación (Laya) y la decisión (Python) están
         # separadas y la segunda se testea sin modelo.
         config = config_router()
-        if exec_res == "regla:temporal":
+        pregunta = prep_res.get("pregunta") if isinstance(prep_res, dict) else None
+        # exp/55: skills declarativas. En enforce, un disparo declarativo manda
+        # al lado seguro, inyecta el prompt del skill y anuncia el recorte de
+        # tools. En shadow NO cambia conducta (solo observa), igual que las reglas.
+        skill = None
+        if config.modo == "enforce" and _setting("SKILLS", "1") != "0" and pregunta:
+            from utils.skills import disponibles, mensaje, skill_para
+
+            skill = skill_para(pregunta, disponibles())
+        if skill is not None:
+            propuesta, causa, p_directo = (
+                "herramientas",
+                f"skill {skill.id}: disparo declarativo",
+                None,
+            )
+            shared["_skill_activo"] = skill
+            shared["messages"].append({"role": "user", "content": mensaje(skill)})
+            print(colorear(f"  [skill] {skill.id} activo — {skill.descripcion}", "info"),
+                  flush=True)
+        elif exec_res == "regla:temporal":
             # exp/46: la regla dura ya decidió ANTES del modelo (Laya no se
             # llamó en enforce). Causa explícita, sin p_directo (no hay par
             # (p, etiqueta) calibrable → sin pendiente que etiquetar).
@@ -816,7 +843,6 @@ class LayaRouter(Node):
         from uuid import uuid4
 
         id_decision = uuid4().hex[:8]
-        pregunta = prep_res.get("pregunta") if isinstance(prep_res, dict) else None
         print(f"  [laya] {propuesta} — {causa} (modo {config.modo})")
 
         # A04/A05: el voto corre ANTES de registrar y recibe la PREGUNTA, no el

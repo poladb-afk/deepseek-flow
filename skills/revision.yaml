@@ -1,0 +1,15 @@
+id: revision
+descripcion: "revisión de código: hallazgos con impacto, sin ruido de estilo"
+condicion: '(?i)\b(revis(?:á|a|ar|áme)|audit(?:á|a|ar))\b[^.]*\b(c[oó]digo|cambios?|diff|pr|pull request|implementaci[oó]n)\b'
+instrucciones: |
+  Revisión de código en este repo. Reglas:
+  - Leé los archivos reales antes de opinar; no inventes rutas, líneas ni comportamiento.
+  - Reportá SOLO hallazgos con impacto (bug, seguridad, deuda real medida). El estilo ya lo cubre ./calidad.sh.
+  - Baseline de smells (Fowler): método largo, duplicación, condicionales anidados; nombrá el smell solo si podés señalar ruta:línea.
+  - Formato: `ruta:línea — problema — fix concreto` (una línea por hallazgo). Sin hallazgos: decilo en una frase.
+  - No edites nada salvo que se te pida explícitamente.
+tools:
+  - read_file
+  - list_files
+  - search_files
+  - run_command

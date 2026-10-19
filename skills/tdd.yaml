@@ -1,0 +1,16 @@
+id: tdd
+descripcion: "test-first: rojo, verde, refactor; el gate antes de decir listo"
+condicion: '(?i)\b(tdd|test[- ]?first|primero (?:el|los) tests?|escribí primero (?:el|un) test)\b'
+instrucciones: |
+  Trabajo test-first en este repo:
+  - Primero el test que FALLA (rojo), después el código mínimo para pasarlo (verde), recién ahí refactor.
+  - Tests con pytest en `tests/test_*.py`; verificá con `python3 -m pytest tests/ -q`.
+  - No toques producción sin un test que lo cubra; no uses skip/xfail sin el marker del recurso que falta.
+  - Antes de decir listo: ./calidad.sh verde (ruff, C901, ratchet, pytest).
+tools:
+  - read_file
+  - list_files
+  - search_files
+  - edit_file
+  - write_file
+  - run_command

@@ -238,9 +238,14 @@ dedicado (gap del cookbook); loops fractales con presupuesto heredado (depth má
   Laya vía MCP** como producto del harness (referencia typesafe-mcp /
   mcp-laya: el juicio tipado y calibrado como tool consumible por
   cualquier agente MCP — nosotros ya tenemos mcp_server.py).
-**Mesa 7 — Skills y triggers:** skills/ declarativas (paquete prompt+tools+condición
-de disparo, a lo ZCode); webhook autenticado sobre el server del HITL web (el
-harness como servicio, seguridad primero).
+**Mesa 7 — Skills y triggers:** ~~skills/ declarativas (paquete
+prompt+tools+condición de disparo, a lo ZCode)~~ **✅ exp/55 (2026-10-19)**:
+`skills/*.yaml` (regex de disparo, instrucciones, subset de tools) +
+`utils/skills.py`; en enforce el `LayaRouter` fuerza herramientas e inyecta
+`[skill]`, `AgentStep` anuncia solo el subset; shadow no cambia; SKILLS=0
+apaga; e2e `exp55-skills` 3/3. Pendiente de la mesa: **webhook autenticado**
+sobre el server del HITL web (el harness como servicio, seguridad primero) y
+medir efecto de cada skill con benches de contenido.
 
 **Mesa 8 — UX (incorporada a pedido):** chat web completo (FastAPI/SSE sobre el
 server HITL existente, sesiones en navegador); pulido de terminal (etiqueta

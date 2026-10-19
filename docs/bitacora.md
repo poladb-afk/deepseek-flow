@@ -1193,6 +1193,44 @@ exp/43); (4) la calibración es un snapshot: al crecer la muestra hay que
 re-etiquetar y revisar alpha. Artefacto del veredicto:
 `salidas/evals/veredicto_router_2026-10-19.md`.
 
+## exp/55 — skills declarativas (Mesa 7): prompt+tools+disparo (2026-10-19)
+
+**Qué se construyó:** el primer recorte de la Mesa 7 ("skills/ declarativas:
+paquete prompt+tools+condición de disparo, a lo ZCode"). Un skill es un YAML en
+`skills/` con `id`, `descripcion`, `condicion` (regex sobre la pregunta),
+`instrucciones` (el prompt) y `tools` (subset que se anuncia). Hay dos
+iniciales: **revision** (revisión de código con baseline de smells y formato
+ruta:línea) y **tdd** (rojo-verde-refactor con el gate antes de decir listo).
+
+Cómo funciona (todo determinista, sin LLM): `LayaRouter.post` evalúa
+`skill_para(pregunta)` en **enforce**; si dispara, manda al lado seguro,
+inyecta el prompt como mensaje de historial con prefijo estable `[skill]` y
+anuncia el skill en terminal (`[skill] revision activo — …`). `AgentStep`
+recorta la lista de tools al subset del skill mientras está activo. En shadow
+NO cambia conducta (solo observa), igual que las reglas duras. `SKILLS=0`
+apaga. Un YAML roto se saltea con aviso (como `modules/`). **No es un sandbox**:
+el action space completo sigue existiendo —el recorte es guía para el modelo—;
+la seguridad sigue en HITL/policy. El mensaje `[skill]` se excluye del conteo de
+preguntas reales (`main._preguntas_reales`), como prefetch y compacción.
+
+**Verificación e2e (banco real, `exp55-skills`, 3/3 turnos OK):**
+- Turno "Revisá el código de utils/formato.py…": log `[skill] revision activo`,
+  routing `propuesta=herramientas, causa="skill revision: disparo declarativo",
+  p_directo=None`; 6 rondas con SOLO las tools del subset (read_file,
+  search_files, run_command); el modelo pidió 3 `run_command` que pasaron por
+  HITL (rechazados) y siguió con read_file; cerró con hallazgos anclados.
+- Turno control ("escribime un haiku…"): sin skill, 0 rondas de tools.
+
+**Tests:** `tests/test_skills.py` (8): carga real, YAML roto se saltea,
+prefijo/mensaje, subset sin expandir, router activa y fuerza herramientas,
+shadow no activa, `AgentStep` anuncia solo el subset, `_preguntas_reales` no
+cuenta el mensaje de skill. Límite declarado: el efecto de un skill sobre la
+CALIDAD de la respuesta se mide con benches de contenido (no acá); esta
+entrega es el mecanismo + contrato.
+
+**Queda de la Mesa 7:** webhook autenticado sobre el server del HITL web (el
+harness como servicio, seguridad primero).
+
 ## exp/54 — regla de imperativos de capacidad: el falso directo c01, cerrado (2026-10-19)
 
 **Qué se hizo:** el candidato (a) pre-registrado en el roadmap 21. Nueva
