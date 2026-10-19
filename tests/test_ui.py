@@ -1,9 +1,7 @@
 """UX de terminal: color, progreso y diff resaltado (PR 4)."""
 
 
-# ---------------------------------------------------------------------------
 # Pulido de terminal (mesa 8): colores por tipo de evento + progreso de rondas
-# ---------------------------------------------------------------------------
 
 
 def test_colorear_sin_tty_no_pinta(monkeypatch):
@@ -51,9 +49,7 @@ def test_progreso_ronda():
     assert progreso_ronda(1, 1) == "⚙ ronda 1/1"
     assert progreso_ronda(3) == "⚙ ronda 3"  # sin tope conocido
 
-# ---------------------------------------------------------------------------
 # HITL UX (mesa 8): highlight, explicación y historial de aprobaciones
-# ---------------------------------------------------------------------------
 
 def test_highlight_diff(monkeypatch):
     """El diff se colorea por tipo de línea; sin color, queda intacto."""

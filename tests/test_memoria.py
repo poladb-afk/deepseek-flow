@@ -223,9 +223,7 @@ def test_rag_indice_lexico_sin_vectores_ok(tmp_path, monkeypatch):
     modo, vectores, chunks = rag._cargar()
     assert modo == "lexico" and vectores is None and len(chunks) == 1
 
-# ---------------------------------------------------------------------------
 # Pre-filtro de contexto por Laya (Mesa 6)
-# ---------------------------------------------------------------------------
 
 def test_unidades_bloques_no_parte_parrafos():
     from utils.contexto import unidades_bloques

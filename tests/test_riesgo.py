@@ -23,9 +23,7 @@ def _ajustes(monkeypatch, **valores):
     )
 
 
-# ---------------------------------------------------------------------------
 # juzgar: degradación y centinela
-# ---------------------------------------------------------------------------
 
 def test_juzgar_sin_setting_es_none(monkeypatch):
     _ajustes(monkeypatch, LAYA_MODEL_RIESGO=None)
@@ -71,9 +69,7 @@ def test_juzgar_pasa_el_estado_recortado(monkeypatch):
     assert len(visto["comando"]) == 1000 and len(visto["mensaje"]) == 1000
 
 
-# ---------------------------------------------------------------------------
 # registrar: la línea, el gate y el bookkeeping
-# ---------------------------------------------------------------------------
 
 def test_registrar_escribe_la_linea_completa(tmp_path, monkeypatch):
     _ajustes(monkeypatch, RIESGO_ARCHIVO=str(tmp_path / "r.jsonl"))
@@ -98,11 +94,11 @@ def test_registrar_ruta_rota_no_levanta(tmp_path, monkeypatch):
     archivo = tmp_path / "bloqueo"
     archivo.write_text("x", encoding="utf-8")
     registrar("ls", "hola", None, False, ruta=str(archivo / "sub" / "r.jsonl"))
+    # observable: el fallo se traga Y no deja un archivo a medias
+    assert not (archivo / "sub").exists()
 
 
-# ---------------------------------------------------------------------------
 # estado_sesion: el plumbing del último mensaje
-# ---------------------------------------------------------------------------
 
 def test_estado_sesion_recordar_y_leer():
     from utils import estado_sesion
@@ -113,9 +109,7 @@ def test_estado_sesion_recordar_y_leer():
     assert estado_sesion.ultimo_usuario() == ""
 
 
-# ---------------------------------------------------------------------------
 # el contrato: tres preguntas de UNA dimensión, congeladas por sha1
-# ---------------------------------------------------------------------------
 
 def test_el_contrato_tiene_las_tres_preguntas_de_una_dimension():
     assert set(PREGUNTA_RIESGO) == {"modifica_estado", "danio_irreversible",

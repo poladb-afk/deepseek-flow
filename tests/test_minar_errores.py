@@ -147,9 +147,7 @@ def test_minar_runs_saltea_trazas_ilegibles_sin_romper(tmp_path):
     assert informe["trazas_ilegibles"] == ["roto.jsonl"], "la rota se reporta, no se cae"
 
 
-# ---------------------------------------------------------------------------
 # Triaje determinista de trazas (triaje_trazas.py)
-# ---------------------------------------------------------------------------
 
 def _ev_triaje(nodo, accion, seg):
     """Evento mínimo que consumen el linter y el cálculo de duración."""
@@ -278,9 +276,7 @@ def test_triaje_escribir_md_pone_el_limite_honesto_arriba_y_el_ahorro():
     assert "larga.jsonl" in md and "duración" in md
 
 
-# ---------------------------------------------------------------------------
 # Heartbeat: rama triaje determinista vs. default supervisor (exp/17)
-# ---------------------------------------------------------------------------
 
 def test_heartbeat_triaje_no_pasa_por_el_supervisor():
     """`correr` con tipo=triaje corre el triaje determinista (cero LLM) y

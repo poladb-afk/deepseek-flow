@@ -33,6 +33,8 @@ Las dos métricas, una por clase de ratchet:
   función idénticos tras renombrar argumentos/variables locales (>=3
   sentencias). Detecta la reimplementación con otro nombre — el "signature
   tell" que el conteo por nombre no ve.
+- `cuerpos_test_duplicados` (**menor mejor**, ratchet de TEST SLOP): el mismo
+  detector sobre `tests/`: tests copiados que piden parametrizar o fusionar.
 - `excepts_amplios` (**menor mejor**, ratchet de RUIDO): handlers `except:`,
   `except Exception` y `except BaseException` de nivel superior. Es el smell
   #1 del código generado por IA (41.723 casos en el estudio de commits reales:
@@ -232,10 +234,14 @@ class _NormalizarCuerpo(ast.NodeTransformer):
 
     Así dos copias con nombres distintos colisionan, pero dos funciones que
     llaman a operaciones distintas (`json.loads` vs `yaml.safe_load`) no.
+    Con `constantes=True` (tests) también se reemplazan los literales: los
+    tests copiados difieren justo en los datos, y esa copia es el candidato a
+    parametrizar.
     """
 
-    def __init__(self, locales: set[str]):
+    def __init__(self, locales: set[str], constantes: bool = False):
         self.locales = locales
+        self.constantes = constantes
 
     def visit_FunctionDef(self, nodo):  # pragma: no cover - el cuerpo se normaliza aparte
         return nodo
@@ -247,8 +253,14 @@ class _NormalizarCuerpo(ast.NodeTransformer):
             nodo.id = "_v"
         return nodo
 
+    def visit_Constant(self, nodo):
+        if self.constantes:
+            nodo.value = "_c"
+        return nodo
 
-def _cuerpo_normalizado(nodo: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
+
+def _cuerpo_normalizado(nodo: ast.FunctionDef | ast.AsyncFunctionDef,
+                        constantes: bool = False) -> str | None:
     """Firma estructural del cuerpo (>=3 sentencias), o None si es muy corto."""
     cuerpo = [
         x for x in nodo.body
@@ -261,7 +273,7 @@ def _cuerpo_normalizado(nodo: ast.FunctionDef | ast.AsyncFunctionDef) -> str | N
         if isinstance(sub, ast.Name) and isinstance(sub.ctx, (ast.Store, ast.Param)):
             locales.add(sub.id)
     modulo = ast.Module(body=cuerpo, type_ignores=[])
-    return ast.dump(_NormalizarCuerpo(locales).visit(modulo))
+    return ast.dump(_NormalizarCuerpo(locales, constantes=constantes).visit(modulo))
 
 
 def escanear_cuerpos(raiz: Path) -> dict[str, list[str]]:
@@ -281,6 +293,32 @@ def escanear_cuerpos(raiz: Path) -> dict[str, list[str]]:
             grupos.setdefault(firma, []).append(f"{_relativa(ruta, raiz)}:{nodo.lineno}:{nodo.name}")
     duplicados = {firma: sorted(filas) for firma, filas in grupos.items() if len(set(filas)) >= 2}
     return dict(sorted(duplicados.items()))
+
+
+def escanear_cuerpos_tests(raiz: Path) -> dict[str, list[str]]:
+    """Grupos de tests con el mismo cuerpo (normalizado) — test slop por copia."""
+    grupos: dict[str, list[str]] = {}
+    for ruta in sorted((raiz / "tests").glob("test_*.py")):
+        try:
+            arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            continue
+        for nodo in ast.walk(arbol):
+            if not isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if not nodo.name.startswith("test_"):
+                continue
+            firma = _cuerpo_normalizado(nodo, constantes=True)
+            if firma is None:
+                continue
+            grupos.setdefault(firma, []).append(f"{_relativa(ruta, raiz)}:{nodo.lineno}:{nodo.name}")
+    duplicados = {firma: sorted(filas) for firma, filas in grupos.items() if len(set(filas)) >= 2}
+    return dict(sorted(duplicados.items()))
+
+
+def _metrica_cuerpos_tests(raiz: Path) -> tuple[int, dict[str, list[str]]]:
+    detalle = escanear_cuerpos_tests(raiz)
+    return sum(len(filas) for filas in detalle.values()), detalle
 
 
 def _metrica_muertas(raiz: Path) -> tuple[int, list[str]]:
@@ -332,6 +370,11 @@ METRICAS: dict[str, dict] = {
         "descripcion": "cuerpos idénticos con variables renombradas (reimplementación)",
         "calcular": _metrica_cuerpos,
     },
+    "cuerpos_test_duplicados": {
+        "direccion": "menor_mejor",
+        "descripcion": "tests con el mismo cuerpo (candidatos a parametrizar)",
+        "calcular": _metrica_cuerpos_tests,
+    },
     "excepts_amplios": {
         "direccion": "menor_mejor",
         "descripcion": "handlers `except:` / `except Exception` (el smell #1 del código de IA)",
@@ -363,7 +406,7 @@ def _diagnostico(nombre: str, actual: dict, previo: dict) -> list[str]:
     elif nombre == "codigo_muerto_privado":
         for definicion in actual:
             lineas.append(f"    {definicion}")
-    elif nombre == "cuerpos_duplicados":
+    elif nombre in ("cuerpos_duplicados", "cuerpos_test_duplicados"):
         for grupo in actual.values():
             lineas.append("    ≈ " + " · ".join(grupo))
     elif nombre == "excepts_amplios":

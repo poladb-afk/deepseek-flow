@@ -16,7 +16,7 @@ from utils import git as git_utils
 from utils.formato import pct
 from utils.trazas import leer_eventos
 
-# ---------------------------------------------------------------- formato
+# formato
 
 def test_pct_formatea_fraccion_y_admite_cero():
     assert pct(0.734) == "73.4%"
@@ -28,7 +28,7 @@ def test_pct_none_es_guion():
     assert pct(None) == "—"
 
 
-# ------------------------------------------------------------------- git
+# git
 
 def test_sha_corto_y_largo_son_hex_del_repo():
     corto, largo = git_utils.sha_corto(), git_utils.sha_largo()
@@ -48,7 +48,7 @@ def test_sha_es_best_effort_si_git_no_esta(monkeypatch):
     assert git_utils.sha_o_motivo() == "(git no disponible: OSError)"
 
 
-# ----------------------------------------------------------------- trazas
+# trazas
 
 def test_leer_eventos_linea_rota_descarta_el_archivo(tmp_path):
     """Contrato histórico: una traza corrupta es un artefacto a saltear."""

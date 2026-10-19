@@ -13,7 +13,7 @@ from types import SimpleNamespace as NS
 import pytest
 
 
-# ---------------------------------------------------------------- 1 prefiltro
+# 1 prefiltro
 def test_prefiltro_memoria_sin_laya_no_recorta_ni_miente(tmp_path, monkeypatch):
     """Medido: 12 notas que matchean → 8 con '[prefiltro Laya: 12 → 8]' SIN
     Laya cargada. Ahora: las 12 y sin aviso."""
@@ -43,7 +43,7 @@ def test_prefiltro_rag_sin_laya_no_recorta(monkeypatch):
     assert rag._prefiltrar("q", salida, 3) == salida
 
 
-# ---------------------------------------------------------------- 2 evals
+# 2 evals
 def test_evals_salida_fuera_de_raices_se_rechaza(tmp_path, monkeypatch):
     import evals as ev
     import modules.evals as mod
@@ -61,7 +61,7 @@ def test_evals_salida_fuera_de_raices_se_rechaza(tmp_path, monkeypatch):
     assert ok.startswith("Informe de evals generado") and any((dentro / "out").glob("*.md"))
 
 
-# ---------------------------------------------------------------- 3/4 memoria
+# 3/4 memoria
 def test_resumen_sesion_no_sigue_symlink_colgante(tmp_path, monkeypatch):
     import modules.memoria as mem
 
@@ -113,7 +113,7 @@ def test_memory_search_sin_argumentos_lista(tmp_path, monkeypatch):
     assert r["content"].startswith("Biblioteca de memoria")
 
 
-# ---------------------------------------------------------------- 6 presupuesto
+# 6 presupuesto
 @pytest.mark.parametrize("contenido", [None, "cierre parcial"])
 def test_presupuesto_agotado_ignora_tool_calls_nativos(monkeypatch, contenido):
     import nodes
@@ -164,7 +164,7 @@ def test_stream_completo_descarta_fragmento_sin_nombre(monkeypatch):
     assert [tc.function.name for tc in r.tool_calls] == ["read_file"]
 
 
-# ---------------------------------------------------------------- 7 sql
+# 7 sql
 @pytest.fixture
 def base(tmp_path, monkeypatch):
     p = tmp_path / "t.db"
@@ -220,7 +220,7 @@ def test_sql_literal_con_doble_guion_sigue_valido(base):
     assert not base.sql("select * from t where x = '--' ").startswith("ERROR")
 
 
-# ---------------------------------------------------------------- 8 baseline
+# 8 baseline
 def test_comparar_baseline_con_bench_degradado(tmp_path):
     import evals as ev
 
@@ -230,7 +230,7 @@ def test_comparar_baseline_con_bench_degradado(tmp_path):
     assert r["veredicto"] == "SIN BENCH"
 
 
-# ---------------------------------------------------------------- 10 umbral
+# 10 umbral
 @pytest.mark.parametrize("valor", ["nan", "1.5", "-0.1", "inf", "abc"])
 def test_umbral_invalido_usa_default(monkeypatch, valor):
     from utils.laya_routing import config_router, config_voto, decide
@@ -245,7 +245,7 @@ def test_umbral_invalido_usa_default(monkeypatch, valor):
     assert propuesta == "herramientas"
 
 
-# ---------------------------------------------------------------- 11 mcp
+# 11 mcp
 def test_mcp_server_envuelve_por_run_tool_call(monkeypatch):
     import inspect
 
@@ -264,7 +264,7 @@ def test_mcp_server_envuelve_por_run_tool_call(monkeypatch):
     assert f(command="rm -rf /") == "ERROR: vetado (test)" and not corrio
 
 
-# ---------------------------------------------------------------- estabilidad
+# estabilidad
 def test_discover_saltea_modulo_roto(tmp_path, monkeypatch, capsys):
     import modules
 

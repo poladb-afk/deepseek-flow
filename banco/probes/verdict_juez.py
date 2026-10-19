@@ -78,7 +78,7 @@ def clasificar(crudo):
     Devuelve dict: parseo ∈ {dict, fence-genérico, yaml-pelado, ROTO},
     verdict_crudo (valor tal cual o None), valido (bool) y shape (etiqueta
     corta de la forma observada)."""
-    # --- forma de parseo (espejo de estructura.extraer_yaml) ---
+# forma de parseo (espejo de estructura.extraer_yaml) ---
     if "```yaml" in crudo:
         forma = "fence-yaml"
     elif "```" in crudo:

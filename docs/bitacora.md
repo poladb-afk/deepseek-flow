@@ -1193,6 +1193,36 @@ exp/43); (4) la calibración es un snapshot: al crecer la muestra hay que
 re-etiquetar y revisar alpha. Artefacto del veredicto:
 `salidas/evals/veredicto_router_2026-10-19.md`.
 
+## Auditoría de test slop y comentarios narradores (2026-10-19)
+
+Cierre del thread de ruido por el lado no estructural: ¿hay subconjunto
+DETERMINISTA en comentarios narradores y en test slop?
+
+**Comentarios narradores: NO separable.** Con una heurística laxa (≥2
+palabras significativas compartidas con la línea siguiente) aparecen 72
+candidatos, pero al revisarlos son explicaciones del PORQUÉ de la casa (ley
+medida, bug histórico, contrato): el detector no distingue "por qué" de
+"qué". Queda como review de `AGENTS.md` R9, no como gate.
+
+**Test slop: sí, tres subconjuntos limpios.**
+
+- **Banners decorativos en tests y banco: 144 → 0.** El gate de banners ahora
+  escanea TODO el código versionado (harness + tests + banco), no solo el
+  harness. El estilo del repo ya no tolera `# -----` en ninguna parte.
+- **Tests sin aserción: 2 → 0.** `test_riesgo.py` y `test_thread_store.py`
+  probaban "no levanta" sin asertar nada; ahora asertan el efecto observable
+  (no queda archivo/carpeta a medias) y el gate nuevo
+  `test_todo_test_tiene_assert_o_raises` exige aserción explícita en todo
+  test: un test que no puede fallar no protege nada.
+- **Tests copiados: 12 ocurrencias (6 pares) congeladas.** El mismo detector
+  de cuerpos normalizados (ahora también normaliza constantes, porque un
+  test copiado difiere justo en los datos) corre sobre `tests/` y alimenta
+  la métrica `cuerpos_test_duplicados`, que arranca en **12** (deuda real,
+  shrink-only). Los 6 pares están en `test_db`, `test_policy` (×2),
+  `test_replay`, `test_smoke` y `test_ratchet`: son candidatos a
+  `@pytest.mark.parametrize`, y el paydown quedó en el roadmap (cada
+  parametrización baja el baseline sola).
+
 ## Paydown de except amplios y exp/51 — la directiva de forma, medida (2026-10-19)
 
 Continuación de la jornada, cerrando los dos ítems que el roadmap dejó

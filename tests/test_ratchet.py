@@ -2,8 +2,8 @@
 
 Lo que estos tests clavan:
 
-- el escaneo AST de las cinco métricas (helpers bifurcados; tests definidos;
-  excepts amplios; código muerto; cuerpos duplicados) y su alcance;
+- el escaneo AST de las seis métricas (helpers bifurcados; tests definidos;
+  excepts amplios; código muerto; cuerpos duplicados; tests copiados);
 - la invariante de cada dirección: la deuda baja, la cobertura sube;
 - la siembra, la auto-mejora del baseline (solo hacia la mejora) y el rojo
   que NO pisa el baseline cuando empeora;
@@ -15,7 +15,7 @@ import subprocess
 
 import ratchet
 
-# ------------------------------------------------------------------ helpers
+# helpers
 
 def _arbol(tmp_path):
     for sub in ("modules", "utils", "tests"):
@@ -42,7 +42,7 @@ def _metricas(raiz):
     }
 
 
-# ------------------------------------------------------------------ escaneo
+# escaneo
 
 def test_escanear_helpers_detecta_la_bifurcacion(tmp_path):
     """Un `_foo` en 2+ archivos del harness es deuda: el detalle nombra cuáles."""
@@ -136,7 +136,7 @@ def test_escanear_cuerpos_no_confunde_operaciones_distintas(tmp_path):
     assert ratchet.escanear_cuerpos(raiz) == {}
 
 
-# -------------------------------------------------------------- invariante
+# invariante
 
 def test_comparar_respeta_la_direccion_de_cada_ratchet():
     """Deuda: bajar es mejora. Cobertura: subir es mejora. Nunca al revés."""
@@ -148,7 +148,7 @@ def test_comparar_respeta_la_direccion_de_cada_ratchet():
     assert ratchet.comparar(5, 5, "mayor_mejor") == "IGUAL"
 
 
-# ------------------------------------------------------- baseline / gate
+# baseline / gate
 
 def test_sin_baseline_siembra_y_sale_verde(tmp_path):
     """Primera corrida: escribe el baseline con las métricas actuales."""
@@ -271,7 +271,7 @@ def test_baseline_es_deterministico(tmp_path):
     assert rutas[0].index('"a"') < rutas[0].index('"b"')
 
 
-# --------------------------------------------------------- guardia bypass
+# guardia bypass
 
 def test_hallazgos_bypass_detecta_el_baseline_que_empeora():
     """La dirección que empeora es bypass: deuda que sube y cobertura que baja."""

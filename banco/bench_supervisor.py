@@ -61,9 +61,7 @@ MAX_TOOLS = 5         # MISMO presupuesto de pasos que el supervisor (MAX_PASOS)
 INFORME_SUPERVISOR = "salidas/supervisor.md"
 
 
-# ---------------------------------------------------------------------------
 # AGENTE PLANO (bucle mínimo con tool-calling nativo)
-# ---------------------------------------------------------------------------
 
 SYSTEM_PLANO = (
     "Resolvé la tarea con las herramientas disponibles. Tenés hasta {n} "
@@ -149,9 +147,7 @@ def agente_plano(tarea, llm=None, impls=None, run=None, max_rondas=MAX_RONDAS_PL
     return {"texto": texto, "rondas": rondas, "tools_ejecutadas": ejecutadas}
 
 
-# ---------------------------------------------------------------------------
 # MÉTRICAS: contador de llamadas remotas (envuelve call_llm / call_llm_agent)
-# ---------------------------------------------------------------------------
 
 def contador(llm_modulo):
     """Envuelve `call_llm` y `call_llm_agent` de `llm_modulo` con un contador.
@@ -196,9 +192,7 @@ def contador(llm_modulo):
     return estado, restaurar
 
 
-# ---------------------------------------------------------------------------
 # VERIFICACIONES (grading dinámico, código puro)
-# ---------------------------------------------------------------------------
 
 def _contiene_numero(texto, numero):
     return bool(re.search(rf"(?<!\d){re.escape(str(numero))}(?!\d)", texto or ""))
@@ -300,9 +294,7 @@ def verificar(id_tarea, texto):
     return VERIFICACIONES[id_tarea](texto)
 
 
-# ---------------------------------------------------------------------------
 # TAREAS
-# ---------------------------------------------------------------------------
 
 def cargar_tareas(ruta=TAREAS):
     """Tareas de `ruta` validadas: cada línea un JSON con `id` y `tarea`, y
@@ -332,9 +324,7 @@ def cargar_tareas(ruta=TAREAS):
     return tareas
 
 
-# ---------------------------------------------------------------------------
 # CORRIDA (contención por tarea)
-# ---------------------------------------------------------------------------
 
 def _correr_supervisor(tarea):
     """Camino de PRODUCCIÓN: supervisor.supervisar tal cual. Devuelve el
@@ -467,9 +457,7 @@ def veredicto_plano(por_via):
     return "supervisor gana → se escala"
 
 
-# ---------------------------------------------------------------------------
 # BASELINE (patrón de evals.py / bench_juez.py)
-# ---------------------------------------------------------------------------
 
 def comparar_baseline(nuevo, ruta=BASELINE):
     """Compara contra el baseline guardado si existe. Delta por vía y
@@ -523,9 +511,7 @@ def guardar_baseline(bench, ruta=BASELINE, sha=None, fecha_actualizacion=None):
     return datos
 
 
-# ---------------------------------------------------------------------------
 # INFORME
-# ---------------------------------------------------------------------------
 
 def _fmt_ok(v):
     return {True: "✅", False: "🔴", None: "－"}.get(v, "—")

@@ -12,9 +12,7 @@ import pytest
 import replay
 from utils.laya_routing import RouterConfig
 
-# ---------------------------------------------------------------------------
 # Fijuras: grafos vivos + una caminata realista del chat
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -69,9 +67,7 @@ def _caminata_chat():
     ]
 
 
-# ---------------------------------------------------------------------------
 # Grafos vivos
-# ---------------------------------------------------------------------------
 
 
 def test_grafos_vivos_traen_las_variantes_del_chat(vivos):
@@ -97,9 +93,7 @@ def test_grafos_vivos_traen_los_inline_y_las_tools(vivos):
         assert herramienta in herramientas, herramienta
 
 
-# ---------------------------------------------------------------------------
 # Nivel A — emisibilidad
-# ---------------------------------------------------------------------------
 
 
 def test_caminata_valida_sin_violaciones(vivos):
@@ -132,9 +126,7 @@ def test_error_trazado_y_terminales_son_emisibles(vivos):
     assert replay.nivel_a(eventos, clases) == []
 
 
-# ---------------------------------------------------------------------------
 # Nivel B — adyacencia del chat
-# ---------------------------------------------------------------------------
 
 
 def test_adyacencia_rota_del_chat(vivos):
@@ -192,9 +184,7 @@ def test_batch_interno_es_clase_viva(vivos):
     assert replay.nivel_a_desconocidos(eventos, clases, herramientas) == []
 
 
-# ---------------------------------------------------------------------------
 # Nivel C — registro de tools
-# ---------------------------------------------------------------------------
 
 
 def test_tools_del_action_space_y_fantasmas(vivos):
@@ -219,9 +209,7 @@ def test_nodo_desconocido_sin_clase_ni_tool(vivos):
         ("NodoViejo", "continue")]
 
 
-# ---------------------------------------------------------------------------
 # Nivel D — política del router sobre tráfico registrado
-# ---------------------------------------------------------------------------
 
 
 def test_router_apreto_compuerta():
@@ -258,9 +246,7 @@ def test_router_conforme_y_sin_drift():
     assert replay.nivel_d_router(lineas, config) == []
 
 
-# ---------------------------------------------------------------------------
 # End-to-end sobre tmp: corrida, baseline y veredicto
-# ---------------------------------------------------------------------------
 
 
 def test_replay_runs_end_to_end(tmp_path, vivos, monkeypatch):

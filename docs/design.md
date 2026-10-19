@@ -780,15 +780,19 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   `helpers_duplicados` (deuda: helpers privados `_foo` en 2+ archivos, menor
   mejor), `tests_definidos` (cobertura: `def test_*`, mayor mejor),
   `excepts_amplios` (ruido: `except:`/`except Exception`, menor mejor),
-  `codigo_muerto_privado` (privadas sin referencia, baseline 0) y
-  `cuerpos_duplicados` (copias con variables renombradas, baseline 0). La
+  `codigo_muerto_privado` (privadas sin referencia, baseline 0),
+  `cuerpos_duplicados` (copias con variables renombradas, baseline 0) y
+  `cuerpos_test_duplicados` (tests copiados: normaliza también constantes;
+  deuda inicial 12, shrink-only). La
   invariante: la métrica puede mejorar o quedar igual, **nunca empeorar**; al
   mejorar, el baseline se reescribe solo y viaja en el mismo commit.
   `--actualizar` es decisión del operador (con `HUMAN_RATCHET_BYPASS_KEY`),
   no del agente.
 - **`tests/test_estilo_humano.py` — forma humana del código** (2026-10-19):
-  banners decorativos = 0 (el código llegó a 61), sin docstrings de relleno ni
-  wrappers vacíos sin justificar; **todo `except` amplio lleva motivo visible**
+  banners decorativos = 0 en TODO el código versionado (el harness llegó a
+  61 y tests/banco a 144), sin docstrings de relleno ni wrappers vacíos sin
+  justificar, y todo test necesita aserción explícita (un test que no puede
+  fallar no protege nada); **todo `except` amplio lleva motivo visible**
   (`# noqa: BLE001 (motivo)`; el ratchet lo congela en 48 tras acotar 7) y la
   directiva de mínimo código del `system_prompt` se verifica y tiene
   presupuesto (≤1.400 chars). Su efecto está medido en exp/51

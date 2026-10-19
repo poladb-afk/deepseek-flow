@@ -41,9 +41,7 @@ def test_evals_tool_rechaza_carpeta_inexistente(tmp_path, monkeypatch):
     r = me.evals(dir_runs=str(tmp_path / "no_existe"))
     assert r.startswith("ERROR:")
 
-# ---------------------------------------------------------------------------
 # Evals (mesa 1, replay-evals): bench del router, linter de trazas, costos
-# ---------------------------------------------------------------------------
 
 def _bench_con(fake_agente):
     """Corre correr_bench() con un agente fake (system_one), sin cargar laya."""

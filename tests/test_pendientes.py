@@ -23,9 +23,7 @@ def _bench_en_shadow(monkeypatch):
     fijan explícitamente con monkeypatch (gana el último setenv)."""
     monkeypatch.setenv("LAYA_MODO", "shadow")
 
-# --------------------------------------------------------------------------
 # A18 / A19 — Effective N
-# --------------------------------------------------------------------------
 @pytest.mark.parametrize("crudo", ["[]", "null", '{"fields": null, "answers": {}}'])
 def test_effective_n_tolera_forma_invalida(tmp_path, crudo):
     """JSON válido con estructura equivocada se CUENTA, no revienta."""
@@ -65,9 +63,7 @@ def test_effective_n_reutilizado_procesa_la_carpeta_nueva(tmp_path):
     assert flujo.params["folder"] == str(b)
 
 
-# --------------------------------------------------------------------------
 # A22 — duraciones
-# --------------------------------------------------------------------------
 def test_costo_traza_no_cuenta_dos_veces_lo_anidado():
     """Una tool de 10 s dentro de un nodo de 10 s son 10 s de pared, no 20."""
     import evals
@@ -93,9 +89,7 @@ def test_costo_traza_suma_lo_no_anidado():
     assert r["total"] == 5.0 and r["anidados"] == 0
 
 
-# --------------------------------------------------------------------------
 # A23 — lote de Laya
-# --------------------------------------------------------------------------
 class _AgenteFalso:
     def __init__(self, visto):
         self.visto = visto
@@ -126,9 +120,7 @@ def test_preguntar_lote_sin_config_no_limita(monkeypatch):
     assert "batch_size" not in visto
 
 
-# --------------------------------------------------------------------------
 # A24 — pico de checkpoints
-# --------------------------------------------------------------------------
 def test_agente_desaloja_antes_de_cargar(monkeypatch):
     """El pico de checkpoints vivos nunca supera MAX_EN_PROCESO."""
     from utils import laya
@@ -156,9 +148,7 @@ def test_agente_desaloja_antes_de_cargar(monkeypatch):
     assert len(laya._agentes) == 2
 
 
-# --------------------------------------------------------------------------
 # A28 — cita_ok con el caso que lanza
-# --------------------------------------------------------------------------
 def test_bench_juez_cuenta_el_caso_que_lanza_como_cita_incumplida(monkeypatch):
     import bench_juez
 
@@ -181,9 +171,7 @@ def test_bench_juez_cuenta_el_caso_que_lanza_como_cita_incumplida(monkeypatch):
     assert bench["cita_ok"] == 0.5
 
 
-# --------------------------------------------------------------------------
 # H13 — read_file acotado
-# --------------------------------------------------------------------------
 def test_read_file_pagina_sin_materializar_el_archivo(tmp_path, monkeypatch):
     from utils import fs_tools
 
@@ -204,9 +192,7 @@ def test_read_file_sigue_rechazando_binarios(tmp_path, monkeypatch):
     assert fs_tools.read_file(str(b)).startswith("ERROR: archivo binario")
 
 
-# --------------------------------------------------------------------------
 # H14 — escritura atómica
-# --------------------------------------------------------------------------
 def test_escribir_atomico_publica_y_no_deja_tmp(tmp_path):
     from utils.fs_tools import escribir_atomico
 
@@ -226,9 +212,7 @@ def test_escribir_salida_es_atomico(tmp_path, monkeypatch):
     assert not list(tmp_path.rglob("*.tmp"))
 
 
-# --------------------------------------------------------------------------
 # H17 — research: el error de búsqueda no va al LLM
-# --------------------------------------------------------------------------
 def test_research_no_manda_el_error_al_llm(monkeypatch):
     import research
 
@@ -242,9 +226,7 @@ def test_research_no_manda_el_error_al_llm(monkeypatch):
     assert llamado == []
     assert "búsqueda sin resultados" in salida
 
-# --------------------------------------------------------------------------
 # A09/H02 — no-clobber en las tools del CHAT
-# --------------------------------------------------------------------------
 def test_salida_ya_existe(tmp_path, monkeypatch):
     from utils.fs_tools import salida_ya_existe
 
@@ -278,9 +260,7 @@ def test_la_cli_sigue_pisando(tmp_path, monkeypatch):
     assert err is None and destino.read_text(encoding="utf-8") == "nuevo"
 
 
-# --------------------------------------------------------------------------
 # A17/H12 — la zona fría se respalda antes de descartarla
-# --------------------------------------------------------------------------
 def _historial_largo():
     msgs = [{"role": "system", "content": "s"},
             {"role": "user", "content": "OBJETIVO_ACTIVO"}]
@@ -320,9 +300,7 @@ def test_marcador_sin_respaldo_no_promete_memoria():
     assert "memoria/" not in marcador
     assert "compactados" in marcador
 
-# --------------------------------------------------------------------------
 # A10/H10 — el bench mide la política de producción (no una copia)
-# --------------------------------------------------------------------------
 class _AgenteFijo:
     def __init__(self, choice="directo", conf=0.95):
         self.choice, self.conf = choice, conf
@@ -401,9 +379,7 @@ def test_bench_trunca_la_pregunta_como_produccion(tmp_path, monkeypatch):
     evals.correr_bench(agente=Agente())
     assert len(visto["pregunta"]) == 1000
 
-# --------------------------------------------------------------------------
 # A21 — cancelar el HITL web no deja el pedido pendiente
-# --------------------------------------------------------------------------
 def test_cancelar_hitl_web_limpia_el_pedido(monkeypatch):
     from utils import hitl_web
 
@@ -416,9 +392,7 @@ def test_cancelar_hitl_web_limpia_el_pedido(monkeypatch):
         hitl_web.aprobar("demo", "sin efectos")
     assert hitl_web._pendientes == {}
 
-# --------------------------------------------------------------------------
 # PR 5 — portabilidad: sin rutas personales ni .env ajeno
-# --------------------------------------------------------------------------
 def test_leer_bmo_env_default_no_lee_el_env_ajeno(tmp_path, monkeypatch):
     """El harness es autónomo: sin LEER_BMO_ENV=1 no se lee el .env de bmo."""
     from utils import call_llm
@@ -483,9 +457,7 @@ def test_los_escenarios_usan_placeholders():
     assert mod.sustituir_placeholders("{RAIZ}/x") == f"{raiz}/x"
     assert mod.sustituir_placeholders("{HOME}/x") == f"{Path.home()}/x"
 
-# --------------------------------------------------------------------------
 # Hallazgos abiertos de la auditoría — cierre 2026-10-16
-# --------------------------------------------------------------------------
 def test_router_registra_la_ruta_final_y_el_voto_recibe_la_pregunta(monkeypatch):
     """A04 (la ruta aplicada se registra tras el voto) y A05 (el voto recibe la
     pregunta, no el dict del prep)."""

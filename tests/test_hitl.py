@@ -315,9 +315,7 @@ def test_edit_file_diagnostico_whitespace_y_candidatos():
     # cadena totalmente ajena: sin candidatos
     assert candidatos_similares(archivo, "import numpy as np\nimport pandas") == []
 
-# ---------------------------------------------------------------------------
 # exp/49 — request_human_input: el humano como tool call (factor 7)
-# ---------------------------------------------------------------------------
 
 def test_request_human_input_devuelve_lo_tecleado(monkeypatch, capsys):
     """Con `input` fakeado, la tool devuelve el texto y etiqueta la pregunta."""

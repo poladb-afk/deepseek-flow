@@ -124,7 +124,7 @@ def test_cada_regla_no_negociable_nombra_un_gate_que_existe():
             assert vigente, f"el gate citado no existe: {token} (en {fila})"
 
 
-# --------------------------------------------------- deriva del tablero
+# deriva del tablero
 
 def test_estado_cita_tests_que_existen():
     """La regla del tablero: un ✅ no puede apoyarse en un test fantasma."""

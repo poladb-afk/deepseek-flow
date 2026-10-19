@@ -175,9 +175,7 @@ def test_el_nodo_pasa_la_pregunta_al_registro(tmp_path, monkeypatch):
     assert linea["p_directo"] == 0.99 and linea["modo"] == "shadow"
 
 
-# ---------------------------------------------------------------------------
 # exp/43 — la etiqueta ambiental (decisión ──id──> resultado)
-# ---------------------------------------------------------------------------
 
 
 def test_registrar_resultado_escribe_la_linea_completa(tmp_path, monkeypatch):
@@ -418,10 +416,8 @@ def test_unir_salteos_y_huerfanos():
     assert filas[0]["fuente"] == "etiqueta ambiental exp/43"
 
 
-# ---------------------------------------------------------------------------
 # exp/46 — la regla temporal (recencia no la juzga Laya: regla dura antes
 # del modelo; en shadow Laya corre igual para no cegar la flywheel)
-# ---------------------------------------------------------------------------
 
 def test_regla_temporal_pura():
     from utils.laya_routing import regla_temporal

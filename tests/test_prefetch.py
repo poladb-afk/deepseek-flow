@@ -21,9 +21,7 @@ def _pregunta_con(path):
     return f"¿Qué contiene exactamente {path}? Citálo."
 
 
-# ---------------------------------------------------------------------------
 # decidir: matching, contención, topes
-# ---------------------------------------------------------------------------
 
 def test_decidir_ruta_existente_del_repo(monkeypatch):
     _ajustes(monkeypatch)
@@ -57,9 +55,7 @@ def test_decidir_apagado_es_vacio(monkeypatch):
     assert decidir(_pregunta_con("flow.py")) == []
 
 
-# ---------------------------------------------------------------------------
 # mensaje: la forma y la ley de ausencia
-# ---------------------------------------------------------------------------
 
 def test_mensaje_con_prefijo_y_none_sin_match():
     texto = mensaje([("flow.py", "contenido")])
@@ -68,9 +64,7 @@ def test_mensaje_con_prefijo_y_none_sin_match():
     assert mensaje([]) is None
 
 
-# ---------------------------------------------------------------------------
 # el nodo: appendea, no rompe invariantes, y es no-op apagado
-# ---------------------------------------------------------------------------
 
 def _shared_con_pregunta(texto):
     return {"messages": [
@@ -110,9 +104,7 @@ def test_prefetch_prep_saltea_mensajes_prefetch(monkeypatch):
     assert nodes.PreFetch().prep(shared) == "pregunta buena"
 
 
-# ---------------------------------------------------------------------------
 # LayaRouter.prep lee la PREGUNTA aunque el prefetch quedó último (§3)
-# ---------------------------------------------------------------------------
 
 def test_layarouter_prep_saltea_el_prefetch(monkeypatch):
     shared = _shared_con_pregunta("¿Quién ganó el último mundial?")
@@ -121,9 +113,7 @@ def test_layarouter_prep_saltea_el_prefetch(monkeypatch):
     assert estado["pregunta"] == "¿Quién ganó el último mundial?"
 
 
-# ---------------------------------------------------------------------------
 # marcador del banco: positiva la línea real, negativo el template
-# ---------------------------------------------------------------------------
 
 def test_marcador_prefetch_del_banco():
     import re

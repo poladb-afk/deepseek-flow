@@ -22,9 +22,7 @@ def test_banco_contar_marcadores():
     assert conteo == {}
     assert set(MARCADORES)  # el catálogo de señales es no vacío
 
-# ---------------------------------------------------------------------------
 # exp/20 — candados del bench del juez (funciones puras, sin LLM)
-# ---------------------------------------------------------------------------
 
 def test_bench_respuesta_ok_todos_uno_y_case_insensitive():
     """respuesta_ok: con TODOS los `contiene` → True; falta uno → False;
@@ -267,10 +265,8 @@ def test_bench_correr_recorta_causa_de_excepcion():
     assert razon.startswith("excepción: ValueError: ")
     assert len(razon) == len("excepción: ValueError: ") + 200
 
-# ---------------------------------------------------------------------------
 # bench_supervisor — verificación pura, contador, agente plano y contención
 # (banco/specs/bench_supervisor.md; sin LLM real, todo con fakes)
-# ---------------------------------------------------------------------------
 
 def _import_bench_supervisor():
     import sys
@@ -403,7 +399,7 @@ def test_bench_supervisor_agente_plano_dos_rondas_y_tope():
     sys.path.insert(0, str(RAIZ / "banco"))
     import bench_supervisor as bs
 
-    # --- camino feliz: 2 rondas de tools y respuesta final ---
+# camino feliz: 2 rondas de tools y respuesta final ---
     guion = [
         _Msg("busco", [_TC("t1", "read_file", '{"path": "a.py"}')]),
         _Msg("más", [_TC("t2", "sql", '{"consulta": "SELECT 1"}')]),
@@ -430,7 +426,7 @@ def test_bench_supervisor_agente_plano_dos_rondas_y_tope():
     assert capturado["tools_vistas"][0] is not None
     assert capturado["tools_vistas"][1] is not None
 
-    # --- tope de rondas: SIEMPRE pide tools, a la última se retiran ---
+# tope de rondas: SIEMPRE pide tools, a la última se retiran ---
     guion2 = [_Msg("sigo", [_TC(f"t{i}", "read_file", "{}")]) for i in range(20)]
     tools_por_ronda = []
 

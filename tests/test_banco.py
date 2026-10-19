@@ -76,7 +76,7 @@ def test_limpiar_quita_ansi_y_crlf():
     assert limpiar("\x1b[32mok\x1b[0m\r\n") == "ok\n"
 
 
-# --- scope HITL por path (exp/11) -------------------------------------------
+# scope HITL por path (exp/11) -------------------------------------------
 # Fixtures REALES (líneas textuales de transcripts de sesiones anteriores).
 PROMPT_ESCRITURA_DENTRO = "¿Escribir? → /tmp/prueba_banco/hola.txt (s/n): "
 PROMPT_ESCRITURA_FUERA = "¿Escribir? → /otro/lado/ajeno.txt (s/n): "

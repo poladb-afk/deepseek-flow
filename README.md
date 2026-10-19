@@ -244,12 +244,13 @@ Cuatro candados de la propia suite: `tests/test_inventario.py` compara lo
 que pytest recolecta contra `tests/inventario_tests.txt` (un test que
 desaparece se nombra, en vez de dejar de correr en silencio) y falla si un
 archivo de test pasa de 800 líneas; `ratchet.py` compara helpers privados
-duplicados, tests definidos, `except` amplios, código muerto privado y cuerpos
-duplicados contra `ratchets/baseline.json`
+duplicados, tests definidos, `except` amplios, código muerto privado, cuerpos
+duplicados y tests copiados contra `ratchets/baseline.json`
 (la métrica puede mejorar o quedar igual, nunca empeorar sin decisión del
 operador); y `tests/test_estilo_humano.py` veta la firma de IA en el código
-(banners decorativos, docstrings de relleno, wrappers vacíos), exige motivo
-visible en cada `except` amplio y que el system prompt pida el mínimo código.
+(banners decorativos en todo el repo, docstrings de relleno, wrappers vacíos),
+exige motivo visible en cada `except` amplio, aserción en todo test y que el
+system prompt pida el mínimo código.
 
 ## Créditos
 

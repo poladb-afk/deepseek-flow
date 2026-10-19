@@ -103,14 +103,12 @@ def test_recorrido_no_sigue_enlaces_simbolicos(tmp_path, monkeypatch):
     assert enlace not in collect_files(str(allowed), "*.txt")
 
 
-# ---------------------------------------------------------------------------
 # Caracterización del refactor del PR 6 (C901 ≤ 12 en las fronteras)
 #
 # Estos son los casos que la comparación diferencial contra el código PREVIO al
 # refactor clavó como idénticos (36 comparaciones, 0 diferencias). Fijan lo que
 # el refactor no podía cambiar: globs con barra, **/, binarios, archivos
 # grandes, truncados, el tope de depth y los errores de list_files.
-# ---------------------------------------------------------------------------
 
 
 def test_search_files_glob_con_barra_usa_la_ruta_relativa(tmp_path, monkeypatch):

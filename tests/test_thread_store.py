@@ -12,9 +12,7 @@ from types import SimpleNamespace
 from utils import thread_store
 from utils.compaccion import PREFIJO_COMPACCION
 
-# ---------------------------------------------------------------------------
 # Helpers
-# ---------------------------------------------------------------------------
 
 def _shared(n, tool_rounds=0, no_progress=0):
     """Un shared mínimo con historial agéntico VÁLIDO (system + user)."""
@@ -29,9 +27,7 @@ def _lineas(archivo):
     return archivo.read_text(encoding="utf-8").splitlines()
 
 
-# ---------------------------------------------------------------------------
 # 1. Roundtrip
-# ---------------------------------------------------------------------------
 
 def test_roundtrip_devuelve_el_ultimo(tmp_path, monkeypatch):
     monkeypatch.setenv("THREADS_DIR", str(tmp_path))
@@ -60,9 +56,7 @@ def test_checkpoint_escribe_una_linea_por_evento(tmp_path, monkeypatch):
     assert "ts" in evento
 
 
-# ---------------------------------------------------------------------------
 # 2. Cola cortada (crash a mitad de escritura)
-# ---------------------------------------------------------------------------
 
 def test_cola_cortada_devuelve_el_anterior(tmp_path, monkeypatch):
     monkeypatch.setenv("THREADS_DIR", str(tmp_path))
@@ -96,9 +90,7 @@ def test_varias_lineas_rotas_al_final(tmp_path, monkeypatch):
     assert thread_store.cargar("t5") == bueno
 
 
-# ---------------------------------------------------------------------------
 # 3. THREAD_PERSIST=0 apaga TODO (ni crea el directorio)
-# ---------------------------------------------------------------------------
 
 def test_persist_0_no_escribe_ni_crea_dir(tmp_path, monkeypatch):
     destino = tmp_path / "nunca"
@@ -117,9 +109,7 @@ def test_persist_default_escribe(tmp_path, monkeypatch):
     assert (tmp_path / "t7.jsonl").exists()
 
 
-# ---------------------------------------------------------------------------
 # 4. None para id inexistente; fallo de escritura no levanta (bookkeeping)
-# ---------------------------------------------------------------------------
 
 def test_cargar_id_inexistente_devuelve_none(tmp_path, monkeypatch):
     monkeypatch.setenv("THREADS_DIR", str(tmp_path))
@@ -135,11 +125,11 @@ def test_checkpoint_fallo_de_escritura_no_levanta(tmp_path, monkeypatch):
     archivo.write_text("x", encoding="utf-8")
     monkeypatch.setenv("THREADS_DIR", str(archivo / "sub"))  # padre es archivo
     thread_store.checkpoint("t8", "GetQuestion", "continue", _shared(0))  # no levanta
+    # observable: el checkpoint fallido no deja el directorio a medias
+    assert not (archivo / "sub").exists()
 
 
-# ---------------------------------------------------------------------------
 # 5. valido(): reusa validar_historial (no reimplementa)
-# ---------------------------------------------------------------------------
 
 def test_valido_historial_valido_sin_violaciones():
     assert thread_store.valido(_shared(2)) == []
@@ -193,9 +183,7 @@ def test_shared_valido_con_compaccion_tambien_pasa():
     assert thread_store.valido(shared) == []
 
 
-# ---------------------------------------------------------------------------
 # 6. Los TRES puntos seguros escriben checkpoint (contador de líneas)
-# ---------------------------------------------------------------------------
 
 def _contar(tmp_path, id_thread):
     archivo = tmp_path / f"{id_thread}.jsonl"
@@ -275,9 +263,7 @@ def test_punto_seguro_agentstep_checkpointea_la_seleccion(tmp_path, monkeypatch)
     assert linea["accion"] == "answer" and linea["accion"] != "tool"
 
 
-# ---------------------------------------------------------------------------
 # thread_id(): idempotente por proceso, mismo stem que el trace si hay tracing
-# ---------------------------------------------------------------------------
 
 def test_thread_id_idempotente_por_proceso():
     from utils import tracing
@@ -300,9 +286,7 @@ def test_thread_id_reusa_el_stem_del_trace(monkeypatch):
     assert tracing.thread_id() == "20261014_120000_1234"
 
 
-# ---------------------------------------------------------------------------
 # 7. reparar_pendientes(): los tool_calls huérfanos del ÚLTIMO assistant (exp/49)
-# ---------------------------------------------------------------------------
 
 def _assistant_con_tool_calls(ids):
     return {"role": "assistant", "content": None,
@@ -380,9 +364,7 @@ def test_reparar_pendientes_shared_sin_messages_no_explota():
     assert thread_store.reparar_pendientes({"messages": "no soy lista"}) == 0
 
 
-# ---------------------------------------------------------------------------
 # 8. resume end-to-end: reparar ANTES de validar salva un thread a mitad de ronda
-# ---------------------------------------------------------------------------
 
 def test_resume_repara_una_seleccion_pendiente(tmp_path, monkeypatch):
     """Un thread que termina en selección pendiente: cargar → reparar → valido []."""

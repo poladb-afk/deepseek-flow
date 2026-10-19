@@ -38,9 +38,7 @@ def test_elegir_exposicion_normal_sin_aviso():
     assert expuestas == ["list_files", "read_file"]
     assert aviso is None
 
-# ---------------------------------------------------------------------------
 # Vision/PDF (cola final): ver_imagen (data-URL base64) y ver_pdf (Files API)
-# ---------------------------------------------------------------------------
 
 PNG_1x1 = bytes.fromhex(
     "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4"
@@ -221,9 +219,7 @@ def test_ver_pdf_demasiado_grande_sin_llamar(tmp_path, monkeypatch):
     r = vision.ver_pdf(str(pdf), "¿qué dice?")
     assert r.startswith("ERROR") and "tope para un PDF" in r
 
-# ---------------------------------------------------------------------------
 # A2A (cola final): agentes_remotos y a2a_tarea contra un servidor fake
-# ---------------------------------------------------------------------------
 
 
 class _ServidorA2A:

@@ -37,6 +37,19 @@ def _fuentes():
         yield ruta, ruta.read_text(encoding="utf-8")
 
 
+def _fuentes_repo():
+    """Todo el código versionado del repo (harness + tests + banco)."""
+    patrones = ("*.py", "modules/*.py", "utils/*.py", "tests/test_*.py",
+                "banco/*.py", "banco/probes/*.py")
+    vistos = set()
+    for patron in patrones:
+        for ruta in RAIZ.glob(patron):
+            if ruta.is_file() and ruta.name != "__init__.py":
+                vistos.add(ruta)
+    for ruta in sorted(vistos):
+        yield ruta, ruta.read_text(encoding="utf-8")
+
+
 def _normalizar(texto):
     return re.sub(r"[^a-z ]+", " ", texto.lower().replace("_", " ")).strip()
 
@@ -46,7 +59,7 @@ def test_sin_banners_decorativos():
     separa lo que el nombre de la función ya delimita. El harness llegó a 61
     banners en el código; el contrato lo deja en 0 y bloquea la reincidencia."""
     banners = []
-    for ruta, src in _fuentes():
+    for ruta, src in _fuentes_repo():
         for tok in tokenize.generate_tokens(io.StringIO(src).readline):
             if tok.type == tokenize.COMMENT and _BANNER.match(tok.string.strip()):
                 banners.append(f"{ruta.relative_to(RAIZ)}:{tok.start[0]}")
@@ -117,6 +130,32 @@ def test_except_amplio_visible_y_justificado():
     assert not sin_justificar, (
         "except amplio sin motivo visible (acotalo a la excepción real o "
         f"documentá con `# noqa: BLE001 (motivo)`): {sin_justificar}")
+
+
+def _test_asserta(nodo):
+    """True si el test contiene una aserción explícita (assert, raises, fail)."""
+    for sub in ast.walk(nodo):
+        if isinstance(sub, (ast.Assert, ast.Raise)):
+            return True
+        if isinstance(sub, ast.With) and any("raises" in ast.dump(item) for item in sub.items):
+            return True
+        if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Attribute) and (
+                sub.func.attr in ("raises", "fail", "assert_")):
+            return True
+    return False
+
+
+def test_todo_test_tiene_assert_o_raises():
+    """Un test sin aserción es test slop: pasa siempre y no protege nada.
+    La excepción "no levanta" también se asierta sobre un EFECTO observable."""
+    sin_assert = []
+    for ruta in sorted((RAIZ / "tests").glob("test_*.py")):
+        arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+        for nodo in ast.walk(arbol):
+            if (isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and nodo.name.startswith("test_") and not _test_asserta(nodo)):
+                sin_assert.append(f"{ruta.name}:{nodo.lineno}:{nodo.name}")
+    assert not sin_assert, f"tests sin aserción observable: {sin_assert}"
 
 
 def test_prompt_forma_se_apaga_por_setting(monkeypatch):

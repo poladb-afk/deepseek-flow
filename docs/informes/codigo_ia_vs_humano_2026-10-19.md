@@ -271,3 +271,11 @@ chicas, mismo prompt de producto.
   muertos, eliminados) y cuerpos idénticos con variables renombradas
   (0 entre archivos). `ratchet.py` gana `codigo_muerto_privado` y
   `cuerpos_duplicados`, ambos con baseline 0.
+
+- **Cuarta pasada: test slop y comentarios narradores (misma jornada).** Los
+  comentarios "narradores" no son separables de los "por qué" (72 candidatos
+  con heurística laxa, todos explican una decisión) → quedan review. En
+  tests sí hubo subconjunto determinista: 144 banners decorativos en
+  tests/banco → 0 (gate repo-wide), 2 tests sin aserción → 0 (aserción
+  observable + gate), y 12 ocurrencias de tests copiados congeladas en la
+  métrica `cuerpos_test_duplicados` (candidatos a parametrizar).
