@@ -1231,6 +1231,55 @@ incluida la trampa inversa), `test_enforce_regla_imperativo_no_consulta_a_laya`
 (causa registrada `regla imperativo` sin Laya) y el bench con reglas
 (`test_medir_regla_corrige_un_falso_directo_del_voto`, `test_resumen_separa_capas...`).
 
+## exp/54 — regla de imperativos de capacidad: el falso directo c01, cerrado (2026-10-19)
+
+**Qué se hizo:** el candidato (a) pre-registrado en el roadmap 21. Nueva
+`regla_imperativo_capacidad(pregunta)` en `utils/laya_routing.py`, hermana de
+`regla_temporal` (exp/46): si la pregunta EMPIEZA con una orden de capacidad
+("debatí", "investigá", "buscá", "leé", "corré", "editá", "medí", "usá",
+"mostrame"…) el `LayaRouter` en enforce la manda a **herramientas ANTES del
+modelo**, sin consultar a Laya ni al voto. "generá" exige además un objeto de
+capacidad (informe/reporte/evaluación/métricas/documentación) porque "generá
+un poema" es directo. Los creativos ("escribime un haiku", "contame un
+cuento") y el conocimiento ("¿qué es…?", "explicá…") quedan directo. En
+shadow NO corta (igual que la temporal): Laya corre y la flywheel junta el
+par (p, etiqueta) para validar la regla.
+
+**Criterio pre-registrado (antes de medir):** c01 pasa, d01 sigue directo, el
+bench extendido a la cascada router+voto no empeora `herramientas` ni suma
+falsos directos.
+
+**Medición con el bench extendido** (`bench_voto.py` ahora mide DOS capas:
+voto y producto-con-reglas):
+
+| capa | corrección | directo | herramientas | falsos directos de producto |
+|---|---|---|---|---|
+| voto (sin reglas) | 6/8 | 6/6 | 4/4 | 2 (c01, c02) |
+| **producto (con reglas)** | **8/8** | **6/6** | **4/4** | **0** |
+
+Reglas disparadas en **11/18** casos; c01 lo cubre `regla:imperativo` y c02
+`regla:temporal` (el voto fallaba en ambos y la regla los corrige). El
+criterio se cumple **entero**. Efecto de producción: esas órdenes ya no
+pagan Laya+voto+árbitro y no dependen de la confianza del checkpoint; el
+costo es acotado a la precisión de la regla (0 falsos positivos medidos en
+los 6 controles directos del dataset).
+
+**Verificación e2e (banco real, `exp54-reglas`, 3/3 turnos OK):**
+- Turno imperativo ("debatí en 2 rondas…"): el log muestra
+  `[laya] herramientas — regla imperativo (exp/54) (modo enforce)` (la causa
+  de la regla, sin inferencia), `DeepSeek: → debate`, flujo completo
+  (Proponente/Critico/JuezDebate) y **1 ronda de tools**; routing.jsonl:
+  `propuesta=herramientas, p_directo=None`.
+- Turno control ("escribime un haiku…"): `[laya] directo — conjunto colapsa
+  (q=0.983)` + `[voto] laya local: directo (conf 0.98)` y **0 rondas de
+  tools**; el creativo sigue directo.
+- Traza: ciclo 1 tools `['debate']` con flujo de debate; ciclo 2 sin tools.
+
+**Tests:** `test_regla_imperativo_capacidad_pura` (9 positivos / 7 negativos,
+incluida la trampa inversa), `test_enforce_regla_imperativo_no_consulta_a_laya`
+(causa registrada `regla imperativo` sin Laya) y el bench con reglas
+(`test_medir_regla_corrige_un_falso_directo_del_voto`, `test_resumen_separa_capas...`).
+
 ## exp/53 — bench permanente del voto: dataset + hallazgo (2026-10-19)
 
 **Qué cierra:** el pendiente de la Mesa 1 era "bench de decisiones del voto
