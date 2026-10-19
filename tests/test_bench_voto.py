@@ -2,8 +2,9 @@
 
 El dataset (banco/voto_casos.jsonl) es la parte permanente: casos donde el
 voto corrigió a Laya, controles directos y herramientas claras. Los tests
-clavan el esquema, la cascada (voto local confiable vs árbitro) y el resumen
-seguridad/ahorro — sin Laya ni red (callables inyectables).
+clavan el esquema, las DOS capas (voto local + árbitro; y producto con las
+reglas duras del router) y el resumen seguridad/ahorro — sin Laya ni red
+(callables inyectables).
 """
 import sys
 
@@ -13,6 +14,14 @@ from conftest import RAIZ
 sys.path.insert(0, str(RAIZ / "banco" / "probes"))
 
 import bench_voto as bench  # noqa: E402
+
+
+def _fila(**extra):
+    """Fila mínima del bench para probar `resumen` sin correr la cascada."""
+    base = {"local": "directo", "conf": 0.9, "confiable": True, "causa": "fake",
+            "cubierto_por": "", "seg": 0.2}
+    base.update(extra)
+    return base
 
 
 def test_dataset_carga_y_esta_balanceado():
@@ -58,45 +67,70 @@ def test_medir_usa_voto_local_si_es_confiable_y_arbitra_si_duda():
         llamadas_arbitro.append(pregunta)
         return "directo"
 
-    filas = bench.medir(casos, voto_local, arbitro)
+    filas = bench.medir(casos, voto_local, arbitro, regla=None)
     assert filas[0]["origen_decision"] == "voto" and filas[0]["acierto"]
     assert filas[1]["origen_decision"] == "arbitro" and llamadas_arbitro == ["haiku"]
     assert filas[1]["acierto"] and filas[1]["local"] == "directo"
 
 
+def test_medir_regla_corrige_un_falso_directo_del_voto():
+    """c01: el voto local confía y dice directo (el hueco de exp/53); la regla
+    dura de capacidad lo manda a herramientas en la capa producto."""
+    casos = [{"id": "c01", "grupo": "correccion", "esperado": "herramientas",
+              "pregunta": "debatí en 2 rondas"}]
+
+    filas = bench.medir(
+        casos,
+        lambda _p: ("directo", 0.94, True, "conf 0.94 >= umbral"),
+        lambda _p: "herramientas",
+        regla=lambda _p: "regla:imperativo",
+    )
+    fila = filas[0]
+    assert fila["final"] == "herramientas" and fila["acierto"]
+    assert fila["regla"] == "regla:imperativo"
+    assert fila["final_voto"] == "directo" and not fila["acierto_voto"]
+    assert fila["falso_directo"] is False and fila["falso_directo_voto"] is True
+    assert fila["cubierto_por_regla"] is True
+
+
 def test_medir_sin_voto_local_arbitra_todo():
     casos = [{"id": "h01", "grupo": "herramientas", "esperado": "herramientas",
               "pregunta": "leé README"}]
-    filas = bench.medir(casos, lambda _p: None, lambda _p: "herramientas")
+    filas = bench.medir(casos, lambda _p: None, lambda _p: "herramientas", regla=None)
     assert filas[0]["origen_decision"] == "arbitro" and filas[0]["acierto"]
 
 
-def test_resumen_cuenta_falsos_directos_y_ahorro():
+def test_resumen_separa_capas_y_cubre_por_regla():
     filas = [
-        {"id": "c01", "grupo": "correccion", "esperado": "herramientas",
-         "final": "herramientas", "origen_decision": "voto", "acierto": True,
-         "falso_directo": False, "cubierto_por": "", "seg": 0.2},
-        {"id": "c02", "grupo": "correccion", "esperado": "herramientas",
-         "final": "directo", "origen_decision": "arbitro", "acierto": False,
-         "falso_directo": True, "cubierto_por": "regla_temporal", "seg": 0.4},
-        {"id": "c03", "grupo": "correccion", "esperado": "herramientas",
-         "final": "directo", "origen_decision": "voto", "acierto": False,
-         "falso_directo": True, "cubierto_por": "", "seg": 0.2},
-        {"id": "d01", "grupo": "directo", "esperado": "directo", "final": "directo",
-         "origen_decision": "voto", "acierto": True, "falso_directo": False,
-         "cubierto_por": "", "seg": 0.2},
+        _fila(id="c01", grupo="correccion", esperado="herramientas",
+              final="herramientas", origen_decision="regla:imperativo",
+              final_voto="directo", origen_voto="voto",
+              acierto=True, acierto_voto=False,
+              falso_directo=False, falso_directo_voto=True,
+              regla="regla:imperativo", cubierto_por_regla=True),
+        _fila(id="c02", grupo="correccion", esperado="herramientas",
+              final="directo", origen_decision="voto",
+              final_voto="directo", origen_voto="voto",
+              acierto=False, acierto_voto=False,
+              falso_directo=True, falso_directo_voto=True,
+              regla="", cubierto_por_regla=False),
+        _fila(id="d01", grupo="directo", esperado="directo",
+              final="directo", origen_decision="voto",
+              final_voto="directo", origen_voto="voto",
+              acierto=True, acierto_voto=True,
+              falso_directo=False, falso_directo_voto=False,
+              regla="", cubierto_por_regla=False),
     ]
     resumen = bench.resumen(filas)
-    assert resumen["casos"] == 4 and resumen["aciertos"] == 2
-    assert resumen["por_grupo"]["correccion"] == {"aciertos": 1, "casos": 3}
-    assert resumen["cobertura_local"] == 3 and resumen["arbitro"] == 1
-    assert resumen["falsos_directos"] == ["c02", "c03"]
-    assert resumen["falsos_directos_producto"] == ["c03"]
-    assert resumen["cubiertos_por_regla"] == ["c02"]
-    assert resumen["errores"] == [
-        {"id": "c02", "esperado": "herramientas", "final": "directo"},
-        {"id": "c03", "esperado": "herramientas", "final": "directo"},
-    ]
+    assert resumen["casos"] == 3 and resumen["aciertos"] == 2
+    assert resumen["por_grupo"]["correccion"] == {"aciertos": 1, "casos": 2}
+    assert resumen["aciertos_voto"] == 1
+    assert resumen["falsos_directos"] == ["c02"]
+    assert resumen["falsos_directos_voto"] == ["c01", "c02"]
+    assert resumen["cubiertos_por_regla"] == ["c01"]
+    assert resumen["reglas_disparadas"] == 1
+    assert resumen["cobertura_local"] == 3 and resumen["arbitro"] == 0
+    assert resumen["errores"] == [{"id": "c02", "esperado": "herramientas", "final": "directo"}]
     assert resumen["seg_mediana"] == pytest.approx(0.2)
 
 

@@ -520,3 +520,56 @@ def test_sin_recencia_flujo_de_siempre(tmp_path, monkeypatch, _laya_que_diria_di
     res = router.exec(estado)
     assert res != "regla:temporal" and _laya_que_diria_directo["n"] == 1
     assert router.post({}, estado, res) == "directo"
+
+
+def test_regla_imperativo_capacidad_pura():
+    """exp/54: órdenes de capacidad → herramientas; creativos y conocimiento
+    quedan directo (no romper la trampa inversa del router)."""
+    from utils.laya_routing import regla_imperativo_capacidad
+
+    for pregunta in (
+        "debatí en 2 rondas sobre si conviene migrar el chat a web.",
+        "investigá en la web cuál es la capital de Australia.",
+        "buscá en el repo dónde se define MAX_TOOL_ROUNDS.",
+        "leé README.md y decime cuántas secciones tiene.",
+        "corré la suite de tests y decime cuántos pasan.",
+        "editá utils/formato.py para que pct devuelva dos decimales.",
+        "usá el servidor MCP matemática y sumá 2+2.",
+        "mostrame el contenido de docs/roadmap.md.",
+        "generá un informe breve de las métricas del repo.",
+    ):
+        assert regla_imperativo_capacidad(pregunta), pregunta
+    for pregunta in (
+        "escribime un haiku sobre el mar.",
+        "generá un poema épico sobre el invierno.",
+        "¿qué es un closure en Python?",
+        "explicá brevemente la diferencia entre lista y tupla.",
+        "resumí en una frase qué es un LLM.",
+        "contame un cuento.",
+        "¿qué significa REST en el contexto de APIs?",
+    ):
+        assert not regla_imperativo_capacidad(pregunta), pregunta
+
+
+def test_enforce_regla_imperativo_no_consulta_a_laya(tmp_path, monkeypatch, _laya_que_diria_directo):
+    """El hueco del bench del voto (c01): Laya diría directo, la regla dura de
+    capacidad manda a herramientas SIN llamarla y lo deja registrado."""
+    import json
+
+    import nodes
+    from utils import call_llm
+
+    archivo = tmp_path / "routing.jsonl"
+    ajustes = {"LAYA_MODO": "enforce", "LAYA_LOG_ARCHIVO": str(archivo)}
+    monkeypatch.setattr(
+        call_llm, "_setting", lambda nombre, default=None: ajustes.get(nombre, default)
+    )
+    router = nodes.LayaRouter()
+    estado = {"pregunta": "debatí en 2 rondas sobre si migrar el chat a web"}
+    res = router.exec(estado)
+    assert res == "regla:imperativo"
+    assert _laya_que_diria_directo["n"] == 0
+    assert router.post({}, estado, res) == "herramientas"
+    linea = json.loads(archivo.read_text(encoding="utf-8").strip())
+    assert "regla imperativo" in linea["causa"]
+    assert linea["propuesta"] == "herramientas" and linea["p_directo"] is None

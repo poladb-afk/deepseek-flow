@@ -152,6 +152,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Rondas | `presupuesto(shared)` por pregunta (override > perfil de `operacion` > `MAX_TOOL_ROUNDS`); al llegar, `AgentStep` retira las tools y el modelo debe responder. Se reinicia con cada pregunta nueva del usuario (el comando `/aprobaciones` incluido, que no agrega mensaje) | `nodes.presupuesto`, `AgentStep.prep` |
 | No-progreso | Repeticiones idénticas de la ronda de tools (`fingerprint` de nombre+argumentos) a `UMBRAL_SIN_PROGRESO`: se retiran las tools sin esperar el techo, con el evento `corte_no_progreso` en la traza | `nodes.fingerprint`, `ExecuteTools.post`, `AgentStep.prep` |
 | Contexto | `READ_MAX_CHARS` por lectura, listados truncados | `fs_tools` |
+| Reglas duras del router | recencia (`regla_temporal`, exp/46) e imperativos de capacidad (`regla_imperativo_capacidad`, exp/54) mandan a herramientas ANTES de Laya; en shadow no cortan | `utils/laya_routing.py` |
 | Convergencia | corte OPCIONAL por falta de novedad (tool+argumentos; `CORTE_NOVEDAD=k`). **A/B exp/52-B negativo**: redundancia real ≈0 → default 0=off; la huella queda en la traza | `nodes.corte_por_novedad_activo` |
 
 ## Segundo flujo: informe map-reduce
@@ -553,7 +554,10 @@ capacidad-vs-creativo en el prompt (generate_targeted, 300/300
 verificados → 1.121 casos) y un run más: los 6 casos-imperativos del
 test 6/6, y la trampa inversa ("escribime un haiku") correcta a 0.97.
 Persiste el histórico "último mundial" (0.83) — en producción lo cubre
-el voto. **Bench permanente (exp/53)**: `banco/voto_casos.jsonl` +
+el voto. **Regla dura de imperativos (exp/54)**: una orden de capacidad
+("debatí…", "leé…") no la juzga el modelo — va a herramientas en enforce
+(antes de Laya) y en shadow se registra para la flywheel; cerró el falso
+directo c01 que el voto local confiaba. **Bench permanente (exp/53)**: `banco/voto_casos.jsonl` +
 `banco/probes/bench_voto.py` fijan los casos de corrección (y controles) y
 miden la cascada real; hallazgo c01: el voto local puede confiar en un
 imperativo y evitar al árbitro (roadmap 21). **Ensamble 2-de-2 con voto de

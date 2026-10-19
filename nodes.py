@@ -759,7 +759,7 @@ class LayaRouter(Node):
 
     def exec(self, estado):
         from utils.laya import disponible, preguntar_detalle
-        from utils.laya_routing import config_router, regla_temporal
+        from utils.laya_routing import config_router, regla_imperativo_capacidad, regla_temporal
 
         # exp/46: la recencia no la juzga Laya (límite de familia: sin fechas).
         # La regla dura va ANTES del modelo. En enforce corta acá sin gastar a
@@ -768,6 +768,10 @@ class LayaRouter(Node):
         modo = config_router().modo
         if modo == "enforce" and regla_temporal(estado.get("pregunta")):
             return "regla:temporal"
+        # exp/54: la orden de capacidad tampoco la decide el modelo: es el
+        # hueco medido por el bench del voto (c01: voto local directo 0,94).
+        if modo == "enforce" and regla_imperativo_capacidad(estado.get("pregunta")):
+            return "regla:imperativo"
         if modo == "off" or not disponible():
             return None
         try:
@@ -797,6 +801,13 @@ class LayaRouter(Node):
             propuesta, causa, p_directo = (
                 "herramientas",
                 "regla temporal (exp/46): recencia no la juzga Laya",
+                None,
+            )
+        elif exec_res == "regla:imperativo":
+            # exp/54: misma vía que la temporal, para órdenes de capacidad.
+            propuesta, causa, p_directo = (
+                "herramientas",
+                "regla imperativo (exp/54): orden de capacidad no la juzga Laya",
                 None,
             )
         else:

@@ -43,6 +43,64 @@ RE_TEMPORAL = re.compile(
 )
 
 
+# exp/54: imperativos de CAPACIDAD (los falso-directo del router con acción).
+# Solo la primera palabra: alta precisión sin imitar semántica. Los creativos
+# ("escribime un haiku", "contame un cuento") quedan FUERA para no romper la
+# trampa inversa; "generá" exige además un objeto de capacidad (informe,
+# reporte, evaluación, métricas, documentación), porque "generá un poema" es
+# directo. Encontro el hueco el bench del voto (exp/53, caso c01).
+_IMPERATIVOS_CAPACIDAD = frozenset({
+    "debatí", "debati", "debatir",
+    "investigá", "investiga", "investigar",
+    "buscá", "busca", "buscame", "buscáme",
+    "leé", "lee", "leeme", "leéme",
+    "corré", "corre",
+    "editá", "edita",
+    "medí", "mide",
+    "analizá", "analiza",
+    "documentá", "documenta",
+    "revisá", "revisa",
+    "aplicá", "aplica",
+    "usá", "usa",
+    "listá", "lista", "listame", "listáme",
+    "mostrá", "muestra", "mostrame", "mostráme",
+    "verificá", "verifica",
+    "ejecutá", "ejecuta",
+    "extraé", "extrae",
+})
+
+_RE_OBJETO_CAPACIDAD = re.compile(
+    r"(?i)\b(informes?|reportes?|eval(?:s|uaci[oó]n)?|m[eé]tric(?:a|as)|"
+    r"documentaci[oó]n|informe)\b"
+)
+
+_RELLENOS = frozenset({"por", "favor", "dale", "ahora", "primero", "después",
+                       "despues", "luego", "entonces", "andá", "anda"})
+
+
+def _primera_palabra(pregunta):
+    """Primera palabra significativa, en minúsculas y sin ¿¡ ni comas."""
+    for palabra in (pregunta or "").lower().replace("¿", " ").replace("¡", " ").split():
+        limpia = palabra.strip(",.;:!?()[]")
+        if limpia and limpia not in _RELLENOS:
+            return limpia
+    return ""
+
+
+def regla_imperativo_capacidad(pregunta):
+    """True si la pregunta ES una orden de capacidad (debatí, leé, corré…).
+
+    Precedente `regla_temporal` de exp/46: la regla dura va ANTES del modelo.
+    Acota el falso-directo del voto local (exp/53 c01: conf 0,94 en "debatí…")
+    sin tocar los creativos, que se responden directo. PURA, testeable."""
+    primera = _primera_palabra(pregunta)
+    if primera in _IMPERATIVOS_CAPACIDAD:
+        return True
+    if primera in ("generá", "genera", "generar"):
+        return bool(_RE_OBJETO_CAPACIDAD.search(pregunta or ""))
+    return False
+
+
 def regla_temporal(pregunta):
     """True si la pregunta pide recencia/hechos actuales: va al lado seguro
     (herramientas) sin consultar a Laya. PURA, testeable."""

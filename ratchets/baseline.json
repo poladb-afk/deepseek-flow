@@ -52,8 +52,8 @@
           44,
           508,
           529,
-          775,
-          822
+          779,
+          833
         ],
         "research.py": [
           78
@@ -85,7 +85,7 @@
           91
         ],
         "utils/laya_routing.py": [
-          69
+          127
         ],
         "utils/mcp_client.py": [
           74,
@@ -136,7 +136,7 @@
       "detalle": {
         "tests/test_banco.py": 14,
         "tests/test_bench.py": 18,
-        "tests/test_bench_voto.py": 6,
+        "tests/test_bench_voto.py": 7,
         "tests/test_chat_flujo.py": 19,
         "tests/test_citas.py": 7,
         "tests/test_compaccion.py": 13,
@@ -154,7 +154,7 @@
         "tests/test_inventario.py": 3,
         "tests/test_laya.py": 6,
         "tests/test_laya_cache_reintento.py": 5,
-        "tests/test_laya_routing.py": 35,
+        "tests/test_laya_routing.py": 37,
         "tests/test_llm.py": 5,
         "tests/test_memoria.py": 24,
         "tests/test_minar_errores.py": 16,
@@ -181,7 +181,7 @@
         "tests/test_viz.py": 5,
         "tests/test_voto_router.py": 8
       },
-      "metrica": 628
+      "metrica": 631
     }
   },
   "version": 1
