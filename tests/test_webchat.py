@@ -75,6 +75,21 @@ def test_tope_de_sesiones(monkeypatch):
         primera.cerrar()
 
 
+def test_eventos_termina_cuando_el_hijo_cierra():
+    """El generador termina con EOF del subproceso (no queda colgado en la cola)."""
+    salida = webchat.Sesion(comando=[sys.executable, "-u", "-c",
+                                     "print('una-sola-linea')"])
+    try:
+        trozos, inicio = "", time.monotonic()
+        for trozo in salida.eventos():
+            trozos += trozo
+            if time.monotonic() - inicio > 10:
+                break
+        assert "una-sola-linea" in trozos
+    finally:
+        salida.cerrar()
+
+
 def test_evento_sse_es_json_framing():
     evento = webchat.evento_sse("hola\nmundo")
     assert evento.startswith("data: ") and evento.endswith("\n\n")

@@ -93,18 +93,19 @@ class Sesion:
         self._proceso.stdin.flush()
         self._ultimo = time.monotonic()
 
-    def eventos(self, timeout=15.0):
-        """Trozos de salida del chat. Termina con EOF del hijo o TTL."""
-        inicio = time.monotonic()
+    def eventos(self):
+        """Trozos de salida del chat. Termina con EOF del hijo o TTL.
+
+        Sin parámetro de timeout: el deadline real es el TTL de inactividad y
+        el corte por techo de rondas lo hace el chat. (Antes había un `if`
+        cuyo único efecto era un `continue` en ambas ramas: muerto.)"""
         while self._viva:
             if time.monotonic() - self._ultimo > _ttl():
                 yield "\n[webchat] sesión sin actividad: cerrando\n"
                 return
             try:
-                trozo = self._cola.get(timeout=min(1.0, timeout))
+                trozo = self._cola.get(timeout=1.0)
             except queue.Empty:
-                if time.monotonic() - inicio > timeout and self._cola.empty():
-                    continue
                 continue
             if trozo is None:
                 return
