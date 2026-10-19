@@ -69,11 +69,14 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     API: SLOC −79%/−67%, tokens completion −76%/−66%, docstrings 0,56/0,63
     → 0 (detalle en la bitácora y en el informe). Caveat a vigilar: 2/16
     respuestas sin bloque en flash.
-13. **Medir la directiva en el chat real (2026-10-19)**: el efecto one-shot
-    está replicado; falta el turno real con tools/HITL. Agregar un escenario
-    de banco que pida escribir un archivo con y sin la directiva (setting
-    `PROMPT_FORMA=0|1`), correr los dos brazos y comparar el archivo generado
-    (tokens, docstrings, defensas). Es el único tramo que no está medido.
+13. ~~**Medir la directiva en el chat real**~~ **✅ (2026-10-19)**: setting
+    `PROMPT_FORMA=0|1` + escenarios `exp51-chat-on/off.yaml` (write_file +
+    edit_file con HITL por scope) + sonda `banco/probes/forma_chat.py`. n=2
+    por brazo: SLOC 133,5 → 32 (−76%), docstrings 1,00 → 0,33, `try`
+    −83%, sesiones ~15% más rápidas. 4/4 sesiones OK. Límite: n=2.
+14. **Repetir exp/51 chat con más n (2026-10-19)**: el efecto está medido dos
+    veces (one-shot y chat real) pero el chat tiene n=2; correr 4-5 sesiones
+    por brazo y, si se quiere, con otro modelo. Es barato (~30 s por sesión).
 
 **Descartado hoy por evidencia:** Choose a escala (~2.400 casos — el bench
 lo volvió innecesario), round de "hechos actuales" (regla dura lo cierra),

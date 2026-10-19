@@ -1179,6 +1179,15 @@ vinieron sin bloque de código (código extraído: 0 errores de sintaxis; en
 chat 0/16). Artefactos: `forma_codigo_20261019_093809.json` (flash) y
 `..._094021.json` (chat), en salidas/probes/.
 
+**Chat real (tools + HITL).** `banco/probes/forma_chat.py` + escenarios
+`exp51-chat-on/off.yaml` (escribir un módulo con `write_file` y editarlo con
+`edit_file`; HITL aprobado por scope; único cambio: `PROMPT_FORMA=1|0`), n=2
+por brazo: SLOC 133,5 → 32 (−76%), funciones 5,5 → 2,5, docstrings 1,00 →
+0,33, `try` 3 → 0,5, None-checks 2,5 → 1,5, comentarios 41 → 12. Las
+sesiones además fueron ~15% más rápidas (33/29 s vs 26/25 s). 4/4 OK.
+Artefacto: `salidas/probes/forma_chat_20261019_095012.json`. Límite: n=2,
+mismo modelo.
+
 **Paydown de duplicación (misma jornada).** El "signature tell" #1 de
 code-humanizer seguía en el harness: **4 copias de `_git_sha`** (dos
 semánticas distintas: sha largo con motivo vs. corto vacío), **4 de

@@ -21,13 +21,21 @@ DIRECTIVA_FORMA = (
 )
 
 
-def system_prompt(incluir_forma: bool = True):
+def system_prompt(incluir_forma: bool | None = None):
+    """El prompt del chat; `incluir_forma=None` respeta el setting PROMPT_FORMA.
+
+    PROMPT_FORMA=0 quita la directiva de forma (palanca del A/B exp/51 en el
+    chat real vía banco; default 1)."""
     # REGLA de estabilidad: el prefijo debe ser byte-estable durante la
     # sesión para no romper el KV-cache (DeepSeek Harness lo midió: una
     # sección dinámica recalcularía ~99% del contexto por turno). Nada
     # variable —fecha, hora, contadores— entra jamás acá. La memoria entre
     # sesiones NO se inyecta: es una biblioteca que el agente consulta por
     # tools cuando el pedido lo justifica.
+    if incluir_forma is None:
+        from utils.call_llm import _setting
+
+        incluir_forma = _setting("PROMPT_FORMA", "1") != "0"
     roots = "\n".join(f"- {r}" for r in allowed_roots())
     # el CWD del proceso: sin esto, "¿en qué carpeta estamos?" se responde
     # adivinando la raíz permitida (medido en producción)

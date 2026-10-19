@@ -786,3 +786,11 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
 trabajo ordinario y quedó en el roadmap); no hay pre-commit (el gate es
 `calidad.sh`/CI); y la guardia anti-bypass compara contra `HEAD`/`HEAD~1`
 (CI con `fetch-depth: 2`), así que es disuasión auditable, no un sandbox.
+
+**Directiva de forma (exp/51, 2026-10-19).** El system prompt gana un
+párrafo (`DIRECTIVA_FORMA`) que pide el mínimo código que funciona, sin
+defensas ni docstrings que el pedido no exija, sin abstracciones
+especulativas; validación, seguridad y accesibilidad no se recortan. Está
+medida: one-shot −79%/−67% de SLOC en dos modelos y −76% de SLOC en el chat
+real con tools/HITL (bitácora exp/51). `PROMPT_FORMA=0` la apaga para el A/B
+del banco; el default es 1 y el prefijo sigue siendo byte-estable.

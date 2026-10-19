@@ -1,0 +1,23 @@
+id: exp51-chat-off
+descripcion: exp/51 chat real — directiva de forma OFF (escribe un módulo y lo edita)
+env:
+  PROMPT_FORMA: "0"
+  COMPACTION_CHARS: "120000"
+  PREGUNTAS_LOG: "0"
+permitir:
+  - "{RAIZ}/salidas/exp51/"
+permitir_comandos:
+  - mkdir
+  - ls
+turnos:
+  - id: modulo
+    linea: "Escribí con write_file el archivo salidas/exp51/chat/modulo.py: un módulo Python que lea un JSON de configuración con defaults y valide las claves obligatorias. No lo ejecutes, una sola pasada."
+    hitl: s
+    timeout: 300
+  - id: edicion
+    linea: "Agregá a ese mismo archivo una función faltantes(config, obligatorias) que devuelva la lista de claves faltantes. Editá sin tocar el resto y no lo ejecutes."
+    hitl: s
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

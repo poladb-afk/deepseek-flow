@@ -22,8 +22,8 @@
           91
         ],
         "main.py": [
-          132,
-          155
+          140,
+          163
         ],
         "modules/coding.py": [
           76
@@ -146,7 +146,7 @@
         "tests/test_db.py": 18,
         "tests/test_deriva_reglas.py": 7,
         "tests/test_docs_sin_deriva.py": 5,
-        "tests/test_estilo_humano.py": 5,
+        "tests/test_estilo_humano.py": 6,
         "tests/test_evals.py": 15,
         "tests/test_flujos.py": 34,
         "tests/test_fs_tools.py": 16,
@@ -179,7 +179,7 @@
         "tests/test_viz.py": 5,
         "tests/test_voto_router.py": 8
       },
-      "metrica": 530
+      "metrica": 531
     }
   },
   "version": 1

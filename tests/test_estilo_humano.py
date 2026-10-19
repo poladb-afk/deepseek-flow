@@ -119,6 +119,18 @@ def test_except_amplio_visible_y_justificado():
         f"documentá con `# noqa: BLE001 (motivo)`): {sin_justificar}")
 
 
+def test_prompt_forma_se_apaga_por_setting(monkeypatch):
+    """PROMPT_FORMA=0 permite el A/B del banco sin duplicar el prompt."""
+    import main
+
+    monkeypatch.delenv("PROMPT_FORMA", raising=False)
+    assert main.DIRECTIVA_FORMA in main.system_prompt()  # default encendido
+    monkeypatch.setenv("PROMPT_FORMA", "0")
+    assert main.DIRECTIVA_FORMA not in main.system_prompt()
+    monkeypatch.setenv("PROMPT_FORMA", "1")
+    assert main.DIRECTIVA_FORMA in main.system_prompt()
+
+
 def test_system_prompt_pide_codigo_minimo_y_no_crece():
     """La palanca de forma del producto: la directiva explícita de código
     mínimo baja 56–70% los tokens del código generado y se mantiene en los

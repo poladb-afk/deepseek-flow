@@ -245,3 +245,23 @@ csv_stats 195,5→43 y config_loader 245,5→40 SLOC; chat: 150→62,5 y 152→4
 **Caveat honesto:** en deepseek-flash 2/16 respuestas del brazo con directiva
 no trajeron bloque de código (código extraído: 0 errores de sintaxis en los
 dos modelos). Antes de generalizar conviene vigilar esa tasa; en chat fue 0.
+
+### Chat real (tools + HITL)
+
+La sonda `banco/probes/forma_chat.py` corre sesiones de chat REALES por PTY
+(escenarios `exp51-chat-on/off.yaml`): piden escribir un módulo con
+`write_file` y editarlo con `edit_file`, con HITL aprobado por scope. El
+único cambio entre brazos es `PROMPT_FORMA=1|0`. n=2 por brazo:
+
+| métrica (mediana) | sin directiva | con directiva | delta |
+|---|---|---|---|
+| SLOC | 133,5 | **32** | **−76%** |
+| funciones | 5,5 | 2,5 | −55% |
+| densidad de docstrings | 1,00 | 0,33 | −67% |
+| `try` | 3,0 | 0,5 | −83% |
+| chequeos de `None` | 2,5 | 1,5 | −40% |
+| comentarios | 41 | 12 | −71% |
+
+La sesión además fue más rápida (33/29 s vs 26/25 s por sesión, −15/−18%):
+menos tokens de salida se pagan también en latencia. 4/4 sesiones OK.
+**Límite:** n=2 por brazo, mismo modelo.
