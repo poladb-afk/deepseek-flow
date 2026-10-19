@@ -682,7 +682,10 @@ precisión 100% (2/125 turnos). El falso directo de confianza 0,93 queda como
 conjunto ambiguo y cae al lado seguro. Veredicto reproducible:
 `banco/probes/veredicto_router.py`. Límites: ahorro chico (recall 41%), la
 etiqueta mide lo que DeepSeek hizo y parte del tráfico es sintético de banco
-(ver bitácora exp/45).
+(ver bitácora exp/45). Para la próxima revisión (**≥250 pares y ≥14 días**) la
+acumulación sigue en ventanas shadow; `banco/probes/estado_flywheel.py` reporta
+pares/días sin tocar el artefacto desplegado (correr `etiquetar_ambiental` con
+su salida default lo pisaría y cambiaría el umbral sin revisión).
 
 ### Heartbeat — las piezas de noche
 `python3 main.py heartbeat [--ahora|--seco]` · [heartbeat.py](../heartbeat.py) · [heartbeat.example.jsonl](../heartbeat.example.jsonl)

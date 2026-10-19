@@ -154,6 +154,7 @@
         "tests/test_db.py": 18,
         "tests/test_deriva_reglas.py": 7,
         "tests/test_docs_sin_deriva.py": 5,
+        "tests/test_estado_flywheel.py": 3,
         "tests/test_estilo_humano.py": 7,
         "tests/test_evals.py": 15,
         "tests/test_flujos.py": 34,
@@ -196,7 +197,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 687
+      "metrica": 690
     }
   },
   "version": 1

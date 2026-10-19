@@ -117,10 +117,14 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     atribuible). No se recomienda forzar k=1 (una ronda sin novedad no es
     evidencia y arriesga calidad).
 16. **Revisión de ROI del router (condición pre-registrada)**: cuando haya
-    **≥250 pares y ≥14 días** (hoy 125/5), correr
+    **≥250 pares y ≥14 días** (hoy **148/5** tras la jornada exp/67), correr
     `python3 banco/probes/etiquetar_ambiental.py && python3 banco/probes/veredicto_router.py`
     y aplicar la regla de ROI. El banco ya marca `BANCO=1` para no contar
     tráfico sintético como orgánico; vigilar falsos directo del enforce.
+    **Acumulación:** ventanas de uso con la política en shadow (en enforce el
+    par no se etiqueta, exp/43) y, hasta la revisión, NO correr
+    `etiquetar_ambiental` con la salida default (pisa el artefacto que usa
+    `.env`); progreso con `python3 banco/probes/estado_flywheel.py`.
 14. ~~**Repetir exp/51 chat con más n**~~ **✅ (2026-10-19)**: flash n=5 por
     brazo (SLOC 115 → 25, −78%; sesiones 32,3 → 25,7 s) y deepseek-chat n=3
     (179 → 21, −88%; 33,6 → 24,6 s), 16/16 sesiones OK. El efecto del

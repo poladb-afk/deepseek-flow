@@ -1234,6 +1234,33 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/67 — jornada de datos: la flywheel acumula +23 pares orgánicos (2026-10-19)
+
+**Qué se hizo:** 25 preguntas reales (tareas de repo + conocimiento general,
+read-only) por el chat del harness en ventanas con la política en shadow — la
+modalidad que etiqueta (exp/43: en enforce el resultado NO se registra porque
+la ruta aplicada ya cambió el contexto y mediría la política). Pares de
+calibración: **125 → 148** (directo 22 → 33, base rate 22,3%); días con datos:
+**5** (los pares nuevos son todos de hoy). La revisión de ROI sigue
+date-gated: faltan ~102 pares y 9 días.
+
+**Hallazgo operativo (footgun):** `etiquetar_ambiental.py` con su salida
+default PISA el artefacto desplegado
+(`banco/calibracion_ambiental_<fecha>.jsonl`, el que `.env` usa para el umbral
+conformal): correrlo para "ver progreso" cambiaría la política sin la revisión
+pre-registrada. Queda documentado en roadmap y `.env.example`.
+
+**Instrumento nuevo:** `banco/probes/estado_flywheel.py` — read-only, join
+puro sobre `salidas/routing.jsonl` (reusa `unir()` del etiquetador), reporta
+pares/días y si la revisión está lista (≥250 pares y ≥14 días). 3 tests.
+Uso diario: `python3 banco/probes/estado_flywheel.py`.
+
+**Cómo acumular:** ventanas de uso real con `LAYA_MODO` en shadow (el resto
+del comportamiento es el mismo; shadow solo deja de servir los ~1,6% de
+directos que la calibración actual aceptaba). Los pares viven en
+`salidas/routing.jsonl` (ignorado); el snapshot se versiona recién en la
+revisión. Logs de la jornada: `salidas/probes/exp67_*.log`.
+
 ## exp/66 — Long Method: hipótesis REFUTADA por medición (no se agrega gate) (2026-10-19)
 
 **Pregunta:** la tabla de evidencia (fila 8) lista **Long Method** como smell
