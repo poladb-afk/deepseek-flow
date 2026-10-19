@@ -265,3 +265,9 @@ scope). Los efectos del one-shot se sostienen en el chat real (SLOC −78% y
 −88%) y las sesiones salen **~20–27% más rápidas**: menos tokens de salida
 se pagan también en latencia. **Límite:** n=5 y n=3 por brazo, tareas
 chicas, mismo prompt de producto.
+
+- **Tercera pasada: estructura (misma jornada).** Se midieron los otros dos
+  tells deterministas: privadas sin referencia (2 helpers especulativos
+  muertos, eliminados) y cuerpos idénticos con variables renombradas
+  (0 entre archivos). `ratchet.py` gana `codigo_muerto_privado` y
+  `cuerpos_duplicados`, ambos con baseline 0.

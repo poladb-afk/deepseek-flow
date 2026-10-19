@@ -25,6 +25,14 @@ Las dos métricas, una por clase de ratchet:
   `tests/*.py`. `tests/inventario_tests.txt` es la foto del PR 4 y solo vigila
   esos 527 tests; los nuevos podían desaparecer en silencio. Este ratchet no
   deja que el total baje sin una decisión humana explícita.
+- `codigo_muerto_privado` (**menor mejor**, ratchet de RUIDO): funciones y
+  clases privadas de nivel superior sin NINGUNA referencia en el código
+  (tests y banco cuentan como referencia). Es el tell de "código por si
+  acaso": helpers especulativos que ningún camino llama.
+- `cuerpos_duplicados` (**menor mejor**, ratchet de RUIDO): cuerpos de
+  función idénticos tras renombrar argumentos/variables locales (>=3
+  sentencias). Detecta la reimplementación con otro nombre — el "signature
+  tell" que el conteo por nombre no ve.
 - `excepts_amplios` (**menor mejor**, ratchet de RUIDO): handlers `except:`,
   `except Exception` y `except BaseException` de nivel superior. Es el smell
   #1 del código generado por IA (41.723 casos en el estudio de commits reales:
@@ -152,6 +160,139 @@ def escanear_excepts(raiz: Path) -> dict[str, list[int]]:
     return dict(sorted(amplios.items()))
 
 
+# Referencias: el harness + tests + banco. Un helper privado usado solo por un
+# test sigue siendo código vivo (el test es consumidor); docs/ no cuenta.
+PATRONES_REFERENCIA = ("*.py", "modules/*.py", "utils/*.py", "tests/*.py",
+                       "banco/*.py", "banco/probes/*.py")
+
+
+def archivos_de_referencia(raiz: Path) -> list[Path]:
+    vistos = set()
+    for patron in PATRONES_REFERENCIA:
+        for ruta in raiz.glob(patron):
+            if ruta.is_file() and "__pycache__" not in str(ruta):
+                vistos.add(ruta)
+    return sorted(vistos)
+
+
+def _rangos_privadas(raiz: Path) -> dict[str, list[tuple[Path, int, int]]]:
+    """Nombre → (archivo, línea inicio, línea fin) de las privadas del harness."""
+    rangos: dict[str, list[tuple[Path, int, int]]] = {}
+    for ruta in archivos_del_harness(raiz):
+        try:
+            arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            continue
+        for nodo in arbol.body:
+            if isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and (
+                    nodo.name.startswith("_") and not nodo.name.startswith("__")):
+                rangos.setdefault(nodo.name, []).append((ruta, nodo.lineno, nodo.end_lineno or nodo.lineno))
+    return rangos
+
+
+def escanear_muertas(raiz: Path) -> list[str]:
+    """Privadas de nivel superior sin ninguna referencia fuera de su definición.
+
+    La recursión propia no cuenta como uso: una función que solo se llama a sí
+    misma está muerta igual.
+    """
+    rangos = _rangos_privadas(raiz)
+    usos = dict.fromkeys(rangos, 0)
+    for ruta in archivos_de_referencia(raiz):
+        try:
+            arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            continue
+        for nodo in ast.walk(arbol):
+            if isinstance(nodo, ast.Name) and isinstance(nodo.ctx, ast.Load):
+                nombre = nodo.id
+            elif isinstance(nodo, ast.Attribute) and isinstance(nodo.ctx, ast.Load):
+                nombre = nodo.attr
+            else:
+                continue
+            if nombre not in usos:
+                continue
+            dentro_de_si = any(
+                ruta == archivo and inicio <= nodo.lineno <= fin
+                for archivo, inicio, fin in rangos[nombre]
+            )
+            if not dentro_de_si:
+                usos[nombre] += 1
+    muertas = []
+    for nombre, contador in sorted(usos.items()):
+        if contador:
+            continue
+        for archivo, inicio, _ in rangos[nombre]:
+            muertas.append(f"{_relativa(archivo, raiz)}:{inicio}:{nombre}")
+    return sorted(muertas)
+
+
+class _NormalizarCuerpo(ast.NodeTransformer):
+    """Renombra argumentos y variables locales; conserva llamadas y atributos.
+
+    Así dos copias con nombres distintos colisionan, pero dos funciones que
+    llaman a operaciones distintas (`json.loads` vs `yaml.safe_load`) no.
+    """
+
+    def __init__(self, locales: set[str]):
+        self.locales = locales
+
+    def visit_FunctionDef(self, nodo):  # pragma: no cover - el cuerpo se normaliza aparte
+        return nodo
+
+    def visit_Name(self, nodo):
+        # locals renombradas tanto en lectura como en escritura: dos copias
+        # con variables distintas colisionan; llamadas/atributos se conservan.
+        if nodo.id in self.locales:
+            nodo.id = "_v"
+        return nodo
+
+
+def _cuerpo_normalizado(nodo: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
+    """Firma estructural del cuerpo (>=3 sentencias), o None si es muy corto."""
+    cuerpo = [
+        x for x in nodo.body
+        if not (isinstance(x, ast.Expr) and isinstance(x.value, ast.Constant) and isinstance(x.value.value, str))
+    ]
+    if len(cuerpo) < 3:
+        return None
+    locales = {a.arg for a in nodo.args.args + nodo.args.kwonlyargs}
+    for sub in ast.walk(nodo):
+        if isinstance(sub, ast.Name) and isinstance(sub.ctx, (ast.Store, ast.Param)):
+            locales.add(sub.id)
+    modulo = ast.Module(body=cuerpo, type_ignores=[])
+    return ast.dump(_NormalizarCuerpo(locales).visit(modulo))
+
+
+def escanear_cuerpos(raiz: Path) -> dict[str, list[str]]:
+    """Grupos de cuerpos idénticos (renombrando locales) en 2+ funciones."""
+    grupos: dict[str, list[str]] = {}
+    for ruta in archivos_del_harness(raiz):
+        try:
+            arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            continue
+        for nodo in ast.walk(arbol):
+            if not isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            firma = _cuerpo_normalizado(nodo)
+            if firma is None:
+                continue
+            grupos.setdefault(firma, []).append(f"{_relativa(ruta, raiz)}:{nodo.lineno}:{nodo.name}")
+    duplicados = {firma: sorted(filas) for firma, filas in grupos.items() if len(set(filas)) >= 2}
+    return dict(sorted(duplicados.items()))
+
+
+def _metrica_muertas(raiz: Path) -> tuple[int, list[str]]:
+    detalle = escanear_muertas(raiz)
+    return len(detalle), detalle
+
+
+def _metrica_cuerpos(raiz: Path) -> tuple[int, dict[str, list[str]]]:
+    detalle = escanear_cuerpos(raiz)
+    return sum(len(filas) for filas in detalle.values()), detalle
+
+
 def _metrica_helpers(raiz: Path) -> tuple[int, dict[str, list[str]]]:
     detalle = escanear_helpers(raiz)
     return sum(len(archivos) for archivos in detalle.values()), detalle
@@ -181,6 +322,16 @@ METRICAS: dict[str, dict] = {
         "descripcion": "tests `def test_*` definidos en tests/",
         "calcular": _metrica_tests,
     },
+    "codigo_muerto_privado": {
+        "direccion": "menor_mejor",
+        "descripcion": "privadas de nivel superior sin referencia (código por si acaso)",
+        "calcular": _metrica_muertas,
+    },
+    "cuerpos_duplicados": {
+        "direccion": "menor_mejor",
+        "descripcion": "cuerpos idénticos con variables renombradas (reimplementación)",
+        "calcular": _metrica_cuerpos,
+    },
     "excepts_amplios": {
         "direccion": "menor_mejor",
         "descripcion": "handlers `except:` / `except Exception` (el smell #1 del código de IA)",
@@ -209,6 +360,12 @@ def _diagnostico(nombre: str, actual: dict, previo: dict) -> list[str]:
             previos = previo.get(helper, [])
             if len(archivos) > len(previos):
                 lineas.append(f"    {helper}: {', '.join(archivos)}")
+    elif nombre == "codigo_muerto_privado":
+        for definicion in actual:
+            lineas.append(f"    {definicion}")
+    elif nombre == "cuerpos_duplicados":
+        for grupo in actual.values():
+            lineas.append("    ≈ " + " · ".join(grupo))
     elif nombre == "excepts_amplios":
         for archivo, lineas_actuales in actual.items():
             previas = previo.get(archivo, [])

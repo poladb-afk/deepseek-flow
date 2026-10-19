@@ -173,7 +173,7 @@ def test_compactar_dispara_por_caracteres_con_umbral_de_mensajes():
 def test_un_typo_en_un_setting_numerico_no_mata_el_chat(monkeypatch):
     """exp/37 (barrida): un ".env" con COMPACTION_CHARS=sesenta mil reventaba
     en AgentStep.prep — que corre FUERA del retry del nodo — y mataba el chat.
-    _entero/_real avisan y usan el default."""
+    _entero avisa y usa el default."""
     import nodes
     from utils import call_llm
 

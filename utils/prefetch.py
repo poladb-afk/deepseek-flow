@@ -27,14 +27,6 @@ PREFIJO_PREFETCH = "[pre-fetch]"
 ARCHIVO_RE = re.compile(r"[\w./-]+\.[A-Za-z]{1,4}")
 
 
-def _raices():
-    """El perímetro permitido (AGENT_ALLOWED_DIRS), el MISMO resolvedor de
-    contención que usa el resto del agente — NO se reimplementa."""
-    from utils.fs_tools import allowed_roots
-
-    return allowed_roots()
-
-
 def decidir(pregunta):
     """[(path, contenido)] con las rutas EXISTENTES dentro del perímetro que
     la pregunta menciona. PURA en su lógica de matching (regex, contención,

@@ -81,15 +81,6 @@ def _entero(nombre, default):
         return int(default)
 
 
-def _real(nombre, default):
-    """Igual que _entero, para umbrales con decimales."""
-    try:
-        return float(_setting(nombre, str(default)))
-    except (TypeError, ValueError):
-        print(f"  [config] {nombre} no es un número válido → uso {default}")
-        return float(default)
-
-
 def get_api_key():
     key = os.environ.get("DEEPSEEK_API_KEY") or _setting("LLM_API_KEY")
     if not key:

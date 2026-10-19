@@ -2,8 +2,8 @@
 
 Lo que estos tests clavan:
 
-- el escaneo AST de las tres métricas (helpers privados bifurcados; tests
-  definidos; excepts amplios) y su alcance (el harness, no tests/ ni banco/);
+- el escaneo AST de las cinco métricas (helpers bifurcados; tests definidos;
+  excepts amplios; código muerto; cuerpos duplicados) y su alcance;
 - la invariante de cada dirección: la deuda baja, la cobertura sube;
 - la siembra, la auto-mejora del baseline (solo hacia la mejora) y el rojo
   que NO pisa el baseline cuando empeora;
@@ -93,6 +93,47 @@ def test_escanear_excepts_cuenta_solo_los_amplios(tmp_path):
               "def h():\n    try:\n        pass\n    except:\n        pass\n")
     assert ratchet.escanear_excepts(raiz) == {"modules/a.py": [4, 16]}
     assert ratchet._metrica_excepts(raiz) == (2, {"modules/a.py": [4, 16]})
+
+
+def test_escanear_muertas_detecta_privadas_sin_referencia(tmp_path):
+    """El código por si acaso: una privada que ningún camino llama."""
+    raiz = _arbol(tmp_path)
+    _escribir(raiz, "modules/a.py", "def _muerta():\n    pass\n\ndef _viva():\n    pass\n")
+    _escribir(raiz, "modules/b.py", "from modules.a import _viva\n\n\n_viva()\n")
+    assert ratchet.escanear_muertas(raiz) == ["modules/a.py:1:_muerta"]
+
+
+def test_escanear_muertas_no_cuenta_la_recursion_propia(tmp_path):
+    """Una función que solo se llama a sí misma sigue muerta."""
+    raiz = _arbol(tmp_path)
+    _escribir(raiz, "modules/a.py", "def _rec():\n    return _rec()\n")
+    assert ratchet.escanear_muertas(raiz) == ["modules/a.py:1:_rec"]
+
+
+def test_escanear_muertas_ignora_publicas(tmp_path):
+    raiz = _arbol(tmp_path)
+    _escribir(raiz, "modules/a.py", "def publica():\n    pass\n")
+    assert ratchet.escanear_muertas(raiz) == []
+
+
+def test_escanear_cuerpos_detecta_copia_con_variables_renombradas(tmp_path):
+    """El signature tell: misma lógica copiada con otros nombres locales."""
+    raiz = _arbol(tmp_path)
+    _escribir(raiz, "modules/a.py",
+              "def a(x):\n    y = x + 1\n    z = y * 2\n    return z\n")
+    _escribir(raiz, "utils/b.py",
+              "def b(n):\n    m = n + 1\n    k = m * 2\n    return k\n")
+    grupos = ratchet.escanear_cuerpos(raiz)
+    assert len(grupos) == 1
+    assert sum(len(v) for v in grupos.values()) == 2
+
+
+def test_escanear_cuerpos_no_confunde_operaciones_distintas(tmp_path):
+    raiz = _arbol(tmp_path)
+    _escribir(raiz, "modules/a.py", "import json\n\ndef a(s):\n    return json.loads(s)\n")
+    _escribir(raiz, "utils/b.py", "import json\n\ndef b(s):\n    return json.dumps(s)\n")
+    _escribir(raiz, "utils/c.py", "import yaml\n\ndef c(s):\n    return yaml.safe_load(s)\n")
+    assert ratchet.escanear_cuerpos(raiz) == {}
 
 
 # -------------------------------------------------------------- invariante

@@ -778,8 +778,10 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   tabla de enforcement válida, y cada test que cita `docs/estado.md` existe.
 - **`ratchet.py` — métricas con baseline versionado** (`ratchets/baseline.json`):
   `helpers_duplicados` (deuda: helpers privados `_foo` en 2+ archivos, menor
-  mejor), `tests_definidos` (cobertura: `def test_*`, mayor mejor) y
-  `excepts_amplios` (ruido: `except:`/`except Exception`, menor mejor). La
+  mejor), `tests_definidos` (cobertura: `def test_*`, mayor mejor),
+  `excepts_amplios` (ruido: `except:`/`except Exception`, menor mejor),
+  `codigo_muerto_privado` (privadas sin referencia, baseline 0) y
+  `cuerpos_duplicados` (copias con variables renombradas, baseline 0). La
   invariante: la métrica puede mejorar o quedar igual, **nunca empeorar**; al
   mejorar, el baseline se reescribe solo y viaja en el mismo commit.
   `--actualizar` es decisión del operador (con `HUMAN_RATCHET_BYPASS_KEY`),

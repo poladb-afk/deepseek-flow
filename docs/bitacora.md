@@ -1222,6 +1222,18 @@ fs_tools, bookkeeping de traza/arranque, flujos que degradan): ahí el
 `except Exception` es contrato, no ruido. Con esto el paydown determinista
 del smell #1 queda cerrado; lo que reste es revisión caso a caso.
 
+**Tercera pasada: estructura (misma jornada).** Se midió el otro half del
+"signature tell": privadas de nivel superior sin ninguna referencia y cuerpos
+de función idénticos tras renombrar variables. Resultado: **2 helpers
+especulativos muertos** (`utils/call_llm._real` y `utils/prefetch._raices`,
+mencionados solo por un docstring) → eliminados; **0 cuerpos duplicados**
+entre archivos. Para que no vuelva, `ratchet.py` gana dos métricas
+(menor mejor, baseline 0): `codigo_muerto_privado` (la recursión propia no
+cuenta como uso; tests y banco sí son consumidores) y `cuerpos_duplicados`
+(normaliza argumentos/variables locales y conserva llamadas/atributos, así
+distingue una copia de dos operaciones distintas). 5 tests nuevos; el
+baseline queda en **0/0**.
+
 **exp/51 — la directiva de forma.** Corte **pre-registrado antes de correr**
 (está en el docstring de `banco/probes/forma_codigo.py`): la directiva es
 éxito si baja la mediana de SLOC y la densidad de docstrings sin subir los

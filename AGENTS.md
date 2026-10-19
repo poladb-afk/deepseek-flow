@@ -88,7 +88,8 @@ gatea, no se "revisa después":
 - **Docstrings para el porqué**, no para repetir el nombre; comentarios que
   agregan información, no que narran la línea siguiente.
 - **Nada de banners decorativos, código muerto "por si acaso", ni `_v2` en
-  paralelo**: si algo se reemplaza, se reemplaza.
+  paralelo**: si algo se reemplaza, se reemplaza. El ratchet cuenta privadas
+  muertas y cuerpos duplicados; ambos baselines están en 0.
 
 ## Bypasses prohibidos (por nombre)
 

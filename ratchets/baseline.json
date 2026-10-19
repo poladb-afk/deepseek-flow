@@ -1,5 +1,13 @@
 {
   "ratchets": {
+    "codigo_muerto_privado": {
+      "detalle": [],
+      "metrica": 0
+    },
+    "cuerpos_duplicados": {
+      "detalle": {},
+      "metrica": 0
+    },
     "excepts_amplios": {
       "detalle": {
         "bench_juez.py": [
@@ -53,7 +61,7 @@
           42
         ],
         "utils/call_llm.py": [
-          246
+          237
         ],
         "utils/contexto.py": [
           119
@@ -151,7 +159,7 @@
         "tests/test_policy_bypass.py": 9,
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
-        "tests/test_ratchet.py": 20,
+        "tests/test_ratchet.py": 25,
         "tests/test_replay.py": 16,
         "tests/test_riesgo.py": 11,
         "tests/test_router.py": 12,
@@ -166,7 +174,7 @@
         "tests/test_viz.py": 5,
         "tests/test_voto_router.py": 8
       },
-      "metrica": 541
+      "metrica": 546
     }
   },
   "version": 1
