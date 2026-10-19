@@ -13,11 +13,14 @@ Uso:
     python3 main.py visor --watch             # re-genera el HTML mientras crece
 """
 import argparse
+import contextlib
 import html
 import json
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
+
+from utils.terminal import colorear
 
 RUNS = Path(__file__).resolve().parent / ".runs"
 COLORES = ["#7aa2f7", "#9ece6a", "#e0af68", "#f7768e", "#bb9af7", "#7dcfff",
@@ -151,37 +154,47 @@ def main(argv=None):
         print(f"✓ {destino}")
 
 
+def _regenerar_si_crecio(ruta, ultimo):
+    """Una pasada del watch: regenera el HTML de la traza si creció.
+
+    Devuelve (destino, n) o None si no cambió o sigue vacía. No re-renderiza
+    sin cambios (no pisa el mtime del HTML al pedo) y no rompe si el archivo
+    todavía no existe o se está escribiendo (la traza se agrega por líneas
+    completas, con flush)."""
+    n, mtime = contar_y_mtime(ruta)
+    if n == 0 or ultimo.get(ruta) == (n, mtime):
+        return None
+    try:
+        destino = generar(ruta)
+    except SystemExit:
+        return None  # traza vacía entre dos vueltas: se ignora
+    ultimo[ruta] = (n, mtime)
+    return destino, n
+
+
+def _vigilar_rutas(rutas, ultimo):
+    """Una vuelta del watch sobre todas las rutas."""
+    for ruta in rutas:
+        visto = _regenerar_si_crecio(ruta, ultimo)
+        if visto is not None:
+            destino, n = visto
+            print(colorear(f"✓ {destino} ({n} eventos)", "ok"))
+
+
 def vigilar(rutas, intervalo):
-    """Modo --watch: re-genera el HTML de cada traza cuando crece. No
-    re-renderiza sin cambios (no pisa el mtime del HTML al pedo) y no
-    rompe si el archivo todavía no existe o se está escribiendo (lo lee
-    igual: la traza se agrega por líneas completas, con flush). Un Ctrl+C
+    """Modo --watch: re-genera el HTML de cada traza cuando crece. Un Ctrl+C
     corta limpio. Pensado para correr al lado del chat en otra terminal."""
     import time
-
-    from utils.terminal import colorear
 
     ultimo = {}  # ruta -> (n_eventos, mtime)
     print(colorear(
         f"[visor] watch: {', '.join(str(r) for r in rutas)} (cada {intervalo}s, Ctrl+C para salir)",
         "info"))
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         while True:
-            for ruta in rutas:
-                n, mtime = contar_y_mtime(ruta)
-                if n == 0:
-                    continue
-                if ultimo.get(ruta) == (n, mtime):
-                    continue
-                try:
-                    destino = generar(ruta)
-                except SystemExit:
-                    continue  # traza vacía entre dos vueltas: se ignora
-                ultimo[ruta] = (n, mtime)
-                print(colorear(f"✓ {destino} ({n} eventos)", "ok"))
+            _vigilar_rutas(rutas, ultimo)
             time.sleep(max(0.1, intervalo))
-    except KeyboardInterrupt:
-        print("\n[visor] watch terminado")
+    print("\n[visor] watch terminado")
 
 
 if __name__ == "__main__":

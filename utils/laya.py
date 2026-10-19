@@ -50,46 +50,62 @@ def _descargar(clave):
         gc.collect()
 
 
+def _limpiar_error_vencido(clave):
+    """Si el error cacheado ya cumplió el cooldown, lo borra DENTRO del lock
+    (antes del try) y la carga se reintenta en esta misma llamada."""
+    if clave not in _errores or clave in _agentes:
+        return
+    with _lock:
+        if clave in _errores and clave not in _agentes:
+            ts, _msg = _errores[clave]
+            if time.monotonic() - ts >= LAYA_ERROR_COOLDOWN:
+                del _errores[clave]
+
+
+def _offline_si_path_local(clave):
+    """ANTES de importar laya: huggingface_hub lee estas variables al
+    importarse, y con path local igual consulta el Hub (y puede colgar)."""
+    if Path(clave).exists():
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
+        os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
+
+def _desalojar(clave):
+    """Desaloja ANTES de cargar: el pico de memoria no supera el tope (ley
+    medida en exp/7: ~2,86 GiB por checkpoint vivo)."""
+    while len(_agentes) >= MAX_EN_PROCESO:
+        otros = [c for c in _agentes if c != clave]
+        if not otros:
+            break
+        candidato = min(otros, key=lambda c: (_uso.get(c, 0), c))
+        print(f"  [laya] tope {MAX_EN_PROCESO} en proceso: descargo "
+              f"{Path(candidato).name}")
+        _descargar(candidato)
+
+
+def _cargar_checkpoint(clave):
+    """Carga y cachea el agente (bajo lock); un fallo se cachea con
+    vencimiento, nunca rompe la sesión."""
+    try:
+        _offline_si_path_local(clave)
+        import laya
+
+        _desalojar(clave)
+        _agentes[clave] = laya.load(clave)
+        _errores.pop(clave, None)  # el acierto limpia el error residual
+    except Exception as e:  # sin modelo local: degradar, no romper  # noqa: BLE001 (sin modelo local: degradar, no romper)
+        _errores[clave] = (time.monotonic(), f"{type(e).__name__}: {e}")
+
+
 def agente(setting="LAYA_MODEL"):
     """El agente del checkpoint que ese setting nombra (caché por setting:
     el router del chat y el Choose del supervisor no son el mismo modelo)."""
     clave = _setting(setting, DEFAULT_MODEL)
-    if clave in _errores and clave not in _agentes:
-        with _lock:
-            # El error cacheado VENCE: si ya pasó el cooldown se borra DENTRO
-            # del lock (antes del try) y se reintenta la carga en esta llamada.
-            if clave in _errores and clave not in _agentes:
-                ts, _msg = _errores[clave]
-                if time.monotonic() - ts >= LAYA_ERROR_COOLDOWN:
-                    del _errores[clave]
+    _limpiar_error_vencido(clave)
     if clave not in _agentes and clave not in _errores:
         with _lock:
             if clave not in _agentes and clave not in _errores:
-                try:
-                    if Path(clave).exists():
-                        # ANTES de importar laya: huggingface_hub lee estas
-                        # variables al importarse, y con path local igual
-                        # consulta el Hub (y puede colgar en red).
-                        os.environ.setdefault("HF_HUB_OFFLINE", "1")
-                        os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
-                    import laya
-
-                    # Desalojo ANTES de cargar: el pico de memoria no supera
-                    # el tope. Antes se cargaba y recién después se desalojaba,
-                    # así que había un instante con MAX+1 checkpoints vivos
-                    # (~2,86 GiB extra por checkpoint, ley medida en exp/7).
-                    while len(_agentes) >= MAX_EN_PROCESO:
-                        otros = [c for c in _agentes if c != clave]
-                        if not otros:
-                            break
-                        candidato = min(otros, key=lambda c: (_uso.get(c, 0), c))
-                        print(f"  [laya] tope {MAX_EN_PROCESO} en proceso: descargo "
-                              f"{Path(candidato).name}")
-                        _descargar(candidato)
-                    _agentes[clave] = laya.load(clave)
-                    _errores.pop(clave, None)  # el acierto limpia el error residual
-                except Exception as e:  # sin modelo local: degradar, no romper  # noqa: BLE001 (sin modelo local: degradar, no romper)
-                    _errores[clave] = (time.monotonic(), f"{type(e).__name__}: {e}")
+                _cargar_checkpoint(clave)
     if clave in _errores and clave not in _agentes:
         ts, msg = _errores[clave]
         raise RuntimeError(f"laya no disponible (hace {int(time.monotonic() - ts)}s): {msg}")

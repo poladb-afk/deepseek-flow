@@ -153,6 +153,30 @@ def minar_sesion(eventos):
     return {"por_tool": dict(por_tool), "rechazos_probables": rechazos}
 
 
+def _deltas_de_tool(eventos, tool):
+    """Re-mide los deltas de reintento de `tool` en una sesión: minar_sesion
+    ya devolvió la mediana, y la GLOBAL se recalcula sobre los eventos crudos
+    (barato: listas chicas)."""
+    deltas = []
+    for idx, ev in enumerate(eventos):
+        if ev.get("accion") != "error" or ev.get("nodo") != tool:
+            continue
+        destino = destino_del_reintento(eventos, idx)
+        if destino is not None:
+            deltas.append(destino["delta_seg"])
+    return deltas
+
+
+def _agregar_sesion(por_tool, eventos, res):
+    """Vuelca el resultado de minar_sesion en el acumulador de minar_runs."""
+    for tool, info in res["por_tool"].items():
+        agg = por_tool[tool]
+        for k in ("errores", "timeouts", "reintentos", "reintentos_ok", "abandono"):
+            agg[k] += info[k]
+        if info["delta_mediano_seg"] is not None:
+            agg["_deltas"].extend(_deltas_de_tool(eventos, tool))
+
+
 def minar_runs(directorio=DIR_RUNS):
     """Minería de TODAS las trazas .runs/*.jsonl. Devuelve el informe crudo
     (dict) que consumen `escribir_md` / el JSON de salida.
@@ -167,7 +191,6 @@ def minar_runs(directorio=DIR_RUNS):
     })
     sesiones_total = 0
     sesiones_con_error = 0
-    errores_total = 0
     rechazos_total = 0
     trazas_ilegibles = []
 
@@ -183,23 +206,12 @@ def minar_runs(directorio=DIR_RUNS):
         if res["por_tool"]:
             sesiones_con_error += 1
         rechazos_total += res["rechazos_probables"]
-        for tool, info in res["por_tool"].items():
-            agg = por_tool[tool]
-            for k in ("errores", "timeouts", "reintentos", "reintentos_ok", "abandono"):
-                agg[k] += info[k]
-            errores_total += info["errores"]
-            # reconstruyo los deltas para recalcular la mediana GLOBAL por tool
-            if info["delta_mediano_seg"] is not None:
-                # re-mido sobre los errores de esta sesión (barato: listas chicas)
-                for idx, ev in enumerate(eventos):
-                    if ev.get("accion") == "error" and ev.get("nodo") == tool:
-                        d = destino_del_reintento(eventos, idx)
-                        if d is not None:
-                            agg["_deltas"].append(d["delta_seg"])
+        _agregar_sesion(por_tool, eventos, res)
 
     for info in por_tool.values():
         info["delta_mediano_seg"] = _delta_mediano(info.pop("_deltas"))
 
+    errores_total = sum(i["errores"] for i in por_tool.values())
     reintentos_ok_total = sum(i["reintentos_ok"] for i in por_tool.values())
     reintentos_total = sum(i["reintentos"] for i in por_tool.values())
     abandono_total = sum(i["abandono"] for i in por_tool.values())

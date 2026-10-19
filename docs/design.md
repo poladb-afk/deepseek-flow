@@ -837,12 +837,12 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   baseline 0 tras parametrizar los 6 pares), `funciones_complejas` (C901
   repo-wide > 12, conteo EXACTO de ruff; **deuda 0 desde exp/63** — antes el
   gate solo miraba 2 archivos) y `funciones_anidadas`
-  (anidación de control > 3 niveles; deuda 10; `elif` NO cuenta: es cadena
-  plana en el AST). Las dos últimas son de **conjunto**: una función NUEVA
-  compleja/anidada falla aunque el total no suba (la identidad importa). La
-  cobertura (`tests_definidos`) cuenta CASOS, no funciones. La invariante: la
-  métrica puede mejorar o quedar igual, **nunca empeorar**; al mejorar, el
-  baseline se reescribe solo y viaja en el mismo commit.
+  (anidación de control > 3 niveles; **deuda 0 desde exp/64**; `elif` NO
+  cuenta: es cadena plana en el AST). Las dos últimas son de **conjunto**: una
+  función NUEVA compleja/anidada falla aunque el total no suba (la identidad
+  importa). La cobertura (`tests_definidos`) cuenta CASOS, no funciones. La
+  invariante: la métrica puede mejorar o quedar igual, **nunca empeorar**; al
+  mejorar, el baseline se reescribe solo y viaja en el mismo commit.
   `--actualizar` es decisión del operador (con `HUMAN_RATCHET_BYPASS_KEY`),
   no del agente.
 - **`tests/test_estilo_humano.py` — forma humana del código** (2026-10-19):
@@ -857,9 +857,10 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   que lo fundamenta (55 `except` amplios vs 1 en la referencia humana, etc.)
   está en el [informe](informes/codigo_ia_vs_humano_2026-10-19.md).
 
-**Límites**: el ratchet congela la deuda pero no la arregla (el paydown es
-trabajo ordinario y quedó en el roadmap); no hay pre-commit (el gate es
-`calidad.sh`/CI); y la guardia anti-bypass compara contra `HEAD`/`HEAD~1`
+**Límites**: el ratchet congela la deuda pero no la arregla (el paydown se
+pagó completo en exp/61–64: complejidad y anidación quedaron en 0); no hay
+pre-commit (el gate es `calidad.sh`/CI); y la guardia anti-bypass compara
+contra `HEAD`/`HEAD~1`
 (CI con `fetch-depth: 2`), así que es disuasión auditable, no un sandbox.
 
 **Directiva de forma (exp/51, 2026-10-19).** El system prompt gana un

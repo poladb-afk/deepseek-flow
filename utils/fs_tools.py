@@ -94,6 +94,14 @@ def allowed_roots():
     return [Path(p).expanduser().resolve() for p in text.split(":") if p.strip()]
 
 
+def _raiz_que_contiene(resolved, roots):
+    """Raíz permitida que contiene (o es) la ruta resuelta, o None."""
+    for root in roots:
+        if resolved == root or root in resolved.parents:
+            return root
+    return None
+
+
 def _resolve(raw):
     roots = allowed_roots()
     expanded = Path(raw).expanduser()
@@ -107,12 +115,12 @@ def _resolve(raw):
     permitido = None  # bajo el techo pero inexistente: write_file podría crearlo
     for cand in candidates:
         resolved = Path.resolve(cand)
-        for root in roots:
-            if resolved == root or root in resolved.parents:
-                if resolved.exists():
-                    return resolved, None
-                if permitido is None:
-                    permitido = resolved
+        if _raiz_que_contiene(resolved, roots) is None:
+            continue
+        if resolved.exists():
+            return resolved, None
+        if permitido is None:
+            permitido = resolved
     if permitido is not None:
         return permitido, None
     return None, "ruta fuera de los directorios permitidos: " + ", ".join(str(r) for r in roots)
@@ -236,6 +244,19 @@ def list_files(path=None, depth=2):
     return "\n".join(lines)
 
 
+def _seleccionar_lineas(fh, offset, limit):
+    """Streaming: retiene solo las `limit` líneas pedidas y cuenta el total
+    sin materializarlo. Antes se leía y dividía el archivo ENTERO antes de
+    paginar: hacía falta RAM proporcional al archivo para devolver 400
+    líneas (H13)."""
+    total, seleccion = 0, []
+    for n, linea in enumerate(fh, 1):
+        total += 1
+        if offset <= n < offset + limit:
+            seleccion.append(linea.rstrip("\r\n")[:READ_MAX_CHARS])
+    return total, seleccion
+
+
 def read_file(path, offset=1, limit=400):
     resolved, err = _resolve(path)
     if err:
@@ -248,19 +269,11 @@ def read_file(path, offset=1, limit=400):
     offset = max(1, int(offset))
     limit = min(500, max(1, int(limit)))
     try:
-        # Lectura ACOTADA: se recorre en streaming y solo se retienen las
-        # `limit` líneas pedidas, contando el total sin materializarlo. Antes
-        # se leía y dividía el archivo ENTERO antes de paginar: hacía falta
-        # RAM proporcional al archivo para devolver 400 líneas (H13).
         with resolved.open("r", encoding="utf-8", errors="replace") as fh:
             if "\x00" in fh.read(4000):
                 return "ERROR: archivo binario"
             fh.seek(0)
-            total, seleccion = 0, []
-            for n, linea in enumerate(fh, 1):
-                total += 1
-                if offset <= n < offset + limit:
-                    seleccion.append(linea.rstrip("\r\n")[:READ_MAX_CHARS])
+            total, seleccion = _seleccionar_lineas(fh, offset, limit)
     except OSError as e:
         return f"ERROR: {e.strerror}"
 
@@ -281,30 +294,40 @@ def _name_matches(rel_posix, name, pattern):
     return fnmatch.fnmatch(name, p)
 
 
+def _entradas_de(root):
+    """(dirpath, dirnames, filenames) de un root. Un root que es ARCHIVO se
+    trata como único habitante de su carpeta: os.walk sobre un archivo no
+    visita nada, y ese falso negativo silencioso ya se midió ("Ningún archivo
+    contiene…" sobre un archivo que sí lo contenía)."""
+    if root.is_file():
+        return [(str(root.parent), [], [root.name])]
+    return os.walk(root)
+
+
+def _coincide(fpath, root, pattern):
+    """¿El archivo matchea el glob, con la ruta relativa a su root?"""
+    return _name_matches(fpath.relative_to(root).as_posix(), fpath.name, pattern)
+
+
+def _candidatos_de_root(root, pattern):
+    for dirpath, dirnames, filenames in _entradas_de(root):
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        # os.walk no baja por enlaces de directorio, pero SÍ entrega los
+        # archivos enlazados: la política se aplica a cada candidato.
+        for fpath in sin_enlaces(Path(dirpath) / f for f in filenames):
+            if not _coincide(fpath, root, pattern):
+                continue
+            try:
+                yield fpath, fpath.stat().st_size
+            except OSError:
+                continue
+
+
 def _candidatos(roots, pattern):
     """Recorre las raíces y devuelve (Path, bytes) de cada archivo cuyo nombre
-    matchea el glob, sin bajar a SKIP_DIRS ni seguir enlaces (sin_enlaces).
-
-    Un root que es ARCHIVO se trata como único habitante de su carpeta: os.walk
-    sobre un archivo no visita nada, y ese falso negativo silencioso ya se
-    midió ("Ningún archivo contiene…" sobre un archivo que sí lo contenía)."""
+    matchea el glob, sin bajar a SKIP_DIRS ni seguir enlaces (sin_enlaces)."""
     for root in roots:
-        if root.is_file():
-            walks = [(str(root.parent), [], [root.name])]
-        else:
-            walks = os.walk(root)
-        for dirpath, dirnames, filenames in walks:
-            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
-            # os.walk no baja por enlaces de directorio, pero SÍ entrega los
-            # archivos enlazados: la política se aplica a cada candidato.
-            for fpath in sin_enlaces(Path(dirpath) / f for f in filenames):
-                rel_posix = fpath.relative_to(root).as_posix()
-                if not _name_matches(rel_posix, fpath.name, pattern):
-                    continue
-                try:
-                    yield fpath, fpath.stat().st_size
-                except OSError:
-                    continue
+        yield from _candidatos_de_root(root, pattern)
 
 
 def _coincidencias(fpath, query):

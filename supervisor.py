@@ -250,6 +250,30 @@ class Ejecutar(Node):
             "base": len(shared.get("hechos", [])),
         }
 
+    @staticmethod
+    def _veto(nombre, firma, fallos, vivas, exitosas_vivas):
+        """(resultado, repetida) si la ley L8 frena la llamada; (None, None)
+        si toca ejecutarla."""
+        texto = guarda_vetada(nombre, fallos)
+        if texto is not None:
+            return texto, None
+        veredicto = guarda_repetida(firma, vivas, exitosas_vivas, SIN_ARGS)
+        if veredicto is None:
+            return None, None
+        modo, valor = veredicto
+        if modo == "cached":
+            print("  [L8] llamada idéntica a una previa: se reutiliza el resultado")
+            return valor, True
+        return valor, None
+
+    @staticmethod
+    def _cachear_exito(nombre, firma, texto, vivas, exitosas_vivas):
+        """Registra una llamada exitosa en el estado VIVO de la ronda."""
+        vivas[firma] = {"n": vivas.get(firma, {}).get("n", 0) + 1,
+                        "resultado": texto}
+        if nombre not in exitosas_vivas:
+            exitosas_vivas.append(nombre)
+
     def exec(self, snap):
         """Una entrada por tool_call: guarda vetada/repetida (pura) y, si
         pasa, run_tool_call. NO actualiza los contadores (eso es post, y así
@@ -265,28 +289,14 @@ class Ejecutar(Node):
             args = _args_de(tc)
             firma = (nombre, clave_de(args))
             n = snap["base"] + i + 1
-            texto = guarda_vetada(nombre, snap["fallos"])
-            repetida = None
-            if texto is None:
-                veredicto = guarda_repetida(firma, vivas, exitosas_vivas, SIN_ARGS)
-                if veredicto is not None:
-                    modo, valor = veredicto
-                    if modo == "cached":
-                        print("  [L8] llamada idéntica a una previa: se reutiliza el resultado")
-                        repetida, texto = True, valor
-                    else:
-                        texto = valor
-            if texto is not None:
-                print(f"  [L8] {nombre}: {texto}")
-                ejecuto = False
-            else:
+            texto, repetida = self._veto(nombre, firma, snap["fallos"], vivas, exitosas_vivas)
+            ejecuto = texto is None
+            if ejecuto:
                 texto = fs_tools.run_tool_call(tc, REGISTRO)["content"]
-                ejecuto = True
                 if not texto.startswith("ERROR"):
-                    vivas[firma] = {"n": vivas.get(firma, {}).get("n", 0) + 1,
-                                    "resultado": texto}
-                    if nombre not in exitosas_vivas:
-                        exitosas_vivas.append(nombre)
+                    self._cachear_exito(nombre, firma, texto, vivas, exitosas_vivas)
+            else:
+                print(f"  [L8] {nombre}: {texto}")
             salidas.append({
                 "tool_call": tc, "herramienta": nombre, "args": args,
                 "firma": firma, "n": n, "resultado": texto,

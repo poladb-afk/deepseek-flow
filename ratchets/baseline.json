@@ -18,7 +18,7 @@
           194
         ],
         "carga_trazas.py": [
-          93
+          104
         ],
         "evals.py": [
           138
@@ -75,14 +75,14 @@
         ],
         "utils/fs_tools.py": [
           83,
-          492,
-          505
+          515,
+          528
         ],
         "utils/hitl_web.py": [
           558
         ],
         "utils/laya.py": [
-          91
+          96
         ],
         "utils/laya_routing.py": [
           127
@@ -108,19 +108,8 @@
       "metrica": 36
     },
     "funciones_anidadas": {
-      "detalle": {
-        "carga_trazas.py:cargar": 5,
-        "informe.py:stats_de": 4,
-        "minar_errores.py:minar_runs": 6,
-        "rag.py:archivos_de": 4,
-        "supervisor.py:Ejecutar.exec": 4,
-        "utils/fs_tools.py:_candidatos": 4,
-        "utils/fs_tools.py:_resolve": 4,
-        "utils/fs_tools.py:read_file": 4,
-        "utils/laya.py:agente": 6,
-        "visor.py:vigilar": 4
-      },
-      "metrica": 10
+      "detalle": {},
+      "metrica": 0
     },
     "funciones_complejas": {
       "detalle": {},

@@ -76,6 +76,19 @@ def leer_registro(linea):
     return rec, None
 
 
+def _sumar_registro(rec, modulos, ejemplos):
+    """Cuenta el módulo del registro y guarda un ejemplo de task hasta el
+    tope SAMPLE_TASKS."""
+    nxt = rec.get("answers", {}).get("next")
+    if nxt:
+        modulos[nxt] += 1
+    if len(ejemplos) >= SAMPLE_TASKS:
+        return
+    task = (rec.get("fields") or {}).get("task")
+    if task:
+        ejemplos.append(str(task)[:TASK_CHARS])
+
+
 def stats_de(filepath):
     """Hechos exactos: cuenta registros, JSON roto y forma inválida."""
     total, errores, forma = 0, 0, 0
@@ -92,13 +105,7 @@ def stats_de(filepath):
             if motivo:
                 forma += 1
                 continue
-            nxt = rec.get("answers", {}).get("next")
-            if nxt:
-                modulos[nxt] += 1
-            if len(ejemplos) < SAMPLE_TASKS:
-                task = (rec.get("fields") or {}).get("task")
-                if task:
-                    ejemplos.append(str(task)[:TASK_CHARS])
+            _sumar_registro(rec, modulos, ejemplos)
     return {"total": total, "errores": errores, "forma": forma,
             "modulos": dict(modulos), "ejemplos": ejemplos}
 

@@ -40,19 +40,24 @@ def _es_texto(path):
         return False
 
 
+def _archivo_util(fpath, patron):
+    """True si el archivo matchea el glob, no supera MAX_ARCHIVO y es texto."""
+    if not fnmatch.fnmatch(fpath.name, patron):
+        return False
+    try:
+        if fpath.stat().st_size > MAX_ARCHIVO:
+            return False
+    except OSError:
+        return False
+    return _es_texto(fpath)
+
+
 def archivos_de(carpeta, patron):
     archivos = []
     for dirpath, dirnames, filenames in os.walk(carpeta):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and "rag_index" not in d]
         for fpath in sin_enlaces(Path(dirpath) / f for f in filenames):
-            if not fnmatch.fnmatch(fpath.name, patron):
-                continue
-            try:
-                if fpath.stat().st_size > MAX_ARCHIVO:
-                    continue
-            except OSError:
-                continue
-            if _es_texto(fpath):
+            if _archivo_util(fpath, patron):
                 archivos.append(fpath)
     return sorted(archivos)
 

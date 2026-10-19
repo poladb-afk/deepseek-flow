@@ -1234,6 +1234,53 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/64 — ronda 4: la deuda de ANIDACIÓN también LLEGA A CERO (2026-10-19)
+
+**Qué se pagó** (guard clauses + extract; 687 tests intactos, ningún test
+tocado):
+
+- Los 3 peores de exp/63 (5-6 niveles):
+  - `carga_trazas.cargar` (5): el cuerpo del jsonl se extrae a
+    `_cargar_archivo(con, archivo)` → (total, rotas, forma); los errores
+    siguen subiendo al `try` de la transacción (rollback todo-o-nada
+    intacto: el test que monkeypatchea `_texto` a mitad de carga pasa).
+  - `minar_errores.minar_runs` (6): `_agregar_sesion(por_tool, eventos, res)`
+    + `_deltas_de_tool(eventos, tool)`; `errores_total` pasa a sumarse del
+    acumulador (mismo valor: era la suma por tool de cada sesión).
+  - `utils/laya.agente` (6): `_limpiar_error_vencido`, `_offline_si_path_local`,
+    `_desalojar` y `_cargar_checkpoint`; `agente` queda en cache-hit →
+    cargar bajo lock → error vigente → contador.
+- Los 7 de 4 niveles:
+  - `informe.stats_de`: `_sumar_registro` (módulo + ejemplo de task).
+  - `rag.archivos_de`: `_archivo_util` (glob + tope de tamaño + es texto).
+  - `utils/fs_tools._resolve`: `_raiz_que_contiene`; la pública solo elige
+    candidatos y resuelve.
+  - `utils/fs_tools.read_file`: `_seleccionar_lineas` (streaming paginado).
+  - `utils/fs_tools._candidatos`: `_entradas_de` (root archivo vs carpeta),
+    `_coincide` y `_candidatos_de_root`; la pública queda en un `yield from`.
+  - `supervisor.Ejecutar.exec`: métodos `_veto` y `_cachear_exito`; el bucle
+    queda con la decisión plana (veto → print; si no, ejecutar → cachear).
+  - `visor.vigilar`: `_regenerar_si_crecio` + `_vigilar_rutas`; el watch pasa
+    a `contextlib.suppress(KeyboardInterrupt)` y el import de `colorear` sube
+    al módulo (sin ciclo: `utils/terminal` no importa visor).
+
+**Resultado (ratchet):** `funciones_anidadas` **10 → 0**. Las dos métricas de
+forma quedan en cero por primera vez: `funciones_complejas` 0 y
+`funciones_anidadas` 0 (la anidación, con la métrica corregida de exp/62, fue
+12 → 10 → 0 en dos rondas; contando la deuda original de exp/60, 21 → 0). El
+gate de conjunto no se disparó: los helpers nuevos quedaron en ≤3 niveles y
+ninguno es CC>12.
+
+**Costo/beneficio:** 10 funciones partidas en helpers con un solo destino,
+sin cambiar comportamiento (tests de db, minería, laya, fs, supervisor,
+visor, informe e inventario pasan sin tocarlos). Beneficio estructural:
+`agente` pasó de 6 a 3 niveles y `vigilar` de 4 a 2.
+
+**Siguiente (si duele):** ya no queda deuda de forma que pagar: el ratchet
+tiene complejidad y anidación en 0 y las reabre solo si una función nueva
+cruza el umbral. Los hilos restantes son data-gated (ROI del router,
+fine-tune del juez) o de producto opcional.
+
 ## exp/63 — ronda 3: la deuda de complejidad LLEGA A CERO (2026-10-19)
 
 **Qué se pagó** (guard clauses + extract; 687 tests intactos):

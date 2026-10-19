@@ -50,6 +50,33 @@ def _texto(v):
     return json.dumps(v, ensure_ascii=False)
 
 
+def _cargar_archivo(con, archivo):
+    """Inserta un jsonl completo y devuelve (total, rotas, forma). Los errores
+    suben al llamador: la transacción de `cargar` hace el rollback."""
+    total, rotas, forma = 0, 0, 0
+    with open(archivo, encoding="utf-8") as f:
+        for n, linea in enumerate(f, 1):
+            if not linea.strip():
+                continue
+            total += 1
+            rec, motivo = leer_registro(linea)
+            if motivo == "json":
+                rotas += 1
+            elif motivo:
+                forma += 1
+            campos = (rec or {}).get("fields") or {}
+            respuestas = (rec or {}).get("answers") or {}
+            con.execute(
+                "INSERT INTO trazas (archivo, carpeta, registro, modulo, task, criterios, pasos, json_valido) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (str(archivo), str(archivo.parent), n,
+                 _texto(respuestas.get("next")), _texto(campos.get("task")),
+                 _texto(campos.get("criteria")),
+                 len(campos.get("steps") or []), 0 if motivo else 1),
+            )
+    return total, rotas, forma
+
+
 def cargar(carpeta, db="trazas.db", glob="*.jsonl"):
     folder, err = _resolve(carpeta)
     if err:
@@ -69,26 +96,10 @@ def cargar(carpeta, db="trazas.db", glob="*.jsonl"):
         for sentencia in ESQUEMA:
             con.execute(sentencia)
         for archivo in archivos:
-            with open(archivo, encoding="utf-8") as f:
-                for n, linea in enumerate(f, 1):
-                    if not linea.strip():
-                        continue
-                    total += 1
-                    rec, motivo = leer_registro(linea)
-                    if motivo == "json":
-                        rotas += 1
-                    elif motivo:
-                        forma += 1
-                    campos = (rec or {}).get("fields") or {}
-                    respuestas = (rec or {}).get("answers") or {}
-                    con.execute(
-                        "INSERT INTO trazas (archivo, carpeta, registro, modulo, task, criterios, pasos, json_valido) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        (str(archivo), str(archivo.parent), n,
-                         _texto(respuestas.get("next")), _texto(campos.get("task")),
-                         _texto(campos.get("criteria")),
-                         len(campos.get("steps") or []), 0 if motivo else 1),
-                    )
+            t, r, fo = _cargar_archivo(con, archivo)
+            total += t
+            rotas += r
+            forma += fo
         con.commit()
     except BaseException:  # noqa: BLE001 (rollback + raise: cubre Ctrl+C y SystemExit)
         con.rollback()
