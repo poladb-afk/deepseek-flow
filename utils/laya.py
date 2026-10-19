@@ -164,6 +164,58 @@ def preguntar_detalle(estado, preguntas, setting="LAYA_MODEL"):
     return resultado["answers"]
 
 
+def _probabilidades_usables(detalle, etiquetas):
+    """{etiqueta: p} si el vector de probabilidades es usable (todas presentes,
+    finitas, en [0,1] y suman ~1); None si no. La calibración es lo que hace
+    útil el juicio: una confianza suelta puede ser un MARGEN, no una prob."""
+    crudas = detalle.get("probabilities")
+    if not isinstance(crudas, dict):
+        return None
+    valores = {}
+    for etiqueta in etiquetas:
+        valor = crudas.get(etiqueta)
+        if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+            return None
+        numero = float(valor)
+        if not 0.0 <= numero <= 1.0:  # NaN/inf no pasan la comparación
+            return None
+        valores[etiqueta] = numero
+    if abs(sum(valores.values()) - 1.0) > 0.05:
+        return None
+    return valores
+
+
+def juicio(estado, instrucciones, opciones, setting="LAYA_MODEL"):
+    """Juicio TIPADO y calibrado: elige UNA etiqueta de `opciones`
+    ({etiqueta: criterio}) para `estado`, con su confianza y el vector de
+    probabilidades. Devuelve {juicio, confianza, probabilidades} o None si
+    Laya no está o la respuesta no es usable (el llamador degrada, igual que
+    contexto._puntuar).
+
+    Es la forma genérica del "if inteligente" para exponerla por MCP
+    (mcp_server.juicio_laya): un agente externo pide el juicio local sin
+    cargar un modelo propio."""
+    if not isinstance(opciones, dict) or len(opciones) < 2:
+        raise ValueError("opciones: dict {etiqueta: criterio} con >= 2 etiquetas")
+    contrato = {"juicio": {"type": "choice", "instructions": instrucciones,
+                           "criteria": dict(opciones)}}
+    try:
+        detalle = preguntar_detalle(estado, contrato, setting=setting)["juicio"]
+    except (RuntimeError, KeyError, TypeError, AttributeError):
+        return None
+    eleccion = detalle.get("choice") or detalle.get("answer")
+    if eleccion not in opciones:
+        return None
+    confianza = detalle.get("answer_confidence")
+    if isinstance(confianza, bool) or not isinstance(confianza, (int, float)):
+        confianza = None
+    return {
+        "juicio": eleccion,
+        "confianza": float(confianza) if confianza is not None else None,
+        "probabilidades": _probabilidades_usables(detalle, opciones),
+    }
+
+
 def preguntar_lote(estados, preguntas, setting="LAYA_MODEL"):
     """La versión en lote de preguntar(): los MISMOS contratos evaluados
     sobre N estados en forward(s) compartido(s) (Agent.predict_batch).

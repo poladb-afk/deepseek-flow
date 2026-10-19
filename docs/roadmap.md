@@ -234,10 +234,16 @@ dedicado (gap del cookbook); loops fractales con presupuesto heredado (depth má
   (el judgment kernel del agente mu hace exactamente esto: riesgo de
   comando, qué queda en contexto, cuándo terminar).
 
-- Nuevo de la investigación 2026-10-05 (patrones de la wild): **exponer
+- ~~Nuevo de la investigación 2026-10-05 (patrones de la wild): **exponer
   Laya vía MCP** como producto del harness (referencia typesafe-mcp /
   mcp-laya: el juicio tipado y calibrado como tool consumible por
-  cualquier agente MCP — nosotros ya tenemos mcp_server.py).
+  cualquier agente MCP — nosotros ya tenemos mcp_server.py)~~
+  **✅ exp/65 (2026-10-19)**: `utils.laya.juicio` (estado + instrucciones +
+  opciones `{etiqueta: criterio}` → `{juicio, confianza, probabilidades}`) y
+  tool `juicio_laya` en `mcp_server.py` (texto JSON con `modelo`), expuesta
+  por default en `MCP_EXPOSE` y despachada por `run_tool_call`; e2e real por
+  protocolo MCP con el checkpoint local (p=0,8222) y `ERROR:` sin checkpoint.
+  No suma tool al action space del chat.
 **Mesa 7 — Skills y triggers:** ~~skills/ declarativas (paquete
 prompt+tools+condición de disparo, a lo ZCode)~~ **✅ exp/55 (2026-10-19)**:
 `skills/*.yaml` (regex de disparo, instrucciones, subset de tools) +

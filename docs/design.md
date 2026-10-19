@@ -287,9 +287,17 @@ HITL no embebido, una sesión por pestaña.
 
 `python3 main.py mcp-server` expone las capacidades del chat a OTROS
 agentes por stdio ([mcp_server.py](../mcp_server.py)). Allowlist en
-`MCP_EXPOSE` (default: solo lectura + rag + juez; excluye write_file por
-el HITL de terminal y los pipelines largos). En stdout viaja el protocolo:
-todo aviso del servidor va a stderr.
+`MCP_EXPOSE` (default: solo lectura + rag + juez + juicio local; excluye
+write_file por el HITL de terminal y los pipelines largos). En stdout viaja
+el protocolo: todo aviso del servidor va a stderr.
+
+`juicio_laya` es **mcp-laya** (exp/65): el juicio tipado y calibrado de Laya
+como tool para cualquier agente MCP, sin que el cliente cargue un modelo.
+Entran `estado`, `instrucciones` y `opciones` (`{etiqueta: criterio}`, mínimo
+2); sale texto JSON `{juicio, confianza, probabilidades, modelo}`. Sin
+checkpoint devuelve `ERROR:` como texto (nunca rompe al cliente). NO es una
+tool del chat: no suma al action space del modelo; el producto es servir a
+terceros.
 
 > El detalle medido de cada experimento (exp/2 a exp/50, las jornadas y los
 > fixes de auditoría) vive en [bitacora.md](bitacora.md): acá queda solo lo que

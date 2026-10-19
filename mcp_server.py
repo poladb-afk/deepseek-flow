@@ -10,13 +10,39 @@ Uso:
     # y desde cualquier cliente: MCP_SERVERS=deepseek::python3 .../main.py mcp-server
 """
 import argparse
+import json
 import sys
 
 from nodes import MODULE_IMPLS, TOOLS
 from utils import fs_tools
 from utils.call_llm import _setting
+from utils.laya import juicio
 
-DEFAULT_EXPOSE = "list_files,read_file,search_files,rag_search,rag_index,answer_verified"
+DEFAULT_EXPOSE = ("list_files,read_file,search_files,rag_search,rag_index,"
+                  "answer_verified,juicio_laya")
+
+# El juicio local NO es una tool del CHAT (no suma al action space del modelo):
+# el producto es ofrecerlo a otros agentes MCP, que sí saben pedirlo.
+DESCRIPCION_JUICIO = (
+    "Juicio tipado y calibrado LOCAL con Laya: elegí UNA etiqueta para `estado` "
+    "según `instrucciones` y los criterios de cada opción (`opciones` es un "
+    "objeto JSON {etiqueta: criterio}, mínimo 2). Devuelve JSON "
+    "{juicio, confianza, probabilidades, modelo}. Sin checkpoint (LAYA_MODEL) "
+    "devuelve ERROR como texto: nunca rompe al cliente."
+)
+
+
+def juicio_laya(estado: str, instrucciones: str, opciones: dict, setting: str = "") -> str:
+    """Tool MCP: envuelve utils.laya.juicio y responde TEXTO JSON (contrato de
+    las tools del harness: strings, nunca dicts)."""
+    try:
+        resultado = juicio(estado, instrucciones, opciones, setting or "LAYA_MODEL")
+    except ValueError as e:
+        return f"ERROR: {e}"
+    if resultado is None:
+        return "ERROR: Laya no disponible o respuesta no usable (¿LAYA_MODEL?)"
+    resultado["modelo"] = _setting(setting or "LAYA_MODEL", "?")
+    return json.dumps(resultado, ensure_ascii=False)
 
 
 def elegir_exposicion(permitir, impls, descripciones):
@@ -77,9 +103,11 @@ def main(argv=None):
         "list_files": fs_tools.list_files,
         "read_file": fs_tools.read_file,
         "search_files": fs_tools.search_files,
+        "juicio_laya": juicio_laya,
         **MODULE_IMPLS,
     }
     descripciones = {t["function"]["name"]: t["function"]["description"] for t in TOOLS}
+    descripciones["juicio_laya"] = DESCRIPCION_JUICIO
 
     permitir = {c.strip() for c in (args.expose or _setting("MCP_EXPOSE", DEFAULT_EXPOSE)).split(",") if c.strip()}
     expuestas, aviso = elegir_exposicion(permitir, impls, descripciones)

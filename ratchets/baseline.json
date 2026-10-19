@@ -165,6 +165,7 @@
         "tests/test_laya_cache_reintento.py": 5,
         "tests/test_laya_routing.py": 37,
         "tests/test_llm.py": 5,
+        "tests/test_mcp_laya.py": 11,
         "tests/test_memoria.py": 24,
         "tests/test_minar_errores.py": 16,
         "tests/test_modulos.py": 19,
@@ -194,7 +195,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 671
+      "metrica": 682
     }
   },
   "version": 1

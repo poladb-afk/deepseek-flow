@@ -1234,6 +1234,47 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/65 — mcp-laya: el juicio local como tool MCP para otros agentes (2026-10-19)
+
+**Qué se construyó** (ítem registrado en el roadmap desde 2026-10-05: "exponer
+Laya vía MCP como producto del harness", referencia typesafe-mcp / mcp-laya:
+el juicio tipado y calibrado como tool consumible por cualquier agente MCP):
+
+- `utils.laya.juicio(estado, instrucciones, opciones, setting)`: la forma
+  genérica del "if inteligente". Arma el contrato `choice` de Laya con las
+  opciones del llamador (`{etiqueta: criterio}`, mínimo 2) y devuelve
+  `{juicio, confianza, probabilidades}`. Degrada a `None` sin checkpoint, con
+  etiqueta fuera de contrato o con error del modelo (misma ley de la casa que
+  el resto de los caminos Laya: el llamador decide, nunca rompe).
+- Vector de probabilidades validado (`_probabilidades_usables`): todas las
+  etiquetas presentes, finitas, en [0,1] y suman 1±0,05. Si no, se devuelve
+  `probabilidades=None` — no se inventa una calibración.
+- `mcp_server.juicio_laya(estado, instrucciones, opciones, setting)`: tool MCP
+  que responde TEXTO JSON (contrato del harness: las tools devuelven strings,
+  nunca dicts) con `modelo` incluido para trazabilidad, y `ERROR:` como texto
+  cuando no hay juicio. Se registra con la MISMA envoltura
+  `envolver`/`run_tool_call` que el resto del action space (hooks incluidos) y
+  entra en el allowlist `MCP_EXPOSE` por default.
+- **NO se suma al action space del chat**: las 18 tools del modelo no cambian;
+  el producto es servir a terceros (y el schema de cada juicio lo define el
+  cliente con sus criterios).
+
+**E2E REAL (sin mock)**: cliente FastMCP in-memory contra el servidor del
+harness, con el checkpoint local que ya usa el router
+(`.modelos/router_flow-1k`): `list_tools` expone `juicio_laya`; la llamada por
+protocolo devolvió `{"juicio": "si", "confianza": 0.8222, "probabilidades":
+{"si": 0.8222, "no": 0.1778}, "modelo": ".../router_flow-1k"}` para "¿este
+texto es spam?"; con opciones inválidas devolvió `ERROR:` como texto (el
+cliente no rompe). **11 tests offline** (checkpoint simulado) cubren contrato,
+validación del vector, degradación, borde MCP y allowlist default.
+
+**Límite honesto:** el juicio usa el checkpoint del ROUTER (`LAYA_MODEL`) por
+default; el cliente puede pedir otro checkpoint por `setting` (p. ej.
+`LAYA_MODEL_RIESGO`), pero la calidad de cada uno depende de su fine-tune, y
+la tool NO certifica calibración por etiqueta arbitraria: reporta el vector y
+el cliente decide su umbral. El demo de spam es prueba de cableado, no de
+calibración semántica.
+
 ## exp/64 — ronda 4: la deuda de ANIDACIÓN también LLEGA A CERO (2026-10-19)
 
 **Qué se pagó** (guard clauses + extract; 687 tests intactos, ningún test
