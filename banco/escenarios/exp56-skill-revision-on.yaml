@@ -1,0 +1,14 @@
+id: exp56-skill-revision-on
+descripcion: "exp/56 A/B skill revision (brazo ON): con skill revision activa"
+env:
+  PREGUNTAS_LOG: "0"
+  CITAS_VERIFICAR: "0"
+  SKILLS: "1"
+  COMPACTION_CHARS: "120000"
+turnos:
+  - id: revision
+    linea: "Revisá el código de banco/fixtures/revision_skill/revision_target.py y decime si hay problemas. Citá ruta:línea. No ejecutes comandos: solo leé."
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60

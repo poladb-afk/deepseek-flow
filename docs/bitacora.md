@@ -1193,6 +1193,47 @@ exp/43); (4) la calibración es un snapshot: al crecer la muestra hay que
 re-etiquetar y revisar alpha. Artefacto del veredicto:
 `salidas/evals/veredicto_router_2026-10-19.md`.
 
+## exp/56 — efecto de la skill `revision`: NO CUMPLE detección (techo), ruido −40% (2026-10-19)
+
+**Pregunta:** ¿cambia la skill la revisión de código? Fixture con 3 issues
+plantados (`banco/fixtures/revision_skill/revision_target.py`: global muerta +
+parámetro sin usar; `except Exception` mudo; docstring que miente), A/B con
+`SKILLS=0|1` y el mismo prompt (`exp56-skill-revision-off/on`, n=3 por brazo).
+Señales DETERMINISTAS, sin juez LLM: detección por keywords declaradas, citas
+verificadas con la MISMA función del producto (`utils/citas.verificar_citas`)
+y verbosidad.
+
+**Criterio PRE-REGISTRADO (antes de correr, en el docstring de la sonda):**
+(1) detección media skill ≥ control + 1; (2) citas válidas skill ≥ control;
+(3) citas inválidas skill = 0; (4) palabras skill ≤ 1,4× control.
+
+**Resultado (n=3 por brazo):**
+
+| brazo | issues | citas | palabras | seg | rondas |
+|---|---|---|---|---|---|
+| off | **3,0**/3 | 18/18 (100%) | 420,7 | 7,3 | 1 |
+| on | **3,0**/3 | 15/15 (100%) | **254,0** | **5,0** | 1 |
+
+**Veredicto: ❌ NO CUMPLE** por (1): la detección no puede subir porque el
+control ya toca el techo (3/3). Explicación medida: el `[pre-fetch]` inyectó
+el archivo en el prompt y el modelo ya detecta los 3 issues plantados sin
+skill; ambos brazos citan 100% válido y no fabrican. **No se retoca el
+criterio** (hubiera sido mover el arco): el experimento falló en su hipótesis
+principal.
+
+**Señal secundaria observada (declarada como tal, no como criterio):** la
+skill responde con **−40% de palabras** (254 vs 421) con la misma detección y
+las mismas citas válidas, y en menos tiempo (5,0 s vs 7,3 s). Es consistente
+con la tesis del repo (ruido: el formato `ruta:línea — problema — fix` no
+agrega prosa), pero con n=3 no es evidencia fuerte.
+
+**Siguiente pre-registrado (exp/56b):** para medir la hipótesis de detección
+hay que quitar el techo ANTES de medir: `PREFETCH=0` (que el modelo tenga que
+leer por tools) y/o fixture con issues sutiles (off-by-one, mutación de global,
+denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
+skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
+ruido sin perder calidad.
+
 ## exp/55 — skills declarativas (Mesa 7): prompt+tools+disparo (2026-10-19)
 
 **Qué se construyó:** el primer recorte de la Mesa 7 ("skills/ declarativas:

@@ -244,8 +244,10 @@ prompt+tools+condición de disparo, a lo ZCode)~~ **✅ exp/55 (2026-10-19)**:
 `utils/skills.py`; en enforce el `LayaRouter` fuerza herramientas e inyecta
 `[skill]`, `AgentStep` anuncia solo el subset; shadow no cambia; SKILLS=0
 apaga; e2e `exp55-skills` 3/3. Pendiente de la mesa: **webhook autenticado**
-sobre el server del HITL web (el harness como servicio, seguridad primero) y
-medir efecto de cada skill con benches de contenido.
+sobre el server del HITL web (el harness como servicio, seguridad primero).
+Efecto de la skill `revision` medido en exp/56: **NO CUMPLE** la hipótesis de
+detección por techo (pre-fetch + modelo ya detectan 3/3); señal secundaria
+prometedora: −40% de palabras con las mismas citas válidas (n=3).
 
 **Mesa 8 — UX (incorporada a pedido):** chat web completo (FastAPI/SSE sobre el
 server HITL existente, sesiones en navegador); pulido de terminal (etiqueta
