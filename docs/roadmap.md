@@ -29,8 +29,11 @@ Cada ítem indica qué pieza lo apoya y qué falta.
    como tool call). Corte demostrado E2E: aprobar con el proceso
    reiniciado (design.md). **Fase B (exp/49b)**: arista formal
    approved/rejected e hitl_web multi-pendiente (dos HITL en paralelo).
-3. **exp/50** — pre-fetch como política declarativa (nodo `PreFetch`,
-   apéndice 13): A/B ON/OFF, gana si baja ≥1 ronda sin subir errores.
+3. ~~**exp/50** — pre-fetch como política declarativa (nodo `PreFetch`,
+   apéndice 13)~~ **✅ hecho (2026-10-14; cerrado 2026-10-19)**: A/B ON/OFF
+   medido — las preguntas sobre archivos bajan de **2 rondas a 0**, 5/5
+   turnos OK y 0 errores en ambos brazos (detalle en
+   [bitacora.md](bitacora.md)).
 4. **exp/45** — veredicto del router con datos propios (pre-registrado,
    arriba; ~24/100 pares acumulados). Decide la suerte del router del chat.
 5. **Fine-tune del juez de riesgo** — con el log de exp/44 (dataset gratis

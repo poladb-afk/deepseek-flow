@@ -922,6 +922,72 @@ multi-pendiente); la reparación es at-most-once honesto, no exactly-once
 
 **378 tests (+10) · ruff limpio.**
 
+## exp/50 — pre-fetch como política declarativa (2026-10-14)
+
+Corte pre-registrado en exp/47 (fila exp/50 de la tabla de arriba): "A/B
+ON/OFF: ≥1 ronda menos sin subir errores". Aplicado por el harness (sesión
+exp50-aplicar2) y cerrado por el conductor — tests, `.env.example` y A/B
+(la sesión entregó código sin sus tests: tercera vez del patrón exp/44).
+Nota operativa: el primer intento (exp50-aplicar) se colgó 30 min en 7
+HITL; el reintento aplicó en 220 s (3/3 turnos OK) cuando el conductor le
+respondió la pregunta abierta (los 4 fallos de `test_replay.py` eran un
+artefacto de `USE_LAYA_ROUTER=0` heredado por el pytest hijo).
+
+**La pieza** — `utils/prefetch.py` (PURO en su lógica de matching, sin LLM):
+
+- `decidir(pregunta)` — regex de rutas `[\w./-]+\.[A-Za-z]{1,4}` sobre la
+  pregunta; se queda con las que EXISTEN dentro del perímetro
+  (`AGENT_ALLOWED_DIRS`, reusando el resolvedor de contención de
+  `fs_tools` — NO se reimplementa), hasta `PREFETCH_MAX_ARCHIVOS=2`, y las
+  lee hasta `PREFETCH_MAX_LINEAS=80`. Nunca lanza: error de lectura → esa
+  ruta se salta.
+- `mensaje(prefetches)` — un solo mensaje user con prefijo FIJO
+  `[pre-fetch]` (patrón compacción) y el formato `[pre-fetch] {path}
+  (primeras {n} líneas):\n{contenido}`; `None` sin matches (ley de
+  ausencia: sin match la pieza es no-op).
+- `nodes.PreFetch` corre entre GetQuestion y el router/paso: appendea el
+  mensaje user-tras-user (legal para la API; `validar_historial` verde
+  antes y después) y siempre devuelve "continue". `PREFETCH=0` apaga todo.
+- **El router lee la PREGUNTA, no el prefetch**: `LayaRouter.prep` (y el
+  prep del propio nodo) recorre hacia atrás y saltea los user que empiezan
+  con el prefijo — sin eso el router tomaba el mensaje sintético como
+  pregunta. `replay._grafos_vivos` agrega las aristas TRANSITIVAS de
+  `PreFetch` (A -accion-> PreFetch -accion-> X ⇒ A -accion-> X) para que
+  las caminatas históricas sigan siendo válidas: cambió la FORMA del grafo,
+  no el fondo.
+- Nota de `tests/test_replay.py`: los 4 tests que dependían del entorno
+  quedaron herméticos (fixture de módulo que pina `USE_LAYA_ROUTER=1` con
+  save/restore).
+
+**Tests** — `tests/test_prefetch.py` (11): matching / inexistente / fuera
+del perímetro (contención: `/etc/passwd` → vacío) / tope / apagado; forma
+del mensaje y `None`; el nodo appendea sin romper `validar_historial` y es
+no-op sin match; el prep saltea prefetches viejos; `LayaRouter.prep`
+devuelve la pregunta; marcador del banco con fixture NEGATIVO (el template
+del código no matchea — lección H2/Fix 10). `.env.example` documenta los
+tres settings. **Gate del cierre (2026-10-19): 569 tests verdes · ruff
+limpio.**
+
+**El A/B** — escenarios versionados `banco/escenarios/exp50-ab-on.yaml` /
+`exp50-ab-off.yaml`: misma batería de 5 turnos, mismo `.env`, solo cambia
+`PREFETCH=1|0` (corrida: `python3 banco/banco.py
+banco/escenarios/exp50-ab-on.yaml`).
+
+| brazo | preguntas de archivo (3) | turnos | HITL | pared |
+|---|---|---|---|---|
+| ON (`PREFETCH=1`) | **0 rondas** (prefetch) | 5/5 OK | 0 | 25 s |
+| OFF (`PREFETCH=0`) | **2 rondas** c/u (search_files → read_file) | 5/5 OK | 0 | 34 s |
+
+- **Criterio pre-registrado: ✅ cumplido** — 6 rondas menos en 3 preguntas
+  (≥1) sin subir errores (0 errores de turno en ambos brazos).
+- Las tres respuestas son correctas en ambos brazos (verificadas a mano en
+  el transcript); la 4.ª pregunta (prefijo textual) no mide el pre-fetch:
+  la responden directo los dos.
+- **Límites**: n=3 preguntas medidas, un escenario, una corrida por brazo
+  (LLM estocástico); el banco mide turno OK (cierre sin error/HITL), no
+  corrección semántica. Artefactos: `salidas/banco/exp50-ab-on_130600.*` y
+  `exp50-ab-off_130627.*` — `salidas/` no se versiona.
+
 ## Sesión de prueba completa (2026-10-05): 19 turnos, las 18 capacidades
 
 Una sola sesión continua de chat ejerciendo todo el harness. Resultado
