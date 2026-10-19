@@ -852,7 +852,10 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   invariante: la métrica puede mejorar o quedar igual, **nunca empeorar**; al
   mejorar, el baseline se reescribe solo y viaja en el mismo commit.
   `--actualizar` es decisión del operador (con `HUMAN_RATCHET_BYPASS_KEY`),
-  no del agente.
+  no del agente. **Long Method quedó medido y NO gateado** (exp/66): el
+  harness tiene 2/657 funciones >100 líneas vs 3/244 de `requests`, así que el
+  largo no discrimina y una métrica sería ruido; la sonda queda en
+  `banco/probes/forma_larga.py` por si el perfil cambia.
 - **`tests/test_estilo_humano.py` — forma humana del código** (2026-10-19):
   banners decorativos = 0 en TODO el código versionado (el harness llegó a
   61 y tests/banco a 144), sin docstrings de relleno ni wrappers vacíos sin

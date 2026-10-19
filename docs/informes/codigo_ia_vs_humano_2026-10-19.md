@@ -115,7 +115,7 @@ este espacio.
 | 5 | docstring de relleno / comentario narrador | repite el nombre o la línea siguiente | D12/D13 | sí (relleno) / review (narrador) | `test_estilo_humano.py` docstrings |
 | 6 | banner decorativo | `# ===== SECCIÓN =====` que no aporta | D14 | sí | `test_estilo_humano.py` (61 → 0) |
 | 7 | defensa paranoica | `if x is not None` sobre algo recién construido | D11, Show&Tell | parcial | review |
-| 8 | Long Method / God Class / erosión | funciones y clases que crecen iteración a iteración | 2605.02741, SCBench | sí (C901/erosion) | C901 en las fronteras (ya existía); erosión medida |
+| 8 | Long Method / God Class / erosión | funciones y clases que crecen iteración a iteración | 2605.02741, SCBench | sí (C901/erosion) | C901 repo-wide en 0; largo medido contra `requests` **sin señal** (exp/66: 0,3% vs 1,2% >100 líneas) |
 | 9 | verbosidad | más tokens/docstrings/defensas que lo necesario | Show&Tell, SCBench (2,2×) | medible | directiva en el system prompt |
 | 10 | test slop | assert del mock, asserts triviales/duplicados | D15/D16 | review | regla blanda |
 | 11 | sobre-especificación de reglas | instrucciones infladas que se ignoran | Claude Code docs, Show&Tell turno 2 | sí (presupuesto) | AGENTS.md ≤160 líneas; prompt ≤1.400 chars |
@@ -136,6 +136,7 @@ orden de magnitud, no es un target.
 | Cobertura de docstrings | 0,52 | 0,68 | ok |
 | Ratio defensivo (`try`+`None`+`assert` / SLOC) | 0,0256 | 0,0358 | el harness **no** es más defensivo en agregado; el problema es la *proporción de amplios* |
 | Erosión estructural (masa CC>10, SCBench) | **0,204** | 0,390 | el harness está **mejor** que la referencia; no necesita ratchet de erosión |
+| Largo de función >100 líneas (Long Method, exp/66) | **2/657 = 0,3%** (p50 12 · p90 32 · p99 72 · max 110) | **3/244 = 1,2%** (p50 10 · p90 37 · p99 107 · max 122) | el harness está **por debajo** (ratio 0,25×): no hay señal, no se gatea |
 | Comentarios / SLOC | 8,1% (865) | 10,4% (432) | el repo comenta más **en proporción similar** al humano: los "porqués" NO son el ruido |
 | Helpers privados duplicados | 20 ocurrencias / 8 nombres | — | deuda ya congelada por el ratchet |
 

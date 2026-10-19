@@ -157,6 +157,7 @@
         "tests/test_estilo_humano.py": 7,
         "tests/test_evals.py": 15,
         "tests/test_flujos.py": 34,
+        "tests/test_forma_larga.py": 5,
         "tests/test_fs_tools.py": 16,
         "tests/test_grafos_sin_calles_muertas.py": 4,
         "tests/test_hitl.py": 15,
@@ -195,7 +196,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 682
+      "metrica": 687
     }
   },
   "version": 1

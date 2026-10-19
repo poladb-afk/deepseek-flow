@@ -1234,6 +1234,44 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/66 — Long Method: hipótesis REFUTADA por medición (no se agrega gate) (2026-10-19)
+
+**Pregunta:** la tabla de evidencia (fila 8) lista **Long Method** como smell
+de código de IA (arXiv 2605.02741: Qwen-480B 11 vs 1 humano) y el gate solo lo
+proxeaba con C901. ¿Tiene el harness la firma en el LARGO contra la referencia
+humana, o la lectura previa ("el ruido no son funciones gigantes") se sostiene
+con números?
+
+**Criterio PRE-REGISTRADO** (en el docstring de la sonda, escrito ANTES de
+mirar los números): corpus harness = `ratchet.archivos_del_harness` (74
+archivos); corpus humano = fuente instalado de `requests` (18 archivos, la
+MISMA referencia de la medición previa de la sección 7 del informe); largo =
+`end_lineno - lineno + 1` (bloque `def..fin`, docstring incluido, igual en
+ambos corpus); umbral P = p99 de la referencia hacia abajo a múltiplo de 10
+(mínimo 10); **hay señal** si la proporción de funciones > P del harness es
+>= 2× la de la referencia. Sin señal → NO se agrega métrica.
+
+**Resultado:** P = **100 líneas**.
+
+| corpus | n | p50 | p90 | p99 | max | >100 | proporción |
+|---|---|---|---|---|---|---|---|
+| harness | 657 | 12 | 32 | 72 | 110 | 2 | **0,3%** |
+| `requests` | 244 | 10 | 37 | 107 | 122 | 3 | **1,2%** |
+
+**Veredicto: ❌ REFUTADA** — el harness tiene un CUARTO de la tasa de funciones
+>100 líneas de la referencia humana (0,3% vs 1,2%; ratio 0,25×). Las 2 del
+harness son `evals.correr_bench` (103) y `juez.Judge.exec` (110), justo las que
+el self-audit había marcado; el humano tiene 3 (max 122). No corresponde gate:
+congelar largo con baseline 2 sería ruido y refactorizar esas 2 para un número
+que no distingue autoría va contra la evidencia (Improta et al.: las métricas
+de complejidad/tamaño pierden señal controlando por tamaño).
+
+**Qué queda:** la lectura de la medición previa ("el ruido no son funciones
+gigantes") queda confirmada con números propios; la sonda queda en el repo
+(`banco/probes/forma_larga.py`, determinista, sin LLM, 5 tests de las funciones
+puras) por si el harness cambia de perfil. Artefacto:
+`salidas/evals/forma_larga_2026-10-19.md`.
+
 ## exp/65 — mcp-laya: el juicio local como tool MCP para otros agentes (2026-10-19)
 
 **Qué se construyó** (ítem registrado en el roadmap desde 2026-10-05: "exponer
