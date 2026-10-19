@@ -110,9 +110,9 @@ tests/test_db.py::test_recarga_fallida_conserva_la_base_anterior
 tests/test_db.py::test_sql_cierra_conexion_ante_error_no_sqlite
 tests/test_db.py::test_sql_fuerza_limit_ante_limit_en_literal
 tests/test_db.py::test_sql_limita_filas_de_verdad
-tests/test_db.py::test_sql_no_confunde_delete_en_literal
+tests/test_db.py::test_sql_literales_confunden_al_guard[delete]
+tests/test_db.py::test_sql_literales_confunden_al_guard[punto_y_coma]
 tests/test_db.py::test_sql_permita_punto_coma_en_literal
-tests/test_db.py::test_sql_punto_coma_en_literal_sin_depender_de_trazas_db
 tests/test_db.py::test_sql_rechaza_lo_prohibido
 tests/test_db.py::test_sql_rechaza_multi_sentencia
 tests/test_db.py::test_sql_select_funciona
@@ -368,8 +368,9 @@ tests/test_policy.py::test_hook_py_compile_tras_edit_y_write
 tests/test_policy.py::test_ningun_flujo_escribe_fuera_de_las_raices
 tests/test_policy.py::test_policy_2_amp_1_es_lectura
 tests/test_policy.py::test_policy_clasifica_los_tres_niveles
+tests/test_policy.py::test_policy_niveles_por_comando[rm_rf]
+tests/test_policy.py::test_policy_niveles_por_comando[symlinks_recorrido]
 tests/test_policy.py::test_policy_reglas_de_composicion
-tests/test_policy.py::test_policy_rm_rf_paga_doble
 tests/test_policy.py::test_policy_semicolon_y_cd_neutro
 tests/test_policy.py::test_run_command_auto_no_pide_input
 tests/test_policy.py::test_run_command_doble_confirmacion_aborta
@@ -433,8 +434,8 @@ tests/test_replay.py::test_main_replay_escribe
 tests/test_replay.py::test_no_chat_no_adyacencia
 tests/test_replay.py::test_nodo_desconocido_sin_clase_ni_tool
 tests/test_replay.py::test_replay_runs_end_to_end
-tests/test_replay.py::test_router_aflojo_compuerta
-tests/test_replay.py::test_router_apreto_compuerta
+tests/test_replay.py::test_router_compuerta[afloja]
+tests/test_replay.py::test_router_compuerta[aprieta]
 tests/test_replay.py::test_router_conforme_y_sin_drift
 tests/test_replay.py::test_tools_del_action_space_y_fantasmas
 tests/test_riesgo.py::test_el_contrato_de_riesgo_queda_congelado_sha1
@@ -464,9 +465,9 @@ tests/test_router.py::test_sonda_conformal_reproduce_la_evidencia_del_router
 tests/test_router.py::test_split_umbrales_router_y_voto
 tests/test_router.py::test_voto_confirmacion_tres_niveles
 tests/test_smoke.py::test_action_space_completo
-tests/test_smoke.py::test_action_space_suma_coding
-tests/test_smoke.py::test_action_space_suma_memoria
-tests/test_smoke.py::test_action_space_suma_vision_y_a2a
+tests/test_smoke.py::test_action_space_suma[coding]
+tests/test_smoke.py::test_action_space_suma[memoria]
+tests/test_smoke.py::test_action_space_suma[vision_y_a2a]
 tests/test_smoke.py::test_imports_batchflow_exactos
 tests/test_sonda_laya.py::test_curva_compuerta_mueve_cobertura_y_precision_con_el_umbral
 tests/test_sonda_laya.py::test_ece_local_es_cero_si_calibra_y_uno_si_miente_siempre

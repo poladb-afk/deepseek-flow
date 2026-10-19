@@ -783,7 +783,8 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   `codigo_muerto_privado` (privadas sin referencia, baseline 0),
   `cuerpos_duplicados` (copias con variables renombradas, baseline 0) y
   `cuerpos_test_duplicados` (tests copiados: normaliza también constantes;
-  deuda inicial 12, shrink-only). La
+  baseline 0 tras parametrizar los 6 pares). La cobertura (`tests_definidos`)
+  cuenta CASOS, no funciones: parametrizar consolida sin bajar el número. La
   invariante: la métrica puede mejorar o quedar igual, **nunca empeorar**; al
   mejorar, el baseline se reescribe solo y viaja en el mismo commit.
   `--actualizar` es decisión del operador (con `HUMAN_RATCHET_BYPASS_KEY`),

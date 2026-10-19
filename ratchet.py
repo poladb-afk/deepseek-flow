@@ -21,8 +21,9 @@ Las dos métricas, una por clase de ratchet:
   `utils/`; el ratchet congela el número y obliga a pagar la deuda cuando se
   toque ese módulo. Se juzga por movimiento: si el número no baja nunca, es
   una sinecura y hay que retirarlo.
-- `tests_definidos` (**mayor mejor**, ratchet de COBERTURA): `def test_*` en
-  `tests/*.py`. `tests/inventario_tests.txt` es la foto del PR 4 y solo vigila
+- `tests_definidos` (**mayor mejor**, ratchet de COBERTURA): CASOS de test en
+  `tests/*.py` — cada `@pytest.mark.parametrize` multiplica (argvalues no
+  literales cuentan 1, límite declarado). `tests/inventario_tests.txt` es la foto del PR 4 y solo vigila
   esos 527 tests; los nuevos podían desaparecer en silencio. Este ratchet no
   deja que el total baje sin una decisión humana explícita.
 - `codigo_muerto_privado` (**menor mejor**, ratchet de RUIDO): funciones y
@@ -120,8 +121,24 @@ def escanear_helpers(raiz: Path) -> dict[str, list[str]]:
     return dict(sorted(duplicados.items()))
 
 
+def _casos_de_test(nodo: ast.FunctionDef | ast.AsyncFunctionDef) -> int:
+    """Cuántos casos recolecta pytest para este test (parametrize literal)."""
+    casos = 1
+    for decorador in nodo.decorator_list:
+        if not (isinstance(decorador, ast.Call) and isinstance(decorador.func, ast.Attribute)
+                and decorador.func.attr == "parametrize"):
+            continue
+        if len(decorador.args) < 2:
+            continue
+        valores = decorador.args[1]
+        if isinstance(valores, (ast.List, ast.Tuple)):
+            casos *= max(1, len(valores.elts))
+        # argvalues no literal (variable, fixture): no se puede contar → 1
+    return casos
+
+
 def escanear_tests(raiz: Path) -> dict[str, int]:
-    """Tests definidos por archivo (`def test_*` en `tests/test_*.py`)."""
+    """Casos de test por archivo (`def test_*` × parametrize, en tests/)."""
     por_archivo: dict[str, int] = {}
     for ruta in sorted((raiz / "tests").glob("test_*.py")):
         try:
@@ -129,7 +146,8 @@ def escanear_tests(raiz: Path) -> dict[str, int]:
         except (OSError, SyntaxError):
             continue
         cuenta = sum(
-            1 for nodo in ast.walk(arbol)
+            _casos_de_test(nodo)
+            for nodo in ast.walk(arbol)
             if isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)) and nodo.name.startswith("test_")
         )
         por_archivo[_relativa(ruta, raiz)] = cuenta
@@ -357,7 +375,7 @@ METRICAS: dict[str, dict] = {
     },
     "tests_definidos": {
         "direccion": "mayor_mejor",
-        "descripcion": "tests `def test_*` definidos en tests/",
+        "descripcion": "casos de test en tests/ (parametrize incluido)",
         "calcular": _metrica_tests,
     },
     "codigo_muerto_privado": {

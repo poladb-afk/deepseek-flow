@@ -9,33 +9,8 @@
       "metrica": 0
     },
     "cuerpos_test_duplicados": {
-      "detalle": {
-        "Module(body=[Assign(targets=[Name(id='_v', ctx=Store())], value=Call(func=Name(id='RouterConfig', ctx=Load()), keywords=[keyword(arg='modo', value=Constant(value='_c')), keyword(arg='umbral', value=Constant(value='_c'))])), Assign(targets=[Name(id='_v', ctx=Store())], value=List(elts=[Dict(keys=[Constant(value='_c'), Constant(value='_c'), Constant(value='_c'), Constant(value='_c')], values=[Constant(value='_c'), Constant(value='_c'), Constant(value='_c'), Constant(value='_c')])], ctx=Load())), Assert(test=Compare(left=Call(func=Attribute(value=Name(id='replay', ctx=Load()), attr='nivel_d_router', ctx=Load()), args=[Name(id='_v', ctx=Load()), Name(id='_v', ctx=Load())]), ops=[Eq()], comparators=[List(elts=[Tuple(elts=[Constant(value='_c'), Constant(value='_c'), Constant(value='_c')], ctx=Load())], ctx=Load())]))])": [
-          "tests/test_replay.py:215:test_router_apreto_compuerta",
-          "tests/test_replay.py:224:test_router_aflojo_compuerta"
-        ],
-        "Module(body=[Assign(targets=[Name(id='_v', ctx=Store())], value=Call(func=Name(id='_arbol', ctx=Load()), args=[Name(id='_v', ctx=Load())])), Expr(value=Call(func=Name(id='_escribir', ctx=Load()), args=[Name(id='_v', ctx=Load()), Constant(value='_c'), Constant(value='_c')])), Assert(test=Compare(left=Call(func=Attribute(value=Name(id='ratchet', ctx=Load()), attr='correr', ctx=Load()), keywords=[keyword(arg='raiz', value=Name(id='_v', ctx=Load())), keyword(arg='ruta_baseline', value=Call(func=Name(id='_baseline', ctx=Load()), args=[Name(id='_v', ctx=Load())])), keyword(arg='guardia', value=Constant(value='_c'))]), ops=[Eq()], comparators=[Constant(value='_c')])), Expr(value=Call(func=Name(id='_escribir', ctx=Load()), args=[Name(id='_v', ctx=Load()), Constant(value='_c'), Constant(value='_c')])), Assign(targets=[Name(id='_v', ctx=Store())], value=List(ctx=Load())), Assert(test=Compare(left=Call(func=Attribute(value=Name(id='ratchet', ctx=Load()), attr='correr', ctx=Load()), keywords=[keyword(arg='raiz', value=Name(id='_v', ctx=Load())), keyword(arg='ruta_baseline', value=Call(func=Name(id='_baseline', ctx=Load()), args=[Name(id='_v', ctx=Load())])), keyword(arg='guardia', value=Constant(value='_c')), keyword(arg='salida', value=Attribute(value=Name(id='_v', ctx=Load()), attr='append', ctx=Load()))]), ops=[Eq()], comparators=[Constant(value='_c')])), Assert(test=Call(func=Name(id='any', ctx=Load()), args=[GeneratorExp(elt=BoolOp(op=And(), values=[Compare(left=Constant(value='_c'), ops=[In()], comparators=[Name(id='_v', ctx=Load())]), Compare(left=Constant(value='_c'), ops=[In()], comparators=[Name(id='_v', ctx=Load())])]), generators=[comprehension(target=Name(id='_v', ctx=Store()), iter=Name(id='_v', ctx=Load()), is_async=0)])])), Assert(test=Call(func=Name(id='any', ctx=Load()), args=[GeneratorExp(elt=Compare(left=Constant(value='_c'), ops=[In()], comparators=[Name(id='_v', ctx=Load())]), generators=[comprehension(target=Name(id='_v', ctx=Store()), iter=Name(id='_v', ctx=Load()), is_async=0)])]))])": [
-          "tests/test_ratchet.py:210:test_ratchet_excepts_amplios_empeora_con_un_amplio_nuevo",
-          "tests/test_ratchet.py:222:test_tests_definidos_empeora_si_se_borra_un_test"
-        ],
-        "Module(body=[Expr(value=Call(func=Attribute(value=Name(id='_v', ctx=Load()), attr='setenv', ctx=Load()), args=[Constant(value='_c'), Call(func=Name(id='str', ctx=Load()), args=[BinOp(left=Name(id='_v', ctx=Load()), op=Div(), right=Constant(value='_c'))])])), Assign(targets=[Name(id='_v', ctx=Store())], value=Call(func=Name(id='_db_tmp', ctx=Load()), args=[Name(id='_v', ctx=Load())])), Assign(targets=[Name(id='_v', ctx=Store())], value=Call(func=Attribute(value=Name(id='_v', ctx=Load()), attr='sql', ctx=Load()), args=[Constant(value='_c')])), Assert(test=UnaryOp(op=Not(), operand=Call(func=Attribute(value=Name(id='_v', ctx=Load()), attr='startswith', ctx=Load()), args=[Constant(value='_c')])), msg=JoinedStr(values=[Constant(value='_c'), FormattedValue(value=Subscript(value=Name(id='_v', ctx=Load()), slice=Slice(upper=Constant(value='_c')), ctx=Load()), conversion=-1)]))])": [
-          "tests/test_db.py:127:test_sql_no_confunde_delete_en_literal",
-          "tests/test_db.py:92:test_sql_punto_coma_en_literal_sin_depender_de_trazas_db"
-        ],
-        "Module(body=[ImportFrom(module='nodes', names=[alias(name='TOOLS')], level=0), Assign(targets=[Name(id='_v', ctx=Store())], value=SetComp(elt=Subscript(value=Subscript(value=Name(id='_v', ctx=Load()), slice=Constant(value='_c'), ctx=Load()), slice=Constant(value='_c'), ctx=Load()), generators=[comprehension(target=Name(id='_v', ctx=Store()), iter=Name(id='TOOLS', ctx=Load()), is_async=0)])), Assert(test=Compare(left=Set(elts=[Constant(value='_c'), Constant(value='_c')]), ops=[LtE()], comparators=[Name(id='_v', ctx=Load())]))])": [
-          "tests/test_smoke.py:34:test_action_space_suma_coding",
-          "tests/test_smoke.py:40:test_action_space_suma_memoria"
-        ],
-        "Module(body=[ImportFrom(module='utils.policy', names=[alias(name='clasificar')], level=0), Assert(test=Compare(left=Call(func=Name(id='clasificar', ctx=Load()), args=[Constant(value='_c')]), ops=[Eq()], comparators=[Constant(value='_c')])), Assert(test=Compare(left=Call(func=Name(id='clasificar', ctx=Load()), args=[Constant(value='_c')]), ops=[Eq()], comparators=[Constant(value='_c')])), Assert(test=Compare(left=Call(func=Name(id='clasificar', ctx=Load()), args=[Constant(value='_c')]), ops=[Eq()], comparators=[Constant(value='_c')])), Assert(test=Compare(left=Call(func=Name(id='clasificar', ctx=Load()), args=[Constant(value='_c')]), ops=[Eq()], comparators=[Constant(value='_c')])), Assert(test=Compare(left=Call(func=Name(id='clasificar', ctx=Load()), args=[Constant(value='_c')]), ops=[Eq()], comparators=[Constant(value='_c')]))])": [
-          "tests/test_policy.py:415:test_policy_flags_peligrosos_en_forma_pegada",
-          "tests/test_policy.py:430:test_policy_descarta_2and1_y_conserva_redirecciones_reales"
-        ],
-        "Module(body=[ImportFrom(module='utils.policy', names=[alias(name='clasificar')], level=0), Assert(test=Compare(left=Call(func=Name(id='clasificar', ctx=Load()), args=[Constant(value='_c')]), ops=[Eq()], comparators=[Constant(value='_c')])), Assert(test=Compare(left=Call(func=Name(id='clasificar', ctx=Load()), args=[Constant(value='_c')]), ops=[Eq()], comparators=[Constant(value='_c')])), Assert(test=Compare(left=Call(func=Name(id='clasificar', ctx=Load()), args=[Constant(value='_c')]), ops=[Eq()], comparators=[Constant(value='_c')])), Assert(test=Compare(left=Call(func=Name(id='clasificar', ctx=Load()), args=[Constant(value='_c')]), ops=[Eq()], comparators=[Constant(value='_c')]))])": [
-          "tests/test_policy.py:323:test_policy_rm_rf_paga_doble",
-          "tests/test_policy.py:479:test_policy_traversal_por_recorrido_de_symlinks_degrada"
-        ]
-      },
-      "metrica": 12
+      "detalle": {},
+      "metrica": 0
     },
     "excepts_amplios": {
       "detalle": {
@@ -164,7 +139,7 @@
         "tests/test_chat_flujo.py": 19,
         "tests/test_citas.py": 7,
         "tests/test_compaccion.py": 13,
-        "tests/test_consolidacion.py": 24,
+        "tests/test_consolidacion.py": 44,
         "tests/test_contratos.py": 6,
         "tests/test_db.py": 18,
         "tests/test_deriva_reglas.py": 7,
@@ -178,19 +153,19 @@
         "tests/test_inventario.py": 3,
         "tests/test_laya.py": 6,
         "tests/test_laya_cache_reintento.py": 5,
-        "tests/test_laya_routing.py": 25,
+        "tests/test_laya_routing.py": 35,
         "tests/test_llm.py": 5,
         "tests/test_memoria.py": 24,
         "tests/test_minar_errores.py": 16,
         "tests/test_modulos.py": 19,
-        "tests/test_pendientes.py": 32,
+        "tests/test_pendientes.py": 34,
         "tests/test_policy.py": 23,
-        "tests/test_policy_bypass.py": 9,
+        "tests/test_policy_bypass.py": 35,
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
-        "tests/test_ratchet.py": 25,
+        "tests/test_ratchet.py": 27,
         "tests/test_replay.py": 16,
-        "tests/test_riesgo.py": 11,
+        "tests/test_riesgo.py": 15,
         "tests/test_router.py": 12,
         "tests/test_smoke.py": 5,
         "tests/test_sonda_laya.py": 4,
@@ -203,7 +178,7 @@
         "tests/test_viz.py": 5,
         "tests/test_voto_router.py": 8
       },
-      "metrica": 547
+      "metrica": 611
     }
   },
   "version": 1

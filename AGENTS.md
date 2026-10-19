@@ -88,8 +88,9 @@ gatea, no se "revisa después":
 - **Docstrings para el porqué**, no para repetir el nombre; comentarios que
   agregan información, no que narran la línea siguiente.
 - **Los tests también son código**: todo test con aserción observable (el
-  gate lo exige), sin banners y sin copias (el ratchet cuenta los pares a
-  parametrizar). Un test que no puede fallar no protege nada.
+  gate lo exige), sin banners y sin copias (el ratchet tiene baseline 0 de
+  tests copiados: parametrizá, no dupliques). Un test que no puede fallar no
+  protege nada.
 - **Nada de banners decorativos, código muerto "por si acaso", ni `_v2` en
   paralelo**: si algo se reemplaza, se reemplaza. El ratchet cuenta privadas
   muertas y cuerpos duplicados; ambos baselines están en 0.

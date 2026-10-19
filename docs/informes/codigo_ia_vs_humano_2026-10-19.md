@@ -277,5 +277,6 @@ chicas, mismo prompt de producto.
   con heurística laxa, todos explican una decisión) → quedan review. En
   tests sí hubo subconjunto determinista: 144 banners decorativos en
   tests/banco → 0 (gate repo-wide), 2 tests sin aserción → 0 (aserción
-  observable + gate), y 12 ocurrencias de tests copiados congeladas en la
-  métrica `cuerpos_test_duplicados` (candidatos a parametrizar).
+  observable + gate), y 12 ocurrencias de tests copiados detectadas por
+  `cuerpos_test_duplicados`: los 6 pares se parametrizaron el mismo día
+  (12 → 0) y la cobertura pasó a contarse en casos (547 → 611).

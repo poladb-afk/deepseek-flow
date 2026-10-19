@@ -1214,14 +1214,17 @@ medida, bug histórico, contrato): el detector no distingue "por qué" de
   (no queda archivo/carpeta a medias) y el gate nuevo
   `test_todo_test_tiene_assert_o_raises` exige aserción explícita en todo
   test: un test que no puede fallar no protege nada.
-- **Tests copiados: 12 ocurrencias (6 pares) congeladas.** El mismo detector
-  de cuerpos normalizados (ahora también normaliza constantes, porque un
-  test copiado difiere justo en los datos) corre sobre `tests/` y alimenta
-  la métrica `cuerpos_test_duplicados`, que arranca en **12** (deuda real,
-  shrink-only). Los 6 pares están en `test_db`, `test_policy` (×2),
-  `test_replay`, `test_smoke` y `test_ratchet`: son candidatos a
-  `@pytest.mark.parametrize`, y el paydown quedó en el roadmap (cada
-  parametrización baja el baseline sola).
+- **Tests copiados: 12 ocurrencias (6 pares) → 0 (paydown el mismo día).**
+  El mismo detector de cuerpos normalizados (normaliza también constantes,
+  porque un test copiado difiere justo en los datos) corre sobre `tests/` y
+  alimenta la métrica `cuerpos_test_duplicados`. Paydown: los 6 pares de
+  `test_db`, `test_policy` (×2), `test_replay`, `test_smoke` y `test_ratchet`
+  se convirtieron a `@pytest.mark.parametrize` (ids estables) y el baseline
+  bajó **12 → 0**. Movimiento deliberado: `tests/inventario_tests.txt` se
+  actualizó cambiando los 7 ids de la foto por sus ids parametrizados.
+  **La métrica de cobertura pasó a contar CASOS** (`def test_*` × parametrize
+  literal; argvalues variable cuenta 1, límite declarado): parametrizar
+  consolida funciones pero NO puede bajar la cobertura — 547 → **611 casos**.
 
 ## Paydown de except amplios y exp/51 — la directiva de forma, medida (2026-10-19)
 

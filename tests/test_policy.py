@@ -320,15 +320,22 @@ def test_hook_pre_que_lanza_falla_cerrado(tmp_path):
     finally:
         fs_tools.HOOKS_PRE.pop("zz_guarda", None)
 
-def test_policy_rm_rf_paga_doble():
-    """Desviación de spec encontrada en auditoría: rm -rf debía ser
-    confirmar_doble (doble fricción) y había quedado en preguntar."""
+@pytest.mark.parametrize("comandos,nivel,control,nivel_control", [
+    (["rm -rf /tmp/x", "rm -fr /tmp/x", "ls && rm -rf /"],
+     "confirmar_doble", "rm archivo.txt", "preguntar"),
+    (["grep -R secreto .", "grep --dereference-recursive secreto .",
+      "find . -L -name x"], "preguntar", "grep -r secreto .", "auto"),
+], ids=["rm_rf", "symlinks_recorrido"])
+def test_policy_niveles_por_comando(comandos, nivel, control, nivel_control):
+    '''Niveles de fricción por comando (auditoría): `rm -rf` paga doble
+    confirmación (compuesto: el piso lo fija el peor segmento); el recorrido
+    que sigue symlinks (-L / -R / --dereference-recursive) puede leer fuera de
+    las raíces y no es auto. El control confirma el nivel seguro.'''
     from utils.policy import clasificar
 
-    assert clasificar("rm -rf /tmp/x") == "confirmar_doble"
-    assert clasificar("rm -fr /tmp/x") == "confirmar_doble"
-    assert clasificar("rm archivo.txt") == "preguntar"
-    assert clasificar("ls && rm -rf /") == "confirmar_doble"  # compuesto: el piso lo fija el peor
+    for comando in comandos:
+        assert clasificar(comando) == nivel, comando
+    assert clasificar(control) == nivel_control
 
 def test_explicar_comando():
     """Explicación corta y determinista por comando (mesa 8)."""
@@ -412,32 +419,25 @@ def test_supervisor_no_puede_saltear_el_denylist(monkeypatch):
     assert visto["comando"] == "rm -rf /"
 
 
-def test_policy_flags_peligrosos_en_forma_pegada():
-    """Flags peligrosos de una letra en forma pegada (-o/ruta, -pVALOR)
-    degradan el segmento; el flag exacto y la forma --flag=valor ya estaban
-    cubiertos. Evidencia: mutantes de _tiene_flag_peligroso sobrevivían
-    (Fase 1, M1; informe f1_mutation.md)."""
+@pytest.mark.parametrize("casos", [
+    [("sort -o/tmp/x", "preguntar"), ("sort -o /tmp/x", "preguntar"),
+     ("pytest -pno:cacheprovider", "preguntar"),
+     ("pytest -p no:cacheprovider", "preguntar"),
+     ("sort archivo.txt", "auto")],
+    [("ls 2>&1", "auto"), ("ls 2>&1 | grep x", "auto"),
+     ("pytest -q 2>&1", "auto"), ("ls 2>&1 > out.txt", "preguntar"),
+     ("ls > out.txt 2>&1", "preguntar")],
+], ids=["flags_peligrosos_pegados", "2and1_sin_redireccion"])
+def test_policy_clasificar_casos(casos):
+    '''Casos medidos de `clasificar`: flags peligrosos de una letra en forma
+    pegada (-o/ruta, -pVALOR) degradan el segmento (mutantes de
+    _tiene_flag_peligroso sobrevivían, Fase 1 M1); `2>&1` es lectura de
+    descriptor y se descarta ANTES del escaneo, una redirección real sigue
+    degradando (M2). El control sin flag/redirección sigue en su nivel.'''
     from utils.policy import clasificar
 
-    assert clasificar("sort -o/tmp/x") == "preguntar"
-    assert clasificar("sort -o /tmp/x") == "preguntar"
-    assert clasificar("pytest -pno:cacheprovider") == "preguntar"
-    assert clasificar("pytest -p no:cacheprovider") == "preguntar"
-    # control: sin flag peligroso sigue auto
-    assert clasificar("sort archivo.txt") == "auto"
-
-
-def test_policy_descarta_2and1_y_conserva_redirecciones_reales():
-    """La excepción semántica documentada: 2>&1 es lectura de descriptor y
-    se descarta ANTES del escaneo; una redirección real sigue degradando.
-    Evidencia: mutantes del stripping de 2>&1 sobrevivían (Fase 1, M2)."""
-    from utils.policy import clasificar
-
-    assert clasificar("ls 2>&1") == "auto"
-    assert clasificar("ls 2>&1 | grep x") == "auto"
-    assert clasificar("pytest -q 2>&1") == "auto"
-    assert clasificar("ls 2>&1 > out.txt") == "preguntar"
-    assert clasificar("ls > out.txt 2>&1") == "preguntar"
+    for comando, nivel in casos:
+        assert clasificar(comando) == nivel, comando
 
 
 def test_aprobar_doble_confirmacion_y_motivos(monkeypatch, capsys):
@@ -474,19 +474,6 @@ def test_aprobar_doble_confirmacion_y_motivos(monkeypatch, capsys):
     aprobado, motivo = coding._aprobar("cat x", "auto", None)
     assert aprobado is True and motivo == ""
     assert "auto: solo-lectura" in capsys.readouterr().out
-
-
-def test_policy_traversal_por_recorrido_de_symlinks_degrada():
-    """`find -L` y `grep -R` siguen symlinks al recorrer: con un enlace
-    dentro de las raíces pueden leer fuera de ellas, así que no son auto.
-    Evidencia: auditoría F2 (symlink escape vía recorrido)."""
-    from utils.policy import clasificar
-
-    assert clasificar("grep -R secreto .") == "preguntar"
-    assert clasificar("grep --dereference-recursive secreto .") == "preguntar"
-    assert clasificar("find . -L -name x") == "preguntar"
-    # control: la versión que NO sigue symlinks sigue siendo solo-lectura
-    assert clasificar("grep -r secreto .") == "auto"
 
 
 def test_explicar_pytest_admite_que_ejecuta_codigo():

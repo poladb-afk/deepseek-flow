@@ -89,16 +89,6 @@ def test_sql_permita_punto_coma_en_literal():
     r = sql("SELECT id FROM trazas WHERE 'a;b' = 'a;b'")
     assert not r.startswith("ERROR"), f"sobre-rechazo por ';' en literal: {r[:80]}"
 
-def test_sql_punto_coma_en_literal_sin_depender_de_trazas_db(tmp_path, monkeypatch):
-    """Misma ley que arriba, pero SIN el skip por falta de trazas.db: es la
-    mitad positiva del guard del ';' (la que se falseaba), ahora con base
-    propia. Candado del troceado que comparten _sentencias y _sin_literales."""
-    monkeypatch.setenv("DB_PATH", str(tmp_path / "trazas.db"))
-    db = _db_tmp(tmp_path)
-
-    r = db.sql("SELECT * FROM trazas WHERE criterios = 'x;y'")
-    assert not r.startswith("ERROR"), f"sobre-rechazo por ';' en literal: {r[:80]}"
-
 def test_sql_rechaza_multi_sentencia():
     """El guard sigue bloqueando lo que sí es multi-sentencia real."""
     from modules.db import sql
@@ -124,15 +114,22 @@ def _db_tmp(tmp_path, criterios=("x", "y")):
     con.close()
     return db
 
-def test_sql_no_confunde_delete_en_literal(tmp_path, monkeypatch):
-    """Fix 7: un 'delete' dentro de un literal es texto de usuario, no SQL:
-    el chequeo PROHIBIDOS corre sobre la consulta SIN literales, así que NO
-    devuelve 'solo SELECT' (antes: falso positivo)."""
+@pytest.mark.parametrize("consulta,fragmento", [
+    ("SELECT * FROM trazas WHERE criterios = 'x;y'",
+     "sobre-rechazo por ';' en literal"),
+    ("SELECT * FROM trazas WHERE criterios = 'delete'",
+     "falso positivo por 'delete' en literal"),
+], ids=["punto_y_coma", "delete"])
+def test_sql_literales_confunden_al_guard(tmp_path, monkeypatch, consulta, fragmento):
+    '''El guard de sentencias y la denylist corren sobre la consulta SIN
+    literales: un ';' o un 'delete' dentro de una cadena es texto de usuario,
+    no multi-sentencia. Base propia: no depende de trazas.db (es la mitad
+    positiva del guard del ';', la que se falseaba).'''
     monkeypatch.setenv("DB_PATH", str(tmp_path / "trazas.db"))
     db = _db_tmp(tmp_path)
 
-    r = db.sql("SELECT * FROM trazas WHERE criterios = 'delete'")
-    assert not r.startswith("ERROR"), f"falso positivo por 'delete' en literal: {r[:80]}"
+    r = db.sql(consulta)
+    assert not r.startswith("ERROR"), f"{fragmento}: {r[:80]}"
 
 def test_sql_sigue_rechazando_delete_real(tmp_path, monkeypatch):
     """Fix 7 no abre la puerta: un DELETE de verdad sigue rechazado."""

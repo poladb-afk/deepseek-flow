@@ -1,5 +1,7 @@
 """Smoke tests de lo estable — sin red, sin LLM, sin modelo (PR 4)."""
 
+import pytest
+
 
 def test_action_space_completo():
     from nodes import TOOLS
@@ -31,20 +33,14 @@ def test_imports_batchflow_exactos():
     assert issubclass(effective_n.EffectiveNMulti, BatchFlow)
     assert issubclass(juez_lote.JuezLoteFlow, AsyncParallelBatchFlow)
 
-def test_action_space_suma_coding():
+@pytest.mark.parametrize("modulos", [
+    {"run_command", "edit_file"},
+    {"memory_search", "memory_save"},
+    {"ver_imagen", "ver_pdf", "agentes_remotos", "a2a_tarea"},
+], ids=["coding", "memoria", "vision_y_a2a"])
+def test_action_space_suma(modulos):
+    '''Cada capacidad agrega sus tools al action space del chat.'''
     from nodes import TOOLS
 
     nombres = {t["function"]["name"] for t in TOOLS}
-    assert {"run_command", "edit_file"} <= nombres
-
-def test_action_space_suma_memoria():
-    from nodes import TOOLS
-
-    nombres = {t["function"]["name"] for t in TOOLS}
-    assert {"memory_search", "memory_save"} <= nombres
-
-def test_action_space_suma_vision_y_a2a():
-    from nodes import TOOLS
-
-    nombres = {t["function"]["name"] for t in TOOLS}
-    assert {"ver_imagen", "ver_pdf", "agentes_remotos", "a2a_tarea"} <= nombres
+    assert modulos <= nombres

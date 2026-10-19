@@ -13,6 +13,8 @@ Lo que estos tests clavan:
 import json
 import subprocess
 
+import pytest
+
 import ratchet
 
 # helpers
@@ -72,6 +74,26 @@ def test_escanear_helpers_no_mira_tests_ni_banco(tmp_path):
     _escribir(raiz, "tests/test_x.py", "def _copiada():\n    pass\n")
     _escribir(raiz, "banco/b.py", "def _copiada():\n    pass\n")
     assert ratchet.escanear_helpers(raiz) == {}
+
+
+@pytest.mark.parametrize("contenido,esperado", [
+    ("import pytest\n\n"
+     "@pytest.mark.parametrize('x', [1, 2, 3])\n"
+     "def test_param(x):\n    assert x\n\n"
+     "@pytest.mark.parametrize('a', [1, 2])\n"
+     "@pytest.mark.parametrize('b', [1, 2])\n"
+     "def test_doble(a, b):\n    assert a and b\n\n"
+     "def test_uno():\n    assert True\n", 8),
+    ("import pytest\n\nCASOS = [1, 2, 3]\n\n"
+     "@pytest.mark.parametrize('x', CASOS)\n"
+     "def test_param(x):\n    assert x\n", 1),
+], ids=["parametrize_literal", "argvalues_variable"])
+def test_escanear_tests_cuenta_casos(tmp_path, contenido, esperado):
+    """La cobertura se mide en CASOS: parametrizar no baja el número; una
+    variable como argvalues no se puede contar y vale 1 (límite declarado)."""
+    raiz = _arbol(tmp_path)
+    _escribir(raiz, "tests/test_a.py", contenido)
+    assert ratchet.escanear_tests(raiz) == {"tests/test_a.py": esperado}
 
 
 def test_escanear_tests_cuenta_defs_por_archivo(tmp_path):
@@ -207,29 +229,29 @@ def test_mejora_baja_el_baseline_y_lo_deja_igual(tmp_path):
     assert ratchet.correr(raiz=raiz, ruta_baseline=_baseline(raiz), guardia=False) == 0
 
 
-def test_ratchet_excepts_amplios_empeora_con_un_amplio_nuevo(tmp_path):
-    """El ruido no crece: un `except Exception` nuevo frena el gate."""
+@pytest.mark.parametrize("archivo,contenido,extra_archivo,extra_contenido,metrica,fragmento", [
+    ("modules/a.py",
+     "def f():\n    try:\n        pass\n    except Exception:\n        pass\n",
+     "utils/b.py", "def g():\n    try:\n        pass\n    except:\n        pass\n",
+     "excepts_amplios", "utils/b.py: 0 → 1"),
+    ("tests/test_a.py", "def test_uno():\n    pass\n\ndef test_dos():\n    pass\n",
+     "tests/test_a.py", "def test_uno():\n    pass\n",
+     "tests_definidos", "tests/test_a.py: 2 → 1 tests"),
+], ids=["except_amplio", "test_borrado"])
+def test_ratchet_empeora_y_frena(tmp_path, archivo, contenido, extra_archivo,
+                                 extra_contenido, metrica, fragmento):
+    """El ruido no crece y la cobertura no baja en silencio: la métrica que
+    empeora frena el gate y el diagnóstico nombra el culpable (smell #1 del
+    código de IA; el hueco del inventario del PR 4 para tests nuevos)."""
     raiz = _arbol(tmp_path)
-    _escribir(raiz, "modules/a.py", "def f():\n    try:\n        pass\n    except Exception:\n        pass\n")
+    _escribir(raiz, archivo, contenido)
     assert ratchet.correr(raiz=raiz, ruta_baseline=_baseline(raiz), guardia=False) == 0
-    _escribir(raiz, "utils/b.py", "def g():\n    try:\n        pass\n    except:\n        pass\n")
+    _escribir(raiz, extra_archivo, extra_contenido)
     mensajes = []
-    assert ratchet.correr(raiz=raiz, ruta_baseline=_baseline(raiz), guardia=False, salida=mensajes.append) == 1
-    assert any("excepts_amplios" in m and "EMPEORÓ" in m for m in mensajes)
-    assert any("utils/b.py: 0 → 1" in m for m in mensajes)
-
-
-def test_tests_definidos_empeora_si_se_borra_un_test(tmp_path):
-    """La cobertura no baja en silencio: borrar un test es rojo (es el candado
-    que el inventario del PR 4 no cubría para los tests nuevos)."""
-    raiz = _arbol(tmp_path)
-    _escribir(raiz, "tests/test_a.py", "def test_uno():\n    pass\n\ndef test_dos():\n    pass\n")
-    assert ratchet.correr(raiz=raiz, ruta_baseline=_baseline(raiz), guardia=False) == 0
-    _escribir(raiz, "tests/test_a.py", "def test_uno():\n    pass\n")
-    mensajes = []
-    assert ratchet.correr(raiz=raiz, ruta_baseline=_baseline(raiz), guardia=False, salida=mensajes.append) == 1
-    assert any("tests_definidos" in m and "EMPEORÓ" in m for m in mensajes)
-    assert any("tests/test_a.py: 2 → 1 tests" in m for m in mensajes)
+    assert ratchet.correr(raiz=raiz, ruta_baseline=_baseline(raiz), guardia=False,
+                          salida=mensajes.append) == 1
+    assert any(metrica in m and "EMPEORÓ" in m for m in mensajes)
+    assert any(fragmento in m for m in mensajes)
 
 
 def test_actualizar_acepta_el_empeoramiento(tmp_path):

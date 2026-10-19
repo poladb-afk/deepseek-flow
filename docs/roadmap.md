@@ -91,12 +91,12 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     efectivo <5% con precisión de directos ≥99% → apagar; si no, mantener y
     re-elegir alpha. Preview con los datos de hoy: **APAGAR** (1,6% de
     ahorro), pero la decisión de exp/45 queda como está.
-18. **Paydown de test slop (2026-10-19)**: el ratchet congeló 12 ocurrencias
-    (6 pares) de tests copiados en `test_db`, `test_policy` (×2), `test_replay`,
-    `test_smoke` y `test_ratchet`. Convertirlos a `@pytest.mark.parametrize`
-    (o fusionarlos) cuando se toquen: cada par baja el baseline solo. No es
-    urgente —el gate ya impide que crezca— pero cada test que no puede fallar
-    por sí solo cuesta review.
+18. ~~**Paydown de test slop**: 12 ocurrencias (6 pares) de tests copiados en
+    `test_db`, `test_policy` (×2), `test_replay`, `test_smoke` y
+    `test_ratchet`~~ **✅ (2026-10-19)**: los 6 pares pasaron a
+    `@pytest.mark.parametrize` con ids estables; `cuerpos_test_duplicados`
+    **12 → 0**; el inventario se actualizó con los ids parametrizados y la
+    cobertura ahora cuenta CASOS (547 → 611), así parametrizar no la baja.
 16. **Revisión de ROI del router (condición pre-registrada)**: cuando haya
     **≥250 pares y ≥14 días** (hoy 125/5), correr
     `python3 banco/probes/etiquetar_ambiental.py && python3 banco/probes/veredicto_router.py`

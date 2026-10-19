@@ -212,23 +212,22 @@ def test_nodo_desconocido_sin_clase_ni_tool(vivos):
 # Nivel D — política del router sobre tráfico registrado
 
 
-def test_router_apreto_compuerta():
-    """Un directo aprobado entonces que la compuerta de HOY bloquea."""
-    config = RouterConfig(modo="enforce", umbral=0.85)
-    lineas = [{"propuesta": "directo", "aplicada": "directo",
-               "causa": "p(directo)=0.800 >= umbral 0.85", "p_directo": 0.80}]
-    assert replay.nivel_d_router(lineas, config) == [
-        ("apretó", "p(directo)=0.800 >= umbral 0.85", 0.80)]
-
-
-def test_router_aflojo_compuerta():
-    """Un directo bloqueado por umbral entonces que HOY pasaría (la causa
-    'p(directo)=...' es la firma de decide, el formato versionado)."""
-    config = RouterConfig(modo="enforce", umbral=0.70)
-    lineas = [{"propuesta": "herramientas", "aplicada": "herramientas",
-               "causa": "p(directo)=0.750 < umbral 0.85", "p_directo": 0.75}]
-    assert replay.nivel_d_router(lineas, config) == [
-        ("aflojó", "p(directo)=0.750 < umbral 0.85", 0.75)]
+@pytest.mark.parametrize("config,linea,esperado", [
+    (RouterConfig(modo="enforce", umbral=0.85),
+     {"propuesta": "directo", "aplicada": "directo",
+      "causa": "p(directo)=0.800 >= umbral 0.85", "p_directo": 0.80},
+     [("apretó", "p(directo)=0.800 >= umbral 0.85", 0.80)]),
+    (RouterConfig(modo="enforce", umbral=0.70),
+     {"propuesta": "herramientas", "aplicada": "herramientas",
+      "causa": "p(directo)=0.750 < umbral 0.85", "p_directo": 0.75},
+     [("aflojó", "p(directo)=0.750 < umbral 0.85", 0.75)]),
+], ids=["aprieta", "afloja"])
+def test_router_compuerta(config, linea, esperado):
+    '''Drift de política del router sobre tráfico registrado: un directo
+    aprobado entonces que la compuerta de HOY bloquea ("apretó"), o uno
+    bloqueado entonces que HOY pasaría ("aflojó"). La causa 'p(directo)=...'
+    es la firma de decide, el formato versionado.'''
+    assert replay.nivel_d_router([linea], config) == esperado
 
 
 def test_router_conforme_y_sin_drift():
