@@ -1234,6 +1234,45 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/60 — gates de complejidad y anidación repo-wide (2026-10-19)
+
+**Por qué:** la auditoría de auto-crítica mostró que el gate `C901 ≤ 12` cubría
+solo 2 archivos mientras el harness tenía **11 funciones > 12** (incluido el
+núcleo: `evals.linter_traza` 23, `juez._contexto_extra` 16, `AgentStep.exec`
+13…). Justificación vieja en `calidad.sh`: "el resto tiene funciones largas a
+propósito" — exactamente el sesgo que la investigación critica.
+
+**(a) Complejidad repo-wide, conteo EXACTO:** nueva métrica del ratchet
+`funciones_complejas` = funciones del harness con C901 > 12. No reimplementa
+la fórmula: invoca `ruff check --select C901` (ruff pinneado) y parsea sus
+resultados, así que la métrica coincide con el gate de la herramienta; el
+nombre se cualifica (`Clase.metodo`) para no colisionar. Deuda sembrada: **9**
+funciones (el harness; `banco/` y `banco/probes/` quedan fuera del alcance del
+ratchet, como el resto de sus métricas — `banco/banco.py:correr` (18) es
+herramienta de banco, no harness).
+
+**(b) Anidación de control:** `funciones_anidadas` = funciones con anidación
+> 3 niveles (`if/for/while/try/with/match`, sin contar funciones internas).
+AST puro. Deuda sembrada: **21** funciones (la medición previa de "ifs
+anidados" daba 3 con 4-5 niveles; el contador nuevo incluye try/with/for, por
+eso es más grande y más honesto).
+
+**Guardia de conjunto (importante):** las dos son métricas de IDENTIDAD, no
+solo de conteo. Un arreglo no habilita una función nueva compleja aunque el
+total baje: el ratchet compara el conjunto de `archivo:función` contra el
+baseline y falla ante cualquier entrada nueva (`test_conjunto_nuevo_empeora_
+aunque_el_total_no_suba`). Sin esto, el ratchet era evadible arreglando una y
+metiendo otra.
+
+**Tests:** complejidad (función con 13 ramas entra, con 3 no), anidación
+(4 niveles entra, 3 no, función interna no cuenta) y la guardia de conjunto
+(cambiar `compleja_uno` por `compleja_dos` con el mismo total = ROJO).
+
+**Lo que NO se hace:** no se paga la deuda de golpe (9+21): el ratchet la
+congela y cada pago es trabajo ordinario; el detalle queda visible para
+priorizar (top: `ratchet._diagnostico` anid 6, `hitl_web._Handler.do_POST` 5,
+`terminal.highlight_diff` 5).
+
 ## exp/59 — chat web MVP: SSE con stdlib, cero dependencias (2026-10-19)
 
 **Qué se construyó:** el último ítem grande de la Mesa 8 (chat web completo),

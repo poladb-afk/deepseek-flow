@@ -179,7 +179,7 @@ python3 main.py mcp-server               # exponer capacidades vía MCP
 python3 main.py grafo [flujo]            # exportar los grafos a mermaid
 python3 main.py bench_juez               # bench de answer_verified (grading por código)
 python3 main.py replay [trace.jsonl]     # re-valida trazas .runs contra los grafos actuales
-python3 main.py ratchet                  # métricas estructurales: helpers duplicados + tests (ratchet)
+python3 main.py ratchet                  # métricas estructurales (helpers, complejidad, anidación, tests…)
 python3 main.py resume <id>              # rehidrata un thread del chat (salidas/threads/)
 ```
 

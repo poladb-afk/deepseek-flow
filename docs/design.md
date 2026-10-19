@@ -818,7 +818,7 @@ herramientas — con sonda antes/después, como hicimos con el router.
 ## Candados de calidad del repo: contrato de agente y ratchet (2026-10-19)
 
 El gate es determinista y no usa LLM: `./calidad.sh` corre cuatro palancas
-(higiene ruff · C901 de las dos fronteras · ratchet · suite pytest) y el CI lo
+(higiene ruff · C901 de las dos fronteras · ratchet · suite pytest; el C901 repo-wide y la anidación viven en el ratchet) y el CI lo
 repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
 (ver [informe](informes/ratchets_y_reglas_agente_2026-10-19.md)):
 
@@ -834,10 +834,15 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   `codigo_muerto_privado` (privadas sin referencia, baseline 0),
   `cuerpos_duplicados` (copias con variables renombradas, baseline 0) y
   `cuerpos_test_duplicados` (tests copiados: normaliza también constantes;
-  baseline 0 tras parametrizar los 6 pares). La cobertura (`tests_definidos`)
-  cuenta CASOS, no funciones: parametrizar consolida sin bajar el número. La
-  invariante: la métrica puede mejorar o quedar igual, **nunca empeorar**; al
-  mejorar, el baseline se reescribe solo y viaja en el mismo commit.
+  baseline 0 tras parametrizar los 6 pares), `funciones_complejas` (C901
+  repo-wide > 12, conteo EXACTO de ruff; la deuda actual —9 funciones— está
+  sembrada, antes el gate solo miraba 2 archivos) y `funciones_anidadas`
+  (anidación de control > 3 niveles; deuda 21, de la que 3 son de anidación de
+  `if` en 4-5 niveles). Las dos últimas son de **conjunto**: una función NUEVA
+  compleja/anidada falla aunque el total no suba (la identidad importa). La
+  cobertura (`tests_definidos`) cuenta CASOS, no funciones. La invariante: la
+  métrica puede mejorar o quedar igual, **nunca empeorar**; al mejorar, el
+  baseline se reescribe solo y viaja en el mismo commit.
   `--actualizar` es decisión del operador (con `HUMAN_RATCHET_BYPASS_KEY`),
   no del agente.
 - **`tests/test_estilo_humano.py` — forma humana del código** (2026-10-19):
@@ -845,7 +850,7 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   61 y tests/banco a 144), sin docstrings de relleno ni wrappers vacíos sin
   justificar, y todo test necesita aserción explícita (un test que no puede
   fallar no protege nada); **todo `except` amplio lleva motivo visible**
-  (`# noqa: BLE001 (motivo)`; el ratchet lo congela en 48 tras acotar 7) y la
+  (`# noqa: BLE001 (motivo)`; el ratchet lo congela en 36 tras acotar los candidatos) y la
   directiva de mínimo código del `system_prompt` se verifica y tiene
   presupuesto (≤1.400 chars). Su efecto está medido en exp/51
   (`banco/probes/forma_codigo.py`): −77% SLOC con la directiva. La medición

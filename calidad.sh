@@ -20,10 +20,13 @@ fi
 
 echo
 echo "═══ 2/4 complejidad — C901 ≤ 12 en las fronteras de seguridad ═══"
-# Solo las dos fronteras del PR 6 (shell y lectura de archivos): el resto del
-# repo tiene funciones largas a propósito (evals.linter_traza, banco.correr…).
+# Las dos fronteras del PR 6 se exigen al instante (ruff). El resto del harness
+# NO queda libre: la etapa 3 mide C901 repo-wide (mismo umbral, conteo exacto
+# de ruff) y anidación de control > 3 como métricas del ratchet con la deuda
+# actual sembrada (9 y 21). Esta etapa se mantiene porque es la que protege las
+# fronteras de seguridad con el mismo gate determinista de siempre.
 if ruff check --select C901 --config 'lint.mccabe.max-complexity=12' modules/coding.py utils/fs_tools.py; then
-    echo "✅ complejidad verde"
+    echo "✅ complejidad verde (fronteras; repo-wide en el ratchet)"
 else
     echo "❌ complejidad roja: una frontera volvió a crecer"
     fallo=1

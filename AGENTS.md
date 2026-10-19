@@ -40,7 +40,7 @@ nombra el gate que la hace cumplir.
 | R6 | El baseline del ratchet solo se mueve hacia la mejora; editarlo a mano es bypass. | `ratchet.py` (guardia con `HUMAN_RATCHET_BYPASS_KEY`) |
 | R7 | La seguridad no se relaja: HITL, contención de paths y política de comandos se tocan con tests de bypass. | `tests/test_policy_bypass.py`, `tests/test_policy.py` |
 | R8 | Los contratos congelados (dispatch, voto, prefiltro) no cambian sin regenerar su sha1 y justificarlo. | `tests/test_contratos.py` |
-| R9 | El código se escribe para humanos: mínimo que funciona, sin defensas/abstracciones/docstrings no pedidos, sin banners decorativos; los `except` amplios no crecen. | `tests/test_estilo_humano.py`, `ratchet.py` |
+| R9 | El código se escribe para humanos: mínimo que funciona, sin defensas/abstracciones/docstrings no pedidos, sin banners decorativos; los `except` amplios no crecen y la complejidad/anidación del harness tampoco (ratchet). | `tests/test_estilo_humano.py`, `ratchet.py` |
 
 ## Cómo trabajar (reglas blandas, todavía sin gate)
 

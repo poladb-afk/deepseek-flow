@@ -62,8 +62,11 @@ from __future__ import annotations
 
 import argparse
 import ast
+import contextlib
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -349,6 +352,106 @@ def _metrica_cuerpos(raiz: Path) -> tuple[int, dict[str, list[str]]]:
     return sum(len(filas) for filas in detalle.values()), detalle
 
 
+def _nombre_calificado(ruta: Path) -> dict[int, str]:
+    """{línea del def: "Clase.metodo"} para desambiguar nombres repetidos."""
+    nombres: dict[int, str] = {}
+
+    def visitar(nodo, prefijo):
+        for hijo in ast.iter_child_nodes(nodo):
+            if isinstance(hijo, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                nombres[hijo.lineno] = prefijo + hijo.name
+                visitar(hijo, prefijo + hijo.name + ".")
+            elif isinstance(hijo, ast.ClassDef):
+                visitar(hijo, prefijo + hijo.name + ".")
+            else:
+                visitar(hijo, prefijo)
+
+    with contextlib.suppress(OSError, SyntaxError):
+        visitar(ast.parse(ruta.read_text(encoding="utf-8")), "")
+    return nombres
+
+
+def escanear_complejidad(raiz: Path, umbral: int = 12) -> dict[str, int]:
+    """Funciones del harness con McCabe > umbral, contadas por RUFF (C901).
+
+    Usa el mismo conteo exacto que el gate (ruff pinneado) en vez de
+    reimplementar la fórmula: la métrica creíble es la que coincide con la
+    herramienta. Devuelve {"archivo:Clase.funcion": cc}."""
+    if shutil.which("ruff") is None:
+        raise RuntimeError("ratchet: ruff no está en PATH (la métrica de complejidad lo usa)")
+    rutas = [str(ruta) for ruta in archivos_del_harness(raiz)]
+    proceso = subprocess.run(
+        ["ruff", "check", "--isolated", "--select", "C901",
+         "--config", f"lint.mccabe.max-complexity={umbral}",
+         "--output-format", "concise", *rutas],
+        cwd=raiz, capture_output=True, text=True,
+    )
+    detalle = {}
+    for linea in proceso.stdout.splitlines():
+        coincidencia = re.match(
+            r"^(.+?):(\d+):\d+: C901 `([^`]+)` is too complex \((\d+) > \d+\)", linea)
+        if not coincidencia:
+            continue
+        archivo, linea_def, funcion, complejidad = coincidencia.groups()
+        # ruff imprime la ruta relativa a su cwd (= raiz): resolver antes de
+        # calcular la ruta relativa del detalle.
+        ruta = Path(archivo) if Path(archivo).is_absolute() else raiz / archivo
+        calificado = _nombre_calificado(ruta).get(int(linea_def), funcion)
+        detalle[f"{_relativa(ruta, raiz)}:{calificado}"] = int(complejidad)
+    return dict(sorted(detalle.items()))
+
+
+CONTROL_ANIDADO = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.Try,
+                   ast.With, ast.AsyncWith, ast.Match)
+
+
+def _anidacion_maxima(nodo) -> int:
+    """Máxima profundidad de control anidado DENTRO de la función (sin contar
+    funciones/clases internas, que son otra unidad)."""
+
+    def profundidad(actual, nivel):
+        mejor = nivel
+        for hijo in ast.iter_child_nodes(actual):
+            if isinstance(hijo, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                 ast.Lambda, ast.ClassDef)):
+                continue
+            interno = nivel + 1 if isinstance(hijo, CONTROL_ANIDADO) else nivel
+            mejor = max(mejor, profundidad(hijo, interno))
+        return mejor
+
+    return profundidad(nodo, 0)
+
+
+def escanear_anidacion(raiz: Path, maximo: int = 3) -> dict[str, int]:
+    """Funciones del harness con anidación de control > maximo (deuda de
+    guard clauses). Puro AST; devuelve {"archivo:funcion": profundidad}."""
+    detalle = {}
+    for ruta in archivos_del_harness(raiz):
+        try:
+            arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            continue
+        calificados = _nombre_calificado(ruta)
+        for nodo in ast.walk(arbol):
+            if not isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            profundidad = _anidacion_maxima(nodo)
+            if profundidad > maximo:
+                nombre = calificados.get(nodo.lineno, nodo.name)
+                detalle[f"{_relativa(ruta, raiz)}:{nombre}"] = profundidad
+    return dict(sorted(detalle.items()))
+
+
+def _metrica_complejidad(raiz: Path) -> tuple[int, dict[str, int]]:
+    detalle = escanear_complejidad(raiz)
+    return len(detalle), detalle
+
+
+def _metrica_anidacion(raiz: Path) -> tuple[int, dict[str, int]]:
+    detalle = escanear_anidacion(raiz)
+    return len(detalle), detalle
+
+
 def _metrica_helpers(raiz: Path) -> tuple[int, dict[str, list[str]]]:
     detalle = escanear_helpers(raiz)
     return sum(len(archivos) for archivos in detalle.values()), detalle
@@ -392,6 +495,18 @@ METRICAS: dict[str, dict] = {
         "direccion": "menor_mejor",
         "descripcion": "tests con el mismo cuerpo (candidatos a parametrizar)",
         "calcular": _metrica_cuerpos_tests,
+    },
+    "funciones_complejas": {
+        "direccion": "menor_mejor",
+        "conjunto": True,
+        "descripcion": "funciones con McCabe > 12 (C901 repo-wide; antes solo 2 archivos)",
+        "calcular": _metrica_complejidad,
+    },
+    "funciones_anidadas": {
+        "direccion": "menor_mejor",
+        "conjunto": True,
+        "descripcion": "funciones con anidación de control > 3 (guard clauses)",
+        "calcular": _metrica_anidacion,
     },
     "excepts_amplios": {
         "direccion": "menor_mejor",
@@ -583,6 +698,18 @@ def correr(
             continue
         decision = comparar(metrica_actual, valor_previo["metrica"], meta["direccion"])
         flecha = f"{valor_previo['metrica']} → {metrica_actual}"
+        # Métricas de CONJUNTO (funciones con nombre): un arreglo no habilita
+        # una función nueva compleja aunque el total baje. La identidad importa.
+        if meta.get("conjunto") and isinstance(valor_previo.get("detalle"), dict):
+            nuevos = sorted(set(actuales[nombre]["detalle"])
+                            - set(valor_previo["detalle"]))
+            if nuevos:
+                salida(f"[ratchet] {nombre}: {flecha} → EMPEORÓ "
+                       f"({len(nuevos)} función(es) nueva(s) en el conjunto)")
+                for clave in nuevos:
+                    salida(f"    + {clave} ({actuales[nombre]['detalle'][clave]})")
+                empeoro = True
+                continue
         if decision == "MEJORÓ":
             mejoro = True
             salida(f"[ratchet] {nombre}: {flecha} → MEJORÓ ({meta['descripcion']})")
