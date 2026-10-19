@@ -97,6 +97,15 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     `@pytest.mark.parametrize` con ids estables; `cuerpos_test_duplicados`
     **12 → 0**; el inventario se actualizó con los ids parametrizados y la
     cobertura ahora cuenta CASOS (547 → 611), así parametrizar no la baja.
+19. **exp/52-B — convergencia determinista del loop (2026-10-19)**: exp/52-A
+    midió la forma: p90 16 rondas y la cola (≥5) gasta 85% de las rondas / 75%
+    del tiempo, con cap 5 recortando 61% sin tocar ciclos ≤3 (criterio
+    pre-registrado: ≥20% de la cola sin tocar cortos). Falta: (a) instrumentar
+    la traza con `evento_tool` (nombre + args recortados) para detectar
+    "ronda sin novedad"; (b) regla de corte estructural con setting y default
+    conservador; (c) A/B en replay offline y en banco; (d) recién entonces
+    activar y medir. Si el A/B no baja rondas sin bajar turnos OK, se documenta
+    el negativo.
 16. **Revisión de ROI del router (condición pre-registrada)**: cuando haya
     **≥250 pares y ≥14 días** (hoy 125/5), correr
     `python3 banco/probes/etiquetar_ambiental.py && python3 banco/probes/veredicto_router.py`

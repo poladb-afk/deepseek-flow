@@ -1193,6 +1193,49 @@ exp/43); (4) la calibración es un snapshot: al crecer la muestra hay que
 re-etiquetar y revisar alpha. Artefacto del veredicto:
 `salidas/evals/veredicto_router_2026-10-19.md`.
 
+## exp/52-A — la forma del loop del chat, medida offline (2026-10-19)
+
+**Pregunta:** el tope de rondas es FIJO (`MAX_TOOL_ROUNDS`) y la única podada
+es no-progreso por repetición idéntica; ¿cuánto del costo del loop está en la
+cola y qué recortaría un corte más agresivo? Las trazas `.runs` no guardan
+nombres/argumentos de tools (solo nodo/acción/seg), así que esta sonda mide la
+**forma** del loop, no la calidad.
+
+**Criterio PRE-REGISTRADO (escrito antes del artefacto, en el docstring de la
+sonda):** una regla de corte es candidata si recorta **≥20% de las rondas de
+la cola** (ciclos con ≥5 rondas) **sin afectar los ciclos de ≤3 rondas**; la
+calidad se valida en exp/52-B con replay offline + banco, nunca acá.
+
+**Método:** `banco/probes/rondas.py` (determinista, sin LLM) agrupa las 332
+trazas en **ciclos por pregunta** (GetQuestion → answer/exit); 228 sesiones de
+chat → **480 ciclos**.
+
+**Resultado:**
+
+| métrica | valor |
+|---|---|
+| rondas de tools totales | **3.023** |
+| por pregunta | p50 **2** · p90 **16** · max 242 |
+| cola (≥5 rondas) | **144 ciclos** que gastan **2.561 rondas (85%)** |
+| tiempo de agente | 20.037 s totales; la cola se lleva **14.975 s (75%)** |
+| directos/pre-fetch (0 rondas) | 84 ciclos |
+
+**Counterfactual de topes fijos** (solo rondas): cap 5 recortaría 1.841
+rondas (61%) afectando 133 ciclos sin tocar ninguno de ≤3; cap 3 recortaría
+2.154 (71%) sin tocar cortos. El criterio pre-registrado se cumple de sobra
+como cota superior.
+
+**Sesgo declarado:** 21 ciclos superan las 8 rondas (hasta 242): no son
+tráfico normal (default 8) — vienen de escenarios del banco con
+`MAX_TOOL_ROUNDS=25` y versiones viejas. La cola está inflada por ellos; la
+lectura válida es la FORMA y el próximo paso, no el costo de producción.
+
+**Límite honesto:** sin nombres/argumentos de tools no se puede ver repetición
+de la MISMA tool ni qué ronda agregó información. Eso exige instrumentar la
+traza (exp/52-B: evento_tool con nombre + args recortados) y recién ahí una
+regla estructural ("cortar si la ronda no agregó novedad") con A/B en replay y
+banco. Artefacto: `salidas/evals/exp52_rondas_2026-10-19.md`.
+
 ## Auditoría de test slop y comentarios narradores (2026-10-19)
 
 Cierre del thread de ruido por el lado no estructural: ¿hay subconjunto

@@ -166,6 +166,7 @@
         "tests/test_ratchet.py": 27,
         "tests/test_replay.py": 16,
         "tests/test_riesgo.py": 15,
+        "tests/test_rondas.py": 5,
         "tests/test_router.py": 12,
         "tests/test_smoke.py": 5,
         "tests/test_sonda_laya.py": 4,
@@ -178,7 +179,7 @@
         "tests/test_viz.py": 5,
         "tests/test_voto_router.py": 8
       },
-      "metrica": 611
+      "metrica": 616
     }
   },
   "version": 1
