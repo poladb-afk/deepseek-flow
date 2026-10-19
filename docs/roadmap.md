@@ -50,9 +50,15 @@ Cada ítem indica qué pieza lo apoya y qué falta.
 6. **Mesa 3 (restos, re-priorizados)**: gate del juez (después del 5),
    presupuesto dinámico/convergencia de loops (empezar DETERMINISTA con las
    features de exp/9, Laya solo si no alcanza), Laya vía MCP como producto.
-7. **Mesa 1 (pendiente)**: bench de decisiones del voto como dataset —
-   ahora a medio camino: `calibrar_voto.py` (subproducto de exp/43) ya
-   genera la mitad.
+7. ~~**Mesa 1: bench de decisiones del voto como dataset permanente**~~
+   **✅ exp/53 (2026-10-19)**: `banco/voto_casos.jsonl` (18 casos versionados:
+   8 corrección, 6 directo, 4 herramientas) + `banco/probes/bench_voto.py`
+   con la cascada real (voto local LAYA_MODEL_VOTO + árbitro con el prompt de
+   producción). Corrida: corrección 6/8, directo 6/6, herramientas 4/4; el
+   voto local resolvió 10/18. **Hallazgo c01**: "debatí en 2 rondas…" → voto
+   local conf 0,94 directo (no consulta al árbitro, que habría dicho
+   herramientas) → falso directo de producto; c02 lo cubre `regla_temporal`.
+   Queda pendiente de la mesa: costo por sesión (tokens/latencia) as first-class.
 8. **Mesas 4/5/7/8** (agentes fractales, async, skills, web UX): sin
    cambios de prioridad por la evidencia nueva.
 9. ~~**Paydown del ratchet**: 20 ocurrencias de helpers privados duplicados

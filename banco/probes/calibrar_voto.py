@@ -86,7 +86,12 @@ def preguntas_de_escenarios():
 
     salida = []
     for archivo in sorted((RAIZ / "banco" / "escenarios").glob("*.yaml")):
-        datos = yaml.safe_load(archivo.read_text(encoding="utf-8")) or {}
+        try:
+            datos = yaml.safe_load(archivo.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError:
+            # escenarios viejos con formato propio (líneas: {RAIZ}/... sin comillas)
+            # que PyYAML no parsea: se saltan, no rompen el etiquetado.
+            continue
         for turno in datos.get("turnos", []):
             linea = " ".join((turno.get("linea") or "").split())
             if len(linea) >= MIN_LARGO and linea.lower() not in IGNORAR:

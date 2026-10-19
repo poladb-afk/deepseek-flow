@@ -1,0 +1,18 @@
+{"id": "c01", "grupo": "correccion", "esperado": "herramientas", "pregunta": "debatí en 2 rondas sobre si conviene migrar el chat a web y dame la síntesis.", "origen": "bitacora 2026-10-05: Laya dijo directo conf 0.99; voto 2-de-2 lo corrigió"}
+{"id": "c02", "grupo": "correccion", "esperado": "herramientas", "pregunta": "¿quién ganó el último mundial de fútbol?", "origen": "exp/46: falso-directo resistente (conf 0.83); web necesaria, lo cubre voto/regla temporal", "cubierto_por": "regla_temporal (LayaRouter.prep, exp/46)"}
+{"id": "c03", "grupo": "correccion", "esperado": "herramientas", "pregunta": "usá el servidor MCP matemática y sumá 2+2 con la tool real.", "origen": "bitacora 2026-10-05: falso-directo MCP conf 0.82"}
+{"id": "c04", "grupo": "correccion", "esperado": "herramientas", "pregunta": "investigá en la web cuál es la capital de Australia y citá la fuente.", "origen": "imperativo de acción + web (casos imperativos que el router perdía)"}
+{"id": "c05", "grupo": "correccion", "esperado": "herramientas", "pregunta": "generá un informe breve de las métricas del repo.", "origen": "imperativo de capacidad (run_informe)"}
+{"id": "c06", "grupo": "correccion", "esperado": "herramientas", "pregunta": "buscá en el repo dónde se define MAX_TOOL_ROUNDS y citá el archivo.", "origen": "lectura de archivos del repo"}
+{"id": "c07", "grupo": "correccion", "esperado": "herramientas", "pregunta": "corré la suite de tests y decime cuántos tests pasan.", "origen": "imperativo de ejecución (run_command)"}
+{"id": "c08", "grupo": "correccion", "esperado": "herramientas", "pregunta": "editá utils/formato.py para que pct devuelva dos decimales.", "origen": "imperativo de edición (edit_file)"}
+{"id": "d01", "grupo": "directo", "esperado": "directo", "pregunta": "escribime un haiku sobre el mar.", "origen": "trampa inversa documentada (design.md: correcta a 0.97)"}
+{"id": "d02", "grupo": "directo", "esperado": "directo", "pregunta": "¿qué es un closure en Python?", "origen": "conocimiento puro, sin nada que correr"}
+{"id": "d03", "grupo": "directo", "esperado": "directo", "pregunta": "explicá brevemente la diferencia entre lista y tupla en Python.", "origen": "conocimiento puro"}
+{"id": "d04", "grupo": "directo", "esperado": "directo", "pregunta": "¿cuál es la fórmula del área de un círculo?", "origen": "conocimiento puro"}
+{"id": "d05", "grupo": "directo", "esperado": "directo", "pregunta": "resumí en una frase qué es un LLM.", "origen": "conocimiento puro"}
+{"id": "d06", "grupo": "directo", "esperado": "directo", "pregunta": "¿qué significa REST en el contexto de APIs?", "origen": "conocimiento puro"}
+{"id": "h01", "grupo": "herramientas", "esperado": "herramientas", "pregunta": "leé README.md y decime cuántas secciones tiene.", "origen": "lectura de archivo, caso claro (no es corrección)"}
+{"id": "h02", "grupo": "herramientas", "esperado": "herramientas", "pregunta": "¿cuántos tests hay hoy en tests/? contalos con pytest --collect-only.", "origen": "ejecución de comando"}
+{"id": "h03", "grupo": "herramientas", "esperado": "herramientas", "pregunta": "¿qué archivos .py tienen más de 500 líneas? buscalos.", "origen": "búsqueda en archivos"}
+{"id": "h04", "grupo": "herramientas", "esperado": "herramientas", "pregunta": "mostrame el contenido de docs/roadmap.md.", "origen": "lectura de archivo"}

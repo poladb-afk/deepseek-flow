@@ -553,7 +553,11 @@ capacidad-vs-creativo en el prompt (generate_targeted, 300/300
 verificados → 1.121 casos) y un run más: los 6 casos-imperativos del
 test 6/6, y la trampa inversa ("escribime un haiku") correcta a 0.97.
 Persiste el histórico "último mundial" (0.83) — en producción lo cubre
-el voto. **Ensamble 2-de-2 con voto de confirmación** (medido en la sesión
+el voto. **Bench permanente (exp/53)**: `banco/voto_casos.jsonl` +
+`banco/probes/bench_voto.py` fijan los casos de corrección (y controles) y
+miden la cascada real; hallazgo c01: el voto local puede confiar en un
+imperativo y evitar al árbitro (roadmap 21). **Ensamble 2-de-2 con voto de
+confirmación** (medido en la sesión
 completa): el checkpoint dice 'directo' con confianza 0.78-0.96 para
 imperativos de acción ("debatí…", "investigá…") y las capacidades se
 perdían — el test del router no tenía casos imperativos. Ahora, cuando

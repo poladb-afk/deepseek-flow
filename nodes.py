@@ -685,6 +685,16 @@ PREGUNTA_VOTO = {
 }
 
 
+PROMPT_ARBITRO_VOTO = (
+    "Pregunta del usuario:\n{pregunta}\n\n"
+    "¿Responderla requiere USAR HERRAMIENTAS (leer/buscar archivos, web, "
+    "ejecutar una capacidad: debate, investigación, informe, sql...) o se "
+    "responde DIRECTO de conocimiento? Un imperativo de acción (debatá, "
+    "investigá, generá, medí...) casi siempre es herramientas.\n\n"
+    "Responde SOLO yaml:\n```yaml\nveredicto: herramientas|directo\n```"
+)
+
+
 def voto_confirmacion_router(pregunta):
     """El segundo voto del router, en tres niveles (Mesa 3): Laya-voto
     local decide los acuerdos Y desacuerdos confiables (costo 0, ms);
@@ -714,14 +724,7 @@ def voto_confirmacion_router(pregunta):
             print(f"  [voto] laya local: {resp} (conf {conf:.2f}) — {causa}")
             return resp
         print(f"  [voto] laya local duda ({resp}, conf {conf:.2f}; {causa}) → arbitra DeepSeek")
-    r = extraer_yaml(call_llm(
-        f"Pregunta del usuario:\n{pregunta}\n\n"
-        "¿Responderla requiere USAR HERRAMIENTAS (leer/buscar archivos, web, "
-        "ejecutar una capacidad: debate, investigación, informe, sql...) o se "
-        "responde DIRECTO de conocimiento? Un imperativo de acción (debatá, "
-        "investigá, generá, medí...) casi siempre es herramientas.\n\n"
-        "Responde SOLO yaml:\n```yaml\nveredicto: herramientas|directo\n```"
-    ))
+    r = extraer_yaml(call_llm(PROMPT_ARBITRO_VOTO.format(pregunta=pregunta)))
     return r.get("veredicto", "herramientas")
 
 

@@ -1193,6 +1193,54 @@ exp/43); (4) la calibración es un snapshot: al crecer la muestra hay que
 re-etiquetar y revisar alpha. Artefacto del veredicto:
 `salidas/evals/veredicto_router_2026-10-19.md`.
 
+## exp/53 — bench permanente del voto: dataset + hallazgo (2026-10-19)
+
+**Qué cierra:** el pendiente de la Mesa 1 era "bench de decisiones del voto
+(los casos donde corrigió a Laya como dataset permanente)". Ahora existe:
+`banco/voto_casos.jsonl` (18 casos versionados, texto sintético del repo:
+sin datos de usuario) + `banco/probes/bench_voto.py`. Tres grupos:
+`correccion` (8: donde Laya-router/imperativos dicen directo y el voto DEBE
+corregir; los falso-directo medidos el 2026-10-05 y exp/46), `directo`
+(6 controles de conocimiento/creatividad, incluida la trampa inversa
+"escribime un haiku") y `herramientas` (4 claras). El bench corre la cascada
+REAL: voto local `LAYA_MODEL_VOTO` decide si es confiable; la banda incierta
+la arbitra DeepSeek con el MISMO prompt de producción (extraído a
+`nodes.PROMPT_ARBITRO_VOTO` para que no diverjan). Es señal, no gate.
+
+**Resultado (2026-10-19):** `correccion 6/8` · `directo 6/6` ·
+`herramientas 4/4`; el voto local resolvió **10/18** (8 arbitradas por
+DeepSeek), mediana 0,36 s/caso.
+
+**Hallazgo 1 — falso directo de PRODUCTO (c01):** "debatí en 2 rondas sobre
+si conviene migrar el chat a web…" → el voto LOCAL dice `directo` con conf
+**0,94** (≥ umbral 0,70), así que en producción **no consulta al árbitro** y
+la corrección no ocurre. Contrafactual medido: el árbitro DeepSeek SÍ dice
+`herramientas` para ese caso. El "voto 2-de-2 lo mató" documentado el
+2026-10-05 era el ensamble DeepSeek; el voto local promovido después dejó
+este imperativo sin cubrir. Es el tipo de regresión que el dataset permanente
+existe para atrapar.
+
+**Hallazgo 2 — c02 ("último mundial") falla en el voto (conf 0,76 directo)
+pero lo cubre `regla_temporal` del `LayaRouter` (exp/46)**: el bench lo marca
+como "voto falla, regla cubre", no como riesgo de producto.
+
+**Bug encontrado y arreglado de paso:** `calibrar_voto.preguntas_de_escenarios`
+reventaba con 4 escenarios viejos que PyYAML no parsea (formato propio con
+`{RAIZ}` sin comillas); ahora los salta (test incluido).
+
+**Qué se conserva:** el bench queda como línea base reproducible (correr de
+nuevo tras cualquier fine-tune o cambio de calibración). El `--grabar`
+(artefacto JSON en `salidas/evals/`) permite comparar corridas sin pisar
+baseline.
+
+**Siguiente, pre-registrado (roadmap 21):** corregir c01 sin romper d01
+(trampa inversa). Candidato (a): regla determinista de imperativos de
+CAPACIDAD en `LayaRouter` (precedente `regla_temporal`), excluyendo creativos
+("escribime un haiku"); éxito = c01 pasa, d01 sigue directo, y el bench
+extendido a la cascada router+voto no empeora `herramientas`. Candidato (b):
+calibrar el voto con casos de corrección (cota conformal), más caro en
+cobertura. Se implementará el (a) primero por ser determinista y barato.
+
 ## exp/52-A — la forma del loop del chat, medida offline (2026-10-19)
 
 **Pregunta:** el tope de rondas es FIJO (`MAX_TOOL_ROUNDS`) y la única podada
