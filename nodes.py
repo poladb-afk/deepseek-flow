@@ -41,7 +41,7 @@ def registrar_pregunta(texto, ruta=None):
                 {"ts": round(time.time(), 3), "pregunta": texto[:4000]},
                 ensure_ascii=False,
             ) + "\n")
-    except Exception:  # bookkeeping: nunca corta el chat
+    except Exception:  # bookkeeping: nunca corta el chat  # noqa: BLE001 (bookkeeping de traza: nunca corta el chat)
         pass
 
 # Recuperación del canal de tools: a veces DeepSeek emite las llamadas como
@@ -711,7 +711,7 @@ class LayaRouter(Node):
             return None
         try:
             return preguntar_detalle(estado, PREGUNTA_ROUTER).get("necesita_herramientas")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 (frontera de integracion Laya: degrada al router DeepSeek)
             # Frontera de integración (exp/25): una excepción de inferencia no
             # puede matar el chat; la política la lee como abstención.
             print(f"  [laya] falló ({type(e).__name__}) → herramientas")
@@ -758,7 +758,7 @@ class LayaRouter(Node):
             # roto del modelo), caemos al lado seguro en vez de cortar el chat.
             try:
                 voto = voto_confirmacion_router(pregunta)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 (frontera del voto Laya: degrada al voto DeepSeek)
                 voto, veto = "herramientas", f"el voto falló ({type(e).__name__})"
                 print(f"  [voto] falló ({type(e).__name__}) → herramientas")
             if voto != "directo":  # 2-de-2: desacuerdo → lado seguro

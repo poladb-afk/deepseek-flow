@@ -71,7 +71,7 @@ def _prefiltrar(consulta, salida, k):
         from utils.contexto import elegir_por_laya
 
         elegidos = elegir_por_laya(consulta, fragments, maximo)
-    except Exception:  # el prefiltro nunca rompe rag_search
+    except Exception:  # el prefiltro nunca rompe rag_search  # noqa: BLE001 (prefiltro Laya best-effort: nunca rompe rag_search)
         return salida
     if len(elegidos) >= len(fragments):
         return salida

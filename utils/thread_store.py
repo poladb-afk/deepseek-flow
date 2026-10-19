@@ -57,7 +57,7 @@ def checkpoint(id_thread, nodo, accion, shared, ruta_dir=None):
         }
         with open(destino, "a", encoding="utf-8") as f:
             f.write(json.dumps(linea, ensure_ascii=False, default=str) + "\n")
-    except Exception:  # bookkeeping: nunca corta el chat
+    except OSError:
         pass
 
 
@@ -141,5 +141,5 @@ def valido(shared):
     mensajes = shared.get("messages")
     try:
         return validar_historial(mensajes)
-    except Exception as e:  # el validador es un instrumento, no un candado
+    except Exception as e:  # el validador es un instrumento, no un candado  # noqa: BLE001 (el validador es un instrumento, no un candado)
         return [f"el validador falló: {type(e).__name__}: {e}"]

@@ -774,8 +774,11 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   no del agente.
 - **`tests/test_estilo_humano.py` — forma humana del código** (2026-10-19):
   banners decorativos = 0 (el código llegó a 61), sin docstrings de relleno ni
-  wrappers vacíos sin justificar; la directiva de mínimo código del
-  `system_prompt` se verifica y tiene presupuesto (≤1.400 chars). La medición
+  wrappers vacíos sin justificar; **todo `except` amplio lleva motivo visible**
+  (`# noqa: BLE001 (motivo)`; el ratchet lo congela en 48 tras acotar 7) y la
+  directiva de mínimo código del `system_prompt` se verifica y tiene
+  presupuesto (≤1.400 chars). Su efecto está medido en exp/51
+  (`banco/probes/forma_codigo.py`): −77% SLOC con la directiva. La medición
   que lo fundamenta (55 `except` amplios vs 1 en la referencia humana, etc.)
   está en el [informe](informes/codigo_ia_vs_humano_2026-10-19.md).
 

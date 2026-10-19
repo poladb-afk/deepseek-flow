@@ -190,7 +190,7 @@ def correr(casos, responder=None):
         t0 = time.perf_counter()
         try:
             texto, advertencia = responder(caso["pregunta"])
-        except Exception as e:  # noqa: BLE001 — el caso fallido es un DATO del bench, no su muerte
+        except Exception as e:  #  # noqa: BLE001 (el caso fallido es un DATO del bench, no su muerte)
             seg = time.perf_counter() - t0
             causa = str(e)[:200]
             filas.append({

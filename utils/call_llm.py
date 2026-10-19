@@ -243,7 +243,7 @@ def call_llm_agent_stream(messages, tools=None):
             raise
         cortado = True
         print("\n  [interrumpido] generación cortada por el usuario")
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:  #  # noqa: BLE001 (stream cortado a mitad: se devuelve lo acumulado)
         # stream cortado a mitad (red, 401/429, etc.): se devuelve lo
         # acumulado. Decisión de diseño, PERO no se enmascara la causa
         # (frágil medido en la caza): con un error de la API y sin contenido

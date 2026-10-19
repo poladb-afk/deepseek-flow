@@ -23,8 +23,8 @@
           91
         ],
         "main.py": [
-          120,
-          143
+          132,
+          155
         ],
         "minar_errores.py": [
           313
@@ -61,8 +61,7 @@
           78
         ],
         "sonda_laya.py": [
-          205,
-          288
+          205
         ],
         "triaje_trazas.py": [
           233
@@ -85,9 +84,6 @@
           505
         ],
         "utils/hitl_web.py": [
-          71,
-          88,
-          264,
           276
         ],
         "utils/laya.py": [
@@ -96,9 +92,7 @@
         "utils/laya_routing.py": [
           69,
           106,
-          135,
-          246,
-          291
+          135
         ],
         "utils/mcp_client.py": [
           74,
@@ -113,7 +107,6 @@
           106
         ],
         "utils/thread_store.py": [
-          60,
           144
         ],
         "utils/tracing.py": [
@@ -124,7 +117,7 @@
           16
         ]
       },
-      "metrica": 55
+      "metrica": 48
     },
     "helpers_duplicados": {
       "detalle": {
@@ -179,7 +172,7 @@
         "tests/test_db.py": 18,
         "tests/test_deriva_reglas.py": 7,
         "tests/test_docs_sin_deriva.py": 5,
-        "tests/test_estilo_humano.py": 4,
+        "tests/test_estilo_humano.py": 5,
         "tests/test_evals.py": 15,
         "tests/test_flujos.py": 34,
         "tests/test_fs_tools.py": 16,
@@ -211,7 +204,7 @@
         "tests/test_viz.py": 5,
         "tests/test_voto_router.py": 8
       },
-      "metrica": 522
+      "metrica": 523
     }
   },
   "version": 1

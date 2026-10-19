@@ -116,5 +116,5 @@ def _puntuar(consulta, unidades, setting_modelo, texto_de=None):
             respuesta, confianza = fila["aporta_contexto"]
             puntajes[i] = confianza if respuesta == "si" else 1.0 - confianza
         return puntajes
-    except Exception:  # cualquier fallo: sin juicio (default seguro)
+    except Exception:  # cualquier fallo: sin juicio (default seguro)  # noqa: BLE001 (sin juicio Laya: default seguro)
         return None

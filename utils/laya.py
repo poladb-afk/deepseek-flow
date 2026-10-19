@@ -88,7 +88,7 @@ def agente(setting="LAYA_MODEL"):
                         _descargar(candidato)
                     _agentes[clave] = laya.load(clave)
                     _errores.pop(clave, None)  # el acierto limpia el error residual
-                except Exception as e:  # sin modelo local: degradar, no romper
+                except Exception as e:  # sin modelo local: degradar, no romper  # noqa: BLE001 (sin modelo local: degradar, no romper)
                     _errores[clave] = (time.monotonic(), f"{type(e).__name__}: {e}")
     if clave in _errores and clave not in _agentes:
         ts, msg = _errores[clave]

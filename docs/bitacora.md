@@ -1123,6 +1123,51 @@ except amplios. Límites: los gates cubren el subconjunto determinista; la
 comparación `requests` es de otro dominio (ubica magnitud, no fija ideal); la
 evidencia de industria tiene intereses comerciales declarados.
 
+## Paydown de except amplios y exp/51 — la directiva de forma, medida (2026-10-19)
+
+Continuación de la jornada, cerrando los dos ítems que el roadmap dejó
+abiertos.
+
+**Paydown del smell #1.** De los 55 handlers amplios que siembra el ratchet,
+**34 no tenían motivo visible** (30 sin `noqa` y 4 con `noqa` pero sin
+motivo). Se acotaron 7 a la excepción real que
+esperan manejar (logs JSONL → `OSError`; `_arrancar()` del HITL →
+`(OSError, ValueError)`; `git rev-parse` de la sonda →
+`(OSError, subprocess.SubprocessError)`) y los 23 restantes son fronteras
+best-effort legítimas (Laya opcional, hooks, bookkeeping, trazas,
+integraciones externas): quedaron con `# noqa: BLE001 (motivo)`.
+`tests/test_estilo_humano.py` gana el gate: **todo `except` amplio necesita
+motivo visible** — de 34 sin motivo a 0. Ratchet: **55 → 48** (las
+acotaciones bajan el número solas, como debe ser).
+
+**exp/51 — la directiva de forma.** Corte **pre-registrado antes de correr**
+(está en el docstring de `banco/probes/forma_codigo.py`): la directiva es
+éxito si baja la mediana de SLOC y la densidad de docstrings sin subir los
+errores de sintaxis; diferencia <10% en SLOC = no concluyente. Método: A/B
+del `system_prompt` con la única diferencia de `DIRECTIVA_FORMA`, 2 tareas de
+escritura de código (CSV-stats y config-loader), n=4 por brazo y tarea = 16
+llamadas, deepseek-flash, 212 s. Artefacto crudo:
+`salidas/probes/forma_codigo_20261019_092456.json` (salidas/ no se versiona;
+la sonda es reproducible).
+
+| métrica (mediana de las 8 salidas por brazo) | sin directiva | con directiva | delta |
+|---|---|---|---|
+| SLOC | 193 | **44** | −77% |
+| tokens estimados (chars/4) | 2.064 | **383** | −81% |
+| funciones | 11 | 2 | −82% |
+| densidad de docstrings | 0,487 | **0** | −100% |
+| `try` | 3,5 | 1 | −71% |
+| chequeos de `None` | 1,5 | 0 | −100% |
+| comentarios | 55 | 12 | −78% |
+
+El efecto se sostiene por tarea: csv_stats 162,5 → 47 SLOC; config_loader 266
+→ 35. **Veredicto: criterio cumplido** en forma y docstrings; el código
+extraído no tuvo errores de sintaxis en ningún brazo (0/15), aunque en
+`con_forma` una de 8 respuestas vino sin bloque de código (1/16 del total):
+con n=4 no alcanza para decir que la directiva aumente los fallos de formato.
+**Límites:** n chico, un modelo, una corrida; el efecto es tan grande que
+vale repetirlo con n mayor y otro modelo antes de generalizar (roadmap).
+
 ## Sesión de prueba completa (2026-10-05): 19 turnos, las 18 capacidades
 
 Una sola sesión continua de chat ejerciendo todo el harness. Resultado

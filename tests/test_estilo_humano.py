@@ -94,6 +94,31 @@ def test_sin_wrappers_vacios_sin_justificar():
     assert not vacios, f"wrappers que no agregan nada (documentá el porqué): {vacios}"
 
 
+_JUSTIFICADO = re.compile(r"#\s*noqa:\s*BLE001\b\s*\(\s*[^)\s]")
+
+
+def test_except_amplio_visible_y_justificado():
+    """El `except` amplio es el smell #1 del código de IA (41.723 casos en
+    commits reales, arXiv 2603.28592): está permitido solo en una frontera
+    best-effort y con el motivo a la vista. Acotar a la excepción real es
+    siempre mejor que atrapar `Exception`; el ratchet congela el total."""
+    sin_justificar = []
+    for ruta, src in _fuentes():
+        for nodo in ast.walk(ast.parse(src)):
+            if not isinstance(nodo, ast.ExceptHandler):
+                continue
+            amplio = nodo.type is None or (
+                isinstance(nodo.type, ast.Name) and nodo.type.id in ("Exception", "BaseException"))
+            if not amplio:
+                continue
+            linea = src.splitlines()[nodo.lineno - 1]
+            if not _JUSTIFICADO.search(linea):
+                sin_justificar.append(f"{ruta.relative_to(RAIZ)}:{nodo.lineno}: {linea.strip()}")
+    assert not sin_justificar, (
+        "except amplio sin motivo visible (acotalo a la excepción real o "
+        f"documentá con `# noqa: BLE001 (motivo)`): {sin_justificar}")
+
+
 def test_system_prompt_pide_codigo_minimo_y_no_crece():
     """La palanca de forma del producto: la directiva explícita de código
     mínimo baja 56–70% los tokens del código generado y se mantiene en los

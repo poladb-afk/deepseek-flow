@@ -25,7 +25,7 @@ def get_modelo():
             _nombre_modelo = nombre
             print(f"[embeddings] modelo local: {nombre}")
             return _modelo
-        except Exception as e:  # candidato no disponible: probar el siguiente
+        except Exception as e:  # candidato no disponible: probar el siguiente  # noqa: BLE001 (candidato de embedding no disponible: probar el siguiente)
             errores.append(f"{nombre}: {type(e).__name__}: {e}")
     raise RuntimeError("ningún embedder local disponible: " + "; ".join(errores))
 

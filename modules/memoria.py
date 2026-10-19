@@ -135,7 +135,7 @@ def _prefiltrar(query, archivos):
         elegidos = elegir_por_laya(query, archivos, maximo,
                                    setting_modelo="LAYA_MODEL_PREFILTRO",
                                    texto_de=_texto_de_nota)
-    except Exception:  # el prefiltro nunca rompe la memoria
+    except Exception:  # el prefiltro nunca rompe la memoria  # noqa: BLE001 (prefiltro Laya best-effort: nunca rompe la memoria)
         return archivos, False
     if len(elegidos) >= len(archivos):
         return archivos, False  # no actuó: sin aviso

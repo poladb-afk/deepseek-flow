@@ -200,3 +200,23 @@ como 16 gates (muchos no son deterministas: quedan como review).
 [slop-scan](https://github.com/modem-dev/slop-scan) ·
 [anti-slop](https://github.com/miqdadbadjuber/anti-slop) ·
 [MINT Lab — AI Slop: definitions](https://mintresearch.org/reports/ai-slop/)
+
+## 11. Actualización (misma jornada): paydown y A/B de la directiva
+
+- **Paydown de `except` amplios: 55 → 48.** Se acotaron 7 handlers a la
+  excepción real que esperan manejar (logs JSONL → `OSError`; arranque del
+  HITL → `(OSError, ValueError)`; `git rev-parse` de la sonda →
+  `(OSError, subprocess.SubprocessError)`), y los 48 restantes quedaron con
+  **motivo visible** (`# noqa: BLE001 (motivo)`). Un gate nuevo
+  (`tests/test_estilo_humano.py`) exige ese motivo en todo handler amplio: de
+  34 sin motivo visible a 0.
+- **exp/51 — la directiva de forma, medida** (`banco/probes/forma_codigo.py`,
+  criterio pre-registrado en su docstring): A/B del `system_prompt` con la
+  única diferencia del párrafo de forma, 2 tareas de escritura de código × n=4
+  por brazo, deepseek-flash. Medianas por brazo: **SLOC 193 → 44 (−77%)**,
+  tokens estimados −81%, funciones 11 → 2, densidad de docstrings **0,487 → 0**,
+  `try` 3,5 → 1, comentarios 55 → 12. El efecto se sostiene por tarea
+  (csv_stats 162,5 → 47; config_loader 266 → 35). Veredicto: **criterio
+  cumplido**; 0/15 errores de sintaxis en el código extraído, 1/16 respuestas
+  sin bloque de código. **Límite:** n=4, un modelo, una corrida — el efecto es
+  grande, pero hay que repetirlo (roadmap).

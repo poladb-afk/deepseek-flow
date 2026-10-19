@@ -90,7 +90,7 @@ def cargar(carpeta, db="trazas.db", glob="*.jsonl"):
                          len(campos.get("steps") or []), 0 if motivo else 1),
                     )
         con.commit()
-    except BaseException:
+    except BaseException:  # noqa: BLE001 (rollback + raise: cubre Ctrl+C y SystemExit)
         con.rollback()
         raise
     finally:

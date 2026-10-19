@@ -8,7 +8,20 @@ from utils.fs_tools import allowed_roots
 WELCOME = "Agente con DeepSeek V4.1 Flash — pedidos sobre tus archivos y tu código ('salir' o Ctrl+C para terminar)."
 
 
-def system_prompt():
+# Directiva de FORMA del código que el harness genera. Es una palanca medida:
+# en "Show and Tell" (arXiv 2511.13972) las instrucciones explícitas de
+# concisión bajaron 56–70% los tokens del código y persistieron en el turno
+# siguiente; un pedido genérico de "mejorar" inflaba todo. El A/B propio está
+# en banco/probes/forma_codigo.py y la bitácora (exp/51).
+DIRECTIVA_FORMA = (
+    "Cuando escribas o edites código, escribí el mínimo que funciona y con la "
+    "forma del repo: sin defensas ni docstrings que el pedido no exija, sin "
+    "abstracciones especulativas, sin comentarios que narren lo que el código "
+    "ya dice. Validación, seguridad y accesibilidad no se recortan."
+)
+
+
+def system_prompt(incluir_forma: bool = True):
     # REGLA de estabilidad: el prefijo debe ser byte-estable durante la
     # sesión para no romper el KV-cache (DeepSeek Harness lo midió: una
     # sección dinámica recalcularía ~99% del contexto por turno). Nada
@@ -19,6 +32,7 @@ def system_prompt():
     # el CWD del proceso: sin esto, "¿en qué carpeta estamos?" se responde
     # adivinando la raíz permitida (medido en producción)
     cwd = Path.cwd()
+    forma = f"\n\n{DIRECTIVA_FORMA}" if incluir_forma else ""
     return f"""Agente de resolución de pedidos con tools disponibles.
 
 Trabajás en {cwd} y sus subdirectorios.
@@ -30,9 +44,7 @@ Respondé en el idioma de cada pedido (español o inglés).
 
 Si el pedido es una auditoría o análisis amplio del repo, acotá el alcance y respondé con hallazgos y límites; no intentes leer todo.
 
-Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la verificaste, decila como no verificada. Citá siempre como ruta/archivo.py:línea (ruta relativa al repo, sin "líneas ~X").
-
-Cuando escribas o edites código, escribí el mínimo que funciona y con la forma del repo: sin defensas ni docstrings que el pedido no exija, sin abstracciones especulativas, sin comentarios que narren lo que el código ya dice. Validación, seguridad y accesibilidad no se recortan."""
+Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la verificaste, decila como no verificada. Citá siempre como ruta/archivo.py:línea (ruta relativa al repo, sin "líneas ~X").{forma}"""
 
 
 SUBCOMANDOS = {

@@ -82,8 +82,9 @@ gatea, no se "revisa después":
   existente; el ratchet cuenta los bifurcados. Lazy sobre la solución, nunca
   sobre leer el código que tocás.
 - **Defensas solo en la frontera de confianza**: validación de entrada,
-  seguridad y accesibilidad NO se recortan; `except` amplio visible y
-  justificado, nunca mudo.
+  seguridad y accesibilidad NO se recortan; `except` amplio con motivo visible
+  (`# noqa: BLE001 (motivo)`), nunca mudo; acotarlo a la excepción real es
+  siempre mejor.
 - **Docstrings para el porqué**, no para repetir el nombre; comentarios que
   agregan información, no que narran la línea siguiente.
 - **Nada de banners decorativos, código muerto "por si acaso", ni `_v2` en

@@ -66,7 +66,7 @@ def version_laya() -> str:
         import importlib.metadata as md
 
         return md.version("laya")
-    except Exception:
+    except Exception:  # noqa: BLE001 (laya no instalada: version desconocida (trazabilidad))
         return "desconocida"
 
 
@@ -103,7 +103,7 @@ def config_router() -> RouterConfig:
 
             alpha = float(_setting("LAYA_ALPHA", "0.10"))
             q = q_de_calibracion(leer_calibracion(calibracion), alpha)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 (calibracion no utilizable: umbral fijo)
             print(f"  [laya] calibración no utilizable ({type(e).__name__}) -> umbral fijo")
             q = None
     return RouterConfig(
@@ -132,7 +132,7 @@ def config_voto() -> RouterConfig:
 
             alpha = float(_setting("LAYA_ALPHA_VOTO", "0.10"))
             q = q_de_calibracion(leer_calibracion(calibracion), alpha)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 (calibracion no utilizable: umbral fijo (voto))
             print(f"  [voto] calibración no utilizable ({type(e).__name__}) -> umbral fijo")
             q = None
     return RouterConfig(
@@ -243,7 +243,7 @@ def registrar_decision(evento, pregunta=None, ruta=None):
         destino.parent.mkdir(parents=True, exist_ok=True)
         with open(destino, "a", encoding="utf-8") as f:
             f.write(json.dumps({"ts": round(time.time(), 3), **evento}, ensure_ascii=False) + "\n")
-    except Exception:
+    except OSError:
         pass
 
 
@@ -288,5 +288,5 @@ def registrar_resultado(id_decision, rondas, ruta=None):
                 },
                 ensure_ascii=False,
             ) + "\n")
-    except Exception:
+    except OSError:
         pass

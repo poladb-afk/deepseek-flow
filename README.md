@@ -247,8 +247,8 @@ archivo de test pasa de 800 líneas; `ratchet.py` compara helpers privados
 duplicados, tests definidos y `except` amplios contra `ratchets/baseline.json`
 (la métrica puede mejorar o quedar igual, nunca empeorar sin decisión del
 operador); y `tests/test_estilo_humano.py` veta la firma de IA en el código
-(banners decorativos, docstrings de relleno, wrappers vacíos) y exige que el
-system prompt pida el mínimo código.
+(banners decorativos, docstrings de relleno, wrappers vacíos), exige motivo
+visible en cada `except` amplio y que el system prompt pida el mínimo código.
 
 ## Créditos
 

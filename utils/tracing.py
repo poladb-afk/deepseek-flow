@@ -138,7 +138,7 @@ def activar(ruta_base=None):
         inicio = time.time()
         try:
             accion = _run_original(self, shared)
-        except BaseException as e:
+        except BaseException as e:  # noqa: BLE001 (la traza registra tambien KeyboardInterrupt/SystemExit)
             # Un nodo que lanza TAMBIÉN deja evento: sin esto la traza miente
             # por omisión (medido: 0 eventos del nodo fallido) y ningún "cero
             # excepciones" posterior es falsable. La excepción se propaga.
@@ -157,7 +157,7 @@ def activar(ruta_base=None):
             inicio = time.time()
             try:
                 accion = await _run_async_original(self, shared)
-            except BaseException as e:
+            except BaseException as e:  # noqa: BLE001 (la traza registra tambien KeyboardInterrupt/SystemExit)
                 evento(self, f"error:{type(e).__name__}", inicio)
                 raise
             evento(self, accion, inicio)

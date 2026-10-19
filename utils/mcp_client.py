@@ -71,7 +71,7 @@ def mcp_tools():
     for nombre, comando in servs.items():
         try:
             herramientas = asyncio.run(_listar(comando))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 (servidor MCP externo caido: error como texto)
             lineas.append(f"\n[{nombre}] ERROR ({type(e).__name__}): {e}")
             continue
         lineas.append(f"\n[{nombre}] ({len(herramientas)} herramientas)")
@@ -93,5 +93,5 @@ def mcp_call(servidor, herramienta, argumentos=None):
             return f"ERROR: argumentos no son JSON válido: {e}"
     try:
         return asyncio.run(_llamar(servs[servidor], herramienta, argumentos or {}))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 (llamada MCP externa: error como texto)
         return f"ERROR ({type(e).__name__}): {e}"

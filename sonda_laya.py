@@ -202,7 +202,7 @@ def ece(casos):
                 return float(valor), "laya.ece_score"
             except TypeError:
                 pass  # otra firma: no adivinamos, usamos la nuestra
-    except Exception:
+    except Exception:  # noqa: BLE001 (sonda de libreria externa opcional)
         pass
     return ece_local(casos), "local:10bins"
 
@@ -285,7 +285,7 @@ def correr(nombre, spec):
             ["git", "rev-parse", "--short", "HEAD"],
             cwd=RAIZ, capture_output=True, text=True, timeout=10,
         ).stdout.strip() or None
-    except Exception:
+    except (OSError, subprocess.SubprocessError):
         sha = None
 
     return {

@@ -489,7 +489,7 @@ def run_tool_call(tool_call, extra_impls=None):
     for hook in HOOKS_PRE.get(fn["name"], ()):
         try:
             veto = hook(tool_call)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  #  # noqa: BLE001 (una guarda previa nunca rompe la ejecucion)
             veto = (f"ERROR: la guarda previa de {fn['name']} falló "
                     f"({type(e).__name__}); la herramienta no se ejecutó.")
         if veto is not None:

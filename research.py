@@ -75,7 +75,7 @@ class Researcher(BatchNode):
         print(f"  🌐 buscando: {query}")
         try:
             crudos = search_web(query, k=RESULTADOS_POR_QUERY)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 (el fallo de UNA busqueda es un dato del loop)
             # El fallo de UNA búsqueda es un dato, no un motivo para re-ejecutar
             # el lote entero: el retry del BatchNode re-corre exec completo y
             # las búsquedas ya pagadas se pierden (medido en la barrida).

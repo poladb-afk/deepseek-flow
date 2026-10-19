@@ -68,7 +68,7 @@ def _hosts_validos():
     DNS-rebinding: un POST con Host ajeno no decide)."""
     try:
         puerto = _arrancar()
-    except Exception:
+    except (OSError, ValueError):
         puerto = _setting("HITL_WEB_PORT", str(PUERTO_DEFAULT))
     nombres = {"127.0.0.1", "localhost", "[::1]", "::1"}
     return {f"{n}:{puerto}" for n in nombres} | nombres
@@ -85,7 +85,7 @@ def _origen_valido(handler):
     if origin:
         try:
             puerto = _arrancar()
-        except Exception:
+        except (OSError, ValueError):
             return False
         permitidos = {f"http://127.0.0.1:{puerto}", f"http://localhost:{puerto}"}
         if origin not in permitidos:
@@ -261,7 +261,7 @@ def aprobar(titulo, cuerpo):
     """
     try:
         puerto = _arrancar()
-    except Exception as e:  # puerto ocupado/ inválido, etc.: default seguro
+    except (OSError, ValueError) as e:
         print(f"[hitl_web] no se pudo levantar el servidor: {e}")
         return False
 
@@ -273,7 +273,7 @@ def aprobar(titulo, cuerpo):
 
     try:
         listo = pedido.evento.wait(_timeout())
-    except Exception as e:  # nunca colgar al agente por un fallo del HITL
+    except Exception as e:  # nunca colgar al agente por un fallo del HITL  # noqa: BLE001 (defensa del wait: el HITL no debe colgar al agente)
         print(f"[hitl_web] error esperando la decisión: {e}")
         listo = False
     finally:

@@ -280,7 +280,7 @@ def _validar(crudo):
     """
     try:
         d = extraer_yaml(crudo)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 (YAML de salida del modelo: dato no confiable)
         return None, f"el YAML no parseó: {e}"
     ok, motivo = _veredicto_valido(d)
     if not ok:
@@ -519,7 +519,7 @@ def responder_con_juez(pregunta, rondas=JUEZ_ROUNDS):
     shared = {"question": pregunta, "max_rounds": rondas}
     try:
         create_juez_flow().run(shared)
-    except Exception:
+    except Exception:  # noqa: BLE001 (degradacion terminal del flujo (el informe sale igual))
         # Degradación terminal (mismo patrón que el tope de rondas, L8): si
         # el flujo revienta tras los retries (p. ej. el verdict sigue
         # ilegible), no se MATA: se entrega el último borrador con
