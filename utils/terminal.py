@@ -58,6 +58,18 @@ def progreso_ronda(ronda, tope=None):
     return f"⚙ ronda {int(ronda)}"
 
 
+_TIPOS_DIFF = (("+++", "info"), ("---", "info"), ("+", "ok"),
+               ("-", "error"), ("@@", "tool"))
+
+
+def _tipo_de_linea_diff(linea):
+    """Tipo de color de una línea de diff unificado (None = sin color)."""
+    for prefijo, tipo in _TIPOS_DIFF:
+        if linea.startswith(prefijo):
+            return tipo
+    return None
+
+
 def highlight_diff(diff):
     """Colorea un diff unificado línea por línea (mesa 8): verde las
     adiciones (`+`, no `+++`), rojo las supresiones (`-`, no `---`), cian
@@ -67,16 +79,8 @@ def highlight_diff(diff):
         return diff
     lineas = []
     for linea in diff.splitlines():
-        if linea.startswith(("+++", "---")):
-            lineas.append(colorear(linea, "info"))
-        elif linea.startswith("+"):
-            lineas.append(colorear(linea, "ok"))
-        elif linea.startswith("-"):
-            lineas.append(colorear(linea, "error"))
-        elif linea.startswith("@@"):
-            lineas.append(colorear(linea, "tool"))
-        else:
-            lineas.append(linea)
+        tipo = _tipo_de_linea_diff(linea)
+        lineas.append(colorear(linea, tipo) if tipo else linea)
     return "\n".join(lineas)
 
 

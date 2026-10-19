@@ -407,16 +407,23 @@ CONTROL_ANIDADO = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.Try,
 
 def _anidacion_maxima(nodo) -> int:
     """Máxima profundidad de control anidado DENTRO de la función (sin contar
-    funciones/clases internas, que son otra unidad)."""
+    funciones/clases internas, que son otra unidad).
+
+    `elif` NO suma: en el AST es un `If` dentro del `orelse`, pero es una
+    cadena plana (contarlo inflaba funciones con dispatch por casos)."""
+    sin_contar = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)
 
     def profundidad(actual, nivel):
         mejor = nivel
-        for hijo in ast.iter_child_nodes(actual):
-            if isinstance(hijo, (ast.FunctionDef, ast.AsyncFunctionDef,
-                                 ast.Lambda, ast.ClassDef)):
-                continue
-            interno = nivel + 1 if isinstance(hijo, CONTROL_ANIDADO) else nivel
-            mejor = max(mejor, profundidad(hijo, interno))
+        for campo, valor in ast.iter_fields(actual):
+            hijos = valor if isinstance(valor, list) else [valor]
+            for hijo in hijos:
+                if not isinstance(hijo, ast.AST) or isinstance(hijo, sin_contar):
+                    continue
+                es_elif = isinstance(hijo, ast.If) and isinstance(actual, ast.If) and campo == "orelse"
+                es_control = isinstance(hijo, (*CONTROL_ANIDADO, ast.If))
+                interno = nivel + (1 if es_control and not es_elif else 0)
+                mejor = max(mejor, profundidad(hijo, interno))
         return mejor
 
     return profundidad(nodo, 0)
@@ -691,6 +698,54 @@ def _ruta_visible(ruta: Path, raiz: Path) -> str:
         return str(ruta)
 
 
+def _reportar_nuevas(nombre: str, detalle_actual: dict, valor_previo: dict,
+                     flecha: str, salida=print) -> bool:
+    """Reporta funciones nuevas del conjunto (aunque el total no suba)."""
+    if not isinstance(valor_previo.get("detalle"), dict):
+        return False
+    nuevos = sorted(set(detalle_actual) - set(valor_previo["detalle"]))
+    if not nuevos:
+        return False
+    salida(f"[ratchet] {nombre}: {flecha} → EMPEORÓ "
+           f"({len(nuevos)} función(es) nueva(s) en el conjunto)")
+    for clave in nuevos:
+        salida(f"    + {clave} ({detalle_actual[clave]})")
+    return True
+
+
+def _evaluar(actuales: dict, previo: dict | None, salida=print) -> tuple[bool, bool]:
+    """Compara cada métrica contra el baseline y narra la decisión.
+
+    Devuelve (empeoro, mejoro). Las métricas de CONJUNTO comparan además la
+    identidad: un arreglo no habilita una función nueva compleja aunque el
+    total baje."""
+    empeoro = mejoro = False
+    for nombre, meta in METRICAS.items():
+        valor_previo = ((previo or {}).get("ratchets") or {}).get(nombre) or {}
+        metrica_actual = actuales[nombre]["metrica"]
+        if not isinstance(valor_previo.get("metrica"), int):
+            salida(f"[ratchet] {nombre}: {metrica_actual} (sin baseline: se siembra)")
+            continue
+        decision = comparar(metrica_actual, valor_previo["metrica"], meta["direccion"])
+        flecha = f"{valor_previo['metrica']} → {metrica_actual}"
+        if meta.get("conjunto") and _reportar_nuevas(
+                nombre, actuales[nombre]["detalle"], valor_previo, flecha, salida):
+            empeoro = True
+            continue
+        if decision == "MEJORÓ":
+            mejoro = True
+            salida(f"[ratchet] {nombre}: {flecha} → MEJORÓ ({meta['descripcion']})")
+        elif decision == "EMPEORÓ":
+            salida(f"[ratchet] {nombre}: {flecha} → EMPEORÓ ({meta['descripcion']})")
+            for linea in _diagnostico(nombre, actuales[nombre]["detalle"],
+                                      valor_previo.get("detalle") or {}):
+                salida(linea)
+            empeoro = True
+        else:
+            salida(f"[ratchet] {nombre}: {metrica_actual} → IGUAL ({meta['descripcion']})")
+    return empeoro, mejoro
+
+
 def correr(
     raiz: Path = RAIZ,
     ruta_baseline: Path = BASELINE,
@@ -713,38 +768,7 @@ def correr(
         for nombre in METRICAS
     }}
 
-    empeoro = False
-    mejoro = False
-    for nombre, meta in METRICAS.items():
-        valor_previo = ((previo or {}).get("ratchets") or {}).get(nombre) or {}
-        metrica_actual = actuales[nombre]["metrica"]
-        if not isinstance(valor_previo.get("metrica"), int):
-            salida(f"[ratchet] {nombre}: {metrica_actual} (sin baseline: se siembra)")
-            continue
-        decision = comparar(metrica_actual, valor_previo["metrica"], meta["direccion"])
-        flecha = f"{valor_previo['metrica']} → {metrica_actual}"
-        # Métricas de CONJUNTO (funciones con nombre): un arreglo no habilita
-        # una función nueva compleja aunque el total baje. La identidad importa.
-        if meta.get("conjunto") and isinstance(valor_previo.get("detalle"), dict):
-            nuevos = sorted(set(actuales[nombre]["detalle"])
-                            - set(valor_previo["detalle"]))
-            if nuevos:
-                salida(f"[ratchet] {nombre}: {flecha} → EMPEORÓ "
-                       f"({len(nuevos)} función(es) nueva(s) en el conjunto)")
-                for clave in nuevos:
-                    salida(f"    + {clave} ({actuales[nombre]['detalle'][clave]})")
-                empeoro = True
-                continue
-        if decision == "MEJORÓ":
-            mejoro = True
-            salida(f"[ratchet] {nombre}: {flecha} → MEJORÓ ({meta['descripcion']})")
-        elif decision == "EMPEORÓ":
-            salida(f"[ratchet] {nombre}: {flecha} → EMPEORÓ ({meta['descripcion']})")
-            for linea in _diagnostico(nombre, actuales[nombre]["detalle"], valor_previo.get("detalle") or {}):
-                salida(linea)
-            empeoro = True
-        else:
-            salida(f"[ratchet] {nombre}: {metrica_actual} → IGUAL ({meta['descripcion']})")
+    empeoro, mejoro = _evaluar(actuales, previo, salida)
 
     if empeoro and not actualizar:
         salida("[ratchet] ROJO: una métrica empeoró. Reusá/extraé en vez de duplicar y no borres tests; "

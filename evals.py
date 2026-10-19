@@ -331,6 +331,90 @@ def _accion_valida(nodo, accion):
     return nodo in TOOLS_CONOCIDAS and accion in ("ok", "error")
 
 
+def _violaciones_a(eventos):
+    """(a) AgentStep tool debe tener un ExecuteTools antes del próximo AgentStep."""
+    viol = []
+    for i, e in enumerate(eventos):
+        if e["nodo"] != "AgentStep" or e["accion"] != "tool":
+            continue
+        if not _hay_execute_tools_antes_del_proximo_agentstep(eventos, i):
+            viol.append(("a", i, "AgentStep tool sin ExecuteTools antes del próximo AgentStep"))
+    return viol
+
+
+def _hay_execute_tools_antes_del_proximo_agentstep(eventos, inicio):
+    for e in eventos[inicio + 1:]:
+        if e["nodo"] == "AgentStep":
+            return False
+        if e["nodo"] == "ExecuteTools":
+            return True
+    return False
+
+
+def _turno_del_chat(eventos, inicio):
+    """(hay_router, llegó_a_respuesta, es_chat) desde un GetQuestion continue."""
+    hay_router = respuesta = es_chat = False
+    for e in eventos[inicio + 1:]:
+        if e["nodo"] == "GetQuestion":
+            break
+        if e["nodo"] == "LayaRouter":
+            hay_router = True
+        elif e["nodo"] == "AgentStep":
+            es_chat = True
+            if e["accion"] == "answer":
+                respuesta = True
+                break
+        elif e["nodo"] == "DirectAnswer":
+            es_chat = respuesta = True
+            break
+    return hay_router, respuesta, es_chat
+
+
+def _violaciones_b(eventos):
+    """(b) el turno del chat arranca en el router (si la traza es del chat)."""
+    hay_router_en_traza = any(e["nodo"] == "LayaRouter" for e in eventos)
+    if not hay_router_en_traza:
+        return []
+    viol = []
+    for i, e in enumerate(eventos):
+        if e["nodo"] != "GetQuestion" or e["accion"] != "continue":
+            continue
+        hay_router, respuesta, es_chat = _turno_del_chat(eventos, i)
+        if es_chat and respuesta and not hay_router:
+            viol.append(("b", i, "turno del chat sin LayaRouter (arranca en AgentStep/DirectAnswer)"))
+    return viol
+
+
+def _violaciones_c(eventos):
+    """(c) todo (nodo, accion) pertenece al conjunto canónico."""
+    return [
+        ("c", i, f"acción desconocida: {e['nodo']}/{e['accion']}")
+        for i, e in enumerate(eventos)
+        if not _accion_valida(e["nodo"], e["accion"])
+    ]
+
+
+def _hay_tools_propias_antes(eventos, inicio):
+    """Tools propias entre el AgentStep que pidió y el ExecuteTools (i)."""
+    for e in reversed(eventos[:inicio]):
+        if e["nodo"] in ("AgentStep", "GetQuestion"):
+            return False
+        if e["nodo"] in TOOLS_CONOCIDAS:
+            return True
+    return False
+
+
+def _violaciones_d(eventos, umbral_seg):
+    """(d) ExecuteTools largo sin eventos de tools propias (ciego viejo)."""
+    viol = []
+    for i, e in enumerate(eventos):
+        if e["nodo"] != "ExecuteTools" or e.get("seg", 0) <= umbral_seg:
+            continue
+        if not _hay_tools_propias_antes(eventos, i):
+            viol.append(("d", i, f"ExecuteTools de {e['seg']:.1f}s sin eventos de tools propios"))
+    return viol
+
+
 def linter_traza(eventos, umbral_seg=UMBRAL_CEGUERA_SEG):
     """Recorre los eventos de UNA traza y devuelve la lista de violaciones.
 
@@ -346,71 +430,12 @@ def linter_traza(eventos, umbral_seg=UMBRAL_CEGUERA_SEG):
       (d) ningún ExecuteTools con seg > umbral sin eventos de tools propios
           entre el AgentStep que lo pidió y el ExecuteTools (ciego viejo).
     """
-    viol = []
-
-    # (a) AgentStep tool → ExecuteTools antes del próximo AgentStep
-    for i, e in enumerate(eventos):
-        if e["nodo"] == "AgentStep" and e["accion"] == "tool":
-            j, encontrado = i + 1, False
-            while j < len(eventos) and eventos[j]["nodo"] != "AgentStep":
-                if eventos[j]["nodo"] == "ExecuteTools":
-                    encontrado = True
-                    break
-                j += 1
-            if not encontrado:
-                viol.append(("a", i, "AgentStep tool sin ExecuteTools antes del próximo AgentStep"))
-
-    # (b) turno del chat arranca en el router
-    # solo aplicamos si en la traza hay LayaRouter en algún lado (chat con
-    # router activo); un chat con USE_LAYA_ROUTER=0 no tiene router y el
-    # invariante no puede exigirlo — se detecta y se reporta aparte.
-    hay_router_en_traza = any(e["nodo"] == "LayaRouter" for e in eventos)
-    for i, e in enumerate(eventos):
-        if e["nodo"] == "GetQuestion" and e["accion"] == "continue":
-            j, hay_router, respuesta, es_chat = i + 1, False, False, False
-            while j < len(eventos):
-                n = eventos[j]
-                if n["nodo"] == "GetQuestion":
-                    break
-                if n["nodo"] == "LayaRouter":
-                    hay_router = True
-                if n["nodo"] == "AgentStep":
-                    es_chat = True
-                    if n["accion"] == "answer":
-                        respuesta = True
-                        break
-                if n["nodo"] == "DirectAnswer":
-                    es_chat = True
-                    respuesta = True
-                    break
-                j += 1
-            # solo exigimos router si esta traza es del chat con router activo
-            if es_chat and respuesta and not hay_router and hay_router_en_traza:
-                viol.append(("b", i, "turno del chat sin LayaRouter (arranca en AgentStep/DirectAnswer)"))
-
-    # (c) pares (nodo, accion) canónicos
-    for i, e in enumerate(eventos):
-        if not _accion_valida(e["nodo"], e["accion"]):
-            viol.append(("c", i, f"acción desconocida: {e['nodo']}/{e['accion']}"))
-
-    # (d) ExecuteTools largo sin eventos de tools propios
-    for i, e in enumerate(eventos):
-        if e["nodo"] == "ExecuteTools" and e.get("seg", 0) > umbral_seg:
-            # buscar hacia atrás el AgentStep que lo pidió y contar tools
-            # propias entre ese AgentStep y este ExecuteTools
-            j, tools = i - 1, []
-            while j >= 0 and eventos[j]["nodo"] != "GetQuestion":
-                n = eventos[j]
-                if n["nodo"] == "AgentStep":
-                    break
-                if n["nodo"] in TOOLS_CONOCIDAS:
-                    tools.append(n)
-                j -= 1
-            if not tools:
-                viol.append(("d", i, f"ExecuteTools de {e['seg']:.1f}s sin eventos de tools propios"))
-
-    return viol
-
+    return (
+        _violaciones_a(eventos)
+        + _violaciones_b(eventos)
+        + _violaciones_c(eventos)
+        + _violaciones_d(eventos, umbral_seg)
+    )
 
 def linter_runs(directorio=DIR_RUNS):
     """Corre el linter sobre todos los .jsonl de `directorio`. Devuelve un

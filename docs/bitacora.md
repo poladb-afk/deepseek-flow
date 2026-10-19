@@ -1234,6 +1234,43 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/62 — paydown ronda 2: complejas 6→4 y anidadas 18→12 (2026-10-19)
+
+**Qué se pagó (guard clauses + extract, comportamiento intacto):**
+
+- `evals.linter_traza` (CC 23, anidación 5): los 4 chequeos del linter se
+  extraen a `_violaciones_a/b/c/d` + helpers de turno
+  (`_turno_del_chat`, `_hay_tools_propias_antes`); la función pública queda
+  como suma de chequeos.
+- `ratchet.correr` (CC 17, anidación 4): la evaluación de métricas se extrae a
+  `_evaluar` y el reporte de funciones nuevas del conjunto a
+  `_reportar_nuevas`; `correr` queda en carga → calcular → evaluar → decidir.
+- `utils/hitl_web._Handler.do_POST` (anidación 5): dispatch plano por ruta
+  (`_post_webhook`/`_post_chat`/`_post_decision`) y lectura del form viejo en
+  `_leer_form_decision`.
+- `utils/terminal.highlight_diff` (anidación 5): tabla `_TIPOS_DIFF` +
+  `_tipo_de_linea_diff`; bucle de 2 niveles.
+
+**La guardia de CONJUNTO funcionó contra nosotros:** el total de anidadas bajó
+(18→17) pero el ratchet se puso ROJO porque aparecieron 3 helpers nuevos a
+profundidad 4 (`_turno_del_chat`, `_evaluar`, `_leer_form_decision`). Se
+resolvió en dos pasos:
+
+1. **Bug de la métrica**: `elif` se contaba como anidación. En el AST un
+   `elif` es un `If` dentro del `orelse`, pero semánticamente es una cadena
+   PLANA; el contador inflaba dispatch por casos. Corregido (y con test:
+   una cadena de 4 elif da anidación 0), documentado en el docstring y en
+   design. Esto bajó el número además del paydown (18 → 12).
+2. `_evaluar` se aplanó de verdad (el `for` de claves nuevas salió a
+   `_reportar_nuevas`), no quedó cubierto por el cambio de métrica.
+
+**Resultado:** `funciones_complejas` 6 → **4** y `funciones_anidadas` 18 → **12**
+(los 4 y 12 son deuda restante, ya sin los targets de esta ronda). 687 tests
+verdes, ningún test tocado. Candidatos siguientes: `juez._contexto_extra` (16),
+`juez._anclar_citas` (15), `utils/compaccion.validar_historial` (15),
+`nodes.AgentStep.exec` (13) y anidación de `carga_trazas.cargar`/`laya.agente`
+(6).
+
 ## exp/61 — paydown de las 3 funciones peores: deuda 9→6 y 21→18 (2026-10-19)
 
 **Qué se pagó** (las 3 peores de exp/60, con guard clauses + extract):

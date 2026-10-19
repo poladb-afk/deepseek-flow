@@ -79,7 +79,7 @@
           505
         ],
         "utils/hitl_web.py": [
-          553
+          558
         ],
         "utils/laya.py": [
           91
@@ -109,37 +109,29 @@
     },
     "funciones_anidadas": {
       "detalle": {
-        "carga_trazas.py:cargar": 6,
-        "evals.py:linter_traza": 5,
+        "carga_trazas.py:cargar": 5,
         "informe.py:stats_de": 4,
         "juez.py:_anclar_citas": 5,
         "minar_errores.py:minar_runs": 6,
         "rag.py:archivos_de": 4,
-        "ratchet.py:correr": 4,
-        "ratchet.py:escanear_muertas": 4,
         "supervisor.py:Ejecutar.exec": 4,
-        "triaje_trazas.py:seleccionar": 4,
         "utils/compaccion.py:validar_historial": 4,
         "utils/fs_tools.py:_candidatos": 4,
         "utils/fs_tools.py:_resolve": 4,
         "utils/fs_tools.py:read_file": 4,
-        "utils/hitl_web.py:_Handler.do_POST": 5,
         "utils/laya.py:agente": 6,
-        "utils/terminal.py:highlight_diff": 5,
         "visor.py:vigilar": 4
       },
-      "metrica": 18
+      "metrica": 12
     },
     "funciones_complejas": {
       "detalle": {
-        "evals.py:linter_traza": 23,
         "juez.py:_anclar_citas": 15,
         "juez.py:_contexto_extra": 16,
         "nodes.py:AgentStep.exec": 13,
-        "ratchet.py:correr": 17,
         "utils/compaccion.py:validar_historial": 15
       },
-      "metrica": 6
+      "metrica": 4
     },
     "helpers_duplicados": {
       "detalle": {

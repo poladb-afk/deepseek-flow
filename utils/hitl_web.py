@@ -59,6 +59,7 @@ _servidor = None                   # ThreadingHTTPServer (arranque perezoso)
 _url_impresa = False               # la URL efectiva se imprime UNA vez por server
 
 WEBHOOK_RUTA = "/webhook"
+RUTAS_CHAT = ("/chat/sesion", "/chat/mensaje", "/chat/cerrar")
 EVENTOS_RUTA = "/eventos"
 WEBHOOK_LOG_DEFAULT = "salidas/webhooks.jsonl"
 WEBHOOK_MAX_BYTES_DEFAULT = 65536
@@ -445,38 +446,26 @@ class _Handler(BaseHTTPRequestHandler):
         ruta = self.path.split("?")[0]
         if ruta == WEBHOOK_RUTA:
             self._post_webhook()
-            return
-        if ruta in ("/chat/sesion", "/chat/mensaje", "/chat/cerrar"):
+        elif ruta in RUTAS_CHAT:
             self._post_chat(ruta)
-            return
-        if ruta != "/decision":
+        elif ruta == "/decision":
+            self._post_decision()
+        else:
             self._responder(404, "<p>404</p>")
-            return
+
+    def _post_decision(self):
+        """POST /decision: la aprobación/rechazo del gate humano (HITL)."""
         # Contención del gate: un POST de una página ajena (CSRF) o con Host
         # ajeno (DNS-rebinding) se ignora SIN decidir ni revelar el pedido.
         if not _origen_valido(self):
             self._responder(403, "<p>Origen no permitido.</p>")
             return
-
         consulta = parse_qs(urlsplit(self.path).query)
         token = (consulta.get("token") or [""])[0]
         respuesta = (consulta.get("respuesta") or [""])[0]
-
         # Compatibilidad con el form viejo (decision=aprobar|rechazar en el
         # cuerpo) y con el nuevo contrato del spec (respuesta=s|n).
-        largo = int(self.headers.get("Content-Length") or 0)
-        if largo:
-            datos = self.rfile.read(largo).decode("utf-8", errors="replace")
-            for campo in datos.split("&"):
-                clave, _, valor = campo.partition("=")
-                if clave == "token" and not token:
-                    token = valor
-                elif clave == "respuesta" and not respuesta:
-                    respuesta = valor
-                elif clave == "decision":
-                    # aprobar -> s ; cualquier otra cosa -> n
-                    respuesta = "s" if valor == "aprobar" else "n"
-
+        token, respuesta = self._leer_form_decision(token, respuesta)
         with _lock:
             pedido = _pendientes.get(token)
         # token desconocido o ya resuelto/expirado: 404 claro, sin decidir nada
@@ -487,6 +476,22 @@ class _Handler(BaseHTTPRequestHandler):
         pedido.evento.set()
         self._responder(200, _GRACIAS.format(
             decision="Aprobar" if pedido.decision else "Rechazar"))
+
+    def _leer_form_decision(self, token, respuesta):
+        """Form viejo en el cuerpo (token/respuesta/decision) a pares."""
+        largo = int(self.headers.get("Content-Length") or 0)
+        if not largo:
+            return token, respuesta
+        datos = self.rfile.read(largo).decode("utf-8", errors="replace")
+        for campo in datos.split("&"):
+            clave, _, valor = campo.partition("=")
+            if clave == "token" and not token:
+                token = valor
+            elif clave == "respuesta" and not respuesta:
+                respuesta = valor
+            elif clave == "decision":
+                respuesta = "s" if valor == "aprobar" else "n"
+        return token, respuesta
 
 
 def _arrancar():
