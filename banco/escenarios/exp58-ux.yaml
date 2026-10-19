@@ -1,0 +1,27 @@
+id: exp58-ux
+descripcion: "e2e UX mesa 8: explicación antes del s/n, diff con highlight, historial /aprobaciones y catálogo"
+env:
+  PREGUNTAS_LOG: "0"
+  HITL_WEB: "0"
+  COMPACTION_CHARS: "120000"
+permitir:
+  - "{RAIZ}/salidas/exp58/"
+turnos:
+  - id: run-explicacion
+    linea: "Ejecutá este comando y decime la salida: python3 -c \"print(1)\""
+    hitl: s
+    timeout: 180
+  - id: write1
+    linea: "Escribí el archivo salidas/exp58/ux_demo.py con exactamente este contenido: base = 1 (nada más, sin docstring)."
+    hitl: s
+    timeout: 180
+  - id: write2
+    linea: "Ahora cambiá la única línea de salidas/exp58/ux_demo.py a base = 2 usando edit_file."
+    hitl: s
+    timeout: 180
+  - id: historial
+    linea: "/aprobaciones"
+    timeout: 60
+  - id: salir
+    linea: "salir"
+    timeout: 60

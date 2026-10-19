@@ -1234,6 +1234,37 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/58 — Mesa 8 verificada: la UX estaba construida; faltaba probarla (2026-10-19)
+
+Al abrir la Mesa 8 apareció la deriva inversa a la habitual: el roadmap listaba
+como pendientes cosas YA implementadas (pulido de terminal, HITL UX, visor
+`--watch`, catálogo de memoria). Esta pasada **verificó con e2e + tests** y
+corrigió el roadmap:
+
+- **HITL UX (e2e banco `exp58-ux`, 5/5 turnos OK, 3 aprobaciones):**
+  explicación corta ANTES del s/n (`↳ código Python arbitrario en una línea` +
+  `¿Ejecutar? (s/n)`), diff con highlight en `edit_file` (`-base = 1` /
+  `+base = 2`), e historial de la sesión con `/aprobaciones` →
+  `Aprobaciones HITL de la sesión: 3 (3 aprobadas, 0 rechazadas)` + una línea
+  por pedido.
+- **Visor `--watch`:** implementado (`contar_y_mtime` para no re-renderizar sin
+  cambios, `vigilar` con Ctrl+C limpio). Estaba SIN tests: se agregaron 4
+  (`tests/test_visor.py`: mtime/archivo inexistente, traza más reciente
+  saltando vacías, HTML determinista, una vuelta del watch real cortada con
+  Ctrl+C).
+- **Catálogo de memoria al arrancar:** implementado (`main.catalogo_memoria`,
+  lista nombres SIN inyectar contenido, `MEMORIA=0` lo apaga). Se agregó test
+  (2 notas listadas, con `MEMORIA=0` silencio). En el e2e del banco no aparece
+  porque los escenarios corren con `MEMORIA=0` (correcto, no es un gap).
+- **Etiqueta `DeepSeek:` en streaming:** ya estaba (nodo `AgentStep.exec`
+  imprime el rótulo antes del primer delta; comentario del nit de mesa 8).
+
+**Estado de la Mesa 8:** todo ✅ salvo **chat web completo** (FastAPI/SSE con
+sesiones en navegador), que es el único ítem grande y necesita decisión de
+dependencia (FastAPI nueva vs. SSE con stdlib sobre el server HITL/webhook
+existente). Queda como ítem 23 del roadmap con criterio de MVP a fijar ANTES
+de codear.
+
 ## exp/57 — webhook autenticado sobre el HITL web (Mesa 7, 2026-10-19)
 
 **Qué se construyó:** el resto de la Mesa 7 ("webhook autenticado sobre el

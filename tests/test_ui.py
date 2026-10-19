@@ -67,3 +67,23 @@ def test_highlight_diff(monkeypatch):
     assert "\033[36m@@ -1 +1 @@\033[0m" in h  # cian
     # las cabeceras +++/--- van en gris, no verde/rojo (no confundir el nombre)
     assert "\033[90m--- a (actual)\033[0m" in term.highlight_diff("--- a (actual)\n+++ a (nuevo)")
+
+
+def test_catalogo_memoria_muestra_nombres_y_respeta_memoria_0(monkeypatch, capsys):
+    """Mesa 8: al arrancar se lista la biblioteca (solo nombres, SIN inyectar
+    contexto); con MEMORIA=0 no imprime nada."""
+    from pathlib import Path
+
+    import main
+    import modules.memoria
+
+    monkeypatch.delenv("MEMORIA", raising=False)
+    monkeypatch.setattr(modules.memoria, "_archivos_md",
+                        lambda: [Path("nota_uno.md"), Path("nota_dos.md")])
+    main.catalogo_memoria()
+    salida = capsys.readouterr().out
+    assert "biblioteca: 2 notas" in salida and "nota_uno.md" in salida
+
+    monkeypatch.setenv("MEMORIA", "0")
+    main.catalogo_memoria()
+    assert capsys.readouterr().out == ""

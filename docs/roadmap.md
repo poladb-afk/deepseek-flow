@@ -252,13 +252,12 @@ cerrada.** Efecto de la skill `revision` medido en exp/56: **NO CUMPLE** la hip�
 detección por techo (pre-fetch + modelo ya detectan 3/3); señal secundaria
 prometedora: −40% de palabras con las mismas citas válidas (n=3).
 
-**Mesa 8 — UX (incorporada a pedido):** chat web completo (FastAPI/SSE sobre el
-server HITL existente, sesiones en navegador); pulido de terminal (etiqueta
-DeepSeek: en streaming —nit pendiente—, colores por tipo de evento, indicador de
-progreso en rondas largas); HITL UX (diffs con highlight, explicación corta del
-comando antes del s/n, historial de aprobaciones de la sesión); visor --watch
-(tail -f de .runs); arranque con listado de la biblioteca de memoria (mostrar el
-catálogo, SIN inyectar contexto — el arranque vacío es regla).
+**Mesa 8 — UX (incorporada a pedido):** ✅ **pulido de terminal** (rótulo
+`DeepSeek:` en streaming, colores por tipo, progreso de rondas), ✅ **HITL UX**
+(diffs con highlight, explicación antes del s/n, historial `/aprobaciones`) y
+✅ **visor --watch** + ✅ **catálogo de memoria al arrancar** (nombres SIN
+inyectar) — verificados con e2e y tests en exp/58 (2026-10-19). **Único ítem
+abierto: chat web completo** (SSE, sesiones en navegador) — ver ítem 23.
 
 **Pulido de terminal ✅ (2026-10-05):** `utils/terminal.py` — `colorear(texto,
 tipo)` con códigos ANSI por tipo de evento (`tool`/`ok`/`error`/`info`/`aviso`/
