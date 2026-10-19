@@ -1234,6 +1234,40 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/63 — ronda 3: la deuda de complejidad LLEGA A CERO (2026-10-19)
+
+**Qué se pagó** (guard clauses + extract; 687 tests intactos):
+
+- `nodes.AgentStep.exec` (CC 13): las 4 fases del post-proceso del stream se
+  extraen a métodos con contrato claro: `_recuperar_dsml`,
+  `_respetar_tools_retiradas` (L8 nativo), `_respuesta_sin_deltas` y
+  `_sanitizar_respuesta`; `exec` queda en pedir al modelo → aplicar fases →
+  imprimir aviso. Mismo orden y mismos mensajes.
+- `juez._contexto_extra` (CC 16): ventanas de contexto en
+  `_ventana_contexto` / `_patron_de_token` / `_ventanas_de_tokens` /
+  `_ventanas_de_definiciones`; la pública solo valida ruta, corta en ≤200
+  líneas y ensambla.
+- `juez._anclar_citas` (CC 15, anid 5): `_lineas_del_archivo`,
+  `_linea_contiene_ancla`, `_mejor_linea_ancla`, `_anclar_linea`; el bucle
+  externo queda plano.
+- `utils/compaccion.validar_historial` (CC 15, anid 4): `_chequeos_de_rol`,
+  `_chequeos_tool_calls` y `_actualizar_abiertos`; la principal solo itera y
+  acumula (mismo orden de fallas que antes).
+
+**Resultado (ratchet):** `funciones_complejas` **4 → 0** — no queda ninguna
+función del harness con McCabe > 12 (la deuda que nació en 9 en exp/60 se
+pagó completo en tres rondas: 9→6→4→0). `funciones_anidadas` **12 → 10**; la
+deuda restante es anidación, con los peores en 5-6 niveles
+(`carga_trazas.cargar` 5, `minar_errores.minar_runs` 6, `utils/laya.agente` 6).
+
+**Costo/beneficio:** 4 funciones del núcleo partidas sin cambiar una línea de
+comportamiento (los tests de chat, juez, compacción y ratchet pasan sin
+tocarlos). El gate de conjunto no se disparó: los helpers nuevos quedaron por
+debajo de los umbrales.
+
+**Siguiente (si duele):** los 10 de anidación; los 3 de 5-6 niveles son los
+únicos que probablemente necesiten algo más que guard clauses.
+
 ## exp/62 — paydown ronda 2: complejas 6→4 y anidadas 18→12 (2026-10-19)
 
 **Qué se pagó (guard clauses + extract, comportamiento intacto):**

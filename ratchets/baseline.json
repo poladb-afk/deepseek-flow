@@ -27,7 +27,7 @@
           81
         ],
         "juez.py": [
-          523
+          555
         ],
         "juez_lote.py": [
           91
@@ -50,10 +50,10 @@
         ],
         "nodes.py": [
           44,
-          516,
           537,
-          787,
-          859
+          558,
+          808,
+          880
         ],
         "research.py": [
           78
@@ -111,27 +111,20 @@
       "detalle": {
         "carga_trazas.py:cargar": 5,
         "informe.py:stats_de": 4,
-        "juez.py:_anclar_citas": 5,
         "minar_errores.py:minar_runs": 6,
         "rag.py:archivos_de": 4,
         "supervisor.py:Ejecutar.exec": 4,
-        "utils/compaccion.py:validar_historial": 4,
         "utils/fs_tools.py:_candidatos": 4,
         "utils/fs_tools.py:_resolve": 4,
         "utils/fs_tools.py:read_file": 4,
         "utils/laya.py:agente": 6,
         "visor.py:vigilar": 4
       },
-      "metrica": 12
+      "metrica": 10
     },
     "funciones_complejas": {
-      "detalle": {
-        "juez.py:_anclar_citas": 15,
-        "juez.py:_contexto_extra": 16,
-        "nodes.py:AgentStep.exec": 13,
-        "utils/compaccion.py:validar_historial": 15
-      },
-      "metrica": 4
+      "detalle": {},
+      "metrica": 0
     },
     "helpers_duplicados": {
       "detalle": {

@@ -69,59 +69,73 @@ def huella(messages):
 
 # Validación de invariantes
 
+def _chequeos_de_rol(i, m):
+    """(fallas, rol_conocido) de un mensaje: rol, reasoning y claves."""
+    rol = m.get("role")
+    if rol not in _CLAVES:
+        return [f"[{i}] rol desconocido: {rol!r}"], False
+    fallas = []
+    if "reasoning_content" in m:
+        fallas.append(f"[{i}] arrastra reasoning_content")
+    extra = set(m) - _CLAVES[rol]
+    if extra:
+        fallas.append(f"[{i}] claves no canónicas: {sorted(extra)}")
+    return fallas, True
+
+
+def _chequeos_tool_calls(i, m, messages):
+    """assistant con tool_calls debe tener sus tools inmediatas (contrato API)."""
+    if m.get("role") != "assistant" or not m.get("tool_calls"):
+        return []
+    ids = {tc.get("id") for tc in m["tool_calls"] if isinstance(tc, dict)}
+    vistos = set()
+    for sig in messages[i + 1:]:
+        if not (isinstance(sig, dict) and sig.get("role") == "tool"):
+            break
+        vistos.add(sig.get("tool_call_id"))
+    if vistos == ids:
+        return []
+    return [
+        f"[{i}] assistant con tool_calls {sorted(ids, key=str)} sin sus "
+        f"tools inmediatas (vistas: {sorted(vistos, key=str)})"
+    ]
+
+
+def _actualizar_abiertos(i, m, abiertos, fallas):
+    """Tool huérfano + estado de ids abiertos tras el mensaje `m`."""
+    rol = m.get("role")
+    if rol == "tool":
+        if m.get("tool_call_id") not in abiertos:
+            fallas.append(f"[{i}] tool huérfano: {m.get('tool_call_id')!r} sin assistant que lo pida")
+        abiertos.discard(m.get("tool_call_id"))
+        return abiertos
+    if rol == "assistant" and m.get("tool_calls"):
+        return {tc.get("id") for tc in m["tool_calls"] if isinstance(tc, dict)}
+    return set()
+
+
 def validar_historial(messages):
     """Devuelve la lista de violaciones (vacía = historial válido).
 
     NUNCA levanta: es un instrumento, no un candado de flujo. Clava los
     invariantes que el modo thinking pegajoso exige.
     """
-    fallas = []
     if not isinstance(messages, list) or not messages:
         return ["el historial está vacío o no es una lista"]
-
+    fallas = []
     primero = messages[0]
     if not (isinstance(primero, dict) and primero.get("role") == "system"):
         fallas.append("el primer mensaje no es system")
-
     abiertos = set()  # ids del último assistant con tool_calls aún sin respuesta
     for i, m in enumerate(messages):
         if not isinstance(m, dict):
             fallas.append(f"[{i}] no es dict")
             continue
-        rol = m.get("role")
-        if rol == "tool":
-            # 5º invariante (contrato de la API): todo tool responde a un
-            # tool_call del assistant inmediatamente anterior
-            if m.get("tool_call_id") not in abiertos:
-                fallas.append(f"[{i}] tool huérfano: {m.get('tool_call_id')!r} sin assistant que lo pida")
-            abiertos.discard(m.get("tool_call_id"))
-        elif rol == "assistant" and m.get("tool_calls"):
-            abiertos = {tc.get("id") for tc in m["tool_calls"] if isinstance(tc, dict)}
-        else:
-            abiertos = set()
-        if rol not in _CLAVES:
-            fallas.append(f"[{i}] rol desconocido: {rol!r}")
-            continue
-        if "reasoning_content" in m:
-            fallas.append(f"[{i}] arrastra reasoning_content")
-        extra = set(m) - _CLAVES[rol]
-        if extra:
-            fallas.append(f"[{i}] claves no canónicas: {sorted(extra)}")
-        if rol == "assistant" and m.get("tool_calls"):
-            ids = {tc.get("id") for tc in m["tool_calls"] if isinstance(tc, dict)}
-            vistos = set()
-            j = i + 1
-            while j < len(messages):
-                sig = messages[j]
-                if isinstance(sig, dict) and sig.get("role") == "tool":
-                    vistos.add(sig.get("tool_call_id"))
-                    j += 1
-                    continue
-                break
-            if vistos != ids:
-                fallas.append(
-                    f"[{i}] assistant con tool_calls {sorted(ids, key=str)} sin sus "
-                    f"tools inmediatas (vistas: {sorted(vistos, key=str)})")
+        abiertos = _actualizar_abiertos(i, m, abiertos, fallas)
+        violaciones, rol_conocido = _chequeos_de_rol(i, m)
+        fallas.extend(violaciones)
+        if rol_conocido:
+            fallas.extend(_chequeos_tool_calls(i, m, messages))
     return fallas
 
 

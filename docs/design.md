@@ -835,9 +835,9 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   `cuerpos_duplicados` (copias con variables renombradas, baseline 0) y
   `cuerpos_test_duplicados` (tests copiados: normaliza también constantes;
   baseline 0 tras parametrizar los 6 pares), `funciones_complejas` (C901
-  repo-wide > 12, conteo EXACTO de ruff; la deuda actual —4 funciones— está
-  sembrada, antes el gate solo miraba 2 archivos) y `funciones_anidadas`
-  (anidación de control > 3 niveles; deuda 12; `elif` NO cuenta: es cadena
+  repo-wide > 12, conteo EXACTO de ruff; **deuda 0 desde exp/63** — antes el
+  gate solo miraba 2 archivos) y `funciones_anidadas`
+  (anidación de control > 3 niveles; deuda 10; `elif` NO cuenta: es cadena
   plana en el AST). Las dos últimas son de **conjunto**: una función NUEVA
   compleja/anidada falla aunque el total no suba (la identidad importa). La
   cobertura (`tests_definidos`) cuenta CASOS, no funciones. La invariante: la

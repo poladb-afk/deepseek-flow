@@ -30,6 +30,51 @@ MAX_CITAS = 5
 MAX_CTX_ARCHIVOS = 3
 
 
+def _ventana_contexto(lineas, indice, etiqueta):
+    """Ventana ±8 líneas alrededor de `indice` (1-based), numerada."""
+    inicio, fin = max(1, indice - 8), min(len(lineas), indice + 8)
+    cuerpo = "\n".join(f"{n}: {lineas[n - 1]}" for n in range(inicio, fin + 1))
+    return f"(contexto de {etiqueta}: líneas {inicio}-{fin})\n{cuerpo}"
+
+
+def _patron_de_token(token):
+    """Patrón de búsqueda del token: símbolo/constante tal cual, función o
+    variable por uso (`def`/`class`/asignación)."""
+    if token.isupper() or "_" in token:
+        return re.compile(rf"\b{re.escape(token)}\b")
+    return re.compile(
+        rf"(?:\bdef\s+{re.escape(token)}\b|\bclass\s+{re.escape(token)}\b|"
+        rf"\b{re.escape(token)}\b\s*=)")
+
+
+def _ventanas_de_tokens(lineas, tokens, maximo=6):
+    """Primera aparición (después de la línea 200) de cada token, hasta `maximo`."""
+    ventanas, vistas = [], set()
+    for token in sorted(tokens):
+        patron = _patron_de_token(token)
+        for i, linea in enumerate(lineas[200:], start=201):
+            if patron.search(linea):
+                ventanas.append(_ventana_contexto(lineas, i, token))
+                vistas.add(i)
+                break
+        if len(ventanas) >= maximo:
+            break
+    return ventanas, vistas
+
+
+def _ventanas_de_definiciones(lineas, vistas, maximo):
+    """Si la pregunta no nombra símbolos: primeras definiciones post-200."""
+    ventanas = []
+    for i, linea in enumerate(lineas[200:], start=201):
+        if i in vistas:
+            continue
+        if re.match(r"\s*(?:def|class)\s+[A-Za-z_]\w*", linea):
+            ventanas.append(_ventana_contexto(lineas, i, "definición"))
+        if len(ventanas) >= maximo:
+            break
+    return ventanas
+
+
 def _contexto_extra(ruta, pregunta):
     """Ventanas alrededor de identificadores de la pregunta que caen MÁS ALLÁ
     de las primeras 200 líneas. El excerpt fijo de 200 era correcto cuando los
@@ -46,44 +91,17 @@ def _contexto_extra(ruta, pregunta):
     if len(lineas) <= 200:
         return ""
     tokens = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]{3,}", str(pregunta)))
-    ventanas, vistas = [], set()
-
-    def _agregar(i, etiqueta):
-        inicio, fin = max(1, i - 8), min(len(lineas), i + 8)
-        cuerpo = "\n".join(f"{n}: {lineas[n - 1]}" for n in range(inicio, fin + 1))
-        ventanas.append(f"(contexto de {etiqueta}: líneas {inicio}-{fin})\n{cuerpo}")
-        vistas.add(i)
-
-    for token in sorted(tokens):
-        if token.isupper() or "_" in token:
-            patron = re.compile(rf"\b{re.escape(token)}\b")
-        else:
-            patron = re.compile(
-                rf"(?:\bdef\s+{re.escape(token)}\b|\bclass\s+{re.escape(token)}\b|"
-                rf"\b{re.escape(token)}\b\s*=)")
-        for i, linea in enumerate(lineas[200:], start=201):
-            if patron.search(linea):
-                _agregar(i, token)
-                break
-        if len(ventanas) >= 6:
-            break
+    ventanas, vistas = _ventanas_de_tokens(lineas, tokens)
     # Si la pregunta no nombra símbolos (p. ej. "¿qué tools trae el CORE?"),
     # sumar las primeras definiciones después de la línea 200: son las
     # candidatas naturales de la respuesta.
     if len(ventanas) < 6:
-        for i, linea in enumerate(lineas[200:], start=201):
-            if i in vistas:
-                continue
-            if re.match(r"\s*(?:def|class)\s+[A-Za-z_]\w*", linea):
-                _agregar(i, "definición")
-            if len(ventanas) >= 6:
-                break
+        ventanas += _ventanas_de_definiciones(lineas, vistas, 6 - len(ventanas))
     if not ventanas:
         return ""
     cabecera = (f"\n--- contexto adicional de {ruta} (símbolos después de la "
                 "línea 200; ESTAS líneas también son citables) ---")
     return cabecera + "\n" + "\n".join(ventanas)
-
 
 def _archivos_de(texto):
     """Resuelve las rutas de archivo mencionadas en un texto (pregunta)."""
@@ -471,6 +489,50 @@ def _anclas_de(texto):
     return [a.strip() for a in dict.fromkeys(anclas) if len(a.strip()) >= 3]
 
 
+def _lineas_del_archivo(ruta):
+    """Líneas del archivo citado, o None si no es resoluble/legible."""
+    resolved, err = _resolve(ruta)
+    if err or resolved is None or not resolved.is_file():
+        return None
+    try:
+        return resolved.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+
+
+def _linea_contiene_ancla(contenido, numero, anclas):
+    return any(ancla.lower() in contenido[numero - 1].lower() for ancla in anclas)
+
+
+def _mejor_linea_ancla(contenido, numero, anclas, radio=30):
+    """Línea cercana (±radio) que contiene un ancla; None si no hay o si la
+    cita original ya la contiene."""
+    if _linea_contiene_ancla(contenido, numero, anclas):
+        return None
+    for delta in range(1, radio + 1):
+        for candidata in (numero - delta, numero + delta):
+            if 1 <= candidata <= len(contenido) and _linea_contiene_ancla(
+                    contenido, candidata, anclas):
+                return candidata
+    return None
+
+
+def _anclar_linea(linea, parrafo):
+    """Mueve las citas de UNA línea a la línea cercana con un ancla del párrafo."""
+    for coincidencia in list(CITA_RE.finditer(linea)):
+        ruta, numero = coincidencia.group(1), int(coincidencia.group(2))
+        contenido = _lineas_del_archivo(ruta)
+        if contenido is None or not 1 <= numero <= len(contenido):
+            continue
+        anclas = _anclas_de(parrafo)
+        if not anclas:
+            continue
+        mejor = _mejor_linea_ancla(contenido, numero, anclas)
+        if mejor is not None:
+            linea = linea.replace(f"{ruta}:{numero}", f"{ruta}:{mejor}", 1)
+    return linea
+
+
 def _anclar_citas(texto):
     """Ajusta una cita archivo:línea a la línea cercana que contiene un ancla
     del párrafo (literal, negrita o símbolo). No inventa: solo se mueve si el
@@ -482,39 +544,9 @@ def _anclar_citas(texto):
         return texto
     lineas = texto.splitlines()
     for i, linea in enumerate(lineas):
-        for m in list(CITA_RE.finditer(linea)):
-            ruta, num = m.group(1), int(m.group(2))
-            resolved, err = _resolve(ruta)
-            if err or resolved is None or not resolved.is_file():
-                continue
-            try:
-                contenido = resolved.read_text(encoding="utf-8", errors="replace").splitlines()
-            except OSError:
-                continue
-            if num < 1 or num > len(contenido):
-                continue
-            parrafo = " ".join(lineas[max(0, i - 2): i + 1])
-            anclas = _anclas_de(parrafo)
-            if not anclas:
-                continue
-
-            def _contiene(k, _contenido=contenido, _anclas=anclas):
-                return any(a.lower() in _contenido[k - 1].lower() for a in _anclas)
-
-            if _contiene(num):
-                continue
-            mejor = None
-            for delta in range(1, 31):
-                for k in (num - delta, num + delta):
-                    if 1 <= k <= len(contenido) and _contiene(k):
-                        mejor = k
-                        break
-                if mejor is not None:
-                    break
-            if mejor is not None:
-                lineas[i] = lineas[i].replace(f"{ruta}:{num}", f"{ruta}:{mejor}", 1)
+        parrafo = " ".join(lineas[max(0, i - 2): i + 1])
+        lineas[i] = _anclar_linea(linea, parrafo)
     return "\n".join(lineas)
-
 
 def responder_con_juez(pregunta, rondas=JUEZ_ROUNDS):
     shared = {"question": pregunta, "max_rounds": rondas}
