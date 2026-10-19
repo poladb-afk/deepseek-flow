@@ -1234,6 +1234,41 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/59 — chat web MVP: SSE con stdlib, cero dependencias (2026-10-19)
+
+**Qué se construyó:** el último ítem grande de la Mesa 8 (chat web completo),
+en su versión MVP y sin sumar dependencias: `utils/webchat.py` + rutas sobre
+el server HITL/webhook existente.
+
+- `GET /chat`: página mínima (textarea + log, sin CDN ni build).
+- `POST /chat/sesion` → `{sesion, token}`; `POST /chat/mensaje`
+  `{sesion, token, texto}`; `GET /chat/stream?sesion&token` (SSE);
+  `POST /chat/cerrar`.
+- **Aislamiento por subproceso**: cada sesión corre `python3 -u main.py` con
+  stdin/stdout piped; hereda el chat real (grafo, streaming, tools, skills,
+  routing) sin tocar el CORE. Nada de `input()` parcheado ni estado global
+  compartido entre pestañas.
+- Seguridad al nivel del webhook: solo loopback (Host/Origin), token por
+  sesión con `secrets.compare_digest`, tope `WEBCHAT_MAX_SESIONES=3`, TTL
+  `WEBCHAT_TTL=900`. El texto del navegador NO se persiste: el hijo corre con
+  `PREGUNTAS_LOG=0`; `NO_COLOR=1` (SSE sin ANSI) y `TRACE=0` (no ensucia
+  `.runs`). HITL: las aprobaciones siguen saliendo por la página HITL del
+  subproceso (el stream muestra su URL).
+
+**Verificación e2e (server real + chat real + SSE):** `POST /chat/sesion` ok;
+`POST /chat/mensaje` con "¿Qué es un closure en Python?…"; el stream SSE
+entregó bienvenida, `Tú:`, ruteo (`[laya] directo` + voto) y la respuesta en
+vivo `DeepSeek: Un closure es una función interna…`; `POST /chat/cerrar` ok.
+
+**Tests:** `tests/test_webchat.py` (6) con un hijo FALSO (echo por stdin, sin
+gastar LLM): sesión aislada, token válido/inválido, tope de sesiones, framing
+SSE JSON, flujo HTTP completo (crear→mensaje→stream→cerrar) y rechazos
+(401 token malo, 404 con WEBCHAT=0).
+
+**Límites declarados del MVP:** sin reconexión SSE, sin markdown, HITL no
+embebido (otra pestaña), una sesión por pestaña. Siguiente si duele: reconexión
+y HITL inline; nada de eso es necesario para usar el chat desde el navegador.
+
 ## exp/58 — Mesa 8 verificada: la UX estaba construida; faltaba probarla (2026-10-19)
 
 Al abrir la Mesa 8 apareció la deriva inversa a la habitual: el roadmap listaba

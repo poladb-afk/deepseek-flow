@@ -79,7 +79,7 @@
           505
         ],
         "utils/hitl_web.py": [
-          445
+          553
         ],
         "utils/laya.py": [
           91
@@ -183,9 +183,10 @@
         "tests/test_visor.py": 4,
         "tests/test_viz.py": 5,
         "tests/test_voto_router.py": 8,
+        "tests/test_webchat.py": 6,
         "tests/test_webhook.py": 11
       },
-      "metrica": 664
+      "metrica": 670
     }
   },
   "version": 1

@@ -265,6 +265,24 @@ corte anti DNS-rebinding que el HITL), `WEBHOOK_MAX_BYTES` (cuerpo) y
 loguean (solo `tipo` e `id`). Servicio: `python3 main.py webhook` levanta
 HITL+webhook y bloquea hasta Ctrl+C.
 
+### Chat web MVP (Mesa 8, exp/59) — SSE con stdlib
+`utils/webchat.py` · [utils/webchat.py](../utils/webchat.py)
+
+Con `WEBCHAT=1` sobre el server del HITL web: `GET /chat` sirve una página
+mínima (sin CDN ni build), `POST /chat/sesion` crea una sesión,
+`POST /chat/mensaje` manda la pregunta, `GET /chat/stream?sesion&token` es SSE
+y `POST /chat/cerrar` la termina. **Aislamiento real**: cada sesión corre el
+chat COMPLETO en un subproceso (`python3 -u main.py`), así hereda grafo,
+streaming, tools, skills y HITL sin tocar el CORE; nada de estado compartido
+entre pestañas. Seguridad al nivel del webhook: solo loopback (Host/Origin),
+token aleatorio por sesión comparado en tiempo constante, tope
+`WEBCHAT_MAX_SESIONES` (3) y TTL `WEBCHAT_TTL` (900 s). El texto del navegador
+NO se persiste: el hijo corre con `PREGUNTAS_LOG=0`, `NO_COLOR=1` y `TRACE=0`.
+Las aprobaciones HITL salen por la página HITL existente (otra pestaña) porque
+el server HITL vive en el subproceso y publica su URL en el stream.
+Límites del MVP (declarados): sin reconexión SSE, sin markdown renderizado,
+HITL no embebido, una sesión por pestaña.
+
 ### Servidor MCP (dirección inversa)
 
 `python3 main.py mcp-server` expone las capacidades del chat a OTROS

@@ -275,6 +275,12 @@ class _Handler(BaseHTTPRequestHandler):
         if ruta == EVENTOS_RUTA:
             self._get_eventos()
             return
+        if ruta == "/chat":
+            self._get_chat()
+            return
+        if ruta == "/chat/stream":
+            self._get_stream()
+            return
         if ruta not in ("/", "/index.html"):
             self._responder(404, "<p>404</p>")
             return
@@ -299,6 +305,105 @@ class _Handler(BaseHTTPRequestHandler):
             return
         self._responder(200, _json(eventos_recientes()),
                         tipo="application/json; charset=utf-8")
+
+    def _get_chat(self):
+        """GET /chat: página del chat web (WEBCHAT=1), solo loopback."""
+        from utils import webchat
+
+        if not webchat.habilitado():
+            self._responder(404, "<p>404</p>")
+            return
+        if not _origen_valido(self):
+            self._responder(403, "<p>Origen no permitido.</p>")
+            return
+        self._responder(200, webchat.pagina())
+
+    def _get_stream(self):
+        """GET /chat/stream: SSE con la salida del chat (sesión + token)."""
+        from urllib.parse import parse_qs
+
+        from utils import webchat
+
+        if not webchat.habilitado():
+            self._responder(404, _json({"error": "webchat apagado (WEBCHAT=0)"}))
+            return
+        if not _origen_valido(self):
+            self._responder(403, _json({"error": "origen no permitido"}))
+            return
+        consulta = parse_qs(urlsplit(self.path).query)
+        sesion = webchat.gestor().obtener(
+            (consulta.get("sesion") or [""])[0], (consulta.get("token") or [""])[0])
+        if sesion is None:
+            self._responder(401, _json({"error": "sesión/token inválido"}))
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        try:
+            for trozo in sesion.eventos():
+                self.wfile.write(webchat.evento_sse(trozo).encode("utf-8"))
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # la pestaña cerró: la sesión sigue viva hasta TTL/cerrar
+        finally:
+            self.close_connection = True
+
+    def _post_chat(self, ruta):
+        """POST /chat/{sesion,mensaje,cerrar} con sesión+token (loopback)."""
+        from utils import webchat
+
+        if not webchat.habilitado():
+            self._responder(404, _json({"error": "webchat apagado (WEBCHAT=0)"}))
+            return
+        if not _origen_valido(self):
+            self._responder(403, _json({"error": "origen no permitido"}))
+            return
+        datos = self._cuerpo_json()
+        if datos is None:
+            return
+        try:
+            if ruta == "/chat/sesion":
+                sesion = webchat.gestor().crear()
+                self._responder(200, _json({"sesion": sesion.id, "token": sesion.token}),
+                                tipo="application/json; charset=utf-8")
+                return
+            sesion = webchat.gestor().obtener(datos.get("sesion", ""), datos.get("token", ""))
+            if sesion is None:
+                self._responder(401, _json({"error": "sesión/token inválido"}))
+                return
+            if ruta == "/chat/cerrar":
+                webchat.gestor().cerrar(datos.get("sesion", ""), datos.get("token", ""))
+                self._responder(200, _json({"ok": True}),
+                                tipo="application/json; charset=utf-8")
+                return
+            texto = str(datos.get("texto") or "").strip()
+            if not texto or len(texto) > 4000:
+                self._responder(400, _json({"error": "texto requerido (1..4000)"}))
+                return
+            sesion.enviar(texto)
+            self._responder(200, _json({"ok": True}), tipo="application/json; charset=utf-8")
+        except RuntimeError as e:
+            self._responder(429, _json({"error": str(e)}))
+        except OSError as e:
+            self._responder(503, _json({"error": f"fallo de sesión ({type(e).__name__})"}))
+
+    def _cuerpo_json(self):
+        """Lee y parsea el cuerpo JSON; responde 400 y devuelve None si falla."""
+        largo = int(self.headers.get("Content-Length") or 0)
+        if largo > 16384:
+            self._responder(413, _json({"error": "cuerpo demasiado grande"}))
+            return None
+        datos = self.rfile.read(largo) if largo else b"{}"
+        try:
+            valor = json.loads(datos.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._responder(400, _json({"error": "JSON inválido"}))
+            return None
+        if not isinstance(valor, dict):
+            self._responder(400, _json({"error": "se esperaba un objeto JSON"}))
+            return None
+        return valor
 
     def _post_webhook(self):
         """POST /webhook autenticado (Mesa 7): seguridad primero."""
@@ -340,6 +445,9 @@ class _Handler(BaseHTTPRequestHandler):
         ruta = self.path.split("?")[0]
         if ruta == WEBHOOK_RUTA:
             self._post_webhook()
+            return
+        if ruta in ("/chat/sesion", "/chat/mensaje", "/chat/cerrar"):
+            self._post_chat(ruta)
             return
         if ruta != "/decision":
             self._responder(404, "<p>404</p>")
