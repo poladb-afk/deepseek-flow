@@ -15,8 +15,7 @@
           81
         ],
         "juez.py": [
-          283,
-          522
+          523
         ],
         "juez_lote.py": [
           91
@@ -25,17 +24,11 @@
           140,
           163
         ],
-        "modules/coding.py": [
-          76
-        ],
         "modules/db.py": [
           131
         ],
         "modules/evals.py": [
           36
-        ],
-        "modules/humano.py": [
-          55
         ],
         "modules/memoria.py": [
           138
@@ -80,21 +73,14 @@
           91
         ],
         "utils/laya_routing.py": [
-          69,
-          106,
-          135
+          69
         ],
         "utils/mcp_client.py": [
           74,
           96
         ],
-        "utils/prefetch.py": [
-          64,
-          70
-        ],
         "utils/riesgo.py": [
-          80,
-          121
+          80
         ],
         "utils/thread_store.py": [
           144
@@ -107,7 +93,7 @@
           16
         ]
       },
-      "metrica": 44
+      "metrica": 36
     },
     "helpers_duplicados": {
       "detalle": {

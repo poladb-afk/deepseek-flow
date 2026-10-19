@@ -73,7 +73,7 @@ def _vetar_comando_prohibido(tool_call):
     try:
         args = _json.loads(tool_call["function"].get("arguments") or "{}")
         comando = args.get("command") or ""
-    except Exception:  #  # noqa: BLE001 (argumentos del tool call: JSON no confiable)
+    except (ValueError, TypeError, AttributeError):  #  # noqa: BLE001 (argumentos del tool call: JSON no confiable)
         return None
     if comando and _PROHIBIDOS.search(comando):
         # Fix 10a: línea VERBATIM de la spec — el ancla de

@@ -15,6 +15,7 @@ import argparse
 import contextlib
 import re
 
+import yaml
 from pocketflow import Flow, Node
 
 from utils.call_llm import call_llm
@@ -280,7 +281,7 @@ def _validar(crudo):
     """
     try:
         d = extraer_yaml(crudo)
-    except Exception as e:  # noqa: BLE001 (YAML de salida del modelo: dato no confiable)
+    except (yaml.YAMLError, AssertionError, AttributeError, ValueError, TypeError) as e:  # noqa: BLE001 (YAML de salida del modelo: dato no confiable)
         return None, f"el YAML no parseó: {e}"
     ok, motivo = _veredicto_valido(d)
     if not ok:

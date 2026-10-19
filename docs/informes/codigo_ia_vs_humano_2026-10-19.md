@@ -203,10 +203,12 @@ como 16 gates (muchos no son deterministas: quedan como review).
 
 ## 11. Actualización (misma jornada): paydown y A/B de la directiva
 
-- **Paydown de `except` amplios: 55 → 48.** Se acotaron 7 handlers a la
-  excepción real que esperan manejar (logs JSONL → `OSError`; arranque del
-  HITL → `(OSError, ValueError)`; `git rev-parse` de la sonda →
-  `(OSError, subprocess.SubprocessError)`), y los 48 restantes quedaron con
+- **Paydown de `except` amplios: 55 → 48 → 36.** Se acotaron 15 handlers en
+  dos pasadas a la excepción real que esperan manejar (logs JSONL → `OSError`;
+  arranque del HITL → `(OSError, ValueError)`; `git rev-parse` de la sonda →
+  `(OSError, subprocess.SubprocessError)`; JSON de tool calls, `input()`,
+  prefetch, calibración del router/voto, YAML del juez y bookkeeping del log
+  de riesgo), y los 48/36 restantes quedaron con
   **motivo visible** (`# noqa: BLE001 (motivo)`). Un gate nuevo
   (`tests/test_estilo_humano.py`) exige ese motivo en todo handler amplio: de
   34 sin motivo visible a 0.

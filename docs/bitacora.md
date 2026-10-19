@@ -1210,6 +1210,18 @@ integraciones externas): quedaron con `# noqa: BLE001 (motivo)`.
 motivo visible** — de 34 sin motivo a 0. Ratchet: **55 → 48** (las
 acotaciones bajan el número solas, como debe ser).
 
+**Segunda pasada (2026-10-19): 44 → 36.** Acotados 8 handlers que protegían
+operaciones concretas: argumentos JSON del tool call → `(ValueError, TypeError,
+AttributeError)`; `input()` → `(OSError, ValueError)`; resolver/leer líneas del
+prefetch → `(OSError, ValueError)`; carga de calibración del router y del voto →
+`(OSError, ValueError, TypeError)`; bookkeeping del log de riesgo → `(OSError,
+TypeError, ValueError)`; YAML de salida del modelo → `(yaml.YAMLError,
+AssertionError, AttributeError, ValueError, TypeError)`. Quedan **36
+justificados como fronteras reales** (Laya/modelo opcional, MCP, hooks de
+fs_tools, bookkeeping de traza/arranque, flujos que degradan): ahí el
+`except Exception` es contrato, no ruido. Con esto el paydown determinista
+del smell #1 queda cerrado; lo que reste es revisión caso a caso.
+
 **exp/51 — la directiva de forma.** Corte **pre-registrado antes de correr**
 (está en el docstring de `banco/probes/forma_codigo.py`): la directiva es
 éxito si baja la mediana de SLOC y la densidad de docstrings sin subir los

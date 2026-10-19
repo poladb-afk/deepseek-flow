@@ -103,7 +103,7 @@ def config_router() -> RouterConfig:
 
             alpha = float(_setting("LAYA_ALPHA", "0.10"))
             q = q_de_calibracion(leer_calibracion(calibracion), alpha)
-        except Exception as e:  # noqa: BLE001 (calibracion no utilizable: umbral fijo)
+        except (OSError, ValueError, TypeError) as e:  # noqa: BLE001 (calibracion no utilizable: umbral fijo)
             print(f"  [laya] calibración no utilizable ({type(e).__name__}) -> umbral fijo")
             q = None
     return RouterConfig(
@@ -132,7 +132,7 @@ def config_voto() -> RouterConfig:
 
             alpha = float(_setting("LAYA_ALPHA_VOTO", "0.10"))
             q = q_de_calibracion(leer_calibracion(calibracion), alpha)
-        except Exception as e:  # noqa: BLE001 (calibracion no utilizable: umbral fijo (voto))
+        except (OSError, ValueError, TypeError) as e:  # noqa: BLE001 (calibracion no utilizable: umbral fijo (voto))
             print(f"  [voto] calibración no utilizable ({type(e).__name__}) -> umbral fijo")
             q = None
     return RouterConfig(

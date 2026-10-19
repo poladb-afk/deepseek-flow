@@ -63,11 +63,14 @@ Cada ítem indica qué pieza lo apoya y qué falta.
    helpers **20 → 10**. Las reglas blandas de `AGENTS.md` se gradúan a gate
    cuando duela.
 10. ~~**Paydown del ruido (2026-10-19)**: 55 `except` amplios (39% de los
-    `try`; la referencia humana tiene 1,6%)~~ **✅ primera pasada (2026-10-19)**:
-    7 acotados a su excepción real y 23 justificados con motivo visible; gate
-    nuevo (`# noqa: BLE001 (motivo)` obligatorio); ratchet **55 → 48**. Los
-    otros tell no deterministas (comentario narrador, código muerto "por si
-    acaso", test slop) quedan como review de `AGENTS.md` R9.
+    `try`; la referencia humana tiene 1,6%)~~ **✅ cerrado en dos pasadas
+    (2026-10-19)**: 15 acotados a su excepción real (JSON, input, archivos,
+    calibración, YAML, bookkeeping) y el resto justificado con motivo visible
+    + gate (`# noqa: BLE001 (motivo)` obligatorio); ratchet **55 → 36**. Los
+    36 restantes son fronteras de integración/bookkeeping: no hay más
+    candidatos deterministas. Los otros tell no deterministas (comentario
+    narrador, código muerto "por si acaso", test slop) quedan como review de
+    `AGENTS.md` R9.
 11. ~~**A/B de la directiva de forma**~~ **✅ exp/51 (2026-10-19)**: A/B
     pre-registrado con `banco/probes/forma_codigo.py`, n=4 por brazo y tarea,
     deepseek-flash: SLOC 193 → 44 (−77%), tokens −81%, docstrings 0,487 → 0,

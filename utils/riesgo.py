@@ -118,5 +118,5 @@ def registrar(comando, mensaje, juicios, aprobado, ruta=None):
                 },
                 ensure_ascii=False,
             ) + "\n")
-    except Exception:  # noqa: BLE001  (bookkeeping: nunca rompe la acción)
+    except (OSError, TypeError, ValueError):  # noqa: BLE001  (bookkeeping: nunca rompe la acción)
         pass

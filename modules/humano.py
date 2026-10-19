@@ -52,7 +52,7 @@ def request_human_input(pregunta):
         raise  # Ctrl+C es del usuario: se propaga como siempre
     except EOFError:
         return "(sin respuesta del humano: EOF)"
-    except Exception as e:  # cualquier fallo del input es un dato, no un crash  # noqa: BLE001 (fallo del input es un dato, no un crash)
+    except (OSError, ValueError) as e:  # cualquier fallo del input es un dato, no un crash  # noqa: BLE001 (fallo del input es un dato, no un crash)
         return f"(sin respuesta del humano: {type(e).__name__}: {e})"
 
 

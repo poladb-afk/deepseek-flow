@@ -61,13 +61,13 @@ def decidir(pregunta):
         vistos.add(cruda)
         try:
             resolved, err = _resolve(cruda)
-        except Exception:  # noqa: BLE001  (decidir JAMÁS lanza)
+        except (OSError, ValueError):  # noqa: BLE001  (decidir JAMÁS lanza)
             continue
         if err or resolved is None or not resolved.is_file():
             continue  # fuera del perímetro o inexistente → se salta
         try:
             contenido = _leer_lineas(resolved, max_lineas)
-        except Exception:  # noqa: BLE001  (error de lectura → esa ruta se salta)
+        except (OSError, ValueError):  # noqa: BLE001  (error de lectura → esa ruta se salta)
             continue
         resultado.append((resolved, contenido))
         if len(resultado) >= max_archivos:
