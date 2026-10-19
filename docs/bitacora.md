@@ -1234,6 +1234,37 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/61 — paydown de las 3 funciones peores: deuda 9→6 y 21→18 (2026-10-19)
+
+**Qué se pagó** (las 3 peores de exp/60, con guard clauses + extract):
+
+- `ratchet._diagnostico` (anidación 6, CC 13): cadena de `if/elif` por nombre
+  de métrica → **tabla de dispatch** `_DIAGNOSTICOS` con diagnósticos chicos
+  (`_diag_helpers`, `_diag_muertas`, `_diag_cuerpos`, `_diag_excepts`,
+  `_diag_tests`). `_diagnostico` queda en una línea + default explícito.
+- `tablero.recolectar` (CC 14, anid 6): el bucle de eventos se parte en
+  `_contar_hitl` / `_contar_tool` / `_contar_evento` sobre un `estado` dict;
+  el bucle principal queda con ramas planas y `continue` tempranos. La
+  agregación final no cambia (mismos dicts de salida).
+- `utils/call_llm.call_llm_agent_stream` (CC 15, anid 5): extraídos
+  `_acumular_delta`, `_acumular_fragmento`, `_cerrar_stream` y
+  `_tool_calls_finales`; el cuerpo queda con un `for` + dos `except` sin
+  anidación profunda. Contrato idéntico (streaming en vivo, Ctrl+C
+  interrumpible, tool_calls descartadas si se corta).
+
+**Resultado (ratchet, mismo árbol y mismo umbral):**
+`funciones_complejas` **9 → 6** y `funciones_anidadas` **21 → 18**; las tres
+funciones target desaparecen de ambas listas. Los helpers nuevos no entran
+(no son complejos ni anidados): el gate de conjunto no se dispara.
+Comportamiento intacto: **687 tests verdes** (chat, tablero, stream, ratchet y
+el resto de la suite) sin tocar tests.
+
+**Por qué importa:** el ratchet cobra el pago solo —al mejorar, reescribe el
+baseline en el mismo commit— así que la deuda visible baja de 9+21 a 6+18 y no
+puede volver. Quedan como candidatos siguientes: `evals.linter_traza` (CC 23,
+anid 5), `juez._contexto_extra` (16), `utils/compaccion.validar_historial`
+(15), `hitl_web.do_POST` (anid 5) y `terminal.highlight_diff` (anid 5).
+
 ## exp/60 — gates de complejidad y anidación repo-wide (2026-10-19)
 
 **Por qué:** la auditoría de auto-crítica mostró que el gate `C901 ≤ 12` cubría

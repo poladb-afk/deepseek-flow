@@ -36,59 +36,81 @@ def leer_eventos(path):
     return eventos
 
 
+def _estado_inicial():
+    return {
+        "vacias": 0, "legibles": 0, "tool": collections.Counter(),
+        "tool_err": collections.Counter(), "codigos": collections.Counter(),
+        "hitl": collections.Counter(), "hitl_nivel": collections.Counter(),
+        "runs_con_error": 0, "cortes": 0, "timeouts": 0, "retry_ok": 0,
+        "retry_total": 0, "prob_rechazo": 0,
+        "dias": collections.defaultdict(lambda: {"traces": 0, "eventos": 0, "errores": 0}),
+    }
+
+
+def _contar_hitl(estado, e, nodo, accion):
+    """Un evento HITL (aprobado/rechazado) también trae nivel: cuenta y corta."""
+    if not (nodo.startswith("hitl_") and accion in ("aprobado", "rechazado")):
+        return False
+    estado["hitl"][accion] += 1
+    estado["hitl_nivel"][str(e.get("nivel")) + ":" + nodo[5:]] += 1
+    return True
+
+
+def _contar_tool(estado, e, nodo, accion, eventos, i, dia):
+    """Cuenta una tool ok/error y su retrabajo. Devuelve 1 si hubo error."""
+    if accion not in ("ok", "error"):
+        return 0
+    estado["tool"][nodo] += 1
+    estado["dias"][dia]["eventos"] += 1
+    if accion != "error":
+        if nodo == "run_command" and float(e.get("seg") or 0) < 0.5:
+            estado["prob_rechazo"] += 1
+        return 0
+    estado["tool_err"][nodo] += 1
+    estado["dias"][dia]["errores"] += 1
+    if e.get("codigo"):
+        estado["codigos"][str(e["codigo"])] += 1
+    if float(e.get("seg") or 0) >= 100:
+        estado["timeouts"] += 1
+    estado["retry_total"] += 1
+    for e2 in eventos[i + 1:]:
+        if str(e2.get("accion")) == "ok" and str(e2.get("nodo")) == nodo:
+            estado["retry_ok"] += 1
+            break
+    return 1
+
+
+def _contar_evento(estado, e, eventos, i, dia):
+    """Un evento del bucle: HITL, tool o corte. Devuelve 1 si fue un error."""
+    nodo, accion = str(e.get("nodo")), str(e.get("accion"))
+    if _contar_hitl(estado, e, nodo, accion):
+        return 0
+    error = _contar_tool(estado, e, nodo, accion, eventos, i, dia)
+    if error:
+        return 1
+    if nodo == "corte_no_progreso":
+        estado["cortes"] += 1
+    return 0
+
+
 def recolectar(runs):
     archivos = sorted(Path(runs).glob("*.jsonl"))
-    vacias = legibles = 0
-    tool = collections.Counter()
-    tool_err = collections.Counter()
-    codigos = collections.Counter()
-    hitl = collections.Counter()
-    hitl_nivel = collections.Counter()
-    runs_con_error = 0
-    cortes = timeouts = 0
-    retry_ok = retry_total = prob_rechazo = 0
-    dias = collections.defaultdict(lambda: {"traces": 0, "eventos": 0, "errores": 0})
-
+    estado = _estado_inicial()
     for f in archivos:
         eventos = leer_eventos(f)
         if not eventos:
-            vacias += 1
+            estado["vacias"] += 1
             continue
-        legibles += 1
+        estado["legibles"] += 1
         dia = f.stem[:8]
-        dias[dia]["traces"] += 1
+        estado["dias"][dia]["traces"] += 1
         errores_traza = 0
         for i, e in enumerate(eventos):
-            nodo = str(e.get("nodo"))
-            accion = str(e.get("accion"))
-            if nodo.startswith("hitl_") and accion in ("aprobado", "rechazado"):
-                hitl[accion] += 1
-                hitl_nivel[str(e.get("nivel")) + ":" + nodo[5:]] += 1
-                continue
-            if accion in ("ok", "error"):
-                tool[nodo] += 1
-                dias[dia]["eventos"] += 1
-                if accion == "error":
-                    tool_err[nodo] += 1
-                    dias[dia]["errores"] += 1
-                    errores_traza += 1
-                    if e.get("codigo"):
-                        codigos[str(e["codigo"])] += 1
-                    if float(e.get("seg") or 0) >= 100:
-                        timeouts += 1
-                    retry_total += 1
-                    for e2 in eventos[i + 1:]:
-                        if (str(e2.get("accion")) == "ok"
-                                and str(e2.get("nodo")) == nodo):
-                            retry_ok += 1
-                            break
-                elif nodo == "run_command" and float(e.get("seg") or 0) < 0.5:
-                    prob_rechazo += 1
-            elif nodo == "corte_no_progreso":
-                cortes += 1
+            errores_traza += _contar_evento(estado, e, eventos, i, dia)
         if errores_traza:
-            runs_con_error += 1
+            estado["runs_con_error"] += 1
 
+    tool, tool_err = estado["tool"], estado["tool_err"]
     total_tools = sum(tool.values())
     total_err = sum(tool_err.values())
     por_tool = sorted(
@@ -100,24 +122,27 @@ def recolectar(runs):
         {"dia": dia, "traces": d["traces"], "eventos": d["eventos"],
          "errores": d["errores"],
          "tasa": round(100 * d["errores"] / max(1, d["eventos"]), 2)}
-        for dia, d in sorted(dias.items())
+        for dia, d in sorted(estado["dias"].items())
     ]
     return {
-        "trazas": {"total": len(archivos), "legibles": legibles, "vacias": vacias},
+        "trazas": {"total": len(archivos), "legibles": estado["legibles"],
+                   "vacias": estado["vacias"]},
         "tools": {"eventos": total_tools, "errores": total_err,
                   "tasa": round(100 * total_err / max(1, total_tools), 2),
-                  "runs_con_error": runs_con_error, "top_errores": por_tool[:10]},
-        "retrabajo": {"retries": retry_total, "retries_ok": retry_ok,
-                      "autocorreccion": round(100 * retry_ok / max(1, retry_total), 1),
-                      "timeouts": timeouts, "cortes_no_progreso": cortes,
-                      "rechazos_probables_heuristicos": prob_rechazo},
-        "causas": dict(codigos.most_common(10)),
-        "hitl": {"aprobados": hitl.get("aprobado", 0),
-                 "rechazados": hitl.get("rechazado", 0),
-                 "por_nivel_tipo": dict(hitl_nivel.most_common(10))},
+                  "runs_con_error": estado["runs_con_error"], "top_errores": por_tool[:10]},
+        "retrabajo": {"retries": estado["retry_total"],
+                      "retries_ok": estado["retry_ok"],
+                      "autocorreccion": round(
+                          100 * estado["retry_ok"] / max(1, estado["retry_total"]), 1),
+                      "timeouts": estado["timeouts"],
+                      "cortes_no_progreso": estado["cortes"],
+                      "rechazos_probables_heuristicos": estado["prob_rechazo"]},
+        "causas": dict(estado["codigos"].most_common(10)),
+        "hitl": {"aprobados": estado["hitl"].get("aprobado", 0),
+                 "rechazados": estado["hitl"].get("rechazado", 0),
+                 "por_nivel_tipo": dict(estado["hitl_nivel"].most_common(10))},
         "dias": tabla_dias,
     }
-
 
 def _gate_tests(ruta):
     if not ruta or not Path(ruta).is_file():

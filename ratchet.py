@@ -528,31 +528,56 @@ def comparar(actual: int, previo: int, direccion: str) -> str:
     return "MEJORÓ" if actual > previo else "EMPEORÓ"
 
 
-def _diagnostico(nombre: str, actual: dict, previo: dict) -> list[str]:
-    """Nombra QUÉ empeoró: un número sin causa no se puede arreglar."""
+def _diag_helpers(actual: dict, previo: dict) -> list[str]:
     lineas = []
-    if nombre == "helpers_duplicados":
-        for helper, archivos in actual.items():
-            previos = previo.get(helper, [])
-            if len(archivos) > len(previos):
-                lineas.append(f"    {helper}: {', '.join(archivos)}")
-    elif nombre == "codigo_muerto_privado":
-        for definicion in actual:
-            lineas.append(f"    {definicion}")
-    elif nombre in ("cuerpos_duplicados", "cuerpos_test_duplicados"):
-        for grupo in actual.values():
-            lineas.append("    ≈ " + " · ".join(grupo))
-    elif nombre == "excepts_amplios":
-        for archivo, lineas_actuales in actual.items():
-            previas = previo.get(archivo, [])
-            if len(lineas_actuales) > len(previas):
-                lineas.append(f"    {archivo}: {len(previas)} → {len(lineas_actuales)} excepts amplios")
-    else:
-        for archivo, cuenta in actual.items():
-            previa = previo.get(archivo, 0)
-            if cuenta < previa:
-                lineas.append(f"    {archivo}: {previa} → {cuenta} tests")
+    for helper, archivos in actual.items():
+        previos = previo.get(helper, [])
+        if len(archivos) > len(previos):
+            lineas.append(f"    {helper}: {', '.join(archivos)}")
     return lineas
+
+
+def _diag_muertas(actual: dict, _previo: dict) -> list[str]:
+    return [f"    {definicion}" for definicion in actual]
+
+
+def _diag_cuerpos(actual: dict, _previo: dict) -> list[str]:
+    return ["    ≈ " + " · ".join(grupo) for grupo in actual.values()]
+
+
+def _diag_excepts(actual: dict, previo: dict) -> list[str]:
+    lineas = []
+    for archivo, lineas_actuales in actual.items():
+        previas = previo.get(archivo, [])
+        if len(lineas_actuales) > len(previas):
+            lineas.append(f"    {archivo}: {len(previas)} → {len(lineas_actuales)} excepts amplios")
+    return lineas
+
+
+def _diag_tests(actual: dict, previo: dict) -> list[str]:
+    lineas = []
+    for archivo, cuenta in actual.items():
+        previa = previo.get(archivo, 0)
+        if cuenta < previa:
+            lineas.append(f"    {archivo}: {previa} → {cuenta} tests")
+    return lineas
+
+
+_DIAGNOSTICOS = {
+    "helpers_duplicados": _diag_helpers,
+    "codigo_muerto_privado": _diag_muertas,
+    "cuerpos_duplicados": _diag_cuerpos,
+    "cuerpos_test_duplicados": _diag_cuerpos,
+    "excepts_amplios": _diag_excepts,
+}
+
+
+def _diagnostico(nombre: str, actual: dict, previo: dict) -> list[str]:
+    """Nombra QUÉ empeoró: un número sin causa no se puede arreglar.
+
+    Tabla en vez de cadena de `if`: cada métrica tiene su diagnóstico chico y
+    el default (tests por archivo) queda explícito."""
+    return _DIAGNOSTICOS.get(nombre, _diag_tests)(actual, previo or {})
 
 
 # baseline (I/O)

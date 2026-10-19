@@ -175,6 +175,55 @@ def call_llm_agent(messages, tools=None):
     return response.choices[0].message
 
 
+def _acumular_fragmento(frag, por_indice):
+    """Un fragmento de tool_call del stream: id/name en el primero, argumentos
+    se concatenan por index."""
+    idx = frag.index if frag.index is not None else 0
+    acumulado = por_indice.setdefault(idx, {"id": None, "name": None, "arguments": ""})
+    if getattr(frag, "id", None):
+        acumulado["id"] = frag.id
+    funcion = getattr(frag, "function", None)
+    if funcion is None:
+        return
+    if getattr(funcion, "name", None):
+        acumulado["name"] = funcion.name
+    if getattr(funcion, "arguments", None):
+        acumulado["arguments"] += funcion.arguments
+
+
+def _acumular_delta(delta, contenido, por_indice):
+    """Texto de content (se imprime en vivo) + fragmentos de tool_calls."""
+    texto = getattr(delta, "content", None)
+    if texto:
+        print(texto, end="", flush=True)
+        contenido.append(texto)
+    for frag in getattr(delta, "tool_calls", None) or []:
+        _acumular_fragmento(frag, por_indice)
+
+
+def _cerrar_stream(stream):
+    """Libera la conexión si la interrupción dejó el stream abierto."""
+    cerrar = getattr(stream, "close", None)
+    if callable(cerrar):
+        with contextlib.suppress(Exception):
+            cerrar()
+
+
+def _tool_calls_finales(por_indice, cortado):
+    """Tool calls armadas, salvo stream cortado o fragmento incompleto."""
+    if cortado:
+        return []
+    return [
+        SimpleNamespace(
+            id=acum["id"],
+            type="function",
+            function=SimpleNamespace(name=acum["name"], arguments=acum["arguments"]),
+        )
+        for _, acum in sorted(por_indice.items())
+        if acum["name"] and acum["id"]
+    ]
+
+
 def call_llm_agent_stream(messages, tools=None):
     """Igual contrato que call_llm_agent (mismo modo thinking pegajoso,
     mismo filtro de reasoning_content) pero con stream=True: imprime EN
@@ -205,27 +254,8 @@ def call_llm_agent_stream(messages, tools=None):
         for chunk in stream:
             if not chunk.choices:
                 continue
-            delta = chunk.choices[0].delta
-            texto = getattr(delta, "content", None)
-            if texto:
-                # en vivo: sin salto extra, flush para que se vea ya
-                print(texto, end="", flush=True)
-                contenido.append(texto)
             # los deltas de reasoning_content NO se imprimen (se descartan)
-            for frag in getattr(delta, "tool_calls", None) or []:
-                idx = frag.index if frag.index is not None else 0
-                acumulado = por_indice.setdefault(
-                    idx, {"id": None, "name": None, "arguments": ""})
-                if getattr(frag, "id", None):
-                    # el primero suele traerlo; si otro lo repite, se pisa
-                    # (el código no asume "solo el primero")
-                    acumulado["id"] = frag.id
-                funcion = getattr(frag, "function", None)
-                if funcion is not None:
-                    if getattr(funcion, "name", None):
-                        acumulado["name"] = funcion.name
-                    if getattr(funcion, "arguments", None):
-                        acumulado["arguments"] += funcion.arguments
+            _acumular_delta(chunk.choices[0].delta, contenido, por_indice)
     except KeyboardInterrupt:
         # Ctrl+C durante la generación: si la interrupción está activa se
         # corta acá y se devuelve lo acumulado (el chat sigue vivo); si no,
@@ -246,23 +276,12 @@ def call_llm_agent_stream(messages, tools=None):
             print(f"\n  [stream] se cortó sin contenido ({type(e).__name__}: {e})")
     # cierra el stream si quedó abierto por la interrupción (libera la conexión)
     if cortado:
-        cerrar = getattr(stream, "close", None)
-        if callable(cerrar):
-            with contextlib.suppress(Exception):
-                cerrar()
+        _cerrar_stream(stream)
     # Un stream CORTADO (Ctrl+C o red) no despacha tool calls: sus argumentos
     # pueden estar truncados y el usuario pidió parar (medido: tras Ctrl+C la
     # llamada se conservaba y se ejecutaba). Tampoco viaja un fragmento sin
     # nombre o sin id ("herramienta desconocida: None").
-    tool_calls = [] if cortado else [
-        SimpleNamespace(
-            id=acum["id"],
-            type="function",
-            function=SimpleNamespace(name=acum["name"], arguments=acum["arguments"]),
-        )
-        for _, acum in sorted(por_indice.items())
-        if acum["name"] and acum["id"]
-    ]
+    tool_calls = _tool_calls_finales(por_indice, cortado)
     return SimpleNamespace(
         content="".join(contenido) or None,
         tool_calls=tool_calls or None,

@@ -65,7 +65,7 @@
           42
         ],
         "utils/call_llm.py": [
-          237
+          267
         ],
         "utils/contexto.py": [
           119
@@ -115,13 +115,10 @@
         "juez.py:_anclar_citas": 5,
         "minar_errores.py:minar_runs": 6,
         "rag.py:archivos_de": 4,
-        "ratchet.py:_diagnostico": 6,
         "ratchet.py:correr": 4,
         "ratchet.py:escanear_muertas": 4,
         "supervisor.py:Ejecutar.exec": 4,
-        "tablero.py:recolectar": 6,
         "triaje_trazas.py:seleccionar": 4,
-        "utils/call_llm.py:call_llm_agent_stream": 5,
         "utils/compaccion.py:validar_historial": 4,
         "utils/fs_tools.py:_candidatos": 4,
         "utils/fs_tools.py:_resolve": 4,
@@ -131,7 +128,7 @@
         "utils/terminal.py:highlight_diff": 5,
         "visor.py:vigilar": 4
       },
-      "metrica": 21
+      "metrica": 18
     },
     "funciones_complejas": {
       "detalle": {
@@ -139,13 +136,10 @@
         "juez.py:_anclar_citas": 15,
         "juez.py:_contexto_extra": 16,
         "nodes.py:AgentStep.exec": 13,
-        "ratchet.py:_diagnostico": 13,
         "ratchet.py:correr": 17,
-        "tablero.py:recolectar": 14,
-        "utils/call_llm.py:call_llm_agent_stream": 15,
         "utils/compaccion.py:validar_historial": 15
       },
-      "metrica": 9
+      "metrica": 6
     },
     "helpers_duplicados": {
       "detalle": {
