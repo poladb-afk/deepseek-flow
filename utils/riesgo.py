@@ -81,12 +81,26 @@ def juzgar(comando, mensaje):
         return None
 
 
+def origen():
+    """De dónde salió la decisión HITL que es etiqueta: `banco` (tráfico
+    sintético del banco, el driver aprueba por scope), `web` o `terminal`.
+
+    Necesario para exp/44: sin procedencia no se puede fine-tunear con el log
+    (el dataset quedaría mezclando política de escenarios con juicio humano).
+    """
+    if _setting("BANCO", "0") == "1":
+        return "banco"
+    if _setting("HITL_WEB", "0") == "1":
+        return "web"
+    return "terminal"
+
+
 def registrar(comando, mensaje, juicios, aprobado, ruta=None):
     """Una línea en RIESGO_ARCHIVO (default salidas/riesgo.jsonl), gated por
     RIESGO_LOG (default 1). Bookkeeping: nunca rompe la acción.
 
     {"ts", "comando"[:200], "mensaje"[:200], "juicios": {pregunta:
-    [respuesta, conf]}, "aprobado": bool}"""
+    [respuesta, conf]}, "aprobado": bool, "origen": banco|web|terminal}"""
     if _setting("RIESGO_LOG", "1") != "1":
         return
     try:
@@ -100,6 +114,7 @@ def registrar(comando, mensaje, juicios, aprobado, ruta=None):
                     "mensaje": str(mensaje)[:200],
                     "juicios": {k: list(v) for k, v in (juicios or {}).items()},
                     "aprobado": bool(aprobado),
+                    "origen": origen(),
                 },
                 ensure_ascii=False,
             ) + "\n")

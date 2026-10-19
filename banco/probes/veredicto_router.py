@@ -24,7 +24,15 @@ sys.path.insert(0, str(RAIZ))
 
 from utils.conformal import cobertura_loo, conjunto, cuantil_conformal, puntaje  # noqa: E402
 
-UMBRAL_APAGAR = 0.10  # pre-registrado
+UMBRAL_APAGAR = 0.10  # pre-registrado (exp/45 original)
+# Criterio de ROI, PRE-REGISTRADO el 2026-10-19 para la PRÓXIMA revisión
+# (no se aplica retroactivamente a los datos de exp/45): si el ahorro efectivo
+# (turnos servidos directo / turnos) con precisión de directos >= 99% es <5%,
+# apagar el router no compensa el riesgo de un falso directo; si es >=5%,
+# mantener enforce y re-elegir alpha.
+UMBRAL_ROI = 0.05
+PRECISION_DIRECTO_MIN_ROI = 0.99
+REVISION_PARES = 250
 ALPHAS = (0.02, 0.05, 0.10, 0.15, 0.20, 0.30)
 
 
@@ -102,6 +110,24 @@ def curva(filas, alphas=ALPHAS):
     return filas_curva
 
 
+def decidir_roi(ahorro, umbral=UMBRAL_ROI):
+    """La regla de ROI (pre-registrada para la próxima revisión)."""
+    return "APAGAR" if ahorro < umbral else "SEGUIR"
+
+
+def roi(filas, fila_curva, precision_min=PRECISION_DIRECTO_MIN_ROI):
+    """Ahorro efectivo del router con un alpha: turnos directo / turnos.
+
+    La precisión de directos sale del LOO de la curva; si es menor al mínimo
+    exigido, el alpha no es elegible (el ahorro no se puede cobrar sin riesgo).
+    """
+    if not fila_curva or fila_curva.get("directo_precision") is None:
+        return {"ahorro": 0.0, "elegible": False, "precision": None}
+    precision = fila_curva["directo_precision"]
+    ahorro = fila_curva["directo_aceptado"] / len(filas) if filas else 0.0
+    return {"ahorro": ahorro, "elegible": precision >= precision_min, "precision": precision}
+
+
 def elegir_alpha(filas_curva, precision_min=1.0):
     """El alpha más útil que mantiene precision_min en los `directo` aceptados.
 
@@ -168,7 +194,26 @@ def informe(calibracion, filas):
             f"| {f['alpha']:.2f} | {f['q']} | {f['umbral']} | {f['cobertura']} | "
             f"{f['precision_global']} | {f['directo_aceptado']} | {f['directo_ok']} | {f['directo_precision']} |"
         )
-    lineas += ["", "## Veredicto"]
+    # ROI pre-registrado: se muestra como PREVIEW; no se aplica retroactivo.
+    fila_roi = elegido if elegido is not None else next(
+        (f for f in tabla if f["directo_aceptado"] > 0), None)
+    roi_calc = roi(filas, fila_roi) if fila_roi else {"ahorro": 0.0, "elegible": False, "precision": None}
+    dias = len(comp["por_dia"])
+    lineas += [
+        "",
+        "## ROI (criterio pre-registrado 2026-10-19, para la PRÓXIMA revisión)",
+        f"Regla: ahorro efectivo con precisión de directos >= {PRECISION_DIRECTO_MIN_ROI:.0%} "
+        f"< {UMBRAL_ROI:.0%} → APAGAR; si no → mantener enforce y re-elegir alpha.",
+        f"- Ahorro efectivo de la política elegida: **{roi_calc['ahorro']:.1%}** "
+        f"({fila_roi['directo_aceptado'] if fila_roi else 0}/{comp['n']} turnos) con precisión "
+        f"{roi_calc['precision']:.0%}." if roi_calc["precision"] is not None else "- Ahorro efectivo: 0.",
+        f"- Preview (NO retroactivo): {decidir_roi(roi_calc['ahorro'])}.",
+        f"- Estado de revisión: {comp['n']}/{REVISION_PARES} pares · {dias} días con datos. "
+        "La revisión corre cuando haya >=250 pares (idealmente orgánicos: el driver del banco"
+        " ahora marca `origen`) y >=14 días.",
+        "",
+        "## Veredicto",
+    ]
     if verdicto == "APAGAR":
         lineas.append("**APAGAR el router** (pre-registrado): la base rate es <10% y no hay ahorro que justifique el riesgo.")
     elif elegido is None:

@@ -39,9 +39,14 @@ Cada ítem indica qué pieza lo apoya y qué falta.
    conformal LOO propia elige alpha=0,02 → enforce con calibración ambiental
    (el falso directo de 0,93 cae por conjunto ambiguo). Ahorro efectivo
    chico (1,6% de turnos) por recall 41%: ver ítem 15.
-5. **Fine-tune del juez de riesgo** — con el log de exp/44 (dataset gratis
-   de las aprobaciones); umbrales del log propio, enforcement recién
-   después.
+5. **Fine-tune del juez de riesgo** — readiness auditada (2026-10-19): el
+   log tiene 1467 etiquetas (606/861), volumen y balance alcanzan, pero la
+   procedencia faltaba (59% de rechazo = banco sintético mezclado). Ya se
+   instrumentó `origen`; **criterio pre-registrado para entrenar: ≥300
+   etiquetas orgánicas y ≥100 rechazos orgánicos** (las históricas sin
+   procedencia no se usan). `requiere_revision` casi no dispara (5/1467):
+   esa dimensión es la que el fine-tune tiene que arreglar. Umbrales del log
+   propio y enforcement recién después.
 6. **Mesa 3 (restos, re-priorizados)**: gate del juez (después del 5),
    presupuesto dinámico/convergencia de loops (empezar DETERMINISTA con las
    features de exp/9, Laya solo si no alcanza), Laya vía MCP como producto.
@@ -77,13 +82,17 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     edit_file con HITL por scope) + sonda `banco/probes/forma_chat.py`. n=2
     por brazo: SLOC 133,5 → 32 (−76%), docstrings 1,00 → 0,33, `try`
     −83%, sesiones ~15% más rápidas. 4/4 sesiones OK. Límite: n=2.
-15. **Pre-registrar el criterio de ROI del router (2026-10-19)**: exp/45
-    midió base rate de la etiqueta (17,6%), no el ahorro del router. Con
-    recall 41% y alpha=0,02 el enforce solo sirve 1,6% de los turnos directo.
-    Si se quiere decidir por ROI: pre-registrar un umbral de ahorro efectivo
-    (p. ej. <5% → apagar), juntar tráfico ORGÁNICO (sin banco sintético;
-    hoy 46/125 pares son de hoy y todos herramientas) y re-etiquetar.
-    Mientras tanto, vigilar los falsos directo del enforce en la práctica.
+15. ~~**Pre-registrar el criterio de ROI del router**~~ **✅ pre-registrado
+    (2026-10-19)**: `banco/probes/veredicto_router.py` computa ROI y aplica
+    la regla nueva SOLO en la próxima revisión (no retroactiva): ahorro
+    efectivo <5% con precisión de directos ≥99% → apagar; si no, mantener y
+    re-elegir alpha. Preview con los datos de hoy: **APAGAR** (1,6% de
+    ahorro), pero la decisión de exp/45 queda como está.
+16. **Revisión de ROI del router (condición pre-registrada)**: cuando haya
+    **≥250 pares y ≥14 días** (hoy 125/5), correr
+    `python3 banco/probes/etiquetar_ambiental.py && python3 banco/probes/veredicto_router.py`
+    y aplicar la regla de ROI. El banco ya marca `BANCO=1` para no contar
+    tráfico sintético como orgánico; vigilar falsos directo del enforce.
 14. ~~**Repetir exp/51 chat con más n**~~ **✅ (2026-10-19)**: flash n=5 por
     brazo (SLOC 115 → 25, −78%; sesiones 32,3 → 25,7 s) y deepseek-chat n=3
     (179 → 21, −88%; 33,6 → 24,6 s), 16/16 sesiones OK. El efecto del

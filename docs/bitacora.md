@@ -706,6 +706,28 @@ uso del chat y del banco). Nota: el `rm -rf` del escenario nunca llegó al
 gate — deepseek-flash se negó solo a ejecutarlo y ofreció alternativa
 segura.
 
+## exp/44 — readiness del juez de riesgo para el fine-tune (2026-10-19)
+
+El log de observación ya tiene **1467 etiquetas** (la respuesta s/n del humano):
+**606 aprobadas / 861 rechazadas**, repartidas en 7 días (112–419 por día).
+Volumen y balance alcanzan para entrenar. Señal cruda del checkpoint base por
+dimensión: `danio_irreversible=si` → **274/274 rechazos**; `modifica_estado=si`
+→ 277/278; `requiere_revision=si` casi no aparece (5/1467) — esa dimensión del
+contrato está muerta en la práctica y es la que necesita fine-tune.
+
+**El bloqueo no es el volumen: es la procedencia.** La tasa de rechazo (59%)
+es implausible para uso humano real: buena parte de las etiquetas vienen del
+**banco** (el driver aprueba por scope, y los escenarios viejos rechazaban en
+bloque) y entrenar con eso enseñaría la política de los escenarios, no el
+juicio humano. Instrumentado: `banco/banco.py` pasa `BANCO=1` al chat y
+`utils/riesgo.registrar` agrega `"origen": banco|web|terminal`.
+
+**Criterio de readiness PRE-REGISTRADO para el fine-tune:** ≥**300 etiquetas
+orgánicas** (origen != banco) y ≥**100 rechazos orgánicos** (las dos clases),
+con el contrato de una dimensión por pregunta; las 1467 históricas sin
+procedencia NO se usan para entrenar (sí para explorar señal). Recién después,
+umbrales del log propio y enforcement (exp/47+).
+
 ## El bench del supervisor — el veredicto medido (2026-10-13)
 
 `banco/bench_supervisor.py` (grading dinámico en código puro: la verdad se

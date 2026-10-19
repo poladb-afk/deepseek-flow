@@ -130,3 +130,23 @@ def test_el_contrato_de_riesgo_queda_congelado_sha1():
     test — el checkpoint del fine-tune entrenará contra este texto EXACTO."""
     canonico = json.dumps(PREGUNTA_RIESGO, sort_keys=True, ensure_ascii=False)
     assert hashlib.sha1(canonico.encode()).hexdigest() == "afb44dd7752ac593f25da7c5f54d0d7dcf1c58d7"
+
+
+def test_registrar_marca_el_origen_de_la_decision(tmp_path, monkeypatch):
+    """exp/44: sin procedencia no se puede distinguir banco sintético de humano."""
+    import json
+
+    from utils.riesgo import registrar
+
+    ruta = tmp_path / "riesgo.jsonl"
+    monkeypatch.setenv("RIESGO_ARCHIVO", str(ruta))
+    monkeypatch.delenv("BANCO", raising=False)
+    monkeypatch.delenv("HITL_WEB", raising=False)
+    registrar("ls", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
+    monkeypatch.setenv("BANCO", "1")
+    registrar("ls", "pedido", {"modifica_estado": ["no", 0.9]}, False, ruta=ruta)
+    monkeypatch.setenv("BANCO", "0")
+    monkeypatch.setenv("HITL_WEB", "1")
+    registrar("ls", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
+    origenes = [json.loads(linea)["origen"] for linea in ruta.read_text(encoding="utf-8").splitlines()]
+    assert origenes == ["terminal", "banco", "web"]

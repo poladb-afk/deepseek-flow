@@ -135,7 +135,9 @@ class Chat:
             attrs[3] &= ~termios.ECHO
             termios.tcsetattr(0, termios.TCSANOW, attrs)
             os.chdir(RAIZ)
-            env = dict(os.environ, PYTHONUNBUFFERED="1", TERM="dumb",
+            # BANCO=1: procedencia de las decisiones HITL (exp/44: el log de
+            # riesgo distingue tráfico sintético de humano).
+            env = dict(os.environ, PYTHONUNBUFFERED="1", TERM="dumb", BANCO="1",
                        MEMORIA=os.environ.get("MEMORIA", "0"))
             env.update(env_extra or {})
             os.execvpe(sys.executable, [sys.executable, "main.py"], env)

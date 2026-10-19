@@ -91,3 +91,27 @@ def test_calibraciones_versionadas_no_llevan_texto_de_preguntas():
         for linea in ruta.read_text(encoding="utf-8").splitlines():
             if linea.strip():
                 assert "pregunta" not in json.loads(linea), f"texto de pregunta versionado en {ruta}"
+
+
+def test_decidir_roi_pre_registrado():
+    """Criterio de ROI pre-registrado para la próxima revisión."""
+    assert vr.decidir_roi(0.049) == "APAGAR"
+    assert vr.decidir_roi(0.05) == "SEGUIR"   # el borde mantiene
+    assert vr.decidir_roi(0.10) == "SEGUIR"
+
+
+def test_roi_calcula_ahorro_exigiendo_precision_de_directos():
+    filas = [_fila(0.99, True, "directo") for _ in range(4)]
+    curva_ok = {"directo_aceptado": 1, "directo_precision": 1.0}
+    r = vr.roi(filas, curva_ok)
+    assert r["elegible"] is True and r["ahorro"] == 0.25
+    curva_mala = {"directo_aceptado": 2, "directo_precision": 0.95}
+    assert vr.roi(filas, curva_mala)["elegible"] is False
+
+
+def test_informe_incluye_roi_y_estado_de_revision():
+    filas = [_fila(0.99, True, "directo"), _fila(0.90, True, "herramientas"),
+             _fila(0.80, True, "herramientas")]
+    texto = vr.informe("banco/calibracion_test.jsonl", filas)
+    assert "ROI (criterio pre-registrado" in texto
+    assert "Estado de revisión" in texto

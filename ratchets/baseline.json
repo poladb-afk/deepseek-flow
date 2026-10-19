@@ -94,7 +94,7 @@
         ],
         "utils/riesgo.py": [
           80,
-          106
+          121
         ],
         "utils/thread_store.py": [
           144
@@ -167,7 +167,7 @@
         "tests/test_probe_verdict.py": 1,
         "tests/test_ratchet.py": 20,
         "tests/test_replay.py": 16,
-        "tests/test_riesgo.py": 10,
+        "tests/test_riesgo.py": 11,
         "tests/test_router.py": 12,
         "tests/test_smoke.py": 5,
         "tests/test_sonda_laya.py": 4,
@@ -176,11 +176,11 @@
         "tests/test_thread_store.py": 26,
         "tests/test_ui.py": 5,
         "tests/test_utils_compartidos.py": 7,
-        "tests/test_veredicto_router.py": 6,
+        "tests/test_veredicto_router.py": 9,
         "tests/test_viz.py": 5,
         "tests/test_voto_router.py": 8
       },
-      "metrica": 537
+      "metrica": 541
     }
   },
   "version": 1
