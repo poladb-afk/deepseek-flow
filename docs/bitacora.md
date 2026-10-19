@@ -1270,6 +1270,24 @@ con a_desconocidos +230 vs baseline: el baseline estaba calculado sobre menos
 trazas (crecimiento normal del artefacto), no es un efecto de esta
 instrumentación y no se pisa un baseline desde una sesión (regla del repo).
 
+**A/B del corte por novedad (roadmap 20) — NEGATIVO, la regla queda en 0.**
+Escenario `exp52b-redundante-off/on`: turno normal + turno que pide leer dos
+archivos alternando varias veces (hasta 3 ciclos), n=2 por brazo,
+`CORTE_NOVEDAD=0` vs `2`. Resultado: **4/4 sesiones OK, cero cortes en ambos
+brazos y las mismas rondas** (medianas 2,5; tiempos 21,05 vs 20,15 s). El
+modelo agrupa lecturas por ronda y responde en 2-3 rondas: no hay rachas de 2
+rondas sin novedad.
+
+Medición directa sobre las trazas instrumentadas (9 trazas, 20 ciclos, 15
+rondas): **solo 1 ronda sin ninguna llamada nueva** y **0 ciclos** alcanzarían
+la racha k=2. La redundancia real por (tool, argumentos) es ≈0 en el chat: la
+cota del 68% de exp/52-A era por NOMBRE de tool (dos lecturas de archivos
+distintos comparten nombre) y por tráfico viejo/de flujos anidados. Conclusión:
+**no hay ahorro que cobrar**; `CORTE_NOVEDAD` queda en su default 0 y la
+instrumentación de huella se conserva (es barata y hace la traza más
+atribuible). Si se quisiera forzar k=1/mín=2, una sola ronda sin novedad no es
+evidencia y arriesga calidad: no se recomienda.
+
 ## Auditoría de test slop y comentarios narradores (2026-10-19)
 
 Cierre del thread de ruido por el lado no estructural: ¿hay subconjunto

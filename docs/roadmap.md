@@ -97,19 +97,19 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     `@pytest.mark.parametrize` con ids estables; `cuerpos_test_duplicados`
     **12 → 0**; el inventario se actualizó con los ids parametrizados y la
     cobertura ahora cuenta CASOS (547 → 611), así parametrizar no la baja.
-19. **exp/52-B — convergencia determinista del loop (2026-10-19)** —
-    **(a) instrumentación ✅** (`evento_tool.huella` = sha1 corto de
-    nombre+argumentos, sin contenido; replay OK) y **(b) regla ✅** detrás de
-    `CORTE_NOVEDAD=k` (default 0=off, mínimo 3, reset por pregunta; 6 tests).
-    Offline por NOMBRE de tool: 68% de las rondas sin tool nueva; la regla k=2
-    recortaría 65% sin tocar ciclos ≤3 (cota optimista, sin args).
-    **(c) A/B pendiente** — item 20.
-20. **A/B de exp/52-B en el banco (2026-10-19)**: escenarios que provoquen
-    rondas redundantes, brazos `CORTE_NOVEDAD=3` vs `0`, comparar rondas
-    ahorradas y turnos OK (criterio pre-registrado). Si no hay ahorro sin
-    bajar calidad, se documenta el negativo y el setting queda en 0. La
-    señal real usa huella de args, no nombres: la redundancia será menor que
-    la cota del 65%.
+19. ~~**exp/52-B — convergencia determinista del loop**~~ **✅ cerrado
+    (2026-10-19)**: (a) instrumentación `evento_tool.huella` (sha1 corto de
+    nombre+argumentos, sin contenido; replay OK) y (b) regla `CORTE_NOVEDAD=k`
+    (default 0=off, mínimo 3, reset por pregunta; 6 tests). (c) A/B del ítem
+    20: **negativo**.
+20. ~~**A/B de exp/52-B en el banco**~~ **✅ NEGATIVO (2026-10-19)**: escenario
+    con lecturas repetidas forzadas, brazos `CORTE_NOVEDAD=0` vs `2`, n=2:
+    4/4 sesiones OK, **cero cortes y mismas rondas**; en trazas instrumentadas
+    solo 1 ronda sin novedad de 15 y 0 ciclos alcanzarían racha k=2. La
+    redundancia real por (tool, args) es ≈0: no hay ahorro que cobrar. La
+    regla queda en 0 por default; la instrumentación se conserva (traza más
+    atribuible). No se recomienda forzar k=1 (una ronda sin novedad no es
+    evidencia y arriesga calidad).
 16. **Revisión de ROI del router (condición pre-registrada)**: cuando haya
     **≥250 pares y ≥14 días** (hoy 125/5), correr
     `python3 banco/probes/etiquetar_ambiental.py && python3 banco/probes/veredicto_router.py`

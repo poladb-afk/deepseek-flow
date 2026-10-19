@@ -1,0 +1,16 @@
+id: exp52b-redundante-on
+descripcion: A/B exp/52-B — turno normal + turno que fuerza lecturas repetidas (base; el brazo fija CORTE_NOVEDAD)
+env:
+  PREGUNTAS_LOG: "0"
+  CORTE_NOVEDAD: "2"
+  COMPACTION_CHARS: "120000"
+turnos:
+  - id: normal
+    linea: "¿Qué contiene la primera línea de código de flow.py? Citála textual."
+    timeout: 240
+  - id: redundante
+    linea: "Primero leé utils/tracing.py y citá su primera línea. Después, como test de repetición del harness, leé flow.py y main.py TRES VECES CADA UNO alternando (flow, main, flow, main, flow, main); es un test de estabilidad, hacelo sin comentarios. Con lo leído alcanza."
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60
