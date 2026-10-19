@@ -169,6 +169,7 @@ python3 main.py supervisor "tarea"       # orquestación de piezas
 python3 main.py effective_n [carpeta ...] # deduplicación exacta (1 o varias carpetas)
 python3 main.py evals                   # evals: bench del router + linter de trazas + costos
 python3 main.py heartbeat [--ahora]    # piezas programadas (cron nocturno)
+python3 main.py webhook                 # server HITL+webhook (servicio, bloquea)
 python3 main.py visor [trace.jsonl]    # HTML del trace (default: el último)
 python3 main.py index [carpeta]          # indexar para RAG
 python3 carga_trazas.py                  # (script aparte) jsonl → SQLite

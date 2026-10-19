@@ -244,8 +244,11 @@ prompt+tools+condición de disparo, a lo ZCode)~~ **✅ exp/55 (2026-10-19)**:
 `utils/skills.py`; en enforce el `LayaRouter` fuerza herramientas e inyecta
 `[skill]`, `AgentStep` anuncia solo el subset; shadow no cambia; SKILLS=0
 apaga; e2e `exp55-skills` 3/3. Pendiente de la mesa: **webhook autenticado**
-sobre el server del HITL web (el harness como servicio, seguridad primero).
-Efecto de la skill `revision` medido en exp/56: **NO CUMPLE** la hipótesis de
+sobre el server del HITL web (el harness como servicio, seguridad primero)
+— **✅ exp/57 (2026-10-19)**: `POST /webhook` + `GET /eventos` con token en
+tiempo constante (vacío ⇒ 503), loopback, cuerpo máx y rate limit; CLI
+`python3 main.py webhook`; e2e curl y 11 tests de seguridad. **Mesa 7:
+cerrada.** Efecto de la skill `revision` medido en exp/56: **NO CUMPLE** la hipótesis de
 detección por techo (pre-fetch + modelo ya detectan 3/3); señal secundaria
 prometedora: −40% de palabras con las mismas citas válidas (n=3).
 

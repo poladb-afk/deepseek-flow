@@ -28,11 +28,22 @@ Contrato y contención:
   ninguno queda libre, se degrada a False (default seguro): nunca romper
   la acción. La URL efectiva se imprime UNA vez por server.
 - El servidor escucha SOLO en 127.0.0.1 (loopback): no se expone a la red.
+- WEBHOOK AUTENTICADO (Mesa 7, exp/57): `POST /webhook` recibe eventos de
+  otros procesos (`{"tipo": "...", "detalle": ...}`) y los persiste en
+  `WEBHOOK_LOG` (JSONL, gitignored) + memoria para `GET /eventos`. Seguridad
+  primero: header `X-Webhook-Token` comparado en TIEMPO CONSTANTE contra
+  `WEBHOOK_TOKEN` (si el setting está vacío el endpoint da 503, nunca abierto
+  por default), Host/Origin de loopback (mismo corte anti DNS-rebinding que
+  el HITL), cuerpo máximo (`WEBHOOK_MAX_BYTES`) y rate limit por minuto
+  (`WEBHOOK_MAX_POR_MINUTO`). El token NUNCA se loguea ni se devuelve.
 """
 import html
+import json
 import secrets
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from utils.call_llm import _setting
@@ -46,6 +57,100 @@ _lock = threading.Lock()           # serializa el registro de pendientes
 _pendientes = {}                   # token -> _Pedido (cross-hilo, mismo proceso)
 _servidor = None                   # ThreadingHTTPServer (arranque perezoso)
 _url_impresa = False               # la URL efectiva se imprime UNA vez por server
+
+WEBHOOK_RUTA = "/webhook"
+EVENTOS_RUTA = "/eventos"
+WEBHOOK_LOG_DEFAULT = "salidas/webhooks.jsonl"
+WEBHOOK_MAX_BYTES_DEFAULT = 65536
+WEBHOOK_MAX_POR_MINUTO_DEFAULT = 60
+MAX_EVENTOS_MEMORIA = 200
+_eventos = []                      # últimos webhooks de esta sesión (GET /eventos)
+_eventos_lock = threading.Lock()
+_ventana_webhooks = []             # timestamps de webhooks recibidos (rate limit)
+_ventana_lock = threading.Lock()
+
+
+def _token_webhook():
+    """Token esperado del webhook; vacío = endpoint deshabilitado (503)."""
+    return (_setting("WEBHOOK_TOKEN", "") or "").strip()
+
+
+def token_valido(token):
+    """Compara en TIEMPO CONSTANTE; sin token configurado SIEMPRE False."""
+    esperado = _token_webhook()
+    if not esperado:
+        return False
+    return secrets.compare_digest(str(token or ""), esperado)
+
+
+def _parsear_evento(datos):
+    """Valida el JSON del webhook: objeto con `tipo` corto y `detalle` simple."""
+    try:
+        evento = json.loads(datos.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as e:
+        raise ValueError("JSON inválido") from e
+    if not isinstance(evento, dict):
+        raise ValueError("el evento debe ser un objeto JSON")
+    tipo = evento.get("tipo")
+    if not isinstance(tipo, str) or not tipo.strip() or len(tipo) > 64:
+        raise ValueError("`tipo` requerido (string de 1 a 64 caracteres)")
+    detalle = evento.get("detalle", {})
+    if detalle is not None and not isinstance(detalle, (dict, list, str, int, float, bool)):
+        raise ValueError("`detalle` debe ser JSON simple")
+    evento["tipo"] = tipo.strip()
+    return evento
+
+
+def _max_bytes():
+    try:
+        return max(1, int(_setting("WEBHOOK_MAX_BYTES", str(WEBHOOK_MAX_BYTES_DEFAULT))))
+    except (TypeError, ValueError):
+        return WEBHOOK_MAX_BYTES_DEFAULT
+
+
+def _max_por_minuto():
+    try:
+        return max(1, int(_setting("WEBHOOK_MAX_POR_MINUTO",
+                                   str(WEBHOOK_MAX_POR_MINUTO_DEFAULT))))
+    except (TypeError, ValueError):
+        return WEBHOOK_MAX_POR_MINUTO_DEFAULT
+
+
+def _permitido_por_limite():
+    """Rate limit por proceso: ventana deslizante de 60 s."""
+    ahora = time.monotonic()
+    with _ventana_lock:
+        _ventana_webhooks[:] = [cuando for cuando in _ventana_webhooks
+                                if ahora - cuando < 60.0]
+        if len(_ventana_webhooks) >= _max_por_minuto():
+            return False
+        _ventana_webhooks.append(ahora)
+        return True
+
+
+def registrar_evento(evento):
+    """Persiste el webhook en `WEBHOOK_LOG` (JSONL) y en memoria. Devuelve
+    cuántos eventos lleva la sesión. Un fallo de disco lo maneja el handler."""
+    registro = {"ts": round(time.time(), 3), **evento}
+    ruta = Path(_setting("WEBHOOK_LOG", WEBHOOK_LOG_DEFAULT))
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    with open(ruta, "a", encoding="utf-8") as archivo:
+        archivo.write(json.dumps(registro, ensure_ascii=False) + "\n")
+    with _eventos_lock:
+        _eventos.append(registro)
+        del _eventos[:-MAX_EVENTOS_MEMORIA]
+        recibidos = len(_eventos)
+    # observabilidad SIN contenido: tipo e id, jamás el detalle (puede traer secretos)
+    print(f"[webhook] {registro['tipo']} recibido (id={registro.get('id', '')})", flush=True)
+    return recibidos
+
+
+def eventos_recientes(n=50):
+    """Los últimos n eventos de ESTA sesión (para `GET /eventos`)."""
+    with _eventos_lock:
+        return list(_eventos[-max(1, int(n)):])
+
+
 
 
 class _Pedido:
@@ -148,6 +253,11 @@ def _pagina():
     return _PAGINA.format(cuantos=len(pedidos), pedidos="\n".join(bloques))
 
 
+def _json(datos):
+    """Respuesta JSON compacta (sin contenido extra)."""
+    return json.dumps(datos, ensure_ascii=False)
+
+
 class _Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):  # silencio: nada al stderr del agente
         pass
@@ -161,7 +271,11 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(datos)
 
     def do_GET(self):
-        if self.path.split("?")[0] not in ("/", "/index.html"):
+        ruta = self.path.split("?")[0]
+        if ruta == EVENTOS_RUTA:
+            self._get_eventos()
+            return
+        if ruta not in ("/", "/index.html"):
             self._responder(404, "<p>404</p>")
             return
         # mismo corte que do_POST: un GET de página ajena (DNS-rebinding) no
@@ -171,8 +285,63 @@ class _Handler(BaseHTTPRequestHandler):
             return
         self._responder(200, _pagina())
 
+    def _get_eventos(self):
+        """GET /eventos: requiere token (los eventos pueden traer datos) y
+        loopback; devuelve los de esta sesión, sin leer el log completo."""
+        if not _origen_valido(self):
+            self._responder(403, _json({"error": "origen no permitido"}))
+            return
+        if not _token_webhook():
+            self._responder(503, _json({"error": "webhook deshabilitado"}))
+            return
+        if not token_valido(self.headers.get("X-Webhook-Token", "")):
+            self._responder(401, _json({"error": "token inválido"}))
+            return
+        self._responder(200, _json(eventos_recientes()),
+                        tipo="application/json; charset=utf-8")
+
+    def _post_webhook(self):
+        """POST /webhook autenticado (Mesa 7): seguridad primero."""
+        if not _origen_valido(self):
+            self._responder(403, _json({"error": "origen no permitido"}))
+            return
+        if not _token_webhook():
+            self._responder(503, _json({"error": "webhook deshabilitado (WEBHOOK_TOKEN vacío)"}))
+            return
+        # headers de HTTP son case-insensitive en el cliente; acá se piden ambos nombres
+        enviado = self.headers.get("X-Webhook-Token") or ""
+        if not token_valido(enviado):
+            self._responder(401, _json({"error": "token inválido"}))
+            return
+        maximo = _max_bytes()
+        largo = int(self.headers.get("Content-Length") or 0)
+        if largo > maximo:
+            self._responder(413, _json({"error": f"cuerpo mayor a {maximo} bytes"}))
+            return
+        datos = self.rfile.read(largo) if largo else b""
+        try:
+            evento = _parsear_evento(datos)
+        except ValueError as e:
+            self._responder(400, _json({"error": str(e)}))
+            return
+        if not _permitido_por_limite():
+            self._responder(429, _json({"error": "demasiados webhooks por minuto"}))
+            return
+        try:
+            recibidos = registrar_evento(evento)
+        except OSError as e:
+            self._responder(503, _json({"error": f"no se pudo persistir ({type(e).__name__})"}))
+            return
+        self._responder(200, _json({"ok": True, "id": evento.get("id", ""),
+                                    "recibidos": recibidos}),
+                        tipo="application/json; charset=utf-8")
+
     def do_POST(self):
-        if self.path.split("?")[0] != "/decision":
+        ruta = self.path.split("?")[0]
+        if ruta == WEBHOOK_RUTA:
+            self._post_webhook()
+            return
+        if ruta != "/decision":
             self._responder(404, "<p>404</p>")
             return
         # Contención del gate: un POST de una página ajena (CSRF) o con Host
@@ -284,3 +453,26 @@ def aprobar(titulo, cuerpo):
         print("[hitl_web] timeout sin decisión: se rechaza (default seguro)")
         return False
     return bool(decidido)
+
+
+def iniciar():
+    """CLI `python3 main.py webhook`: levanta HITL+webhook y bloquea hasta Ctrl+C."""
+    try:
+        puerto = _arrancar()
+    except (OSError, ValueError) as e:
+        print(f"[hitl_web] no se pudo levantar el servidor: {e}")
+        return 1
+    estado = "sí" if _token_webhook() else "NO (WEBHOOK_TOKEN vacío: POST /webhook da 503)"
+    print(f"[hitl_web] HITL+webhook en http://{HOST}:{puerto} · webhook habilitado: {estado}")
+    print(f"[hitl_web] POST {WEBHOOK_RUTA} con header X-Webhook-Token · "
+          f"GET {EVENTOS_RUTA} (mismo token)")
+    try:
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        return 0
+
+
+def main(_argv=None):
+    """Entrada del subcomando; devuelve el código de salida."""
+    return iniciar()

@@ -74,6 +74,7 @@ SUBCOMANDOS = {
     "replay": "replay",
     "ratchet": "ratchet",
     "resume": "resume",
+    "webhook": "utils.hitl_web",
 }
 
 

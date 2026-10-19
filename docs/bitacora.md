@@ -1234,6 +1234,48 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/57 — webhook autenticado sobre el HITL web (Mesa 7, 2026-10-19)
+
+**Qué se construyó:** el resto de la Mesa 7 ("webhook autenticado sobre el
+server del HITL web — el harness como servicio, seguridad primero").
+Reutiliza el server loopback de `utils/hitl_web.py` (sin dependencias nuevas,
+stdlib) y agrega dos rutas:
+
+- `POST /webhook` con `{"tipo": "...", "detalle": ...}` (JSON) → persiste en
+  `WEBHOOK_LOG` (JSONL, gitignored) + memoria de sesión y responde
+  `{"ok": true, "id", "recibidos"}`.
+- `GET /eventos` → los últimos 50 eventos de la sesión (mismo token).
+
+**Seguridad primero (decisiones y por qué):**
+- Token en header `X-Webhook-Token` comparado con `secrets.compare_digest`
+  (TIEMPO CONSTANTE). Con `WEBHOOK_TOKEN` vacío el endpoint responde **503**:
+  nunca queda abierto por default.
+- Host/Origin de loopback obligatorios (el mismo corte anti DNS-rebinding del
+  HITL): aunque alguien tenga el token, una página ajena no puede dispararlo.
+- Cuerpo máximo (`WEBHOOK_MAX_BYTES`, default 64 KiB → 413) y rate limit por
+  proceso (`WEBHOOK_MAX_POR_MINUTO`, default 60 → 429).
+- El token NUNCA se loguea ni se devuelve; el `detalle` NO se imprime (solo
+  `tipo` e `id`): el log de terminal no filtra contenido.
+- Un evento inválido (no JSON, sin `tipo` 1..64, `detalle` no simple) → 400;
+  un fallo de disco → 503 (no se ackea algo que no se persistió).
+- Servicio: `python3 main.py webhook` arranca HITL+webhook y bloquea hasta
+  Ctrl+C; el puerto sigue siendo `HITL_WEB_PORT` (elástico +5).
+
+**Verificación e2e (server real + curl):**
+`POST /webhook` válido → 200 `{"ok": true, "id": "e2e1", "recibidos": 1}` y la
+línea quedó en `salidas/exp57/webhooks.jsonl`; token malo → 401;
+`GET /eventos` sin token → 401, con token → 200 con el evento; el token no
+aparece en el server log ni en el JSONL; el server log muestra `[webhook] ci
+recibido (id=e2e1)` sin el detalle.
+
+**Tests:** `tests/test_webhook.py` (11): persistencia + `/eventos`, token
+inválido (401, sin persistir), deshabilitado (503), GET sin token (401),
+Host ajeno (DNS-rebinding), JSON inválido/sin tipo (400), cuerpo grande (413),
+rate limit (429), token no se devuelve, comparación constante y validación
+pura del evento. Docs: design (sección HITL web), estado X27, roadmap Mesa 7
+cerrada, README CLI, `.env.example` (el gate de deriva exige documentar los
+settings nuevos).
+
 ## exp/56b — segundo round de la skill `revision`: mismo techo, ruido −58% (2026-10-19)
 
 **Qué cambió para quitar el techo:** `PREFETCH=0` (el modelo debe leer por

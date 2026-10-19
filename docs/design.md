@@ -254,6 +254,17 @@ pendiente a la vez (`threading.Event`), timeout `HITL_WEB_TIMEOUT`
 El chat, el agente y el CORE no cambian una línea: `_approve` de cada
 módulo solo elige la fuente de la respuesta (navegador o terminal).
 
+**Webhook autenticado (Mesa 7, exp/57)** sobre el mismo server loopback:
+`POST /webhook` recibe `{"tipo": "...", "detalle": ...}` de otros procesos y
+lo persiste en `WEBHOOK_LOG` (JSONL, gitignored) + memoria; `GET /eventos`
+devuelve los últimos de la sesión. Seguridad primero: token en header
+`X-Webhook-Token` comparado en **tiempo constante** contra `WEBHOOK_TOKEN`
+(vacío ⇒ 503, nunca abierto por default), Host/Origin de loopback (mismo
+corte anti DNS-rebinding que el HITL), `WEBHOOK_MAX_BYTES` (cuerpo) y
+`WEBHOOK_MAX_POR_MINUTO` (rate limit). El token y el `detalle` NUNCA se
+loguean (solo `tipo` e `id`). Servicio: `python3 main.py webhook` levanta
+HITL+webhook y bloquea hasta Ctrl+C.
+
 ### Servidor MCP (dirección inversa)
 
 `python3 main.py mcp-server` expone las capacidades del chat a OTROS
