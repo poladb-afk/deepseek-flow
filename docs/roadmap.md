@@ -47,6 +47,13 @@ Cada ítem indica qué pieza lo apoya y qué falta.
    genera la mitad.
 8. **Mesas 4/5/7/8** (agentes fractales, async, skills, web UX): sin
    cambios de prioridad por la evidencia nueva.
+9. **Paydown del ratchet (2026-10-19)**: el baseline de `helpers_duplicados`
+   quedó en 20 ocurrencias (8 nombres; los peores son `_git_sha` y `_fmt_pct`
+   con 4 copias). Unificar cada uno en `utils/` baja el número y el gate
+   reescribe el baseline solo: empezar por los benches (`evals.py`,
+   `bench_juez.py`, `replay.py`, `minar_errores.py`, `triaje_trazas.py`)
+   cuando se toquen. Las reglas blandas de `AGENTS.md` se gradúan a gate
+   cuando duela.
 
 **Descartado hoy por evidencia:** Choose a escala (~2.400 casos — el bench
 lo volvió innecesario), round de "hechos actuales" (regla dura lo cierra),

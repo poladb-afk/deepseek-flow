@@ -50,6 +50,7 @@ SUBCOMANDOS = {
     "evals": "evals",
     "bench_juez": "bench_juez",
     "replay": "replay",
+    "ratchet": "ratchet",
     "resume": "resume",
 }
 

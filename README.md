@@ -26,6 +26,10 @@ Heredada de PocketFlow y de [bmo](../bmo) (el harness que inspiró los módulos)
   El registro los descubre al arrancar: agregar = dejar el archivo, quitar = borrarlo.
 - **Todo bucle tiene presupuesto** (ley L8 de bmo): rondas de herramientas,
   rondas del juez, rondas de debate, pasos del supervisor.
+- **Las reglas del repo son gates, no prosa**: cada regla no negociable de
+  `AGENTS.md` nombra el gate determinista que la hace cumplir (inventario de
+  tests, deriva de docs, ratchet de métricas). Lo que todavía no se puede
+  verificar queda declarado como regla blanda, no disfrazado.
 - **Los errores son información**: un tool que falla devuelve `ERROR: ...`
   como texto y el modelo se autocorrige; la escritura de archivos exige
   aprobación humana (HITL) — `s/n` en la terminal, o desde el navegador
@@ -166,6 +170,7 @@ python3 main.py mcp-server               # exponer capacidades vía MCP
 python3 main.py grafo [flujo]            # exportar los grafos a mermaid
 python3 main.py bench_juez               # bench de answer_verified (grading por código)
 python3 main.py replay [trace.jsonl]     # re-valida trazas .runs contra los grafos actuales
+python3 main.py ratchet                  # métricas estructurales: helpers duplicados + tests (ratchet)
 python3 main.py resume <id>              # rehidrata un thread del chat (salidas/threads/)
 ```
 
@@ -187,9 +192,12 @@ cubrió y lo que quedó afuera.
 deepseek-flow/
 ├── main.py            # entry point + subcomandos
 ├── nodes.py / flow.py # el CORE: bucle del agente
+├── AGENTS.md          # el contrato para agentes: reglas + gate de cada una
 ├── modules/           # capacidades del chat (TOOLS + IMPL por archivo)
 ├── informe|juez|juez_lote|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|evals|heartbeat|visor|replay|resume|bench_juez|carga_trazas.py
 │                      # piezas standalone (CLI) — los módulos las exponen
+├── ratchet.py         # las métricas no empeoran (baseline en ratchets/)
+├── ratchets/          # baseline versionado del ratchet
 ├── utils/             # call_llm, fs_tools, policy, laya, laya_routing, conformal,
 │                      # compaccion, contexto, prefetch, riesgo, thread_store,
 │                      # hitl_web, mcp_client, tracing, viz, websearch…
@@ -203,6 +211,8 @@ deepseek-flow/
 
 ## Documentación
 
+- **[AGENTS.md](AGENTS.md)** — el contrato para agentes: qué leer primero,
+  reglas no negociables con su gate, reglas blandas y bypasses prohibidos.
 - **[docs/estado.md](docs/estado.md)** — el tablero vivo: una fila por hallazgo
   (A/H/R) con su estado, la evidencia y el test que lo cubre. Empezá por acá.
 - **[docs/design.md](docs/design.md)** — lo que es verdad hoy: grafos,
@@ -217,7 +227,7 @@ deepseek-flow/
 ## Testing
 
 ```bash
-./calidad.sh                     # el gate completo: ruff + complejidad + pytest
+./calidad.sh                     # el gate completo: ruff + complejidad + ratchet + pytest
 python3 -m pytest tests/ -q      # solo la suite (un archivo por tema, ver tests/)
 python3 -m pytest -m "not laya and not bmo and not red and not datos"   # subconjunto determinista
 ```
@@ -225,10 +235,12 @@ python3 -m pytest -m "not laya and not bmo and not red and not datos"   # subcon
 Cada test que se saltea por un recurso lo declara con un marker: el marker
 dice **qué** falta (`laya`, `bmo`, `red`, `datos`), el `skip` dice por qué.
 
-Dos candados de la propia suite: `tests/test_inventario.py` compara lo que
+Tres candados de la propia suite: `tests/test_inventario.py` compara lo que
 pytest recolecta contra `tests/inventario_tests.txt` (un test que desaparece
 se nombra, en vez de dejar de correr en silencio) y falla si un archivo de
-test pasa de 800 líneas.
+test pasa de 800 líneas; `ratchet.py` compara helpers privados duplicados y
+tests definidos contra `ratchets/baseline.json` (la métrica puede mejorar o
+quedar igual, nunca empeorar sin decisión del operador).
 
 ## Créditos
 
@@ -236,3 +248,10 @@ test pasa de 800 líneas.
 - [bmo](https://github.com/) — la arquitectura de módulos, las leyes de
   bucles y Laya vienen de ahí.
 - [DeepSeek](https://www.deepseek.com/) — V4.1 Flash (`deepseek-flash`).
+- [git-agent-ratchet](https://github.com/monk-eee/git-agent-ratchet) — el
+  mecanismo del ratchet (baseline shrink-only + guardia anti-bypass) que
+  inspiró `ratchet.py`.
+- [ruleward](https://github.com/kernullist/ruleward) — el linter de reglas
+  (bloat y deriva) que inspiró `tests/test_deriva_reglas.py`.
+- [AI-Agent-Coding-Rules](https://github.com/Emmanuel-Bamidele/AI-Agent-Coding-Rules)
+  — la estructura de reglas/checklists que inspiró `AGENTS.md`.

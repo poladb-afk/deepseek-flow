@@ -6,7 +6,11 @@ jobs:
   gate:
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth 2: la guardia anti-bypass del ratchet compara el baseline
+      # commiteado (HEAD) contra el anterior (HEAD~1); con el default 1 no puede.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

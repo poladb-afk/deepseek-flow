@@ -751,3 +751,28 @@ donde el estado del arte pone el peso (Augment, sobre los prompts
 filtrados: los schemas JSON suelen ser más reveladores que el prompt
 mismo). El lever de curaduría siguiente son las descripciones de las 18
 herramientas — con sonda antes/después, como hicimos con el router.
+
+## Candados de calidad del repo: contrato de agente y ratchet (2026-10-19)
+
+El gate es determinista y no usa LLM: `./calidad.sh` corre cuatro palancas
+(higiene ruff · C901 de las dos fronteras · ratchet · suite pytest) y el CI lo
+repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
+(ver [informe](informes/ratchets_y_reglas_agente_2026-10-19.md)):
+
+- **`AGENTS.md` — el contrato de agente** (≤160 líneas; es contexto de cada
+  request): 8 reglas no negociables, cada una con el gate que la hace cumplir,
+  y las reglas blandas declaradas como tales. `tests/test_deriva_reglas.py`
+  lintea el contrato: presupuesto de tamaño, rutas y tests citados que existen,
+  tabla de enforcement válida, y cada test que cita `docs/estado.md` existe.
+- **`ratchet.py` — métricas con baseline versionado** (`ratchets/baseline.json`):
+  `helpers_duplicados` (deuda: helpers privados `_foo` en 2+ archivos, menor
+  mejor) y `tests_definidos` (cobertura: `def test_*`, mayor mejor). La
+  invariante: la métrica puede mejorar o quedar igual, **nunca empeorar**; al
+  mejorar, el baseline se reescribe solo y viaja en el mismo commit.
+  `--actualizar` es decisión del operador (con `HUMAN_RATCHET_BYPASS_KEY`),
+  no del agente.
+
+**Límites**: el ratchet congela la deuda pero no la arregla (el paydown es
+trabajo ordinario y quedó en el roadmap); no hay pre-commit (el gate es
+`calidad.sh`/CI); y la guardia anti-bypass compara contra `HEAD`/`HEAD~1`
+(CI con `fetch-depth: 2`), así que es disuasión auditable, no un sandbox.

@@ -1,6 +1,6 @@
 # Estado de los hallazgos — deepseek-flow
 
-**Actualizado:** 2026-10-17 · **Contra:** el árbol de `main` (los hallazgos vienen de las
+**Actualizado:** 2026-10-19 · **Contra:** el árbol de `main` (los hallazgos vienen de las
 auditorías externas del 2026-10-15; el mapeo A↔H↔R está en
 [informes/archivo/2026-10/contraste_auditoria_2026-10-15.md](informes/archivo/2026-10/contraste_auditoria_2026-10-15.md)).
 
@@ -92,8 +92,10 @@ lleva el motivo o el PR que lo cierra. Si algo se cierra sin test, se dice expl�
 | X9 | H19 | Rutas absolutas del autor y `.env` de otro proyecto | ✅ 2026-10-16 | `{RAIZ}`/`{HOME}` en 62 escenarios/specs · `LEER_BMO_ENV=0` · `heartbeat.example.jsonl` | `test_pendientes.py` |
 | X7 | — | `requirements.txt` fija `ruff==0.17.1` y el entorno tiene 0.15.15 | ⏳ entorno | verificado: la 0.17.1 da «All checks passed» | — |
 | X8 | H02 | `escribir_salida` pisa archivos dentro de las raíces sin HITL | ⏳ decisión | los flujos de la CLI reescriben a propósito; el chat ya no pisa (A09) | `test_pendientes.py` (lado chat) |
+| X10 | — | No había contrato versionado para agentes ni linter de sus reglas: las reglas del repo vivían en prosa (y `docs/agents/` apunta a un `CONTEXT.md` inexistente) | ✅ 2026-10-19 | `AGENTS.md` (8 reglas con gate + blandas declaradas + bypasses) + `tests/test_deriva_reglas.py` (bloat, rutas/tests citados, tabla de enforcement) | `test_deriva_reglas.py` |
+| X11 | — | Helpers privados bifurcados y tests nuevos borrables sin gate: no había métrica estructural con baseline (el inventario del PR 4 solo vigila su foto) | ✅ 2026-10-19 | `ratchet.py` + `ratchets/baseline.json` (siembra: 20 helpers duplicados · 491 tests definidos) + guardia anti-bypass; palanca 3 de `calidad.sh` y CI | `test_ratchet.py` |
 | — | H16 | El juez verifica 5 citas, no toda la verdad | límite deliberado | `juez.py` `MAX_CITAS` | — |
-| — | H20 | La suite no es un gate integral por contrato | ✅ 2026-10-16 | `./calidad.sh` en CI con 3 palancas (ruff · C901 de las fronteras · 518 tests) | `test_contratos.py` + `.github/workflows/calidad.yml` |
+| — | H20 | La suite no es un gate integral por contrato | ✅ 2026-10-16 | `./calidad.sh` en CI con 4 palancas (ruff · C901 de las fronteras · ratchet · 594 tests) | `test_contratos.py` + `.github/workflows/calidad.yml` |
 
 ## Abiertos, con su dueño
 

@@ -1,0 +1,91 @@
+{
+  "ratchets": {
+    "helpers_duplicados": {
+      "detalle": {
+        "_approve": [
+          "modules/coding.py",
+          "modules/escritura.py"
+        ],
+        "_fmt_pct": [
+          "bench_juez.py",
+          "evals.py",
+          "minar_errores.py",
+          "triaje_trazas.py"
+        ],
+        "_git_sha": [
+          "evals.py",
+          "minar_errores.py",
+          "replay.py",
+          "triaje_trazas.py"
+        ],
+        "_leer_eventos": [
+          "evals.py",
+          "replay.py"
+        ],
+        "_listar": [
+          "utils/fs_tools.py",
+          "utils/mcp_client.py"
+        ],
+        "_model": [
+          "modules/vision.py",
+          "utils/call_llm.py"
+        ],
+        "_prefiltrar": [
+          "modules/memoria.py",
+          "modules/rag.py"
+        ],
+        "_texto": [
+          "carga_trazas.py",
+          "utils/mcp_client.py"
+        ]
+      },
+      "metrica": 20
+    },
+    "tests_definidos": {
+      "detalle": {
+        "tests/test_banco.py": 14,
+        "tests/test_bench.py": 18,
+        "tests/test_chat_flujo.py": 19,
+        "tests/test_citas.py": 7,
+        "tests/test_compaccion.py": 13,
+        "tests/test_consolidacion.py": 24,
+        "tests/test_contratos.py": 6,
+        "tests/test_db.py": 18,
+        "tests/test_deriva_reglas.py": 7,
+        "tests/test_docs_sin_deriva.py": 5,
+        "tests/test_evals.py": 15,
+        "tests/test_flujos.py": 34,
+        "tests/test_fs_tools.py": 16,
+        "tests/test_grafos_sin_calles_muertas.py": 4,
+        "tests/test_hitl.py": 15,
+        "tests/test_inventario.py": 3,
+        "tests/test_laya.py": 6,
+        "tests/test_laya_cache_reintento.py": 5,
+        "tests/test_laya_routing.py": 25,
+        "tests/test_llm.py": 5,
+        "tests/test_memoria.py": 24,
+        "tests/test_minar_errores.py": 16,
+        "tests/test_modulos.py": 19,
+        "tests/test_pendientes.py": 32,
+        "tests/test_policy.py": 23,
+        "tests/test_policy_bypass.py": 9,
+        "tests/test_prefetch.py": 11,
+        "tests/test_probe_verdict.py": 1,
+        "tests/test_ratchet.py": 18,
+        "tests/test_replay.py": 16,
+        "tests/test_riesgo.py": 10,
+        "tests/test_router.py": 12,
+        "tests/test_smoke.py": 5,
+        "tests/test_sonda_laya.py": 4,
+        "tests/test_streaming.py": 11,
+        "tests/test_tablero.py": 2,
+        "tests/test_thread_store.py": 26,
+        "tests/test_ui.py": 5,
+        "tests/test_viz.py": 5,
+        "tests/test_voto_router.py": 8
+      },
+      "metrica": 516
+    }
+  },
+  "version": 1
+}

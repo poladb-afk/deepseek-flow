@@ -988,6 +988,61 @@ banco/escenarios/exp50-ab-on.yaml`).
   corrección semántica. Artefactos: `salidas/banco/exp50-ab-on_130600.*` y
   `exp50-ab-off_130627.*` — `salidas/` no se versiona.
 
+## Jornada 2026-10-19 — tres repos de reglas, un ratchet y un contrato (mejoras al harness)
+
+Pedido del operador: mirar qué hacen `monk-eee/git-agent-ratchet`,
+`Emmanuel-Bamidele/AI-Agent-Coding-Rules` y `kernullist/ruleward`, y usarlos
+para mejorar el harness. Investigación, fuentes y descartes en
+[informes/ratchets_y_reglas_agente_2026-10-19.md](informes/ratchets_y_reglas_agente_2026-10-19.md).
+
+**Diagnóstico (medido, no estimado):** el harness ya tenía gate fuerte
+(`calidad.sh`), inventario de tests y test de deriva de docs. Lo que faltaba
+era (a) un contrato de agente versionado, (b) un linter de ese contrato y (c)
+métricas estructurales con baseline. Medición del árbol: 8 nombres de helpers
+privados bifurcados (20 ocurrencias; `_git_sha` y `_fmt_pct` con 4 copias
+cada uno), 0 marcadores `TODO`/`FIXME`/`HACK` reales (el ratchet G del repo
+original acá sería una sinecura), los 30 tests citados en `estado.md`
+existen, y de 36 paths citados solo 4 son ejemplos de prosa (no deriva).
+
+**Lo construido:**
+
+- **`ratchet.py` + `ratchets/baseline.json`** — mecanismo de
+  git-agent-ratchet adaptado: `helpers_duplicados` (deuda, menor mejor) y
+  `tests_definidos` (cobertura, mayor mejor) contra un baseline versionado;
+  auto-baja al mejorar; guardia anti-bypass (baseline editado a mano vs
+  `HEAD`/`HEAD~1`, clave `HUMAN_RATCHET_BYPASS_KEY` para el operador);
+  `--actualizar` humano y `--no-escribir` diagnóstico. Palanca 3 de
+  `calidad.sh`, `python3 main.py ratchet`, CI con `fetch-depth: 2`.
+  Siembra: 20 helpers · 491 tests; tras los tests nuevos: 516. 18 tests
+  propios. **El ratchet se detectó a sí mismo**: la primera corrida encontró
+  `_resumen` repetido entre `ratchet.py` y `utils/compaccion.py`; se renombró
+  en vez de sembrar 22. La lección es el mecanismo: el ratchet es un
+  instrumento que corre sobre el árbol real, no un adorno.
+- **`AGENTS.md`** (92 líneas, presupuesto 160) — estructura de
+  AI-Agent-Coding-Rules adaptada al repo: qué leer primero, 8 reglas no
+  negociables **cada una con su gate**, blandas declaradas, bypasses
+  prohibidos por nombre y definición de terminado. El patrón "regla → gate"
+  es de git-agent-ratchet. El contrato ya está activo: esta misma sesión lo
+  recibió al aparecer.
+- **`tests/test_deriva_reglas.py`** (7 tests) — ruleward determinista:
+  presupuesto de AGENTS.md, rutas y tests citados que existen, tabla de
+  enforcement válida y cada test que `estado.md` dice que cubre un hallazgo
+  existe (la regla del tablero deja de ser honor system).
+
+**Descartado con motivo:** los otros seis ratchets del original (print,
+chatter, PowerShell, temporales, imports privados y max-file-lines: no
+aplican, hay 0 marcadores reales, o contradicen la decisión medida de
+funciones largas), el NLI semántico y SARIF de ruleward (dependencia y ruido
+sin consumidor), y copiar los 22 archivos de reglas de Bamidele (bloat de
+contexto: un archivo alcanza). Detalle en el informe.
+
+**Verificación:** `./calidad.sh` verde con 4 palancas; **594 tests**
+recolectados, ruff limpio, complejidad de fronteras limpia.
+
+**Límites:** el ratchet congela deuda, no la paga (el paydown quedó en el
+roadmap: unificar `_git_sha`/`_fmt_pct`); no hay pre-commit, el gate es
+`calidad.sh`/CI; el anti-bypass es disuasión auditable, no un sandbox.
+
 ## Sesión de prueba completa (2026-10-05): 19 turnos, las 18 capacidades
 
 Una sola sesión continua de chat ejerciendo todo el harness. Resultado
