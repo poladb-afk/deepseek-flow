@@ -1,5 +1,131 @@
 {
   "ratchets": {
+    "excepts_amplios": {
+      "detalle": {
+        "bench_juez.py": [
+          193
+        ],
+        "carga_trazas.py": [
+          93
+        ],
+        "evals.py": [
+          61,
+          147
+        ],
+        "heartbeat.py": [
+          81
+        ],
+        "juez.py": [
+          283,
+          522
+        ],
+        "juez_lote.py": [
+          91
+        ],
+        "main.py": [
+          120,
+          143
+        ],
+        "minar_errores.py": [
+          313
+        ],
+        "modules/coding.py": [
+          76
+        ],
+        "modules/db.py": [
+          131
+        ],
+        "modules/evals.py": [
+          36
+        ],
+        "modules/humano.py": [
+          55
+        ],
+        "modules/memoria.py": [
+          138
+        ],
+        "modules/rag.py": [
+          74
+        ],
+        "nodes.py": [
+          44,
+          457,
+          478,
+          714,
+          761
+        ],
+        "replay.py": [
+          455
+        ],
+        "research.py": [
+          78
+        ],
+        "sonda_laya.py": [
+          205,
+          288
+        ],
+        "triaje_trazas.py": [
+          233
+        ],
+        "utils/aprobaciones.py": [
+          42
+        ],
+        "utils/call_llm.py": [
+          246
+        ],
+        "utils/contexto.py": [
+          119
+        ],
+        "utils/embeddings.py": [
+          28
+        ],
+        "utils/fs_tools.py": [
+          83,
+          492,
+          505
+        ],
+        "utils/hitl_web.py": [
+          71,
+          88,
+          264,
+          276
+        ],
+        "utils/laya.py": [
+          91
+        ],
+        "utils/laya_routing.py": [
+          69,
+          106,
+          135,
+          246,
+          291
+        ],
+        "utils/mcp_client.py": [
+          74,
+          96
+        ],
+        "utils/prefetch.py": [
+          64,
+          70
+        ],
+        "utils/riesgo.py": [
+          80,
+          106
+        ],
+        "utils/thread_store.py": [
+          60,
+          144
+        ],
+        "utils/tracing.py": [
+          141,
+          160
+        ],
+        "utils/websearch.py": [
+          16
+        ]
+      },
+      "metrica": 55
+    },
     "helpers_duplicados": {
       "detalle": {
         "_approve": [
@@ -53,6 +179,7 @@
         "tests/test_db.py": 18,
         "tests/test_deriva_reglas.py": 7,
         "tests/test_docs_sin_deriva.py": 5,
+        "tests/test_estilo_humano.py": 4,
         "tests/test_evals.py": 15,
         "tests/test_flujos.py": 34,
         "tests/test_fs_tools.py": 16,
@@ -71,7 +198,7 @@
         "tests/test_policy_bypass.py": 9,
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
-        "tests/test_ratchet.py": 18,
+        "tests/test_ratchet.py": 20,
         "tests/test_replay.py": 16,
         "tests/test_riesgo.py": 10,
         "tests/test_router.py": 12,
@@ -84,7 +211,7 @@
         "tests/test_viz.py": 5,
         "tests/test_voto_router.py": 8
       },
-      "metrica": 516
+      "metrica": 522
     }
   },
   "version": 1

@@ -42,9 +42,7 @@ BASELINE = Path("salidas/evals/bench_juez.json")
 DIR_SALIDA = Path("salidas/evals")
 
 
-# ---------------------------------------------------------------------------
 # EVALUACIÓN (código puro, sin LLM)
-# ---------------------------------------------------------------------------
 
 def respuesta_ok(texto, caso):
     """Todos los `contiene` presentes (case-insensitive) Y (si el caso trae
@@ -116,9 +114,7 @@ def cita_ok(texto, caso):
     return False
 
 
-# ---------------------------------------------------------------------------
 # CASOS Y CORRIDA
-# ---------------------------------------------------------------------------
 
 def cargar_casos(ruta=PREGUNTAS):
     """Casos de `ruta` validados: cada línea debe ser un JSON con `id` y
@@ -242,9 +238,7 @@ def correr(casos, responder=None):
     }
 
 
-# ---------------------------------------------------------------------------
 # BASELINE (patrón de evals.py)
-# ---------------------------------------------------------------------------
 
 def comparar_baseline(nuevo, ruta=BASELINE):
     """Compara contra el baseline guardado si existe. Delta por métrica y
@@ -294,9 +288,7 @@ def guardar_baseline(bench, ruta=BASELINE, sha=None):
     return datos
 
 
-# ---------------------------------------------------------------------------
 # INFORME
-# ---------------------------------------------------------------------------
 
 def _fmt_pct(x):
     return f"{x * 100:.1f}%" if x is not None else "—"

@@ -1043,6 +1043,86 @@ recolectados, ruff limpio, complejidad de fronteras limpia.
 roadmap: unificar `_git_sha`/`_fmt_pct`); no hay pre-commit, el gate es
 `calidad.sh`/CI; el anti-bypass es disuasión auditable, no un sandbox.
 
+## Jornada 2026-10-19 (2) — código de IA vs humano: evidencia, medición y gates de forma
+
+Segunda parte del pedido del operador (la primera fue ratchets y contrato):
+el objetivo real es **bajar la lógica de código de IA** —funciona, pero deja
+ruido— y acercarla a la forma humana, más prolija y minimalista. La
+investigación debía traer evidencia online (papers, docs oficiales,
+comunidad) e identificar repos que asimilen el código a forma humana.
+Investigación completa, tablas y fuentes en
+[informes/codigo_ia_vs_humano_2026-10-19.md](informes/codigo_ia_vs_humano_2026-10-19.md).
+
+**Respuesta a "¿Matt Pollock tiene algo así?"**: el nombre correcto es
+**Matt Pocock** y sí: [`mattpocock/skills`](https://github.com/mattpocock/skills)
+(296k estrellas) — no es un humanizer, es disciplina de ingeniería (lenguaje
+compartido/glosario, diseño de módulos profundos, TDD, code-review con
+baseline de smells). El ruido baja como efecto de la disciplina, no de
+reescribir texto.
+
+**Evidencia que decidió el diseño** (resumen; detalle en el informe):
+
+- *Show and Tell* (arXiv 2511.13972): directivas explícitas de concisión
+  bajan el código 56–70% y persisten en el turno siguiente; los ejemplos
+  solos no; un pedido genérico de "mejorar legibilidad" infla todo.
+- *Debt Behind the AI Boom* (arXiv 2603.28592): 304k commits de IA en 6.275
+  repos; el smell #1 es **broad exception handling** (41.723 casos) y el
+  24,2% de los issues sobrevive al HEAD.
+- *SlopCodeBench* (arXiv 2603.24755): la degradación es iterativa —erosión
+  sube en 80% de las trayectorias, verbosidad en 89,8%—; el prompt mejora el
+  inicio pero no frena la caída. ⇒ hacen falta gates, no solo prosa.
+- *AI-Generated Smells* (arXiv 2605.02741): Long Method/God Class/"Modular
+  Mirage"; "Volume-Quality Inverse Law"; few-shot no mitiga.
+- GitClear 2026 (623M cambios): refactoring −70%, duplicación de bloques
+  +81%, error-masking +47%. DORA 2024: la IA mejora la productividad
+  individual pero castiga estabilidad/throughput. METR 2025: 19% más lentos
+  con IA aunque la percepción diga +20%.
+- Docs oficiales: Claude Code ("CLAUDE.md corto y humano; uno inflado se
+  ignora"; un review que busca gaps de más genera sobre-ingeniería) y
+  Anthropic (contexto = conjunto mínimo de tokens de alta señal; tools
+  mínimos).
+- Comunidad: Ponytail (167k ★, pirámide YAGNI "lazy, not negligent"),
+  code-humanizer (16 patrones + reglas de hierro), slop-scan (benchmark
+  6,91× vs OSS maduro), anti-slop.
+
+**Medición propia** (69 archivos del harness vs 18 de `requests` como
+referencia humana): `except` amplios **55 (39,0% de los try) vs 1 (1,6%)**;
+`except: pass` 9 vs 6; banners **61 vs 8**; try-import 14 vs 11; docstrings
+0,52 vs 0,68; ratio defensivo 0,0256 vs 0,0358; erosión estructural
+(SCBench, masa CC>10) **0,204 vs 0,390**; comentarios/SLOC 8,1% vs 10,4%.
+Lectura: el ruido **no** es "demasiados comentarios" ni funciones gigantes
+—el repo comenta en proporción similar al humano y está menos erosionado—;
+el ruido es **excepción amplia (smell #1), decoración y duplicación**.
+
+**Lo construido:**
+
+- `ratchet.py` gana `excepts_amplios` (deuda, menor mejor): siembra 55; un
+  `except Exception` nuevo frena el gate. No se prohíben (hay best-effort
+  legítimos): no crecen sin decisión humana.
+- `tests/test_estilo_humano.py`: banners decorativos = 0 (**61 → 0**),
+  docstrings de relleno = 0, wrappers vacíos sin justificar = 0, y el
+  `system_prompt` debe pedir el mínimo código sin pasar 1.400 chars.
+- Directiva en `main.system_prompt` ("el mínimo que funciona… sin defensas
+  ni docstrings que el pedido no exija… validación, seguridad y
+  accesibilidad no se recortan"): la palanca de forma que midió Show & Tell,
+  aplicada al producto.
+- `AGENTS.md` R9 + sección "forma humana" (pirámide de Ponytail, tell de
+  reimplementar, defensas solo en la frontera, docstrings para el porqué,
+  nada de banners ni `_v2` en paralelo).
+- Informe con evidencia primaria, tabla de repos, catálogo de 11 patrones
+  (determinista vs review) y límites.
+
+**Descartado con motivo:** deslop automático masivo (las reglas de hierro de
+code-humanizer exigen preservación de comportamiento y tests; acotar 55
+`except` es cambio semántico → paydown medido en el roadmap); herramientas
+JS/TS (otro stack); NLI semántico (ruido).
+
+**Verificación:** `./calidad.sh` verde (4 palancas); suite con los tests
+nuevos; baseline del ratchet: 20 helpers · tests definidos actualizados · 55
+except amplios. Límites: los gates cubren el subconjunto determinista; la
+comparación `requests` es de otro dominio (ubica magnitud, no fija ideal); la
+evidencia de industria tiene intereses comerciales declarados.
+
 ## Sesión de prueba completa (2026-10-05): 19 turnos, las 18 capacidades
 
 Una sola sesión continua de chat ejerciendo todo el harness. Resultado

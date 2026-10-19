@@ -30,6 +30,11 @@ Heredada de PocketFlow y de [bmo](../bmo) (el harness que inspiró los módulos)
   `AGENTS.md` nombra el gate determinista que la hace cumplir (inventario de
   tests, deriva de docs, ratchet de métricas). Lo que todavía no se puede
   verificar queda declarado como regla blanda, no disfrazado.
+- **Forma humana, no ruido de IA**: el código se escribe para que lo lea una
+  persona — mínimo que funciona, sin defensas ni abstracciones que el pedido
+  no exige, sin banners ni docstrings de relleno, sin reimplementar helpers.
+  Lo que se puede contar se cuenta con un gate (`ratchet.py`,
+  `tests/test_estilo_humano.py`); el resto es review honesto.
 - **Los errores son información**: un tool que falla devuelve `ERROR: ...`
   como texto y el modelo se autocorrige; la escritura de archivos exige
   aprobación humana (HITL) — `s/n` en la terminal, o desde el navegador
@@ -235,12 +240,15 @@ python3 -m pytest -m "not laya and not bmo and not red and not datos"   # subcon
 Cada test que se saltea por un recurso lo declara con un marker: el marker
 dice **qué** falta (`laya`, `bmo`, `red`, `datos`), el `skip` dice por qué.
 
-Tres candados de la propia suite: `tests/test_inventario.py` compara lo que
-pytest recolecta contra `tests/inventario_tests.txt` (un test que desaparece
-se nombra, en vez de dejar de correr en silencio) y falla si un archivo de
-test pasa de 800 líneas; `ratchet.py` compara helpers privados duplicados y
-tests definidos contra `ratchets/baseline.json` (la métrica puede mejorar o
-quedar igual, nunca empeorar sin decisión del operador).
+Cuatro candados de la propia suite: `tests/test_inventario.py` compara lo
+que pytest recolecta contra `tests/inventario_tests.txt` (un test que
+desaparece se nombra, en vez de dejar de correr en silencio) y falla si un
+archivo de test pasa de 800 líneas; `ratchet.py` compara helpers privados
+duplicados, tests definidos y `except` amplios contra `ratchets/baseline.json`
+(la métrica puede mejorar o quedar igual, nunca empeorar sin decisión del
+operador); y `tests/test_estilo_humano.py` veta la firma de IA en el código
+(banners decorativos, docstrings de relleno, wrappers vacíos) y exige que el
+system prompt pida el mínimo código.
 
 ## Créditos
 
@@ -255,3 +263,17 @@ quedar igual, nunca empeorar sin decisión del operador).
   (bloat y deriva) que inspiró `tests/test_deriva_reglas.py`.
 - [AI-Agent-Coding-Rules](https://github.com/Emmanuel-Bamidele/AI-Agent-Coding-Rules)
   — la estructura de reglas/checklists que inspiró `AGENTS.md`.
+- [Ponytail](https://github.com/DietrichGebert/ponytail) — la pirámide
+  YAGNI ("el mejor código es el que no escribiste") y la regla "lazy, not
+  negligent" que ordenan la forma del código en `AGENTS.md`.
+- [code-humanizer](https://github.com/LeonardNJU/code-humanizer) — el
+  catálogo de tells de código de IA (banners, docstrings de relleno,
+  wrappers vacíos, `except` amplio) que `tests/test_estilo_humano.py` y el
+  ratchet hacen deterministas.
+- [slop-scan](https://github.com/modem-dev/slop-scan) — el método de
+  benchmark contra código humano previo a 2025 que fundamenta la medición de
+  `docs/informes/codigo_ia_vs_humano_2026-10-19.md`.
+- [mattpocock/skills](https://github.com/mattpocock/skills) — "skills for
+  real engineers, not vibe coding": el diseño de módulos y el lenguaje
+  compartido como raíz del ruido, base del enfoque de este repo (ver
+  `docs/informes/codigo_ia_vs_humano_2026-10-19.md`).

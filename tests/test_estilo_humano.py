@@ -1,0 +1,116 @@
+"""Estilo humano del código: el harness no vuelve a la "firma" de la IA.
+
+Evidencia y fuentes completas en
+`docs/informes/codigo_ia_vs_humano_2026-10-19.md`. En corto:
+
+- los papers miden que el código de agentes es más verboso y defensivo
+  ("Show and Tell", arXiv 2511.13972; "SlopCodeBench", arXiv 2603.24755) y
+  que el smell #1 en commits reales es el `except` amplio ("Debt Behind the
+  AI Boom", arXiv 2603.28592);
+- code-humanizer cataloga los tells estructurales: banners decorativos,
+  docstrings de relleno, wrappers vacíos, comentarios que narran la línea;
+- Claude Code docs: las instrucciones persistentes se mantienen cortas, un
+  archivo inflado se ignora.
+
+Acá se clavan SOLO los patrones deterministas y de bajo falso positivo. El
+resto queda como review (AGENTS.md) o como ratchet (`excepts_amplios` en
+`ratchet.py`). Los comentarios que explican el PORQUÉ son estilo del repo y
+NO se tocan: el ruido es la decoración y la redundancia, no la explicación.
+"""
+import ast
+import io
+import re
+import tokenize
+
+from conftest import RAIZ
+
+import ratchet
+
+# Contexto de cada request: el prompt se mantiene corto. Con la directiva de
+# forma mide ~900 chars; el techo deja aire para una o dos frases más.
+LIMITE_PROMPT = 1400
+_BANNER = re.compile(r"^#\s*[-=*#~_]{3,}\s*$")
+
+
+def _fuentes():
+    for ruta in ratchet.archivos_del_harness(RAIZ):
+        yield ruta, ruta.read_text(encoding="utf-8")
+
+
+def _normalizar(texto):
+    return re.sub(r"[^a-z ]+", " ", texto.lower().replace("_", " ")).strip()
+
+
+def test_sin_banners_decorativos():
+    """Un banner (`# -----`) es el tell #14 de code-humanizer: no aporta y
+    separa lo que el nombre de la función ya delimita. El harness llegó a 61
+    banners en el código; el contrato lo deja en 0 y bloquea la reincidencia."""
+    banners = []
+    for ruta, src in _fuentes():
+        for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+            if tok.type == tokenize.COMMENT and _BANNER.match(tok.string.strip()):
+                banners.append(f"{ruta.relative_to(RAIZ)}:{tok.start[0]}")
+    assert not banners, f"banners decorativos (ruido de IA): {banners}"
+
+
+def test_sin_docstrings_de_relleno():
+    """`def guardar(): \"\"\"Guardar.\"\"\"` no informa nada: el docstring va
+    cuando agrega el porqué (o el contrato), no cuando repite el nombre."""
+    relleno = []
+    for ruta, src in _fuentes():
+        for nodo in ast.walk(ast.parse(src)):
+            if not isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            doc = ast.get_docstring(nodo)
+            if doc and _normalizar(doc) == _normalizar(nodo.name.lstrip("_")):
+                relleno.append(f"{ruta.relative_to(RAIZ)}:{nodo.lineno}:{nodo.name}")
+    assert not relleno, f"docstrings que repiten el nombre: {relleno}"
+
+
+def test_sin_wrappers_vacios_sin_justificar():
+    """Una función cuyo cuerpo es `return otro(...)` con los mismos argumentos
+    no agrega nada, salvo que su docstring diga por qué existe."""
+    vacios = []
+    for ruta, src in _fuentes():
+        for nodo in ast.walk(ast.parse(src)):
+            if not isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if ast.get_docstring(nodo):
+                continue
+            cuerpo = [
+                n for n in nodo.body
+                if not (isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant)
+                        and isinstance(n.value.value, str))
+            ]
+            if len(cuerpo) != 1 or not isinstance(cuerpo[0], ast.Return):
+                continue
+            llamada = cuerpo[0].value
+            if not isinstance(llamada, ast.Call) or nodo.args.kwarg:
+                continue
+            argumentos = [a.arg for a in nodo.args.args if a.arg != "self"]
+            pasados = [getattr(a, "id", getattr(a, "arg", None)) for a in llamada.args]
+            if argumentos and pasados == argumentos:
+                vacios.append(f"{ruta.relative_to(RAIZ)}:{nodo.lineno}:{nodo.name}")
+    assert not vacios, f"wrappers que no agregan nada (documentá el porqué): {vacios}"
+
+
+def test_system_prompt_pide_codigo_minimo_y_no_crece():
+    """La palanca de forma del producto: la directiva explícita de código
+    mínimo baja 56–70% los tokens del código generado y se mantiene en los
+    turnos siguientes, a diferencia de los ejemplos ("Show and Tell",
+    arXiv 2511.13972). El prompt se mantiene corto: es contexto de cada
+    request y uno inflado diluye las reglas (Claude Code docs)."""
+    import main
+
+    prompt = main.system_prompt()
+    for frase in (
+        "el mínimo que funciona",
+        "sin defensas",
+        "sin abstracciones especulativas",
+        "Validación, seguridad y accesibilidad no se recortan",
+    ):
+        assert frase in prompt, f"el system prompt perdió la directiva de forma: {frase!r}"
+    assert len(prompt) <= LIMITE_PROMPT, (
+        f"el system prompt creció a {len(prompt)} chars (presupuesto {LIMITE_PROMPT}): "
+        "lo que no cambia decisiones de forma va a AGENTS.md o a un skill bajo demanda"
+    )

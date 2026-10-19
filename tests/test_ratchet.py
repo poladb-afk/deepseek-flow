@@ -2,8 +2,8 @@
 
 Lo que estos tests clavan:
 
-- el escaneo AST de las dos métricas (helpers privados bifurcados; tests
-  definidos) y su alcance (el harness, no tests/ ni banco/);
+- el escaneo AST de las tres métricas (helpers privados bifurcados; tests
+  definidos; excepts amplios) y su alcance (el harness, no tests/ ni banco/);
 - la invariante de cada dirección: la deuda baja, la cobertura sube;
 - la siembra, la auto-mejora del baseline (solo hacia la mejora) y el rojo
   que NO pisa el baseline cuando empeora;
@@ -83,6 +83,18 @@ def test_escanear_tests_cuenta_defs_por_archivo(tmp_path):
     assert ratchet._metrica_tests(raiz) == (3, {"tests/test_a.py": 2, "tests/test_b.py": 1})
 
 
+def test_escanear_excepts_cuenta_solo_los_amplios(tmp_path):
+    """Amplio = `except:`, `except Exception`, `except BaseException`. Un
+    `except (OSError, ValueError)` nombra lo que maneja y no cuenta."""
+    raiz = _arbol(tmp_path)
+    _escribir(raiz, "modules/a.py",
+              "def f():\n    try:\n        pass\n    except Exception:\n        pass\n\n"
+              "def g():\n    try:\n        pass\n    except (OSError, ValueError):\n        pass\n\n"
+              "def h():\n    try:\n        pass\n    except:\n        pass\n")
+    assert ratchet.escanear_excepts(raiz) == {"modules/a.py": [4, 16]}
+    assert ratchet._metrica_excepts(raiz) == (2, {"modules/a.py": [4, 16]})
+
+
 # -------------------------------------------------------------- invariante
 
 def test_comparar_respeta_la_direccion_de_cada_ratchet():
@@ -152,6 +164,18 @@ def test_mejora_baja_el_baseline_y_lo_deja_igual(tmp_path):
     assert datos["ratchets"]["helpers_duplicados"]["metrica"] == 0
     assert any("MEJORÓ" in m for m in mensajes)
     assert ratchet.correr(raiz=raiz, ruta_baseline=_baseline(raiz), guardia=False) == 0
+
+
+def test_ratchet_excepts_amplios_empeora_con_un_amplio_nuevo(tmp_path):
+    """El ruido no crece: un `except Exception` nuevo frena el gate."""
+    raiz = _arbol(tmp_path)
+    _escribir(raiz, "modules/a.py", "def f():\n    try:\n        pass\n    except Exception:\n        pass\n")
+    assert ratchet.correr(raiz=raiz, ruta_baseline=_baseline(raiz), guardia=False) == 0
+    _escribir(raiz, "utils/b.py", "def g():\n    try:\n        pass\n    except:\n        pass\n")
+    mensajes = []
+    assert ratchet.correr(raiz=raiz, ruta_baseline=_baseline(raiz), guardia=False, salida=mensajes.append) == 1
+    assert any("excepts_amplios" in m and "EMPEORÓ" in m for m in mensajes)
+    assert any("utils/b.py: 0 → 1" in m for m in mensajes)
 
 
 def test_tests_definidos_empeora_si_se_borra_un_test(tmp_path):

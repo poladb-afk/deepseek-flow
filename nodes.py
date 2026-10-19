@@ -88,7 +88,6 @@ MENSAJE_DSML_AGOTADO = (
 )
 
 
-# ---------------------------------------------------------------------------
 # Techo adaptativo de rondas por operación (exp/13, opción C del consejo).
 # MAX_TOOL_ROUNDS sigue siendo el DEFAULT y el símbolo parcheable por tests.
 # presupuesto() lo lee del global VIVO de este módulo (globals()) — no como
@@ -97,7 +96,6 @@ MENSAJE_DSML_AGOTADO = (
 # Los PERFILES y UMBRAL_SIN_PROGRESO, en cambio, se leen con _setting al
 # importar: cambiar el .env con el proceso vivo NO los mueve (hay que
 # reiniciar).
-# ---------------------------------------------------------------------------
 PERFILES_PRESUPUESTO = {
     "consulta":   _entero("MAX_TOOL_ROUNDS_CONSULTA", 8),
     "banco":      _entero("MAX_TOOL_ROUNDS_BANCO", 25),

@@ -64,9 +64,7 @@ TOOL_RECHAZO_HITL = "run_command"
 UMBRAL_RECHAZO_SEG = 0.5
 
 
-# ---------------------------------------------------------------------------
 # 1) FUNCIONES PURAS (importables y testeables sobre listas sintéticas)
-# ---------------------------------------------------------------------------
 
 def es_timeout(ev, umbral=UMBRAL_TIMEOUT_SEG):
     """Un evento de ERROR cuya duración >= `umbral` es un timeout probable.
@@ -121,9 +119,7 @@ def destino_del_reintento(eventos, idx):
     return None
 
 
-# ---------------------------------------------------------------------------
 # 2) AGREGADOS (sobre todas las sesiones)
-# ---------------------------------------------------------------------------
 
 def _delta_mediano(deltas):
     """Mediana de deltas o None si no hay ninguno (evita un statistics error)."""
@@ -235,9 +231,7 @@ def minar_runs(directorio=DIR_RUNS):
     }
 
 
-# ---------------------------------------------------------------------------
 # 3) SALIDAS (md legible + json máquina), patrón laya_evidencia_*
-# ---------------------------------------------------------------------------
 
 def _fmt_pct(x):
     return f"{x * 100:.1f}%" if x is not None else "—"

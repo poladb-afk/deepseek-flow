@@ -25,6 +25,13 @@ Las dos métricas, una por clase de ratchet:
   `tests/*.py`. `tests/inventario_tests.txt` es la foto del PR 4 y solo vigila
   esos 527 tests; los nuevos podían desaparecer en silencio. Este ratchet no
   deja que el total baje sin una decisión humana explícita.
+- `excepts_amplios` (**menor mejor**, ratchet de RUIDO): handlers `except:`,
+  `except Exception` y `except BaseException` de nivel superior. Es el smell
+  #1 del código generado por IA (41.723 casos en el estudio de commits reales:
+  "Broad exception handling") y el patrón D8 de code-humanizer: convierten un
+  crash visible en corrupción invisible. No se prohíben (hay rutas
+  best-effort legítimas): se congela el número y no puede crecer sin decisión
+  humana. Evidencia y fuentes en docs/informes/codigo_ia_vs_humano_2026-10-19.md.
 
 Guardia anti-bypass (el "Ratchet C" del original): el baseline solo puede
 moverse en la dirección que mejora. Si el archivo versionado empeoró respecto
@@ -61,7 +68,7 @@ PATRONES = ("*.py", "modules/*.py", "utils/*.py")
 ARCHIVOS_IGNORADOS = {"__init__.py"}
 
 
-# --------------------------------------------------------------- inventario
+# inventario
 
 def archivos_del_harness(raiz: Path) -> list[Path]:
     """Los `.py` del harness: raíz + `modules/` + `utils/`, sin `__init__.py`."""
@@ -77,7 +84,7 @@ def _relativa(ruta: Path, raiz: Path) -> str:
     return ruta.relative_to(raiz).as_posix()
 
 
-# ----------------------------------------------------------------- métricas
+# métricas
 
 def escanear_helpers(raiz: Path) -> dict[str, list[str]]:
     """Nombres de funciones privadas de nivel superior definidos en 2+ archivos.
@@ -119,6 +126,32 @@ def escanear_tests(raiz: Path) -> dict[str, int]:
     return dict(sorted(por_archivo.items()))
 
 
+def escanear_excepts(raiz: Path) -> dict[str, list[int]]:
+    """Handlers de excepción AMPLIOS por archivo (el smell de ruido #1 de la IA).
+
+    Amplio = `except:`, `except Exception`, `except BaseException`. Un
+    `except (OSError, ValueError)` no cuenta: nombra lo que espera manejar.
+    """
+    amplios: dict[str, list[int]] = {}
+    for ruta in archivos_del_harness(raiz):
+        try:
+            arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            continue
+        lineas = [
+            nodo.lineno
+            for nodo in ast.walk(arbol)
+            if isinstance(nodo, ast.ExceptHandler)
+            and (
+                nodo.type is None
+                or (isinstance(nodo.type, ast.Name) and nodo.type.id in ("Exception", "BaseException"))
+            )
+        ]
+        if lineas:
+            amplios[_relativa(ruta, raiz)] = sorted(lineas)
+    return dict(sorted(amplios.items()))
+
+
 def _metrica_helpers(raiz: Path) -> tuple[int, dict[str, list[str]]]:
     detalle = escanear_helpers(raiz)
     return sum(len(archivos) for archivos in detalle.values()), detalle
@@ -127,6 +160,11 @@ def _metrica_helpers(raiz: Path) -> tuple[int, dict[str, list[str]]]:
 def _metrica_tests(raiz: Path) -> tuple[int, dict[str, int]]:
     detalle = escanear_tests(raiz)
     return sum(detalle.values()), detalle
+
+
+def _metrica_excepts(raiz: Path) -> tuple[int, dict[str, list[int]]]:
+    detalle = escanear_excepts(raiz)
+    return sum(len(lineas) for lineas in detalle.values()), detalle
 
 
 # direccion: `menor_mejor` = deuda (baja = mejora); `mayor_mejor` = cobertura
@@ -143,10 +181,15 @@ METRICAS: dict[str, dict] = {
         "descripcion": "tests `def test_*` definidos en tests/",
         "calcular": _metrica_tests,
     },
+    "excepts_amplios": {
+        "direccion": "menor_mejor",
+        "descripcion": "handlers `except:` / `except Exception` (el smell #1 del código de IA)",
+        "calcular": _metrica_excepts,
+    },
 }
 
 
-# ------------------------------------------------------------- comparación
+# comparación
 
 def comparar(actual: int, previo: int, direccion: str) -> str:
     """La decisión del ratchet: IGUAL / MEJORÓ / EMPEORÓ. Una sola función para
@@ -166,6 +209,11 @@ def _diagnostico(nombre: str, actual: dict, previo: dict) -> list[str]:
             previos = previo.get(helper, [])
             if len(archivos) > len(previos):
                 lineas.append(f"    {helper}: {', '.join(archivos)}")
+    elif nombre == "excepts_amplios":
+        for archivo, lineas_actuales in actual.items():
+            previas = previo.get(archivo, [])
+            if len(lineas_actuales) > len(previas):
+                lineas.append(f"    {archivo}: {len(previas)} → {len(lineas_actuales)} excepts amplios")
     else:
         for archivo, cuenta in actual.items():
             previa = previo.get(archivo, 0)
@@ -174,7 +222,7 @@ def _diagnostico(nombre: str, actual: dict, previo: dict) -> list[str]:
     return lineas
 
 
-# ---------------------------------------------------------- baseline (I/O)
+# baseline (I/O)
 
 def cargar_baseline(ruta: Path) -> dict | None:
     """El baseline versionado, o None si todavía no existe (primera corrida).
@@ -201,7 +249,7 @@ def guardar_baseline(datos: dict, ruta: Path) -> None:
     ruta.write_text(texto, encoding="utf-8")
 
 
-# ------------------------------------------------- guardia anti-bypass
+# guardia anti-bypass
 
 def _baseline_de_git(raiz: Path, ref: str, ruta: Path) -> dict | None:
     """El baseline tal como estaba en `ref` (HEAD, HEAD~1). Best-effort: sin
@@ -270,7 +318,7 @@ def guardia_bypass(raiz: Path, ruta: Path, salida=print) -> bool:
     return True
 
 
-# ------------------------------------------------------------------- gate
+# gate
 
 def _resumen_metricas(datos: dict) -> str:
     return " · ".join(

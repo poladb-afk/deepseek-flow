@@ -40,6 +40,7 @@ nombra el gate que la hace cumplir.
 | R6 | El baseline del ratchet solo se mueve hacia la mejora; editarlo a mano es bypass. | `ratchet.py` (guardia con `HUMAN_RATCHET_BYPASS_KEY`) |
 | R7 | La seguridad no se relaja: HITL, contención de paths y política de comandos se tocan con tests de bypass. | `tests/test_policy_bypass.py`, `tests/test_policy.py` |
 | R8 | Los contratos congelados (dispatch, voto, prefiltro) no cambian sin regenerar su sha1 y justificarlo. | `tests/test_contratos.py` |
+| R9 | El código se escribe para humanos: mínimo que funciona, sin defensas/abstracciones/docstrings no pedidos, sin banners decorativos; los `except` amplios no crecen. | `tests/test_estilo_humano.py`, `ratchet.py` |
 
 ## Cómo trabajar (reglas blandas, todavía sin gate)
 
@@ -67,6 +68,27 @@ nombra el gate que la hace cumplir.
 - **Idioma**: docs, comentarios, nombres de tests y mensajes en español
   rioplatense, como el resto del repo.
 
+## Código: forma humana (evidencia, no opinión)
+
+El código generado por agentes tiene una firma medible: más verboso, más
+defensivo, más duplicado (papers y fuentes en
+`docs/informes/codigo_ia_vs_humano_2026-10-19.md`). La forma se pide y se
+gatea, no se "revisa después":
+
+- **Pirámide antes de escribir**: ¿necesita existir? → ¿ya está en el repo
+  (`utils/`, `modules/`)? → ¿stdlib? → ¿feature nativa? → ¿dependencia ya
+  instalada? → mínimo que funciona + un test si tiene lógica. (Ponytail)
+- **El tell #1 es reimplementar**: antes de crear `_foo`, buscá el helper
+  existente; el ratchet cuenta los bifurcados. Lazy sobre la solución, nunca
+  sobre leer el código que tocás.
+- **Defensas solo en la frontera de confianza**: validación de entrada,
+  seguridad y accesibilidad NO se recortan; `except` amplio visible y
+  justificado, nunca mudo.
+- **Docstrings para el porqué**, no para repetir el nombre; comentarios que
+  agregan información, no que narran la línea siguiente.
+- **Nada de banners decorativos, código muerto "por si acaso", ni `_v2` en
+  paralelo**: si algo se reemplaza, se reemplaza.
+
 ## Bypasses prohibidos (por nombre)
 
 Un agente con un gate rojo va a buscar el camino que lo ponga verde. Estos
@@ -88,5 +110,7 @@ son los que este repo ya conoce y no acepta:
 - [ ] El cambio tiene test (nuevo o existente) y su nombre está citado.
 - [ ] Si tu cambio bajó la métrica del ratchet, `ratchets/baseline.json` va
       en el mismo commit (el gate lo reescribe solo).
+- [ ] El código pasa `tests/test_estilo_humano.py` y no suma `except` amplios
+      (ratchet) ni banners.
 - [ ] docs actualizados según el tipo de cambio (estado / design / bitácora).
 - [ ] Reporte final: qué cambiaste, qué corriste, qué quedó afuera.

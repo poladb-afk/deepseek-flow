@@ -104,7 +104,6 @@ ESPECIFICACIONES = {
 BORDES = [0.5, 0.7, 0.85, 0.95]
 
 
-# ---------------------------------------------------------------------------
 # Métricas — funciones PURAS sobre una lista de casos. Puras para poder
 # testearlas sin cargar el modelo (un checkpoint son GB y minutos): la
 # aritmética de calibración se verifica sola, el modelo se mide aparte.
@@ -208,7 +207,6 @@ def ece(casos):
     return ece_local(casos), "local:10bins"
 
 
-# ---------------------------------------------------------------------------
 # Medición
 
 def percentil(valores, p):

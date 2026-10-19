@@ -766,11 +766,18 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   tabla de enforcement válida, y cada test que cita `docs/estado.md` existe.
 - **`ratchet.py` — métricas con baseline versionado** (`ratchets/baseline.json`):
   `helpers_duplicados` (deuda: helpers privados `_foo` en 2+ archivos, menor
-  mejor) y `tests_definidos` (cobertura: `def test_*`, mayor mejor). La
+  mejor), `tests_definidos` (cobertura: `def test_*`, mayor mejor) y
+  `excepts_amplios` (ruido: `except:`/`except Exception`, menor mejor). La
   invariante: la métrica puede mejorar o quedar igual, **nunca empeorar**; al
   mejorar, el baseline se reescribe solo y viaja en el mismo commit.
   `--actualizar` es decisión del operador (con `HUMAN_RATCHET_BYPASS_KEY`),
   no del agente.
+- **`tests/test_estilo_humano.py` — forma humana del código** (2026-10-19):
+  banners decorativos = 0 (el código llegó a 61), sin docstrings de relleno ni
+  wrappers vacíos sin justificar; la directiva de mínimo código del
+  `system_prompt` se verifica y tiene presupuesto (≤1.400 chars). La medición
+  que lo fundamenta (55 `except` amplios vs 1 en la referencia humana, etc.)
+  está en el [informe](informes/codigo_ia_vs_humano_2026-10-19.md).
 
 **Límites**: el ratchet congela la deuda pero no la arregla (el paydown es
 trabajo ordinario y quedó en el roadmap); no hay pre-commit (el gate es

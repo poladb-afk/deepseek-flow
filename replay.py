@@ -81,9 +81,7 @@ NODOS_CHAT = {"GetQuestion", "LayaRouter", "DirectAnswer", "AgentStep",
               "ExecuteTools", "ExitChat"}
 
 
-# ---------------------------------------------------------------------------
 # 1) GRAFOS VIVOS: clases, acciones cableadas y aristas del chat
-# ---------------------------------------------------------------------------
 
 def _nodos_alcanzables(start):
     """Los nodos alcanzables desde `start` (lo que el framework ejecuta).
@@ -206,9 +204,7 @@ def _herramientas_vivas():
     return {t["function"]["name"] for t in TOOLS} | set(MODULE_IMPLS)
 
 
-# ---------------------------------------------------------------------------
 # 2) NIVELES — funciones PURAS sobre listas de eventos
-# ---------------------------------------------------------------------------
 
 def _es_error_trazado(accion):
     """El wrapper de tracing registra las excepciones como 'error:Tipo' —
@@ -317,9 +313,7 @@ def nivel_d_router(lineas, config):
     return divergencias
 
 
-# ---------------------------------------------------------------------------
 # 3) CORRIDA sobre .runs + routing.jsonl
-# ---------------------------------------------------------------------------
 
 def _leer_eventos(archivo):
     """El mismo parseo tolerante de evals (importado, no copiado)."""
@@ -405,9 +399,7 @@ def replay_runs(dir_runs=DIR_RUNS, routing_log=ROUTING_LOG, config=None):
     }
 
 
-# ---------------------------------------------------------------------------
 # 4) BASELINE (patrón evals.py: comparar sin pisar)
-# ---------------------------------------------------------------------------
 
 def comparar_baseline(informe, ruta=BASELINE):
     """Veredicto OK/REGRESIÓN/PRIMERA CORRIDA sobre el TOTAL de violaciones
@@ -453,9 +445,7 @@ def guardar_baseline(informe, ruta=BASELINE, sha=None):
     return datos
 
 
-# ---------------------------------------------------------------------------
 # 5) INFORME
-# ---------------------------------------------------------------------------
 
 def _git_sha():
     try:

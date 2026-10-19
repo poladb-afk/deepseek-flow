@@ -62,9 +62,7 @@ def _git_sha():
         return f"(git no disponible: {type(e).__name__})"
 
 
-# ---------------------------------------------------------------------------
 # 1) BENCH DEL ROUTER
-# ---------------------------------------------------------------------------
 
 def _decision(eleccion, conf, veredicto):
     """La compuerta CRUDA del bench: 'directo' solo si el modelo eligió directo
@@ -269,9 +267,7 @@ def guardar_baseline(bench, ruta=BASELINE, sha=None):
     return datos
 
 
-# ---------------------------------------------------------------------------
 # 2) LINTER DE TRAZAS
-# ---------------------------------------------------------------------------
 
 # Conjunto canónico (nodo, accion) del sistema — MANTENIMIENTO: crece cuando
 # se agrega un nodo con una acción nueva. Armado de los flows reales (flow.py,
@@ -474,9 +470,7 @@ def linter_runs(directorio=DIR_RUNS):
     }
 
 
-# ---------------------------------------------------------------------------
 # 3) COSTO POR SESIÓN
-# ---------------------------------------------------------------------------
 
 def costo_traza(eventos):
     """Seg por nodo y por tool, sin contar dos veces lo anidado.
@@ -550,9 +544,7 @@ def _fecha_de(stem):
         return stem
 
 
-# ---------------------------------------------------------------------------
 # INFORME
-# ---------------------------------------------------------------------------
 
 def _fmt_pct(x):
     return f"{x * 100:.1f}%" if x is not None else "—"
@@ -569,7 +561,7 @@ def informe_markdown(bench, comparacion, linter, costos, sha, fecha):
              "linter de trazas, costo por sesión.")
     L.append("")
 
-    # --- 1) bench
+# 1) bench
     L.append("## 1) Bench del router")
     L.append("")
     if bench.get("estado") != "ok":
@@ -615,7 +607,7 @@ def informe_markdown(bench, comparacion, linter, costos, sha, fecha):
                          f"{f.get('aplicada')} |")
             L.append("")
 
-    # --- 2) linter
+# 2) linter
     L.append("## 2) Linter de trazas")
     L.append("")
     L.append(f"- Trazas analizadas: **{linter['total']}**")
@@ -640,7 +632,7 @@ def informe_markdown(bench, comparacion, linter, costos, sha, fecha):
             L.append(f"| {nombre} | {len(viol)} | {detalle} |")
         L.append("")
 
-    # --- 3) costo
+# 3) costo
     L.append("## 3) Costo por sesión")
     L.append("")
     L.append(f"Sesiones con eventos: **{len(costos)}**")

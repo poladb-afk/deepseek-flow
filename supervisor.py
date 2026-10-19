@@ -76,11 +76,9 @@ TEXTO_VETO = (
 )
 
 
-# ---------------------------------------------------------------------------
 # Leyes como guardas PURAS (§2): sin LLM, sin estado compartido, testeables.
 # La semántica es la de siempre — los contadores se actualizan DESPUÉS de
 # ejecutar (éxito limpia fallos, registro en previas/exitosas).
-# ---------------------------------------------------------------------------
 
 def clave_de(args):
     """La firma canónica de los args de una llamada: json con claves

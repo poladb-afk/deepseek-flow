@@ -54,6 +54,17 @@ Cada ítem indica qué pieza lo apoya y qué falta.
    `bench_juez.py`, `replay.py`, `minar_errores.py`, `triaje_trazas.py`)
    cuando se toquen. Las reglas blandas de `AGENTS.md` se gradúan a gate
    cuando duela.
+10. **Paydown del ruido (2026-10-19)**: el ratchet congeló **55 `except`
+    amplios** (39% de los `try`; la referencia humana tiene 1,6%). Acotar a la
+    excepción real (o justificar en la review) cuando se toque cada archivo:
+    cada acotación baja el baseline sola. Los otros tell no deterministas
+    (comentario narrador, código muerto "por si acaso", test slop) quedan como
+    review de `AGENTS.md` R9.
+11. **A/B de la directiva de forma (2026-10-19)**: el system prompt del chat
+    ya pide el mínimo código (Show & Tell mide −56/−70% de tokens), pero falta
+    la medición propia: correr N pedidos de escritura de código con y sin la
+    directiva, contar tokens/docstrings/defensas del archivo generado y
+    registrarlo en la bitácora como exp/N.
 
 **Descartado hoy por evidencia:** Choose a escala (~2.400 casos — el bench
 lo volvió innecesario), round de "hechos actuales" (regla dura lo cierra),

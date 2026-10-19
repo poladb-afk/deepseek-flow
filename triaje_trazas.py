@@ -55,9 +55,7 @@ DIR_SALIDA = Path("salidas/evals")
 UMBRAL_SEG_DEFAULT = 120.0
 
 
-# ---------------------------------------------------------------------------
 # 1) FUNCIÓN PURA (importable y testeable sobre listas sintéticas)
-# ---------------------------------------------------------------------------
 
 def seleccionar(evaluaciones, umbral_seg=UMBRAL_SEG_DEFAULT):
     """({nombre: [(nodo, accion, seg), ...]}) → dict {nombre: motivo} de las
@@ -95,9 +93,7 @@ def _duracion(eventos):
     return sum(float(e.get("seg", 0.0) or 0.0) for e in eventos or [])
 
 
-# ---------------------------------------------------------------------------
 # 2) LECTURA DE LA CARPETA (mismo parseo tolerante que el resto del harness)
-# ---------------------------------------------------------------------------
 
 def evaluar_runs(directorio=DIR_RUNS, umbral_seg=UMBRAL_SEG_DEFAULT):
     """Lee todos los .runs/*.jsonl, arma el dict de evaluaciones y aplica
@@ -156,9 +152,7 @@ def _ahorro(n_sel, n_legibles):
     return (1 - n_sel / n_legibles) * 100.0
 
 
-# ---------------------------------------------------------------------------
 # 3) SALIDAS (informe md, patrón minar_errores / laya_evidencia_*)
-# ---------------------------------------------------------------------------
 
 def _fmt_pct(x):
     return f"{x:.1f}%" if x is not None else "—"

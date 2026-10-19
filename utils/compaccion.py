@@ -50,9 +50,7 @@ _CLAVES = {
 }
 
 
-# ---------------------------------------------------------------------------
 # Serialización y tamaño
-# ---------------------------------------------------------------------------
 
 def serializar(messages):
     """Representación determinista del historial para medir y hashear."""
@@ -69,9 +67,7 @@ def huella(messages):
     return hashlib.sha1(serializar(messages).encode("utf-8")).hexdigest()
 
 
-# ---------------------------------------------------------------------------
 # Validación de invariantes
-# ---------------------------------------------------------------------------
 
 def validar_historial(messages):
     """Devuelve la lista de violaciones (vacía = historial válido).
@@ -129,9 +125,7 @@ def validar_historial(messages):
     return fallas
 
 
-# ---------------------------------------------------------------------------
 # Unidad indivisible assistant+tools y bloques
-# ---------------------------------------------------------------------------
 
 def _es_unidad(messages, i):
     """True si messages[i] es un assistant con tool_calls: es la CABEZA de
@@ -205,9 +199,7 @@ def _resumen(cantidad, respaldo=None, objetivo=None):
     }
 
 
-# ---------------------------------------------------------------------------
 # Función principal
-# ---------------------------------------------------------------------------
 
 def compactar(messages, max_chars, ventana=VENTANA_DEFAULT, respaldo=None,
               objetivo=None):
