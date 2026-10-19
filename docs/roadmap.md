@@ -74,9 +74,11 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     edit_file con HITL por scope) + sonda `banco/probes/forma_chat.py`. n=2
     por brazo: SLOC 133,5 → 32 (−76%), docstrings 1,00 → 0,33, `try`
     −83%, sesiones ~15% más rápidas. 4/4 sesiones OK. Límite: n=2.
-14. **Repetir exp/51 chat con más n (2026-10-19)**: el efecto está medido dos
-    veces (one-shot y chat real) pero el chat tiene n=2; correr 4-5 sesiones
-    por brazo y, si se quiere, con otro modelo. Es barato (~30 s por sesión).
+14. ~~**Repetir exp/51 chat con más n**~~ **✅ (2026-10-19)**: flash n=5 por
+    brazo (SLOC 115 → 25, −78%; sesiones 32,3 → 25,7 s) y deepseek-chat n=3
+    (179 → 21, −88%; 33,6 → 24,6 s), 16/16 sesiones OK. El efecto del
+    one-shot se sostiene (y crece) en el bucle real. exp/51 queda cerrado;
+    la cola vuelve a exp/45 (veredicto del router, pre-registrado).
 
 **Descartado hoy por evidencia:** Choose a escala (~2.400 casos — el bench
 lo volvió innecesario), round de "hechos actuales" (regla dura lo cierra),

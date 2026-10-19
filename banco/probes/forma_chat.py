@@ -13,6 +13,7 @@ por brazo.
 """
 import argparse
 import json
+import os
 import statistics
 import subprocess
 import sys
@@ -60,7 +61,11 @@ def main_probe(argv=None):
     parser = argparse.ArgumentParser(description="A/B de la directiva de forma en el chat real (exp/51)")
     parser.add_argument("--runs", type=int, default=2, help="sesiones por brazo (default 2)")
     parser.add_argument("--timeout", type=int, default=420, help="timeout por sesión en segundos")
+    parser.add_argument("--modelo", default=None,
+                        help="override de LLM_MODEL para las sesiones (default: el configurado)")
     args = parser.parse_args(argv)
+    if args.modelo:
+        os.environ["LLM_MODEL"] = args.modelo
 
     destino = RAIZ / "salidas" / "probes"
     destino.mkdir(parents=True, exist_ok=True)
@@ -88,7 +93,8 @@ def main_probe(argv=None):
                     fila["error"] = f"syntax: {exc}"
             filas.append(fila)
 
-    print(f"\n== exp/51 chat real — directiva de forma (n={args.runs} por brazo) ==")
+    print(f"\n== exp/51 chat real — modelo {os.environ.get('LLM_MODEL', 'configurado')} "
+          f"(n={args.runs} por brazo) ==")
     print(f"{'métrica':22} {'sin_forma':>10} {'con_forma':>10} {'delta':>9}")
     for metrica in _METRICAS:
         off = mediana([f for f in filas if f["brazo"] == "off"], metrica)
@@ -105,6 +111,7 @@ def main_probe(argv=None):
     print(f"artefacto: salidas/probes/ · corridas OK: {len(filas) - len(errores)}/{len(filas)}")
     salida = destino / f"forma_chat_{datetime.now():%Y%m%d_%H%M%S}.json"
     salida.write_text(json.dumps({"fecha": datetime.now().isoformat(timespec="seconds"),
+                                  "modelo": os.environ.get("LLM_MODEL", "configurado"),
                                   "runs": args.runs, "filas": filas}, ensure_ascii=False, indent=1),
                       encoding="utf-8")
     return 0 if len(errores) < len(filas) else 1

@@ -251,17 +251,15 @@ dos modelos). Antes de generalizar conviene vigilar esa tasa; en chat fue 0.
 La sonda `banco/probes/forma_chat.py` corre sesiones de chat REALES por PTY
 (escenarios `exp51-chat-on/off.yaml`): piden escribir un módulo con
 `write_file` y editarlo con `edit_file`, con HITL aprobado por scope. El
-único cambio entre brazos es `PROMPT_FORMA=1|0`. n=2 por brazo:
+único cambio entre brazos es `PROMPT_FORMA=1|0`.
 
-| métrica (mediana) | sin directiva | con directiva | delta |
-|---|---|---|---|
-| SLOC | 133,5 | **32** | **−76%** |
-| funciones | 5,5 | 2,5 | −55% |
-| densidad de docstrings | 1,00 | 0,33 | −67% |
-| `try` | 3,0 | 0,5 | −83% |
-| chequeos de `None` | 2,5 | 1,5 | −40% |
-| comentarios | 41 | 12 | −71% |
+| modelo | n/brazo | SLOC mediana (rango) | funciones | docstrings | `try` | sesión |
+|---|---|---|---|---|---|---|
+| deepseek-flash | 5 | 115 (105–140) → **25 (22–40)** | 5 → 2 | 1,0 → **0** | 2 → 0 | 32,3 → 25,7 s |
+| deepseek-chat | 3 | 179 (108–210) → **21 (18–25)** | 10 → 2 | 0,8 → **0** | 2 → 0 | 33,6 → 24,6 s |
 
-La sesión además fue más rápida (33/29 s vs 26/25 s por sesión, −15/−18%):
-menos tokens de salida se pagan también en latencia. 4/4 sesiones OK.
-**Límite:** n=2 por brazo, mismo modelo.
+**16/16 sesiones OK** (2 escrituras + 1 edición por sesión, HITL dentro del
+scope). Los efectos del one-shot se sostienen en el chat real (SLOC −78% y
+−88%) y las sesiones salen **~20–27% más rápidas**: menos tokens de salida
+se pagan también en latencia. **Límite:** n=5 y n=3 por brazo, tareas
+chicas, mismo prompt de producto.

@@ -1188,6 +1188,16 @@ sesiones además fueron ~15% más rápidas (33/29 s vs 26/25 s). 4/4 OK.
 Artefacto: `salidas/probes/forma_chat_20261019_095012.json`. Límite: n=2,
 mismo modelo.
 
+**Réplica ampliada del chat (roadmap 14).** Con más n y un segundo modelo:
+deepseek-flash n=5 por brazo → SLOC 115 (105–140) → 25 (22–40), functions
+5 → 2, docstrings 1,0 → 0, `try` 2 → 0; sesiones 32,3 → 25,7 s.
+deepseek-chat n=3 → SLOC 179 (108–210) → 21 (18–25), functions 10 → 2,
+docstrings 0,8 → 0; sesiones 33,6 → 24,6 s. **16/16 sesiones OK** y el
+efecto es más grande que en el one-shot: en el bucle real la directiva pega
+en cada escritura y edición, y las sesiones además salen ~20–27% más
+rápidas. Artefactos en salidas/probes/ (`forma_chat_20261019_101505.json` y
+`..._101759.json`). Límite: n chico, tareas chicas, un prompt de producto.
+
 **Paydown de duplicación (misma jornada).** El "signature tell" #1 de
 code-humanizer seguía en el harness: **4 copias de `_git_sha`** (dos
 semánticas distintas: sha largo con motivo vs. corto vacío), **4 de
