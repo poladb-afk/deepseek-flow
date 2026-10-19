@@ -106,6 +106,10 @@ def main(argv=None):
     directo = herramientas = 0
     with open(destino, "w", encoding="utf-8") as f:
         for fila in filas:
+            # privacidad: el artefacto VERSIONADO no lleva el texto de la
+            # pregunta (el log crudo queda en salidas/, ignorado). La
+            # calibración solo necesita conf/correcto.
+            fila = {clave: valor for clave, valor in fila.items() if clave != "pregunta"}
             f.write(json.dumps(fila, ensure_ascii=False) + "\n")
             f.flush()
             if fila["etiqueta"] == "directo":

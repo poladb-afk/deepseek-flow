@@ -613,6 +613,18 @@ llama a `utils.laya.agente(setting)` con un setting propio (`SONDA_LAYA_CKPT`)
 y así hereda `HF_HUB_OFFLINE` antes del import, el caché de errores y el
 RLock. Un checkpoint por nombre: router, voto, supervisor y base (referencia).
 
+**Modo y calibración propia (exp/43/45, 2026-10-19).** La flywheel corrió
+en `LAYA_MODO=shadow` juntando pares decisión↔resultado; con **125 pares**
+etiquetados la base rate de "directo" dio **17,6%** (umbral pre-registrado:
+<10% → apagar), así que el router SIGUE y pasó a **enforce con calibración
+ambiental propia**: `LAYA_CALIBRACION_ROUTER=banco/calibracion_ambiental_2026-10-19.jsonl`
+y `LAYA_ALPHA=0.02`, el único alpha de la curva LOO que sirve directos con
+precisión 100% (2/125 turnos). El falso directo de confianza 0,93 queda como
+conjunto ambiguo y cae al lado seguro. Veredicto reproducible:
+`banco/probes/veredicto_router.py`. Límites: ahorro chico (recall 41%), la
+etiqueta mide lo que DeepSeek hizo y parte del tráfico es sintético de banco
+(ver bitácora exp/45).
+
 ### Heartbeat — las piezas de noche
 `python3 main.py heartbeat [--ahora|--seco]` · [heartbeat.py](../heartbeat.py) · [heartbeat.example.jsonl](../heartbeat.example.jsonl)
 

@@ -10,9 +10,9 @@ Cada ítem indica qué pieza lo apoya y qué falta.
 **Corriendo solo (procesos, no ítems):**
 - **exp/43 — la flywheel**: router en shadow, cada pregunta deja par
   decisión↔resultado unido por id; `etiquetar_ambiental.py` produce la
-  calibración. Veredicto pre-registrado (exp/45): con ≥100 decisiones, base
-  rate de "directo" <10% → apagar el router; si no → alpha de la curva
-  propia y enforce con calibración ambiental.
+  calibración. **Veredicto exp/45 ✅ (2026-10-19)**: 125 pares, base rate de
+  "directo" 17,6% → SEGUIR; alpha propio 0,02 (único con precisión 100% en
+  directos) → enforce con la calibración ambiental (detalle en bitácora).
 - **exp/44 — juez de riesgo en observación**: tres preguntas de una
   dimensión sobre (comando, último mensaje) en las bandas humanas; el s/n
   del humano es la etiqueta. Primeros datos: el checkpoint base es débil →
@@ -34,8 +34,11 @@ Cada ítem indica qué pieza lo apoya y qué falta.
    medido — las preguntas sobre archivos bajan de **2 rondas a 0**, 5/5
    turnos OK y 0 errores en ambos brazos (detalle en
    [bitacora.md](bitacora.md)).
-4. **exp/45** — veredicto del router con datos propios (pre-registrado,
-   arriba; ~24/100 pares acumulados). Decide la suerte del router del chat.
+4. ~~**exp/45** — veredicto del router con datos propios~~ **✅ hecho
+   (2026-10-19)**: 125 pares etiquetados, base rate 17,6% → SEGUIR; curva
+   conformal LOO propia elige alpha=0,02 → enforce con calibración ambiental
+   (el falso directo de 0,93 cae por conjunto ambiguo). Ahorro efectivo
+   chico (1,6% de turnos) por recall 41%: ver ítem 15.
 5. **Fine-tune del juez de riesgo** — con el log de exp/44 (dataset gratis
    de las aprobaciones); umbrales del log propio, enforcement recién
    después.
@@ -74,6 +77,13 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     edit_file con HITL por scope) + sonda `banco/probes/forma_chat.py`. n=2
     por brazo: SLOC 133,5 → 32 (−76%), docstrings 1,00 → 0,33, `try`
     −83%, sesiones ~15% más rápidas. 4/4 sesiones OK. Límite: n=2.
+15. **Pre-registrar el criterio de ROI del router (2026-10-19)**: exp/45
+    midió base rate de la etiqueta (17,6%), no el ahorro del router. Con
+    recall 41% y alpha=0,02 el enforce solo sirve 1,6% de los turnos directo.
+    Si se quiere decidir por ROI: pre-registrar un umbral de ahorro efectivo
+    (p. ej. <5% → apagar), juntar tráfico ORGÁNICO (sin banco sintético;
+    hoy 46/125 pares son de hoy y todos herramientas) y re-etiquetar.
+    Mientras tanto, vigilar los falsos directo del enforce en la práctica.
 14. ~~**Repetir exp/51 chat con más n**~~ **✅ (2026-10-19)**: flash n=5 por
     brazo (SLOC 115 → 25, −78%; sesiones 32,3 → 25,7 s) y deepseek-chat n=3
     (179 → 21, −88%; 33,6 → 24,6 s), 16/16 sesiones OK. El efecto del

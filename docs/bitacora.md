@@ -1123,6 +1123,54 @@ except amplios. Límites: los gates cubren el subconjunto determinista; la
 comparación `requests` es de otro dominio (ubica magnitud, no fija ideal); la
 evidencia de industria tiene intereses comerciales declarados.
 
+## exp/45 — el veredicto del router con datos propios (2026-10-19)
+
+El pre-registro existía desde el 2026-10-13 (roadmap): **con ≥100 decisiones
+etiquetadas, base rate de "directo" <10% → apagar el router; si no → alpha de
+la curva conformal propia y enforce con calibración ambiental**. La flywheel
+(exp/43) ya juntó los datos; el veredicto se computa con
+`banco/probes/veredicto_router.py` (determinista, sin LLM, con tests en
+`tests/test_veredicto_router.py`), sobre
+`banco/calibracion_ambiental_2026-10-19.jsonl`.
+
+**Datos:** **125 pares** etiquetados (el pre-registro pedía ≥100), todos en
+shadow. Base rate de `directo`: **22/125 = 17,6%** → **SEGUIR** (no apagar).
+Sensibilidad sin el tráfico sintético del día (46 pares de banco, todos
+herramientas): 22/79 = **27,8%** → SEGUIR igual. Composición por día:
+10-13 12 (3 directo), 10-14 26 (14), 10-17 11 (0), 10-18 30 (5), 10-19 46 (0).
+
+**El router contra la etiqueta:** propuso `directo` 9 veces, 7 correctas
+(78% de precisión) → **recall 41%** de los 22 directos reales. Los 2 falsos
+directos eran claros y de confianza alta (0.96 "resumí el README", 0.93
+"primera línea de flow.py": preguntas que exigen leer).
+
+**Curva conformal LOO propia** (lo que importa es la precisión de los
+directos aceptados, porque un falso directo responde sin leer):
+
+| alpha | umbral | cobertura | directo servidos | directo OK | precisión directo |
+|---|---|---|---|---|---|
+| **0.02** | 0.017 | 0.984 | **2** | **2** | **100%** |
+| 0.05 | 0.126 | 0.952 | 8 | 6 | 75% |
+| 0.10 | 0.283 | 0.904 | 9 | 7 | 78% |
+| 0.15+ | ... | ... | 9 | 7 | 78% |
+
+**Veredicto: SEGUIR + enforce con `LAYA_ALPHA=0.02`**, el único alpha que
+sirve directos con precisión LOO 100% (los 2 de p≥0.983). Aplicado al `.env`
+local: `LAYA_MODO=enforce`, `LAYA_CALIBRACION_ROUTER=banco/calibracion_ambiental_2026-10-19.jsonl`,
+`LAYA_ALPHA=0.02`. Verificado: p=0.998 → directo; el falso directo de 0.93
+cae a herramientas por conjunto ambiguo (q=0.983).
+
+**Límites honestos:** (1) el ahorro efectivo es chico —2/125 turnos (1,6%)—
+porque el recall del router es 41%; el pre-registro midió base rate de la
+ETIQUETA, no el ROI del router, así que si se quiere decidir por ahorro hay
+que pre-registrar ese criterio aparte (roadmap 15); (2) 46 de los 125 pares
+son tráfico sintético de banco de hoy (todas herramientas) — la sensibilidad
+sin ellos da el mismo veredicto; (3) la etiqueta ambiental mide lo que
+DeepSeek HIZO, no lo que la pregunta NECESITABA (límite ya declarado en
+exp/43); (4) la calibración es un snapshot: al crecer la muestra hay que
+re-etiquetar y revisar alpha. Artefacto del veredicto:
+`salidas/evals/veredicto_router_2026-10-19.md`.
+
 ## Paydown de except amplios y exp/51 — la directiva de forma, medida (2026-10-19)
 
 Continuación de la jornada, cerrando los dos ítems que el roadmap dejó

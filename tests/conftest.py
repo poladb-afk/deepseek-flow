@@ -22,6 +22,18 @@ os.environ.setdefault("CITAS_VERIFICAR", "0")
 
 
 @pytest.fixture(autouse=True)
+def _router_sin_calibracion_local(monkeypatch):
+    """La calibración del router del `.env` local no cambia los veredictos de
+    la suite: al aplicar exp/45 (enforce + calibración ambiental) 2 tests de
+    bench medían la política con q en vez de la compuerta fija. Los tests que
+    prueban la calibración la fijan explícitamente (monkeypatch de `_setting`
+    o calibración de tmp). El .env real sigue mandando en el chat."""
+    monkeypatch.setenv(
+        "LAYA_CALIBRACION_ROUTER", str(RAIZ / ".calibracion-env-local-inexistente.jsonl")
+    )
+
+
+@pytest.fixture(autouse=True)
 def _permitir_salidas_de_tmp(tmp_path_factory, monkeypatch):
     """Las salidas de los flujos pasan por la contención de AGENT_ALLOWED_DIRS
     (exp/26): el tmp de pytest se declara como raíz permitida para que los

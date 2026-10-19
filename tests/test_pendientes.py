@@ -15,6 +15,14 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _bench_en_shadow(monkeypatch):
+    """El bench del router mide calibración/modelo: corre en SHADOW. La suite
+    no puede depender del .env local (exp/45 puso enforce + calibración ahí y
+    movía el veredicto de estos tests). Los tests que necesitan otro modo lo
+    fijan explícitamente con monkeypatch (gana el último setenv)."""
+    monkeypatch.setenv("LAYA_MODO", "shadow")
+
 # --------------------------------------------------------------------------
 # A18 / A19 — Effective N
 # --------------------------------------------------------------------------
