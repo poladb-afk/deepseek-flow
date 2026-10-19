@@ -20,7 +20,14 @@ extrae del transcript del banco; detección por palabras clave del issue
 (declaradas abajo); citas verificadas con la MISMA función del producto
 (`utils.citas.verificar_citas`). Límite declarado: los issues son plantados y
 las keywords son una aproximación; mide comportamiento, no calidad absoluta.
-Uso: python3 banco/probes/ab_skills.py [--runs 3]
+**exp/56b (mismo criterio, sin techo):** `PREFETCH=0` (el modelo debe leer por
+tools) y fixture `revision_target_dificil.py` con issues SUTILES (off-by-one,
+mutación de estado global entre llamadas, denominador mal calculado). Se
+pre-registró ANTES de correr que se aplica el mismo criterio de 4 puntos; si
+tampoco hay lift, el valor medido de la skill es bajar ruido (exp/56) y se
+documenta el negativo.
+
+Uso: python3 banco/probes/ab_skills.py [--exp 56|56b] [--runs 3]
 """
 import argparse
 import json
@@ -36,12 +43,27 @@ sys.path.insert(0, str(RAIZ))
 
 from utils.citas import verificar_citas  # noqa: E402
 
-ESCENARIOS = {
-    "off": "banco/escenarios/exp56-skill-revision-off.yaml",
-    "on": "banco/escenarios/exp56-skill-revision-on.yaml",
+EXPERIMENTOS = {
+    "56": {
+        "escenarios": {
+            "off": "banco/escenarios/exp56-skill-revision-off.yaml",
+            "on": "banco/escenarios/exp56-skill-revision-on.yaml",
+        },
+        "prefijo": "exp56-skill-revision",
+        "issues": {},  # se completa abajo
+    },
+    "56b": {
+        "escenarios": {
+            "off": "banco/escenarios/exp56b-skill-revision-off.yaml",
+            "on": "banco/escenarios/exp56b-skill-revision-on.yaml",
+        },
+        "prefijo": "exp56b-skill-revision",
+        "issues": {},
+    },
 }
+ESCENARIOS = EXPERIMENTOS["56"]["escenarios"]
 # Issues plantados en el fixture y las palabras que cuentan como haberlos visto.
-ISSUES = {
+ISSUES_56 = {
     "global_muerta_param_sin_usar": (
         "cache", "sin usar", "sin uso", "nunca se usa", "no se usa", "vestigial",
         "muerta", "muerto", "unused", "dead", "parámetro sin", "parametro sin",
@@ -55,6 +77,29 @@ ISSUES = {
         "contradice", "unidad", "porcentaje", "no coincide",
     ),
 }
+
+# exp/56b: issues SUTILES (el control puede no verlos; la detección tiene margen).
+ISSUES_56B = {
+    "off_by_one": (
+        "off-by-one", "off by one", "saltea el último", "saltea el ultimo",
+        "omite el último", "omite el ultimo", "no procesa el último",
+        "se come el último", "se come el ultimo", "queda afuera el último",
+        "ultimo elemento", "último elemento",
+    ),
+    "muta_estado_global": (
+        "muta", "mutación", "mutacion", "estado global", "variable global",
+        "lista global", "global compartida", "entre llamadas", "no es idempotente",
+        "efecto secundario", "side effect", "se acumula",
+    ),
+    "denominador_original": (
+        "denominador", "divide por len(valores)", "longitud original",
+        "incluye los inválidos", "incluye los invalidos", "cuenta los inválidos",
+        "cuenta los invalidos", "len(valores) en vez", "promedio mal calculado",
+        "sesga el promedio", "lista original",
+    ),
+}
+EXPERIMENTOS["56"]["issues"] = ISSUES_56
+EXPERIMENTOS["56b"]["issues"] = ISSUES_56B
 
 CRITERIO = (
     "con n=3 por brazo: (1) detección media skill >= control + 1; "
@@ -78,18 +123,20 @@ def extraer_respuesta_final(log):
     return "\n".join(texto).strip()
 
 
-def detectar_issues(texto):
+def detectar_issues(texto, issues=None):
     """{issue: bool} por palabras clave declaradas (lowercase)."""
+    issues = issues or ISSUES_56
     bajo = (texto or "").lower()
     return {nombre: any(clave in bajo for clave in claves)
-            for nombre, claves in ISSUES.items()}
+            for nombre, claves in issues.items()}
 
 
-def medir_respuesta(texto, verificar=None):
+def medir_respuesta(texto, verificar=None, issues=None):
     """Métricas deterministas de una respuesta de revisión."""
     verificar = verificar or verificar_citas
+    issues = issues or ISSUES_56
     citas = verificar(texto or "")
-    detectados = detectar_issues(texto)
+    detectados = detectar_issues(texto, issues)
     return {
         "palabras": len((texto or "").split()),
         "issues": detectados,
@@ -103,7 +150,7 @@ def medir_respuesta(texto, verificar=None):
 def resumen(filas):
     """Agregado por brazo de las filas válidas."""
     salida = {}
-    for brazo in ESCENARIOS:
+    for brazo in ("off", "on"):
         validas = [f for f in filas if f["brazo"] == brazo and f["valida"]]
         if not validas:
             salida[brazo] = {"filas": 0}
@@ -156,12 +203,14 @@ def _eventos_del_turno(log_path):
     return seg, rondas
 
 
-def correr_sesion(brazo):
+def correr_sesion(brazo, experimento="56"):
+    config = EXPERIMENTOS[experimento]
     inicio = time.perf_counter()
-    proceso = subprocess.run([sys.executable, "banco/banco.py", ESCENARIOS[brazo]],
+    proceso = subprocess.run([sys.executable, "banco/banco.py",
+                              config["escenarios"][brazo]],
                              cwd=RAIZ, capture_output=True, text=True, timeout=1200)
     segundos = round(time.perf_counter() - inicio, 1)
-    logs = sorted((RAIZ / "salidas" / "banco").glob(f"exp56-skill-revision-{brazo}_*.log"),
+    logs = sorted((RAIZ / "salidas" / "banco").glob(f"{config['prefijo']}-{brazo}_*.log"),
                   key=lambda ruta: ruta.stat().st_mtime)
     if not logs:
         return {"brazo": brazo, "ok": False, "valida": False,
@@ -174,7 +223,7 @@ def correr_sesion(brazo):
     fila = {"brazo": brazo, "ok": proceso.returncode == 0, "valida": activo == esperado,
             "motivo": "" if activo == esperado else f"marcador de skill inesperado ({activo})",
             "traza": log_path.name, "seg": segundos}
-    fila.update(medir_respuesta(texto))
+    fila.update(medir_respuesta(texto, issues=EXPERIMENTOS[experimento]["issues"]))
     seg_turno, rondas = _eventos_del_turno(str(log_path))
     fila["seg"] = seg_turno or segundos
     fila["rondas"] = rondas
@@ -183,6 +232,8 @@ def correr_sesion(brazo):
 
 def main_probe(argv=None):
     parser = argparse.ArgumentParser(description="exp/56: A/B de la skill revision")
+    parser.add_argument("--exp", choices=tuple(EXPERIMENTOS), default="56",
+                        help="experimento (default 56)")
     parser.add_argument("--runs", type=int, default=3, help="corridas por brazo (default 3)")
     args = parser.parse_args(argv)
 
@@ -190,7 +241,7 @@ def main_probe(argv=None):
     for turno in range(args.runs):
         for brazo in ("off", "on"):
             print(f"  · {brazo}/r{turno + 1}…", flush=True)
-            fila = correr_sesion(brazo)
+            fila = correr_sesion(brazo, args.exp)
             fila["run"] = turno + 1
             filas.append(fila)
             print(f"    ok={fila.get('ok')} valida={fila.get('valida')} "
@@ -200,7 +251,7 @@ def main_probe(argv=None):
 
     resumenes = resumen(filas)
     cumple, fallas = veredicto(resumenes)
-    print(f"\n== exp/56 A/B skill `revision` (n={args.runs} por brazo) ==")
+    print(f"\n== exp/{args.exp} A/B skill `revision` (n={args.runs} por brazo) ==")
     for brazo, datos in resumenes.items():
         print(f"  {brazo:3}: {datos}")
     print(f"  criterio: {CRITERIO}")
@@ -208,9 +259,10 @@ def main_probe(argv=None):
 
     destino = RAIZ / "salidas" / "evals"
     destino.mkdir(parents=True, exist_ok=True)
-    salida = destino / f"ab_skills_{datetime.now():%Y%m%d_%H%M%S}.json"
+    salida = destino / f"ab_skills{args.exp}_{datetime.now():%Y%m%d_%H%M%S}.json"
     salida.write_text(json.dumps({
         "fecha": datetime.now().isoformat(timespec="seconds"),
+        "experimento": args.exp,
         "runs": args.runs,
         "criterio": CRITERIO,
         "resumen": resumenes,

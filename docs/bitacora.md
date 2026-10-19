@@ -1234,6 +1234,43 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/56b — segundo round de la skill `revision`: mismo techo, ruido −58% (2026-10-19)
+
+**Qué cambió para quitar el techo:** `PREFETCH=0` (el modelo debe leer por
+tools, ya no recibe el archivo en el prompt) y fixture nuevo con issues
+SUTILES (`revision_target_dificil.py`: off-by-one que saltea el último
+elemento, mutación de estado global entre llamadas, denominador con la lista
+original en `promedio`). Criterio PRE-REGISTRADO idéntico al de exp/56
+(4 puntos: detección, citas válidas, citas inválidas, ruido) y fijado antes de
+correr; n=3 por brazo.
+
+**Resultado:**
+
+| brazo | issues | citas | palabras | seg | rondas |
+|---|---|---|---|---|---|
+| off | **3,0**/3 | 15/15 (100%) | 433,3 | 7,0 | 1 |
+| on | **3,0**/3 | 10/10 (100%) | **183,0** | **5,3** | 1,3 |
+
+**Veredicto: ❌ NO CUMPLE** otra vez por (1): el control detectó los 3 issues
+sutiles en las 3 corridas — DeepSeek es muy fuerte en revisión de un archivo
+corto, el techo no era solo el prefetch. La detección simplemente no tiene
+margen para que una skill de FORMATO la mejore.
+
+**Señal secundaria replicada y más grande:** misma detección (3/3) y mismas
+citas válidas (100%), con **−58% de palabras** (183 vs 433; en exp/56 había
+sido −40%). Con dos fixtures independientes la dirección es estable: la skill
+`revision` no produce mejores hallazgos, produce **el mismo hallazgo con
+menos ruido**, que es exactamente la tesis del repo (forma humana: formato
+ruta:línea — problema — fix, sin prosa).
+
+**Conclusión: cierro la caza de "lift de detección".** Dos experimentos, dos
+techos: el control detecta todo lo plantado. El valor medido de la skill es
+bajar la verbosidad sin perder calidad ni fabricar citas; la skill queda
+encendida por default (`SKILLS=1`) por esa razón, no por detección. Si algún
+día se quiere medir detección, el fixture tiene que contener issues que un
+modelo fuerte realmente pierda (dominio muy específico o n mucho mayor); no
+se sigue gastando en eso ahora.
+
 ## exp/55 — skills declarativas (Mesa 7): prompt+tools+disparo (2026-10-19)
 
 **Qué se construyó:** el primer recorte de la Mesa 7 ("skills/ declarativas:

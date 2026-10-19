@@ -57,6 +57,22 @@ def test_medir_respuesta_usa_verificar_inyectable():
     assert fila["palabras"] == 8
 
 
+def test_detectar_issues_sutiles_de_56b():
+    texto = ("off-by-one en sumar_todos: el range saltea el último elemento. "
+             "registrar() muta el estado global y se acumula entre llamadas. "
+             "promedio divide por la longitud original: denominador incorrecto.")
+    detectados = sonda.detectar_issues(texto, sonda.ISSUES_56B)
+    assert all(detectados.values()), detectados
+    assert not any(sonda.detectar_issues("Está todo bien.", sonda.ISSUES_56B).values())
+
+
+def test_experimentos_definen_escenarios_e_issues():
+    assert set(sonda.EXPERIMENTOS) == {"56", "56b"}
+    for config in sonda.EXPERIMENTOS.values():
+        assert set(config["escenarios"]) == {"off", "on"}
+        assert config["issues"]
+
+
 def _resumen(off, on):
     base_off = {"filas": 3, "issues_media": 1.0, "citas_ok_ratio": 0.5,
                 "citas_invalidas": 2, "palabras_media": 200.0, "seg_media": 30.0,

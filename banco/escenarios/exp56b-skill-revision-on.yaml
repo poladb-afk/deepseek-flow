@@ -1,0 +1,15 @@
+id: exp56b-skill-revision-on
+descripcion: "exp/56b A/B skill revision sin prefetch y fixture sutil (brazo ON)"
+env:
+  PREGUNTAS_LOG: "0"
+  CITAS_VERIFICAR: "0"
+  SKILLS: "1"
+  PREFETCH: "0"
+  COMPACTION_CHARS: "120000"
+turnos:
+  - id: revision
+    linea: "Revisá el código de banco/fixtures/revision_skill/revision_target_dificil.py y decime si hay problemas. Citá ruta:línea. No ejecutes comandos: solo leé."
+    timeout: 300
+  - id: salir
+    linea: "salir"
+    timeout: 60
