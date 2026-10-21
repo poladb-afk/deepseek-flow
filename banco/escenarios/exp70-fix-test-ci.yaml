@@ -1,0 +1,15 @@
+id: exp70-fix-test-ci
+descripcion: "El harness corrige el test que rompe en CI (patch global de Path.stat)"
+env:
+  PREGUNTAS_LOG: "0"
+  COMPACTION_CHARS: "500000"
+  MAX_TOOL_ROUNDS: "20"
+permitir:
+  - "{RAIZ}/"
+turnos:
+  - id: fix_test_ui
+    timeout: 900
+    max_hitl: 40
+    hitl: s
+    linea: >-
+      El CI de GitHub falló, en el mismo working tree (NO commitees ni reviertas nada). Test: tests/test_ui.py::test_catalogo_memoria_muestra_nombres_y_respeta_memoria_0. Causa: el test monkeypatchea `Path.stat` globalmente con `lambda self, *a, **k: SimpleNamespace(st_mtime=0.0)`, y adentro `main.catalogo_memoria()` llama a `_setting("MEMORIA")` que termina en `path.is_file()` -> `self.stat().st_mode` -> `AttributeError: 'types.SimpleNamespace' object has no attribute 'st_mode'`. En local no se veía porque el `.env` del repo hace que ese camino no llegue a `is_file()`; en CI (sin `.env`) sí. Arreglá EL TEST sin parchear `Path.stat` global: usá archivos reales en `tmp_path` + `MEMORIA_DIR` (como hace `test_catalogo_memoria_resumen_acotado` en tests/test_memoria.py) y mantené lo que verifica (2 nombres visibles, `MEMORIA=0` no imprime). No toques `main.py` salvo que sea imprescindible. Corré `python3 -m pytest tests/test_ui.py tests/test_memoria.py -q` y después `./calidad.sh` COMPLETO; pegá la última línea de cada uno. Si algo más falla, arreglalo.

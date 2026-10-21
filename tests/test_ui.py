@@ -69,22 +69,15 @@ def test_highlight_diff(monkeypatch):
     assert "\033[90m--- a (actual)\033[0m" in term.highlight_diff("--- a (actual)\n+++ a (nuevo)")
 
 
-def test_catalogo_memoria_muestra_nombres_y_respeta_memoria_0(monkeypatch, capsys):
+def test_catalogo_memoria_muestra_nombres_y_respeta_memoria_0(tmp_path, monkeypatch, capsys):
     """Mesa 8: al arrancar se lista la biblioteca (solo nombres, SIN inyectar
     contexto); con MEMORIA=0 no imprime nada."""
-    from pathlib import Path
-    from types import SimpleNamespace
-
     import main
-    import modules.memoria
 
     monkeypatch.delenv("MEMORIA", raising=False)
-    monkeypatch.setattr(modules.memoria, "_archivos_md",
-                        lambda: [Path("nota_uno.md"), Path("nota_dos.md")])
-    # el catálogo solo imprime nombres, pero ahora ordena por mtime: los Path
-    # falsos no existen en disco y stat() levanta (best-effort => sin salida).
-    monkeypatch.setattr(Path, "stat",
-                        lambda self, *a, **k: SimpleNamespace(st_mtime=0.0))
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+    (tmp_path / "nota_uno.md").write_text("cuerpo uno\n", encoding="utf-8")
+    (tmp_path / "nota_dos.md").write_text("cuerpo dos\n", encoding="utf-8")
     main.catalogo_memoria()
     salida = capsys.readouterr().out
     assert "biblioteca: 2 notas" in salida and "nota_uno.md" in salida
