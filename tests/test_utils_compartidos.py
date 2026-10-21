@@ -12,6 +12,7 @@ Tres helpers que vivían copiados en varias piezas de la CLI:
 """
 import json
 
+import pytest
 from conftest import requiere_repo_git
 
 from utils import git as git_utils
@@ -32,6 +33,7 @@ def test_pct_none_es_guion():
 
 # git
 
+@pytest.mark.git
 @requiere_repo_git
 def test_sha_corto_y_largo_son_hex_del_repo():
     corto, largo = git_utils.sha_corto(), git_utils.sha_largo()

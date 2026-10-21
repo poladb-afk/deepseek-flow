@@ -1246,9 +1246,12 @@ ruido sin perder calidad.
   conftest).
 - **Markers de recurso** (convención del repo: el marker nombra el recurso, el
   skip el motivo): `git` en `pyproject.toml` + helpers `requiere_git` y
-  `requiere_repo_git` en `tests/conftest.py`. Aplicados a los 4 tests que
-  necesitan git: `sha_corto/largo` y el de rutas absolutas (además del repo
-  inicializado), y las dos guardias anti-bypass del ratchet (solo el binario).
+  `requiere_repo_git` en `tests/conftest.py`. En los tests van **juntos**
+  (`@pytest.mark.git` + el skipif), porque el skipif solo no agrega el marker:
+  así `-m "not git"` los deselecciona y `-m git` los elige. Aplicados a los 4
+  tests que necesitan git: `sha_corto/largo` y el de rutas absolutas (además
+  del repo inicializado), y las dos guardias anti-bypass del ratchet (solo el
+  binario).
 
 **Verificado** (con el código de este commit):
 
@@ -1257,6 +1260,7 @@ ruido sin perder calidad.
 | checkout `/tmp/<repo>` (profundidad 1) | `test_contencion_de_rutas` **pasa** (antes fallaba) |
 | árbol tipo zip **sin `.git`** | 7 passed, **2 skipped** (sha y rutas, con motivo) |
 | `PATH` sin binario `git` | 4 passed, **4 skipped** (nada rojo) |
+| `pytest -m git` / subconjunto determinista | 4 seleccionados / **737 de 750** (13 deselect) |
 
 Sin cambios de producto ni de métricas: solo tests. Gate 4/4, 750 tests.
 

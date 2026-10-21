@@ -336,6 +336,7 @@ def _repo_con_baseline(tmp_path, metrica):
     return baseline
 
 
+@pytest.mark.git
 @requiere_git
 def test_guardia_bypass_bloquea_el_baseline_editado_a_mano(tmp_path, monkeypatch):
     """El caso real: un agente sube el número del baseline para pasar. Rojo."""
@@ -351,6 +352,7 @@ def test_guardia_bypass_bloquea_el_baseline_editado_a_mano(tmp_path, monkeypatch
     assert any("HUMAN_RATCHET_BYPASS_KEY" in m for m in mensajes)
 
 
+@pytest.mark.git
 @requiere_git
 def test_guardia_bypass_cede_ante_la_clave_humana(tmp_path, monkeypatch):
     """El operador humano puede declarar el bypass; queda impreso en el gate."""

@@ -21,9 +21,11 @@ sys.path.insert(0, str(RAIZ))
 # contención de rutas quedaba desactivada; E8 de exp/68, corregido en exp/69).
 os.environ.setdefault("AGENT_ALLOWED_DIRS", str(RAIZ))
 
-# Recursos del entorno: los tests que dependen de ellos se saltean con motivo
-# (markers en pyproject.toml). El repo usa git para el ratchet, pero la suite
-# tiene que poder correr desde un zip sin `.git`.
+# Recursos del entorno: el marker en pyproject nombra el RECURSO (selección:
+# -m git) y el skipif de acá el MOTIVO cuando falta. En los tests van juntos:
+# @pytest.mark.git + @requiere_git (el skipif solo NO agrega el marker).
+# El repo usa git para el ratchet, pero la suite tiene que poder correr desde
+# un zip sin `.git`.
 GIT = shutil.which("git")
 REPO_GIT = GIT is not None and (RAIZ / ".git").exists()
 requiere_git = pytest.mark.skipif(GIT is None, reason="requiere git")

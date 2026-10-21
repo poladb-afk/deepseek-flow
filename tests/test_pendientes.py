@@ -408,6 +408,7 @@ def test_leer_bmo_env_default_no_lee_el_env_ajeno(tmp_path, monkeypatch):
     assert call_llm._setting("MARCADOR_SOLO_BMO", "no") == "1"    # opt-in: sí
 
 
+@pytest.mark.git
 @requiere_repo_git
 def test_ningun_archivo_versionado_tiene_rutas_absolutas_del_autor():
     """Portabilidad: las rutas ABSOLUTAS de la máquina del autor no viajan.
