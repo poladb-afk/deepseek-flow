@@ -36,7 +36,7 @@ def test_policy_clasifica_los_tres_niveles():
 
     # AUTO: whitelist de solo-lectura
     for c in ("pytest -q", "python3 -m pytest tests/", "grep -r x .", "ls -la",
-              "cat x.py", "head -5 x", "tail -f x", "wc -l x", "find . -name x",
+              "cat x.py", "head -5 x", "tail -n 5 x", "wc -l x", "find . -name x",
               "file x", "echo hola", "git status", "git log --oneline",
               "git diff", "git show HEAD", "git blame x.py"):
         assert clasificar(c) == "auto", c

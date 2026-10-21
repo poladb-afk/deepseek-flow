@@ -1,0 +1,741 @@
+# Reporte de 'olores' de código IA
+
+> **Nota de triage (2026-10-21) — leer antes de usar esto.** Es **salida cruda
+> de una herramienta, sin triage**: no es un gate ni una lista de bugs, y los
+> 705 no son 705 hallazgos. Verificado: se reproduce exacto (152 archivos) solo
+> en un árbol limpio; en el checkout real escanea `salidas/` y da 4.827/420
+> porque el escáner no respeta `.gitignore`. Triage: 41% no es el harness
+> (tests 94, banco 163 —incluye el fixture que existe PARA tener errores—,
+> docs/archivo 32); del harness, 153 son `print()` (la terminal es la UX del
+> producto), 151 "except silencio" incluyen estrechos idiomáticos, 33 de 37
+> params son firmas PocketFlow `post/prep/exec`, y los 37 except amplios son
+> exactamente lo que el ratchet ya congela (36 con motivo visible); los 2
+> "secretos" y las 2 "duplicadas" son fixtures de tests. **No establece cambios
+> de código**: se conserva como apéndice de la herramienta (ver exp/68 en
+> [bitácora](../bitacora.md)). El informe que sí produjo arreglos es
+> [evidencia_absurdos_funcionales.md](evidencia_absurdos_funcionales.md).
+
+Archivos analizados: 152 | Hallazgos: 705
+
+## Resumen
+
+| Regla | Cantidad | Qué significa |
+|---|---|---|
+| PRINT_DEBUG | 274 | print() en código de librería (en vez de logging o nada) |
+| EXCEPT_SILENCIO | 192 | except que solo hace pass/log/return sin re-lanzar (traga errores) |
+| PARAM_SIN_USO | 118 | Parámetro declarado pero nunca usado (boilerplate típico de IA) |
+| EXCEPT_AMPLIO | 52 | except Exception / except: genérico que puede ocultar bugs |
+| RETURN_DEFAULT_EN_ERROR | 38 | Devuelve 0/None/''/[]/{} dentro de un except (falla silenciosa) |
+| IMPORT_SIN_USO | 22 | Import que no se usa |
+| COMENTARIO_OBVIO | 3 | Comentario que repite lo que hace el código (el 'qué', no el 'por qué') |
+| EVAL_EXEC | 2 | Uso de eval/exec/pickle.loads/subprocess shell=True |
+| SECRETO_HARDCODE | 2 | Posible secreto/credencial en el código |
+| FUNC_DUPLICADA | 2 | Funciones con cuerpo casi idéntico (copy-paste generado) |
+
+## Detalle
+
+- `auditoria.py:38` **PRINT_DEBUG** 
+- `auditoria.py:96` **PARAM_SIN_USO** post(prep_res)
+- `auditoria.py:101` **PRINT_DEBUG** 
+- `banco/banco.py:161` **EXCEPT_SILENCIO** 
+- `banco/banco.py:163` **RETURN_DEFAULT_EN_ERROR** 
+- `banco/banco.py:348` **PRINT_DEBUG** 
+- `banco/banco.py:356` **PRINT_DEBUG** 
+- `banco/bench_supervisor.py:182` **COMENTARIO_OBVIO** # Devuelve el atributo a su ORIGEN: si estaba en el `__dict_
+- `banco/bench_supervisor.py:241` **EXCEPT_SILENCIO** 
+- `banco/bench_supervisor.py:242` **RETURN_DEFAULT_EN_ERROR** 
+- `banco/bench_supervisor.py:366` **PARAM_SIN_USO** correr(dir_tmp)
+- `banco/bench_supervisor.py:388` **PRINT_DEBUG** 
+- `banco/bench_supervisor.py:402` **EXCEPT_AMPLIO** 
+- `banco/bench_supervisor.py:402` **EXCEPT_SILENCIO** 
+- `banco/bench_supervisor.py:408` **PRINT_DEBUG** 
+- `banco/bench_supervisor.py:418` **PRINT_DEBUG** 
+- `banco/bench_supervisor.py:472` **EXCEPT_SILENCIO** 
+- `banco/bench_supervisor.py:646` **PRINT_DEBUG** 
+- `banco/bench_supervisor.py:647` **PRINT_DEBUG** 
+- `banco/fixtures/revision_skill/revision_target.py:11` **PARAM_SIN_USO** cargar(cache)
+- `banco/fixtures/revision_skill/revision_target.py:21` **EXCEPT_AMPLIO** 
+- `banco/fixtures/revision_skill/revision_target.py:21` **EXCEPT_SILENCIO** 
+- `banco/fixtures/revision_skill/revision_target.py:22` **RETURN_DEFAULT_EN_ERROR** 
+- `banco/probes/ab_novedad.py:90` **PRINT_DEBUG** 
+- `banco/probes/ab_novedad.py:94` **PRINT_DEBUG** 
+- `banco/probes/ab_novedad.py:97` **PRINT_DEBUG** 
+- `banco/probes/ab_novedad.py:101` **PRINT_DEBUG** 
+- `banco/probes/ab_novedad.py:106` **PRINT_DEBUG** 
+- `banco/probes/ab_novedad.py:114` **PRINT_DEBUG** 
+- `banco/probes/ab_skills.py:201` **EXCEPT_SILENCIO** 
+- `banco/probes/ab_skills.py:243` **PRINT_DEBUG** 
+- `banco/probes/ab_skills.py:247` **PRINT_DEBUG** 
+- `banco/probes/ab_skills.py:254` **PRINT_DEBUG** 
+- `banco/probes/ab_skills.py:256` **PRINT_DEBUG** 
+- `banco/probes/ab_skills.py:257` **PRINT_DEBUG** 
+- `banco/probes/ab_skills.py:258` **PRINT_DEBUG** 
+- `banco/probes/ab_skills.py:273` **PRINT_DEBUG** 
+- `banco/probes/bench_voto.py:87` **EXCEPT_AMPLIO** 
+- `banco/probes/bench_voto.py:87` **EXCEPT_SILENCIO** 
+- `banco/probes/bench_voto.py:233` **PRINT_DEBUG** 
+- `banco/probes/bench_voto.py:238` **PRINT_DEBUG** 
+- `banco/probes/bench_voto.py:249` **PRINT_DEBUG** 
+- `banco/probes/cache_tools.py:31` **PRINT_DEBUG** 
+- `banco/probes/calibrar_voto.py:73` **EXCEPT_SILENCIO** 
+- `banco/probes/calibrar_voto.py:91` **EXCEPT_SILENCIO** 
+- `banco/probes/calibrar_voto.py:114` **PRINT_DEBUG** 
+- `banco/probes/calibrar_voto.py:124` **EXCEPT_AMPLIO** 
+- `banco/probes/calibrar_voto.py:124` **EXCEPT_SILENCIO** 
+- `banco/probes/calibrar_voto.py:125` **PRINT_DEBUG** 
+- `banco/probes/calibrar_voto.py:130` **EXCEPT_AMPLIO** 
+- `banco/probes/calibrar_voto.py:130` **EXCEPT_SILENCIO** 
+- `banco/probes/calibrar_voto.py:131` **PRINT_DEBUG** 
+- `banco/probes/calibrar_voto.py:142` **PRINT_DEBUG** 
+- `banco/probes/calibrar_voto.py:168` **PRINT_DEBUG** 
+- `banco/probes/calibrar_voto.py:172` **PRINT_DEBUG** 
+- `banco/probes/calibrar_voto.py:180` **PRINT_DEBUG** 
+- `banco/probes/calibrar_voto.py:181` **EXCEPT_AMPLIO** 
+- `banco/probes/calibrar_voto.py:181` **EXCEPT_SILENCIO** 
+- `banco/probes/calibrar_voto.py:182` **PRINT_DEBUG** 
+- `banco/probes/calibrar_voto.py:183` **PRINT_DEBUG** 
+- `banco/probes/conformal_router.py:31` **PRINT_DEBUG** 
+- `banco/probes/conformal_router.py:32` **PRINT_DEBUG** 
+- `banco/probes/conformal_router.py:33` **PRINT_DEBUG** 
+- `banco/probes/conformal_router.py:36` **PRINT_DEBUG** 
+- `banco/probes/conformal_router.py:37` **PRINT_DEBUG** 
+- `banco/probes/conformal_router.py:38` **PRINT_DEBUG** 
+- `banco/probes/conformal_router.py:45` **PRINT_DEBUG** 
+- `banco/probes/conformal_router.py:51` **PRINT_DEBUG** 
+- `banco/probes/conformal_router.py:52` **PRINT_DEBUG** 
+- `banco/probes/conformal_router.py:55` **PRINT_DEBUG** 
+- `banco/probes/conformal_router.py:56` **PRINT_DEBUG** 
+- `banco/probes/conformal_router.py:57` **PRINT_DEBUG** 
+- `banco/probes/conformal_router.py:58` **PRINT_DEBUG** 
+- `banco/probes/conformal_router.py:59` **PRINT_DEBUG** 
+- `banco/probes/estado_flywheel.py:60` **PRINT_DEBUG** 
+- `banco/probes/estado_flywheel.py:61` **PRINT_DEBUG** 
+- `banco/probes/estado_flywheel.py:63` **PRINT_DEBUG** 
+- `banco/probes/estado_flywheel.py:64` **PRINT_DEBUG** 
+- `banco/probes/etiquetar_ambiental.py:90` **EXCEPT_SILENCIO** 
+- `banco/probes/etiquetar_ambiental.py:119` **PRINT_DEBUG** 
+- `banco/probes/etiquetar_ambiental.py:120` **PRINT_DEBUG** 
+- `banco/probes/etiquetar_router.py:73` **EXCEPT_SILENCIO** 
+- `banco/probes/etiquetar_router.py:108` **PRINT_DEBUG** 
+- `banco/probes/etiquetar_router.py:116` **EXCEPT_AMPLIO** 
+- `banco/probes/etiquetar_router.py:116` **EXCEPT_SILENCIO** 
+- `banco/probes/etiquetar_router.py:117` **PRINT_DEBUG** 
+- `banco/probes/etiquetar_router.py:122` **EXCEPT_AMPLIO** 
+- `banco/probes/etiquetar_router.py:122` **EXCEPT_SILENCIO** 
+- `banco/probes/etiquetar_router.py:123` **PRINT_DEBUG** 
+- `banco/probes/etiquetar_router.py:134` **PRINT_DEBUG** 
+- `banco/probes/etiquetar_router.py:161` **PRINT_DEBUG** 
+- `banco/probes/etiquetar_router.py:165` **PRINT_DEBUG** 
+- `banco/probes/etiquetar_router.py:173` **PRINT_DEBUG** 
+- `banco/probes/etiquetar_router.py:174` **EXCEPT_AMPLIO** 
+- `banco/probes/etiquetar_router.py:174` **EXCEPT_SILENCIO** 
+- `banco/probes/etiquetar_router.py:175` **PRINT_DEBUG** 
+- `banco/probes/etiquetar_router.py:176` **PRINT_DEBUG** 
+- `banco/probes/forma_chat.py:75` **PRINT_DEBUG** 
+- `banco/probes/forma_chat.py:80` **EXCEPT_SILENCIO** 
+- `banco/probes/forma_chat.py:92` **EXCEPT_SILENCIO** 
+- `banco/probes/forma_chat.py:96` **PRINT_DEBUG** 
+- `banco/probes/forma_chat.py:98` **PRINT_DEBUG** 
+- `banco/probes/forma_chat.py:105` **PRINT_DEBUG** 
+- `banco/probes/forma_chat.py:106` **PRINT_DEBUG** 
+- `banco/probes/forma_chat.py:110` **PRINT_DEBUG** 
+- `banco/probes/forma_chat.py:111` **PRINT_DEBUG** 
+- `banco/probes/forma_codigo.py:143` **PRINT_DEBUG** 
+- `banco/probes/forma_codigo.py:148` **PRINT_DEBUG** 
+- `banco/probes/forma_codigo.py:160` **EXCEPT_SILENCIO** 
+- `banco/probes/forma_codigo.py:172` **PRINT_DEBUG** 
+- `banco/probes/forma_codigo.py:173` **PRINT_DEBUG** 
+- `banco/probes/forma_codigo.py:180` **PRINT_DEBUG** 
+- `banco/probes/forma_codigo.py:182` **PRINT_DEBUG** 
+- `banco/probes/forma_codigo.py:183` **PRINT_DEBUG** 
+- `banco/probes/forma_larga.py:165` **PRINT_DEBUG** 
+- `banco/probes/forma_larga.py:166` **PRINT_DEBUG** 
+- `banco/probes/rondas.py:39` **EXCEPT_SILENCIO** 
+- `banco/probes/rondas.py:41` **EXCEPT_SILENCIO** 
+- `banco/probes/rondas.py:264` **PRINT_DEBUG** 
+- `banco/probes/rondas.py:271` **PRINT_DEBUG** 
+- `banco/probes/rondas.py:272` **PRINT_DEBUG** 
+- `banco/probes/rondas.py:273` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:47` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:49` **EXCEPT_AMPLIO** 
+- `banco/probes/thinking_flip.py:49` **EXCEPT_SILENCIO** 
+- `banco/probes/thinking_flip.py:52` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:58` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:59` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:60` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:67` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:68` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:74` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:75` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:80` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:81` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:83` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:84` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:87` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:89` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:91` **PRINT_DEBUG** 
+- `banco/probes/thinking_flip.py:92` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:91` **EXCEPT_AMPLIO** 
+- `banco/probes/verdict_juez.py:91` **EXCEPT_SILENCIO** 
+- `banco/probes/verdict_juez.py:158` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:163` **EXCEPT_AMPLIO** 
+- `banco/probes/verdict_juez.py:163` **EXCEPT_SILENCIO** 
+- `banco/probes/verdict_juez.py:165` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:212` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:213` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:214` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:215` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:217` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:219` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:220` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:221` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:222` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:224` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:225` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:226` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:229` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:230` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:231` **PRINT_DEBUG** 
+- `banco/probes/verdict_juez.py:232` **PRINT_DEBUG** 
+- `banco/probes/veredicto_router.py:151` **EXCEPT_SILENCIO** 
+- `banco/probes/veredicto_router.py:260` **PRINT_DEBUG** 
+- `banco/probes/veredicto_router.py:261` **PRINT_DEBUG** 
+- `bench_juez.py:74` **EXCEPT_SILENCIO** 
+- `bench_juez.py:75` **RETURN_DEFAULT_EN_ERROR** 
+- `bench_juez.py:190` **PRINT_DEBUG** 
+- `bench_juez.py:194` **EXCEPT_AMPLIO** 
+- `bench_juez.py:194` **EXCEPT_SILENCIO** 
+- `bench_juez.py:212` **PRINT_DEBUG** 
+- `bench_juez.py:228` **PRINT_DEBUG** 
+- `bench_juez.py:254` **EXCEPT_SILENCIO** 
+- `bench_juez.py:400` **PRINT_DEBUG** 
+- `carga_trazas.py:104` **EXCEPT_AMPLIO** 
+- `carga_trazas.py:109` **PRINT_DEBUG** 
+- `debate.py:52` **PARAM_SIN_USO** post_async(prep_res)
+- `debate.py:58` **PRINT_DEBUG** 
+- `debate.py:87` **PARAM_SIN_USO** post_async(prep_res)
+- `debate.py:91` **PRINT_DEBUG** 
+- `debate.py:125` **PARAM_SIN_USO** post(prep_res)
+- `debate.py:166` **PRINT_DEBUG** 
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:1` **IMPORT_SIN_USO** types
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:1` **IMPORT_SIN_USO** warnings
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:6` **IMPORT_SIN_USO** numpy
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:6` **IMPORT_SIN_USO** openai
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:6` **IMPORT_SIN_USO** pocketflow
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:6` **IMPORT_SIN_USO** requests
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:6` **IMPORT_SIN_USO** yaml
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:14` **PARAM_SIN_USO** find_spec(path)
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:14` **PARAM_SIN_USO** find_spec(target)
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:23` **PARAM_SIN_USO** create_module(spec)
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:30` **EVAL_EXEC** exec
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:46` **IMPORT_SIN_USO** debate
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:46` **IMPORT_SIN_USO** flow
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:46` **IMPORT_SIN_USO** heartbeat
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:46` **IMPORT_SIN_USO** informe
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:46` **IMPORT_SIN_USO** juez
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:46` **IMPORT_SIN_USO** rag
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:46` **IMPORT_SIN_USO** research
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:47` **IMPORT_SIN_USO** conformal
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:58` **EXCEPT_AMPLIO** 
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:58` **EXCEPT_SILENCIO** 
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:166` **EXCEPT_SILENCIO** 
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:173` **EXCEPT_SILENCIO** 
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:235` **EXCEPT_AMPLIO** 
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:235` **EXCEPT_SILENCIO** 
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:261` **EXCEPT_SILENCIO** 
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:278` **PARAM_SIN_USO** predict_batch(questions)
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:319` **EXCEPT_AMPLIO** 
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:319` **EXCEPT_SILENCIO** 
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:338` **EXCEPT_SILENCIO** 
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:344` **PRINT_DEBUG** 
+- `docs/informes/archivo/2026-10/reproducir_auditoria.py:345` **PRINT_DEBUG** 
+- `effective_n.py:72` **PRINT_DEBUG** 
+- `effective_n.py:131` **PARAM_SIN_USO** post(prep_res)
+- `effective_n.py:139` **PRINT_DEBUG** 
+- `effective_n.py:163` **EXCEPT_SILENCIO** 
+- `effective_n.py:250` **PARAM_SIN_USO** post(prep_res)
+- `effective_n.py:279` **PRINT_DEBUG** 
+- `effective_n.py:281` **PRINT_DEBUG** 
+- `effective_n.py:335` **PARAM_SIN_USO** prep(shared)
+- `effective_n.py:342` **PARAM_SIN_USO** post(exec_res)
+- `effective_n.py:342` **PARAM_SIN_USO** post(prep_res)
+- `effective_n.py:354` **PRINT_DEBUG** 
+- `evals.py:138` **EXCEPT_AMPLIO** 
+- `evals.py:138` **EXCEPT_SILENCIO** 
+- `evals.py:224` **EXCEPT_SILENCIO** 
+- `evals.py:544` **EXCEPT_SILENCIO** 
+- `evals.py:687` **PRINT_DEBUG** 
+- `heartbeat.py:81` **EXCEPT_AMPLIO** 
+- `heartbeat.py:81` **EXCEPT_SILENCIO** 
+- `heartbeat.py:113` **PRINT_DEBUG** 
+- `heartbeat.py:115` **PRINT_DEBUG** 
+- `heartbeat.py:117` **PRINT_DEBUG** 
+- `heartbeat.py:119` **PRINT_DEBUG** 
+- `heartbeat.py:122` **PRINT_DEBUG** 
+- `informe.py:66` **EXCEPT_SILENCIO** 
+- `informe.py:151` **PRINT_DEBUG** 
+- `informe.py:174` **PRINT_DEBUG** 
+- `informe.py:177` **PARAM_SIN_USO** post_async(prep_res)
+- `informe.py:230` **PARAM_SIN_USO** post(prep_res)
+- `informe.py:235` **PRINT_DEBUG** 
+- `juez.py:89` **EXCEPT_SILENCIO** 
+- `juez.py:90` **RETURN_DEFAULT_EN_ERROR** 
+- `juez.py:238` **PARAM_SIN_USO** post(prep_res)
+- `juez.py:302` **EXCEPT_SILENCIO** 
+- `juez.py:382` **PRINT_DEBUG** 
+- `juez.py:389` **PRINT_DEBUG** 
+- `juez.py:408` **PRINT_DEBUG** 
+- `juez.py:438` **PARAM_SIN_USO** post(prep_res)
+- `juez.py:459` **PARAM_SIN_USO** post(exec_res)
+- `juez.py:459` **PARAM_SIN_USO** post(prep_res)
+- `juez.py:461` **PRINT_DEBUG** 
+- `juez.py:499` **EXCEPT_SILENCIO** 
+- `juez.py:500` **RETURN_DEFAULT_EN_ERROR** 
+- `juez.py:555` **EXCEPT_AMPLIO** 
+- `juez.py:585` **PRINT_DEBUG** 
+- `juez.py:587` **PRINT_DEBUG** 
+- `juez_lote.py:78` **PARAM_SIN_USO** prep_async(shared)
+- `juez_lote.py:91` **EXCEPT_AMPLIO** 
+- `juez_lote.py:91` **EXCEPT_SILENCIO** 
+- `juez_lote.py:111` **PARAM_SIN_USO** post_async(prep_res)
+- `juez_lote.py:115` **PRINT_DEBUG** 
+- `juez_lote.py:211` **PARAM_SIN_USO** post_async(prep_res)
+- `juez_lote.py:224` **PRINT_DEBUG** 
+- `juez_lote.py:261` **PRINT_DEBUG** 
+- `main.py:143` **EXCEPT_AMPLIO** 
+- `main.py:143` **EXCEPT_SILENCIO** 
+- `main.py:166` **EXCEPT_AMPLIO** 
+- `main.py:166` **EXCEPT_SILENCIO** 
+- `main.py:190` **EXCEPT_SILENCIO** 
+- `mcp_server.py:40` **EXCEPT_SILENCIO** 
+- `mcp_server.py:121` **PRINT_DEBUG** 
+- `mcp_server.py:122` **PRINT_DEBUG** 
+- `minar_errores.py:336` **PRINT_DEBUG** 
+- `minar_errores.py:337` **PRINT_DEBUG** 
+- `minar_errores.py:339` **PRINT_DEBUG** 
+- `minar_errores.py:341` **PRINT_DEBUG** 
+- `minar_errores.py:343` **PRINT_DEBUG** 
+- `minar_errores.py:344` **PRINT_DEBUG** 
+- `modules/__init__.py:25` **EXCEPT_AMPLIO** 
+- `modules/__init__.py:25` **EXCEPT_SILENCIO** 
+- `modules/__init__.py:26` **PRINT_DEBUG** 
+- `modules/__init__.py:31` **PRINT_DEBUG** 
+- `modules/a2a.py:59` **EXCEPT_SILENCIO** 
+- `modules/a2a.py:60` **RETURN_DEFAULT_EN_ERROR** 
+- `modules/a2a.py:72` **PARAM_SIN_USO** _card(nombre)
+- `modules/a2a.py:82` **EXCEPT_SILENCIO** 
+- `modules/a2a.py:90` **EXCEPT_SILENCIO** 
+- `modules/a2a.py:150` **EXCEPT_SILENCIO** 
+- `modules/a2a.py:156` **EXCEPT_SILENCIO** 
+- `modules/auditoria.py:42` **EXCEPT_SILENCIO** 
+- `modules/coding.py:76` **EXCEPT_SILENCIO** 
+- `modules/coding.py:77` **RETURN_DEFAULT_EN_ERROR** 
+- `modules/coding.py:82` **PRINT_DEBUG** 
+- `modules/coding.py:170` **EXCEPT_SILENCIO** 
+- `modules/coding.py:217` **EXCEPT_SILENCIO** 
+- `modules/coding.py:268` **PRINT_DEBUG** 
+- `modules/coding.py:286` **PRINT_DEBUG** 
+- `modules/coding.py:289` **PRINT_DEBUG** 
+- `modules/coding.py:293` **PRINT_DEBUG** 
+- `modules/coding.py:295` **PRINT_DEBUG** 
+- `modules/coding.py:296` **PRINT_DEBUG** 
+- `modules/coding.py:312` **EVAL_EXEC** shell=True
+- `modules/coding.py:321` **EXCEPT_SILENCIO** 
+- `modules/coding.py:466` **PRINT_DEBUG** 
+- `modules/coding.py:468` **PRINT_DEBUG** 
+- `modules/coding.py:477` **EXCEPT_SILENCIO** 
+- `modules/db.py:32` **EXCEPT_SILENCIO** 
+- `modules/db.py:103` **EXCEPT_SILENCIO** 
+- `modules/db.py:129` **EXCEPT_SILENCIO** 
+- `modules/db.py:131` **EXCEPT_AMPLIO** 
+- `modules/db.py:131` **EXCEPT_SILENCIO** 
+- `modules/escritura.py:53` **PRINT_DEBUG** 
+- `modules/escritura.py:57` **EXCEPT_SILENCIO** 
+- `modules/escritura.py:72` **PRINT_DEBUG** 
+- `modules/escritura.py:74` **PRINT_DEBUG** 
+- `modules/escritura.py:85` **EXCEPT_SILENCIO** 
+- `modules/evals.py:36` **EXCEPT_AMPLIO** 
+- `modules/evals.py:36` **EXCEPT_SILENCIO** 
+- `modules/humano.py:48` **PRINT_DEBUG** 
+- `modules/humano.py:53` **EXCEPT_SILENCIO** 
+- `modules/humano.py:55` **EXCEPT_SILENCIO** 
+- `modules/memoria.py:81` **EXCEPT_SILENCIO** 
+- `modules/memoria.py:116` **EXCEPT_SILENCIO** 
+- `modules/memoria.py:117` **RETURN_DEFAULT_EN_ERROR** 
+- `modules/memoria.py:128` **EXCEPT_SILENCIO** 
+- `modules/memoria.py:138` **EXCEPT_AMPLIO** 
+- `modules/memoria.py:138` **EXCEPT_SILENCIO** 
+- `modules/memoria.py:179` **EXCEPT_SILENCIO** 
+- `modules/memoria.py:180` **RETURN_DEFAULT_EN_ERROR** 
+- `modules/memoria.py:220` **EXCEPT_SILENCIO** 
+- `modules/memoria.py:221` **RETURN_DEFAULT_EN_ERROR** 
+- `modules/rag.py:47` **EXCEPT_SILENCIO** 
+- `modules/rag.py:63` **EXCEPT_SILENCIO** 
+- `modules/rag.py:74` **EXCEPT_AMPLIO** 
+- `modules/rag.py:74` **EXCEPT_SILENCIO** 
+- `modules/rag.py:110` **EXCEPT_SILENCIO** 
+- `modules/vision.py:81` **EXCEPT_SILENCIO** 
+- `modules/vision.py:91` **EXCEPT_SILENCIO** 
+- `modules/vision.py:134` **EXCEPT_SILENCIO** 
+- `modules/vision.py:140` **EXCEPT_SILENCIO** 
+- `modules/vision.py:176` **EXCEPT_SILENCIO** 
+- `modules/vision.py:178` **EXCEPT_SILENCIO** 
+- `modules/vision.py:209` **EXCEPT_SILENCIO** 
+- `modules/vision.py:215` **EXCEPT_SILENCIO** 
+- `nodes.py:44` **EXCEPT_AMPLIO** 
+- `nodes.py:44` **EXCEPT_SILENCIO** 
+- `nodes.py:240` **EXCEPT_SILENCIO** 
+- `nodes.py:249` **PRINT_DEBUG** 
+- `nodes.py:254` **PARAM_SIN_USO** post(prep_res)
+- `nodes.py:322` **PARAM_SIN_USO** post(prep_res)
+- `nodes.py:329` **PRINT_DEBUG** 
+- `nodes.py:403` **PRINT_DEBUG** 
+- `nodes.py:454` **PRINT_DEBUG** 
+- `nodes.py:459` **PRINT_DEBUG** 
+- `nodes.py:471` **PRINT_DEBUG** 
+- `nodes.py:493` **PRINT_DEBUG** 
+- `nodes.py:500` **PRINT_DEBUG** 
+- `nodes.py:509` **PRINT_DEBUG** 
+- `nodes.py:523` **PRINT_DEBUG** 
+- `nodes.py:537` **EXCEPT_AMPLIO** 
+- `nodes.py:537` **EXCEPT_SILENCIO** 
+- `nodes.py:541` **PRINT_DEBUG** 
+- `nodes.py:545` **PRINT_DEBUG** 
+- `nodes.py:558` **EXCEPT_AMPLIO** 
+- `nodes.py:558` **EXCEPT_SILENCIO** 
+- `nodes.py:563` **PRINT_DEBUG** 
+- `nodes.py:566` **PARAM_SIN_USO** post(prep_res)
+- `nodes.py:579` **PRINT_DEBUG** 
+- `nodes.py:581` **PRINT_DEBUG** 
+- `nodes.py:589` **PRINT_DEBUG** 
+- `nodes.py:639` **PRINT_DEBUG** 
+- `nodes.py:682` **PRINT_DEBUG** 
+- `nodes.py:689` **PARAM_SIN_USO** post(exec_res)
+- `nodes.py:689` **PARAM_SIN_USO** post(prep_res)
+- `nodes.py:689` **PARAM_SIN_USO** post(shared)
+- `nodes.py:690` **PRINT_DEBUG** 
+- `nodes.py:753` **PRINT_DEBUG** 
+- `nodes.py:755` **PRINT_DEBUG** 
+- `nodes.py:808` **EXCEPT_AMPLIO** 
+- `nodes.py:808` **EXCEPT_SILENCIO** 
+- `nodes.py:811` **PRINT_DEBUG** 
+- `nodes.py:812` **RETURN_DEFAULT_EN_ERROR** 
+- `nodes.py:843` **PRINT_DEBUG** 
+- `nodes.py:867` **PRINT_DEBUG** 
+- `nodes.py:880` **EXCEPT_AMPLIO** 
+- `nodes.py:880` **EXCEPT_SILENCIO** 
+- `nodes.py:882` **PRINT_DEBUG** 
+- `nodes.py:885` **PRINT_DEBUG** 
+- `rag.py:39` **EXCEPT_SILENCIO** 
+- `rag.py:40` **RETURN_DEFAULT_EN_ERROR** 
+- `rag.py:50` **EXCEPT_SILENCIO** 
+- `rag.py:51` **RETURN_DEFAULT_EN_ERROR** 
+- `rag.py:84` **EXCEPT_SILENCIO** 
+- `rag.py:85` **RETURN_DEFAULT_EN_ERROR** 
+- `rag.py:88` **PARAM_SIN_USO** post(prep_res)
+- `rag.py:90` **PRINT_DEBUG** 
+- `rag.py:107` **PARAM_SIN_USO** post(prep_res)
+- `rag.py:135` **PARAM_SIN_USO** post(prep_res)
+- `rag.py:145` **PRINT_DEBUG** 
+- `rag.py:160` **EXCEPT_SILENCIO** 
+- `rag.py:162` **PRINT_DEBUG** 
+- `ratchet.py:61` **IMPORT_SIN_USO** annotations
+- `ratchet.py:115` **EXCEPT_SILENCIO** 
+- `ratchet.py:149` **EXCEPT_SILENCIO** 
+- `ratchet.py:170` **EXCEPT_SILENCIO** 
+- `ratchet.py:207` **EXCEPT_SILENCIO** 
+- `ratchet.py:227` **EXCEPT_SILENCIO** 
+- `ratchet.py:306` **EXCEPT_SILENCIO** 
+- `ratchet.py:325` **EXCEPT_SILENCIO** 
+- `ratchet.py:439` **EXCEPT_SILENCIO** 
+- `ratchet.py:624` **EXCEPT_SILENCIO** 
+- `ratchet.py:625` **RETURN_DEFAULT_EN_ERROR** 
+- `ratchet.py:631` **EXCEPT_SILENCIO** 
+- `ratchet.py:632` **RETURN_DEFAULT_EN_ERROR** 
+- `ratchet.py:637` **EXCEPT_SILENCIO** 
+- `ratchet.py:638` **RETURN_DEFAULT_EN_ERROR** 
+- `ratchet.py:697` **EXCEPT_SILENCIO** 
+- `replay.py:252` **PARAM_SIN_USO** nivel_b_chat(clases)
+- `replay.py:328` **EXCEPT_SILENCIO** 
+- `replay.py:407` **EXCEPT_SILENCIO** 
+- `replay.py:549` **PRINT_DEBUG** 
+- `research.py:65` **PARAM_SIN_USO** post(prep_res)
+- `research.py:67` **PRINT_DEBUG** 
+- `research.py:75` **PRINT_DEBUG** 
+- `research.py:78` **EXCEPT_AMPLIO** 
+- `research.py:78` **EXCEPT_SILENCIO** 
+- `research.py:94` **PARAM_SIN_USO** post(prep_res)
+- `research.py:98` **PRINT_DEBUG** 
+- `research.py:145` **PARAM_SIN_USO** post(prep_res)
+- `research.py:153` **PRINT_DEBUG** 
+- `research.py:159` **PRINT_DEBUG** 
+- `resume.py:23` **PRINT_DEBUG** 
+- `resume.py:32` **PRINT_DEBUG** 
+- `resume.py:37` **PRINT_DEBUG** 
+- `resume.py:49` **PRINT_DEBUG** 
+- `resume.py:55` **PRINT_DEBUG** 
+- `resume.py:66` **EXCEPT_SILENCIO** 
+- `resume.py:67` **PRINT_DEBUG** 
+- `sonda_laya.py:203` **EXCEPT_SILENCIO** 
+- `sonda_laya.py:205` **EXCEPT_AMPLIO** 
+- `sonda_laya.py:205` **EXCEPT_SILENCIO** 
+- `sonda_laya.py:288` **EXCEPT_SILENCIO** 
+- `sonda_laya.py:372` **PRINT_DEBUG** 
+- `sonda_laya.py:373` **PRINT_DEBUG** 
+- `sonda_laya.py:374` **PRINT_DEBUG** 
+- `sonda_laya.py:375` **PRINT_DEBUG** 
+- `sonda_laya.py:377` **PRINT_DEBUG** 
+- `sonda_laya.py:378` **PRINT_DEBUG** 
+- `sonda_laya.py:379` **PRINT_DEBUG** 
+- `sonda_router.py:60` **PRINT_DEBUG** 
+- `sonda_router.py:62` **PRINT_DEBUG** 
+- `sonda_router.py:64` **PRINT_DEBUG** 
+- `sonda_supervisor.py:147` **PRINT_DEBUG** 
+- `sonda_supervisor.py:158` **PRINT_DEBUG** 
+- `sonda_supervisor.py:160` **PRINT_DEBUG** 
+- `sonda_supervisor.py:163` **PRINT_DEBUG** 
+- `supervisor.py:216` **PARAM_SIN_USO** post(prep_res)
+- `supervisor.py:228` **EXCEPT_SILENCIO** 
+- `supervisor.py:265` **PRINT_DEBUG** 
+- `supervisor.py:299` **PRINT_DEBUG** 
+- `supervisor.py:307` **PARAM_SIN_USO** post(prep_res)
+- `supervisor.py:324` **PRINT_DEBUG** 
+- `supervisor.py:333` **PRINT_DEBUG** 
+- `supervisor.py:356` **PARAM_SIN_USO** post(prep_res)
+- `supervisor.py:366` **PRINT_DEBUG** 
+- `tablero.py:34` **EXCEPT_SILENCIO** 
+- `tablero.py:159` **EXCEPT_SILENCIO** 
+- `tablero.py:160` **RETURN_DEFAULT_EN_ERROR** 
+- `tablero.py:236` **PRINT_DEBUG** 
+- `tablero.py:237` **PRINT_DEBUG** 
+- `tests/test_banco.py:180` **PARAM_SIN_USO** test_escenario_con_env_lo_expone_y_sin_env_sigue_valido(tmp_path)
+- `tests/test_banco.py:210` **EXCEPT_SILENCIO** 
+- `tests/test_bench.py:91` **PARAM_SIN_USO** test_bench_baseline_guarda_compara_y_no_pisa(monkeypatch)
+- `tests/test_bench.py:218` **PARAM_SIN_USO** test_bench_correr_contiene_excepcion_por_caso(tmp_path)
+- `tests/test_bench.py:357` **PARAM_SIN_USO** call_llm(messages)
+- `tests/test_bench.py:361` **PARAM_SIN_USO** call_llm_agent(messages)
+- `tests/test_bench.py:361` **PARAM_SIN_USO** call_llm_agent(tools)
+- `tests/test_bench.py:410` **PARAM_SIN_USO** llm_fake(mensajes)
+- `tests/test_bench.py:416` **PARAM_SIN_USO** run_fake(impls)
+- `tests/test_bench.py:433` **PARAM_SIN_USO** llm_siempre_tools(mensajes)
+- `tests/test_bench.py:437` **PARAM_SIN_USO** run_noop(impls)
+- `tests/test_bench.py:478` **PARAM_SIN_USO** test_bench_supervisor_contencion_por_tarea(tmp_path)
+- `tests/test_bench.py:488` **PARAM_SIN_USO** call_llm(messages)
+- `tests/test_bench.py:491` **PARAM_SIN_USO** call_llm_agent(messages)
+- `tests/test_bench.py:491` **PARAM_SIN_USO** call_llm_agent(tools)
+- `tests/test_bench.py:506` **PARAM_SIN_USO** runner_plano(tarea)
+- `tests/test_bench.py:567` **PARAM_SIN_USO** call_llm(messages)
+- `tests/test_bench.py:570` **PARAM_SIN_USO** call_llm_agent(messages)
+- `tests/test_bench.py:570` **PARAM_SIN_USO** call_llm_agent(tools)
+- `tests/test_chat_flujo.py:381` **PARAM_SIN_USO** fake_llm(tools)
+- `tests/test_citas.py:19` **PARAM_SIN_USO** test_extraer_deduplica_y_limpia_markdown(tmp_path)
+- `tests/test_consolidacion.py:268` **PARAM_SIN_USO** test_discover_saltea_modulo_roto(monkeypatch)
+- `tests/test_consolidacion.py:268` **PARAM_SIN_USO** test_discover_saltea_modulo_roto(tmp_path)
+- `tests/test_db.py:176` **PARAM_SIN_USO** test_carga_trazas_serializa_criteria_no_string(tmp_path)
+- `tests/test_db.py:261` **PARAM_SIN_USO** test_recarga_fallida_conserva_la_base_anterior(tmp_path)
+- `tests/test_evals.py:75` **PARAM_SIN_USO** system_one(lang)
+- `tests/test_evals.py:75` **PARAM_SIN_USO** system_one(preguntas)
+- `tests/test_evals.py:96` **IMPORT_SIN_USO** PREGUNTA_ROUTER
+- `tests/test_evals.py:99` **PARAM_SIN_USO** system_one(estado)
+- `tests/test_evals.py:99` **PARAM_SIN_USO** system_one(lang)
+- `tests/test_evals.py:99` **PARAM_SIN_USO** system_one(preguntas)
+- `tests/test_evals.py:304` **PARAM_SIN_USO** test_tool_evals_no_pisa_el_baseline(tmp_path)
+- `tests/test_flujos.py:258` **PARAM_SIN_USO** call_llm_agent_fake(messages)
+- `tests/test_flujos.py:258` **PARAM_SIN_USO** call_llm_agent_fake(tools)
+- `tests/test_flujos.py:325` **PARAM_SIN_USO** call_llm_agent_fake(messages)
+- `tests/test_flujos.py:325` **PARAM_SIN_USO** call_llm_agent_fake(tools)
+- `tests/test_flujos.py:405` **PARAM_SIN_USO** fake(prompt)
+- `tests/test_flujos.py:422` **PARAM_SIN_USO** fake(prompt)
+- `tests/test_flujos.py:657` **PARAM_SIN_USO** busca(k)
+- `tests/test_flujos.py:657` **PARAM_SIN_USO** busca(query)
+- `tests/test_fs_tools.py:91` **EXCEPT_SILENCIO** 
+- `tests/test_grafos_sin_calles_muertas.py:47` **EXCEPT_SILENCIO** 
+- `tests/test_grafos_sin_calles_muertas.py:48` **RETURN_DEFAULT_EN_ERROR** 
+- `tests/test_hitl.py:126` **EXCEPT_SILENCIO** 
+- `tests/test_hitl.py:182` **EXCEPT_SILENCIO** 
+- `tests/test_hitl.py:188` **SECRETO_HARDCODE** post("aprobar", token="token-viejo-de-A")  # POST TARDÍO de 
+- `tests/test_hitl.py:250` **PARAM_SIN_USO** test_historial_aprobaciones(monkeypatch)
+- `tests/test_laya.py:15` **PARAM_SIN_USO** predict_batch(lang)
+- `tests/test_laya.py:15` **PARAM_SIN_USO** predict_batch(preguntas)
+- `tests/test_laya.py:46` **PARAM_SIN_USO** fake_lote(preguntas)
+- `tests/test_laya.py:46` **PARAM_SIN_USO** fake_lote(setting)
+- `tests/test_laya_cache_reintento.py:39` **PARAM_SIN_USO** load(clave)
+- `tests/test_laya_cache_reintento.py:66` **PARAM_SIN_USO** load(clave)
+- `tests/test_laya_routing.py:445` **PARAM_SIN_USO** falso_detalle(estado)
+- `tests/test_laya_routing.py:445` **PARAM_SIN_USO** falso_detalle(preguntas)
+- `tests/test_laya_routing.py:445` **PARAM_SIN_USO** falso_detalle(setting)
+- `tests/test_llm.py:47` **FUNC_DUPLICADA** create@47, create@75
+- `tests/test_mcp_laya.py:10` **IMPORT_SIN_USO** RAIZ
+- `tests/test_novedad.py:7` **IMPORT_SIN_USO** RAIZ
+- `tests/test_pendientes.py:97` **PARAM_SIN_USO** predict_batch(preguntas)
+- `tests/test_pendientes.py:130` **PARAM_SIN_USO** cargar(clave)
+- `tests/test_pendientes.py:309` **PARAM_SIN_USO** system_one(estado)
+- `tests/test_pendientes.py:309` **PARAM_SIN_USO** system_one(lang)
+- `tests/test_pendientes.py:309` **PARAM_SIN_USO** system_one(preguntas)
+- `tests/test_pendientes.py:369` **PARAM_SIN_USO** system_one(lang)
+- `tests/test_pendientes.py:369` **PARAM_SIN_USO** system_one(preguntas)
+- `tests/test_pendientes.py:436` **EXCEPT_SILENCIO** 
+- `tests/test_pendientes.py:517` **PARAM_SIN_USO** falso(preguntas)
+- `tests/test_pendientes.py:517` **PARAM_SIN_USO** falso(setting)
+- `tests/test_policy.py:236` **PARAM_SIN_USO** test_hook_no_rompe_la_ejecucion(monkeypatch)
+- `tests/test_policy.py:251` **PARAM_SIN_USO** test_hook_pre_denylist_veta_antes_de_ejecutar(tmp_path)
+- `tests/test_policy.py:304` **PARAM_SIN_USO** test_hook_pre_que_lanza_falla_cerrado(tmp_path)
+- `tests/test_prefetch.py:109` **PARAM_SIN_USO** test_layarouter_prep_saltea_el_prefetch(monkeypatch)
+- `tests/test_replay.py:251` **PARAM_SIN_USO** test_replay_runs_end_to_end(monkeypatch)
+- `tests/test_replay.py:251` **PARAM_SIN_USO** test_replay_runs_end_to_end(vivos)
+- `tests/test_replay.py:311` **PARAM_SIN_USO** test_main_replay_escribe(monkeypatch)
+- `tests/test_riesgo.py:59` **PARAM_SIN_USO** falso_preguntar(preguntas)
+- `tests/test_router.py:45` **PARAM_SIN_USO** ds_fake(prompt)
+- `tests/test_streaming.py:160` **PARAM_SIN_USO** clasico(msgs)
+- `tests/test_streaming.py:160` **PARAM_SIN_USO** clasico(tools)
+- `tests/test_streaming.py:164` **PARAM_SIN_USO** en_stream(msgs)
+- `tests/test_streaming.py:164` **PARAM_SIN_USO** en_stream(tools)
+- `tests/test_streaming.py:194` **PARAM_SIN_USO** en_stream(msgs)
+- `tests/test_streaming.py:194` **PARAM_SIN_USO** en_stream(tools)
+- `tests/test_streaming.py:239` **FUNC_DUPLICADA** chunk@239, chunk@278
+- `tests/test_streaming.py:328` **PARAM_SIN_USO** fake_stream(msgs)
+- `tests/test_streaming.py:328` **PARAM_SIN_USO** fake_stream(tools)
+- `tests/test_visor.py:9` **IMPORT_SIN_USO** RAIZ
+- `tests/test_webchat.py:16` **IMPORT_SIN_USO** RAIZ
+- `tests/test_webchat.py:105` **EXCEPT_SILENCIO** 
+- `tests/test_webhook.py:13` **IMPORT_SIN_USO** RAIZ
+- `tests/test_webhook.py:23` **EXCEPT_SILENCIO** 
+- `tests/test_webhook.py:53` **SECRETO_HARDCODE** def _auth(token="secreto-de-prueba", extra=None):
+- `tests/test_webhook.py:96` **PARAM_SIN_USO** test_host_ajeno_rechaza_dns_rebinding(webhook)
+- `triaje_trazas.py:249` **PRINT_DEBUG** 
+- `triaje_trazas.py:250` **PRINT_DEBUG** 
+- `triaje_trazas.py:253` **PRINT_DEBUG** 
+- `triaje_trazas.py:255` **PRINT_DEBUG** 
+- `utils/aprobaciones.py:42` **EXCEPT_AMPLIO** 
+- `utils/aprobaciones.py:42` **EXCEPT_SILENCIO** 
+- `utils/aprobaciones.py:87` **EXCEPT_SILENCIO** 
+- `utils/aprobaciones.py:88` **PRINT_DEBUG** 
+- `utils/aprobaciones.py:89` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/call_llm.py:79` **EXCEPT_SILENCIO** 
+- `utils/call_llm.py:80` **PRINT_DEBUG** 
+- `utils/call_llm.py:198` **PRINT_DEBUG** 
+- `utils/call_llm.py:266` **PRINT_DEBUG** 
+- `utils/call_llm.py:267` **EXCEPT_AMPLIO** 
+- `utils/call_llm.py:267` **EXCEPT_SILENCIO** 
+- `utils/call_llm.py:276` **PRINT_DEBUG** 
+- `utils/call_llm.py:307` **PRINT_DEBUG** 
+- `utils/citas.py:40` **EXCEPT_SILENCIO** 
+- `utils/citas.py:66` **EXCEPT_SILENCIO** 
+- `utils/citas.py:67` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/citas.py:99` **EXCEPT_SILENCIO** 
+- `utils/contexto.py:119` **EXCEPT_AMPLIO** 
+- `utils/contexto.py:119` **EXCEPT_SILENCIO** 
+- `utils/contexto.py:120` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/embeddings.py:26` **PRINT_DEBUG** 
+- `utils/embeddings.py:28` **EXCEPT_AMPLIO** 
+- `utils/embeddings.py:28` **EXCEPT_SILENCIO** 
+- `utils/fs_tools.py:48` **COMENTARIO_OBVIO** # devuelve el problema al modelo para que se autocorrija.
+- `utils/fs_tools.py:79` **PRINT_DEBUG** 
+- `utils/fs_tools.py:83` **EXCEPT_AMPLIO** 
+- `utils/fs_tools.py:83` **EXCEPT_SILENCIO** 
+- `utils/fs_tools.py:145` **EXCEPT_SILENCIO** 
+- `utils/fs_tools.py:207` **EXCEPT_SILENCIO** 
+- `utils/fs_tools.py:224` **EXCEPT_SILENCIO** 
+- `utils/fs_tools.py:277` **EXCEPT_SILENCIO** 
+- `utils/fs_tools.py:322` **EXCEPT_SILENCIO** 
+- `utils/fs_tools.py:338` **EXCEPT_SILENCIO** 
+- `utils/fs_tools.py:339` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/fs_tools.py:508` **COMENTARIO_OBVIO** # devuelve None, no opina. Un hook PRE que LANZA falla CERRA
+- `utils/fs_tools.py:515` **EXCEPT_AMPLIO** 
+- `utils/fs_tools.py:515` **EXCEPT_SILENCIO** 
+- `utils/fs_tools.py:528` **EXCEPT_AMPLIO** 
+- `utils/fs_tools.py:528` **EXCEPT_SILENCIO** 
+- `utils/git.py:15` **EXCEPT_SILENCIO** 
+- `utils/git.py:16` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/git.py:42` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:108` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:116` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:145` **PRINT_DEBUG** 
+- `utils/hitl_web.py:177` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:194` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:195` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/hitl_web.py:348` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:387` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:389` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:401` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:403` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/hitl_web.py:430` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:432` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/hitl_web.py:438` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:440` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/hitl_web.py:516` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:523` **PRINT_DEBUG** 
+- `utils/hitl_web.py:532` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:546` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:547` **PRINT_DEBUG** 
+- `utils/hitl_web.py:548` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/hitl_web.py:554` **PRINT_DEBUG** 
+- `utils/hitl_web.py:558` **EXCEPT_AMPLIO** 
+- `utils/hitl_web.py:558` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:559` **PRINT_DEBUG** 
+- `utils/hitl_web.py:566` **PRINT_DEBUG** 
+- `utils/hitl_web.py:575` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:576` **PRINT_DEBUG** 
+- `utils/hitl_web.py:579` **PRINT_DEBUG** 
+- `utils/hitl_web.py:580` **PRINT_DEBUG** 
+- `utils/hitl_web.py:585` **EXCEPT_SILENCIO** 
+- `utils/hitl_web.py:586` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/laya.py:81` **PRINT_DEBUG** 
+- `utils/laya.py:96` **EXCEPT_AMPLIO** 
+- `utils/laya.py:96` **EXCEPT_SILENCIO** 
+- `utils/laya.py:121` **EXCEPT_SILENCIO** 
+- `utils/laya.py:122` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/laya.py:204` **EXCEPT_SILENCIO** 
+- `utils/laya.py:205` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/laya_routing.py:127` **EXCEPT_AMPLIO** 
+- `utils/laya_routing.py:127` **EXCEPT_SILENCIO** 
+- `utils/laya_routing.py:139` **EXCEPT_SILENCIO** 
+- `utils/laya_routing.py:142` **PRINT_DEBUG** 
+- `utils/laya_routing.py:153` **PRINT_DEBUG** 
+- `utils/laya_routing.py:164` **EXCEPT_SILENCIO** 
+- `utils/laya_routing.py:165` **PRINT_DEBUG** 
+- `utils/laya_routing.py:193` **EXCEPT_SILENCIO** 
+- `utils/laya_routing.py:194` **PRINT_DEBUG** 
+- `utils/laya_routing.py:201` **PARAM_SIN_USO** decide_voto(resp)
+- `utils/laya_routing.py:304` **EXCEPT_SILENCIO** 
+- `utils/laya_routing.py:333` **EXCEPT_SILENCIO** 
+- `utils/laya_routing.py:334` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/laya_routing.py:349` **EXCEPT_SILENCIO** 
+- `utils/mcp_client.py:74` **EXCEPT_AMPLIO** 
+- `utils/mcp_client.py:74` **EXCEPT_SILENCIO** 
+- `utils/mcp_client.py:92` **EXCEPT_SILENCIO** 
+- `utils/mcp_client.py:96` **EXCEPT_AMPLIO** 
+- `utils/mcp_client.py:96` **EXCEPT_SILENCIO** 
+- `utils/prefetch.py:56` **EXCEPT_SILENCIO** 
+- `utils/prefetch.py:62` **EXCEPT_SILENCIO** 
+- `utils/riesgo.py:80` **EXCEPT_AMPLIO** 
+- `utils/riesgo.py:80` **EXCEPT_SILENCIO** 
+- `utils/riesgo.py:81` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/riesgo.py:121` **EXCEPT_SILENCIO** 
+- `utils/skills.py:65` **EXCEPT_SILENCIO** 
+- `utils/skills.py:66` **PRINT_DEBUG** 
+- `utils/thread_store.py:60` **EXCEPT_SILENCIO** 
+- `utils/thread_store.py:75` **EXCEPT_SILENCIO** 
+- `utils/thread_store.py:76` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/thread_store.py:82` **EXCEPT_SILENCIO** 
+- `utils/thread_store.py:144` **EXCEPT_AMPLIO** 
+- `utils/thread_store.py:144` **EXCEPT_SILENCIO** 
+- `utils/tracing.py:28` **PRINT_DEBUG** 
+- `utils/tracing.py:145` **EXCEPT_AMPLIO** 
+- `utils/tracing.py:164` **EXCEPT_AMPLIO** 
+- `utils/trazas.py:24` **EXCEPT_SILENCIO** 
+- `utils/trazas.py:25` **RETURN_DEFAULT_EN_ERROR** 
+- `utils/viz.py:8` **PARAM_SIN_USO** mermaid(titulo)
+- `utils/viz.py:61` **PRINT_DEBUG** 
+- `utils/viz.py:62` **PRINT_DEBUG** 
+- `utils/webchat.py:108` **EXCEPT_SILENCIO** 
+- `utils/websearch.py:16` **EXCEPT_AMPLIO** 
+- `utils/websearch.py:16` **EXCEPT_SILENCIO** 
+- `utils/websearch.py:34` **PRINT_DEBUG** 
+- `visor.py:129` **EXCEPT_SILENCIO** 
+- `visor.py:154` **PRINT_DEBUG** 
+- `visor.py:169` **EXCEPT_SILENCIO** 
+- `visor.py:170` **RETURN_DEFAULT_EN_ERROR** 
+- `visor.py:181` **PRINT_DEBUG** 
+- `visor.py:190` **PRINT_DEBUG** 
+- `visor.py:197` **PRINT_DEBUG** 

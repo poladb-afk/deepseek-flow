@@ -1,0 +1,198 @@
+diff -ruN a/nodes.py b/nodes.py
+--- a/nodes.py	2026-10-21 13:50:51.293738106 +0000
++++ b/nodes.py	2026-10-21 13:50:51.293738106 +0000
+@@ -119,7 +119,7 @@
+     perfil = PERFILES_PRESUPUESTO.get(shared.get("operacion", ""))
+     if perfil is not None:
+         return perfil
+-    return globals().get("MAX_TOOL_ROUNDS", MAX_TOOL_ROUNDS)
++    return MAX_TOOL_ROUNDS
+ 
+ 
+ def fingerprint(tool_calls):
+diff -ruN a/tests/test_absurdos_funcionales.py b/tests/test_absurdos_funcionales.py
+--- a/tests/test_absurdos_funcionales.py	1970-01-01 00:00:00.000000000 +0000
++++ b/tests/test_absurdos_funcionales.py	2026-10-21 13:50:51.297738082 +0000
+@@ -0,0 +1,71 @@
++"""Absurdos funcionales del HITL graduado y de la votación (revisión 2026-10-21).
++
++Cada caso fue reproducido contra el código antes del arreglo: la política
++clasificaba por la FORMA del comando y no por su efecto. Ver
++docs/informes/evidencia_absurdos_funcionales.md.
++"""
++import pytest
++from conftest import RAIZ
++
++from modules import coding
++from utils import policy
++from utils.votacion import mayoria
++
++
++@pytest.mark.parametrize("comando", [
++    "sort -S 100K --compress-program=./payload.sh big.txt",  # ejecutaba payload.sh en auto
++    "pytest -q -o addopts=-pplugmalo",                       # cargaba el plugin en auto
++    "pytest -q --override-ini=addopts=-pplugmalo",
++    "tail -f log.txt",                                       # colgaba hasta TIMEOUT_S
++    "tail -F log.txt",
++])
++def test_whitelist_no_deja_ejecutar_ni_colgar(comando):
++    assert policy.clasificar(comando) == "preguntar"
++
++
++@pytest.mark.parametrize("comando", [
++    "rm -r -f x", "rm -Rf x", "rm -fR x", "rm --recursive --force x",
++    "sudo rm -rf x", "/bin/rm -rf x", "env rm -rf x", "command rm -rf x",
++    "git -C . push", "git -c user.name=x push origin main", "sudo git push",
++    "ls && rm -r -f x",
++])
++def test_destructivo_pide_doble_aunque_cambie_la_forma(comando):
++    assert policy.clasificar(comando) == "confirmar_doble"
++
++
++@pytest.mark.parametrize("comando, esperado", [
++    ("rm -r x", "preguntar"),           # recursivo sin forzar: un solo s/n, como antes
++    ("rm -f x", "preguntar"),
++    ("git log --grep push", "auto"),    # 'push' como argumento no es el subcomando
++    ("tail -n 20 log.txt", "auto"),
++    ("sort archivo.txt", "auto"),
++    ("pytest -q", "auto"),
++])
++def test_normalizar_no_sube_friccion_de_mas(comando, esperado):
++    assert policy.clasificar(comando) == esperado
++
++
++@pytest.mark.parametrize("comando, esperado", [
++    ("ls && rm -rf /", "borrado recursivo forzado (destructivo)"),
++    ("cd /tmp && rm -rf x", "borrado recursivo forzado (destructivo)"),
++    ("cat a && git -C . push", "publica commits al remoto (irreversible en el server)"),
++])
++def test_explicar_nombra_el_segmento_que_fija_el_nivel(comando, esperado):
++    assert policy.explicar(comando) == esperado
++
++
++def test_auto_fuera_de_raices_sigue_preguntando(monkeypatch):
++    """El hallazgo inicial 'cat ~/.ssh lee sin aprobación' era FALSO: clasificar
++    da auto pero run_command lo sube a preguntar con _sale_de_raices. Se clava
++    para que nadie quite esa segunda capa creyendo que sobra."""
++    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(RAIZ))
++    for comando in ("cat ~/.ssh/id_rsa", "grep -r secreto ~", "find / -name '*.pem'",
++                    "git diff --no-index /etc/passwd README.md", "cat $HOME/.bashrc"):
++        assert policy.clasificar(comando) == "auto"
++        assert coding._nivel(comando) == "preguntar", comando
++
++
++def test_mayoria_empate_usa_el_desempate():
++    assert mayoria(["a", "a", "b", "b"], desempate="b") == "b"
++    assert mayoria(["a", "a", "b", "b", "c"], desempate="c") == "c"
++    assert mayoria(["a", "a", "b"], desempate="b") == "a"  # sin empate: gana la mayoría
+diff -ruN a/tests/test_policy.py b/tests/test_policy.py
+--- a/tests/test_policy.py	2026-10-21 13:50:51.301738059 +0000
++++ b/tests/test_policy.py	2026-10-21 13:50:51.305738035 +0000
+@@ -36,7 +36,7 @@
+ 
+     # AUTO: whitelist de solo-lectura
+     for c in ("pytest -q", "python3 -m pytest tests/", "grep -r x .", "ls -la",
+-              "cat x.py", "head -5 x", "tail -f x", "wc -l x", "find . -name x",
++              "cat x.py", "head -5 x", "tail -n 5 x", "wc -l x", "find . -name x",
+               "file x", "echo hola", "git status", "git log --oneline",
+               "git diff", "git show HEAD", "git blame x.py"):
+         assert clasificar(c) == "auto", c
+diff -ruN a/utils/policy.py b/utils/policy.py
+--- a/utils/policy.py	2026-10-21 13:50:51.309738012 +0000
++++ b/utils/policy.py	2026-10-21 13:50:51.309738012 +0000
+@@ -122,9 +122,13 @@
+              # traversal: siguen symlinks; con un enlace dentro de las raíces
+              # se lee fuera de ellas (auditoría F2, symlink escape)
+              "-L", "-H", "-follow"),
+-    "sort": ("-o", "--output"),
++    # --compress-program EJECUTA el programa que se le pasa (GNU sort)
++    "sort": ("-o", "--output", "--compress-program"),
++    # tail -f/-F no termina: en auto el agente queda colgado hasta TIMEOUT_S
++    "tail": ("-f", "-F", "--follow", "--retry"),
+     "git": ("--output", "--ext-diff", "--textconv"),
+-    "pytest": ("-p", "--basetemp", "--rootdir", "-c", "--confcutdir"),
++    # -o/--override-ini reinyecta cualquier flag (addopts=-p plugin) y saltea la lista
++    "pytest": ("-p", "--basetemp", "--rootdir", "-c", "--confcutdir", "-o", "--override-ini"),
+     "grep": ("-R", "--dereference-recursive"),
+ }
+ 
+@@ -187,12 +191,43 @@
+     return False
+ 
+ 
++# Envoltorios que ejecutan el comando que les sigue: el riesgo es el del comando.
++_ENVOLTORIOS = {"sudo", "env", "command", "exec", "nice", "nohup", "time"}
++# Opciones globales de git que toman un valor: `git -C . push` sigue siendo push.
++_GIT_GLOBAL_CON_VALOR = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
++
++
++def _normalizar(tokens):
++    """Tokens con el riesgo a la vista: sin envoltorios, `/bin/rm` → `rm`,
++    flags de rm recursivo+forzado como `-rf`, y git sin opciones globales.
++    Solo SUBE fricción: se usa para la lista negra, nunca para la whitelist."""
++    tokens = list(tokens)
++    while tokens and (tokens[0].rsplit("/", 1)[-1] in _ENVOLTORIOS or "=" in tokens[0]):
++        tokens = tokens[1:]
++    if not tokens:
++        return tokens
++    tokens[0] = tokens[0].rsplit("/", 1)[-1]
++    if tokens[0] == "rm":
++        cortos = "".join(t[1:] for t in tokens[1:] if t.startswith("-") and not t.startswith("--"))
++        largos = {t for t in tokens[1:] if t.startswith("--")}
++        recursivo = "r" in cortos.lower() or "--recursive" in largos
++        forzado = "f" in cortos or "--force" in largos
++        if recursivo and forzado:
++            return ["rm", "-rf"] + [t for t in tokens[1:] if not t.startswith("-")]
++    if tokens[0] == "git":
++        resto, i = tokens[1:], 0
++        while i < len(resto) and resto[i].startswith("-"):
++            i += 2 if resto[i] in _GIT_GLOBAL_CON_VALOR else 1
++        return ["git"] + resto[i:]
++    return tokens
++
++
+ def _segmento_nivel(segmento):
+     """Nivel que impone UN segmento (sin mirar composición)."""
+     segmento = segmento.strip()
+     if not segmento:
+         return None
+-    tokens = _tokens(segmento)
++    tokens = _normalizar(_tokens(segmento))
+     # La negra de doble confirmación gana sobre cualquier otra cosa.
+     for prefijo in _NEGRA_DOBLE:
+         if _empieza_con(tokens, prefijo):
+@@ -290,14 +325,16 @@
+ def explicar(comando):
+     """Explicación corta (una línea) de por qué `comando` tiene el nivel que
+     tiene. El NIVEL sale de `clasificar` (misma política, composición incluida);
+-    la EXPLICACIÓN describe el primer token del comando entero, así que en un
+-    compuesto puede nombrar un segmento inocente (p. ej. `ls && rm -rf /`
+-    explica "lista un directorio" aunque el nivel sea confirmar_doble)."""
++    la EXPLICACIÓN describe el segmento que fija ese nivel."""
+     if comando is None or not str(comando).strip():
+         return "comando vacío o inválido → se pide aprobación (default seguro)"
+     comando = str(comando).strip()
+     nivel = clasificar(comando)
+-    tokens = comando.split()
++    # En un compuesto se explica el segmento que fija el nivel, no el primero:
++    # es lo que lee el humano al aprobar (`ls && rm -rf /` no es "lista").
++    segmentos = [x for x in _SEPARADORES.split(_sin_dup_stderr(comando)) if x.strip()]
++    peor = next((x for x in segmentos if clasificar(x) == nivel), comando)
++    tokens = _normalizar(peor.split())
+     for prefijo, texto in _LECTURA:
+         if tuple(tokens[: len(prefijo)]) == prefijo:
+             return texto
+diff -ruN a/utils/votacion.py b/utils/votacion.py
+--- a/utils/votacion.py	2026-10-21 13:50:51.313737989 +0000
++++ b/utils/votacion.py	2026-10-21 13:50:51.317737965 +0000
+@@ -25,7 +25,8 @@
+     conteo = Counter(votos)
+     if not conteo:
+         return desempate
+-    opcion, n = conteo.most_common(1)[0]
+-    if n >= minimo:
++    (opcion, n), *resto = conteo.most_common()
++    empate = bool(resto) and resto[0][1] == n
++    if n >= minimo and not empate:
+         return opcion
+     return desempate if desempate is not None else opcion

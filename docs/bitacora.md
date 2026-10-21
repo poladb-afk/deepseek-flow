@@ -1234,6 +1234,67 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/68 — auditoría externa 2026-10-21: E1–E7 aplicados (HITL graduado y votación) (2026-10-21)
+
+**Origen:** una auditoría externa sobre un zip del repo (sin git) dejó cinco
+documentos nuevos en `docs/informes/`: la evidencia funcional (E1–E8), las
+sugerencias con un patch, un reporte de "AI smells" y el escáner que lo generó.
+Esta entrada registra qué se **verificó**, qué se **aplicó** y qué se **descartó**.
+
+**Verificación independiente (worktree limpio sobre `a442cff`):**
+
+- E1–E8 confirmados uno por uno contra el código. El §0 del informe (la
+  auto-corrección del bypass falso de `cat ~/.ssh`) también: `clasificar` da
+  `auto`, pero `_nivel` sube a `preguntar` por la segunda capa `_sale_de_raices`.
+- El patch del informe se aplicó en worktree: ruff + C901 + ratchet verdes,
+  28/28 tests nuevos, **0 regresiones** (limpio 700 passed + 1 falla ambiental
+  por falta de `.env`/`trazas.db`; parcheado 728 + la misma falla).
+- El reporte de smells **se reproduce exacto** (152 archivos / 705 hallazgos)
+  solo en un árbol limpio; en el checkout real escanea `salidas/` y da
+  **4.827/420** porque no respeta `.gitignore`. Triage: 41% de los hallazgos no
+  es el harness (tests 94, banco 163, docs/archivo 32); del resto, 153 son
+  `print()` (la terminal ES la UX del producto), 151 "except silencio" incluyen
+  estrechos idiomáticos, 33 de 37 params son firmas PocketFlow `post/prep/exec`,
+  los 37 except amplios son lo que el ratchet ya congela (36 con motivo), y los
+  "secretos"/"duplicadas" son fixtures de tests. **No establece cambios**: se
+  conserva como apéndice crudo con nota de triage.
+
+**Aplicado (E1–E7), con correcciones sobre el patch propuesto:**
+
+- E1 `sort --compress-program` y E2 `pytest -o/--override-ini` → `preguntar`:
+  el bloqueo de `-p` deja de ser evadible.
+- E3 `tail -f/-F/--follow/--retry` → `preguntar`: no cuelga 120 s. El test que
+  exigía el contrato roto (`tail -f` en `auto`) se corrigió a `tail -n 5`.
+- E4 doble confirmación robusta a la forma: `_normalizar` quita envoltorios
+  **y sus opciones** (`sudo -u root`, `nice -n 10`, `timeout 5`, `env -i`),
+  normaliza `/bin/rm`, flags de rm en cualquier orden/mayúsculas (`-rF`
+  incluido), y git sin opciones globales. Solo **sube** fricción (whitelist
+  sigue mirando la forma cruda).
+- E5 `explicar`: explica el segmento que fija el nivel; el texto de
+  solo-lectura usa la forma cruda para no desinformar (`sudo cat` NO dice
+  "solo lee"), y un flag peligroso tiene motivo propio.
+- E6 `mayoria()` usa el desempate en empate; E7 `presupuesto` lee el global
+  sin `globals()` y con el comentario al día.
+- Además del patch: tests **e2e por el flujo** (`_nivel` y `run_command` con
+  `_ejecutar`/`_aprobar` interceptados) para que un hueco de clasificación no
+  se pueda colar hasta la ejecución; y un caso `-rF` que el patch no cubría.
+
+**Resultado:** 706 → **750 tests** (ratchet `tests_definidos` 690 → 734; helpers,
+complejas, anidadas y excepts amplios quedan igual). Gate 4/4 verde. Docs:
+estado (filas E1–E8, A45/A53 actualizadas), esta entrada y notas de estado en
+los informes de la auditoría.
+
+**No aplicado (a propósito):** E8 (dependencia de git/profundidad del checkout)
+—el repo y el CI requieren git, y el arreglo es de tests (`tmp_path`), va en un
+commit aparte si duele—; la "whitelist de flags por comando" del informe
+(dirección correcta, pero es un rediseño de la política: medir con el banco
+antes, como dice el propio informe); y el reporte de smells como "hallazgos".
+
+**Lecciones:** el check `tail -f` en `auto` muestra que un test puede **fijar el
+bug**: al arreglar comportamiento, revisar qué tests lo defendían. Y un hallazgo
+de seguridad se confirma **por la tool completa** (`run_command`), no por la
+función aislada — el §0 del informe es el ejemplo.
+
 ## exp/67 — jornada de datos: la flywheel acumula +23 pares orgánicos (2026-10-19)
 
 **Qué se hizo:** 25 preguntas reales (tareas de repo + conocimiento general,

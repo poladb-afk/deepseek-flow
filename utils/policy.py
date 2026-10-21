@@ -122,9 +122,13 @@ _FLAGS_PELIGROSOS = {
              # traversal: siguen symlinks; con un enlace dentro de las raíces
              # se lee fuera de ellas (auditoría F2, symlink escape)
              "-L", "-H", "-follow"),
-    "sort": ("-o", "--output"),
+    # --compress-program EJECUTA el programa que se le pasa (GNU sort)
+    "sort": ("-o", "--output", "--compress-program"),
+    # tail -f/-F no termina: en auto el agente queda colgado hasta TIMEOUT_S
+    "tail": ("-f", "-F", "--follow", "--retry"),
     "git": ("--output", "--ext-diff", "--textconv"),
-    "pytest": ("-p", "--basetemp", "--rootdir", "-c", "--confcutdir"),
+    # -o/--override-ini reinyecta cualquier flag (addopts=-p plugin) y saltea la lista
+    "pytest": ("-p", "--basetemp", "--rootdir", "-c", "--confcutdir", "-o", "--override-ini"),
     "grep": ("-R", "--dereference-recursive"),
 }
 
@@ -187,12 +191,93 @@ def _tiene_flag_peligroso(tokens):
     return False
 
 
+# Envoltorios que ejecutan el comando que les sigue: el riesgo es el del
+# comando. Sus opciones (y los valores de esas opciones) no son el comando:
+# `sudo -u root rm -rf x` sigue siendo un rm -rf recursivo y forzado.
+_ENVOLTORIOS = {"sudo", "env", "command", "exec", "nice", "nohup", "time", "timeout"}
+_OPCIONES_CON_VALOR = {
+    "sudo": ("-u", "--user", "-g", "--group", "-p", "--prompt", "-C", "--close-from",
+             "-r", "--role", "-t", "--type", "-U", "--other-user", "-T", "--command-timeout"),
+    "env": ("-u", "--unset", "-C", "--chdir", "-S", "--split-string"),
+    "nice": ("-n", "--adjustment"),
+    "timeout": ("-s", "--signal", "-k", "--kill-after"),
+    "time": ("-o", "--output", "-f", "--format"),
+    "exec": ("-a",),
+}
+# Opciones globales de git que toman un valor: `git -C . push` sigue siendo push.
+_GIT_GLOBAL_CON_VALOR = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
+
+
+def _saltar_opciones(tokens, envoltorio):
+    """Tokens del comando real: sin las opciones del envoltorio ni sus valores.
+    `timeout` además lleva una DURACIÓN antes del comando (no es el comando)."""
+    con_valor = _OPCIONES_CON_VALOR.get(envoltorio, ())
+    while tokens and tokens[0].startswith("-"):
+        if tokens[0] == "--":
+            tokens = tokens[1:]
+            break
+        # `nice -10` (forma vieja) es un ajuste, no una opción con valor aparte.
+        saltar = 2 if tokens[0] in con_valor and not re.fullmatch(r"-\d+", tokens[0]) else 1
+        tokens = tokens[saltar:]
+    if envoltorio == "timeout" and tokens and not tokens[0].startswith("-"):
+        tokens = tokens[1:]  # la duración (5, 1m, 0.5s) no es el comando
+    return tokens
+
+
+def _sin_envoltorios(tokens):
+    """Saca los envoltorios (y las asignaciones de env) hasta el comando real."""
+    while tokens:
+        base = tokens[0].rsplit("/", 1)[-1]
+        if base in _ENVOLTORIOS:
+            tokens = _saltar_opciones(tokens[1:], base)
+            continue
+        if "=" in tokens[0] and not tokens[0].startswith("-"):
+            tokens = tokens[1:]  # VAR=valor antes del comando
+            continue
+        break
+    return tokens
+
+
+def _normalizar_rm(tokens):
+    """`rm` recursivo+forzado en cualquier forma (incluye `-rF`) → `rm -rf`."""
+    cortos = "".join(t[1:] for t in tokens[1:] if t.startswith("-") and not t.startswith("--"))
+    cortos = cortos.lower()
+    largos = {t for t in tokens[1:] if t.startswith("--")}
+    if ("r" in cortos or "--recursive" in largos) and ("f" in cortos or "--force" in largos):
+        return ["rm", "-rf"] + [t for t in tokens[1:] if not t.startswith("-")]
+    return tokens
+
+
+def _normalizar_git(tokens):
+    """`git` sin sus opciones globales (`-C .`, `-c user.name=x`): el
+    subcomando es lo que decide el riesgo."""
+    resto, i = tokens[1:], 0
+    while i < len(resto) and resto[i].startswith("-"):
+        i += 2 if resto[i] in _GIT_GLOBAL_CON_VALOR else 1
+    return ["git"] + resto[i:]
+
+
+def _normalizar(tokens):
+    """Tokens con el riesgo a la vista: sin envoltorios, `/bin/rm` → `rm`,
+    rm recursivo+forzado como `-rf`, y git sin opciones globales.
+    Solo SUBE fricción: se usa para la lista negra, nunca para la whitelist."""
+    tokens = _sin_envoltorios(list(tokens))
+    if not tokens:
+        return tokens
+    tokens[0] = tokens[0].rsplit("/", 1)[-1]
+    if tokens[0] == "rm":
+        return _normalizar_rm(tokens)
+    if tokens[0] == "git":
+        return _normalizar_git(tokens)
+    return tokens
+
+
 def _segmento_nivel(segmento):
     """Nivel que impone UN segmento (sin mirar composición)."""
     segmento = segmento.strip()
     if not segmento:
         return None
-    tokens = _tokens(segmento)
+    tokens = _normalizar(_tokens(segmento))
     # La negra de doble confirmación gana sobre cualquier otra cosa.
     for prefijo in _NEGRA_DOBLE:
         if _empieza_con(tokens, prefijo):
@@ -290,20 +375,29 @@ _LECTURA = (
 def explicar(comando):
     """Explicación corta (una línea) de por qué `comando` tiene el nivel que
     tiene. El NIVEL sale de `clasificar` (misma política, composición incluida);
-    la EXPLICACIÓN describe el primer token del comando entero, así que en un
-    compuesto puede nombrar un segmento inocente (p. ej. `ls && rm -rf /`
-    explica "lista un directorio" aunque el nivel sea confirmar_doble)."""
+    la EXPLICACIÓN describe el segmento que fija ese nivel.
+
+    La forma CRUDA manda para el texto de solo-lectura: `sudo cat` pide
+    aprobación, así que decir "solo lee" en el prompt de aprobación sería
+    desinformar al humano. Para la lista negra SÍ se normaliza: `sudo rm -rf`
+    merece nombrar el borrado aunque el riesgo venga envuelto."""
     if comando is None or not str(comando).strip():
         return "comando vacío o inválido → se pide aprobación (default seguro)"
     comando = str(comando).strip()
     nivel = clasificar(comando)
-    tokens = comando.split()
-    for prefijo, texto in _LECTURA:
-        if tuple(tokens[: len(prefijo)]) == prefijo:
-            return texto
+    # En un compuesto se explica el segmento que fija el nivel, no el primero:
+    # es lo que lee el humano al aprobar (`ls && rm -rf /` no es "lista").
+    segmentos = [x for x in _SEPARADORES.split(_sin_dup_stderr(comando)) if x.strip()]
+    peor = next((x for x in segmentos if clasificar(x) == nivel), comando)
+    if nivel == AUTO:
+        for prefijo, texto in _LECTURA:
+            if _empieza_con(_tokens(peor), prefijo):
+                return texto
     for prefijo, texto in _EXPLICACIONES:
-        if tuple(tokens[: len(prefijo)]) == prefijo:
+        if _empieza_con(_normalizar(_tokens(peor)), prefijo):
             return texto
+    if nivel == PREGUNTAR and _tiene_flag_peligroso(_tokens(peor)):
+        return "flag que escribe, ejecuta o no termina: pide aprobación"
     if nivel == AUTO:
         return "sin efectos destructivos conocidos: no pide aprobación (puede escribir cachés si el comando lo hace)"
     if nivel == CONFIRMAR_DOBLE:

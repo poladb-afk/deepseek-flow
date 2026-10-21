@@ -50,10 +50,10 @@
         ],
         "nodes.py": [
           44,
-          537,
-          558,
-          808,
-          880
+          538,
+          559,
+          809,
+          881
         ],
         "research.py": [
           78
@@ -143,6 +143,7 @@
     "tests_definidos": {
       "detalle": {
         "tests/test_ab_skills.py": 9,
+        "tests/test_absurdos_funcionales.py": 44,
         "tests/test_banco.py": 14,
         "tests/test_bench.py": 18,
         "tests/test_bench_voto.py": 7,
@@ -197,7 +198,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 690
+      "metrica": 734
     }
   },
   "version": 1

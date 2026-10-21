@@ -89,10 +89,11 @@ MENSAJE_DSML_AGOTADO = (
 
 
 # Techo adaptativo de rondas por operación (exp/13, opción C del consejo).
-# MAX_TOOL_ROUNDS sigue siendo el DEFAULT y el símbolo parcheable por tests.
-# presupuesto() lo lee del global VIVO de este módulo (globals()) — no como
-# default de argumento ni capturándolo en import — así patch('nodes.
-# MAX_TOOL_ROUNDS') (o cualquier asignación al global) sí tiene efecto.
+# MAX_TOOL_ROUNDS sigue siendo el DEFAULT y el símbolo parcheable por tests:
+# presupuesto() lo lee del global VIVO de este módulo (lectura normal de
+# nombre, no un default de argumento ni una captura al import), así
+# patch('nodes.MAX_TOOL_ROUNDS') (o cualquier asignación al global) sí tiene
+# efecto.
 # Los PERFILES y UMBRAL_SIN_PROGRESO, en cambio, se leen con _setting al
 # importar: cambiar el .env con el proceso vivo NO los mueve (hay que
 # reiniciar).
@@ -119,7 +120,7 @@ def presupuesto(shared):
     perfil = PERFILES_PRESUPUESTO.get(shared.get("operacion", ""))
     if perfil is not None:
         return perfil
-    return globals().get("MAX_TOOL_ROUNDS", MAX_TOOL_ROUNDS)
+    return MAX_TOOL_ROUNDS
 
 
 def fingerprint(tool_calls):

@@ -25,7 +25,8 @@ def mayoria(votos, desempate=None, minimo=2):
     conteo = Counter(votos)
     if not conteo:
         return desempate
-    opcion, n = conteo.most_common(1)[0]
-    if n >= minimo:
+    (opcion, n), *resto = conteo.most_common()
+    empate = bool(resto) and resto[0][1] == n
+    if n >= minimo and not empate:
         return opcion
     return desempate if desempate is not None else opcion
