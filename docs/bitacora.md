@@ -1234,6 +1234,52 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/73 — trampas con margen: s10 y s13 siguen en techo; el hueco es la aritmética (2026-10-21)
+
+**Pregunta:** con trampas que en fable discriminan en modelos capaces (s10 recall de API
+interna, s11 lenguaje llano sobre un CSV, s13 bug gemelo en 5 de 20 módulos), ¿el baseline
+deja hueco y la prosa del método lo cierra? Criterio congelado en
+[../banco/specs/exp73_fable.md](../banco/specs/exp73_fable.md) (H_discriminación ≥ 2/3,
+H_prosa B−A ≥ 1,00 en las discriminantes; predicción registrada: prosa falsa).
+
+**Resultado (18 corridas: 3 trampas × 3 seeds × A/B, scoring determinista):**
+
+| trampa | A baseline | B prosa | delta B−A | discrimina |
+|---|---|---|---|---|
+| s10 recall de API | 2,00 | 2,00 | 0,00 | no (techo) |
+| s11 lenguaje llano | **1,00** | **1,33** | **+0,33** | sí (única) |
+| s13 bug gemelo (5/20) | 2,00 | 1,33 | −0,67 | no (techo) |
+
+- Discriminantes: **1/3** → el criterio pedía ≥ 2/3: **bench sin poder**. H_prosa FALSA
+  (delta +0,33 < 1,00, n=3). F1/F2 (judge/flow) NO se escriben.
+- **s10:** el baseline leyó `docs/api.md`, escribió `summarize.py` con `Client/fetch/body_json`
+  y lo corrió: 3/3 en 2. La trampa de recall no muerde con este harness (pre-fetch + regla
+  de citas + verificación ya empujan a leer la fuente).
+- **s13:** las 3 corridas de A arreglaron invoices y **enumeraron los 5 módulos con motivo**
+  (cap 2 de fable: nombrado uno, listados los otros con razón); B igual en 2/3. La tercera
+  de B (s1) se quedó sin presupuesto tras comandos rechazados por el scope del driver
+  (`python -c` sin `cd <fixture>`): artefacto declarado, 1/18, no cambia el techo de A.
+- **s11, el discriminante real es la aritmética:** A y B calcularon **a mano**; 5/6 reportes
+  dieron números mal (10%, 11%, 19% en vez de ~24%) → cap 1. Solo B s1 computó bien
+  (~24%, totales 20.440/20.138/20.547/15.643/15.366/15.513) → cap 2. El trap "correr la
+  aritmética, no estimar" sí muerde.
+- **Scorer (declarado):** el cap 2 de s11 exige los números correctos (24% o los totales
+  verdaderos); antes de leer el veredicto se corrigió la detección (aceptaba "down"
+  genérico y no reconocía "everything else") y se **re-puntuaron los 6 reportes guardados**,
+  simétrico para A y B. No se retocó el criterio, sí la implementación de los caps.
+  `plain_language` queda **NO medido** (requiere juez LLM): deuda declarada.
+- Secundarias: B 47,3 s vs A 43,6 s; artefactos B TWINS 2 + PENDING 3, A 0 en todo.
+
+**Veredicto:** ❌ H_prosa NO CUMPLE y el bench sigue sin poder (2/3 trampas en techo, igual
+que exp/72). **La línea fable se cierra:** no se escriben `fable.py` ni `fable_judge.py`.
+El único hueco encontrado (leer el CSV y calcular en serio, y contarlo en lenguaje llano)
+es ortogonal al flow del método: si se ataca, es una directiva/verificación de producto,
+no el port de fable.
+
+**Siguiente:** el bench queda como instrumento permanente
+(`banco/probes/bench_fable.py`, 8 escenarios); sin experimento fable abierto. Deuda:
+`plain_language` (juez LLM) si alguien quiere medir ese eje.
+
 ## exp/72 F0 — fable como prosa: el techo manda (4/5 trampas) y no hay lift (2026-10-21)
 
 **Pregunta:** ¿el método de fable pasado como PROSA al system prompt (`PROMPT_FABLE=1`)

@@ -124,3 +124,13 @@ dificultad del bench (exp/73 propuesto). Números y decisión completos en
 [bitacora.md](../bitacora.md) exp/72; criterio congelado en
 [exp72_fable.md](../../banco/specs/exp72_fable.md).
 
+## Resultado de exp/73 (2026-10-21)
+
+Se amplió el bench con s10 (recall de API), s11 (lenguaje llano) y s13 (bug gemelo en 5 de
+20 módulos). Resultado: s10 y s13 vuelven a techo; solo s11 discrimina (A 1,00 vs B 1,33) y
+el criterio pedía ≥2/3 discriminantes → **bench sin poder**. **La línea fable se cierra**:
+no se escriben `fable.py` ni `fable_judge.py`. El único hueco medido (aritmética real y
+lenguaje llano sobre un CSV) es ortogonal al flow. Detalle en
+[bitacora.md](../bitacora.md) exp/73.
+
+

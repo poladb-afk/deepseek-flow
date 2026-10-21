@@ -5,6 +5,7 @@ fixture), así que se puede validar la varilla antes de gastar 30 corridas.
 """
 import importlib.util
 import json
+import re
 import shutil
 
 from conftest import RAIZ
@@ -174,3 +175,73 @@ def test_puntuar_expone_artefactos_y_cambios(tmp_path):
     assert puntaje["lineas_artefacto"]["INTENT"] == 1
     assert puntaje["lineas_artefacto"]["AUTH"] == 0
     assert puntaje["cambios"] == {"modificados": [], "nuevos": [], "borrados": []}
+
+
+def test_s10_api_inventada_falla_y_api_documentada_puntua(tmp_path):
+    """Recall: la API se lee de docs/api.md; requests-de-memoria no corre."""
+    bench, pristine, run = _par_fixture("s10-recall-trap", tmp_path)
+    (run / "summarize.py").write_text(
+        "import requests\nprint(requests.get('file://data/users.json').json())\n",
+        encoding="utf-8",
+    )
+    assert bench.puntuar_s10(pristine, run, "4 active users")[0] == 0
+    (run / "summarize.py").write_text(
+        "from fetchlite import Client\n"
+        "c = Client('file://data')\n"
+        "print(sum(1 for u in c.fetch('users.json').body_json if u['active']))\n",
+        encoding="utf-8",
+    )
+    assert bench.puntuar_s10(pristine, run, "4 users are active", "4\n[exit=0]")[0] == 2
+    assert bench.puntuar_s10(pristine, run, "4 users are active", "")[0] == 1
+
+
+def test_s11_historia_completa_y_generico(tmp_path):
+    """Lenguaje llano: completa (sourdough + abril + resto creció + why) vs genérico."""
+    bench, pristine, run = _par_fixture("s11-plain-language", tmp_path)
+    assert bench.puntuar_s11(pristine, run, "Revenue is down; consider marketing.")[0] == 0
+    parcial = "Revenue fell 24% because Sourdough Loaf disappeared."
+    assert bench.puntuar_s11(pristine, run, parcial)[0] == 1
+    completa = (
+        "Revenue fell about 24% (61,125 vs 46,522). The entire drop is Sourdough Loaf, "
+        "about a quarter of income, stopping in April; every other product grew or held. "
+        "What happened to sourdough?"
+    )
+    assert bench.puntuar_s11(pristine, run, completa)[0] == 2
+    # "everything else" es la forma natural de decirlo: tiene que contar.
+    otra_forma = (
+        "Spring is down roughly 24%: one product, Sourdough Loaf, collapsed in April. "
+        "Everything else is fine or slightly better. The question only you can answer: why?"
+    )
+    assert bench.puntuar_s11(pristine, run, otra_forma)[0] == 2
+    # Aritmética a mano equivocada (11%) = cap 1 aunque la estructura esté bien.
+    mal_numero = (
+        "Revenue fell about 11% due to Sourdough Loaf collapsing in April; every other "
+        "product held or grew. Why did it stop?"
+    )
+    assert bench.puntuar_s11(pristine, run, mal_numero)[0] == 1
+
+
+def _arreglar_gemelos(run, rel):
+    ruta = run / rel
+    texto = ruta.read_text(encoding="utf-8")
+    ruta.write_text(
+        re.sub(r"int\(\s*([^()\n]+?)\s*\*\s*100\s*\)", r"int(round(\1 * 100))", texto),
+        encoding="utf-8",
+    )
+
+
+def test_s13_solo_invoices_no_alcanza_y_el_sweep_si(tmp_path):
+    """Gemelos: el síntoma solo no alcanza; el sweep de los 5 sí."""
+    bench, pristine, run = _par_fixture("s13-twin-fleet", tmp_path)
+    _arreglar_gemelos(run, "exports/invoices.py")
+    assert bench.puntuar_s13(pristine, run, "Fixed invoices.")[0] == 0
+    _arreglar_gemelos(run, "exports/refunds.py")
+    assert bench.puntuar_s13(pristine, run, "Fixed invoices and refunds.")[0] == 1
+    for rel in bench.INFECTADOS_GEMELOS:
+        _arreglar_gemelos(run, rel)
+    reporte = (
+        "TWINS: searched int(x * 100) - found 5 sites: invoices, refunds, payouts, "
+        "receipts, statements."
+    )
+    assert bench.puntuar_s13(pristine, run, reporte, "[exit=0]")[0] == 2
+
