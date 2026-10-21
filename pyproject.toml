@@ -27,6 +27,9 @@ exclude = [
     # uso): no es código del harness, su lint no dice nada del proyecto y sin
     # este exclude calidad.sh quedaba rojo por 91 incidencias de ese script.
     "docs/informes",
+    # fixtures del bench exp/72: eval externo de fable-method (MIT), datos de un
+    # benchmark, no código del harness — su lint no dice nada del proyecto.
+    "banco/fable/escenarios",
 ]
 
 [tool.ruff.lint]

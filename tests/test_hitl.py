@@ -338,6 +338,15 @@ def test_request_human_input_eof_no_es_crash(monkeypatch):
     r = humano.request_human_input("¿algo?")
     assert r.startswith("(sin respuesta del humano")
 
+
+def test_request_human_input_offline_por_setting(monkeypatch):
+    """HUMANO_RESPUESTA simula un humano offline (banco) sin bloquear en input()."""
+    import modules.humano as humano
+
+    monkeypatch.setenv("HUMANO_RESPUESTA", "seguí con tu supuesto")
+    r = humano.request_human_input("¿qué archivo?")
+    assert r == "seguí con tu supuesto"
+
 def test_request_human_input_en_el_registro_del_modulo():
     """La tool queda en TOOLS/IMPL del módulo, como las demás."""
     import modules.humano as humano

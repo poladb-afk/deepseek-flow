@@ -170,6 +170,19 @@ def test_prompt_forma_se_apaga_por_setting(monkeypatch):
     assert main.DIRECTIVA_FORMA in main.system_prompt()
 
 
+def test_prompt_fable_es_opt_in(monkeypatch):
+    """PROMPT_FABLE=1 inyecta la directiva del método (exp/72 F0); el default 0
+    deja el prompt de producción byte-idéntico."""
+    import main
+
+    monkeypatch.delenv("PROMPT_FABLE", raising=False)
+    assert main.DIRECTIVA_FABLE not in main.system_prompt()
+    monkeypatch.setenv("PROMPT_FABLE", "1")
+    assert main.DIRECTIVA_FABLE in main.system_prompt()
+    monkeypatch.setenv("PROMPT_FABLE", "0")
+    assert main.DIRECTIVA_FABLE not in main.system_prompt()
+
+
 def test_system_prompt_pide_codigo_minimo_y_no_crece():
     """La palanca de forma del producto: la directiva explícita de código
     mínimo baja 56–70% los tokens del código generado y se mantiene en los

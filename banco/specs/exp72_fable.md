@@ -1,6 +1,6 @@
 # Spec de ejecución — exp/72 F0: bench de trampas de fable (A/B baseline vs prosa)
 
-**Estado:** aprobada por el operador el 2026-10-21; pendiente de ejecutar.
+**Estado:** ejecutada el 2026-10-21 (30 corridas); resultado en [bitacora](../../docs/bitacora.md) exp/72.
 **Origen:** [mapeo de portabilidad](../../docs/informes/fable_method_mapeo_2026-10-21.md).
 **Upstream:** [Sahir619/fable-method](https://github.com/Sahir619/fable-method) @ `9924067` (2026-10-03, MIT).
 
@@ -121,3 +121,19 @@ Ejecución de A y B con el driver del banco:
 - F2: `fable.py` (nodos/gates) y brazo C del A/B.
 - F3: dominios como datos + loader; F4: `fable-domain` (probablemente no).
 - Si H_prosa resulta verdadera: no escribir el flow; profundizar la prosa/skill y re-medir.
+
+## Resultado y decisión (2026-10-21)
+
+Corrida completa: 30 runs, scoring determinista. **H_prosa FALSA** (delta medio −0,33;
+B ≥ A en 0/1), pero **4/5 trampas quedaron en techo** (A = 2,00) y solo s2 discriminó
+(A 1,33 vs B 1,00): el bench no tuvo poder para medir enforcement donde no hay hueco.
+Los artefactos de prosa sí aparecieron (B: INTENT 3, TWINS 8, PENDING 14; A: 0) sin
+cambio de conducta. Detalle, costo, seguridad de s9 y fix de `HUMANO_RESPUESTA` en la
+bitacora (exp/72).
+
+**Decisión:** F1 (judge) y F2 (flow) NO se escriben todavía. El siguiente paso propuesto
+es exp/73: subir la dificultad (s10 recall + s11 plain language + un escenario
+multi-archivo) y re-medir A vs B; si el baseline sigue en techo, cerrar la línea fable
+como "sin lift medible en este tier". La pre-registración de arriba queda intacta; esta
+sección es lectura posterior, no un criterio retocado.
+

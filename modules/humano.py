@@ -44,8 +44,15 @@ def request_human_input(pregunta):
     """Imprime la pregunta y devuelve el texto leído por `input()`.
 
     EOF o excepción → `"(sin respuesta del humano: {motivo})"` (dato, no
-    crash). SIGINT durante el input se propaga: Ctrl+C es del usuario."""
+    crash). SIGINT durante el input se propaga: Ctrl+C es del usuario.
+    `HUMANO_RESPUESTA` (banco/headless) devuelve ese texto sin leer stdin:
+    el usuario está offline y el agente sigue con su supuesto."""
     print(colorear(f"  [humano] {pregunta}", "aviso"))
+    from utils.call_llm import _setting
+
+    offline = _setting("HUMANO_RESPUESTA")
+    if offline:
+        return offline
     try:
         return input()
     except KeyboardInterrupt:

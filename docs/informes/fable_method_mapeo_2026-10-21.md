@@ -113,3 +113,14 @@ Nodos: RecolectarClaims → EstablecerCambio (diff vs pristine + scope) → ReEj
 - Upstream: [github.com/Sahir619/fable-method](https://github.com/Sahir619/fable-method) @ `9924067` (2026-10-03). Licencia [MIT](https://github.com/Sahir619/fable-method/blob/main/LICENSE).
 - Digest del scout (esta sesión, no versionado): `salidas/fable-method-digest.md`.
 - Harness: `docs/design.md` (skills `:197`, módulos `:210-232`), `utils/skills.py`, `juez.py`, `utils/citas.py`, `banco/banco.py`, `modules/juez.py`, `modules/humano.py`, `juez_lote.py:119`.
+
+## Resultado de F0 (2026-10-21)
+
+El bench de exp/72 corrió las 30 corridas: **4/5 trampas quedaron en techo** (el chat
+baseline ya las resuelve) y la única con margen (s2, spec vs test) no mejoró con la prosa
+(A 1,33 vs B 1,00). Los artefactos forzados sí aparecieron (TWINS/PENDING), sin cambio de
+conducta. Por eso F1/F2 (judge/flow) no se escriben todavía: primero hay que subir la
+dificultad del bench (exp/73 propuesto). Números y decisión completos en
+[bitacora.md](../bitacora.md) exp/72; criterio congelado en
+[exp72_fable.md](../../banco/specs/exp72_fable.md).
+
