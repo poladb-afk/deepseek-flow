@@ -776,16 +776,21 @@ no del disco. Ahora el default de TODAS las salidas es `salidas/` (y
 directorio (la lección del heartbeat), y el .gitignore se simplificó a
 `salidas/` única.
 
-## Datos de producción vs. datos de tests (exp/71)
+## Datos de producción vs. datos de tests (exp/71, exp/71b)
 
 Todo lo que mide (flywheel, juez de riesgo, memoria, preguntas) depende de
 procedencia auditable. Por eso la suite NO escribe los datos de producción:
 un fixture autouse de `tests/conftest.py` pone `LAYA_MODEL_RIESGO=0` (nunca
 carga el checkpoint real), y manda `RIESGO_ARCHIVO`, `PREGUNTAS_ARCHIVO`,
-`LAYA_LOG_ARCHIVO` y `MEMORIA_DIR` al tmp de pytest; los tests que prueban
-esos caminos fijan su propia ruta. El banco tampoco toca la biblioteca:
-`banco.banco._env_del_chat` fija `MEMORIA_DIR=salidas/banco/memoria` y
-`BANCO=1` marca las etiquetas HITL como sintéticas. El log del juez de riesgo
+`LAYA_LOG_ARCHIVO`, `MEMORIA_DIR` y `THREADS_DIR` al tmp de pytest; los tests
+que prueban esos caminos fijan su propia ruta. El banco tampoco toca la
+biblioteca: `banco.banco._env_del_chat` fuerza
+`MEMORIA_DIR=salidas/banco/memoria` (solo el `env:` del escenario puede
+pisarlo) y `BANCO=1` marca las etiquetas HITL como sintéticas. Desde exp/71b
+las decisiones del router y las preguntas llevan `origen`
+(`banco`/`web`/`terminal`) y la flywheel solo cuenta pares con procedencia
+auditable: el log de routing previo no tiene el campo y queda fuera del conteo
+(80 de sus 152 pares eran corridas del banco). El log del juez de riesgo
 previo a exp/71 quedó en cuarentena (`salidas/riesgo_pre_exp71_2026-10-21.jsonl`)
 porque no es auditable; la readiness del fine-tune se mide con
 `banco/probes/estado_riesgo.py` (read-only).

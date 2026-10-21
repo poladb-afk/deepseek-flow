@@ -35,6 +35,9 @@ def unir(lineas):
       "conf" (p_directo si propuesta == "directo" sino 1 - p_directo),
       "etiqueta" ("herramientas" si uso_tools sino "directo"),
       "correcto" (propuesta == etiqueta), "fuente"};
+    - solo cuentan las decisiones con procedencia auditable (`origen` en
+      web/terminal, exp/71b): el tráfico del banco y los logs previos sin el
+      campo se saltan;
     - decisiones sin resultado (ciclo abortado) o sin `p_directo` (respuesta
       inválida) se saltan;
     - resultado huérfano (id sin decisión) se ignora.
@@ -52,6 +55,8 @@ def unir(lineas):
             continue
         if linea.get("evento") == "resultado":
             continue  # resultado huérfano: id sin decisión → ignorado
+        if linea.get("origen") not in ("web", "terminal"):
+            continue  # sin procedencia auditable (legado) o tráfico del banco
         p_directo = linea.get("p_directo")
         if not isinstance(p_directo, (int, float)) or isinstance(p_directo, bool):
             continue  # sin p_directo: respuesta inválida, no hay par calibrable

@@ -13,6 +13,9 @@ Recordatorio de cómo se acumula: el resultado etiquetado solo se registra en
 `LAYA_MODO=shadow` (exp/43: en enforce la ruta aplicada ya cambió el contexto
 y mediría la política). Uso: ventanas de uso real con `LAYA_MODO=shadow`.
 
+Solo cuentan los pares con procedencia auditable (`origen` web/terminal,
+exp/71b): el tráfico del banco y el log previo sin el campo quedan afuera.
+
 Uso: python3 banco/probes/estado_flywheel.py [--ruta salidas/routing.jsonl]
 """
 import argparse

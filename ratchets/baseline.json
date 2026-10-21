@@ -49,11 +49,11 @@
           74
         ],
         "nodes.py": [
-          44,
-          567,
-          588,
-          838,
-          910
+          48,
+          572,
+          593,
+          843,
+          915
         ],
         "research.py": [
           78
@@ -167,7 +167,7 @@
         "tests/test_inventario.py": 3,
         "tests/test_laya.py": 6,
         "tests/test_laya_cache_reintento.py": 5,
-        "tests/test_laya_routing.py": 37,
+        "tests/test_laya_routing.py": 38,
         "tests/test_llm.py": 5,
         "tests/test_mcp_laya.py": 11,
         "tests/test_memoria.py": 25,
@@ -199,7 +199,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 747
+      "metrica": 748
     }
   },
   "version": 1

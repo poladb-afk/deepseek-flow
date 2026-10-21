@@ -289,8 +289,11 @@ def registrar_decision(evento, pregunta=None, ruta=None):
     set completo (pregunta + propuesta + confianza + ruta aplicada).
 
     exp/43: el `id` que une esta decisión con su resultado viaja DENTRO del
-    evento (lo genera nodes.LayaRouter.post); acá no se toca."""
+    evento (lo genera nodes.LayaRouter.post); acá no se toca. La línea lleva
+    `origen` (`banco`/`web`/`terminal`, exp/71b): la flywheel no cuenta el
+    tráfico sintético."""
     from utils.call_llm import _setting
+    from utils.riesgo import origen
 
     if _setting("LAYA_LOG_DECISIONES", "1") != "1":
         return
@@ -300,7 +303,10 @@ def registrar_decision(evento, pregunta=None, ruta=None):
         destino = Path(ruta or _setting("LAYA_LOG_ARCHIVO", "salidas/routing.jsonl"))
         destino.parent.mkdir(parents=True, exist_ok=True)
         with open(destino, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"ts": round(time.time(), 3), **evento}, ensure_ascii=False) + "\n")
+            f.write(json.dumps(
+                {"ts": round(time.time(), 3), "origen": origen(), **evento},
+                ensure_ascii=False,
+            ) + "\n")
     except OSError:
         pass
 

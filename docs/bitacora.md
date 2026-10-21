@@ -1234,6 +1234,54 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/71b — la flywheel del router también medía tráfico del banco (2026-10-21)
+
+**Contexto:** al cerrar exp/71 quedó una asimetría: el log del juez de riesgo
+ya distinguía `origen=banco`, pero las decisiones del router no tenían
+procedencia. La revisión de ROI pre-registrada (roadmap 16) se calcula con los
+pares de `salidas/routing.jsonl`; si el banco deja pares ahí, el número mezcla
+tráfico sintético con uso real.
+
+**Medición (antes del fix):** `estado_flywheel.py` contaba **152 pares / 6
+días**. Cruzando el `ts` de cada par con las ventanas de las corridas del banco
+(`salidas/banco/*.jsonl` tiene `inicio` y fin): **80 de 152 pares caen DENTRO
+de una corrida del banco**, y la pregunta es idéntica a la línea del escenario
+(`exp43-caza`, `fix-laya-cache`, …). 80/152 preguntas aparecen literalmente en
+`banco/escenarios/*.yaml`; en `salidas/preguntas.jsonl`, 72/621. El conteo que
+dispara la revisión de ROI estaba dominado por escenarios.
+
+**Fix (dos capas, mismo patrón que exp/71):**
+1. Procedencia en los logs: `registrar_decision` (router) y
+   `registrar_pregunta` (chat) escriben `origen` = `banco|web|terminal`, con la
+   MISMA función que usa el juez de riesgo (`utils.riesgo.origen`).
+2. El join `unir()` solo cuenta decisiones con `origen` en `web`/`terminal`:
+   el banco y el log previo (sin el campo) no son auditables y quedan afuera.
+
+**Consecuencia (criterio intacto):** la revisión sigue pidiendo ≥250 pares y
+≥14 días, pero el conteo arranca en **0/250 y 0/14**. Los 152 pares previos
+incluían 80 del banco y los 72 restantes tampoco son auditables; mismo criterio
+que la cuarentena del log del juez en exp/71 (no reciclar procedencia dudosa).
+
+**Tests:** `test_unir_solo_cuenta_pares_con_procedencia_auditable`,
+`test_registrar_decision_escribe_y_no_rompe`,
+`test_registrar_pregunta_es_bookkeeping_que_no_rompe`, `test_estado_flywheel.py`
+(sin cambios de criterio).
+
+**Correcciones del review de exp/71 (mismo pase):**
+- `_env_del_chat` fuerza `MEMORIA` y `MEMORIA_DIR`: antes heredaba el entorno
+  del operador y, con `MEMORIA_DIR` exportado (setting documentado en
+  `.env.example`), la biblioteca curada volvía a ser el destino. Solo el
+  `env:` del escenario puede pisar el default.
+- `THREADS_DIR` va a tmp en el fixture y los paths literales de
+  `test_evals`/`test_minar_errores` se movieron a tmp: la suite ya no deja
+  checkpoints de resume en `salidas/threads/` ni `fake.md`/`triaje*` en
+  `salidas/banco/` (gate posterior: cero archivos nuevos ahí).
+- Comentarios: la suite corría con `MEMORIA=1` (no 0); el banco sí con 0 y el
+  respaldo viejo ignoraba el setting.
+- Limpieza: los 5 archivos que dejaron las verificaciones previas al fix
+  (2 checkpoints en `salidas/threads/`, 3 informes en `salidas/banco/`) se
+  movieron a `salidas/pruebas_suite_pre_exp71b/` (no se borró nada).
+
 ## exp/71 — la suite contaminaba los datos y la biblioteca: logs y memoria a tmp (2026-10-21)
 
 **Contexto:** al cerrar la jornada quedaron dos deudas detectadas revisando los
@@ -1305,7 +1353,8 @@ restantes es decisión del operador: son historial real de sesiones.
 **Límites honestos:** (1) el log de riesgo arranca vacío: el criterio del
 fine-tune queda en **0/300 orgánicas** y depende de uso real en el chat (el
 banco no cuenta); (2) `salidas/preguntas.jsonl` histórico también tiene
-preguntas de tests, pero ningún criterio pre-registrado lo usa — no se tocó;
+preguntas de tests y no se reescribió; ningún criterio pre-registrado lo usaba
+y desde exp/71b las filas nuevas llevan `origen`;
 (3) la cuarentena del log no borra la evidencia, la conserva fuera del
 conteo; (4) el `[riesgo] observa` por HITL sigue imprimiéndose en el chat
 (no es ruido: es la traza deliberada de exp/44). Las corridas de banco siguen

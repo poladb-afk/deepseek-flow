@@ -104,6 +104,7 @@ def test_registrar_decision_escribe_y_no_rompe(tmp_path, monkeypatch):
     linea = json.loads(archivo.read_text(encoding="utf-8").strip())
     assert linea["propuesta"] == "directo" and linea["modo"] == "shadow"
     assert "ts" in linea
+    assert linea["origen"] in ("web", "terminal")  # procedencia (exp/71b)
 
     # apagado por setting: no escribe
     monkeypatch.setattr(call_llm, "_setting",
@@ -359,8 +360,9 @@ def test_getquestion_limpia_un_pendiente_huerfano(monkeypatch):
     assert shared["tool_rounds"] == 0
 
 
-def _decision(id_, propuesta, p_directo, ts=1.0, pregunta=None):
-    linea = {"ts": ts, "id": id_, "propuesta": propuesta, "p_directo": p_directo}
+def _decision(id_, propuesta, p_directo, ts=1.0, pregunta=None, origen="terminal"):
+    linea = {"ts": ts, "id": id_, "propuesta": propuesta, "p_directo": p_directo,
+             "origen": origen}
     if pregunta is not None:
         linea["pregunta"] = pregunta
     return linea
@@ -418,6 +420,24 @@ def test_unir_salteos_y_huerfanos():
     assert len(filas) == 1
     assert filas[0]["laya"] == "herramientas" and filas[0]["correcto"] is True
     assert filas[0]["fuente"] == "etiqueta ambiental exp/43"
+
+
+def test_unir_solo_cuenta_pares_con_procedencia_auditable():
+    """exp/71b: el log previo no tenía `origen` y el banco escribía pares
+    indistinguibles del uso real; ninguno de los dos cuenta para la flywheel."""
+    from banco.probes.etiquetar_ambiental import unir
+
+    legado = {"ts": 1.0, "id": "legado", "propuesta": "directo", "p_directo": 0.9}
+    lineas = [
+        legado,
+        _resultado("legado", False),
+        _decision("b", "directo", 0.9, origen="banco"),
+        _resultado("b", True),
+        _decision("t", "herramientas", 0.1),
+        _resultado("t", True),
+    ]
+    filas = unir(lineas)
+    assert [(f["laya"], f["etiqueta"]) for f in filas] == [("herramientas", "herramientas")]
 
 
 # exp/46 — la regla temporal (recencia no la juzga Laya: regla dura antes

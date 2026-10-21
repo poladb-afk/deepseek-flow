@@ -127,10 +127,13 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     fijado en la bitácora de exp/56 antes de la corrida. Es una corrida de
     banco (`banco/escenarios/`), no deuda de código.
 16. **Revisión de ROI del router (condición pre-registrada)**: cuando haya
-    **≥250 pares y ≥14 días** (hoy **152/6** tras la sesión de exp/70), correr
+    **≥250 pares y ≥14 días** (hoy **0/250 y 0/14**: el conteo arranca de cero,
+    exp/71b), correr
     `python3 banco/probes/etiquetar_ambiental.py && python3 banco/probes/veredicto_router.py`
-    y aplicar la regla de ROI. El banco ya marca `BANCO=1` para no contar
-    tráfico sintético como orgánico; vigilar falsos directo del enforce.
+    y aplicar la regla de ROI. El banco no cuenta: las decisiones llevan
+    `origen` y el join solo acepta `web`/`terminal` (el log previo a exp/71b,
+    que no tiene el campo, también queda afuera: 80 de sus 152 pares eran del
+    banco); vigilar falsos directo del enforce.
     **Acumulación:** ventanas de uso con la política en shadow (en enforce el
     par no se etiqueta, exp/43) y, hasta la revisión, NO correr
     `etiquetar_ambiental` con la salida default (pisa el artefacto que usa

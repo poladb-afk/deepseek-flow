@@ -140,6 +140,8 @@ def test_registrar_pregunta_es_bookkeeping_que_no_rompe(tmp_path, monkeypatch):
     ]
     assert [linea["pregunta"] for linea in lineas] == ["¿cuánto es 2+2?", "otra pregunta"]
     assert all("ts" in linea for linea in lineas)
+    # procedencia (exp/71b): el tráfico del banco no se confunde con el humano
+    assert all(linea["origen"] in ("web", "terminal", "banco") for linea in lineas)
 
     # PREGUNTAS_LOG=0 lo apaga
     archivo.unlink()

@@ -30,15 +30,19 @@ def registrar_pregunta(texto, ruta=None):
     Es bookkeeping: la ruta la fija el operador (no el modelo) y cualquier
     fallo —disco, permisos— se traga para no romper el chat. PREGUNTAS_LOG=0
     lo apaga y PREGUNTAS_ARCHIVO elige el destino (default
-    salidas/preguntas.jsonl, que está en .gitignore)."""
+    salidas/preguntas.jsonl, que está en .gitignore). Cada línea lleva
+    `origen` (banco/web/terminal, exp/71b): sin procedencia el tráfico del
+    banco es indistinguible del humano."""
     if _setting("PREGUNTAS_LOG", "1") != "1":
         return
+    from utils.riesgo import origen
+
     try:
         destino = Path(ruta or _setting("PREGUNTAS_ARCHIVO", "salidas/preguntas.jsonl"))
         destino.parent.mkdir(parents=True, exist_ok=True)
         with open(destino, "a", encoding="utf-8") as f:
             f.write(json.dumps(
-                {"ts": round(time.time(), 3), "pregunta": texto[:4000]},
+                {"ts": round(time.time(), 3), "origen": origen(), "pregunta": texto[:4000]},
                 ensure_ascii=False,
             ) + "\n")
     except Exception:  # bookkeeping: nunca corta el chat  # noqa: BLE001 (bookkeeping de traza: nunca corta el chat)
@@ -378,8 +382,9 @@ def _respaldar_zona_fria(mensajes, shared=None):
 
     Con MEMORIA=0 la biblioteca está apagada (ni catálogo ni memory_search):
     el respaldo no tendría cómo recuperarse y solo ensuciaría `memoria/`.
-    exp/71 midió que la suite y las corridas del banco (MEMORIA=0) dejaban
-    157 respaldos de fixture en la biblioteca curada; en ese modo no escribe."""
+    exp/71 midió que la suite (que corre con MEMORIA=1) y el banco (que corre
+    con 0, pero el respaldo ignoraba el setting) dejaban 157 respaldos de
+    fixture en la biblioteca curada; en ese modo no escribe."""
     from utils.compaccion import MAX_RESPALDO_CHARS, huella, serializar, zona_fria
 
     if _setting("MEMORIA", "1") != "1":
