@@ -120,3 +120,20 @@ son los que este repo ya conoce y no acepta:
       (ratchet) ni banners.
 - [ ] docs actualizados según el tipo de cambio (estado / design / bitácora).
 - [ ] Reporte final: qué cambiaste, qué corriste, qué quedó afuera.
+
+## Agent skills
+
+### Issue tracker
+
+Issues en GitHub Issues del repo (`poladb-afk/deepseek-flow`) vía `gh`; specs
+locales en `banco/specs/`. Ver `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Las cinco etiquetas canónicas: `needs-triage`, `needs-info`, `ready-for-agent`,
+`ready-for-human` y `wontfix`. Ver `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Layout single-context: glosario y ADRs en la raíz, creados cuando hacen
+falta. Ver `docs/agents/domain.md`.
