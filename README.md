@@ -239,7 +239,7 @@ deepseek-flow/
 ```bash
 ./calidad.sh                     # el gate completo: ruff + complejidad + ratchet + pytest
 python3 -m pytest tests/ -q      # solo la suite (un archivo por tema, ver tests/)
-python3 -m pytest -m "not laya and not bmo and not red and not datos"   # subconjunto determinista
+python3 -m pytest -m "not laya and not bmo and not red and not datos and not git"   # subconjunto determinista
 ```
 
 Cada test que se saltea por un recurso lo declara con un marker: el marker

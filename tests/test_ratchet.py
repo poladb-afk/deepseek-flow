@@ -14,6 +14,7 @@ import json
 import subprocess
 
 import pytest
+from conftest import requiere_git
 
 import ratchet
 
@@ -335,6 +336,7 @@ def _repo_con_baseline(tmp_path, metrica):
     return baseline
 
 
+@requiere_git
 def test_guardia_bypass_bloquea_el_baseline_editado_a_mano(tmp_path, monkeypatch):
     """El caso real: un agente sube el número del baseline para pasar. Rojo."""
     monkeypatch.delenv(ratchet.CLAVE_BYPASS, raising=False)
@@ -349,6 +351,7 @@ def test_guardia_bypass_bloquea_el_baseline_editado_a_mano(tmp_path, monkeypatch
     assert any("HUMAN_RATCHET_BYPASS_KEY" in m for m in mensajes)
 
 
+@requiere_git
 def test_guardia_bypass_cede_ante_la_clave_humana(tmp_path, monkeypatch):
     """El operador humano puede declarar el bypass; queda impreso en el gate."""
     monkeypatch.setenv(ratchet.CLAVE_BYPASS, "operador-2026-10-19")

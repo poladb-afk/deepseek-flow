@@ -5,9 +5,12 @@ from pathlib import Path
 import pytest
 
 
-def test_contencion_de_rutas():
+def test_contencion_de_rutas(monkeypatch):
+    """La raíz permitida la FIJA el test, no el conftest: así el caso no
+    depende de en qué carpeta clonaste el repo (E8, exp/69)."""
     from utils.fs_tools import _resolve
 
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(Path(__file__).resolve().parent.parent))
     _, err = _resolve("/etc/passwd")
     assert err and "fuera" in err
     raiz = Path(__file__).resolve().parent.parent

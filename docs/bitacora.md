@@ -1234,6 +1234,32 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/69 — E8 aplicado: la suite ya no depende de git ni de la profundidad del checkout (2026-10-21)
+
+**Qué se arregló** (el único hallazgo E que había quedado pendiente en exp/68):
+
+- **Raíz del conftest**: `AGENT_ALLOWED_DIRS` de los tests usaba
+  `RAIZ.parent.parent`; en un checkout `/tmp/<repo>` el abuelo es `/` y la
+  contención de rutas quedaba desactivada (`test_contencion_de_rutas` fallaba).
+  Ahora la raíz permitida es el PROPIO repo (`RAIZ`); el test de contención,
+  además, fija su raíz explícitamente con `monkeypatch` (no depende del
+  conftest).
+- **Markers de recurso** (convención del repo: el marker nombra el recurso, el
+  skip el motivo): `git` en `pyproject.toml` + helpers `requiere_git` y
+  `requiere_repo_git` en `tests/conftest.py`. Aplicados a los 4 tests que
+  necesitan git: `sha_corto/largo` y el de rutas absolutas (además del repo
+  inicializado), y las dos guardias anti-bypass del ratchet (solo el binario).
+
+**Verificado** (con el código de este commit):
+
+| escenario | resultado |
+|---|---|
+| checkout `/tmp/<repo>` (profundidad 1) | `test_contencion_de_rutas` **pasa** (antes fallaba) |
+| árbol tipo zip **sin `.git`** | 7 passed, **2 skipped** (sha y rutas, con motivo) |
+| `PATH` sin binario `git` | 4 passed, **4 skipped** (nada rojo) |
+
+Sin cambios de producto ni de métricas: solo tests. Gate 4/4, 750 tests.
+
 ## exp/68 — auditoría externa 2026-10-21: E1–E7 aplicados (HITL graduado y votación) (2026-10-21)
 
 **Origen:** una auditoría externa sobre un zip del repo (sin git) dejó cinco

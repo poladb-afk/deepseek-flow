@@ -1,9 +1,9 @@
 # Evidencia: absurdos funcionales en deepseek-flow
 
 **Estado (2026-10-21):** E1–E7 verificados de forma independiente y **aplicados**
-en exp/68 (ver [bitácora](../bitacora.md)); E8 queda como pendiente opcional. Las
-tablas de abajo son la evidencia original, reproducida contra el código previo
-al arreglo.
+en exp/68 (ver [bitácora](../bitacora.md)); E8 se aplicó en exp/69 (raíz del
+conftest + markers `git`). Las tablas de abajo son la evidencia original,
+reproducida contra el código previo al arreglo.
 
 Revisión del 2026-10-21 sobre `deepseek-flow-main.zip`. Cada fila salió de **ejecutar** el código del repo, no de leerlo. Entorno: Python 3.12, GNU coreutils 9.4, ruff 0.17.1, sin `git` instalado.
 

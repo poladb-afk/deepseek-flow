@@ -7,6 +7,7 @@ cuando un test hace `from utils import ...` la raíz del proyecto ya está en
 el path."""
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -14,8 +15,21 @@ import pytest
 
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
-# raíces deterministas para los tests (el default portable es CWD)
-os.environ.setdefault("AGENT_ALLOWED_DIRS", str(RAIZ.parent.parent))
+# Raíces deterministas para los tests (el default portable es CWD). Es el
+# PROPIO repo, no su abuelo: con `RAIZ.parent.parent` el resultado de los tests
+# dependía de en qué carpeta clonaste (en `/tmp/<repo>` el abuelo es `/` y la
+# contención de rutas quedaba desactivada; E8 de exp/68, corregido en exp/69).
+os.environ.setdefault("AGENT_ALLOWED_DIRS", str(RAIZ))
+
+# Recursos del entorno: los tests que dependen de ellos se saltean con motivo
+# (markers en pyproject.toml). El repo usa git para el ratchet, pero la suite
+# tiene que poder correr desde un zip sin `.git`.
+GIT = shutil.which("git")
+REPO_GIT = GIT is not None and (RAIZ / ".git").exists()
+requiere_git = pytest.mark.skipif(GIT is None, reason="requiere git")
+requiere_repo_git = pytest.mark.skipif(
+    not REPO_GIT, reason="requiere git y el repo inicializado")
+
 # La verificación de citas puede hacer una llamada LLM de corrección: en tests
 # se apaga por default (determinismo y costo); el test que la ejercita la prende.
 os.environ.setdefault("CITAS_VERIFICAR", "0")
@@ -40,7 +54,7 @@ def _permitir_salidas_de_tmp(tmp_path_factory, monkeypatch):
     tests sigan escribiendo ahí. Los tests que PRUEBAN la contención fijan su
     propio AGENT_ALLOWED_DIRS después (monkeypatch: gana el último setenv)."""
     monkeypatch.setenv(
-        "AGENT_ALLOWED_DIRS", f"{RAIZ.parent.parent}:{tmp_path_factory.getbasetemp()}"
+        "AGENT_ALLOWED_DIRS", f"{RAIZ}:{tmp_path_factory.getbasetemp()}"
     )
 
 

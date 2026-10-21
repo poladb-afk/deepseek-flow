@@ -6,8 +6,8 @@ los envoltorios (`sudo -u root`, `nice -n 10`, `timeout 5`, `env -i`);
 (2) `explicar` NO normaliza el texto de solo-lectura (un `sudo cat` no debe
 leerse "solo lee"); (3) se agregaron tests e2e por el flujo (`_nivel` y
 `run_command`). El `.patch` que acompaña este informe es la **propuesta
-original**, no el diff aplicado. E8 no se aplicó (queda opcional: el repo y el
-CI requieren git).
+original**, no el diff aplicado. **E8 también se aplicó** (exp/69): la suite ya
+no depende de git ni de la profundidad del checkout (ver abajo, punto 6).
 
 Acompaña a `evidencia_absurdos_funcionales.md`. Los arreglos 1 a 4 vienen en **`arreglos_absurdos_funcionales.patch`** (198 líneas) y están verificados:
 
