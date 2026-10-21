@@ -125,6 +125,45 @@ def test_policy_2_amp_1_es_lectura():
     assert clasificar("comando 2> err.txt") == "preguntar"  # fd a archivo, no `2>&1`
     assert clasificar("comando 2>&1 > f") == "preguntar"  # orden importa: queda `> f`
 
+def test_policy_devnull_es_descarte_no_redireccion():
+    """A39 (medido: 3 de 15 HITL de una sesión real fueron solo por
+    `cat f 2>/dev/null`): descartar a /dev/null no escribe en el filesystem,
+    así que el token se quita ANTES de escanear la redirección. Destino
+    EXACTO: cualquier otro archivo, `>>`, `<`, sustitución o xargs sigue
+    preguntando."""
+    from utils.policy import clasificar
+
+    # AUTO: descarte a /dev/null en todas sus formas (con y sin espacio)
+    for c in ("cat x.py 2>/dev/null",
+              "ls -la > /dev/null",
+              "ls -la >/dev/null",
+              "grep -r x . 2>/dev/null",
+              "grep -r x . 2> /dev/null",
+              "cat x.py 1>/dev/null",
+              "find . -name x &>/dev/null",
+              "echo hola > /dev/null",
+              "cat x.py 2>/dev/null | head -3",
+              "cat x.py 2>/dev/null 2>&1"):
+        assert clasificar(c) == "auto", c
+
+    # PREGUNTAR: redirección real o destino que no es /dev/null exacto
+    for c in ("echo hola > archivo",
+              "cat x.py 2>/tmp/err",
+              "cat x.py 2>/dev/nullx",
+              "cat x.py 2> archivo",
+              "cat x.py >> /dev/null",
+              "cat x.py < y 2>/dev/null",
+              "cat $(rm x) 2>/dev/null",
+              "echo `rm x` 2>/dev/null",
+              "find . | xargs rm 2>/dev/null",
+              "cat x.py>/dev/null"):
+        assert clasificar(c) == "preguntar", c
+
+    # compuesto: el descarte no tapa el segmento que sí escribe
+    assert clasificar("cat x.py 2>/dev/null && echo hola > archivo") == "preguntar"
+    assert clasificar("cat x.py 2>/dev/null; rm -f z") == "preguntar"
+
+
 def test_run_command_auto_no_pide_input(monkeypatch):
     import modules.coding as coding
 

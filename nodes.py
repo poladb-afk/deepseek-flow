@@ -353,29 +353,51 @@ def sanitizar(texto):
     return limpio, limpio != texto
 
 
-def _respaldar_zona_fria(mensajes):
+def _ahora():
+    """Timestamp del título del respaldo (segundos: dos compacciones del mismo
+    minuto colisionaban y el dedupe de guardar_nota las desambiguaba con
+    "-2", "-3"). Aislado para poder fijarlo en los tests."""
+    from datetime import datetime
+
+    return datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+
+
+def _respaldar_zona_fria(mensajes, shared=None):
     """Guarda en memoria/ los mensajes que la compacción va a descartar (A17).
 
     Sin LLM a propósito: una transcripción literal es barata, no suma latencia
     al turno ni un modo de fallo nuevo (y el resumen real de la sesión ya se
-    hace al salir, en main.resumen_de_sesion). Devuelve la ruta o None."""
-    from utils.compaccion import MAX_RESPALDO_CHARS, serializar, zona_fria
+    hace al salir, en main.resumen_de_sesion). Devuelve la ruta o None.
+
+    Medido: la zona fría casi no cambia entre compacciones de la MISMA sesión,
+    así que respaldarla en cada una llenó memoria/ de copias idénticas (143
+    respaldos con el mismo cuerpo) y contaminó memory_search. Con `shared` la
+    sesión recuerda la huella de lo último respaldado: si la zona fría es la
+    misma, no se escribe nada y se devuelve la ruta del respaldo que ya existe
+    (el marcador la sigue diciendo, A17)."""
+    from utils.compaccion import MAX_RESPALDO_CHARS, huella, serializar, zona_fria
 
     frios = zona_fria(mensajes)
     if not frios:
         return None
-    from datetime import datetime
-
+    cuerpo = serializar(frios)
+    firma = huella(frios)
+    if shared is not None and shared.get("_respaldo_huella") == firma:
+        return shared.get("_respaldo_ruta")
     from modules.memoria import guardar_nota
 
-    cuerpo = serializar(frios)
     aviso = ""
     if len(cuerpo) > MAX_RESPALDO_CHARS:
         cuerpo = cuerpo[:MAX_RESPALDO_CHARS]
         aviso = "\n\n[... transcripción truncada por tamaño ...]"
-    titulo = f"Compactación {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    titulo = f"Compactación {_ahora()}"
     destino = guardar_nota(titulo, cuerpo + aviso)
-    return str(destino) if destino else None
+    if destino is None:
+        return None
+    if shared is not None:
+        shared["_respaldo_huella"] = firma
+        shared["_respaldo_ruta"] = str(destino)
+    return str(destino)
 
 
 class AgentStep(Node):
@@ -396,7 +418,7 @@ class AgentStep(Node):
             if shared.get("_compaccion_huella") != h:
                 # A17: la zona fría se RESPALDA antes de descartarla, así el
                 # marcador puede decir la verdad y memory_search la encuentra.
-                respaldo = _respaldar_zona_fria(mensajes)
+                respaldo = _respaldar_zona_fria(mensajes, shared)
                 nuevo = compactar(mensajes, tope, respaldo=respaldo,
                                   objetivo=shared.get("_objetivo"))
                 if nuevo is not mensajes and len(nuevo) < len(mensajes):

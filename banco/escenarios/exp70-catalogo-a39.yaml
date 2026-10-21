@@ -1,0 +1,27 @@
+id: exp70-catalogo-a39
+descripcion: "El harness corrige catálogo de arranque (P2) y fricción A39 + prompt de tools (P3)"
+env:
+  PREGUNTAS_LOG: "0"
+  COMPACTION_CHARS: "500000"
+  MAX_TOOL_ROUNDS: "40"
+permitir:
+  - "{RAIZ}/"
+turnos:
+  - id: catalogo
+    timeout: 900
+    max_hitl: 60
+    hitl: s
+    linea: >-
+      Tarea chica en este repo. NO commitees y NO toques git (dejá cambios en el working tree). Respondé en castellano rioplatense. PROBLEMA MEDIDO: `main.catalogo_memoria()` imprime TODAS las notas de memoria/ al arrancar (234 líneas en una sesión real; 229 son respaldos automáticos de compacción). Es spam de arranque y tapa las notas útiles. REQUISITO: imprimir un resumen corto: cantidad total de notas y solo las 8 más recientes (por mtime o por nombre, lo que sea determinista), con una línea final que recuerde que se consulta con memory_search. Mantené: con MEMORIA=0 no imprime nada; sigue siendo best-effort (un fallo no corta el arranque); no toques `_archivos_md()` ni memoria/. Agregá un test con asserts reales en tests/ (usá monkeypatch de MEMORIA_DIR a tmp_path y capsys): con muchas notas imprime el total y NO todas; sin notas no imprime catálogo. Forma del repo: mínimo que funciona, comentarios en español con el porqué, sin banners. Al final corré `python3 -m pytest tests/ -q -k "catalogo or memoria"` y pegá la última línea.
+  - id: a39_politica
+    timeout: 900
+    max_hitl: 60
+    hitl: s
+    linea: >-
+      Segunda tarea en el mismo repo. NO commitees ni toques git. Respondé en castellano. PROBLEMA A39 (medido): `utils/policy.py` clasifica `preguntar` comandos de solo lectura que descartan stderr a /dev/null, por ejemplo `cat f 2>/dev/null`, porque `_PELIGRO_SHELL` detecta el `>`. En una sesión real 3 de 15 aprobaciones HITL fueron solo por esto. REQUISITO A (política): tratá como TOKEN de descarte, igual que `2>&1` (A44), estas formas: `2>/dev/null`, `1>/dev/null`, `>/dev/null` y `&>/dev/null`, con o sin espacio entre `>` y `/dev/null` (p.ej. `2> /dev/null`). Se descartan ANTES de escanear `_PELIGRO_SHELL`, porque escribir a /dev/null no escribe en el filesystem. Deben SEGUIR preguntando: `> archivo`, `2> archivo`, `>>`, `<`, `$(...)`, backticks, xargs, y cualquier destino que no sea /dev/null exacto (`2>/dev/nullx`, `2>/tmp/err`). No relajes nada más. Tests en tests/test_policy.py (asserts reales): `cat x.py 2>/dev/null` -> auto; `ls -la > /dev/null` -> auto; `echo hola > archivo` -> preguntar; `cat x.py 2>/tmp/err` -> preguntar; `grep -r x . 2>/dev/null` -> auto; compuesto con redirección real -> preguntar. Los tests existentes (A44 incluido) tienen que seguir verdes. REQUISITO B (prompt): en `main.system_prompt()` agregá UNA línea corta que pida usar `read_file`/`list_files`/`search_files` para leer/listar/buscar archivos en vez de `cat`/`grep`/`find` por run_command. El prompt tiene presupuesto 1400 caracteres (lo exige tests/test_estilo_humano.py): no lo pases y no rompas ese test. Al final corré `python3 -m pytest tests/test_policy.py tests/test_estilo_humano.py -q` y pegá la última línea. Si algo falla, arreglalo.
+  - id: verificar
+    timeout: 300
+    max_hitl: 20
+    hitl: s
+    linea: >-
+      Mostrame `git status --short` (qué archivos tocaste; NO commitees ni reviertas) y la última línea de `python3 -m pytest tests/test_policy.py tests/test_estilo_humano.py -q`.

@@ -1,0 +1,21 @@
+id: exp70-respaldo-compaccion
+descripcion: "El harness corrige el respaldo de compacción (P1 de la auditoría exp/70)"
+env:
+  PREGUNTAS_LOG: "0"
+  COMPACTION_CHARS: "500000"
+  MAX_TOOL_ROUNDS: "40"
+permitir:
+  - "{RAIZ}/"
+turnos:
+  - id: implementar
+    timeout: 1500
+    max_hitl: 80
+    hitl: s
+    linea: >-
+      Tarea de código en este repo. NO commitees y NO toques git (nada de commit/checkout/reset): dejá los cambios en el working tree y respondé en castellano rioplatense. PROBLEMA MEDIDO: la compacción de contexto respalda la zona fría en memoria/ en CADA compacción. `nodes._respaldar_zona_fria` (nodes.py, cerca de la línea 356) llama a `modules.memoria.guardar_nota` con título "Compactación AAAA-MM-DD HH:MM". Evidencia: memoria/ tiene 143 respaldos con el MISMO cuerpo (solo cambia el título) y una sesión real generó 9 respaldos en 3 minutos (archivos con sufijo -2 y -3 por colisión del título al minuto). Eso contamina la biblioteca curada y memory_search. REQUISITOS: 1) En `nodes._respaldar_zona_fria`: no volver a respaldar una zona fría idéntica a la última respaldada en la sesión. Guardá la huella (sha1) del cuerpo serializado en el estado de la sesión (shared; podés cambiar la firma de _respaldar_zona_fria y su call site en AgentStep.prep) y devolvé None sin escribir cuando coincida. Si la zona fría CAMBIÓ, respaldá como hoy y actualizá la huella. El caso legítimo debe seguir respaldándose y el mensaje de compacción debe seguir diciendo la ruta del último respaldo (A17: "recuperable con memory_search"). 2) Título con segundos para que dos compacciones del mismo minuto no colisionen: usá datetime.now().strftime("%Y-%m-%d %H-%M-%S"). No toques guardar_nota ni su dedupe X4. 3) Tests nuevos con asserts reales (archivo nuevo o el que corresponda en tests/): dos compacciones con la MISMA zona fría -> la segunda NO escribe nota (y no duplica archivo); dos con zona fría DISTINTA -> escribe dos notas; el respaldo devuelve la ruta de la última nota y el mensaje de compacción la menciona. 4) No borres ni debilites tests existentes. Forma del repo: el mínimo que funciona, comentarios en español explicando el porqué, sin banners ni docstrings de relleno. No toques memoria/. 5) Al final corré `python3 -m pytest tests/ -q -k "respaldo or compaccion or compactacion or memoria"` y mostrame la última línea del resultado. Si algo falla, arreglalo antes de cerrar.
+  - id: verificar
+    timeout: 300
+    max_hitl: 20
+    hitl: s
+    linea: >-
+      Corré exactamente `python3 -m pytest tests/ -q -k "respaldo or compaccion or compactacion or memoria"` y pegá la última línea. Después mostrame con `git status --short` qué archivos tocaste (NO commitees ni reviertas nada).

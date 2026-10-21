@@ -1234,6 +1234,57 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/70 — auditar una sesión real y dejar que el HARNESS aplique los fixes (2026-10-21)
+
+**Contexto:** el operador usó el chat en una sesión real (shadow) y pidió auditar
+la conversación. Traza `20261021_164552_213210.jsonl`: **445,5 s, 87 eventos, 3
+preguntas, 14 rondas con tools, 21 `run_command` vs 6 `read_file`, 15
+aprobaciones HITL, 9 compacciones → 9 respaldos nuevos en `memoria/`** (3 por
+minuto, con sufijos `-2`/`-3`), **+4 pares del flywheel** (148→152; 6/14 días) y
+etiquetas HITL orgánicas (la ventana incluye 10 decisiones de un smoke-test
+manual con 6 rechazos, fuera del transcript pegado).
+
+**Verificación de lo que dijo el harness (7/10).** Aciertos: README 29 tools (y
+marcó como no verificada su cuenta parcial), LOC por zona, `.runs`/`trazas.db`,
+memoria 241/227/14, los **143 respaldos con un solo cuerpo único** de 57.591 B,
+que el dedupe X4 está testeado y que `salidas/` tiene un `.venv` de 50 MB.
+Errores: "main.py 23 comandos" (son **19**); "71 hallazgos" es solo la familia A
+(el tablero tiene **120**: 115 ✅, 3 ⏳, 1 ❌, 1 límite); "memory_search lista el
+contenido" (lista nombres); y su "corrección de citas" quedó **semánticamente
+mal**: `nodes.py:917-926` no contiene `resultado_ok`/`codigo_error` (están en
+**601/609**) — el verificador valida que el rango exista, no que diga eso
+(límite H16 conocido).
+
+**Fixes generados POR el harness** (4 escenarios de banco versionados, chat real
+por PTY con HITL por scope del driver):
+
+- P1 (`exp70-respaldo-compaccion.yaml`): `_respaldar_zona_fria` recuerda en
+  `shared` la huella de la última zona fría respaldada y **no reescribe la
+  idéntica** (devuelve la ruta vigente: el marcador A17 sigue siendo verdadero);
+  título con segundos (`%H-%M-%S`) para no colisionar dentro del minuto. El
+  propio harness descubrió el límite: la huella **no** evita el respaldo
+  legítimo cuando la zona fría crece (mensajes antes calientes que ahora se
+  descartan). El dedupe cubre el caso patológico (143 cuerpos idénticos), no el
+  flujo normal: ahí sigue habiendo un respaldo por compacción.
+- P2 (`exp70-catalogo-a39.yaml`): catálogo de arranque = total + 8 recientes
+  (antes 234 líneas); tests de `test_memoria.py`/`test_ui.py`.
+- P3 (mismo escenario): **A39 cerrado** — `/dev/null` es descarte, no
+  redirección (`2>/dev/null`, `1>/dev/null`, `>/dev/null`, `&>/dev/null`, con o
+  sin espacio; destinos reales siguen preguntando) — y una línea nueva en
+  `main.system_prompt` para preferir `read_file`/`list_files`/`search_files` a
+  `cat`/`grep`/`find` por `run_command` (907 → 1.029 chars).
+- `exp70-fix-respaldo-tests.yaml` y `exp70-fix-lint.yaml`: el gate frenó al
+  harness con **2 tests propios mal escritos** y **1 E741**; en dos corridas
+  más los corrigió. Es la prueba de que el gate funciona contra el agente que
+  escribe el código.
+
+**Resultado:** 750 → **756 tests** (ratchet `tests_definidos` 734→740), gate 4/4
+verde. Límites: el respaldo por compacción con mensajes nuevos queda como
+decisión futura (moverlos fuera de `memoria/` obliga a corregir el "recuperable
+con memory_search" del marcador); P5 (ruido de `[riesgo]`) no se cambió porque
+es traza deliberada; P4 (compacción por ronda) no necesita fix propio: era el
+costo que P1 ataca.
+
 ## exp/69 — E8 aplicado: la suite ya no depende de git ni de la profundidad del checkout (2026-10-21)
 
 **Qué se arregló** (el único hallazgo E que había quedado pendiente en exp/68):

@@ -33,8 +33,8 @@
           91
         ],
         "main.py": [
-          143,
-          166
+          145,
+          179
         ],
         "modules/db.py": [
           131
@@ -50,10 +50,10 @@
         ],
         "nodes.py": [
           44,
-          538,
-          559,
-          809,
-          881
+          560,
+          581,
+          831,
+          903
         ],
         "research.py": [
           78
@@ -169,12 +169,12 @@
         "tests/test_laya_routing.py": 37,
         "tests/test_llm.py": 5,
         "tests/test_mcp_laya.py": 11,
-        "tests/test_memoria.py": 24,
+        "tests/test_memoria.py": 25,
         "tests/test_minar_errores.py": 16,
         "tests/test_modulos.py": 19,
         "tests/test_novedad.py": 6,
-        "tests/test_pendientes.py": 34,
-        "tests/test_policy.py": 23,
+        "tests/test_pendientes.py": 38,
+        "tests/test_policy.py": 24,
         "tests/test_policy_bypass.py": 35,
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
@@ -198,7 +198,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 734
+      "metrica": 740
     }
   },
   "version": 1

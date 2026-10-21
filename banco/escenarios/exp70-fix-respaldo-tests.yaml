@@ -1,0 +1,15 @@
+id: exp70-fix-respaldo-tests
+descripcion: "El harness corrige los 2 tests que dejó en rojo en exp70 (P1)"
+env:
+  PREGUNTAS_LOG: "0"
+  COMPACTION_CHARS: "500000"
+  MAX_TOOL_ROUNDS: "40"
+permitir:
+  - "{RAIZ}/"
+turnos:
+  - id: arreglar_tests
+    timeout: 1200
+    max_hitl: 80
+    hitl: s
+    linea: >-
+      Seguimos con la misma tarea, en el mismo working tree (NO commitees ni toques git; NO reviertas los cambios de nodes.py). El gate completo falla SOLO en 2 tests que escribiste vos, ambos en tests/test_pendientes.py. Salida real de pytest: "FAILED tests/test_pendientes.py::test_marcador_de_compaccion_menciona_el_ultimo_respaldo" y "FAILED tests/test_pendientes.py::test_titulo_de_respaldo_lleva_segundos". Detalles: (1) en test_marcador... la segunda compacción SÍ cambia la zona fría (9 y después 5 mensajes), así que el código escribe una segunda nota con sufijo -2 y la ruta nueva NO es igual a la primera; la expectativa del test ("no escribe otra nota") es falsa, hay que decidir cuál es el contrato correcto y corregir el test (el caso de "misma zona fría no duplica" ya está cubierto por test_zona_fria_identica_no_se_respalda_dos_veces); el marcador debe mencionar la ruta del ÚLTIMO respaldo. (2) en test_titulo... la aserción está mal escrita: `titulo.rsplit(" ", 1)[-1].split("-")` da 1 elemento ("12:34:56") porque el format actual es "YYYY-MM-DD HH-MM-SS"; y el reloj congelado devuelve un string que no es el formato real de _ahora(). Arreglá los tests para que verifiquen el formato real de `nodes._ahora()` (regex p.ej. ^\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}$) y el nombre de archivo que produce guardar_nota. No cambies el comportamiento de nodes.py salvo que el test revele un error real. Corré `python3 -m pytest tests/test_pendientes.py -q` y después `./calidad.sh` COMPLETO; pegá la última línea de cada uno. Si el gate sigue rojo, arreglá lo que sea necesario dentro de los archivos que tocaste.

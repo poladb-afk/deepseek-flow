@@ -1,0 +1,15 @@
+id: exp70-fix-lint
+descripcion: "El harness corrige el único error de ruff que dejó (E741)"
+env:
+  PREGUNTAS_LOG: "0"
+  COMPACTION_CHARS: "500000"
+  MAX_TOOL_ROUNDS: "20"
+permitir:
+  - "{RAIZ}/"
+turnos:
+  - id: fix_lint
+    timeout: 900
+    max_hitl: 40
+    hitl: s
+    linea: >-
+      En el mismo working tree (NO commitees ni reviertas nada) el gate de higiene (ruff) falla por un solo error que dejaste: `E741 Ambiguous variable name: l` en tests/test_memoria.py:403, en la línea `lineas = [l for l in salida.splitlines() if l.strip().startswith("- ")]`. Cambiala por un nombre claro (p.ej. `linea`) y corré `ruff check .` para confirmar "All checks passed!". Después corré `./calidad.sh` COMPLETO y pegá la última línea. Si algo más falla, arreglalo.

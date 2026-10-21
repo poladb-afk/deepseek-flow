@@ -134,12 +134,22 @@ _FLAGS_PELIGROSOS = {
 
 
 
+# Descarte de stderr/stdout a /dev/null: escribir ahí no escribe en el
+# filesystem, así que el `>` no es una redirección real (A39: en una sesión
+# real 3 de 15 HITL fueron solo por `cat f 2>/dev/null`). Formas: 2>/dev/null,
+# 1>/dev/null, >/dev/null y &>/dev/null, con o sin espacio antes de la ruta.
+# Destino EXACTO: `2>/dev/nullx` (archivo real) o `2>/tmp/err` siguen cayendo
+# en _PELIGRO_SHELL y preguntan.
+_DESCARTE_DEVNULL = re.compile(r"(?:(?<=\s)|^)(?:[12&]?>|&>)\s*/dev/null(?=\s|$)")
+
+
 def _sin_dup_stderr(segmento):
-    """Quita SOLO el token exacto `2>&1` (el doc dice token, no substring):
-    duplicar stderr al stdout ya capturado es lectura de descriptor. Un `2>&1`
-    pegado a otro texto (p. ej. dentro de un argumento) NO se toca: sigue
+    """Quita SOLO los tokens de descarte de descriptor: `2>&1` (duplicar stderr
+    al stdout ya capturado es lectura) y la basura a `/dev/null` (A39). Un
+    token pegado a otro texto (p. ej. dentro de un argumento) NO se toca: sigue
     viéndose el `>` y el compuesto degrada por prudencia (A44)."""
-    return re.sub(r"(?:(?<=\s)|^)2>&1(?=\s|$)", "", segmento)
+    segmento = re.sub(r"(?:(?<=\s)|^)2>&1(?=\s|$)", "", segmento)
+    return _DESCARTE_DEVNULL.sub("", segmento)
 
 
 def _tokens(segmento):
@@ -161,10 +171,11 @@ def _segmento_es_auto(segmento):
     if not tokens:
         return True
     # `2>&1` es una duplicación de descriptor de LECTURA (manda stderr al
-    # stdout ya capturado), así que quitarlo no puede ocultar ninguna
-    # escritura: toda redirección REAL conserva su carácter cazable —
-    # `> f` queda, `2> f` queda, `2>&1 > f` queda como `> f`, `> f 2>&1`
-    # queda como `> f`. Se descarta ANTES del escaneo de peligro.
+    # stdout ya capturado) y `2>/dev/null` descarta a la nada: ninguno escribe
+    # en el filesystem, así que se quitan antes del escaneo. Toda redirección
+    # REAL conserva su carácter cazable — `> f` queda, `2> f` queda,
+    # `2>&1 > f` queda como `> f`, `> f 2>&1` queda como `> f`, y
+    # `2>/tmp/err` (destino distinto de /dev/null) también queda.
     segmento = _sin_dup_stderr(segmento)
     # Redirección / sustitución / xargs: nunca auto, ni siquiera para echo.
     if _PELIGRO_SHELL.search(segmento):

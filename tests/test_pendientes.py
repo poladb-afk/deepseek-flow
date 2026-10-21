@@ -301,6 +301,110 @@ def test_marcador_sin_respaldo_no_promete_memoria():
     assert "memoria/" not in marcador
     assert "compactados" in marcador
 
+
+# A17 — respaldar la zona fría UNA vez por contenido (no en cada compacción)
+def _notas(directorio):
+    return sorted(directorio.glob("*.md")) if directorio.exists() else []
+
+
+def test_zona_fria_identica_no_se_respalda_dos_veces(tmp_path, monkeypatch):
+    """Dos compacciones con la MISMA zona fría: la segunda no escribe nota ni
+    duplica archivo (medido: 143 respaldos con el mismo cuerpo)."""
+    import nodes
+
+    raiz = tmp_path / "memoria"
+    monkeypatch.setenv("MEMORIA_DIR", str(raiz))
+    msgs = _historial_largo()
+    shared = {}
+
+    primera = nodes._respaldar_zona_fria(msgs, shared)
+    segunda = nodes._respaldar_zona_fria(msgs, shared)
+
+    assert primera is not None and Path(primera).exists()
+    assert segunda == primera          # devuelve la ruta del respaldo que ya existe
+    assert len(_notas(raiz)) == 1      # no se escribió una segunda nota
+
+
+def test_zona_fria_distinta_se_respalda_de_nuevo(tmp_path, monkeypatch):
+    """Si la zona fría CAMBIÓ, el respaldo legítimo sigue ocurriendo."""
+    import nodes
+
+    raiz = tmp_path / "memoria"
+    monkeypatch.setenv("MEMORIA_DIR", str(raiz))
+    shared = {}
+
+    primera = nodes._respaldar_zona_fria(_historial_largo(), shared)
+    otra = _historial_largo()
+    otra[3]["content"] = "Z" * 1000     # la zona fría ahora dice otra cosa
+    segunda = nodes._respaldar_zona_fria(otra, shared)
+
+    assert primera != segunda
+    assert len(_notas(raiz)) == 2
+    assert "ZZZ" in Path(segunda).read_text(encoding="utf-8")
+
+
+def test_marcador_de_compaccion_menciona_el_ultimo_respaldo(tmp_path, monkeypatch):
+    """A17: el mensaje de compacción dice dónde quedó el detalle descartado.
+    Si la segunda compacción descarta OTRA zona fría (9 y después 5 mensajes),
+    el respaldo es legítimo, va con sufijo -2 y el marcador debe nombrar ESE,
+    no el de la primera (el caso "misma zona fría" lo cubre
+    test_zona_fria_identica_no_se_respalda_dos_veces)."""
+    import nodes
+    from utils.compaccion import PREFIJO_COMPACCION
+
+    raiz = tmp_path / "memoria"
+    monkeypatch.setenv("MEMORIA_DIR", str(raiz))
+    monkeypatch.setenv("COMPACTION_CHARS", "200")
+    largo = _historial_largo()
+
+    shared = {"messages": list(largo), "tool_rounds": 0}
+    mensajes, _ = nodes.AgentStep().prep(shared)
+    ruta = shared["_respaldo_ruta"]
+    assert mensajes[1]["content"].startswith(PREFIJO_COMPACCION)
+    assert ruta in mensajes[1]["content"]
+    assert "memory_search" in mensajes[1]["content"]
+    assert len(_notas(raiz)) == 1
+
+    # segunda compacción con zona fría distinta: otra nota y el marcador
+    # apunta a la nueva ruta.
+    shared["messages"] = list(mensajes) + [
+        {"role": "assistant", "content": "sigo " + "y" * 500},
+        {"role": "user", "content": "seguí"},
+    ]
+    shared.pop("_compaccion_huella")
+    mensajes2, _ = nodes.AgentStep().prep(shared)
+    ruta2 = shared["_respaldo_ruta"]
+    assert shared["compacciones"] == 2
+    assert ruta2 != ruta
+    assert Path(ruta2).exists()
+    assert mensajes2[1]["content"].startswith(PREFIJO_COMPACCION)
+    assert ruta2 in mensajes2[1]["content"]
+    assert ruta not in mensajes2[1]["content"]
+    assert len(_notas(raiz)) == 2
+
+
+def test_titulo_de_respaldo_lleva_segundos(tmp_path, monkeypatch):
+    """El formato de _ahora() y del nombre de archivo lleva SEGUNDOS (antes
+    iba a minutos y dos compacciones del mismo minuto las desambiguaba
+    guardar_nota con -2, -3)."""
+    import re
+
+    import nodes
+
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}", nodes._ahora())
+    # el reloj se congela DESPUÉS de medir el formato: lo que se mide acá es
+    # el nombre de archivo que produce guardar_nota con un título dado.
+    monkeypatch.setattr(nodes, "_ahora", lambda: "2026-10-21 12-34-56")
+    raiz = tmp_path / "memoria"
+    monkeypatch.setenv("MEMORIA_DIR", str(raiz))
+
+    nodes._respaldar_zona_fria(_historial_largo(), {})
+    nombres = [n.name for n in _notas(raiz)]
+    assert nombres == [
+        "nota_2026-10-21_compactacion-2026-10-21-12-34-56.md"], nombres
+    primera = (raiz / nombres[0]).read_text(encoding="utf-8").splitlines()[0]
+    assert primera == "Compactación 2026-10-21 12-34-56", primera
+
 # A10/H10 — el bench mide la política de producción (no una copia)
 class _AgenteFijo:
     def __init__(self, choice="directo", conf=0.95):

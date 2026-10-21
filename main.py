@@ -52,7 +52,9 @@ Respondé en el idioma de cada pedido (español o inglés).
 
 Si el pedido es una auditoría o análisis amplio del repo, acotá el alcance y respondé con hallazgos y límites; no intentes leer todo.
 
-Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la verificaste, decila como no verificada. Citá siempre como ruta/archivo.py:línea (ruta relativa al repo, sin "líneas ~X").{forma}"""
+Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la verificaste, decila como no verificada. Citá siempre como ruta/archivo.py:línea (ruta relativa al repo, sin "líneas ~X").
+
+Para leer, listar o buscar archivos usá read_file, list_files o search_files; no uses cat, grep ni find por run_command.{forma}"""
 
 
 SUBCOMANDOS = {
@@ -144,12 +146,15 @@ def resumen_de_sesion(shared):
         print(f"\n[memoria] no se pudo guardar el resumen de la sesión ({type(e).__name__})")
 
 
+CATALOGO_MAX = 8
+
+
 def catalogo_memoria():
     """Muestra el CATÁLOGO de la biblioteca de memoria al arrancar (mesa 8):
-    qué notas hay, SIN inyectar su contenido al contexto — el arranque vacío
-    es regla (la memoria es una biblioteca que el agente consulta, no contexto
-    automático). Con MEMORIA=0 o si la biblioteca está vacía, no imprime nada.
-    Nunca rompe el arranque (best-effort)."""
+    cuántas notas hay y las más recientes, SIN inyectar su contenido al
+    contexto — el arranque vacío es regla (la memoria es una biblioteca que el
+    agente consulta, no contexto automático). Con MEMORIA=0 o si la biblioteca
+    está vacía, no imprime nada. Nunca rompe el arranque (best-effort)."""
     from utils.call_llm import _setting
 
     if _setting("MEMORIA", "1") != "1":
@@ -160,9 +165,17 @@ def catalogo_memoria():
         archivos = _archivos_md()
         if not archivos:
             return
-        print(f"\n[memoria] biblioteca: {len(archivos)} notas (consultá con memory_search)")
-        for p in archivos:
+        # lista completa = spam de arranque (medido: 229 de 234 notas eran
+        # respaldos de compacción y tapaban las útiles): van solo las últimas.
+        # mtime desempata a favor de lo recién guardado; el nombre (que trae la
+        # fecha) ordena determinísticamente cuando los mtime empatan.
+        recientes = sorted(archivos, key=lambda p: (p.stat().st_mtime, p.name),
+                           reverse=True)[:CATALOGO_MAX]
+        print(f"\n[memoria] biblioteca: {len(archivos)} notas; "
+              f"las {len(recientes)} más recientes:")
+        for p in recientes:
             print(f"  - {p.name}")
+        print("  (consultá cualquier nota con memory_search)")
     except Exception:  # noqa: BLE001 (mostrar el catálogo nunca corta el arranque)
         pass
 

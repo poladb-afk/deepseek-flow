@@ -382,6 +382,39 @@ def test_catalogo_memoria_vacio(tmp_path, monkeypatch, capsys):
     main.catalogo_memoria()
     assert capsys.readouterr().out == ""
 
+def test_catalogo_memoria_resumen_acotado(tmp_path, monkeypatch, capsys):
+    """Con muchas notas el arranque imprime el total y solo las últimas
+    CATALOGO_MAX (la lista completa era spam: 229 de 234 tapaban las útiles)."""
+    import os
+
+    import main
+
+    monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+    monkeypatch.setenv("MEMORIA", "1")
+    total = 20
+    for i in range(total):
+        p = tmp_path / f"nota_{i:02d}.md"
+        p.write_text(f"cuerpo {i}\n", encoding="utf-8")
+        # mtime creciente y determinista: nota_19 es la más reciente
+        os.utime(p, (1_700_000_000 + i, 1_700_000_000 + i))
+
+    main.catalogo_memoria()
+    salida = capsys.readouterr().out
+    lineas = [linea for linea in salida.splitlines() if linea.strip().startswith("- ")]
+    assert f"biblioteca: {total} notas" in salida
+    assert len(lineas) == main.CATALOGO_MAX < total
+    assert "nota_19.md" in salida and "nota_00.md" not in salida
+    assert "memory_search" in salida
+    assert "cuerpo" not in salida
+
+    # biblioteca vacía: ni catálogo ni recordatorio
+    vacia = tmp_path / "vacia"
+    vacia.mkdir()
+    monkeypatch.setenv("MEMORIA_DIR", str(vacia))
+    main.catalogo_memoria()
+    assert capsys.readouterr().out == ""
+
+
 def test_catalogo_memoria_nunca_rompe(monkeypatch, capsys):
     """Aunque la lectura de la biblioteca falle, el arranque sigue."""
     import main
