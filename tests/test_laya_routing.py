@@ -267,13 +267,17 @@ def test_shadow_con_log_apagado_no_deja_pendiente_ni_escribe(tmp_path, monkeypat
     assert not archivo.exists()
 
 
-def test_enforce_y_shadow_sin_probabilidades_no_dejan_pendiente(monkeypatch):
+def test_enforce_y_shadow_sin_probabilidades_no_dejan_pendiente(tmp_path, monkeypatch):
     """Enforce no etiqueta (mediría la política); sin p_directo no hay par
-    (p, etiqueta) calibrable."""
+    (p, etiqueta) calibrable. El archivo va a tmp: este test posteaba la
+    decisión en el routing log REAL (exp/71)."""
     import nodes
     from utils import call_llm
 
-    ajustes = {"LAYA_MODO": "enforce"}
+    ajustes = {
+        "LAYA_MODO": "enforce",
+        "LAYA_LOG_ARCHIVO": str(tmp_path / "routing.jsonl"),
+    }
     monkeypatch.setattr(
         call_llm, "_setting", lambda nombre, default=None: ajustes.get(nombre, default)
     )

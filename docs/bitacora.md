@@ -1234,6 +1234,86 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## exp/71 — la suite contaminaba los datos y la biblioteca: logs y memoria a tmp (2026-10-21)
+
+**Contexto:** al cerrar la jornada quedaron dos deudas detectadas revisando los
+datos del día: (1) el log del juez de riesgo tenía filas `origen=terminal` que
+no eran humanas, y (2) `memoria/` había crecido con respaldos de compacción en
+momentos en que corría el gate. La sospecha inicial era "las corridas del
+banco contaminan"; la medición mostró otra causa (más simple y más grave).
+
+**Causa raíz medida (antes de tocar nada):**
+
+- `pytest tests/test_policy.py -q` (24 tests): **18,86 s** dentro de pytest,
+  **24,4 s** de pared y **2,98 GiB de RSS** — los HITL no-auto tomaban el
+  `LAYA_MODEL_RIESGO=.modelos/laya-multilingual` del `.env` y **cargaban el
+  checkpoint real del juez**. Además dejaba **8 filas nuevas** en
+  `salidas/riesgo.jsonl`, todas `origen=terminal`: el log de producción decía
+  "humano" para comandos de tests (`echo hola-coding`, `git push`, …).
+- Barrido del log: **577 filas `terminal`**, de las cuales **541 eran de la
+  suite** (135 con mensaje `otra pregunta`, 15 `hola`, el resto corridas de
+  tests de días anteriores); las **25 orgánicas reales** de la tarde (la
+  sesión auditada en exp/70 + el smoke-test manual) eran una minoría
+  invisible. El "577 orgánicas / 338 rechazos" que parecía cumplir el criterio
+  del fine-tune era **falso**.
+- `memoria/`: **243 respaldos de compacción**, de los cuales **157 eran el
+  fixture sintético** de `test_compaccion::test_agent_step_prep_compacta_y_cuenta`
+  (`pedido 0…` + `u`×400, **57.591 B**): el test compacta un historial con
+  `COMPACTION_CHARS=200`, `AgentStep.prep` respalda la zona fría y
+  `guardar_nota` escribía en la biblioteca REAL (el test no fija
+  `MEMORIA_DIR`). La corrección de exp/70 a X37 ("143 cuerpos idénticos") era
+  parcial: el cuerpo repetido no venía de sesiones del operador sino de esa
+  fixture, reescrita en cada corrida del gate. Las 86 restantes sí son de
+  sesiones reales (cuerpos únicos).
+- El banco, por su lado, también podía escribir si un escenario pedía
+  `memoria: true` (el `MEMORIA=0` default del driver no alcanzaba porque el
+  respaldo ignoraba el setting).
+
+**Fixes (dos capas, gate al final):**
+
+1. **Aislamiento de la suite** (`tests/conftest.py`, fixture autouse): 
+   `LAYA_MODEL_RIESGO=0` (los tests nunca cargan el checkpoint real; el test
+   de integración de `_observar_riesgo` usa un `juzgar` fake), y
+   `RIESGO_ARCHIVO`/`PREGUNTAS_ARCHIVO`/`LAYA_LOG_ARCHIVO`/`MEMORIA_DIR` a
+   tmp (más `MEMORIA=1` fijo para que el `.env` del operador no cambie la
+   suite). Los tests que prueban esos caminos fijan su propia ruta y ganan
+   por monkeypatch. Un caso que el env no cubría: `LayaRouter.post` con
+   `_setting` parcheado a mano caía al archivo DEFAULT — 2 líneas por corrida
+   del gate; ese test ahora lleva su `--ruta` a tmp.
+2. **Respaldo coherente con `MEMORIA=0`** (`nodes._respaldar_zona_fria`): sin
+   biblioteca no hay `memory_search` que recupere el respaldo, así que no se
+   escribe. Y el driver del banco fija `MEMORIA_DIR=salidas/banco/memoria`
+   (`_env_del_chat`): una corrida de banco no toca la biblioteca ni con
+   `memoria: true`.
+3. **Sonda read-only** `banco/probes/estado_riesgo.py`: orgánicas vs banco,
+   rechazos y readiness contra el criterio pre-registrado (**≥300 orgánicas y
+   ≥100 rechazos**); el log viejo quedó en cuarentena
+   (`salidas/riesgo_pre_exp71_2026-10-21.jsonl`) porque su procedencia no es
+   auditable — el conteo arranca de cero, más conservador que reciclar 25
+   etiquetas de dudosa procedencia.
+
+**Medición después del fix:** el MISMO `tests/test_policy.py` pasa de
+18,86 s/2,98 GiB y 8 filas a **1,81 s/161 MB y 0 filas** (pytest; pared
+24,4 s → 5,1 s). La suite completa ya no escribe `salidas/riesgo.jsonl`,
+`salidas/preguntas.jsonl`, `salidas/routing.jsonl` ni `memoria/`.
+
+**Limpieza:** los 157 respaldos sintéticos se movieron a
+`salidas/memoria_respaldos_suite/` (no se borró nada); `memoria/` quedó con
+**100 notas** (86 respaldos reales + 12 notas + 2 sesiones). La poda de los 86
+restantes es decisión del operador: son historial real de sesiones.
+
+**Límites honestos:** (1) el log de riesgo arranca vacío: el criterio del
+fine-tune queda en **0/300 orgánicas** y depende de uso real en el chat (el
+banco no cuenta); (2) `salidas/preguntas.jsonl` histórico también tiene
+preguntas de tests, pero ningún criterio pre-registrado lo usa — no se tocó;
+(3) la cuarentena del log no borra la evidencia, la conserva fuera del
+conteo; (4) el `[riesgo] observa` por HITL sigue imprimiéndose en el chat
+(no es ruido: es la traza deliberada de exp/44). Las corridas de banco siguen
+etiquetando `origen=banco` (133 filas en la cuarentena) y no cuentan para el
+fine-tune.
+
+**Gate:** 763 tests (antes 756; +7 nuevos), 4/4 palancas verdes.
+
 ## exp/70 — auditar una sesión real y dejar que el HARNESS aplique los fixes (2026-10-21)
 
 **Contexto:** el operador usó el chat en una sesión real (shadow) y pidió auditar

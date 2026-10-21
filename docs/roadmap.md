@@ -40,13 +40,16 @@ Cada ítem indica qué pieza lo apoya y qué falta.
    (el falso directo de 0,93 cae por conjunto ambiguo). Ahorro efectivo
    chico (1,6% de turnos) por recall 41%: ver ítem 15.
 5. **Fine-tune del juez de riesgo** — readiness auditada (2026-10-19): el
-   log tiene 1467 etiquetas (606/861), volumen y balance alcanzan, pero la
-   procedencia faltaba (59% de rechazo = banco sintético mezclado). Ya se
-   instrumentó `origen`; **criterio pre-registrado para entrenar: ≥300
+   log tenía 1467 etiquetas (606/861) pero la procedencia no era confiable
+   (59% de rechazo = banco sintético mezclado). Ya se instrumentó `origen`, y
+   exp/71 (2026-10-21) midió que además la SUITE escribía 541 filas como
+   `terminal`: el log viejo quedó en cuarentena y el conteo arranca limpio
+   (`python3 banco/probes/estado_riesgo.py` · **0/300 orgánicas, 0/100
+   rechazos** al 2026-10-21). **Criterio pre-registrado, sin cambios: ≥300
    etiquetas orgánicas y ≥100 rechazos orgánicos** (las históricas sin
-   procedencia no se usan). `requiere_revision` casi no dispara (5/1467):
-   esa dimensión es la que el fine-tune tiene que arreglar. Umbrales del log
-   propio y enforcement recién después.
+   procedencia no se usan; el banco no cuenta). `requiere_revision` casi no
+   dispara (5/1467): esa dimensión es la que el fine-tune tiene que arreglar.
+   Umbrales del log propio y enforcement recién después.
 6. **Mesa 3 (restos, re-priorizados)**: gate del juez (después del 5),
    presupuesto dinámico/convergencia de loops (empezar DETERMINISTA con las
    features de exp/9, Laya solo si no alcanza), Laya vía MCP como producto.
@@ -116,8 +119,15 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     regla queda en 0 por default; la instrumentación se conserva (traza más
     atribuible). No se recomienda forzar k=1 (una ronda sin novedad no es
     evidencia y arriesga calidad).
+21. **exp/56b — skill `revision` sin techo (pre-registrado, listo para
+    correr)**: la hipótesis de detección de exp/56 no tenía margen porque el
+    pre-fetch ya inyectaba el archivo (control 3/3). Para medirla hay que
+    quitar el techo ANTES: `PREFETCH=0` y/o fixture con issues sutiles
+    (off-by-one, global mutada, denominador mal calculado); el criterio quedó
+    fijado en la bitácora de exp/56 antes de la corrida. Es una corrida de
+    banco (`banco/escenarios/`), no deuda de código.
 16. **Revisión de ROI del router (condición pre-registrada)**: cuando haya
-    **≥250 pares y ≥14 días** (hoy **148/5** tras la jornada exp/67), correr
+    **≥250 pares y ≥14 días** (hoy **152/6** tras la sesión de exp/70), correr
     `python3 banco/probes/etiquetar_ambiental.py && python3 banco/probes/veredicto_router.py`
     y aplicar la regla de ROI. El banco ya marca `BANCO=1` para no contar
     tráfico sintético como orgánico; vigilar falsos directo del enforce.
@@ -266,8 +276,9 @@ prometedora: −40% de palabras con las mismas citas válidas (n=3).
 `DeepSeek:` en streaming, colores por tipo, progreso de rondas), ✅ **HITL UX**
 (diffs con highlight, explicación antes del s/n, historial `/aprobaciones`) y
 ✅ **visor --watch** + ✅ **catálogo de memoria al arrancar** (nombres SIN
-inyectar) — verificados con e2e y tests en exp/58 (2026-10-19). **Único ítem
-abierto: chat web completo** (SSE, sesiones en navegador) — ver ítem 23.
+inyectar) — verificados con e2e y tests en exp/58 (2026-10-19) y ✅ **chat web
+completo** (SSE + sesiones aisladas, stdlib, token por sesión) en exp/59
+(X29): la mesa quedó cerrada.
 
 **Pulido de terminal ✅ (2026-10-05):** `utils/terminal.py` — `colorear(texto,
 tipo)` con códigos ANSI por tipo de evento (`tool`/`ok`/`error`/`info`/`aviso`/
@@ -287,8 +298,8 @@ SIN inyectar su contenido al contexto — el arranque vacío sigue siendo regla
 (la memoria es una biblioteca que el agente consulta con `memory_search`).
 Con `MEMORIA=0` o biblioteca vacía, silencio; nunca corta el arranque.
 
-Sigue pendiente de la mesa: el chat web y el HITL UX (diffs con highlight,
-explicación antes del s/n, historial de aprobaciones).
+Sin ítems abiertos: el chat web se cerró en exp/59 (X29) y el HITL UX en
+exp/58 (X28).
 
 ## Descartes
 

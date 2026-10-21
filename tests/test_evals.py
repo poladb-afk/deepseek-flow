@@ -1,6 +1,4 @@
 """Evals: bench del router, linter de trazas, costos y baseline (PR 4)."""
-from pathlib import Path
-
 import pytest
 from conftest import RAIZ
 
@@ -315,12 +313,13 @@ def test_tool_evals_no_pisa_el_baseline(monkeypatch, tmp_path):
     monkeypatch.setattr("evals.costos_runs", lambda d=None: [])
     monkeypatch.setattr("evals.informe_markdown", lambda *a, **k: "# evals")
 
-    # .runs puede no existir en una PC nueva: el default apunta a uno vacío
-    vacio = Path("salidas/banco/runs_vacio")
+    # .runs puede no existir en una PC nueva: el default apunta a uno vacío.
+    # Todo en tmp: el tmp de pytest es raíz permitida (conftest) y el test no
+    # ensucia salidas/banco (review de exp/71).
+    vacio = tmp_path / "runs_vacio"
     vacio.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(mod, "DIR_RUNS", vacio)
-    # rutas DENTRO de las raíces permitidas (tmp_path de pytest está fuera)
-    r = mod.evals(dir_runs=None, salida="salidas/banco")
+    r = mod.evals(dir_runs=None, salida=str(tmp_path / "banco"))
     assert "Informe de evals generado" in r
     assert llamadas["guardar"] == 0, "la tool del chat NO guarda baseline"
 

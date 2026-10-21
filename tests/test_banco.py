@@ -211,3 +211,27 @@ def test_max_hitl_por_turno_se_valida_y_llega_al_dict(tmp_path):
             pass
         else:
             raise AssertionError(f"max_hitl={malo!r} debería levantar ValueError")
+
+
+def test_env_del_chat_aisla_la_memoria_y_marca_procedencia(monkeypatch):
+    """exp/71: una corrida de banco no puede tocar la biblioteca curada del
+    usuario (antes, con MEMORIA=0, el respaldo de compacción igual escribía
+    `memoria/`). La memoria del banco va a `salidas/banco/memoria` y BANCO=1
+    marca las etiquetas como sintéticas."""
+    from banco.banco import RAIZ, _env_del_chat
+
+    monkeypatch.delenv("MEMORIA", raising=False)
+    monkeypatch.delenv("MEMORIA_DIR", raising=False)
+    env = _env_del_chat({"MAX_TOOL_ROUNDS": "3"})
+    assert env["BANCO"] == "1"
+    assert env["MEMORIA"] == "0"
+    assert env["MAX_TOOL_ROUNDS"] == "3"  # el env del escenario sigue mandando
+    assert env["MEMORIA_DIR"] == str(RAIZ / "salidas" / "banco" / "memoria")
+
+    # exp/71b: heredar el entorno del operador NO devuelve la biblioteca a
+    # producción; solo el `env:` del escenario puede pisar el default.
+    monkeypatch.setenv("MEMORIA", "1")
+    monkeypatch.setenv("MEMORIA_DIR", str(RAIZ / "memoria"))
+    env = _env_del_chat()
+    assert env["MEMORIA"] == "0"
+    assert env["MEMORIA_DIR"] == str(RAIZ / "salidas" / "banco" / "memoria")

@@ -762,7 +762,9 @@ Resumen automático al salir: `main.py` envuelve la corrida del flujo en
 decisiones, hallazgos, archivos tocados) y la guarda como
 `memoria/sesion_FECHA.md` vía `guardar_resumen_sesion`. Sin HITL (es
 bookkeeping, no una acción nueva) y con el fallo de la llamada contenido:
-se sale igual sin romper nada. `MEMORIA=0` apaga todo.
+se sale igual sin romper nada. `MEMORIA=0` apaga todo: también el
+respaldo de la zona fría que hace la compacción (`_respaldar_zona_fria`; sin
+biblioteca no hay `memory_search` que lo recupere, exp/71).
 
 ## Salidas — una carpeta, no una raíz llena de .md
 
@@ -773,6 +775,20 @@ no del disco. Ahora el default de TODAS las salidas es `salidas/` (y
 `salidas/heartbeat/` para las nocturnas), cada escritor crea su
 directorio (la lección del heartbeat), y el .gitignore se simplificó a
 `salidas/` única.
+
+## Datos de producción vs. datos de tests (exp/71)
+
+Todo lo que mide (flywheel, juez de riesgo, memoria, preguntas) depende de
+procedencia auditable. Por eso la suite NO escribe los datos de producción:
+un fixture autouse de `tests/conftest.py` pone `LAYA_MODEL_RIESGO=0` (nunca
+carga el checkpoint real), y manda `RIESGO_ARCHIVO`, `PREGUNTAS_ARCHIVO`,
+`LAYA_LOG_ARCHIVO` y `MEMORIA_DIR` al tmp de pytest; los tests que prueban
+esos caminos fijan su propia ruta. El banco tampoco toca la biblioteca:
+`banco.banco._env_del_chat` fija `MEMORIA_DIR=salidas/banco/memoria` y
+`BANCO=1` marca las etiquetas HITL como sintéticas. El log del juez de riesgo
+previo a exp/71 quedó en cuarentena (`salidas/riesgo_pre_exp71_2026-10-21.jsonl`)
+porque no es auditable; la readiness del fine-tune se mide con
+`banco/probes/estado_riesgo.py` (read-only).
 
 ## El CWD en el system prompt
 

@@ -117,6 +117,28 @@ def limpiar(texto):
     return ANSI.sub("", texto.replace("\r\n", "\n").replace("\r", "\n"))
 
 
+def _env_del_chat(extras=None):
+    """Entorno del chat bajo banco: procedencia + memoria fuera de la curada.
+
+    BANCO=1 marca las decisiones HITL como sintéticas (exp/44). Y la memoria
+    va SIEMPRE a `salidas/banco/memoria`: una corrida de banco no puede tocar
+    la biblioteca del usuario (exp/71 — con MEMORIA=0 el respaldo de compacción
+    igual escribía `memoria/`; los escenarios con `memoria: true` también
+    escriben ahí). El `env:` del escenario es el ÚNICO override: heredar
+    `MEMORIA_DIR` del operador alcanzaba para devolver la biblioteca a
+    producción (review de exp/71)."""
+    env = dict(
+        os.environ,
+        PYTHONUNBUFFERED="1",
+        TERM="dumb",
+        BANCO="1",
+        MEMORIA="0",
+        MEMORIA_DIR=str(RAIZ / "salidas" / "banco" / "memoria"),
+    )
+    env.update(extras or {})
+    return env
+
+
 class Chat:
     """El proceso `main.py` bajo PTY: echo off, ISIG intacto (Ctrl+C real).
 
@@ -135,12 +157,8 @@ class Chat:
             attrs[3] &= ~termios.ECHO
             termios.tcsetattr(0, termios.TCSANOW, attrs)
             os.chdir(RAIZ)
-            # BANCO=1: procedencia de las decisiones HITL (exp/44: el log de
-            # riesgo distingue tráfico sintético de humano).
-            env = dict(os.environ, PYTHONUNBUFFERED="1", TERM="dumb", BANCO="1",
-                       MEMORIA=os.environ.get("MEMORIA", "0"))
-            env.update(env_extra or {})
-            os.execvpe(sys.executable, [sys.executable, "main.py"], env)
+            os.execvpe(sys.executable, [sys.executable, "main.py"],
+                       _env_del_chat(env_extra))
         self.nuevo = ""
         self.raw = None
         self.vivo = True

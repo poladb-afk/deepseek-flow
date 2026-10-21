@@ -302,6 +302,20 @@ def test_marcador_sin_respaldo_no_promete_memoria():
     assert "compactados" in marcador
 
 
+def test_compaccion_no_respalda_con_memoria_apagada(tmp_path, monkeypatch):
+    """exp/71: con MEMORIA=0 la biblioteca está apagada (no hay catálogo ni
+    memory_search), así que el respaldo no tendría recuperación posible: no se
+    escribe. La suite corría con MEMORIA=1 y el banco con 0, pero el respaldo
+    ignoraba el setting: dejaban respaldos de fixture en `memoria/` (157 de 243)."""
+    import nodes
+
+    raiz = tmp_path / "memoria"
+    monkeypatch.setenv("MEMORIA_DIR", str(raiz))
+    monkeypatch.setenv("MEMORIA", "0")
+    assert nodes._respaldar_zona_fria(_historial_largo()) is None
+    assert _notas(raiz) == []
+
+
 # A17 — respaldar la zona fría UNA vez por contenido (no en cada compacción)
 def _notas(directorio):
     return sorted(directorio.glob("*.md")) if directorio.exists() else []

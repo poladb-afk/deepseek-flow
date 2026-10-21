@@ -60,6 +60,32 @@ def _permitir_salidas_de_tmp(tmp_path_factory, monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def _bookkeeping_y_memoria_en_tmp(tmp_path_factory, monkeypatch):
+    """La suite NO escribe los logs ni la biblioteca de PRODUCCIÓN (exp/71).
+
+    Medido antes de aislar: `tests/test_policy.py` solo (24 tests) tardaba
+    24,4 s con 2,98 GiB de RSS porque los HITL no-auto tomaban el
+    `LAYA_MODEL_RIESGO` del `.env` y cargaban el checkpoint del juez; y dejaba
+    8 filas con `origen=terminal` en `salidas/riesgo.jsonl` (541 acumuladas,
+    indistinguibles del juicio humano). Además `test_compaccion` compactaba su
+    historial sintético y respaldaba la zona fría en `memoria/`: 157 de los 243
+    respaldos de la biblioteca eran su fixture `pedido 0...` (57.591 B).
+
+    Los tests que prueban estos caminos fijan su propia ruta (o parchean
+    `_setting`) después: este fixture solo pone el DEFAULT en tmp.
+    `THREADS_DIR` se sumó al cerrar exp/71: los checkpoints de resume también son
+    estado del operador y la suite los dejaba en `salidas/threads/`."""
+    base = tmp_path_factory.getbasetemp()
+    monkeypatch.setenv("LAYA_MODEL_RIESGO", "0")  # nunca el checkpoint real
+    monkeypatch.setenv("RIESGO_ARCHIVO", str(base / "riesgo.jsonl"))
+    monkeypatch.setenv("PREGUNTAS_ARCHIVO", str(base / "preguntas.jsonl"))
+    monkeypatch.setenv("LAYA_LOG_ARCHIVO", str(base / "routing.jsonl"))
+    monkeypatch.setenv("MEMORIA_DIR", str(base / "memoria"))
+    monkeypatch.setenv("MEMORIA", "1")  # el `.env` del operador no cambia la suite
+    monkeypatch.setenv("THREADS_DIR", str(base / "threads"))  # resume fuera del repo
+
+
 def tc(nombre, args):
     """Tool call con la envoltura exacta que arma el modelo (OpenAI)."""
     return {"id": "call_x", "type": "function",

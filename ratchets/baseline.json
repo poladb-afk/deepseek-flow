@@ -50,10 +50,10 @@
         ],
         "nodes.py": [
           44,
-          560,
-          581,
-          831,
-          903
+          567,
+          588,
+          838,
+          910
         ],
         "research.py": [
           78
@@ -144,7 +144,7 @@
       "detalle": {
         "tests/test_ab_skills.py": 9,
         "tests/test_absurdos_funcionales.py": 44,
-        "tests/test_banco.py": 14,
+        "tests/test_banco.py": 15,
         "tests/test_bench.py": 18,
         "tests/test_bench_voto.py": 7,
         "tests/test_chat_flujo.py": 19,
@@ -156,6 +156,7 @@
         "tests/test_deriva_reglas.py": 7,
         "tests/test_docs_sin_deriva.py": 5,
         "tests/test_estado_flywheel.py": 3,
+        "tests/test_estado_riesgo.py": 3,
         "tests/test_estilo_humano.py": 7,
         "tests/test_evals.py": 15,
         "tests/test_flujos.py": 34,
@@ -173,14 +174,14 @@
         "tests/test_minar_errores.py": 16,
         "tests/test_modulos.py": 19,
         "tests/test_novedad.py": 6,
-        "tests/test_pendientes.py": 38,
+        "tests/test_pendientes.py": 39,
         "tests/test_policy.py": 24,
         "tests/test_policy_bypass.py": 35,
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
         "tests/test_ratchet.py": 27,
         "tests/test_replay.py": 16,
-        "tests/test_riesgo.py": 15,
+        "tests/test_riesgo.py": 17,
         "tests/test_rondas.py": 5,
         "tests/test_router.py": 12,
         "tests/test_skills.py": 8,
@@ -198,7 +199,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 740
+      "metrica": 747
     }
   },
   "version": 1

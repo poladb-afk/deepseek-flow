@@ -7,6 +7,7 @@ los candados de la spec §5 más el del centinela de apagado explícito
 las sesiones cargaban el checkpoint sin querer)."""
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
@@ -144,3 +145,44 @@ def test_registrar_marca_el_origen_de_la_decision(tmp_path, monkeypatch):
     registrar("ls", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
     origenes = [json.loads(linea)["origen"] for linea in ruta.read_text(encoding="utf-8").splitlines()]
     assert origenes == ["terminal", "banco", "web"]
+
+
+# exp/71 — la suite no ensucia los logs ni carga el checkpoint real
+
+def test_observar_riesgo_solo_juzga_bandas_humanas(monkeypatch):
+    """La observación (exp/44) es no-op en 'auto' y denylist: solo el humano
+    gatea esas bandas. Con conftest apagando el checkpoint, este fake es el
+    que mantiene cubierta la integración."""
+    import modules.coding as coding
+
+    llamados = []
+
+    def falso(comando, mensaje):
+        llamados.append((comando, mensaje))
+        return {"modifica_estado": ("no", 0.9)}
+
+    monkeypatch.setattr(coding, "juzgar", falso)
+    monkeypatch.setattr(coding, "ultimo_usuario", lambda: "pedido")
+    assert coding._observar_riesgo("ls", "auto") is None
+    assert llamados == []
+    assert coding._observar_riesgo("ls", "preguntar") == {"modifica_estado": ("no", 0.9)}
+    assert llamados == [("ls", "pedido")]
+
+
+def test_la_suite_no_escribe_los_logs_ni_la_memoria_de_produccion(monkeypatch):
+    """exp/71: la suite dejaba 541 filas `terminal` en `salidas/riesgo.jsonl`
+    (24,4 s y 2,98 GiB de RSS por cargar el checkpoint) y 157 respaldos de
+    fixture en `memoria/`. El conftest manda los logs, MEMORIA_DIR y el trace
+    de resume (`THREADS_DIR`, review de exp/71) a tmp; los tests que prueban estos
+    caminos fijan su propia ruta y ganan después."""
+    from utils.call_llm import _setting
+
+    raiz = Path(__file__).resolve().parent.parent
+    riesgo = Path(_setting("RIESGO_ARCHIVO")).resolve()
+    memoria = Path(_setting("MEMORIA_DIR")).resolve()
+    threads = Path(_setting("THREADS_DIR", "salidas/threads")).resolve()
+    assert riesgo != (raiz / "salidas" / "riesgo.jsonl")
+    assert memoria != (raiz / "memoria")
+    assert threads != (raiz / "salidas" / "threads")
+    assert _setting("LAYA_MODEL_RIESGO") == "0"  # sin checkpoint del juez en tests
+    assert riesgo.parent == memoria.parent == threads.parent  # todo en el basetemp

@@ -374,9 +374,16 @@ def _respaldar_zona_fria(mensajes, shared=None):
     respaldos con el mismo cuerpo) y contaminó memory_search. Con `shared` la
     sesión recuerda la huella de lo último respaldado: si la zona fría es la
     misma, no se escribe nada y se devuelve la ruta del respaldo que ya existe
-    (el marcador la sigue diciendo, A17)."""
+    (el marcador la sigue diciendo, A17).
+
+    Con MEMORIA=0 la biblioteca está apagada (ni catálogo ni memory_search):
+    el respaldo no tendría cómo recuperarse y solo ensuciaría `memoria/`.
+    exp/71 midió que la suite y las corridas del banco (MEMORIA=0) dejaban
+    157 respaldos de fixture en la biblioteca curada; en ese modo no escribe."""
     from utils.compaccion import MAX_RESPALDO_CHARS, huella, serializar, zona_fria
 
+    if _setting("MEMORIA", "1") != "1":
+        return None
     frios = zona_fria(mensajes)
     if not frios:
         return None
