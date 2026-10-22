@@ -1,0 +1,28 @@
+# exp/84 — una ronda acotada: candidatas_verificacion (el código marca las
+# frases que parecen verificaciones) + contrato reforzado del extractor.
+id: exp84-extractor
+descripcion: el extractor de claims deja de depender del fraseo del reporte
+env:
+  PROMPT_FABLE: "1"
+  MAX_TOOL_ROUNDS: "16"
+permitir:
+  - "{RAIZ}/fable_judge.py"
+  - "{RAIZ}/tests/test_fable_judge.py"
+permitir_comandos:
+  - "pytest"
+  - "python3 -m pytest"
+  - "ruff"
+  - "python3 -m ruff"
+  - "cd {RAIZ} && pytest"
+  - "cd {RAIZ} && python3 -m pytest"
+  - "cd {RAIZ} && ruff"
+  - "cd {RAIZ} && python3 -m ruff"
+turnos:
+  - id: extractor
+    linea: "Tarea acotada en fable_judge.py + tests/test_fable_judge.py: el extractor de claims depende del fraseo (exp/83: un reporte con verificaciones en prosa las clasifico como hecho y el juez no re-ejecuto nada). Fix con el principio de la casa (los hechos los reune el codigo): (1) funcion PURA candidatas_verificacion(reporte) que devuelve las frases del reporte (partidas por linea o punto seguido) que mencionan corridas o checks — pytest, tests pass/passed, ruff, lint, exit N, gate, calidad, verde, case-insensitive — acotadas a 8, con docstring que aclare que es ayuda de clasificacion, no veredicto; (2) el prompt de RecolectarClaims suma un bloque 'Frases del reporte que el codigo marco como candidatas a verificacion:' con la lista, y el contrato reforzado: cada candidata que afirme haber corrido algo va con tipo verificacion y comando inferible exacto (solo python/pytest/ruff check sobre el trabajo); para claims de todos los tests SIN archivo especifico el comando es python3 -m pytest (el directorio); (3) tests sin LLM: la pura detecta 'python3 -m pytest tests/x.py -q da 63 passed' y 'ruff check . esta limpio' como candidatas, NO matchea prosa neutra ('el codigo quedo limpio y simple'), respeta el tope de 8, y el prompt de claims contiene el bloque con las candidatas y la sugerencia del directorio. Verificá con python3 -m pytest tests/test_fable_judge.py -q y ruff check fable_judge.py tests/test_fable_judge.py (aprobados). Reporte outcome-first."
+    hitl: s
+    timeout: 900
+    max_hitl: 12
+  - id: salir
+    linea: "salir"
+    timeout: 30

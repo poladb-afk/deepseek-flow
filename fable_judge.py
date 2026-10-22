@@ -222,6 +222,36 @@ def fraudes_deterministas(cambios):
     return hechos
 
 
+# ── determinista: candidatas a verificación (ayuda de clasificación) ────
+
+# El extractor de claims no puede depender del fraseo (exp/83): un reporte
+# que declara sus corridas en prosa se clasificaba como `hecho` y el juez
+# no re-ejecutaba nada. El código reúne las frases candidatas; el LLM solo
+# clasifica (los hechos los junta el código).
+MAX_CANDIDATAS = 8
+_CORRIDAS = re.compile(
+    r"pytest|\btests?\b[^.\n]{0,40}\bpass(?:ed|es|ing)?\b|\bruff\b|\blint(?:er|ing)?\b"
+    r"|\bexit\s*-?\d+\b|\bgate\b|calidad|\bverde\b|\bgreen\b",
+    re.IGNORECASE)
+
+
+def candidatas_verificacion(reporte):
+    """Frases del reporte que mencionan corridas o checks (pytest, tests
+    pass/passed, ruff, lint, exit N, gate, calidad, verde), acotadas a
+    MAX_CANDIDATAS. ES AYUDA DE CLASIFICACIÓN, NO UN VEREDICTO: que una
+    frase aparezca acá no prueba nada — solo le señala al extractor dónde
+    mirar; el tipo del claim y su re-ejecución deciden."""
+    frases = re.split(r"\.\s+|\n", reporte)
+    encontradas = []
+    for frase in frases:
+        limpia = " ".join(frase.split())
+        if limpia and _CORRIDAS.search(limpia):
+            encontradas.append(limpia)
+        if len(encontradas) >= MAX_CANDIDATAS:
+            break
+    return encontradas
+
+
 # ── determinista: qué se re-ejecuta ─────────────────────────────────────
 
 # La re-ejecución es la superficie más riesgosa del juez (mapeo §5): la
@@ -386,17 +416,25 @@ class RecolectarClaims(Node):
         return shared["reporte"], listado
 
     def _prompt(self, reporte, listado):
+        candidatas = candidatas_verificacion(reporte)
+        bloque = "\n".join(f"- {c}" for c in candidatas) or "(ninguna)"
         return f"""Reporte de trabajo terminado:
 {recortar_chars(reporte, 6000, "\n[... reporte truncado ...]")}
 
 Archivos del trabajo:
 {listado}
 
+Frases del reporte que el código marcó como candidatas a verificación
+(son un señuelo para mirar, no una prueba de nada):
+{bloque}
+
 Extraé los claims del reporte como filas a probar o refutar: qué se hizo,
 qué se verificó (tests, scripts, checks corridos), qué se dejó intacto y qué
-scope declara haber tocado. Para cada verificación, si el reporte nombra o
-dejás inferir el comando exacto (solo python/pytest sobre archivos del
-trabajo), incluilo en `comando`.
+scope declara haber tocado. Cada frase candidata que afirme haber corrido
+algo (o que un check pasó) va con `tipo: verificacion` y el `comando`
+exacto e inferible: solo python/pytest/`ruff check` sobre el trabajo. Para
+"todos los tests" sin archivo específico, el comando es `python3 -m pytest`
+(el directorio).
 
 Respondé SOLO yaml:
 ```yaml
@@ -407,7 +445,9 @@ claims:
 ```
 El campo tipo SOLO puede ser hecho, verificacion, intacto o scope."""
 
-    CONTRATO = "El campo tipo SOLO puede ser hecho, verificacion, intacto o scope; claims una lista."
+    CONTRATO = ("El campo tipo SOLO puede ser hecho, verificacion, intacto o scope; "
+                "las candidatas a verificación que afirman una corrida van con "
+                "tipo: verificacion y comando exacto; claims una lista.")
 
     def exec(self, inputs):
         reporte, listado = inputs

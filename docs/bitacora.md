@@ -1284,6 +1284,46 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/84 — el extractor de claims deja de depender del fraseo (2026-10-22)
+
+Deuda #1 de exp/83: el meta-juicio ronda 2 no re-ejecutó NADA porque el
+reporte declaraba las verificaciones en prosa y el extractor las clasificó
+como `hecho` (sin `tipo: verificacion` no hay `comando`). También cerró el
+item 2 de la spec de exp/83 que había quedado sin implementar (preferir
+`python3 -m pytest` del directorio para claims de "todos los tests").
+
+Fix con el principio de la casa — los hechos los reúne el código, el LLM
+solo interpreta — hecho por el chat del harness **en UNA ronda** (spec
+[banco/specs/exp84_extractor.md](../banco/specs/exp84_extractor.md),
+escenario `banco/escenarios/exp84-extractor.yaml`; la tarea acotada tras la
+lección de presupuesto de exp/83):
+
+- `candidatas_verificacion(reporte)`: función pura que marca las frases del
+  reporte que parecen corridas o checks (pytest, tests pass/passed, ruff,
+  lint, exit N, gate, calidad, verde), tope de 8. Ayuda de clasificación,
+  no veredicto.
+- El prompt de `RecolectarClaims` lista las candidatas con el contrato
+  reforzado: cada candidata que afirme haber corrido algo va con
+  `tipo: verificacion` + `comando` inferible; para "todos los tests" sin
+  archivo, `python3 -m pytest`.
+
+**Medición (C3, e2e con LLM real):** el mismo estilo de reporte en prosa que
+en exp/83 extraía CERO verificaciones ahora produce ambos claims como
+`verificacion` y **los dos se re-ejecutan**: `python3 -m pytest ... -q` →
+exit 0 (auto) y `ruff check .` → exit 0 (permitido por la allowlist de
+exp/83). El veredicto volvió a salir REFUTED por el único motivo restante:
+los archivos NUEVOS del operador (spec y escenario de este exp) sin declarar
+en el reporte — la deuda #2 de exp/83 confirmada como patrón: **el scope de
+un reporte tiene que declarar también lo que tocó el operador**, o el diff
+lo contradice. C1 ✅ (banco 2/2, una ronda), C2 ✅ (tests de la pura y del
+prompt; 66 → suite local), C4 ✅ (gate verde, 868 tests).
+
+**Veredicto:** ✅ el juez deja de ser ciego al fraseo; su único ciego
+restante es informacional (lo que el reporte no declara), que no se arregla
+con código sino con reportes honestos. Caveats declarados por el propio
+agente (y aceptados): el regex de candidatas es laxo a propósito (una
+candidata no es un veredicto) y no se hizo TWINS sobre extractores similares.
+
 ## exp/83 — el harness se arregla solo con fable (y el juez de fable lo audita): cinco rondas, dos bugs reales cazados (2026-10-22)
 
 Primera corrida de **uso real** de la línea: el chat del harness, con la

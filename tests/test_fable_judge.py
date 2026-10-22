@@ -433,7 +433,70 @@ def test_prompt_de_juicio_muestra_los_hechos_y_la_tabla(con_raices):
         assert esperado in prompt
 
 
-# ── modo dominio (F3): tabla del sector + fuentes del trabajo ───────────
+# ── candidatas a verificación: el código reúne, el LLM clasifica ────────
+
+
+def test_candidatas_encuentra_las_verificaciones_en_prosa():
+    reporte = (
+        "Listo el fix de convert(). Verificaciones: pytest tests/ da 63 passed "
+        "y ruff check . está limpio. También corrí exit 0 del gate de calidad."
+    )
+
+    candidatas = fable_judge.candidatas_verificacion(reporte)
+
+    assert any("pytest" in c and "63 passed" in c for c in candidatas)
+    assert any("ruff" in c for c in candidatas)
+    assert any("gate" in c for c in candidatas)
+
+
+@pytest.mark.parametrize("prosa", [
+    "Toqué convert.py y leí el README.",
+    "El diseño quedó más limpio y prolijo.",
+    "Agregué una función nueva con tests pensados.",
+])
+def test_candidatas_no_matchea_prosa_neutra(prosa):
+    assert fable_judge.candidatas_verificacion(prosa) == []
+
+
+def test_candidatas_esta_acotada():
+    reporte = "\n".join(f"pytest corrida {i} da 1 passed" for i in range(30))
+
+    candidatas = fable_judge.candidatas_verificacion(reporte)
+
+    assert len(candidatas) == fable_judge.MAX_CANDIDATAS
+
+
+def test_el_prompt_de_claims_trae_las_candidatas_y_el_contrato(con_raices):
+    reporte = "Verificaciones: pytest da 63 passed y ruff check . está limpio."
+
+    prompt = fable_judge.RecolectarClaims()._prompt(reporte, "convert.py")
+
+    assert "candidatas a verificación" in prompt
+    assert "pytest da 63 passed" in prompt and "ruff check . está limpio" in prompt
+    assert "tipo: verificacion" in prompt
+    assert "python3 -m pytest" in prompt  # el directorio, para "todos los tests"
+    assert "no una prueba" in prompt  # la candidata no es veredicto
+
+
+def test_el_reintento_de_claims_repite_el_bloque(con_raices, monkeypatch):
+    worked, pristine = con_raices
+    prompts = []
+
+    def llm_falsa(prompt):
+        prompts.append(prompt)
+        if len(prompts) == 1:
+            return "no hay claims"
+        return CLAIMS_OK if len(prompts) == 2 else JUICIO_REFUTED
+
+    monkeypatch.setattr(fable_judge, "call_llm", llm_falsa)
+    monkeypatch.setattr(fable_judge, "permitido_rerun", lambda c: False)
+
+    verificar_trabajo(str(worked), pristine=str(pristine),
+                      reporte="All tests pass. ruff check limpio.",
+                      ejecutar=lambda c: "exit 0")
+
+    assert "candidatas a verificación" in prompts[1]
+    assert "All tests pass" in prompts[1]
 
 
 def _estado_dominio(worked, pristine):
