@@ -193,8 +193,13 @@ Cada corrida deja un trace por nodo en `.runs/*.jsonl`.
 agotarse, el agente cierra igual con un aviso de cierre forzado (medido en
 vivo: antes podía quedar en silencio). Con LLM real: el alcance **medio** (un
 directorio, ~20 archivos) entra en 8 rondas; el alcance **amplio** (repo
-completo) agota 8 y 16 rondas leyendo, así que conviene subir
-`MAX_TOOL_ROUNDS` (>=16) o acotar el pedido. El agente declara el alcance que
+completo) agota 8 y 16 rondas leyendo. El presupuesto es dinámico y
+determinista (exp/86): un pedido de alcance amplio — palabras de totalidad,
+un directorio mencionado con ≥10 archivos de código o ≥400 líneas
+mencionadas, contadas contra el disco — sube el tope solo
+(`MAX_TOOL_ROUNDS_AMPLIO`, default 16); la regla nunca baja el default
+(el tope es un cap, no un gasto). Alternativa manual: subir
+`MAX_TOOL_ROUNDS` o acotar el pedido. El agente declara el alcance que
 cubrió y lo que quedó afuera.
 
 ## Estructura

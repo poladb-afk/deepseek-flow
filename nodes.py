@@ -110,10 +110,73 @@ PERFILES_PRESUPUESTO = {
 # repeticiones idénticas de una ronda de tools antes de cortar por inanición
 UMBRAL_SIN_PROGRESO = _entero("UMBRAL_SIN_PROGRESO", 3)
 
+# exp/86 — presupuesto dinámico determinista: un pedido AMPLIO sube el tope.
+# El tope es un CAP, no un gasto (X21: p50 2 rondas): bajarlo no ahorra nada
+# y solo arriesga cortar; el hueco real era el contrario (A37: el alcance
+# amplio agota 8 y queda corto). Por eso la regla solo puede SUBIR.
+MAX_TOOL_ROUNDS_AMPLIO = _entero("MAX_TOOL_ROUNDS_AMPLIO", 16)
+AMPLIO_ARCHIVOS = 10  # un directorio mencionado con esta cantidad ya es amplio
+# 300 calibrado por el contrafáctico de exp/86 sobre la masa VISIBLE al
+# agente (sin GROUND-TRUTH): las familias que agotaban el cap quedan arriba
+# con margen (s18 347 · s19 587 · s20 930) y las cómodas muy abajo (máx 111).
+AMPLIO_LINEAS = 300
+_PALABRAS_AMPLIAS = re.compile(
+    r"(?i)\b(todo el (repo|proyecto|c[oó]digo)|todos los|cada (m[oó]dulo|archivo)|"
+    r"auditor[ií]a (completa|del (repo|proyecto))|the (whole|entire) (repo|codebase)|"
+    r"all (files|modules))\b")
+# todo token del pedido que trae al menos una barra: archivo o directorio
+_TOKEN_RUTA = re.compile(r"[\w./~-]*/[\w./~-]+")
+_EXTS_ALCANCE = {".py", ".md", ".json", ".csv", ".js", ".yaml", ".jsonl", ".txt", ".sh"}
+
+
+def _lineas_de(ruta):
+    """Masa VISIBLE al agente: la answer sheet del banco (GROUND-TRUTH.md)
+    no cuenta — misma regla que el juez de trabajo de fable (exp/82)."""
+    total, archivos = 0, 0
+    for f in sorted(ruta.rglob("*")):
+        if f.is_file() and f.suffix in _EXTS_ALCANCE and f.name != "GROUND-TRUTH.md":
+            archivos += 1
+            try:
+                total += len(f.read_text(errors="replace").splitlines())
+            except OSError:
+                continue
+    return archivos, total
+
+
+def alcance_amplio(pregunta, raiz=None):
+    """True si el pedido es de alcance amplio — DETERMINISTA, sin LLM: los
+    datos exactos (cuántos archivos, cuántas líneas) los cuenta el código
+    contra el disco. Tres señales: palabras de totalidad; un directorio
+    mencionado con >=AMPLIO_ARCHIVOS archivos de código; o masa mencionada
+    >=AMPLIO_LINEAS. Contrafáctico contra las corridas de exp/72-80 (bitácora
+    exp/86): las tareas que agotaban el cap clasifican amplio; las cómodas
+    no; y como la regla solo sube el tope, no puede cortar nada."""
+    raiz = Path(raiz) if raiz else Path.cwd()
+    texto = str(pregunta or "")
+    if _PALABRAS_AMPLIAS.search(texto):
+        return True
+    masa = 0  # suma de líneas de los ARCHIVOS mencionados (spec: la masa, no cada uno)
+    for token in _TOKEN_RUTA.findall(texto):
+        p = raiz / token.rstrip(".,;:)")
+        if not p.exists():
+            continue
+        if p.is_dir():
+            archivos, lineas = _lineas_de(p)
+            if archivos >= AMPLIO_ARCHIVOS or (archivos and lineas >= AMPLIO_LINEAS):
+                return True
+        elif p.suffix in _EXTS_ALCANCE:
+            try:
+                masa += len(p.read_text(errors="replace").splitlines())
+            except OSError:
+                continue
+    return masa >= AMPLIO_LINEAS
+
 
 def presupuesto(shared):
     """Techo de rondas de tools para ESTA pregunta. Si el invocador declaró
-    shared['operacion'] con perfil, se usa; si no, MAX_TOOL_ROUNDS. El
+    shared['operacion'] con perfil, se usa; si no, un pedido de alcance
+    amplio sube el tope a MAX_TOOL_ROUNDS_AMPLIO (exp/86, determinista);
+    si no, MAX_TOOL_ROUNDS. El
     default se lee EN RUNTIME del global del módulo (nodes), de modo que
     patch('nodes.MAX_TOOL_ROUNDS') —o un .env distinto— sí se respeta; un
     perfil declarado gana sobre el default, pero nunca sobre un override
@@ -124,6 +187,12 @@ def presupuesto(shared):
     perfil = PERFILES_PRESUPUESTO.get(shared.get("operacion", ""))
     if perfil is not None:
         return perfil
+    # _objetivo es la tarea VIGENTE (GetQuestion; una continuación "seguí"
+    # no la pisa): el presupuesto amplio sobrevive a la continuación, que es
+    # justo cuando más rondas hacen falta.
+    if alcance_amplio(shared.get("_objetivo")):
+        # max(): si el default ya sube más que el tope amplio, se respeta
+        return max(MAX_TOOL_ROUNDS, MAX_TOOL_ROUNDS_AMPLIO)
     return MAX_TOOL_ROUNDS
 
 

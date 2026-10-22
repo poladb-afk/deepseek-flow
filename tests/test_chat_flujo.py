@@ -210,6 +210,56 @@ def test_presupuesto_perfiles_por_operacion_y_precedencia(monkeypatch):
     assert nodes.presupuesto({}) == 42
     assert nodes.presupuesto({"operacion": "consulta"}) == nodes.PERFILES_PRESUPUESTO["consulta"]
 
+def test_alcance_amplio_por_palabras_directorio_y_masa(tmp_path):
+    """exp/86: la regla es determinista (los datos exactos los cuenta el
+    código contra el disco). Contrafáctico contra exp/72-80 en bitácora."""
+    import nodes
+
+    # palabras de totalidad, sin tocar el disco
+    assert nodes.alcance_amplio("revisá todo el repo buscando bugs")
+    assert nodes.alcance_amplio("auditoría del proyecto completa")
+    # directorio mencionado con muchos archivos de código (s13: árbol exports)
+    arbol = tmp_path / "exports"
+    arbol.mkdir()
+    for i in range(12):
+        (arbol / f"mod_{i}.py").write_text("x = 1\n")
+    assert nodes.alcance_amplio(f"arreglá el bug en {arbol}", raiz=tmp_path)
+    # masa mencionada: 2 archivos pero ~600 líneas (s18: auditoría real)
+    denso = tmp_path / "policy.py"
+    denso.write_text("x = 1\n" * 300)
+    par = tmp_path / "votacion.py"
+    par.write_text("y = 2\n" * 300)
+    assert nodes.alcance_amplio(
+        f"revisá {tmp_path / 'policy.py'} y {tmp_path / 'votacion.py'}", raiz=tmp_path)
+    # acotado: un archivo chico (s1: una pregunta sobre cart.js)
+    chico = tmp_path / "cart.js"
+    chico.write_text("total += 1\n")
+    assert not nodes.alcance_amplio(f"qué pasa con el descuento en {chico}", raiz=tmp_path)
+    # ruta mencionada inexistente no opina
+    assert not nodes.alcance_amplio("mirá no/existe/dir y decime", raiz=tmp_path)
+
+
+def test_presupuesto_amplio_sube_el_tope_sin_tocar_la_precedencia():
+    """exp/86: el tope amplio se aplica solo cuando no hay override ni perfil
+    (y como la regla solo sube, no puede cortar nada: cap, no gasto)."""
+    import nodes
+
+    assert nodes.presupuesto({"_objetivo": "audit todo el repo"}) == nodes.MAX_TOOL_ROUNDS_AMPLIO
+    # override y perfil siguen ganando
+    assert nodes.presupuesto({"_objetivo": "todo el repo", "max_tool_rounds": 3}) == 3
+    assert nodes.presupuesto({"_objetivo": "todo el repo", "operacion": "banco"}) == \
+        nodes.PERFILES_PRESUPUESTO["banco"]
+    # pregunta acotada: default de siempre
+    assert nodes.presupuesto({"_objetivo": "qué hace esta línea?"}) == nodes.MAX_TOOL_ROUNDS
+    # el tope amplio nunca BAJA del default si alguien lo configuró más alto
+    monkey_default = nodes.MAX_TOOL_ROUNDS
+    try:
+        nodes.MAX_TOOL_ROUNDS = 20
+        assert nodes.presupuesto({"_objetivo": "todo el repo"}) == 20
+    finally:
+        nodes.MAX_TOOL_ROUNDS = monkey_default
+
+
 def test_fingerprint_paginado_no_dispara_y_repetido_si():
     """exp/13 (opción D): la huella de la ronda incluye los argumentos, así
     la paginación legítima (offset distinto) da huella distinta y NO cuenta

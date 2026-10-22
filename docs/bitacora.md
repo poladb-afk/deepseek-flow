@@ -1284,6 +1284,45 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/86 — presupuesto dinámico determinista: un pedido amplio sube el tope a 16 (2026-10-22)
+
+Mesa 3 pedía presupuesto dinámico de rondas. El diseño arrancó de tres
+hechos ya medidos: **el tope es un CAP, no un gasto** (X21: p50 2 rondas —
+bajarlo no ahorra nada y solo arriesga cortar), **el hueco real era A37**
+(el alcance amplio agota 8 y queda corto) y **la cola no era redundante**
+(X22: nada determinista que recortar sin riesgo). Conclusión: la dirección
+útil del presupuesto dinámico es SOLO SUBIR. Spec con criterio congelado:
+[banco/specs/exp86_presupuesto_amplio.md](../banco/specs/exp86_presupuesto_amplio.md).
+
+**La regla** (`nodes.alcance_amplio`, determinista — los datos exactos los
+cuenta el código contra el disco): palabras de totalidad, un directorio
+mencionado con ≥10 archivos de código, o masa mencionada ≥300 líneas →
+`presupuesto` sube a `MAX_TOOL_ROUNDS_AMPLIO` (default 16, setting). Lee el
+`shared["_objetivo"]` (la tarea VIGENTE: el tope amplio sobrevive a los
+"seguí", que es justo cuando más rondas hacen falta). Override explícito y
+perfil por operación siguen ganando; la regla jamás baja el default.
+
+**La recalibración que el e2e exigió** (desvío registrado en la spec): el
+contrafáctico inicial daba C1 por casualidad — la masa del fixture s18
+incluía el GROUND-TRUTH.md que el agente nunca ve; el e2e mostró el
+marcador `/8` con la regla en False. Con la masa VISIBLE (sin answer sheet,
+misma exclusión que el juez de fable): 400 → **300**, separación limpia
+(capped: 347/587/930; cómodas: máx 111; s16 fuera, como estaba predicho).
+
+**Contrafáctico final (C1/C2):** s13/s17 por archivos (24), s18/s19/s20 por
+masa, todos amplio ✓; s1/s2/s9/s10/s11/s15/s16 no ✓. **C3 estructural**
+(solo sube). **C4 e2e:** marcador `⚙ ronda N/16`, la seed 1 gastó las 16
+completas, recall medio 3,67/6 = sin regresión vs exp/77 — con la
+declaración honesta de que entre dos lotes de n=3 del mismo brazo A el
+recall osciló 3,67–5,0: la varianza domina a este n, y la hipótesis era
+headroom, no recall. **C5:** gate verde (872 passed, 3 skips por recurso
+declarado). Docs: `.env.example` y README (sección Alcance y presupuesto).
+
+**Veredicto:** ✅ A37 tiene alivio automático y determinista: el pedido
+amplio ya no exige que el usuario suba `MAX_TOOL_ROUNDS` a mano. La
+estimación Laya de rondas (Mesa 3 original) queda descartada por ahora: lo
+determinista alcanzó para el hueco medido.
+
 ## exp/56b — skill `revision` SIN techo: la detección sigue sin lift (ahora sin excusa); el ruido −59% se replica (2026-10-22)
 
 Corrida diferida del "Siguiente pre-registrado" de exp/56 (2026-10-19):
