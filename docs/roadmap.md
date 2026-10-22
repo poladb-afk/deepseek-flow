@@ -119,13 +119,17 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     regla queda en 0 por default; la instrumentación se conserva (traza más
     atribuible). No se recomienda forzar k=1 (una ronda sin novedad no es
     evidencia y arriesga calidad).
-21. **exp/56b — skill `revision` sin techo (pre-registrado, listo para
-    correr)**: la hipótesis de detección de exp/56 no tenía margen porque el
+21. ~~**exp/56b — skill `revision` sin techo (pre-registrado, listo para
+    correr)**~~ **✅ corrida (2026-10-22)**: la hipótesis de detección de exp/56 no tenía margen porque el
     pre-fetch ya inyectaba el archivo (control 3/3). Para medirla hay que
     quitar el techo ANTES: `PREFETCH=0` y/o fixture con issues sutiles
     (off-by-one, global mutada, denominador mal calculado); el criterio quedó
     fijado en la bitácora de exp/56 antes de la corrida. Es una corrida de
     banco (`banco/escenarios/`), no deuda de código.
+    **Resultado**: C0 ✅ sin pre-fetch el control ya no está en techo
+    (recall anclado 7,67/8); C1 ❌ la skill no suma detección (7,00/8,
+    −0,67 vs control); C4 ✅ ruido 0,41× (−59%). La skill queda como
+    reductor de ruido, no detector (detalle en bitácora exp/56b).
 16. **Revisión de ROI del router (condición pre-registrada)**: cuando haya
     **≥250 pares y ≥14 días** (hoy **0/250 y 0/14**: el conteo arranca de cero,
     exp/71b), correr

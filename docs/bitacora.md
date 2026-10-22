@@ -1284,6 +1284,30 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/56b — skill `revision` SIN techo: la detección sigue sin lift (ahora sin excusa); el ruido −59% se replica (2026-10-22)
+
+Corrida diferida del "Siguiente pre-registrado" de exp/56 (2026-10-19):
+quitar el techo ANTES de medir la hipótesis de detección — `PREFETCH=0`
+(leer por tools) + fixture de issues sutiles (s16: races, shallow copy,
+float-centavos, idempotencia, atributo de clase, iterador exhausto, lock sin
+finally, utcnow naive). A vs C (skill `revision`), 3 seeds, 6 corridas.
+Criterio congelado en [banco/specs/exp56b_revision_sin_techo.md](../banco/specs/exp56b_revision_sin_techo.md).
+
+**C0 ✅ — el techo se rompió**: sin pre-fetch, el control ya no es techo
+perfecto (recall anclado 7,67/8; el modelo lee los 4 archivos por tools en
+2-4 rondas — la inyección del pre-fetch NO era la fuente del techo en s16).
+**C1 ❌ — y con margen disponible, la skill no suma**: C 7,00/8, por debajo
+del control (−0,67) y con más varianza (hasta 6/8; perdió H3 y H7). **C4 ✅
+— el ruido sí**: 601 vs 1.468 palabras (**0,41×, −59%**), replicando y
+agrando la señal secundaria de exp/56 (−40%).
+
+**Veredicto:** la conclusión de exp/56 queda sostenida sin la limitación:
+la skill `revision` es un **reductor de ruido, no un detector** — a
+detección comparable, responde con el 41% de las palabras. Su valor de
+producto es ese (y se mediría mejor con un criterio de ruido/valor que de
+detección). No se retoca nada: la hipótesis pre-registrada se falsificó con
+el techo quitado. `SKILLS` queda como está (opt-in, `SKILLS=1`).
+
 ## exp/85 — TWINS del patrón de exp/84: 0 gemelos; el barrido queda como candado (2026-10-22)
 
 El `PENDING` que el propio agente dejó en exp/84: buscar el patrón
