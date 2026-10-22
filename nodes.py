@@ -120,12 +120,18 @@ AMPLIO_ARCHIVOS = 10  # un directorio mencionado con esta cantidad ya es amplio
 # agente (sin GROUND-TRUTH): las familias que agotaban el cap quedan arriba
 # con margen (s18 347 · s19 587 · s20 930) y las cómodas muy abajo (máx 111).
 AMPLIO_LINEAS = 300
+# "todos los" exige sustantivo de amplitud (dogfood exp/87: "todos los
+# tests pasan" disparaba el tope amplio por la razón equivocada)
 _PALABRAS_AMPLIAS = re.compile(
-    r"(?i)\b(todo el (repo|proyecto|c[oó]digo)|todos los|cada (m[oó]dulo|archivo)|"
+    r"(?i)\b(todo el (repo|proyecto|c[oó]digo)|todos los (archivos|m[oó]dulos|directorios)|"
+    r"cada (m[oó]dulo|archivo)|"
     r"auditor[ií]a (completa|del (repo|proyecto))|the (whole|entire) (repo|codebase)|"
     r"all (files|modules))\b")
-# todo token del pedido que trae al menos una barra: archivo o directorio
+# todo token del pedido que trae al menos una barra (archivo o directorio)...
 _TOKEN_RUTA = re.compile(r"[\w./~-]*/[\w./~-]+")
+# ...y también un nombre de archivo CON EXTENSIÓN a secas, sin barra (dogfood
+# exp/87: "auditá fable_judge.py" mencionaba 872 líneas y no resolvía)
+_TOKEN_ARCHIVO = re.compile(r"\b[\w.-]+\.(?:py|md|json|csv|js|yaml|jsonl|txt|sh)\b")
 _EXTS_ALCANCE = {".py", ".md", ".json", ".csv", ".js", ".yaml", ".jsonl", ".txt", ".sh"}
 
 
@@ -156,7 +162,8 @@ def alcance_amplio(pregunta, raiz=None):
     if _PALABRAS_AMPLIAS.search(texto):
         return True
     masa = 0  # suma de líneas de los ARCHIVOS mencionados (spec: la masa, no cada uno)
-    for token in _TOKEN_RUTA.findall(texto):
+    tokens = _TOKEN_RUTA.findall(texto) + _TOKEN_ARCHIVO.findall(texto)
+    for token in dict.fromkeys(tokens):  # único: un nombre puede aparecer dos veces
         p = raiz / token.rstrip(".,;:)")
         if not p.exists():
             continue

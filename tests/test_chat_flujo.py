@@ -466,3 +466,23 @@ def test_post_no_corrige_si_las_citas_estan_bien(monkeypatch):
     exec_res = SimpleNamespace(content="hallazgo en utils/tracing.py:1", tool_calls=None)
     assert nodes.AgentStep().post(shared, None, exec_res) == "answer"
     assert shared["messages"][-1]["content"] == "hallazgo en utils/tracing.py:1"
+
+
+def test_alcance_amplio_por_nombre_de_archivo_a_secas(tmp_path):
+    """F8 (dogfood): 'auditá fable_judge.py' menciona 800+ líneas SIN barra —
+    el token con extensión tiene que resolver igual."""
+    import nodes
+
+    grande = tmp_path / "fable_judge.py"
+    grande.write_text("x = 1\n" * 500)
+    assert nodes.alcance_amplio("Auditá el código de fable_judge.py buscando bugs",
+                                raiz=tmp_path)
+
+
+def test_todos_los_tests_pasa_no_es_totalidad(tmp_path):
+    """F9 (dogfood): 'todos los tests pasan' es un claim de verificación, no
+    de alcance — el sustantivo de amplitud es el que decide."""
+    import nodes
+
+    assert not nodes.alcance_amplio("arregló el bug y todos los tests pasan", raiz=tmp_path)
+    assert nodes.alcance_amplio("revisá todos los archivos del paquete", raiz=tmp_path)

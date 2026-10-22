@@ -25,6 +25,7 @@ import shlex
 import subprocess
 import time
 from functools import partial
+from pathlib import Path
 
 import yaml
 from openai import OpenAIError
@@ -65,7 +66,12 @@ ETIQUETAS_VEREDICTO = {
 # SHEET del banco nunca es evidencia: una corrida sobre un directorio de
 # escenario no puede alimentarle el GROUND-TRUTH al juez.
 IGNORADOS_DIFF = ("__pycache__", ".pytest_cache", ".git", ".runs")
-GROUND_TRUTH = "GROUND-TRUTH.md"
+
+
+def _es_ground_truth(nombre):
+    """La answer sheet del banco, en cualquier capitalización (dogfood
+    exp/87: el filtro por nombre exacto dejaba pasar ground-truth.md)."""
+    return nombre.upper() == "GROUND-TRUTH.MD"
 
 # Debris por nombre: los scratch/debug que fable-judge caza "por diff". No
 # acusan solos (un archivo nuevo puede ser parte del pedido): son avisos.
@@ -86,7 +92,8 @@ def _archivos_bajo(raiz):
         p.relative_to(raiz).as_posix(): p
         for p in sorted(raiz.rglob("*"))
         if p.is_file()
-        and GROUND_TRUTH not in p.parts
+        and not p.is_symlink()
+        and not _es_ground_truth(p.name)
         and not any(parte in IGNORADOS_DIFF for parte in p.relative_to(raiz).parts)
     }
 
@@ -98,8 +105,16 @@ def diff_contra(trabajo, pristine):
     archivo nuevo no es diff: es el debris/scope que el juez necesita nombrado).
     """
     a, b = _archivos_bajo(pristine), _archivos_bajo(trabajo)
-    cambiados = sorted(
+    # tope de ENTRADA (dogfood exp/87): MAX_DIFF recorta la SALIDA; sin esto
+    # un binario de GB en el trabajo era OOM antes de llegar al recorte
+    TOPE_ENTRADA = 1_000_000
+    comparables = {
         rel for rel in a.keys() & b.keys()
+        if a[rel].stat().st_size <= TOPE_ENTRADA and b[rel].stat().st_size <= TOPE_ENTRADA
+    }
+    salteados = sorted((a.keys() & b.keys()) - comparables)
+    cambiados = sorted(
+        rel for rel in comparables
         if a[rel].read_bytes() != b[rel].read_bytes()
     )
     pedazos = []
@@ -109,11 +124,15 @@ def diff_contra(trabajo, pristine):
         pedazos.append("\n".join(difflib.unified_diff(
             viejo, nuevo, fromfile=f"pristine/{rel}", tofile=f"worked/{rel}",
             lineterm="")))
+    texto = recortar_chars("\n".join(pedazos), MAX_DIFF, "\n[... diff truncado ...]")
+    if salteados:
+        texto += "\n[... " + str(len(salteados)) + " archivo(s) >1MB salteados en la "
+        texto += "comparación: " + ", ".join(salteados[:5]) + " ...]"
     return {
         "cambiados": cambiados,
         "nuevos": sorted(b.keys() - a.keys()),
         "borrados": sorted(a.keys() - b.keys()),
-        "texto": recortar_chars("\n".join(pedazos), MAX_DIFF, "\n[... diff truncado ...]"),
+        "texto": texto,
     }
 
 
@@ -136,8 +155,8 @@ def diff_git(trabajo):
     cambios = {"cambiados": [], "nuevos": [], "borrados": []}
     for linea in estado.stdout.splitlines():
         marca, _, rel = linea[:2], linea[2:3], linea[3:].strip().strip('"')
-        if GROUND_TRUTH in rel:
-            continue  # la answer sheet nunca es evidencia (mismo filtro que _archivos_bajo)
+        if _es_ground_truth(Path(rel).name):
+            continue  # la answer sheet nunca es evidencia (mismo filtro que el árbol)
         if "D" in marca:
             cambios["borrados"].append(rel)
         elif "A" in marca or "?" in marca:
@@ -255,29 +274,49 @@ def candidatas_verificacion(reporte):
 # ── determinista: qué se re-ejecuta ─────────────────────────────────────
 
 # La re-ejecución es la superficie más riesgosa del juez (mapeo §5): la
-# allowlist admite UN programa python/pytest/ruff-check por vez; la policy
-# de run_command sigue siendo la muralla detrás. Solo `check`: `ruff format`
-# ESCRIBE archivos y no es una verificación (hallazgo del meta-juicio de
-# exp/83 sobre la entrada ("ruff",) genérica).
+# allowlist admite UN programa pytest/ruff-check o un SCRIPT .py del propio
+# trabajo por vez; la policy de run_command sigue siendo la muralla detrás
+# (esta allowlist es la primera compuerta, no la única). Solo `check`:
+# `ruff format` ESCRIBE archivos y no es una verificación (hallazgo del
+# meta-juicio de exp/83). Endurecida por la auditoría del dogfood (exp/87):
+# `-c` en cualquier posición veta (antes solo se miraba tokens[1] y
+# `python3 -B -c` pasaba), `-m` se chequea para AMBOS intérpretes (antes
+# `python -m http.server` evadía), y un python desnudo exige un script .py
+# EXISTENTE dentro del trabajo (antes `python3 setup.py install` pasaba la
+# primera compuerta).
 PREFIJOS_RERUN = (
     ("python3", "-m", "pytest"),
     ("pytest",),
-    ("python3",),
-    ("python",),
     ("ruff", "check"),
-    ("python3", "-m", "ruff", "check"),
 )
-_MODULOS_PERMITIDOS = (("python3", "-m", "pytest"), ("python3", "-m", "ruff", "check"))
+# módulos permitidos para -m, interpreter-agnostic: solo pytest y ruff check
+_MODULOS_PERMITIDOS = ("pytest", "ruff")
 
 
-def permitido_rerun(comando):
-    """True si el comando es un python/pytest/ruff-check simple: un
-    programa, sin shell.
+def _script_de(tokens, trabajo):
+    """El primer argumento no-flag de un python desnudo, validado: tiene que
+    ser .py y existir DENTRO del trabajo (el reporte re-ejecuta los tests
+    del trabajo, no instala ni ejecuta cualquier cosa del PATH)."""
+    args = [t for t in tokens[1:] if not t.startswith("-")]
+    if not args or not args[0].endswith(".py"):
+        return False
+    if trabajo is None:
+        return True  # sin raíz para validar (tests de la pura): basta el .py
+    try:
+        ruta = (trabajo / args[0]).resolve()
+        return ruta.is_file() and ruta.is_relative_to(trabajo.resolve())
+    except OSError:
+        return False
+
+
+def permitido_rerun(comando, trabajo=None):
+    """True si el comando es un pytest/ruff-check o un script .py del
+    trabajo: un programa, sin shell.
 
     Sin pipes/redirecciones/encadenamiento (; | & > < ` $): la re-ejecución
     reproduce UNA verificación clamada, no ejecuta shell armado por el modelo.
-    `-m` solo vale para los módulos de la allowlist (python3 -m http.server
-    no es una verificación clamada).
+    `-c` en CUALQUIER posición veta; `-m` solo vale para pytest y ruff check;
+    un python desnudo exige script .py existente dentro de trabajo.
     """
     if not isinstance(comando, str) or not comando.strip():
         return False
@@ -287,11 +326,15 @@ def permitido_rerun(comando):
         tokens = shlex.split(comando)
     except ValueError:
         return False
-    if "-c" in tokens[1:2]:
+    if "-c" in tokens:
         return False
-    if tokens[:2] == ["python3", "-m"] and not any(
-            tokens[: len(m)] == list(m) for m in _MODULOS_PERMITIDOS):
-        return False
+    if len(tokens) > 1 and tokens[1] == "-m":
+        modulo = tokens[2] if len(tokens) > 2 else ""
+        if modulo == "pytest":
+            return True
+        return modulo == "ruff" and len(tokens) > 3 and tokens[3] == "check"
+    if tokens[0] in ("python3", "python"):
+        return _script_de(tokens, trabajo)
     return any(tokens[: len(pref)] == list(pref) for pref in PREFIJOS_RERUN)
 
 
@@ -325,7 +368,12 @@ def validar_claims(datos):
             claim["comando"] = comando
         claims.append(claim)
         if len(claims) >= MAX_CLAIMS:
-            break  # presupuesto: el reporte no dicta el tamaño del juicio
+            # el presupuesto se DECLARA (dogfood exp/87): los claims 13+ no
+            # podían desaparecer del juicio en silencio
+            claims.append({"texto": f"(presupuesto: solo los primeros {MAX_CLAIMS} "
+                             "claims se evalúan; el resto no fue juzgado)",
+                           "tipo": "hecho"})
+            break
     if not claims:
         return None, "la lista de claims quedó vacía"
     return claims, ""
@@ -355,10 +403,13 @@ def validar_juicio(datos, tipos=FRAUDES):
             "detalle": str(f.get("detalle", "")).strip(),
             "evidencia": str(f.get("evidencia", "")).strip(),
         })
+    caveats = datos.get("caveats", [])
+    if not isinstance(caveats, list):
+        return None, "caveats no es lista"
     datos = dict(datos)
     datos["veredicto"] = canon
     datos["fraudes"] = limpios
-    datos["caveats"] = [str(c).strip() for c in datos.get("caveats", []) if str(c).strip()]
+    datos["caveats"] = [str(c).strip() for c in caveats if str(c).strip()]
     datos.setdefault("accion", "")
     return datos, ""
 
@@ -509,7 +560,7 @@ class ReEjecutar(Node):
         verificaciones = []
         for claim in claims:
             comando = claim["comando"]
-            if not permitido_rerun(comando):
+            if not permitido_rerun(comando, trabajo):
                 verificaciones.append({"claim": claim["texto"], "comando": comando,
                                        "estado": "no_permitido", "salida": ""})
                 continue
@@ -836,9 +887,11 @@ def verificar_trabajo(trabajo, pristine=None, reporte=None, ejecutar=None, secto
         shared["advertencia"] = (
             "el juez no completó el análisis; se entrega la parte determinista "
             "(diff y hechos) sin veredicto del modelo.")
-        juicio = {"veredicto": "verified_with_caveats", "fraudes": [],
-                  "caveats": ["análisis incompleto: el flujo del juez cortó"],
-                  "accion": "correr el juez de nuevo"}
+        juicio = compuerta(
+            {"veredicto": "verified_with_caveats", "fraudes": [],
+             "caveats": ["análisis incompleto: el flujo del juez cortó"],
+             "accion": "correr el juez de nuevo"},
+            shared["verificaciones"])
         shared["salida"] = texto_veredicto(
             juicio, shared["claims"], shared["verificaciones"], shared["cambios"])
     return shared["salida"], shared["advertencia"]

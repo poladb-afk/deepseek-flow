@@ -126,6 +126,7 @@ def test_rerun_pide_solo_lo_permitido_y_arma_el_cd(tmp_path):
         llamadas.append(comando)
         return "exit 0\n..."
 
+    (tmp_path / "test_x.py").write_text("def test_x():\n    assert True\n")
     shared = {
         "trabajo": tmp_path, "ejecutar": espia,
         "claims": [
@@ -169,8 +170,10 @@ def test_validar_claims_rechaza_lo_invalido(crudo, motivo):
 def test_validar_claims_trunca_al_presupuesto_y_canonicaliza():
     claims, motivo = fable_judge.yaml_valido(_claims_yaml(20), validar_claims)
 
-    assert motivo == "" and len(claims) == fable_judge.MAX_CLAIMS
+    # el presupuesto se DECLARA (dogfood exp/87): MAX_CLAIMS + el aviso sintético
+    assert motivo == "" and len(claims) == fable_judge.MAX_CLAIMS + 1
     assert claims[0]["tipo"] == "hecho"
+    assert "no fue juzgado" in claims[-1]["texto"]
 
 
 @pytest.mark.parametrize("veredicto, canon", [
@@ -326,7 +329,7 @@ def test_claims_ilegibles_reparan_con_el_crudo_verbatim(con_raices, monkeypatch)
         return JUICIO_REFUTED
 
     monkeypatch.setattr(fable_judge, "call_llm", llm_falsa)
-    monkeypatch.setattr(fable_judge, "permitido_rerun", lambda c: False)
+    monkeypatch.setattr(fable_judge, "permitido_rerun", lambda c, t=None: False)
 
     texto, _ = verificar_trabajo(
         str(worked), pristine=str(pristine), reporte="todo listo",
@@ -367,7 +370,7 @@ def test_veredicto_ilegible_cae_en_caveats_sin_inventar(con_raices, monkeypatch)
         return "me parece que está bien" if "Cazá los fraudes" in prompt else CLAIMS_OK
 
     monkeypatch.setattr(fable_judge, "call_llm", llm_opaca)
-    monkeypatch.setattr(fable_judge, "permitido_rerun", lambda c: False)
+    monkeypatch.setattr(fable_judge, "permitido_rerun", lambda c, t=None: False)
 
     texto, _ = verificar_trabajo(
         str(worked), pristine=str(pristine), reporte="todo ok",
@@ -382,7 +385,7 @@ def test_reporte_llega_por_ruta_o_como_texto_literal(con_raices, monkeypatch):
     archivo = worked.parent / "reporte.md"
     archivo.write_text("Por ruta", encoding="utf-8")
     monkeypatch.setattr(fable_judge, "call_llm", lambda p: CLAIMS_OK)
-    monkeypatch.setattr(fable_judge, "permitido_rerun", lambda c: False)
+    monkeypatch.setattr(fable_judge, "permitido_rerun", lambda c, t=None: False)
 
     _, _ = verificar_trabajo(str(worked), pristine=str(pristine), reporte=str(archivo))
     _, _ = verificar_trabajo(str(worked), pristine=str(pristine), reporte="texto literal")
@@ -489,7 +492,7 @@ def test_el_reintento_de_claims_repite_el_bloque(con_raices, monkeypatch):
         return CLAIMS_OK if len(prompts) == 2 else JUICIO_REFUTED
 
     monkeypatch.setattr(fable_judge, "call_llm", llm_falsa)
-    monkeypatch.setattr(fable_judge, "permitido_rerun", lambda c: False)
+    monkeypatch.setattr(fable_judge, "permitido_rerun", lambda c, t=None: False)
 
     verificar_trabajo(str(worked), pristine=str(pristine),
                       reporte="All tests pass. ruff check limpio.",
@@ -675,3 +678,96 @@ def test_la_answer_sheet_nunca_es_evidencia(tmp_path):
     archivos = fable_judge._archivos_bajo(trabajo)
     assert "landing.md" in archivos and "GROUND-TRUTH.md" not in archivos
     assert "42" not in fable_judge.contenido_de(trabajo)
+
+
+# ── fixes de la auditoría del dogfood (exp/87) ──────────────────────────
+
+
+def test_la_degradacion_pasa_por_la_compuerta(con_raices, monkeypatch):
+    """F1 (dogfood): re-ejecución FALLIDA + corte de infra → REFUTED, no
+    CAVEATS — la degradación no puede saltarse la compuerta."""
+    worked, pristine = con_raices
+    (worked / "test_convert.py").write_text("def test_x():\n    assert True\n")
+    respuestas = iter([CLAIMS_OK] + [RuntimeError("API caída")] * 8)
+
+    def llm_rota(_prompt):
+        siguiente = next(respuestas)
+        if isinstance(siguiente, Exception):
+            raise siguiente
+        return siguiente
+
+    monkeypatch.setattr(fable_judge, "call_llm", llm_rota)
+
+    texto, advertencia = verificar_trabajo(
+        str(worked), pristine=str(pristine), reporte="All tests pass.",
+        ejecutar=lambda c: "exit 1\nF.")
+
+    assert "no completó" in advertencia
+    assert texto.splitlines()[0].startswith("REFUTED")
+    assert "false_completion" in texto
+
+
+@pytest.mark.parametrize("comando, esperado", [
+    ("python3 -B -c 'print(1)'", False),
+    ("python -m http.server", False),
+    ("python -m ruff check .", True),
+    ("python3 -m ruff format .", False),
+    ("python3 setup.py install", False),
+], ids=["c_en_cualquier_posicion", "python_m_evadia", "python_m_ruff_check",
+        "ruff_format_escribe", "script_inexistente"])
+def test_permitido_rerun_endurecida_por_el_dogfood(tmp_path, comando, esperado):
+    (tmp_path / "test_x.py").write_text("x = 1\n")
+    assert fable_judge.permitido_rerun(comando, tmp_path) is esperado
+
+
+def test_un_script_del_trabajo_existente_se_permite(tmp_path):
+    (tmp_path / "test_ok.py").write_text("x = 1\n")
+    assert fable_judge.permitido_rerun("python3 test_ok.py", tmp_path)
+    assert not fable_judge.permitido_rerun("python3 no_esta.py", tmp_path)
+
+
+def test_el_filtro_de_answer_sheet_ignora_capitalizacion(tmp_path):
+    """F3 (dogfood): ground-truth.md en minúscula también es la answer sheet."""
+    trabajo = tmp_path
+    (trabajo / "landing.md").write_text("copy\n")
+    (trabajo / "ground-truth.md").write_text("la respuesta es 42\n")
+
+    assert "ground-truth.md" not in fable_judge._archivos_bajo(trabajo)
+    assert "42" not in fable_judge.contenido_de(trabajo)
+
+
+def test_el_arbol_no_sigue_symlinks(tmp_path):
+    """F4 (dogfood): un symlink al raíz del FS no mete contenido externo."""
+    afuera = tmp_path / "afuera"
+    afuera.mkdir()
+    (afuera / "secreto.md").write_text("contenido externo\n")
+    trabajo = tmp_path / "trabajo"
+    trabajo.mkdir()
+    (trabajo / "link.md").symlink_to(afuera / "secreto.md")
+
+    archivos = fable_judge._archivos_bajo(trabajo)
+
+    assert "link.md" not in archivos
+
+
+def test_archivos_gigantes_se_saltean_con_nota(tmp_path):
+    """F5 (dogfood): el tope es también de ENTRADA — un archivo de 2MB no se
+    compara (OOM) y el diff lo declara."""
+    pristine = tmp_path / "pristine"
+    worked = tmp_path / "worked"
+    pristine.mkdir()
+    worked.mkdir()
+    (pristine / "grande.log").write_text("a" * 2_000_000)
+    (worked / "grande.log").write_text("b" * 2_000_000)
+    (pristine / "chico.py").write_text("x = 1\n")
+    (worked / "chico.py").write_text("x = 2\n")
+
+    cambios = diff_contra(worked, pristine)
+
+    assert cambios["cambiados"] == ["chico.py"]
+    assert "1 archivo(s) >1MB salteados" in cambios["texto"]
+
+
+def test_caveats_que_no_es_lista_es_invalido():
+    juicio, motivo = validar_juicio({"veredicto": "refuted", "caveats": "texto"})
+    assert juicio is None and "caveats no es lista" in motivo

@@ -1284,6 +1284,42 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/87 — los fixes de la auditoría del dogfood: el harness probado como usuario se arregla a sí mismo (2026-10-22)
+
+El operador condujo el chat como usuario (`salidas/test-chat-session.log`):
+tres turnos realistas que ejercitaron router, skill revision, pre-fetch, la
+tool `verificar_trabajo` llamada por el propio chat, HITL auto y citas
+verificadas (16/16 y 26/26). El turno de auditoría le devolvió al harness
+**hallazgos reales sobre la obra del día** — y esta exp los arregla todos.
+Spec: [banco/specs/exp87_fixes_dogfood.md](../banco/specs/exp87_fixes_dogfood.md).
+
+**De la auditoría (fable_judge.py):** la degradación terminal saltaba la
+**compuerta** (re-ejecución fallida + corte de infra salía CAVEATS en vez de
+REFUTED — el más filoso); la allowlist tenía tres huecos (`-c` solo se miraba
+en `tokens[1]`, `python -m X` evadía el chequeo de módulos, los prefijos
+desnudos dejaban pasar cualquier script — ahora un python desnudo exige un
+`.py` EXISTENTE dentro del trabajo); el filtro de GROUND-TRUTH era
+case-sensitive; `rglob` seguía symlinks; `read_bytes` sin tope de entrada;
+`caveats` sin validar tipo; y `MAX_CLAIMS` truncaba en silencio (ahora el
+presupuesto se declara con un claim sintético).
+
+**Del presupuesto (vistos en los marcadores de la misma sesión):** un
+archivo mencionado SIN barra no resolvía ("auditá fable_judge.py" → /8 con
+872 líneas de masa; ahora `/16`, y el e2e re-corrido llegó a la ronda 9/16)
+y "todos los tests pasan" matcheaba la totalidad (ahora exige sustantivo de
+amplitud).
+
+**Criterios:** C1 ✅ un test por fix; C2 ✅ marcador /16 en el turno
+re-corrido; C3 ✅ el control honesto sigue VERIFIED WITH CAVEATS con la
+re-ejecución exit 0 (el camino legítimo `pytest` no se rompió); C4 ✅ gate
+verde (885 tests).
+
+**Veredicto:** ✅ el dogfood cerró el círculo completo de la sesión: el
+harness construyó (exp/81–86), se probó como producto (sesión del operador),
+se auditó a sí mismo y arregló lo encontrado. Los residuales declarados
+(quedan en la spec): el crudo citado en el fallback del veredicto y el
+techo global del prompt de juicio.
+
 ## exp/86 — presupuesto dinámico determinista: un pedido amplio sube el tope a 16 (2026-10-22)
 
 Mesa 3 pedía presupuesto dinámico de rondas. El diseño arrancó de tres

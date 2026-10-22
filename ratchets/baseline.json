@@ -50,10 +50,10 @@
         ],
         "nodes.py": [
           48,
-          641,
-          662,
-          912,
-          984
+          648,
+          669,
+          919,
+          991
         ],
         "research.py": [
           78
@@ -147,7 +147,7 @@
         "tests/test_banco.py": 15,
         "tests/test_bench.py": 18,
         "tests/test_bench_voto.py": 7,
-        "tests/test_chat_flujo.py": 21,
+        "tests/test_chat_flujo.py": 23,
         "tests/test_citas.py": 7,
         "tests/test_compaccion.py": 13,
         "tests/test_consolidacion.py": 44,
@@ -161,7 +161,7 @@
         "tests/test_evals.py": 15,
         "tests/test_fable.py": 29,
         "tests/test_fable_dominios.py": 6,
-        "tests/test_fable_judge.py": 66,
+        "tests/test_fable_judge.py": 77,
         "tests/test_flujos.py": 34,
         "tests/test_forma_larga.py": 5,
         "tests/test_fs_tools.py": 16,
@@ -203,7 +203,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 859
+      "metrica": 872
     }
   },
   "version": 1
