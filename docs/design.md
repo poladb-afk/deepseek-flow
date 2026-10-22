@@ -327,6 +327,45 @@ feedback (fase B2 de exp/21, en [bitacora.md](bitacora.md)). Tope de rondas `JUE
 configurable por corrida con `--rondas N` o `shared["max_rounds"]`; la tool
 `answer_verified(pregunta, rondas?)` lo expone.
 
+### Juez de trabajo (fable) — el adversarial de trabajo terminado
+`main.py fable_judge trabajo/ --pristine ref/ --reporte reporte.md` · [fable_judge.py](../fable_judge.py)
+
+```mermaid
+flowchart LR
+    c[RecolectarClaims] --> d[EstablecerCambio] --> r[ReEjecutar] --> f[CazarFraudes] --> v[Verdictar]
+```
+
+F1 del port de [fable-method](https://github.com/Sahir619/fable-method)
+(@9924067, MIT; método en `skills/fable-judge/SKILL.md`, diseño del port en
+el [mapeo](informes/fable_method_mapeo_2026-10-21.md) §4.2): juzga TRABAJO
+TERMINADO, no preguntas — "un reporte es un conjunto de claims, no
+evidencia". Los dos nodos LLM (claims y juicio) usan structured output con
+loop de reparación (crudo inválido citado verbatim + fallback semántico,
+fase B2 del juez de respuestas); los otros tres son deterministas:
+
+- **EstablecerCambio**: diff `trabajo/` vs `pristine/` (difflib, sin
+  basura de tooling); sin pristine, `git diff` best-effort; sin referencia
+  los cambios quedan UNVERIFIABLE (nunca asumidos).
+- **ReEjecutar**: re-ejecuta las verificaciones que el reporte clama, con
+  allowlist propia (un `python`/`pytest` simple, sin metacaracteres de
+  shell) y despacho SIEMPRE por `run_command` de `modules/coding` (policy
+  + HITL graduado, nunca shell libre). El ejecutor es inyectable
+  (`ejecutar=`) para los tests. Un claim no re-ejecutable es UNVERIFIABLE.
+- **Verdictar**: la **compuerta** de hechos del código (mismo patrón que el
+  Judge de respuestas): una verificación clamada que falla al re-ejecutarse
+  fuerza REFUTED aunque el modelo diga VERIFIED, y un verified con fraudes
+  se refuta solo. El formato es el de fable: veredicto en la primera línea
+  + tabla de claims (claim → qué se observó) + fraudes con evidencia +
+  acción recomendada. Contrato de veredicto: `verified |
+  verified_with_caveats | refuted`.
+
+Presupuestos (L8): `MAX_CLAIMS=12`, `MAX_RERUNS=6`, diff al prompt truncado
+(`MAX_DIFF`), reparación de YAML a 2 intentos. La tool del chat
+`verificar_trabajo(trabajo, pristine?, reporte)` (módulo `fable`) la expone;
+el reporte llega como ruta o texto literal. Medición: exp/81 sobre el
+fixture s7 (5 fraudes plantados) en [bitacora.md](bitacora.md).
+
+
 ### Auditoría — BatchFlow + flujo anidado (Flow como Node)
 `main.py auditoria c1 c2 [--glob] [--salida]` · [auditoria.py](../auditoria.py)
 

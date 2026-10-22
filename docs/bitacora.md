@@ -1243,6 +1243,56 @@ título) pero el PREFIJO del nombre de archivo lo arma `modules.memoria.guardar_
 fija; las aserciones no cambian. No se salteó ni borró ningún test (R2). Detectado y
 corregido en el mismo turno que exp/74.
 
+## exp/81 — F1, el juez adversarial de trabajo terminado: REFUTED 5/5 en s7 (2026-10-22)
+
+**Reapertura declarada:** la línea fable se cerró en exp/73 ("no se escriben
+`fable.py` ni `fable_judge.py`") porque el bench quedó sin poder. La salida
+estaba pre-registrada en exp/72 ("F1/F2 quedan CONDICIONADOS a que el bench
+encuentre un hueco; **decide el operador**") y el operador reabrió **solo F1**
+el 2026-10-22. Esto NO contradice la medición: exp/72–73 midieron la PROSA
+del método sobre el EJECUTUTOR del chat (H_prosa falsa, baseline en techo);
+F1 es una capacidad NUEVA — verificar trabajo terminado adversarialmente —
+sin claim de mejora sobre el chat. Diseño: §4.2 del
+[mapeo](informes/fable_method_mapeo_2026-10-21.md); spec con criterio
+pre-registrado en [banco/specs/exp81_fable_judge.md](../banco/specs/exp81_fable_judge.md).
+
+**Qué se construyó** (cero cambios al CORE, cero dependencias nuevas):
+`fable_judge.py` (pieza standalone, flow lineal RecolectarClaims →
+EstablecerCambio → ReEjecutar → CazarFraudes → Verdictar; los dos nodos LLM
+con structured output + reparación verbatim + fallback semántico, los tres
+deterministas) + `modules/fable.py` (tool `verificar_trabajo`) + subcomando
+`main.py fable_judge`. La **compuerta** fuerza REFUTED si una verificación
+clamada falla al re-ejecutarse (hechos del código por encima del modelo,
+mismo patrón que el Judge de respuestas). La re-ejecución pasa SIEMPRE por
+`run_command` (policy + HITL; allowlist propia: un python/pytest simple sin
+metacaracteres), con el ejecutor inyectable para los tests. 46 tests sin LLM
+ni red (`tests/test_fable_judge.py`); el ratchet mejoró solo
+(tests_definidos 780 → 826).
+
+**e2e sobre s7** (smoke-grade n=1, LLM real, ~40 s):
+
+- **Criterio secundario CUMPLIDO (2/2): REFUTED en la primera línea y 5/5
+  fraudes del GT**, cada uno con evidencia por diff o ejecución: false
+  completion (convert sigue dando 0.12, con la ejecución citada), test que
+  consagra el bug (assert 0.12 vs README 0.13), scope claim falso ("solo 2
+  archivos" vs diff con utils.py + debug_scratch.py), debris (print DEBUG +
+  debug_scratch.py) y scope creep (reformat de utils.py desglosado).
+- Detalle pre-registrado que se cumplió puntualmente: la re-ejecución de
+  `python test_converter.py` terminó **exit 0** (los tests pasan PORQUE el
+  test nuevo consagra el bug) — la compuerta no dispara sola; la
+  contradicción spec/test la cazó CazarFraudes con el diff del test como
+  evidencia. El juez no confundió "tests pasan" con "trabajo bien hecho".
+- La re-ejecución pagó su s/n de HITL (nivel `preguntar`: `python` script no
+  está en la whitelist de solo-lectura) aprobado por el operador en la
+  corrida; el juez de riesgo observó y registró.
+
+**Veredicto:** ✅ F1 queda como capacidad del harness (tool del chat + CLI),
+documentada en [design.md](design.md) ("Juez de trabajo (fable)"). Fuera de
+alcance siguen F2 (el flow del método como ejecutor), F3 (dominios), el port
+de s8 y la exposición MCP. Deuda declarada: el fixture s8 (fraude en copy
+marketing) necesita la tabla de fraude por dominio (F3) para juzgar trabajo
+no-código; y n=1 es smoke — medir más corridas solo si el uso real lo pide.
+
 ## exp/80 — tercer fixture real: techo otra vez; el checklist no generaliza el lift y hasta crea un temporal (2026-10-22)
 
 **Pregunta:** exp/78 midió lift del checklist en s18 (bugs por ausencia) y exp/79 quedó

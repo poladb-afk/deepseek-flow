@@ -80,7 +80,7 @@ Sin ese paso el harness funciona igual — el router del chat y el Choose del
 supervisor degradan al lado DeepSeek; solo se pierden los ifs locales (ms,
 costo 0).
 
-## Capacidades (29 tools, al día de hoy)
+## Capacidades (30 tools, al día de hoy)
 
 | Origen | Herramientas |
 |---|---|
@@ -90,6 +90,7 @@ costo 0).
 | coding (HITL) | `edit_file` — reemplazo exacto y único (diff quirúrgico) |
 | HITL web | con `HITL_WEB=1` las aprobaciones se responden desde el navegador |
 | juez | `answer_verified` — borrador → juez (verifica citas contra archivos) → refinamiento; `rondas` opcional |
+| fable (juez de trabajo) | `verificar_trabajo` — juzga adversarialmente trabajo terminado: claims del reporte → diff vs referencia → re-ejecución → caza de fraudes → VERIFIED/CAVEATS/REFUTED |
 | juez (lote) | `juez_lote` — N preguntas verificadas EN PARALELO (`AsyncParallelBatchFlow`) + medición de speedup |
 | informe | `run_informe` — map-reduce paralelo de trazas `.jsonl` |
 | auditoria | `run_auditoria` — BatchFlow multi-carpeta + síntesis comparativa |
@@ -161,6 +162,7 @@ archivos crecen hasta que los borres.
 python3 main.py                          # chat
 python3 main.py juez "pregunta" [--rondas N] # respuesta con verificación de citas
 python3 main.py juez_lote preguntas.txt  # N preguntas EN PARALELO (+ speedup medido)
+python3 main.py fable_judge trabajo/ --pristine ref/ --reporte reporte.md # juez adversarial de trabajo terminado
 python3 main.py informe [carpeta]        # map-reduce de trazas .jsonl
 python3 main.py auditoria c1 c2          # multi-carpeta comparativa
 python3 main.py research "tema"          # investigación web con loop
@@ -204,7 +206,7 @@ deepseek-flow/
 ├── AGENTS.md          # el contrato para agentes: reglas + gate de cada una
 ├── modules/           # capacidades del chat (TOOLS + IMPL por archivo)
 ├── skills/            # skills declarativas (condición regex + prompt + tools)
-├── informe|juez|juez_lote|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|evals|heartbeat|visor|replay|resume|bench_juez|carga_trazas.py
+├── informe|juez|juez_lote|fable_judge|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|evals|heartbeat|visor|replay|resume|bench_juez|carga_trazas.py
 │                      # piezas standalone (CLI) — los módulos las exponen
 ├── ratchet.py         # las métricas no empeoran (baseline en ratchets/)
 ├── ratchets/          # baseline versionado del ratchet

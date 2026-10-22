@@ -116,6 +116,7 @@ SUBCOMANDOS = {
     "informe": "informe",
     "juez": "juez",
     "juez_lote": "juez_lote",
+    "fable_judge": "fable_judge",
     "auditoria": "auditoria",
     "index": "rag",
     "debate": "debate",
