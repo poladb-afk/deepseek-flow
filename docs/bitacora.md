@@ -1243,6 +1243,45 @@ título) pero el PREFIJO del nombre de archivo lo arma `modules.memoria.guardar_
 fija; las aserciones no cambian. No se salteó ni borró ningún test (R2). Detectado y
 corregido en el mismo turno que exp/74.
 
+## exp/79 — ¿el checklist generaliza? segundo fixture real: techo y D más enfocado (2026-10-22)
+
+**Pregunta:** exp/78 midió que el checklist de seguridad (brazo D, `PROMPT_AUDITORIA=1`)
+sube el recall de 3,67 a 5,00 en s18. ¿Generaliza a otra familia real de bugs de
+seguridad o fue overfitting? **Fixture s19:** versiones REALES pre-fix (commit
+`9508d6a^`) de `modules/coding.py` (374 líneas) y `modules/memoria.py` (213); GT
+histórica: T1 lista de comandos prohibidos incompleta, T2 auto sin contención de lecturas
+fuera de `AGENT_ALLOWED_DIRS`, T3 `memoria._raiz()` anclada al CWD. Spec:
+[../banco/specs/exp79_real2.md](../banco/specs/exp79_real2.md).
+
+**Diseño:** A vs D, 3 seeds = 6 corridas (~8 min); scoring semántico igual a exp/77-78.
+
+**Resultado:**
+
+| brazo | recall | ca por seed | citas inválidas | ediciones | rondas | seg |
+|---|---|---|---|---|---|---|
+| A baseline | **3,00/3** | 2,2,2 | 0 | 0 | 8 · 7 · 5 | 48,2 · 36,9 · 56,6 |
+| D checklist | **3,00/3** | 2,2,2 | 0 | 0 | **2 · 2 · 7** | 44,0 · 26,6 · 61,3 |
+
+- **Ambos 3/3**: este fixture no tiene gap; el baseline ya encuentra los tres bugs
+  leyendo (a diferencia de s18, donde los bugs por ausencia eran invisibles). Detección
+  verificada: A s1 reportó la denylist incompleta, la contención tautológica de
+  `memory_save` y el `_raiz()` sin resolver — hallazgos reales, no falso positivo del
+  scorer semántico.
+- **H_generaliza no se puede afirmar:** el criterio pedía lift sobre A, y A ya está en
+  techo. Tampoco se falsifica: D no empeoró el recall y **enfocó la lectura** (2, 2 y 7
+  rondas vs 8, 7 y 5 de A; D s2 resolvió en 2 rondas y 26,6 s).
+- Sin diferencias de evidencia: 0 citas inválidas y 0 ediciones en los 6 runs.
+
+**Veredicto:** ⚪ **no concluyente por techo**. El checklist sigue siendo el lever medido
+en exp/78 y acá se mostró neutro/positivo en eficiencia, pero **no hay evidencia nueva
+para default-on**: queda opt-in (`PROMPT_AUDITORIA=1`, default 0). La decisión de
+default-on necesita un fixture con gap medido en otra familia o evidencia de uso real.
+
+**Siguiente propuesto:** tercer fixture real de bugs por AUSENCIA en otra familia (p. ej.
+el commit `e58c589`: symlink escape en auto y escritura atómica, `utils/fs_tools.py` +
+`modules/coding.py`), o medir el checklist con auditorías reales del operador. Aparte:
+precisión de extra con GT validada/juez.
+
 ## exp/78 — checklist de auditoría de seguridad (brazo D): cierra el hueco por AUSENCIA (2026-10-22)
 
 **Pregunta:** exp/77 midió el hueco: el baseline detecta los visibles leyendo (R4/R5/R6

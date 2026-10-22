@@ -126,6 +126,7 @@ TAREAS = {
     "s16-hard-bug-hunt": _tarea_revision,
     "s17-scale-audit": _tarea_revision,
     "s18-real-audit": _tarea_revision,
+    "s19-real-audit-2": _tarea_revision,
 }
 
 ESCENARIOS = {
@@ -141,6 +142,7 @@ ESCENARIOS = {
     "s16-hard-bug-hunt": {"timeout": 240},
     "s17-scale-audit": {"timeout": 360},
     "s18-real-audit": {"timeout": 300},
+    "s19-real-audit-2": {"timeout": 360},
 }
 
 ARTEFACTOS = ("INTENT", "AUTH", "TWINS", "PENDING")
@@ -520,6 +522,7 @@ GT_S15 = CASOS / "s15-python-bug-hunt" / "GROUND-TRUTH.md"
 GT_S16 = CASOS / "s16-hard-bug-hunt" / "GROUND-TRUTH.md"
 GT_S17 = CASOS / "s17-scale-audit" / "GROUND-TRUTH.md"
 GT_S18 = CASOS / "s18-real-audit" / "GROUND-TRUTH.md"
+GT_S19 = CASOS / "s19-real-audit-2" / "GROUND-TRUTH.md"
 FILA_BUG_GT = re.compile(
     r"^\|\s*([A-Z]\d+)\s*\|\s*([\w./-]+\.py):(\d+)\s*\|\s*([^|]+?)\s*\|", re.MULTILINE
 )
@@ -650,10 +653,18 @@ def puntuar_s17(pristine, run, reporte, salida="", eventos=()):
 
 
 def puntuar_s18(pristine, run, reporte, salida="", eventos=()):
-    """Auditoría de código real: detección SEMÁNTICA (R3/R4 son bugs por ausencia)."""
+    return puntuar_real_audit(pristine, run, reporte, salida, eventos, GT_S18)
+
+
+def puntuar_s19(pristine, run, reporte, salida="", eventos=()):
+    return puntuar_real_audit(pristine, run, reporte, salida, eventos, GT_S19)
+
+
+def puntuar_real_audit(pristine, run, reporte, salida="", eventos=(), gt=GT_S18):
+    """Auditoría de código real: detección SEMÁNTICA (bugs por ausencia incluidos)."""
     cambios = cambios_contra(pristine, run)
     edito = any(cambios[clave] for clave in cambios)
-    bugs, _ = bugs_de(GT_S18)
+    bugs, _ = bugs_de(gt)
     texto = _minusculas(reporte)
     citas = []
     for path, linea, linea2 in extraer(reporte):
@@ -703,6 +714,7 @@ PUNTUADORES = {
     "s16-hard-bug-hunt": puntuar_s16,
     "s17-scale-audit": puntuar_s17,
     "s18-real-audit": puntuar_s18,
+    "s19-real-audit-2": puntuar_s19,
 }
 
 

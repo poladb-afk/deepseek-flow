@@ -373,3 +373,25 @@ def test_brazo_d_es_checklist_de_auditoria():
         "PROMPT_AUDITORIA": "1",
     }
 
+
+def test_s19_ground_truth_historica_parsea_3_bugs():
+    """Segundo fixture real (commit 9508d6a^): 3 bugs por ausencia/estado."""
+    bench = _bench()
+    bugs, limpios = bench.bugs_de(bench.GT_S19)
+    assert [bug["id"] for bug in bugs] == [f"T{i}" for i in range(1, 4)]
+    assert limpios == []
+    assert bugs[0]["archivo"] == "coding.py" and bugs[2]["archivo"] == "memoria.py"
+
+
+def test_s19_scorer_semantico_y_edicion(tmp_path):
+    """El scorer real generalizado también corre para s19."""
+    bench, pristine, run = _par_fixture("s19-real-audit-2", tmp_path)
+    bugs, _ = bench.bugs_de(bench.GT_S19)
+    reporte = "\n".join(
+        f"- {bug['archivo']}:{bug['linea']} bug: {' '.join(bug['grupos'][0])}."
+        for bug in bugs
+    )
+    assert bench.puntuar_s19(pristine, run, reporte)[0] == 2
+    (run / "coding.py").write_text("cambiado\n", encoding="utf-8")
+    assert bench.puntuar_s19(pristine, run, reporte)[0] == 0
+
