@@ -50,10 +50,10 @@
         ],
         "nodes.py": [
           48,
-          648,
-          669,
-          919,
-          991
+          672,
+          693,
+          943,
+          1015
         ],
         "research.py": [
           78
@@ -149,7 +149,7 @@
         "tests/test_bench_voto.py": 7,
         "tests/test_chat_flujo.py": 23,
         "tests/test_citas.py": 7,
-        "tests/test_compaccion.py": 13,
+        "tests/test_compaccion.py": 16,
         "tests/test_consolidacion.py": 44,
         "tests/test_contratos.py": 6,
         "tests/test_db.py": 18,
@@ -203,7 +203,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 872
+      "metrica": 875
     }
   },
   "version": 1

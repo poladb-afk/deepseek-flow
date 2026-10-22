@@ -227,3 +227,71 @@ def test_compaction_conserva_la_tarea_vigente():
     out = compactar(mensajes, 1000, objetivo="Auditá inconsistencias semánticas")
     assert out[1]["content"].startswith(PREFIJO_COMPACCION)
     assert "Tarea vigente: Auditá inconsistencias semánticas" in out[1]["content"]
+
+
+# ── exp/88: la compacción rodante no escupe respaldos por ronda ─────────
+
+
+def _gigante(n=10, chars=8000):
+    """Unidades assistant+tool con resultados grandes (la forma de la sesión
+    real del operador: read_file de archivos enteros envejeciendo)."""
+    msgs = []
+    for i in range(n):
+        msgs.append({"role": "assistant", "content": None, "tool_calls": [
+            {"id": f"c{i}", "type": "function",
+             "function": {"name": "read_file", "arguments": "{}"}}]})
+        msgs.append({"role": "tool", "tool_call_id": f"c{i}",
+                     "content": "x" * chars})
+    return msgs
+
+
+def test_zona_fria_sin_user_no_se_respalda(tmp_path, monkeypatch):
+    """exp/88 F1: la zona fría RODANTE (solo assistant/tool recién envejecido)
+    no escribe respaldo — lo irrecuperable es lo que escribió el usuario."""
+    import nodes
+
+    llamadas = []
+    monkeypatch.setattr("modules.memoria.guardar_nota",
+                        lambda titulo, cuerpo: (llamadas.append(titulo), tmp_path / "n.md")[1])
+    # la pregunta reciente está en la VENTANA CALIENTE; la zona fría es solo tools
+    msgs = ([{"role": "system", "content": "s"}] + _gigante(12)
+            + [{"role": "user", "content": "seguí"}] + _gigante(2))
+
+    assert nodes._respaldar_zona_fria(msgs) is None
+    assert llamadas == []
+
+
+def test_zona_fria_con_user_se_respalda_como_siempre(tmp_path, monkeypatch):
+    """A17 intacto para lo que importa: la primera compacción de una
+    conversación larga lleva preguntas viejas adentro y SÍ se respalda."""
+    import nodes
+
+    llamadas = []
+    monkeypatch.setattr("modules.memoria.guardar_nota",
+                        lambda titulo, cuerpo: (llamadas.append(titulo), tmp_path / "n.md")[1])
+    # la pregunta VIEJA queda en la zona fría (la ventana caliente son tools recientes)
+    msgs = ([{"role": "system", "content": "s"},
+             {"role": "user", "content": "pregunta vieja irrecuperable"}]
+            + _gigante(12))
+
+    ruta = nodes._respaldar_zona_fria(msgs)
+    assert ruta is not None and len(llamadas) == 1
+
+
+def test_el_aviso_de_ventana_caliente_sale_una_vez(monkeypatch, capsys):
+    """exp/88 F2: si ni compactando se baja del tope, el diagnóstico se
+    imprime UNA vez por sesión — el marcador repetido sin causa era
+    indescifrable (kill del operador)."""
+    import nodes
+
+    monkeypatch.setenv("COMPACTION_CHARS", "3000")
+    # ventana caliente sola > tope: 6 unidades de tools gigantes al final
+    msgs = ([{"role": "system", "content": "s"},
+             {"role": "user", "content": "pregunta"}] + _gigante(12))
+    shared = {"messages": msgs, "tool_rounds": 0, "_objetivo": "pregunta",
+              "no_progress": 0}
+    nodo = nodes.AgentStep()
+    for _ in range(3):  # tres rondas seguidas: el aviso no se repite
+        nodo.prep(shared)  # MISMO dict: el flag vive en shared
+    salida = capsys.readouterr().out
+    assert salida.count("la ventana caliente sola supera el tope") == 1

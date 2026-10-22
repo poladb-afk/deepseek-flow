@@ -1284,6 +1284,43 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/88 — la compacción rodante no puede escupir respaldos por ronda (2026-10-22)
+
+El operador usó el chat en una sesión real (research del harness Pi + deep
+research comparativo + verificación) y la mataste en la ronda 5/8 con el
+contexto clavado en 60–75k. El thread persistido dejó el diagnóstico:
+**19 compacciones** (ventana rodante: cada ronda envejecía 3–4 mensajes de
+tools grandes) y **19 respaldos en `memoria/`**, uno por disparo — la
+enfermedad de X37 recreada por otra puerta: la dedupe por huella solo salta
+zonas idénticas y las rodantes siempre difieren. Spec:
+[banco/specs/exp88_compaccion_churn.md](../banco/specs/exp88_compaccion_churn.md).
+
+- **F1 — respaldo solo de lo irrecuperable**: la zona fría que no contiene
+  NINGÚN mensaje `user` no se respalda — los resultados de tools se
+  re-obtienen re-corriendo la tool y la prosa del asistente es derivada; lo
+  irrecuperable es lo que escribió el usuario. La primera compacción de una
+  conversación larga (con preguntas viejas) se respalda como siempre (A17
+  intacto para lo que importa) y el marcador sigue siendo honesto.
+- **F2 — el diagnóstico visible**: si tras compactar el historial sigue por
+  encima del tope, UN aviso por sesión lo dice con la causa y la salida
+  ("recortá lecturas o subí COMPACTION_CHARS"). Sin esto, el marcador
+  repetido era indescifrable.
+- Nota del diagnóstico: `deep_research` NO era el causista (devuelve ruta;
+  el informe va a disco) — la masa eran `read_file` de archivos enteros
+  acumulados en la ventana caliente. La solución de fondo (recortar tool
+  results VIEJOS de la ventana) queda como deuda declarada: toca los
+  invariantes assistant+tools y el defecto reportado no la exige.
+
+**Criterios:** C1 ✅ tests, C2 ✅ simulación de la sesión (0 respaldos
+rodantes, 1 aviso), C3 ✅ gate verde (888 tests; el ratchet de anidación
+cazó el primer intento y se extrajo el helper).
+
+**Veredicto:** ✅ la biblioteca vuelve a ser curada por diseño: el churn
+rodante no la ensucia y el operador ve la causa. De paso, la misma sesión
+del operador produjo la comparativa del paper (corregida a la taxonomía
+real de los siete subsistemas, verificada contra arXiv el mismo día) — el
+dogfood de exp/87 aplicado a contenido de research.
+
 ## exp/87 — los fixes de la auditoría del dogfood: el harness probado como usuario se arregla a sí mismo (2026-10-22)
 
 El operador condujo el chat como usuario (`salidas/test-chat-session.log`):

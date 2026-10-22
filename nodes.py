@@ -442,6 +442,19 @@ def _ahora():
     return datetime.now().strftime("%Y-%m-%d %H-%M-%S")
 
 
+def _aviso_ventana_caliente(shared, tamano, tope):
+    """exp/88: si ni compactando se baja del tope, la masa está en la
+    ventana caliente — decílo UNA vez por sesión: el marcador de compacción
+    repitiéndose sin esta línea era indescifrable (kill del operador)."""
+    if tamano <= tope or shared.get("_aviso_ventana_caliente"):
+        return
+    shared["_aviso_ventana_caliente"] = True
+    print(colorear(
+        "[compacción] la ventana caliente sola supera el tope "
+        f"({tamano} > {tope} chars): la compacción no puede bajarlo — "
+        "recortá lecturas o subí COMPACTION_CHARS", "aviso"), flush=True)
+
+
 def _respaldar_zona_fria(mensajes, shared=None):
     """Guarda en memoria/ los mensajes que la compacción va a descartar (A17).
 
@@ -460,13 +473,23 @@ def _respaldar_zona_fria(mensajes, shared=None):
     el respaldo no tendría cómo recuperarse y solo ensuciaría `memoria/`.
     exp/71 midió que la suite (que corre con MEMORIA=1) y el banco (que corre
     con 0, pero el respaldo ignoraba el setting) dejaban 157 respaldos de
-    fixture en la biblioteca curada; en ese modo no escribe."""
+    fixture en la biblioteca curada; en ese modo no escribe.
+
+    exp/88: la sesión real del operador destapó la puerta que X37 no cerró —
+    cuando la ventana caliente sola supera el tope, la compacción se vuelve
+    RODANTE (dispara cada ronda con una zona fría recién envejecida) y el
+    respaldo por-huella escribía un archivo por ronda (19 en 5 minutos). Regla:
+    solo se respalda lo IRRECUPERABLE — una zona fría sin ningún mensaje
+    `user` (solo assistant/tool) no se respalda: los resultados de tools se
+    re-obtienen re-corriendo la tool y la prosa del asistente es derivada."""
     from utils.compaccion import MAX_RESPALDO_CHARS, huella, serializar, zona_fria
 
     if _setting("MEMORIA", "1") != "1":
         return None
     frios = zona_fria(mensajes)
     if not frios:
+        return None
+    if not any(m.get("role") == "user" for m in frios if isinstance(m, dict)):
         return None
     cuerpo = serializar(frios)
     firma = huella(frios)
@@ -518,6 +541,7 @@ class AgentStep(Node):
                     shared["messages"] = nuevo
                     shared["compacciones"] = shared.get("compacciones", 0) + 1
                     shared["_compaccion_huella"] = huella(nuevo)
+                    _aviso_ventana_caliente(shared, len(serializar(nuevo)), tope)
         # Techo adaptativo por operación (exp/13) + escape por no-progreso:
         # si el modelo repite la MISMA ronda de tools demasiadas veces, se
         # retiran las tools sin esperar el techo — el loop no se paga hasta
