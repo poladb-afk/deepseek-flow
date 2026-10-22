@@ -46,12 +46,35 @@ DIRECTIVA_FABLE = (
 )
 
 
-def system_prompt(incluir_forma: bool | None = None, incluir_fable: bool | None = None):
+# Directiva de exp/78 (auditoría de seguridad): checklist que empuja a buscar
+# controles por AUSENCIA — el hueco medido en exp/77 (R1 sort --compress-program,
+# R3 tail -f, R2 evasión por -o). Opt-in con PROMPT_AUDITORIA; default 0.
+DIRECTIVA_AUDITORIA = (
+    "Cuando audites código buscando bugs de seguridad, además de leer lo que hay, "
+    "preguntate qué FALTA: listas de flags o denylists incompletas, normalización de "
+    "envoltorios (sudo/nice/timeout/env), validaciones que comparan strings sin "
+    "normalizar (mayúsculas, flags reordenados, /bin/rm), redirecciones y descriptores, "
+    "y rutas sin canonicalizar. Enumerá las familias de riesgo del archivo (ejecución "
+    "de programas, escritura de archivos, descriptores, envoltorios, opciones que toman "
+    "valores) y verificá que cada una tenga su control; si un control depende de una "
+    "lista, revisá si la lista está completa. Un hardening ausente es un hallazgo de "
+    "seguridad: reportalo con archivo:línea, qué falta, cómo se explota y el fix. No "
+    "edites archivos."
+)
+
+
+def system_prompt(
+    incluir_forma: bool | None = None,
+    incluir_fable: bool | None = None,
+    incluir_auditoria: bool | None = None,
+):
     """El prompt del chat; `incluir_forma=None` respeta el setting PROMPT_FORMA.
 
     PROMPT_FORMA=0 quita la directiva de forma (palanca del A/B exp/51 en el
     chat real vía banco; default 1). PROMPT_FABLE=1 agrega la directiva de
-    exp/72 (brazo prosa del A/B; default 0: producción sin cambios)."""
+    exp/72 (brazo prosa del A/B; default 0: producción sin cambios).
+    PROMPT_AUDITORIA=1 agrega el checklist de auditoría de seguridad de exp/78
+    (default 0)."""
     # REGLA de estabilidad: el prefijo debe ser byte-estable durante la
     # sesión para no romper el KV-cache (DeepSeek Harness lo midió: una
     # sección dinámica recalcularía ~99% del contexto por turno). Nada
@@ -64,12 +87,15 @@ def system_prompt(incluir_forma: bool | None = None, incluir_fable: bool | None 
         incluir_forma = _setting("PROMPT_FORMA", "1") != "0"
     if incluir_fable is None:
         incluir_fable = _setting("PROMPT_FABLE", "0") != "0"
+    if incluir_auditoria is None:
+        incluir_auditoria = _setting("PROMPT_AUDITORIA", "0") != "0"
     roots = "\n".join(f"- {r}" for r in allowed_roots())
     # el CWD del proceso: sin esto, "¿en qué carpeta estamos?" se responde
     # adivinando la raíz permitida (medido en producción)
     cwd = Path.cwd()
     forma = f"\n\n{DIRECTIVA_FORMA}" if incluir_forma else ""
     fable = f"\n\n{DIRECTIVA_FABLE}" if incluir_fable else ""
+    auditoria = f"\n\n{DIRECTIVA_AUDITORIA}" if incluir_auditoria else ""
     return f"""Agente de resolución de pedidos con tools disponibles.
 
 Trabajás en {cwd} y sus subdirectorios.
@@ -83,7 +109,7 @@ Si el pedido es una auditoría o análisis amplio del repo, acotá el alcance y 
 
 Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la verificaste, decila como no verificada. Citá siempre como ruta/archivo.py:línea (ruta relativa al repo, sin "líneas ~X").
 
-Para leer, listar o buscar archivos usá read_file, list_files o search_files; no uses cat, grep ni find por run_command.{forma}{fable}"""
+Para leer, listar o buscar archivos usá read_file, list_files o search_files; no uses cat, grep ni find por run_command.{forma}{fable}{auditoria}"""
 
 
 SUBCOMANDOS = {

@@ -183,6 +183,19 @@ def test_prompt_fable_es_opt_in(monkeypatch):
     assert main.DIRECTIVA_FABLE not in main.system_prompt()
 
 
+def test_prompt_auditoria_es_opt_in(monkeypatch):
+    """PROMPT_AUDITORIA=1 agrega el checklist de seguridad (exp/78); default 0."""
+    import main
+
+    monkeypatch.setenv("PROMPT_AUDITORIA", "1")
+    con_checklist = main.system_prompt()
+    monkeypatch.setenv("PROMPT_AUDITORIA", "0")
+    sin_checklist = main.system_prompt()
+    assert main.DIRECTIVA_AUDITORIA in con_checklist
+    assert main.DIRECTIVA_AUDITORIA not in sin_checklist
+    assert len(con_checklist) > len(sin_checklist)
+
+
 def test_system_prompt_pide_codigo_minimo_y_no_crece():
     """La palanca de forma del producto: la directiva explícita de código
     mínimo baja 56–70% los tokens del código generado y se mantiene en los

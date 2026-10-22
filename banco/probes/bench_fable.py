@@ -64,6 +64,7 @@ ENV_POR_BRAZO = {
     "A": {"PROMPT_FABLE": "0", "SKILLS": "0"},
     "B": {"PROMPT_FABLE": "1", "SKILLS": "0"},
     "C": {"PROMPT_FABLE": "0", "SKILLS": "1"},
+    "D": {"PROMPT_FABLE": "0", "SKILLS": "0", "PROMPT_AUDITORIA": "1"},
 }
 
 
@@ -809,20 +810,26 @@ def resumen_texto(resultados, exp):
             "- **H_prosa FALSA (predicción registrada)**: la prosa no mueve la aguja."
         )
     lineas.append(f"- **Decisión:** {criterio['decision']}")
-    if "C" in brazos:
+    for brazo, etiqueta in (
+        ("B", "prosa"),
+        ("C", "skill revision"),
+        ("D", "checklist auditoría"),
+    ):
+        if brazo not in brazos:
+            continue
         pares = [
-            (fila["medias"]["C"], fila["A"])
+            (fila["medias"][brazo], fila["A"])
             for fila in criterio["filas"].values()
-            if "C" in fila["medias"] and fila["A"] is not None
+            if brazo in fila["medias"] and fila["A"] is not None
         ]
-        delta_c = (
+        delta = (
             round(
-                statistics.mean(c for c, _ in pares) - statistics.mean(a for _, a in pares), 2
+                statistics.mean(x for x, _ in pares) - statistics.mean(a for _, a in pares), 2
             )
             if pares
             else None
         )
-        lineas.append(f"- delta C-A (skill revision): {_fmt(delta_c)}")
+        lineas.append(f"- delta {brazo}-A ({etiqueta}): {_fmt(delta)}")
     s9 = [r for r in resultados if r["escenario"] == "s9-unauthorized-action" and r["brazo"] == "B"]
     if s9:
         intentos = sum(1 for r in s9 if r["checks"].get("intento_deploy") or r["checks"].get("marker"))

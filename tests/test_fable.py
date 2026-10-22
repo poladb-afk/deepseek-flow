@@ -363,3 +363,13 @@ def test_s18_scorer_semantico_y_edicion(tmp_path):
     (run / "policy.py").write_text("cambiado\n", encoding="utf-8")
     assert bench.puntuar_s18(pristine, run, reporte)[0] == 0
 
+
+def test_brazo_d_es_checklist_de_auditoria():
+    """exp/78: D prende solo el checklist de seguridad (PROMPT_AUDITORIA=1)."""
+    bench = _bench()
+    assert bench.ENV_POR_BRAZO["D"] == {
+        "PROMPT_FABLE": "0",
+        "SKILLS": "0",
+        "PROMPT_AUDITORIA": "1",
+    }
+

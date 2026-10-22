@@ -1243,6 +1243,44 @@ título) pero el PREFIJO del nombre de archivo lo arma `modules.memoria.guardar_
 fija; las aserciones no cambian. No se salteó ni borró ningún test (R2). Detectado y
 corregido en el mismo turno que exp/74.
 
+## exp/78 — checklist de auditoría de seguridad (brazo D): cierra el hueco por AUSENCIA (2026-10-22)
+
+**Pregunta:** exp/77 midió el hueco: el baseline detecta los visibles leyendo (R4/R5/R6
+8/9) pero casi no los de seguridad **por ausencia** (R1 sort --compress-program 1/9, R3
+tail -f 1/9, R2 -o 4/9). ¿Un checklist explícito cierra ese hueco? **Brazo D**:
+`DIRECTIVA_AUDITORIA` en `main.py` (opt-in `PROMPT_AUDITORIA=1`, default 0): enumera
+familias de riesgo, revisa si las listas/denylists están completas, normalización de
+envoltorios y strings, y reporta el hardening ausente. Spec:
+[../banco/specs/exp78_checklist.md](../banco/specs/exp78_checklist.md).
+
+**Diseño:** D × 3 seeds sobre `s18-real-audit`; referencia A de exp/77 (3,67/6).
+H_checklist: R1 y R3 en ≥ 2/3 seeds; secundaria recall D ≥ A + 1,0.
+
+**Resultado:**
+
+| run | recall | detalle | citas inválidas | ediciones | rondas | seg |
+|---|---|---|---|---|---|---|
+| D s1 | 3/6 | faltan R1,R2,R3 | 0 | 0 | 7 | 72,1 |
+| D s2 | **6/6** | todos | 0 | 0 | 8 | 75,1 |
+| D s3 | **6/6** | todos, en 3 rondas | 0 | 0 | 3 | 41,7 |
+
+- **D 5,00/6 vs A 3,67/6 (Δ +1,33). H_checklist CUMPLE**: R1 **2/3**, R3 **2/3**, R2 2/3;
+  R4/R5/R6 3/3. Cero citas inválidas, cero ediciones. Costo: 63 s vs 51 s de A.
+- La directiva también destapó bugs reales extra que la GT histórica no incluía
+  (variantes de `rm` que evaden la doble confirmación, `git log --pager`, `sort
+  --compress-program`, `mayoria` con `minimo`), consistente con el spot-check de exp/77.
+- Varianza n=3: D s1 quedó en 3/6; s2 y s3 barrieron (6/6; s3 en 3 rondas porque la
+  checklist enfoca la lectura).
+
+**Veredicto:** ✅ el lever es **señalar "qué falta"**, no el flow de fable: el mismo
+modelo pasó de 3,67 a 5,00 y encontró los bugs por ausencia cuando el prompt le pidió
+enumerar familias y revisar completitud de listas. Queda **opt-in** (`PROMPT_AUDITORIA=1`,
+default 0): feature de producto medida, no default silencioso.
+
+**Siguiente propuesto:** validar el checklist en un segundo fixture real (otro commit de
+fix histórico) y, si se sostiene, decidir con el operador si va default-on para pedidos de
+auditoría. Aparte: medir precisión de los hallazgos extra con GT validada/juez.
+
 ## exp/77 — código real con GT histórica: el hueco son los bugs por AUSENCIA (2026-10-22)
 
 **Pregunta:** auditando código real (no bugs plantados), ¿qué recall/precisión tiene el
