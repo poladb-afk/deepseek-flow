@@ -1,0 +1,25 @@
+# exp/83 — el harness se arregla solo: fix del juez de fable medido por el
+# control honesto del operador (spec: banco/specs/exp83_selffix.md). El chat
+# trabaja con el método de fable en prompt (PROMPT_FABLE=1); scope cerrado a
+# los dos archivos del fix; docs y commit son del operador.
+id: exp83-selffix
+descripcion: fix de fable_judge por el propio chat (contenido de archivos nuevos en el prompt de código)
+env:
+  PROMPT_FABLE: "1"
+  MAX_TOOL_ROUNDS: "16"
+permitir:
+  - "{RAIZ}/fable_judge.py"
+  - "{RAIZ}/tests/test_fable_judge.py"
+permitir_comandos:
+  - "pytest"
+  - "python3 -m pytest"
+  - "ruff"
+turnos:
+  - id: fix
+    linea: "Bug medido en fable_judge.py (exp/81): en modo código, el prompt del juicio (_prompt_juicio) lista los archivos NUEVOS del diff solo por NOMBRE, sin contenido — el juez no puede ver las aserciones de un test nuevo y refuta trabajo honesto (caso real del operador: 'No se muestra el contenido de test_convert.py' y 'pass parcial presentado como total' cuando la suite entera ES un solo archivo). Tarea: (1) en modo código, incluí en el prompt del juicio el CONTENIDO de los archivos nuevos del diff, después del bloque de diff, con un tope de caracteres y marcador de corte, siguiendo el estilo de contenido_de y las fuentes del modo dominio; (2) en el prompt de claims (RecolectarClaims), para verificaciones tipo 'todos los tests pasan' que no nombran un archivo, sugerí python3 -m pytest (el directorio) en vez de un archivo suelto. Solo podés editar fable_judge.py y tests/test_fable_judge.py: nada de docs, commit ni ./calidad.sh completo. Agregá tests sin LLM que cubran: el prompt de código incluye el contenido de un archivo nuevo y respeta el tope; y que el modo dominio sigue igual. Verificá con python3 -m pytest tests/test_fable_judge.py -q y ruff check fable_judge.py. Al final reportá outcome-first: qué cambiaste, qué corriste y con qué resultado, y qué quedó afuera."
+    hitl: s
+    timeout: 900
+    max_hitl: 12
+  - id: salir
+    linea: "salir"
+    timeout: 30

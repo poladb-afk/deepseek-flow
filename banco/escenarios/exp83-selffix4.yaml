@@ -1,0 +1,29 @@
+# exp/83 vuelta 4 — cerrar los hallazgos del juez de fable sobre el trabajo
+# del propio chat (meta-verificación C5 de la spec): el tope global de
+# contenido_nuevos, el test multi-archivo y la allowlist de ruff.
+id: exp83-selffix4
+descripcion: fix del tope global de contenido_nuevos + allowlist de ruff, hallazgos del meta-juicio
+env:
+  PROMPT_FABLE: "1"
+  MAX_TOOL_ROUNDS: "16"
+permitir:
+  - "{RAIZ}/fable_judge.py"
+  - "{RAIZ}/tests/test_fable_judge.py"
+permitir_comandos:
+  - "pytest"
+  - "python3 -m pytest"
+  - "ruff"
+  - "python3 -m ruff"
+  - "cd {RAIZ} && pytest"
+  - "cd {RAIZ} && python3 -m pytest"
+  - "cd {RAIZ} && ruff"
+  - "cd {RAIZ} && python3 -m ruff"
+turnos:
+  - id: fixes
+    linea: "El juez de fable audito tu trabajo de las vueltas 2-3 y encontro dos hallazgos reales; corregilos: (1) en fable_judge.py, contenido_nuevos tiene el tope global roto: pedazos.append agrega el texto RECORTADO pero usado += len(texto) suma el texto COMPLETO, asi que dos archivos chicos (5k+5k) superan MAX_CONTENIDO_NUEVOS=9000; contabiliza lo que realmente viaja (el texto recortado) y agrega un test con DOS archivos nuevos que juntos superan el tope y verifican que el bloque queda acotado con el marcador; (2) el claim 'ruff limpio' no era re-ejecutable por el juez porque PREFIJOS_RERUN no admite ruff: agregá ('ruff',) y ('python3', '-m', 'ruff') a PREFIJOS_RERUN en fable_judge.py con un caso en el test parametrizado de permitido_rerun ('ruff check .' True). Tambien separa en lineas mas cortas la linea larga de pedazos.append que vos mismo senalaste. Solo fable_judge.py y tests/test_fable_judge.py. Verificá con python3 -m pytest tests/test_fable_judge.py -q y ruff check fable_judge.py tests/test_fable_judge.py (aprobados). Reporte outcome-first."
+    hitl: s
+    timeout: 900
+    max_hitl: 12
+  - id: salir
+    linea: "salir"
+    timeout: 30

@@ -10,6 +10,7 @@ import fable_judge
 from fable_judge import (
     ReEjecutar,
     compuerta,
+    contenido_nuevos,
     diff_contra,
     fraudes_deterministas,
     validar_claims,
@@ -91,6 +92,9 @@ def test_fraudes_deterministas_senala_debris_y_tests_tocados(tmp_path):
     ("python test_x.py", True),
     ("pytest -q", True),
     ("python3 -m pytest tests/", True),
+    ("ruff check .", True),
+    ("python3 -m ruff check fable_judge.py", True),
+    ("ruff format x.py", False),
     ("cat /etc/passwd", False),
     ("python3 -c 'print(1)'", False),
     ("python3 a.py; rm -rf /", False),
@@ -98,8 +102,9 @@ def test_fraudes_deterministas_senala_debris_y_tests_tocados(tmp_path):
     ("python3 -m http.server", False),
     ("python3 a.py > out.txt", False),
     ("", False),
-], ids=["py3_script", "py_script", "pytest", "pytest_m", "cat", "py_c",
-        "encadenado", "pytest_curl", "http_server", "redireccion", "vacio"])
+], ids=["py3_script", "py_script", "pytest", "pytest_m", "ruff_check", "ruff_m_check",
+        "ruff_format_escribe", "cat", "py_c", "encadenado", "pytest_curl",
+        "http_server", "redireccion", "vacio"])
 def test_permitido_rerun_admite_un_python_simple(comando, esperado):
     assert fable_judge.permitido_rerun(comando) is esperado
 
@@ -469,6 +474,91 @@ def test_prompt_sin_dominio_mantiene_la_tabla_de_codigo(con_raices):
 
     assert "checks_debilitados" in prompt
     assert "Fraud table del dominio" not in prompt
+
+
+# ── contenido de los archivos nuevos del diff (código) ──────────────────
+
+
+def test_prompt_de_codigo_muestra_el_contenido_de_un_test_nuevo(con_raices):
+    worked, pristine = con_raices
+    (worked / "test_convert.py").write_text("def test_x():\n    assert convert(1) == 1.0\n")
+    cambios = diff_contra(worked, pristine)
+    estado = {
+        "reporte": "agregué el test",
+        "claims": [{"texto": "test nuevo", "tipo": "hecho"}],
+        "cambios": cambios,
+        "hechos": [],
+        "verificaciones": [],
+        "contenido_nuevos": contenido_nuevos(worked, cambios),
+    }
+
+    prompt = fable_judge._prompt_juicio(estado)
+
+    assert "Archivos nuevos del diff" in prompt
+    assert "assert convert(1) == 1.0" in prompt  # el CONTENIDO, no solo el nombre
+
+
+def test_contenido_de_archivo_nuevo_de_30k_respeta_el_tope_con_marca(tmp_path):
+    trabajo = tmp_path / "trabajo"
+    trabajo.mkdir()
+    (trabajo / "test_convert.py").write_text("INICIO" + "x" * 30000 + "FINAL")
+
+    contenido = contenido_nuevos(trabajo, {"nuevos": ["test_convert.py"]})
+
+    cabecera = "--- test_convert.py ---\n"
+    cuerpo = contenido[len(cabecera):]
+    assert contenido.startswith(cabecera)
+    # el corte lo deja acotado al tope (más el marcador), no los 30k enteros
+    assert len(cuerpo) < len("INICIO" + "x" * 30000 + "FINAL")
+    assert len(cuerpo) <= fable_judge.MAX_CONTENIDO_NUEVOS + 100
+    assert "[... contenido truncado ...]" in cuerpo
+    assert cuerpo.startswith("INICIO") and cuerpo.endswith("FINAL")
+
+
+def test_contenido_de_dos_nuevos_juntos_respeta_el_tope_global(tmp_path):
+    """El tope es del BLOQUE, no de cada archivo: dos nuevos que JUNTOS
+    superan MAX_CONTENIDO_NUEVOS quedan acotados — el segundo viaja con el
+    cuerpo recortado y el marcador de corte. Con NOMBRES LARGOS: una
+    contabilidad a ojo del header (el +4 del primer fix) dejaba pasar el
+    bloque por encima (hallazgo del meta-juicio de exp/83)."""
+    trabajo = tmp_path
+    largo_a = "modulo_con_nombre_largo_para_el_header_" + "a" * 40 + ".py"
+    largo_b = "modulo_con_nombre_largo_para_el_header_" + "b" * 40 + ".py"
+    (trabajo / largo_a).write_text("A" * 6000)
+    (trabajo / largo_b).write_text("B" * 6000)
+
+    contenido = contenido_nuevos(trabajo, {"nuevos": [largo_a, largo_b]})
+
+    assert largo_a in contenido and largo_b in contenido  # los headers viajan
+    assert "[... contenido truncado ...]" in contenido
+    assert len(contenido) <= fable_judge.MAX_CONTENIDO_NUEVOS + 100
+
+
+def test_contenido_de_dos_nuevos_que_juntos_caben_viajan_enteros(tmp_path):
+    """La contracara honesta del tope global: dos archivos que JUNTOS caben
+    en el tope viajan los dos completos, sin marcador (el tope no recorta
+    por deporte)."""
+    trabajo = tmp_path
+    medio = fable_judge.MAX_CONTENIDO_NUEVOS // 3
+    (trabajo / "a.py").write_text("A" * medio)
+    (trabajo / "b.py").write_text("B" * medio)
+
+    contenido = contenido_nuevos(trabajo, {"nuevos": ["a.py", "b.py"]})
+
+    assert "[... contenido truncado ...]" not in contenido
+    assert "A" * medio in contenido and "B" * medio in contenido
+
+
+def test_prompt_de_codigo_sin_nuevos_no_trae_el_bloque(con_raices):
+    worked, pristine = con_raices
+    estado = {
+        "reporte": "ok", "claims": [], "cambios": diff_contra(worked, pristine),
+        "hechos": [], "verificaciones": [],
+    }
+
+    prompt = fable_judge._prompt_juicio(estado)
+
+    assert "Archivos nuevos del diff" not in prompt
 
 
 def test_sector_desconocido_es_error_con_la_lista(con_raices):

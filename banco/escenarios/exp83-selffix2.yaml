@@ -1,0 +1,30 @@
+# exp/83 vuelta 2 — el operador autoriza el PENDING de la vuelta 1: aplicar
+# el plan que el propio chat levantó (transcript exp83-selffix_094203) con
+# los comandos de verificación habilitados (la vuelta 1 perdió 4 HITL porque
+# los comandos llegan con prefijo `cd {RAIZ} && ...`).
+id: exp83-selffix2
+descripcion: aplicar el plan del fix de fable_judge (vuelta 1 autorizada)
+env:
+  PROMPT_FABLE: "1"
+  MAX_TOOL_ROUNDS: "16"
+permitir:
+  - "{RAIZ}/fable_judge.py"
+  - "{RAIZ}/tests/test_fable_judge.py"
+permitir_comandos:
+  - "pytest"
+  - "python3 -m pytest"
+  - "ruff"
+  - "python3 -m ruff"
+  - "cd {RAIZ} && pytest"
+  - "cd {RAIZ} && python3 -m pytest"
+  - "cd {RAIZ} && ruff"
+  - "cd {RAIZ} && python3 -m ruff"
+turnos:
+  - id: aplicar
+    linea: "Autorizado (vuelta 1): tu plan de 4 ediciones queda aprobado tal cual lo levantaste. Aplicalo ahora, sin re-levantar el plan: (1) constante MAX_CONTENIDO_NUEVOS = 9000 junto a los demas presupuestos de fable_judge.py; (2) funcion contenido_nuevos(trabajo, cambios, tope) al lado de contenido_de: itera cambios['nuevos'], lee trabajo/rel, arma '--- rel ---\\n<texto>' con recortar_chars y marcador '[... contenido truncado ...]', '' si no hay nuevos; (3) en _prompt_juicio, bloque 'Archivos nuevos del diff (contenido real de los archivos, lo junto el codigo):' DESPUES del diff, solo en modo codigo y si hay nuevos; CazarFraudes.prep suma estado['contenido_nuevos'] en modo codigo; (4) tests en tests/test_fable_judge.py: (a) un test_convert.py nuevo con una asercion aparece en el prompt de codigo con su contenido, (b) un archivo nuevo de 30k chars respeta el tope con el marcador, (c) el prompt sin dominio y sin nuevos queda como hoy. Solo fable_judge.py y tests/test_fable_judge.py. Verificá con python3 -m pytest tests/test_fable_judge.py -q (aprobado) y ruff check fable_judge.py tests/test_fable_judge.py (aprobado). No corras ./calidad.sh ni commitees. Reporte outcome-first al final: que cambiaste, que corriste con que resultado, y que quedo afuera."
+    hitl: s
+    timeout: 900
+    max_hitl: 12
+  - id: salir
+    linea: "salir"
+    timeout: 30

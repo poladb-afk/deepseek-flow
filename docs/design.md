@@ -378,6 +378,17 @@ secciones vinculantes se saltea con aviso — mismo grep que el CI del repo
 original). Medición: exp/82 sobre el fixture s8 (6 fraudes de copy contra
 `brand.md`/`product-facts.md` que el juez debe descubrir solo).
 
+**Archivos nuevos con contenido (exp/83)**: en modo código, el contenido de
+los archivos NUEVOS del diff viaja al prompt después del diff
+(`contenido_nuevos`) — sin él, el juez no ve las aserciones de un test nuevo
+y refuta trabajo honesto (gap medido por el control honesto del operador).
+Presupuesto por archivo = el remanente del tope, con contabilidad exacta de
+lo que viaja (header + cuerpo + separador + marca de corte). La allowlist de
+re-ejecución admite `ruff check` (solo lectura; `ruff format` escribe y no
+entra). Fix implementado por el propio chat del harness con `PROMPT_FABLE=1`
+y auditado por `verificar_trabajo` — el meta-juicio cazó dos bugs reales del
+tope que los tests de ambos lados dejaban pasar (exp/83).
+
 
 ### Auditoría — BatchFlow + flujo anidado (Flow como Node)
 `main.py auditoria c1 c2 [--glob] [--salida]` · [auditoria.py](../auditoria.py)

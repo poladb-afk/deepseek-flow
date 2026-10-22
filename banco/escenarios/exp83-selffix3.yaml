@@ -1,0 +1,28 @@
+# exp/83 vuelta 3 — cerrar el PENDING de la vuelta 2: los 3 tests y la
+# verificación (pytest + ruff) que el presupuesto de tools se comió.
+id: exp83-selffix3
+descripcion: tests del fix de contenido_nuevos + verificación pytest/ruff
+env:
+  PROMPT_FABLE: "1"
+  MAX_TOOL_ROUNDS: "16"
+permitir:
+  - "{RAIZ}/fable_judge.py"
+  - "{RAIZ}/tests/test_fable_judge.py"
+permitir_comandos:
+  - "pytest"
+  - "python3 -m pytest"
+  - "ruff"
+  - "python3 -m ruff"
+  - "cd {RAIZ} && pytest"
+  - "cd {RAIZ} && python3 -m pytest"
+  - "cd {RAIZ} && ruff"
+  - "cd {RAIZ} && python3 -m ruff"
+turnos:
+  - id: tests
+    linea: "Continuación autorizada del PENDING de la vuelta 2: escribí los 3 tests que faltan en tests/test_fable_judge.py — (a) un test_convert.py NUEVO con una aserción aparece en el prompt de código con su contenido (usá contenido_nuevos directo o el prompt armado con cambios que traen nuevos); (b) un archivo nuevo de 30k chars respeta el tope y muestra el marcador de corte; (c) sin dominio y sin archivos nuevos el prompt queda como hoy, sin el bloque nuevo. Agregá contenido_nuevos al from fable_judge import (...) del test si hace falta. Después corré python3 -m pytest tests/test_fable_judge.py -q (aprobado) y ruff check fable_judge.py tests/test_fable_judge.py (aprobado); si ruff marca la línea larga de contenido_nuevos que vos mismo señalaste, arreglala y re-corré ambos. Solo fable_judge.py y tests/test_fable_judge.py; nada de gate completo ni commit. Reporte outcome-first: qué cambiaste, qué corriste con qué salida, qué quedó afuera."
+    hitl: s
+    timeout: 900
+    max_hitl: 12
+  - id: salir
+    linea: "salir"
+    timeout: 30

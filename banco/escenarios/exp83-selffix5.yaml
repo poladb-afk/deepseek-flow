@@ -1,0 +1,29 @@
+# exp/83 vuelta 5 — decisión del operador sobre el PENDING de la vuelta 4:
+# opción (a): ruff entra a PREFIJOS_RERUN (la ejecución ya está doble-gateada
+# por run_command/policy) + fix del tope global + test multi-archivo.
+id: exp83-selffix5
+descripcion: decisión (a) de la vuelta 4 + fix del tope de contenido_nuevos
+env:
+  PROMPT_FABLE: "1"
+  MAX_TOOL_ROUNDS: "16"
+permitir:
+  - "{RAIZ}/fable_judge.py"
+  - "{RAIZ}/tests/test_fable_judge.py"
+permitir_comandos:
+  - "pytest"
+  - "python3 -m pytest"
+  - "ruff"
+  - "python3 -m ruff"
+  - "cd {RAIZ} && pytest"
+  - "cd {RAIZ} && python3 -m pytest"
+  - "cd {RAIZ} && ruff"
+  - "cd {RAIZ} && python3 -m ruff"
+turnos:
+  - id: cierre
+    linea: "Decisión del operador sobre tu PENDING de la vuelta 4: opción (a). Razón que queda registrada: PREFIJOS_RERUN es la primera compuerta, la ejecución igual pasa por run_command (policy + HITL), y ruff check es solo lectura — agregarlo solo permite que el juez INTENTE la re-ejecución. Hacé todo en esta ronda: (1) en fable_judge.py agregá ('ruff',) y ('python3', '-m', 'ruff') a PREFIJOS_RERUN con un comentario corto del porqué (doble compuerta); (2) fix del tope global de contenido_nuevos: contabilizá en usado el texto que REALMENTE viaja (el recortado), no len(texto) completo; (3) test con DOS archivos nuevos que juntos superan MAX_CONTENIDO_NUEVOS: el bloque queda acotado al tope con el marcador de corte; (4) caso 'ruff check .' True en el test parametrizado de permitido_rerun; (5) separá en líneas más cortas la línea larga de pedazos.append. Solo fable_judge.py y tests/test_fable_judge.py. Verificá con python3 -m pytest tests/test_fable_judge.py -q y ruff check fable_judge.py tests/test_fable_judge.py (aprobados). Reporte outcome-first con qué corriste y qué salida dio."
+    hitl: s
+    timeout: 900
+    max_hitl: 12
+  - id: salir
+    linea: "salir"
+    timeout: 30
