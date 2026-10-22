@@ -1234,6 +1234,69 @@ denominador mal calculado), criterio fijado antes de la corrida. Sin eso, la
 skill no tiene margen para mejorar detección; su efecto medible hoy es bajar
 ruido sin perder calidad.
 
+## Fix: el test del respaldo dependía del día real (time bomb, 2026-10-22)
+
+El gate de exp/74 se puso rojo al cruzar la medianoche: `test_titulo_de_respaldo_lleva_segundos`
+esperaba `nota_2026-10-21_...` hardcodeado. La causa: el test congelaba `nodes._ahora` (el
+título) pero el PREFIJO del nombre de archivo lo arma `modules.memoria.guardar_nota` con
+`date.today()`. Fix mínimo: el test congela también `modules.memoria.date` con una fecha
+fija; las aserciones no cambian. No se salteó ni borró ningún test (R2). Detectado y
+corregido en el mismo turno que exp/74.
+
+## exp/74 — calidad de auditoría de bugs Python: recall 7,3/8, citas 100% válidas, 0 ediciones (2026-10-22)
+
+**Pregunta:** ¿qué calidad tiene el chat auditando código Python realista (recall, precisión
+de citas, falsos positivos, no editar), y la prosa cambia algo? Se reutiliza el bench de
+exp/72-73 con un **fixture propio** (no viene de fable): `s15-python-bug-hunt` — 4 archivos,
+8 bugs plantados en 3, `utils.py` limpio para medir falsos positivos. Criterio y caps
+pre-registrados en [../banco/specs/exp74_bughunt.md](../banco/specs/exp74_bughunt.md);
+`GROUND-TRUTH.md` es machine-readable (la tabla es la fuente única del scorer).
+
+**Diseño:** A baseline vs B prosa, 3 seeds = **6 corridas**; tarea en español ("revisá el
+código … reportá archivo:línea, qué está mal y un fix; no modifiques nada"); `SKILLS=0` para
+aislar del disparo de la skill `revision`. Scoring determinista: cita válida = `archivo:línea`
+resuelta en el run (reusa `utils/citas.extraer`) a ±2 líneas o dentro del rango citado, más
+una keyword del bug; FP = cita a `utils.py` en una línea que afirma un defecto (las
+negaciones explícitas no cuentan); editar cualquier archivo → 0.
+
+**Resultado (6 corridas):**
+
+| brazo | seed | ca | encontrados | faltantes | citas válidas | inválidas | FP | editó | seg |
+|---|---|---|---|---|---|---|---|---|---|
+| A | 1 | 1 | 7/8 | B3 | 9 | 0 | 0 | no | 15,1 |
+| A | 2 | 1 | 7/8 | B3 | 11 | 0 | 0 | no | 44,9 |
+| A | 3 | 1 | 8/8 | — | 20 | 0 | 1 | no | 31,4 |
+| B | 1 | 1 | 7/8 | B2 | 11 | 0 | 0 | no | 17,3 |
+| B | 2 | 2 | 8/8 | — | 8 | 0 | 0 | no | 54,8 |
+| B | 3 | 2 | 8/8 | — | 14 | 0 | 0 | no | 15,8 |
+
+- **Recall:** A **7,33/8**, B **7,67/8** (Δ +0,33 < 1,00, n=3) → `H_prosa FALSA`, la
+  predicción registrada. La prosa no cambia el recall de forma medible.
+- **Citas:** 100% válidas (0 inválidas en 6/6); el producto ya tiene verificación de citas y
+  se nota. **Ediciones:** 0 en 6/6 (la tarea era auditar, no tocar).
+- **Detección por bug (sobre 6):** B1 mutable default 6/6 · B2 float equality **5/6** ·
+  B3 naive datetime vs UTC **4/6** · B4 SQL injection 6/6 · B5 path traversal 6/6 ·
+  B6 late binding 6/6 · B7 `except Exception: pass` 6/6 · B8 `assert` 6/6.
+- **FP:** 1 (A s3, una observación sobre `utils.py` que el GT no considera bug: `clamp` sin
+  validar rango invertido). B: 0. Se reporta como proxy, no como veredicto de estilo.
+- **Calidad del informe:** formato `archivo:línea` + bloque de código + fix concreto, sin
+  ediciones; B s3 y A s3 encontraron 8/8.
+- **Scorer (declarado):** antes de leer el veredicto se ajustó para aceptar **rangos** de
+  líneas (`reporting.py:5-9`) y para no contar como FP una línea que dice "acá no hay bug";
+  se re-puntuaron los 6 reportes guardados, simétrico A/B.
+- Costo: ~30 s por corrida; 6 corridas en ~3 minutos.
+
+**Veredicto:** ✅ **usable** (criterio pre-registrado: A ≥ 6/8, 0 ediciones, ≥ 90% citas
+válidas). La calidad de auditoría del chat es alta para bugs "de libro" (mutable default,
+SQL injection, traversal, except mudo, assert) y floja en los semánticos: naive datetime vs
+UTC (B3) y, en un run, comparación de float (B2).
+
+**Siguiente:** no se abre experimento de producto (el umbral decía: usable → nada). Si se
+quiere subir el piso de los bugs semánticos, el lugar es la skill `revision`/checklist de
+revisión (ya medida en exp/56: no subió detección, bajó ruido), no el flow de fable (cerrado
+en exp/73). Deuda: el fixture tiene 8 bugs; para una vara de calidad más fina convendría
+sumar bugs de concurrencia/estado y medir FP con juez humano.
+
 ## exp/73 — trampas con margen: s10 y s13 siguen en techo; el hueco es la aritmética (2026-10-21)
 
 **Pregunta:** con trampas que en fable discriminan en modelos capaces (s10 recall de API

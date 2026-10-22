@@ -409,6 +409,14 @@ def test_titulo_de_respaldo_lleva_segundos(tmp_path, monkeypatch):
     # el reloj se congela DESPUÉS de medir el formato: lo que se mide acá es
     # el nombre de archivo que produce guardar_nota con un título dado.
     monkeypatch.setattr(nodes, "_ahora", lambda: "2026-10-21 12-34-56")
+    # el PREFIJO del nombre usa memoria.date.today() (otra fuente de fecha): sin
+    # congelarla el test era un time-bomb — falló al cruzar a 2026-10-22.
+    from datetime import date
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        "modules.memoria.date", SimpleNamespace(today=lambda: date(2026, 10, 21))
+    )
     raiz = tmp_path / "memoria"
     monkeypatch.setenv("MEMORIA_DIR", str(raiz))
 

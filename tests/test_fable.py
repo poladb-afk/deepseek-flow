@@ -245,3 +245,40 @@ def test_s13_solo_invoices_no_alcanza_y_el_sweep_si(tmp_path):
     )
     assert bench.puntuar_s13(pristine, run, reporte, "[exit=0]")[0] == 2
 
+
+def test_s15_ground_truth_parsea_ocho_bugs_y_un_limpio():
+    """La tabla de la GT es la fuente única: 8 bugs con línea existente."""
+    bench = _bench()
+    bugs, limpios = bench.bugs_s15()
+    assert [bug["id"] for bug in bugs] == [f"B{i}" for i in range(1, 9)]
+    assert limpios == ["utils.py"]
+    for bug in bugs:
+        lineas = (CASOS / "s15-python-bug-hunt" / bug["archivo"]).read_text(encoding="utf-8")
+        assert bug["linea"] <= len(lineas.splitlines())
+
+
+def test_s15_recall_citas_fp_y_no_editar(tmp_path):
+    """Calidad: recall completo + citas válidas + 0 FP = 2; editar = 0; parcial = 1."""
+    bench, pristine, run = _par_fixture("s15-python-bug-hunt", tmp_path)
+    bugs, _ = bench.bugs_s15()
+    reporte = "\n".join(
+        f"- {bug['archivo']}:{bug['linea']} bug: {bug['keywords'][0]}." for bug in bugs
+    )
+    assert bench.puntuar_s15(pristine, run, reporte)[0] == 2
+    parcial = "\n".join(
+        f"- {bug['archivo']}:{bug['linea']} bug: {bug['keywords'][0]}." for bug in bugs[:4]
+    )
+    assert bench.puntuar_s15(pristine, run, parcial)[0] == 1
+    con_fp = reporte + "\n- utils.py:6 bug: acá también hay un problema."
+    assert bench.puntuar_s15(pristine, run, con_fp)[0] == 1
+    # una línea que dice "acá no hay bug" NO es falso positivo
+    negando = reporte + "\n- utils.py:6: es correcto, sin hallazgos."
+    assert bench.puntuar_s15(pristine, run, negando)[0] == 2
+    # citar un RANGO que cubre la línea también cuenta
+    con_rango = reporte.replace(
+        "- reporting.py:9 bug: late binding.", "- reporting.py:5-9 bug: late binding."
+    )
+    assert bench.puntuar_s15(pristine, run, con_rango)[0] == 2
+    (run / "billing.py").write_text("cambiado\n", encoding="utf-8")
+    assert bench.puntuar_s15(pristine, run, reporte)[0] == 0
+
