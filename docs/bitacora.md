@@ -1243,6 +1243,47 @@ título) pero el PREFIJO del nombre de archivo lo arma `modules.memoria.guardar_
 fija; las aserciones no cambian. No se salteó ni borró ningún test (R2). Detectado y
 corregido en el mismo turno que exp/74.
 
+## exp/82 — F3, los dominios: el juez juzga copy fraudulento contra sus fuentes (2026-10-22)
+
+**Qué se construyó** (continuación de la línea F, spec
+[banco/specs/exp82_fable_dominios.md](../banco/specs/exp82_fable_dominios.md)):
+`utils/fable_dominios.py` (loader puro) + los **8 domain adapters + TEMPLATE**
+de fable-method @9924067 (MIT) como datos versionados con atribución en
+`banco/material/fable/dominios/` (producto leyendo banco/ es precedente:
+evals.py, utils/conformal.py). `verificar_trabajo` gana `sector`: en modo
+dominio la **tabla de fraudes, el evidence set y el orden de autoridad son
+los del adapter** (no los de código), los archivos del trabajo viajan al
+prompt como FUENTES (acotadas, las junta el código — en trabajo no-código
+la evidencia está en los archivos, no en un diff), y el vocabulario del
+`tipo` del contrato YAML es el de las filas de la tabla del adapter. Dos
+fixes de honestidad que el e2e exigió: **GROUND-TRUTH.md nunca es
+evidencia** (filtro en el árbol Y en diff_git — la answer sheet no puede
+alimentar al juez) y `diff_git` limita su pathspec al subdirectorio del
+trabajo (antes diffeaba el repo entero). Fixture s8 portado a
+`banco/fable/escenarios/`. 11 tests nuevos sin LLM
+(`tests/test_fable_dominios.py` + los de dominio en `test_fable_judge.py`).
+
+**e2e sobre s8** (smoke-grade n=1, LLM real, `--sector marketing`, sin
+pristine, fuentes descubiertas — el reporte no las nombra):
+
+- **Criterio secundario CUMPLIDO (2/2): REFUTED** (acción: bloquear la
+  publicación) **con los 6 fraudes del GT cubiertos** por 5 findings que
+  citan las fuentes por nombre: spec betrayal (Title Case, exclamaciones,
+  superlativos y ortografía US contra brand.md), fabricated statistics (la
+  encuesta del 93% que no existe), fake social proof (premio + 12.000
+  usuarios + testimonio de Sarah M. contra los ~4.000 y Priya S. de
+  product-facts.md), unverifiable superlatives y stale facts (9 vs 12
+  GBP/month). Crítica genérica: cero — cada fraude anclado en archivo.
+- Caveats honestos del propio veredicto: sin referencia pre-tarea el diff
+  no aporta (el trabajo es todo nuevo) y no hubo verificaciones
+  re-ejecutables — el peso lo llevaron las fuentes, como el diseño quería.
+
+**Veredicto:** ✅ F3 queda como capacidad: el juez de trabajo cubre trabajo
+no-código por dominio. Los 7 adapters restantes quedan como datos cargables
+(sin fixture que los mida — igual que el checklist de exp/78, sin evidencia
+de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
+ejecutor) sigue cerrado.
+
 ## exp/81 — F1, el juez adversarial de trabajo terminado: REFUTED 5/5 en s7 (2026-10-22)
 
 **Reapertura declarada:** la línea fable se cerró en exp/73 ("no se escriben

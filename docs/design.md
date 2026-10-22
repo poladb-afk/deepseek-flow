@@ -365,6 +365,19 @@ Presupuestos (L8): `MAX_CLAIMS=12`, `MAX_RERUNS=6`, diff al prompt truncado
 el reporte llega como ruta o texto literal. Medición: exp/81 sobre el
 fixture s7 (5 fraudes plantados) en [bitacora.md](bitacora.md).
 
+**Dominios (F3, exp/82)**: con `sector` (ej. `marketing`), el trabajo
+no-código se juzga con el **adapter del dominio** — la fraud table, el
+evidence set y el orden de autoridad del sector reemplazan los de código
+(los archivos del trabajo viajan al prompt como FUENTES, acotadas, porque la
+evidencia está en los archivos y no en un diff; el vocabulario del `tipo`
+de fraude del contrato es el de las filas de la tabla del adapter). Los 8
+adapters + TEMPLATE de fable-method viven como datos versionados con
+atribución MIT en `banco/material/fable/dominios/` y los carga
+[utils/fable_dominios.py](../utils/fable_dominios.py) (puro; un .md sin las
+secciones vinculantes se saltea con aviso — mismo grep que el CI del repo
+original). Medición: exp/82 sobre el fixture s8 (6 fraudes de copy contra
+`brand.md`/`product-facts.md` que el juez debe descubrir solo).
+
 
 ### Auditoría — BatchFlow + flujo anidado (Flow como Node)
 `main.py auditoria c1 c2 [--glob] [--salida]` · [auditoria.py](../auditoria.py)

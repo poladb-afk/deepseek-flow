@@ -24,6 +24,7 @@ TOOLS = [
                     "trabajo": {"type": "string", "description": "Directorio con el trabajo hecho"},
                     "pristine": {"type": "string", "description": "Directorio de referencia pre-tarea (default: git diff del propio trabajo)"},
                     "reporte": {"type": "string", "description": "Ruta al reporte a juzgar, o el texto del reporte"},
+                    "sector": {"type": "string", "description": "Dominio para trabajo no-código (ej.: marketing, data-analysis, research): juzga con la tabla de fraudes y fuentes del dominio"},
                 },
                 "required": ["trabajo", "reporte"],
             },
@@ -32,11 +33,11 @@ TOOLS = [
 ]
 
 
-def verificar_trabajo(trabajo, pristine=None, reporte=None):
+def verificar_trabajo(trabajo, pristine=None, reporte=None, sector=None):
     from fable_judge import verificar_trabajo as juzgar
 
     try:
-        texto, advertencia = juzgar(trabajo, pristine, reporte)
+        texto, advertencia = juzgar(trabajo, pristine, reporte, sector=sector)
     except ValueError as e:
         return f"ERROR: {e}"
     if advertencia:

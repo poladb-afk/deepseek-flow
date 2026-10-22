@@ -90,7 +90,7 @@ costo 0).
 | coding (HITL) | `edit_file` — reemplazo exacto y único (diff quirúrgico) |
 | HITL web | con `HITL_WEB=1` las aprobaciones se responden desde el navegador |
 | juez | `answer_verified` — borrador → juez (verifica citas contra archivos) → refinamiento; `rondas` opcional |
-| fable (juez de trabajo) | `verificar_trabajo` — juzga adversarialmente trabajo terminado: claims del reporte → diff vs referencia → re-ejecución → caza de fraudes → VERIFIED/CAVEATS/REFUTED |
+| fable (juez de trabajo) | `verificar_trabajo` — juzga adversarialmente trabajo terminado: claims del reporte → diff vs referencia → re-ejecución → caza de fraudes → VERIFIED/CAVEATS/REFUTED; con `sector` (marketing, data-analysis…) juzga trabajo no-código con la fraud table y fuentes del dominio |
 | juez (lote) | `juez_lote` — N preguntas verificadas EN PARALELO (`AsyncParallelBatchFlow`) + medición de speedup |
 | informe | `run_informe` — map-reduce paralelo de trazas `.jsonl` |
 | auditoria | `run_auditoria` — BatchFlow multi-carpeta + síntesis comparativa |
