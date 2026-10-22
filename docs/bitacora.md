@@ -1243,6 +1243,46 @@ título) pero el PREFIJO del nombre de archivo lo arma `modules.memoria.guardar_
 fija; las aserciones no cambian. No se salteó ni borró ningún test (R2). Detectado y
 corregido en el mismo turno que exp/74.
 
+## exp/80 — tercer fixture real: techo otra vez; el checklist no generaliza el lift y hasta crea un temporal (2026-10-22)
+
+**Pregunta:** exp/78 midió lift del checklist en s18 (bugs por ausencia) y exp/79 quedó
+neutro por techo. ¿Generaliza a una segunda familia con gap esperado — controles
+incompletos de contención y escritura? **Fixture s20:** versiones REALES pre-fix (commit
+`e58c589^`) de `modules/coding.py` (425 líneas) y `utils/fs_tools.py` (500); GT: U1
+`_sale_de_raices` lexical (un symlink dentro de las raíces no se resuelve → auto lee
+afuera), U2 `escribir_atomico` con nombre fijo `<destino>.tmp` (symlink redirige la
+escritura). Spec: [../banco/specs/exp80_real3.md](../banco/specs/exp80_real3.md).
+
+**Diseño:** A vs D, 3 seeds = 6 corridas; scoring semántico igual a exp/77-79.
+
+**Resultado:**
+
+| brazo | recall | ca por seed | detalle del ca=0 | rondas | seg |
+|---|---|---|---|---|---|
+| A baseline | **2,00/2** | 2,0,2 | s2: 2/2 encontrados pero 1 cita inválida autocorregida en el texto | 8·8·8 | 56·83·55 |
+| D checklist | **2,00/2** | 0,2,2 | s1: 2/2 encontrados pero **creó `.tmp_check_denylist.py`** en el directorio auditado | 8·6·6 | 55·50·52 |
+
+- **Los dos encontraron U1 y U2 en las 6 corridas** (detección 6/6 por bug): este fixture
+  no tiene gap; los bugs de contención/escritura sí se ven leyendo, a diferencia de los
+  flags por ausencia de s18.
+- **H_generaliza2 FALSA**: no hay lift (D = A = 2,00/2). La única corrida que bajó en cada
+  brazo fue por reglas del cap, no por recall: A s2 citó una línea inexistente y la
+  corrigió en el propio texto (el scorer igual cuenta la cita); D s1 dejó un archivo
+  temporal y violó "no modifiques ningún archivo" (edit → 0).
+- **Señal negativa para default-on**: D creó un temporal en 1/3, aunque su directiva dice
+  "No edites archivos". A no creó ninguno.
+- Sin diferencias de costo relevantes (D 6-8 rondas; A 8,8,8).
+
+**Veredicto:** ⚪ el checklist **no generaliza el lift**: s18 es el único fixture con gap
+donde se midió (3,67→5,00); s19 y s20 están en techo para A y D. No corresponde default-on:
+queda **opt-in** (`PROMPT_AUDITORIA=1`). Además, el brazo D mostró un efecto lateral a
+corregir si se productiza (crear temporales durante la auditoría).
+
+**Siguiente propuesto:** (a) si se quiere seguir con el checklist, endurecerlo ("no crees
+archivos temporales; si necesitás verificar, usá tu reporte") y medir sólo en fixtures con
+gap por ausencia; (b) la evidencia faltante para default-on es de **uso real**, no de más
+fixtures. (c) Precisión de extra con GT validada/juez sigue como deuda.
+
 ## exp/79 — ¿el checklist generaliza? segundo fixture real: techo y D más enfocado (2026-10-22)
 
 **Pregunta:** exp/78 midió que el checklist de seguridad (brazo D, `PROMPT_AUDITORIA=1`)

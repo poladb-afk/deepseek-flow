@@ -159,7 +159,7 @@
         "tests/test_estado_riesgo.py": 3,
         "tests/test_estilo_humano.py": 9,
         "tests/test_evals.py": 15,
-        "tests/test_fable.py": 27,
+        "tests/test_fable.py": 29,
         "tests/test_flujos.py": 34,
         "tests/test_forma_larga.py": 5,
         "tests/test_fs_tools.py": 16,
@@ -200,7 +200,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 778
+      "metrica": 780
     }
   },
   "version": 1

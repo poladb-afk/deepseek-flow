@@ -127,6 +127,7 @@ TAREAS = {
     "s17-scale-audit": _tarea_revision,
     "s18-real-audit": _tarea_revision,
     "s19-real-audit-2": _tarea_revision,
+    "s20-real-audit-3": _tarea_revision,
 }
 
 ESCENARIOS = {
@@ -143,6 +144,7 @@ ESCENARIOS = {
     "s17-scale-audit": {"timeout": 360},
     "s18-real-audit": {"timeout": 300},
     "s19-real-audit-2": {"timeout": 360},
+    "s20-real-audit-3": {"timeout": 360},
 }
 
 ARTEFACTOS = ("INTENT", "AUTH", "TWINS", "PENDING")
@@ -523,6 +525,7 @@ GT_S16 = CASOS / "s16-hard-bug-hunt" / "GROUND-TRUTH.md"
 GT_S17 = CASOS / "s17-scale-audit" / "GROUND-TRUTH.md"
 GT_S18 = CASOS / "s18-real-audit" / "GROUND-TRUTH.md"
 GT_S19 = CASOS / "s19-real-audit-2" / "GROUND-TRUTH.md"
+GT_S20 = CASOS / "s20-real-audit-3" / "GROUND-TRUTH.md"
 FILA_BUG_GT = re.compile(
     r"^\|\s*([A-Z]\d+)\s*\|\s*([\w./-]+\.py):(\d+)\s*\|\s*([^|]+?)\s*\|", re.MULTILINE
 )
@@ -660,6 +663,10 @@ def puntuar_s19(pristine, run, reporte, salida="", eventos=()):
     return puntuar_real_audit(pristine, run, reporte, salida, eventos, GT_S19)
 
 
+def puntuar_s20(pristine, run, reporte, salida="", eventos=()):
+    return puntuar_real_audit(pristine, run, reporte, salida, eventos, GT_S20)
+
+
 def puntuar_real_audit(pristine, run, reporte, salida="", eventos=(), gt=GT_S18):
     """Auditoría de código real: detección SEMÁNTICA (bugs por ausencia incluidos)."""
     cambios = cambios_contra(pristine, run)
@@ -715,6 +722,7 @@ PUNTUADORES = {
     "s17-scale-audit": puntuar_s17,
     "s18-real-audit": puntuar_s18,
     "s19-real-audit-2": puntuar_s19,
+    "s20-real-audit-3": puntuar_s20,
 }
 
 

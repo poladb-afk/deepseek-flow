@@ -395,3 +395,25 @@ def test_s19_scorer_semantico_y_edicion(tmp_path):
     (run / "coding.py").write_text("cambiado\n", encoding="utf-8")
     assert bench.puntuar_s19(pristine, run, reporte)[0] == 0
 
+
+def test_s20_ground_truth_historica_parsea_2_bugs():
+    """Tercer fixture real (commit e58c589^): symlink escape y .tmp symlink."""
+    bench = _bench()
+    bugs, limpios = bench.bugs_de(bench.GT_S20)
+    assert [bug["id"] for bug in bugs] == ["U1", "U2"]
+    assert limpios == []
+    assert bugs[0]["archivo"] == "coding.py" and bugs[1]["archivo"] == "fs_tools.py"
+
+
+def test_s20_scorer_semantico_y_edicion(tmp_path):
+    """El scorer real generalizado corre para s20 (2 bugs)."""
+    bench, pristine, run = _par_fixture("s20-real-audit-3", tmp_path)
+    bugs, _ = bench.bugs_de(bench.GT_S20)
+    reporte = "\n".join(
+        f"- {bug['archivo']}:{bug['linea']} bug: {' '.join(bug['grupos'][0])}."
+        for bug in bugs
+    )
+    assert bench.puntuar_s20(pristine, run, reporte)[0] == 2
+    (run / "fs_tools.py").write_text("cambiado\n", encoding="utf-8")
+    assert bench.puntuar_s20(pristine, run, reporte)[0] == 0
+
