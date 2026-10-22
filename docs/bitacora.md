@@ -1243,6 +1243,54 @@ título) pero el PREFIJO del nombre de archivo lo arma `modules.memoria.guardar_
 fija; las aserciones no cambian. No se salteó ni borró ningún test (R2). Detectado y
 corregido en el mismo turno que exp/74.
 
+## exp/75 — vara más exigente (bugs semánticos/concurrencia): el baseline sigue en 8/8; la skill revision no ayuda (2026-10-22)
+
+**Pregunta:** con bugs semánticos/de estado/concurrencia (más difíciles que los "de
+libro" de exp/74), ¿qué recall alcanza el baseline, y qué agregan la prosa de fable (B) o
+la skill `revision` del propio harness (C)? Fixture **propio** `s16-hard-bug-hunt`: 4
+archivos, 8 bugs difíciles (race check-then-act, shallow copy, floats para dinero, retry
+no idempotente, atributo de clase mutable, iterador agotado, lock sin try/finally, `utcnow`
+naive) + `utils.py` limpio. Criterio en [../banco/specs/exp75_hardbugs.md](../banco/specs/exp75_hardbugs.md).
+
+**Diseño:** A baseline (`PROMPT_FABLE=0, SKILLS=0`), B prosa (`PROMPT_FABLE=1`), C skill
+`revision` (`SKILLS=1`); 3 seeds = **9 corridas**; scoring determinista igual a exp/74
+(cita a ±2 líneas o dentro del rango + keyword; FP en limpio; editar = 0).
+
+**Resultado:**
+
+| brazo | recall medio | ca por seed | citas inválidas | FP | ediciones | seg medio |
+|---|---|---|---|---|---|---|
+| A baseline | **8,00/8** | 2,2,2 | 0 | 0 | 0 | 40,9 |
+| B prosa | 7,33/8 | 1,2,1 | 1 | 0 | 0 | 57,9 |
+| C skill revision | 6,67/8 | 1,1,2 | 0 | 0 | 0 | 41,8 |
+
+- **H_recall FALSA** (predije A < 6/8): el baseline encontró **8/8 en las 3 seeds**, con
+  todas las citas válidas y sin editar. Ni siquiera la vara difícil le encontró techo.
+- **H_prosa VERDADERA solo en el sentido trivial** (B ≈ A): 7,33 vs 8,00; el brazo B además
+  tardó ~40% más y metió 1 cita inválida. No hay lift.
+- **H_skill FALSA**: C quedó **por debajo** (6,67). En s1 encontró el *contenido* de los 8
+  bugs pero citó las líneas corridas (`state.py:23` por `:26`, `ledger.py:13` por `:10`,
+  `reporting_hard.py:21` por `:24`), fuera de la tolerancia ±2: la skill no mejora la
+  evidencia y puede empeorarla. En s2 perdió H4; en s3 sacó 8/8.
+- Detección por bug sobre 9 runs: H1 9/9 · H2 7/9 · H3 8/9 · H4 8/9 · H5 8/9 · H6 9/9 ·
+  H7 8/9 · H8 9/9. Los más escurridizos: shallow copy (H2) y lock sin try/finally (H7).
+- **Scorer (declarado):** C s1 aparecía 1/8 y en realidad había encontrado los 8: citaba
+  rutas relativas al repo (`salidas/fable/runs/.../ledger.py:19`) y `_resolver_cita` solo
+  entendía nombres sueltos. Se corrigió la resolución (repo-relative/absoluta), se agregó
+  test y se re-puntuaron exp/75 y exp/74 (exp/74 quedó idéntico). Bug de medición, no del
+  agente.
+
+**Veredicto:** la calidad de auditoría del baseline es alta también en esta familia:
+8/8 en 3/3, citas 100% válidas, 0 ediciones, 0 FP. **Ni la prosa ni la skill revision
+mejoran**; C es la única que queda por debajo. El cuello no está en "encontrar bugs en
+módulos chicos": está en **escala/contexto** (muchos archivos, bugs cross-file) o en bugs
+que solo se revelan **ejecutando** tests. La vara de sutileza ya no discrimina.
+
+**Siguiente propuesto (exp/76):** subir por ESCALA, no por sutileza — fixture de ~20
+archivos con un bug cross-file (o un repo real con hallazgos conocidos), midiendo recall/
+FP bajo el presupuesto de 8 rondas; y, aparte, revisar el formato de la skill `revision`
+(exigir línea exacta verificada) porque en esta corrida la evidencia empeoró.
+
 ## exp/74 — calidad de auditoría de bugs Python: recall 7,3/8, citas 100% válidas, 0 ediciones (2026-10-22)
 
 **Pregunta:** ¿qué calidad tiene el chat auditando código Python realista (recall, precisión

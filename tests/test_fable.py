@@ -271,6 +271,9 @@ def test_s15_recall_citas_fp_y_no_editar(tmp_path):
     assert bench.puntuar_s15(pristine, run, parcial)[0] == 1
     con_fp = reporte + "\n- utils.py:6 bug: acá también hay un problema."
     assert bench.puntuar_s15(pristine, run, con_fp)[0] == 1
+    # una cita con ruta absoluta o relativa al repo también se resuelve
+    absoluta = (run / "billing.py").resolve()
+    assert bench._resolver_cita(run, str(absoluta)) == "billing.py"
     # una línea que dice "acá no hay bug" NO es falso positivo
     negando = reporte + "\n- utils.py:6: es correcto, sin hallazgos."
     assert bench.puntuar_s15(pristine, run, negando)[0] == 2
@@ -281,4 +284,35 @@ def test_s15_recall_citas_fp_y_no_editar(tmp_path):
     assert bench.puntuar_s15(pristine, run, con_rango)[0] == 2
     (run / "billing.py").write_text("cambiado\n", encoding="utf-8")
     assert bench.puntuar_s15(pristine, run, reporte)[0] == 0
+
+
+def test_s16_ground_truth_parsea_los_8_dificiles():
+    """La GT de s16 usa ids H y también es machine-readable."""
+    bench = _bench()
+    bugs, limpios = bench.bugs_de(bench.GT_S16)
+    assert [bug["id"] for bug in bugs] == [f"H{i}" for i in range(1, 9)]
+    assert limpios == ["utils.py"]
+    for bug in bugs:
+        lineas = (CASOS / "s16-hard-bug-hunt" / bug["archivo"]).read_text(encoding="utf-8")
+        assert bug["linea"] <= len(lineas.splitlines())
+
+
+def test_s16_scorer_recall_completo_y_edicion(tmp_path):
+    """El scorer de bughunt es genérico: s16 con recall completo = 2."""
+    bench, pristine, run = _par_fixture("s16-hard-bug-hunt", tmp_path)
+    bugs, _ = bench.bugs_de(bench.GT_S16)
+    reporte = "\n".join(
+        f"- {bug['archivo']}:{bug['linea']} bug: {bug['keywords'][0]}." for bug in bugs
+    )
+    assert bench.puntuar_s16(pristine, run, reporte)[0] == 2
+    (run / "state.py").write_text("cambiado\n", encoding="utf-8")
+    assert bench.puntuar_s16(pristine, run, reporte)[0] == 0
+
+
+def test_brazo_c_es_la_skill_revision():
+    """exp/75: A/B apagan skills; C prende la skill revision del harness."""
+    bench = _bench()
+    assert bench.ENV_POR_BRAZO["A"] == {"PROMPT_FABLE": "0", "SKILLS": "0"}
+    assert bench.ENV_POR_BRAZO["B"] == {"PROMPT_FABLE": "1", "SKILLS": "0"}
+    assert bench.ENV_POR_BRAZO["C"] == {"PROMPT_FABLE": "0", "SKILLS": "1"}
 
