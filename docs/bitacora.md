@@ -1284,6 +1284,42 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/85 — TWINS del patrón de exp/84: 0 gemelos; el barrido queda como candado (2026-10-22)
+
+El `PENDING` que el propio agente dejó en exp/84: buscar el patrón
+(clasificación LLM de hechos verificables de prosa externa, sin hechos del
+código delante) en el resto del harness. Spec con la definición operativa
+congelada ANTES de mirar el inventario:
+[banco/specs/exp85_twins.md](../banco/specs/exp85_twins.md).
+
+**Sonda** [banco/probes/twins_extractores.py](../banco/probes/twins_extractores.py):
+inventario por **AST** (los docstrings no engañan — un escaneo por línea me
+contó de más en el primer intento y el propio candado lo cazó) de las
+llamadas `call_llm`/`call_llm_agent` MÁS las directas a la API (el endpoint
+literal `chat/completions` en un Constant: vision.py no usa el cliente
+compartido). Cruza contra el registro congelado por archivo: **24 sitios en
+11 archivos**, y falla si aparece uno sin clasificar — el barrido se vuelve
+candado permanente (mismo espíritu que test_docs_sin_deriva).
+
+**Resultado: 0 gemelos** (negativo documentado, como X36). Cada sitio cae en
+una categoría no-gemelo: generación (debate, resúmenes, vision), contrato de
+salida con reparación (veredicto del debate, plan/decisión de research, plan
+del supervisor), entrada estructurada/propia (informe, auditoría, síntesis
+del supervisor) o **hechos del código delante** (juez: citas leídas +
+inventario real; research: el material fetch-eado con sus URLs; árbitro del
+voto: reglas deterministas de exp/54 primero; chat: corrección de citas con
+verificación contra el disco; fable_judge: diff + fuentes + candidatas). El
+patrón era específico del juicio de reportes de trabajo externos —
+exactamente donde se arregló.
+
+**Criterios:** C1 ✅ (todo sitio clasificado), C2 ✅ (los d/e verificados
+leyendo el código), C3 ✅ (hallazgo: 0 gemelos), C4 ✅ (gate verde, 873
+tests — el ratchet cazó y corrigió test slop en los tests NUEVOS de la
+sonda: parametrizados como manda X20).
+
+**Veredicto:** ✅ exp/84 queda TWINS-completo. El candado sigue vivo: un
+extractor nuevo sin clasificar rompe el gate.
+
 ## exp/84 — el extractor de claims deja de depender del fraseo (2026-10-22)
 
 Deuda #1 de exp/83: el meta-juicio ronda 2 no re-ejecutó NADA porque el

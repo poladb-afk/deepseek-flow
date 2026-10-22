@@ -193,6 +193,7 @@
         "tests/test_streaming.py": 11,
         "tests/test_tablero.py": 2,
         "tests/test_thread_store.py": 26,
+        "tests/test_twins_extractores.py": 5,
         "tests/test_ui.py": 6,
         "tests/test_utils_compartidos.py": 7,
         "tests/test_veredicto_router.py": 9,
@@ -202,7 +203,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 852
+      "metrica": 857
     }
   },
   "version": 1
