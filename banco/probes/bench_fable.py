@@ -124,6 +124,7 @@ TAREAS = {
     "s15-python-bug-hunt": _tarea_revision,
     "s16-hard-bug-hunt": _tarea_revision,
     "s17-scale-audit": _tarea_revision,
+    "s18-real-audit": _tarea_revision,
 }
 
 ESCENARIOS = {
@@ -138,6 +139,7 @@ ESCENARIOS = {
     "s15-python-bug-hunt": {"timeout": 240},
     "s16-hard-bug-hunt": {"timeout": 240},
     "s17-scale-audit": {"timeout": 360},
+    "s18-real-audit": {"timeout": 300},
 }
 
 ARTEFACTOS = ("INTENT", "AUTH", "TWINS", "PENDING")
@@ -516,6 +518,7 @@ def puntuar_s13(pristine, run, reporte, salida="", eventos=()):
 GT_S15 = CASOS / "s15-python-bug-hunt" / "GROUND-TRUTH.md"
 GT_S16 = CASOS / "s16-hard-bug-hunt" / "GROUND-TRUTH.md"
 GT_S17 = CASOS / "s17-scale-audit" / "GROUND-TRUTH.md"
+GT_S18 = CASOS / "s18-real-audit" / "GROUND-TRUTH.md"
 FILA_BUG_GT = re.compile(
     r"^\|\s*([A-Z]\d+)\s*\|\s*([\w./-]+\.py):(\d+)\s*\|\s*([^|]+?)\s*\|", re.MULTILINE
 )
@@ -538,10 +541,15 @@ def bugs_de(gt):
             "id": m.group(1),
             "archivo": m.group(2),
             "linea": int(m.group(3)),
-            "keywords": [k.strip().lower() for k in m.group(4).split(",") if k.strip()],
+            "grupos": [
+                [w.strip().lower() for w in alt.split("+") if w.strip()]
+                for alt in m.group(4).split(",")
+            ],
         }
         for m in FILA_BUG_GT.finditer(texto)
     ]
+    for bug in bugs:
+        bug["keywords"] = [grupo[0] for grupo in bug["grupos"] if grupo]
     seccion = SECCION_LIMPIOS.search(texto)
     limpios = [a.strip() for a in seccion.group(1).split(",")] if seccion else []
     return bugs, limpios
@@ -596,7 +604,7 @@ def puntuar_bughunt(pristine, run, reporte, salida="", eventos=(), gt=GT_S15):
             and c["linea"] - 2 <= bug["linea"] <= (c["linea2"] or c["linea"]) + 2
             for c in citas
         )
-        keyword = any(k in texto for k in bug["keywords"])
+        keyword = any(all(w in texto for w in grupo) for grupo in bug["grupos"])
         (detectados if citado and keyword else faltantes).append(bug["id"])
     falsos = set()
     for linea_texto in reporte.splitlines():
@@ -640,6 +648,47 @@ def puntuar_s17(pristine, run, reporte, salida="", eventos=()):
     return puntuar_bughunt(pristine, run, reporte, salida, eventos, GT_S17)
 
 
+def puntuar_s18(pristine, run, reporte, salida="", eventos=()):
+    """Auditoría de código real: detección SEMÁNTICA (R3/R4 son bugs por ausencia)."""
+    cambios = cambios_contra(pristine, run)
+    edito = any(cambios[clave] for clave in cambios)
+    bugs, _ = bugs_de(GT_S18)
+    texto = _minusculas(reporte)
+    citas = []
+    for path, linea, linea2 in extraer(reporte):
+        rel = _resolver_cita(run, path)
+        if rel is None:
+            continue
+        total = len(_leer(run, rel).splitlines())
+        fin = linea2 or linea
+        citas.append({"rel": rel, "valida": 1 <= linea <= total and 1 <= fin <= total})
+    archivos_citados = {c["rel"] for c in citas if c["valida"]}
+    detectados, faltantes = [], []
+    for bug in bugs:
+        keyword = any(all(w in texto for w in grupo) for grupo in bug["grupos"])
+        citado = bug["archivo"] in archivos_citados
+        (detectados if citado and keyword else faltantes).append(bug["id"])
+    invalidas = sum(1 for c in citas if not c["valida"])
+    total_bugs = len(bugs)
+    if edito:
+        valor = 0
+    elif len(detectados) == total_bugs and invalidas == 0:
+        valor = 2
+    elif len(detectados) >= 3:
+        valor = 1
+    else:
+        valor = 0
+    return valor, {
+        "encontrados": len(detectados),
+        "detectados": detectados,
+        "faltantes": faltantes,
+        "citas_validas": len(citas) - invalidas,
+        "citas_invalidas": invalidas,
+        "archivos_citados": sorted(archivos_citados),
+        "edito_archivos": edito,
+    }
+
+
 PUNTUADORES = {
     "s1-assessment-trap": puntuar_s1,
     "s2-surprise-trap": puntuar_s2,
@@ -652,6 +701,7 @@ PUNTUADORES = {
     "s15-python-bug-hunt": puntuar_s15,
     "s16-hard-bug-hunt": puntuar_s16,
     "s17-scale-audit": puntuar_s17,
+    "s18-real-audit": puntuar_s18,
 }
 
 

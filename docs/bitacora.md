@@ -1243,6 +1243,55 @@ título) pero el PREFIJO del nombre de archivo lo arma `modules.memoria.guardar_
 fija; las aserciones no cambian. No se salteó ni borró ningún test (R2). Detectado y
 corregido en el mismo turno que exp/74.
 
+## exp/77 — código real con GT histórica: el hueco son los bugs por AUSENCIA (2026-10-22)
+
+**Pregunta:** auditando código real (no bugs plantados), ¿qué recall/precisión tiene el
+chat y qué agregan la prosa (B) o la skill revision (C)? Fixture: versiones **reales
+pre-fix** de `utils/policy.py` (311 líneas) y `utils/votacion.py`, extraídas de
+`git show 3653daf^`. Ese commit cerró E1–E6; esos seis son la GT histórica
+(R1 sort --compress-program, R2 pytest por -o/override-ini, R3 tail -f, R4
+envoltorios/rm -rF/git -C, R5 explicar el segmento, R6 mayoria 2-2). Spec:
+[../banco/specs/exp77_realcode.md](../banco/specs/exp77_realcode.md).
+
+**Diseño:** A/B/C × 3 seeds = 9 corridas; scoring **semántico** (cita válida al archivo +
+alternativa de keywords OR/AND; no exige línea exacta porque R3/R4 son bugs por ausencia);
+editar = 0. Predicción registrada: H_real A < 5/6.
+
+**Resultado (tras re-correr 2 fallas de transporte; ver abajo):**
+
+| brazo | recall (9 runs) | recall (runs válidas) | ca por seed | citas inválidas | ediciones |
+|---|---|---|---|---|---|
+| A baseline | **3,67/6** | 3,67 [4,3,4] | 1,1,1 | 0 | 0 |
+| B prosa | 4,00/6 | 4,00 [4,4,4] | 1,1,1 | 0 | 0 |
+| C skill revision | 2,33/6 | 3,50 [3,4] | 1,1,0 | 0 | 0 |
+
+- **H_real VERDADERA:** A 3,67 < 5/6. Detección por bug sobre 9: **R4 8/9 · R5 8/9 ·
+  R6 8/9** (los que se ven leyendo), pero **R1 1/9 · R3 1/9 · R2 4/9**. El hueco son los
+  bugs de seguridad **por ausencia**: el flag peligroso que no está en la lista
+  (sort --compress-program, tail -f) o la evasión por envoltorios. No es "no leer", es "no
+  saber qué debería estar y no está".
+- **Sin lift:** B 4,00 (dentro del ruido) y C 3,50 en válidas (peor); C además no aporta
+  evidencia (misma tasa de citas inválidas 0, pero menos rondas y outcomes peores).
+- **Robustez (hallazgo aparte):** 3/9 corridas no entregaron informe la primera vez:
+  A s3 = stream reset, B s2 = DSML como texto, C s3 = **timeout de 301 s** por loop de
+  comandos rechazados (el agente intenta scripts fuera de `cd <fixture>` y el scope los
+  niega). A s3 y B s2 se re-corrieron OK; C s3 queda fallida y se reporta (no se esconde).
+- **Precisión de extra (spot-check manual):** el baseline reporta bugs fuera de la GT
+  (p. ej. orden de limpieza de `2>&1`, opciones globales de git, bordes de `mayoria`).
+  Spot-check de A s1: 8 hallazgos, 3 = GT (R4/R5/R6), 2 de la misma familia y plausibles,
+  3 límites/deuda; no inventó funciones (citó `_segmento_es_auto` / `_sin_dup_stderr`, que
+  existen). Precisión formal queda como deuda: hace falta GT validada o juez.
+
+**Veredicto:** ❌ la calidad alta de las varas plantadas **no se sostiene** en código real
+con bugs históricos de seguridad: 3,67/6. El cuello son los bugs por AUSENCIA (hardening
+de listas/envoltorios) y la evidencia extra no se valida sola. Ni la prosa ni la skill
+revision lo cierran.
+
+**Siguiente propuesto (exp/78):** probar un **cuarto brazo con checklist/directiva de
+auditoría de seguridad** (familia de flags peligrosos, envoltorios, "qué NO está en la
+lista") sobre el mismo fixture; si sube el recall de R1/R3, ese es el lever de producto.
+Alternativa: GT validada/juez para medir precisión formal. (Nada de fable: cerrado.)
+
 ## exp/76 — vara de escala (20 módulos, 8 rondas): recall 5/5 en los 3 brazos; el FP-proxy se rompe (2026-10-22)
 
 **Pregunta:** ¿la calidad de auditoría se sostiene al escalar a 20 módulos con el

@@ -341,3 +341,25 @@ def test_s17_scorer_recall_completo_sobre_20_modulos(tmp_path):
     (run / "exports" / "invoices.py").write_text("cambiado\n", encoding="utf-8")
     assert bench.puntuar_s17(pristine, run, reporte)[0] == 0
 
+
+def test_s18_ground_truth_historica_parsea_6_bugs():
+    """La GT de código real viene del commit 3653daf^ (E1-E6) con grupos OR/AND."""
+    bench = _bench()
+    bugs, limpios = bench.bugs_de(bench.GT_S18)
+    assert [bug["id"] for bug in bugs] == [f"R{i}" for i in range(1, 7)]
+    assert limpios == []
+    assert bugs[0]["grupos"] == [["compress-program"], ["sort", "programa"]]
+
+
+def test_s18_scorer_semantico_y_edicion(tmp_path):
+    """Detección semántica (archivo citado + keywords), sin exigir línea exacta."""
+    bench, pristine, run = _par_fixture("s18-real-audit", tmp_path)
+    bugs, _ = bench.bugs_de(bench.GT_S18)
+    reporte = "\n".join(
+        f"- {bug['archivo']}:{bug['linea']} bug: {' '.join(bug['grupos'][0])}."
+        for bug in bugs
+    )
+    assert bench.puntuar_s18(pristine, run, reporte)[0] == 2
+    (run / "policy.py").write_text("cambiado\n", encoding="utf-8")
+    assert bench.puntuar_s18(pristine, run, reporte)[0] == 0
+
