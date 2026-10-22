@@ -1243,6 +1243,48 @@ título) pero el PREFIJO del nombre de archivo lo arma `modules.memoria.guardar_
 fija; las aserciones no cambian. No se salteó ni borró ningún test (R2). Detectado y
 corregido en el mismo turno que exp/74.
 
+## exp/76 — vara de escala (20 módulos, 8 rondas): recall 5/5 en los 3 brazos; el FP-proxy se rompe (2026-10-22)
+
+**Pregunta:** ¿la calidad de auditoría se sostiene al escalar a 20 módulos con el
+presupuesto normal (8 rondas), o aparece el costo de contexto? ¿La prosa (B) o la skill
+`revision` (C) cambian algo? Fixture reusado de `s13-twin-fleet` (MIT, sin duplicar
+archivos): 20 módulos, **5 con el bug de truncado**, 14 limpios del bug plantado y 1
+décoy neutral (shipping, gramos). 9 corridas A/B/C × 3 seeds. Criterio en
+[../banco/specs/exp76_scale.md](../banco/specs/exp76_scale.md).
+
+**Resultado:**
+
+| brazo | recall medio | ca por seed | citas inválidas | FP | ediciones | rondas | seg |
+|---|---|---|---|---|---|---|---|
+| A baseline | **5,00/5** | 2,1,2 | 0 | 5 | 0 | 6,0 | 49,3 |
+| B prosa | **5,00/5** | 1,1,1 | 0 | 7 | 0 | 6,7 | 47,0 |
+| C skill revision | **5,00/5** | 1,1,1 | 0 | 8 | 0 | 4,7 | 37,2 |
+
+- **H_escala FALSA**: el baseline encontró los 5 truncados **en las 3 seeds**, con 0 citas
+  inválidas y 0 ediciones, usando 5-7 de las 8 rondas. No hace falta leer los 20 archivos
+  a mano: pre-fetch + `search_files` + lectura dirigida alcanzan.
+- Detección por bug sobre 9 runs: S1-S5 **9/9 cada uno**.
+- **H_prosa / H_skill:** sin lift en recall; B tarda y hace más HITL, C va más rápido
+  (4,7 rondas) pero junta más hallazgos extra.
+- **El FP-proxy no es interpretable en esta escala (declarado):** revisé los FP contados
+  y la mayoría son **hallazgos extra legítimos** en módulos que el GT declara limpios *del
+  bug plantado*, no de todo defecto: CSV sin quoting en los décoy (`users/products/tags`),
+  truncado de cantidades en `inventory.py`, half-even de `round()` en `currency.py`. Un
+  solo reporte (C s1) cita 6 módulos en una línea y suma 6 FP. El cap pre-registrado queda
+  como está; no se re-puntúa, se reporta la limitación.
+- **Veredicto de calidad:** ✅ a escala 20 módulos / 8 rondas, el recall es completo, las
+  citas 100% válidas y no edita. El techo ya no es "encontrar bugs": es que **el modelo
+  encuentra más de lo que el GT contempla**, y el instrumento no tiene cómo validar esos
+  hallazgos extra sin una GT más rica o juicio humano.
+- Nota de arms: C (skill `revision`) sigue sin sumar recall y ahora el patrón de exp/75 se
+  repite: formato más compacto y más rápido, pero la evidencia extra no se valida.
+
+**Siguiente propuesto (exp/77):** cambiar el modo de validación, no el tamaño — correr la
+auditoría sobre **código real** (p. ej. deepseek-flow o un repo chico con hallazgos
+conocidos) y validar cada finding con el operador/juez (precisión real), o escalar a 100+
+archivos. La vara de bugs plantados ya está saturada: 20 archivos no alcanzan a discriminar
+y el GT no puede seguirla.
+
 ## exp/75 — vara más exigente (bugs semánticos/concurrencia): el baseline sigue en 8/8; la skill revision no ayuda (2026-10-22)
 
 **Pregunta:** con bugs semánticos/de estado/concurrencia (más difíciles que los "de

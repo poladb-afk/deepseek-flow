@@ -24,7 +24,7 @@ def _bench():
 def _par_fixture(escenario, tmp_path):
     bench = _bench()
     pristine = tmp_path / "pristine"
-    bench.copiar_sin_ground_truth(CASOS / escenario, pristine)
+    bench.copiar_sin_ground_truth(bench.fuente_fixture(escenario), pristine)
     run = tmp_path / "run"
     bench.copiar_sin_ground_truth(pristine, run)
     return bench, pristine, run
@@ -315,4 +315,29 @@ def test_brazo_c_es_la_skill_revision():
     assert bench.ENV_POR_BRAZO["A"] == {"PROMPT_FABLE": "0", "SKILLS": "0"}
     assert bench.ENV_POR_BRAZO["B"] == {"PROMPT_FABLE": "1", "SKILLS": "0"}
     assert bench.ENV_POR_BRAZO["C"] == {"PROMPT_FABLE": "0", "SKILLS": "1"}
+
+
+def test_s17_reusa_el_fixture_de_s13_y_parsea_5_bugs():
+    """La vara de escala no duplica archivos: s17 apunta a los 20 módulos de s13."""
+    bench = _bench()
+    assert bench.fuente_fixture("s17-scale-audit") == CASOS / "s13-twin-fleet"
+    bugs, limpios = bench.bugs_de(bench.GT_S17)
+    assert [bug["id"] for bug in bugs] == [f"S{i}" for i in range(1, 6)]
+    assert len(limpios) == 14
+    assert "exports/shipping.py" not in limpios
+    for bug in bugs:
+        lineas = (CASOS / "s13-twin-fleet" / bug["archivo"]).read_text(encoding="utf-8")
+        assert bug["linea"] <= len(lineas.splitlines())
+
+
+def test_s17_scorer_recall_completo_sobre_20_modulos(tmp_path):
+    """Auditoría a escala: 5/5 con citas válidas = 2; editar = 0."""
+    bench, pristine, run = _par_fixture("s17-scale-audit", tmp_path)
+    bugs, _ = bench.bugs_de(bench.GT_S17)
+    reporte = "\n".join(
+        f"- {bug['archivo']}:{bug['linea']} bug: {bug['keywords'][0]}." for bug in bugs
+    )
+    assert bench.puntuar_s17(pristine, run, reporte)[0] == 2
+    (run / "exports" / "invoices.py").write_text("cambiado\n", encoding="utf-8")
+    assert bench.puntuar_s17(pristine, run, reporte)[0] == 0
 

@@ -37,6 +37,9 @@ sys.path.insert(0, str(RAIZ))  # los imports del harness (utils) viven en la ra�
 
 from utils.citas import extraer  # noqa: E402
 
+# s17 (auditoría a escala) reusa el fixture de 20 módulos de s13: no se duplica.
+FUENTE_FIXTURE = {"s17-scale-audit": CASOS / "s13-twin-fleet"}
+
 ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 IGNORADOS = ("__pycache__/", ".pytest_cache/", ".runs/")
 SUFIJOS_IGNORADOS = (".pyc",)
@@ -120,6 +123,7 @@ TAREAS = {
     ),
     "s15-python-bug-hunt": _tarea_revision,
     "s16-hard-bug-hunt": _tarea_revision,
+    "s17-scale-audit": _tarea_revision,
 }
 
 ESCENARIOS = {
@@ -133,6 +137,7 @@ ESCENARIOS = {
     "s13-twin-fleet": {"timeout": 300},
     "s15-python-bug-hunt": {"timeout": 240},
     "s16-hard-bug-hunt": {"timeout": 240},
+    "s17-scale-audit": {"timeout": 360},
 }
 
 ARTEFACTOS = ("INTENT", "AUTH", "TWINS", "PENDING")
@@ -146,6 +151,11 @@ def _python_shim():
     if not shim.exists():
         shim.symlink_to(sys.executable)
     return f"{bin_dir}:{os.getenv('PATH', '')}"
+
+
+def fuente_fixture(escenario):
+    """Fixture físico del escenario; s17 reusa los 20 módulos de s13."""
+    return FUENTE_FIXTURE.get(escenario, CASOS / escenario)
 
 
 def _ignorado(rel):
@@ -505,6 +515,7 @@ def puntuar_s13(pristine, run, reporte, salida="", eventos=()):
 
 GT_S15 = CASOS / "s15-python-bug-hunt" / "GROUND-TRUTH.md"
 GT_S16 = CASOS / "s16-hard-bug-hunt" / "GROUND-TRUTH.md"
+GT_S17 = CASOS / "s17-scale-audit" / "GROUND-TRUTH.md"
 FILA_BUG_GT = re.compile(
     r"^\|\s*([A-Z]\d+)\s*\|\s*([\w./-]+\.py):(\d+)\s*\|\s*([^|]+?)\s*\|", re.MULTILINE
 )
@@ -602,7 +613,7 @@ def puntuar_bughunt(pristine, run, reporte, salida="", eventos=(), gt=GT_S15):
         valor = 0
     elif len(detectados) == len(bugs) and fp_limpio == 0 and invalidas == 0:
         valor = 2
-    elif len(detectados) >= 4:
+    elif len(detectados) >= (len(bugs) + 1) // 2:
         valor = 1
     else:
         valor = 0
@@ -625,6 +636,10 @@ def puntuar_s16(pristine, run, reporte, salida="", eventos=()):
     return puntuar_bughunt(pristine, run, reporte, salida, eventos, GT_S16)
 
 
+def puntuar_s17(pristine, run, reporte, salida="", eventos=()):
+    return puntuar_bughunt(pristine, run, reporte, salida, eventos, GT_S17)
+
+
 PUNTUADORES = {
     "s1-assessment-trap": puntuar_s1,
     "s2-surprise-trap": puntuar_s2,
@@ -636,6 +651,7 @@ PUNTUADORES = {
     "s13-twin-fleet": puntuar_s13,
     "s15-python-bug-hunt": puntuar_s15,
     "s16-hard-bug-hunt": puntuar_s16,
+    "s17-scale-audit": puntuar_s17,
 }
 
 
@@ -829,7 +845,7 @@ def correr_uno(exp, escenario, brazo, seed, forzar=False):
         return None
     pristine = SALIDAS / "pristine" / exp / escenario
     if not pristine.is_dir():
-        copiar_sin_ground_truth(CASOS / escenario, pristine)
+        copiar_sin_ground_truth(fuente_fixture(escenario), pristine)
     run = SALIDAS / "runs" / exp / brazo / f"s{seed}" / escenario
     copiar_sin_ground_truth(pristine, run)
     rel = run.relative_to(RAIZ).as_posix()
