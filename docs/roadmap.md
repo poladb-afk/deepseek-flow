@@ -227,6 +227,12 @@ el supervisor ya lo es de facto); debate con tools (debaters que grep/lean/corre
 antes de argumentar — medir win-rate en temas factuales); comité de jueces
 (juez_lote + mayoria() = self-consistency 2-de-3); coding loop como sub-flow
 (plan→edit→test→revert, presupuesto propio).
+- **Diseño listo, no portado (2026-10-23):** el agente fractal viejo del operador
+  trae `spawn` (sub-agentes paralelos con presupuesto heredado, depth ≤ 2 con
+  devolución del sobrante), `best_of` (k borradores + picker) y `dried`
+  (convergencia medida sobre el texto) ya resueltos de diseño — ver
+  [informes/fractal_agent_mapeo_2026-10-23.md](informes/fractal_agent_mapeo_2026-10-23.md);
+  se portan cuando la mesa se des-estacione por uso.
 
 **Mesa 5 — Async donde falta:** research de BatchNode a AsyncParallelBatchNode
 (mismo patrón medido que juez_lote); comité de debates paralelos (N debates
