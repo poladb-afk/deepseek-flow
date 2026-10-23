@@ -47,6 +47,7 @@ MAX_DIFF = 20000  # chars del diff que viajan al prompt
 MAX_RECORTE = 400  # chars de evidencia/salida por fila del veredicto
 MAX_FUENTES = 9000  # chars de contenido de archivos en el modo dominio
 MAX_CONTENIDO_NUEVOS = 9000  # chars del contenido de los archivos nuevos del diff
+MAX_LISTADO = 4000  # chars del listado de archivos que viaja al prompt de claims
 MARCA_CORTE = "[... contenido truncado ...]"
 
 TIPOS_CLAIM = ("hecho", "verificacion", "intacto", "scope")
@@ -64,8 +65,12 @@ ETIQUETAS_VEREDICTO = {
 # El diff no compara basura de tooling (mismo criterio que el banco al
 # puntuar, exp/72): una caché no es "un cambio del agente". Y la ANSWER
 # SHEET del banco nunca es evidencia: una corrida sobre un directorio de
-# escenario no puede alimentarle el GROUND-TRUTH al juez.
-IGNORADOS_DIFF = ("__pycache__", ".pytest_cache", ".git", ".runs")
+# escenario no puede alimentarle el GROUND-TRUTH al juez. Los directorios de
+# artifacts (salidas de corridas, cachés de ruff/archify/modelos) tampoco:
+# con trabajo=raíz del repo sumaban 4.973 archivos (exp/93). `memoria/` NO se
+# excluye: son datos curados del usuario, no artifacts.
+IGNORADOS_DIFF = ("__pycache__", ".pytest_cache", ".git", ".runs",
+                  "salidas", ".ruff_cache", ".archify", ".modelos")
 
 
 def _es_ground_truth(nombre):
@@ -96,6 +101,28 @@ def _archivos_bajo(raiz):
         and not _es_ground_truth(p.name)
         and not any(parte in IGNORADOS_DIFF for parte in p.relative_to(raiz).parts)
     }
+
+
+def listado_prompt(archivos, tope=MAX_LISTADO):
+    """El listado de archivos que viaja al prompt de claims, acotado al tope.
+
+    Recorta por LÍNEAS (no por chars) y el marcador DECLARA el total: el
+    extractor tiene que saber que el árbol es más grande que lo que ve. Si
+    el listado entra, viaja entero (los fixtures chicos no cambian)."""
+    rutas = list(archivos)
+    texto = "\n".join(rutas)
+    if len(texto) <= tope:
+        return texto
+    # el marcador conserva el total; se descuenta del presupuesto
+    marca = f"[... listado truncado: {len(rutas)} archivos ...]"
+    visibles = []
+    usado = 0
+    for rel in rutas:
+        if usado + len(rel) + 1 > tope - len(marca) - 1:
+            break
+        visibles.append(rel)
+        usado += len(rel) + 1
+    return "\n".join(visibles + [marca])
 
 
 def diff_contra(trabajo, pristine):
@@ -471,7 +498,7 @@ class RecolectarClaims(Node):
     """Paso 1: el reporte como lista de afirmaciones a probar o refutar."""
 
     def prep(self, shared):
-        listado = "\n".join(_archivos_bajo(shared["trabajo"])) or "(vacío)"
+        listado = listado_prompt(_archivos_bajo(shared["trabajo"])) or "(vacío)"
         return shared["reporte"], listado
 
     def _prompt(self, reporte, listado):

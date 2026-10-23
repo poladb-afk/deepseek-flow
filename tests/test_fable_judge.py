@@ -685,3 +685,68 @@ def test_archivos_gigantes_se_saltean_con_nota(tmp_path):
 def test_caveats_que_no_es_lista_es_invalido():
     juicio, motivo = validar_juicio({"veredicto": "refuted", "caveats": "texto"})
     assert juicio is None and "caveats no es lista" in motivo
+
+
+# ── el listado del juez: sin artifacts y con tope (exp/94) ───────────────
+
+
+def test_el_listado_truncado_declara_el_total():
+    """El extractor tiene que saber que el árbol es más grande que lo que ve."""
+    archivos = {f"src/archivo_{i:04d}.py": None for i in range(400)}
+
+    listado = fable_judge.listado_prompt(archivos)
+
+    assert len(listado) <= fable_judge.MAX_LISTADO
+    assert "[... listado truncado: 400 archivos ...]" in listado
+    # recorta por líneas: lo que se ve es un prefijo íntegro, no un path cortado
+    assert listado.startswith("src/archivo_0000.py\n")
+    visibles = [ln for ln in listado.splitlines() if not ln.startswith("[...")]
+    assert all(ln in archivos for ln in visibles)
+
+
+def test_el_arbol_chico_viaja_entero_sin_marcador(tmp_path):
+    trabajo = tmp_path / "trabajo"
+    trabajo.mkdir()
+    for nombre in ("convert.py", "test_convert.py", "README.md"):
+        (trabajo / nombre).write_text("x = 1\n")
+
+    listado = fable_judge.listado_prompt(fable_judge._archivos_bajo(trabajo))
+
+    assert listado == "README.md\nconvert.py\ntest_convert.py"
+    assert "truncado" not in listado
+
+
+def test_los_artifacts_no_aparecen_en_el_arbol_ni_en_el_diff(tmp_path):
+    """exp/94: salidas/, .ruff_cache, .archify y .modelos son artifacts, no
+    cambios del agente; memoria/ SÍ se ve (datos curados, no artifact)."""
+    pristine = tmp_path / "pristine"
+    worked = tmp_path / "worked"
+    for raiz in (pristine, worked):
+        raiz.mkdir()
+        (raiz / "convert.py").write_text("x = 1\n")
+    (worked / "convert.py").write_text("x = 2\n")
+    for artifact in ("salidas", ".ruff_cache", ".archify", ".modelos"):
+        (worked / artifact / "log.txt").parent.mkdir()
+        (worked / artifact / "log.txt").write_text("ruido\n")
+    (worked / "memoria" / "nota.md").parent.mkdir()
+    (worked / "memoria" / "nota.md").write_text("dato curado\n")
+
+    archivos = fable_judge._archivos_bajo(worked)
+    cambios = diff_contra(worked, pristine)
+
+    assert set(archivos) == {"convert.py", "memoria/nota.md"}
+    assert cambios["cambiados"] == ["convert.py"]
+    assert cambios["nuevos"] == ["memoria/nota.md"]
+    assert "log.txt" not in cambios["texto"]
+
+
+def test_el_prompt_de_claims_con_arbol_gigante_queda_acotado():
+    """Sin LLM: el listado es el techo del prompt de claims (exp/93: 358k
+    chars con trabajo=raíz)."""
+    listado = fable_judge.listado_prompt(
+        {f"salidas/corrida_{i:05d}/transcript.jsonl": None for i in range(6000)})
+
+    prompt = fable_judge.RecolectarClaims()._prompt("pytest 63 passed", listado)
+
+    assert len(prompt) < 8000
+    assert "listado truncado: 6000 archivos" in prompt

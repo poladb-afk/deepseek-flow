@@ -1284,6 +1284,32 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/94 — el listado del juez: 139k → 2,8k tokens por extracción de claims (2026-10-23)
+
+El fix directo del hallazgo de exp/93, hecho por el chat en sesión shadow
+(par #3 de la flywheel) y medido con la propia sonda. Spec:
+[banco/specs/exp94_listado_juez.md](../banco/specs/exp94_listado_juez.md).
+
+**El fix:** `IGNORADOS_DIFF` suma los artifacts (`salidas`, `.ruff_cache`,
+`.archify`, `.modelos` — `memoria/` queda: datos del usuario); el listado del
+prompt de claims viaja recortado por LÍNEAS a 4.000 chars con marcador que
+DECLARA el total ("el extractor tiene que saber que el árbol es más grande
+que lo que ve"); los fixtures chicos no cambian.
+
+**La medición (e2e, sonda de exp/93):** corrida real del juez sobre la raíz
+del repo: claims **138.957 → 2.799 tokens (50×)**, juicio 4.889 (el diff
+también quedó sin artifacts). Una auditoría del meta-loop completa:
+~148k → **~7,7k tokens (~20×)** — el instrumento de auditoría dejó de ser el
+mayor consumidor de tokens del sistema.
+
+**La sesión:** un edit con el hunk truncado en el panel parecía borrar el
+docstring de `diff_contra` — rechazado, re-propuesto completo (era la
+función nueva desplazando líneas). El chat desobedeció "tests dirigidos" por
+segunda vez pero ahora se autodiagnosticó con `git stash`: los 3 fallos de
+la suite completa son la contaminación de entorno de la sesión (exp/93),
+preexistentes. Dejó el e2e explícitamente para el auditor. Gate verde (932
+tests: +4).
+
 ## exp/93 — la sonda de tokens: presupuesto-por-tokens muere, el listado del juez queda desnudo (2026-10-23)
 
 El ítem condicionado de exp/89 ("presupuesto de tokens — recién con datos")
