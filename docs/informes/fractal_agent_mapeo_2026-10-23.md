@@ -2,6 +2,7 @@
 
 **Fecha:** 2026-10-23 · **Origen:** `docs/informes/fractal_agent__1_.py` (531 líneas), `docs/informes/mock_llm__1_.py` (41), `docs/informes/server.py` (60) · **Destino:** `docs/roadmap.md` mesas 4/5/6 (líneas 224–253) y el harness actual (`main.py`, `nodes.py`, `modules/`, `juez_lote.py`, `informe.py`).
 **Método:** lectura directa de los cuatro archivos citados y del código de destino; cada afirmación sobre el harness va con `archivo:línea` verificado. Lo que no verifiqué se dice explícitamente.
+**Evidencia online que ajusta este mapeo:** [fractal_spawn_evidencia_2026-10-23.md](fractal_spawn_evidencia_2026-10-23.md) — dos aportes clave: **nadie en producción entrega presupuesto heredado por sub-agente** (sería aporte propio, no copia) y **BestOf sólo se paga con verificador bueno** (BoN con reward imperfecto se degrada — arXiv 2511.18630), así que su puerta debe exigir un verificador medible.
 
 ## Veredicto
 
