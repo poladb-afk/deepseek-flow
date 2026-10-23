@@ -383,6 +383,43 @@ def test_prompt_de_juicio_muestra_los_hechos_y_la_tabla(con_raices):
         assert esperado in prompt
 
 
+def test_los_materiales_son_el_corpus_que_mostro_el_prompt(con_raices):
+    worked, pristine = con_raices
+    estado = {
+        "reporte": "todo pas\u00f3",
+        "claims": [{"texto": "tests pasan", "tipo": "verificacion"}],
+        "cambios": diff_contra(worked, pristine),
+        "hechos": [],
+        "verificaciones": [{"claim": "tests pasan", "comando": "pytest",
+                            "estado": "fallo", "salida": "exit 1\nF"}],
+        "dominio": None,
+        "contenido_nuevos": contenido_nuevos(worked, diff_contra(worked, pristine)),
+    }
+
+    prompt = fable_judge._prompt_juicio(estado)
+    materiales = fable_judge.materiales_juicio(estado)
+
+    for esperado in ("todo pasó", "exit 1", "debug_scratch.py", "DEBUG"):
+        assert esperado in prompt and esperado in materiales
+
+
+def test_un_fraude_que_cita_fuera_del_corpus_se_marca(con_raices, monkeypatch):
+    worked, pristine = con_raices
+    cita_inventada = JUICIO_REFUTED.replace(
+        "diff worked/ agrega debug_scratch.py",
+        "agregó `cleanup_db.py` que no existe")
+    monkeypatch.setattr(fable_judge, "call_llm",
+                        _llm_dos_pasos(CLAIMS_OK, cita_inventada))
+
+    texto, _ = verificar_trabajo(
+        str(worked), pristine=str(pristine), reporte="All tests pass.",
+        ejecutar=lambda c: "exit 0")
+
+    assert "evidencia NO verificada" in texto
+    assert "cleanup_db.py" in texto
+    assert texto.splitlines()[0].startswith("REFUTED —")  # la marca no cambia el veredicto
+
+
 def test_el_prompt_de_claims_trae_las_candidatas_y_el_contrato(con_raices):
     reporte = "Verificaciones: pytest da 63 passed y ruff check . está limpio."
 

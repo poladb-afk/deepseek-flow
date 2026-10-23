@@ -1284,6 +1284,45 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/95 — la evidencia del juez también se verifica (2026-10-23)
+
+El cierre del ciclo abierto en exp/92: el juez puede citar código que no
+existe con total confianza, y solo el chequeo empírico del operador lo
+desarmaba. Ahora las CITAS de la evidencia de cada fraude se verifican
+determinísticamente contra el corpus que el juicio vio. Tres sesiones shadow
+(pares #4, #5 y #6 de la flywheel), spec:
+[banco/specs/exp95_evidencia_juez.md](../banco/specs/exp95_evidencia_juez.md).
+
+**La pieza:** `verificar_evidencia(fraudes, materiales)` (pura): extrae los
+spans entre backticks de la evidencia, los busca en `materiales_juicio`
+(el corpus LITERAL que viajó al prompt — mismo helper `_reporte_prompt` para
+prompt y corpus, no puede divergir), con normalización de espacios. El fraude
+con citas ausentes queda marcado "evidencia NO verificada" en la tabla del
+veredicto — marca INFORMATIVA: el veredicto no cambia (mismo espíritu que
+`resuelto_por_nombre`); sin spans no se marca (prosa pura no tiene qué
+verificar, declarado).
+
+**El e2e trajo un experimento natural:** la corrida real usó el reporte viejo
+de exp/92 contra el diff nuevo de exp/95 — y el juez refutó con precisión la
+DERIVA reporte↔diff (84 vs 66 passed re-ejecutado; "el reporte describe fix
+1/fix 2 pero el diff no los contiene"; scope creep de la spec exp/95) con las
+cuatro evidencias genuinas SIN marca: cero falsos positivos sobre evidencia
+real. El caso de la cita inventada queda cubierto por el test mockeado con el
+textual de exp/92.
+
+**Las tres sesiones y los dos rechazos que importaron:** sesión 1 = plan sin
+código (39 rondas, 11/11 citas). Sesión 2 = la pieza y la compuerta — el
+supervisor rechazó un edit que quitaba el `"veredicto": "refuted"` forzado
+(regresión de la compuerta F1/exp/87); la reestructura correcta llegó tras el
+rechazo (verificación en la rama de paso, forzado intacto). Sesión 3 = corpus,
+tabla y tests (66→90 en la suite del juez con el archivo de claims). Gate
+verde desde shell limpia confirma que los 3 fallos que vio la sesión eran su
+propia contaminación de entorno.
+
+**Veredicto:** ✅ C1–C5 (gate verde, 934 tests). El instrumento completó su
+propia lógica: "un reporte es claims, no evidencia" — ahora también para el
+juez mismo. La flywheel queda en 6/250 pares.
+
 ## exp/94 — el listado del juez: 139k → 2,8k tokens por extracción de claims (2026-10-23)
 
 El fix directo del hallazgo de exp/93, hecho por el chat en sesión shadow

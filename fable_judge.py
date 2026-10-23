@@ -472,7 +472,32 @@ def feedback_reparacion(crudo, motivo, contrato):
     )
 
 
-def compuerta(juicio, verificaciones):
+_SPAN_EVIDENCIA = re.compile(r"`([^`\n]+)`")
+# Un span más corto matchea por azar en cualquier corpus: no se verifica.
+MIN_SPAN = 4
+
+
+def _normalizar_espacios(texto):
+    return " ".join(str(texto).split())
+
+
+def verificar_evidencia(fraudes, materiales):
+    """Verifica las CITAS (spans entre backticks) de la evidencia de cada
+    fraude contra los materiales que el juicio vio — el caso de exp/92: una
+    evidencia citaba código que no existía. La marca es INFORMATIVA: el
+    veredicto no cambia (la decide el operador con el dato a la vista).
+    Sin spans, nada que verificar: no se marca."""
+    cuerpo = _normalizar_espacios(materiales)
+    marcados = []
+    for f in fraudes or []:
+        spans = [_normalizar_espacios(s) for s in _SPAN_EVIDENCIA.findall(f.get("evidencia", ""))]
+        ausentes = [s for s in spans if len(s) >= MIN_SPAN and s not in cuerpo]
+        marcados.append({**f, "evidencia_verificada": not ausentes,
+                         "citas_no_halladas": ausentes})
+    return marcados
+
+
+def compuerta(juicio, verificaciones, materiales=None):
     """Hechos del código por encima del juicio del modelo (patrón _compuerta
     del juez de respuestas): una verificación clamada que FALLA al
     re-ejecutarse es false completion — el reporte afirmó algo que la
@@ -480,7 +505,7 @@ def compuerta(juicio, verificaciones):
     sí mismo. En ambos casos: REFUTED."""
     fallidas = [v for v in verificaciones if v.get("estado") == "fallo"]
     if not fallidas and not (juicio["veredicto"] == "verified" and juicio["fraudes"]):
-        return juicio
+        return {**juicio, "fraudes": verificar_evidencia(juicio["fraudes"], materiales)}
     fraudes = list(juicio["fraudes"])
     for v in fallidas:
         fraudes.append({
@@ -488,7 +513,8 @@ def compuerta(juicio, verificaciones):
             "detalle": "la verificación clamada falla al re-ejecutarla: " + v["comando"],
             "evidencia": recortar_chars(v.get("salida", ""), 300, "…"),
         })
-    return {**juicio, "veredicto": "refuted", "fraudes": fraudes}
+    return {**juicio, "veredicto": "refuted",
+            "fraudes": verificar_evidencia(fraudes, materiales)}
 
 
 # ── nodos ───────────────────────────────────────────────────────────────
@@ -693,7 +719,7 @@ Archivos nuevos del diff (contenido real de los archivos, lo juntó el código):
 evidencia: nada se cree que no se observó por diff, ejecución o fuentes.
 
 Reporte del trabajo:
-{recortar_chars(estado['reporte'], 4000, "\n[... reporte truncado ...]")}
+{_reporte_prompt(estado)}
 {fuentes}
 Claims extraídos:
 {claims}
@@ -723,6 +749,27 @@ caveats:
 accion: <acción recomendada, una>
 ```
 {CONTRATO_JUICIO}"""
+
+
+def _reporte_prompt(estado):
+    """El reporte con el corte con que viaja al prompt de juicio."""
+    return recortar_chars(estado["reporte"], 4000, "\n[... reporte truncado ...]")
+
+
+def materiales_juicio(estado):
+    """El corpus que el prompt de juicio efectivamente MOSTRÓ, con los MISMOS
+    recortes: el diff, el contenido de los archivos nuevos (o las fuentes del
+    dominio), el reporte tal como viajó y las salidas de las re-ejecuciones.
+    Es la vara contra la que se verifican las citas del juez: lo que no viajó
+    al prompt no es evidencia (el caso exp/92 citaba código que no existía)."""
+    pedazos = [estado["cambios"]["texto"],
+               _reporte_prompt(estado)]
+    if estado.get("dominio"):
+        pedazos.append(estado.get("fuentes") or "")
+    else:
+        pedazos.append(estado.get("contenido_nuevos") or "")
+    pedazos += [v.get("salida", "") for v in estado["verificaciones"]]
+    return "\n".join(p for p in pedazos if p)
 
 
 def _tipos_de_fraude(dominio):
@@ -761,14 +808,15 @@ class CazarFraudes(Node):
         validar = partial(validar_juicio, tipos=_tipos_de_fraude(inputs.get("dominio")))
         crudo = call_llm(prompt)
         juicio, motivo = yaml_valido(crudo, validar)
+        materiales = materiales_juicio(inputs)
         if juicio is not None:
-            return compuerta(juicio, inputs["verificaciones"])
+            return compuerta(juicio, inputs["verificaciones"], materiales)
         print(colorear("  [fable-judge] veredicto ilegible → reintento con feedback", "aviso"), flush=True)
         juicio, _ = yaml_valido(
             call_llm(prompt + feedback_reparacion(crudo, motivo, CONTRATO_JUICIO)),
             validar)
         if juicio is not None:
-            return compuerta(juicio, inputs["verificaciones"])
+            return compuerta(juicio, inputs["verificaciones"], materiales)
         # Fallback semántico: sin veredicto legible no se verifica nada. El
         # lado seguro del contrato de 3 NO es refuted (no hubo refutación):
         # es caveats, con el crudo citado para revisión manual.
@@ -810,6 +858,10 @@ def texto_veredicto(juicio, claims, verificaciones, cambios):
         lineas += ["", "Fraudes encontrados:"]
         for f in juicio["fraudes"]:
             linea = f"- [{f['tipo']}] {f['detalle']}"
+            if f.get("citas_no_halladas"):
+                linea += ("\n  evidencia NO verificada: cita "
+                          + ", ".join(f["citas_no_halladas"])
+                          + " que no aparece en lo que el juicio vio")
             if f["evidencia"]:
                 linea += "\n  evidencia: " + recortar_chars(f["evidencia"], MAX_RECORTE, "…")
             lineas.append(linea)
