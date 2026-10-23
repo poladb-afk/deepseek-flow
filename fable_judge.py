@@ -367,15 +367,23 @@ def validar_claims(datos):
         if comando:
             claim["comando"] = comando
         claims.append(claim)
-        if len(claims) >= MAX_CLAIMS:
-            # el presupuesto se DECLARA (dogfood exp/87): los claims 13+ no
-            # podían desaparecer del juicio en silencio
-            claims.append({"texto": f"(presupuesto: solo los primeros {MAX_CLAIMS} "
-                             "claims se evalúan; el resto no fue juzgado)",
-                           "tipo": "hecho"})
-            break
     if not claims:
         return None, "la lista de claims quedó vacía"
+    if len(claims) > MAX_CLAIMS:
+        # el presupuesto se DECLARA (dogfood exp/87) y prioriza lo re-ejecutable
+        # (exp/92): un reporte outcome-first verifica al final y el corte ciego
+        # dejaba el juicio sin nada que correr
+        verificables = [c for c in claims if c["tipo"] == "verificacion"]
+        resto = [c for c in claims if c["tipo"] != "verificacion"]
+        claims = (verificables + resto)[:MAX_CLAIMS]
+        # el conteo del texto es el de los ELEGIDOS, no el total del reporte:
+        # con 15 verificaciones y tope 12, decir "priorizando los 15" mentía
+        # (caveat del re-juicio de exp/92)
+        elegidos = sum(1 for c in claims if c["tipo"] == "verificacion")
+        claims.append({"texto": f"(presupuesto: de {len(verificables) + len(resto)} "
+                       f"claims se evalúan {MAX_CLAIMS}, priorizando los "
+                       f"{elegidos} de tipo verificacion; el resto no fue juzgado)",
+                       "tipo": "hecho"})
     return claims, ""
 
 

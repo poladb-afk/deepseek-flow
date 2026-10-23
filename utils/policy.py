@@ -59,6 +59,8 @@ CONFIRMAR_DOBLE = "confirmar_doble"
 _WHITELIST_PREFIJOS = (
     ("pytest",),
     ("python3", "-m", "pytest"),
+    ("ruff", "check"),
+    ("python3", "-m", "ruff", "check"),
     ("grep",),
     ("ls",),
     ("cat",),
@@ -129,6 +131,12 @@ _FLAGS_PELIGROSOS = {
     "git": ("--output", "--ext-diff", "--textconv"),
     # -o/--override-ini reinyecta cualquier flag (addopts=-p plugin) y saltea la lista
     "pytest": ("-p", "--basetemp", "--rootdir", "-c", "--confcutdir", "-o", "--override-ini"),
+    # ruff: lo que ESCRIBE archivos (--fix/--fix-only/--add-noqa, -o/--output-file)
+    # o cuelga (-w/--watch); `ruff check` a secas solo parsea (el --diff es
+    # dry-run, medido: no toca disco). --add-noqa y -o los destapó el juez de
+    # fable refutando la primera versión de esta admisión (exp/92)
+    "ruff": ("--fix", "--fix-only", "-w", "--watch", "--add-noqa", "-o",
+             "--output-file"),
     "grep": ("-R", "--dereference-recursive"),
 }
 
@@ -185,12 +193,20 @@ def _segmento_es_auto(segmento):
     return any(_empieza_con(tokens, prefijo) for prefijo in _WHITELIST_PREFIJOS)
 
 
+# Formas `python3 -m X`: el veto de flags mira el MÓDULO, no el intérprete
+# (sin esto, `python3 -m ruff check --fix` esquivaba el veto de ruff).
+_BASES_MODULO = {
+    ("python3", "-m", "pytest"): "pytest",
+    ("python3", "-m", "ruff"): "ruff",
+}
+
+
 def _tiene_flag_peligroso(tokens):
     """True si un comando de la whitelist trae un flag que escribe/ejecuta.
     Compara el flag exacto y la forma pegada (--output=x, -ox)."""
     if not tokens:
         return False
-    base = "pytest" if tokens[:3] == ["python3", "-m", "pytest"] else tokens[0]
+    base = _BASES_MODULO.get(tuple(tokens[:3]), tokens[0])
     flags = _FLAGS_PELIGROSOS.get(base, ())
     for tok in tokens[1:]:
         for flag in flags:
@@ -364,6 +380,8 @@ _EXPLICACIONES = (
 _LECTURA = (
     (("pytest",), "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"),
     (("python3", "-m", "pytest"), "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"),
+    (("ruff", "check"), "lintea — parsea el código SIN ejecutarlo (escribe caché)"),
+    (("python3", "-m", "ruff", "check"), "lintea — parsea el código SIN ejecutarlo (escribe caché)"),
     (("grep",), "busca texto (solo lee)"),
     (("ls",), "lista un directorio (solo lee)"),
     (("cat",), "muestra un archivo (solo lee)"),

@@ -162,7 +162,8 @@
         "tests/test_evals.py": 15,
         "tests/test_fable.py": 29,
         "tests/test_fable_dominios.py": 6,
-        "tests/test_fable_judge.py": 77,
+        "tests/test_fable_judge.py": 60,
+        "tests/test_fable_judge_claims.py": 24,
         "tests/test_flujos.py": 34,
         "tests/test_forma_larga.py": 5,
         "tests/test_fs_tools.py": 16,
@@ -179,7 +180,7 @@
         "tests/test_modulos.py": 19,
         "tests/test_novedad.py": 6,
         "tests/test_pendientes.py": 39,
-        "tests/test_policy.py": 24,
+        "tests/test_policy.py": 26,
         "tests/test_policy_bypass.py": 35,
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
@@ -204,7 +205,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 902
+      "metrica": 911
     }
   },
   "version": 1

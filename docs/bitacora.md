@@ -1284,6 +1284,64 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/92 — el juez re-ejecuta lo que importa — y refuta al operador (2026-10-23)
+
+Las dos fricciones que exp/91 midió, cerradas como meta-loop completo con una
+sorpresa: el juez de fable REFUTÓ el fix de política del propio operador — y
+tenía razón. Además, la sesión de trabajo fue la primera ventana
+`LAYA_MODO=shadow`: **la flywheel del router arrancó (pares 1/250, días
+1/14)**. Spec: [banco/specs/exp92_juez_flywheel.md](../banco/specs/exp92_juez_flywheel.md).
+
+**Los fixes:**
+
+- **Prioridad de claims verificables** (implementó el CHAT en sesión shadow):
+  `validar_claims` valida todos (sin zona muerta tras el corte) y, con más de
+  `MAX_CLAIMS=12`, prioriza los `verificacion` y completa con el resto. El
+  claim de presupuesto (F7) declara los ELEGIDOS — el primer texto decía "los
+  15" cuando entraban 12 (mini-bug destapado por el caveat del juez).
+- **`ruff check` solo-lectura** (implementó el OPERADOR — separación de
+  deberes: el agente no relaja su propia política): prefijos `ruff check` /
+  `python3 -m ruff check` con rótulo honesto ("parsea el código SIN
+  ejecutarlo; escribe caché"), veto de todo lo que escribe o cuelga, y la
+  normalización `python3 -m` generalizada (la forma modular esquivaba los
+  vetos). `ruff format` y el resto siguen preguntando.
+
+**La saga del re-juicio recursivo (el juez auditando el trabajo que lo
+mejora):**
+
+- **Ronda 1 — REFUTED, con razón:** los 3 claims verificables re-ejecutados
+  exit 0 (incluido `ruff check` en auto — el fix 2 probándose en vivo), PERO
+  halló que `--add-noqa` reescribe código y `-o/--output-file` escribe a ruta
+  arbitraria, ambos en auto. Verificado empíricamente (`--add-noqa` le agregó
+  un `# noqa` a un archivo de prueba). Vetados + tests.
+- **Ronda 2 — REFUTED, mitad y mitad:** (a) acusó que la forma
+  `--output-file=x` by-paseaba el veto por "match exacto" — **falso
+  positivo**: el matcher tiene `startswith(flag + "=")` y la clasificación
+  empírica da `preguntar`; el juez citó un código inexistente. Quedó clavado
+  con tests de las formas `=`. (b) REAL: en el borde de exactamente 12 claims
+  el código viejo agregaba el claim de presupuesto mintiendo ("el resto no fue
+  juzgado" sin resto); el nuevo no lo agrega y la spec decía "≤12 no cambia
+  nada" — spec enmendada: el claim de presupuesto solo aparece cuando algo
+  quedó fuera (refinamiento intencional).
+- Lección doble: el juez encuentra agujeros reales que la review del operador
+  pasó (--add-noqa), Y puede fabricar evidencia con confianza (el falso
+  positivo del `=`) — la compuerta determinística (verificar por ejecución, no
+  por cita) es lo que separa una cosa de la otra.
+
+**La sesión shadow (la ventana):** tmux como PTY real (origen `terminal`, no
+banco — el banco no cuenta por diseño), el operador supervisando y aprobando
+4 acciones por el panel (3 ediciones en scope + 1 `python3 -c` de sanity que
+la política correctamente preguntó). `[router] etiqueta ambiental:
+herramientas (16 rondas)` — el par quedó registrado. RAM: mínimo ~4,3 Gi
+disponibles con el router cargado y `LAYA_MODEL_VOTO=0` (desviación declarada;
+exp/3 OOM precedent); el gate corrió después, secuencial. Costo de la sesión:
+~$0,0071 (exp/90 pagándose solo).
+
+**Veredicto:** ✅ C1–C5 OK (gate verde, 924 tests: +9). El meta-loop cerró su
+ciclo más extraño: el juez mejorado auditando su propia mejora, refutando al
+operador con un hallazgo real, y equivocándose con evidencia inventada — las
+dos caras del instrumento, documentadas. La flywheel corre.
+
 ## exp/91 — la ventana caliente se recorta a sí misma: tool results viejos → marcadores (2026-10-23)
 
 La deuda de fondo que exp/88 declaró, ejecutada como meta-loop completo: la

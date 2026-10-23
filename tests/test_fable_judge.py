@@ -13,7 +13,6 @@ from fable_judge import (
     contenido_nuevos,
     diff_contra,
     fraudes_deterministas,
-    validar_claims,
     validar_juicio,
     verificar_trabajo,
 )
@@ -145,58 +144,6 @@ def test_rerun_pide_solo_lo_permitido_y_arma_el_cd(tmp_path):
     assert llamadas == [f"cd {tmp_path} && python3 test_x.py"]
     assert [v["estado"] for v in verif] == ["ok", "no_permitido"]
     assert verif[0]["claim"] == "los tests pasan"
-
-
-# ── contratos de structured output ──────────────────────────────────────
-
-
-def _claims_yaml(n=1):
-    filas = "\n".join(
-        f"  - texto: hecho {i}\n    tipo: hecho" for i in range(n))
-    return f"```yaml\nclaims:\n{filas}\n```"
-
-
-@pytest.mark.parametrize("crudo, motivo", [
-    ("esto no es yaml de claims", "no parseó"),
-    ("```yaml\nclaims: []\n```", "vacía"),
-    ("```yaml\nclaims:\n  - tipo: hecho\n```", "texto no vacío"),
-    ("```yaml\nclaims:\n  - texto: x\n    tipo: opinion\n```", "tipo de claim inválido"),
-], ids=["no_yaml", "vacio", "sin_texto", "tipo_inventado"])
-def test_validar_claims_rechaza_lo_invalido(crudo, motivo):
-    claims, motivo_err = fable_judge.yaml_valido(crudo, validar_claims)
-    assert claims is None and motivo in motivo_err
-
-
-def test_validar_claims_trunca_al_presupuesto_y_canonicaliza():
-    claims, motivo = fable_judge.yaml_valido(_claims_yaml(20), validar_claims)
-
-    # el presupuesto se DECLARA (dogfood exp/87): MAX_CLAIMS + el aviso sintético
-    assert motivo == "" and len(claims) == fable_judge.MAX_CLAIMS + 1
-    assert claims[0]["tipo"] == "hecho"
-    assert "no fue juzgado" in claims[-1]["texto"]
-
-
-@pytest.mark.parametrize("veredicto, canon", [
-    ("REFUTED", "refuted"),
-    ("verified ", "verified"),
-    ("Verified_With_Caveats", "verified_with_caveats"),
-])
-def test_validar_juicio_canonicaliza(veredicto, canon):
-    juicio, motivo = validar_juicio({"veredicto": veredicto, "fraudes": []})
-
-    assert motivo == "" and juicio["veredicto"] == canon
-
-
-@pytest.mark.parametrize("datos, motivo", [
-    ({"veredicto": "ok"}, "veredicto inválido"),
-    ({"veredicto": "refuted", "fraudes": "no lista"}, "no es lista"),
-    ({"veredicto": "refuted",
-      "fraudes": [{"tipo": "hack", "detalle": "x"}]}, "tipo debe ser"),
-    ("no dict", "no es un diccionario"),
-], ids=["veredicto_inventado", "fraudes_str", "fraude_inventado", "no_dict"])
-def test_validar_juicio_rechaza_lo_invalido(datos, motivo):
-    juicio, motivo_err = validar_juicio(datos)
-    assert juicio is None and motivo in motivo_err
 
 
 # ── compuerta: hechos del código por encima del modelo ─────────────────
@@ -434,39 +381,6 @@ def test_prompt_de_juicio_muestra_los_hechos_y_la_tabla(con_raices):
                      "accion_sin_autorizacion", "spec_betrayal", "debris",
                      "exit 1", "conjunto de claims"):
         assert esperado in prompt
-
-
-# ── candidatas a verificación: el código reúne, el LLM clasifica ────────
-
-
-def test_candidatas_encuentra_las_verificaciones_en_prosa():
-    reporte = (
-        "Listo el fix de convert(). Verificaciones: pytest tests/ da 63 passed "
-        "y ruff check . está limpio. También corrí exit 0 del gate de calidad."
-    )
-
-    candidatas = fable_judge.candidatas_verificacion(reporte)
-
-    assert any("pytest" in c and "63 passed" in c for c in candidatas)
-    assert any("ruff" in c for c in candidatas)
-    assert any("gate" in c for c in candidatas)
-
-
-@pytest.mark.parametrize("prosa", [
-    "Toqué convert.py y leí el README.",
-    "El diseño quedó más limpio y prolijo.",
-    "Agregué una función nueva con tests pensados.",
-])
-def test_candidatas_no_matchea_prosa_neutra(prosa):
-    assert fable_judge.candidatas_verificacion(prosa) == []
-
-
-def test_candidatas_esta_acotada():
-    reporte = "\n".join(f"pytest corrida {i} da 1 passed" for i in range(30))
-
-    candidatas = fable_judge.candidatas_verificacion(reporte)
-
-    assert len(candidatas) == fable_judge.MAX_CANDIDATAS
 
 
 def test_el_prompt_de_claims_trae_las_candidatas_y_el_contrato(con_raices):

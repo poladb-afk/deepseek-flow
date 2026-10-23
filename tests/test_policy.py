@@ -536,3 +536,44 @@ def test_policy_2and1_se_descarta_como_token_no_substring():
     assert clasificar("ls 2>&1") == "auto"
     assert clasificar("ls 2>&1 | grep x") == "auto"
     assert clasificar("grep 'x2>&1y' README.md") == "preguntar"
+
+
+def test_ruff_check_solo_lectura_scoped():
+    """exp/92: `ruff check` (y su forma python3 -m) parsea sin ejecutar código
+    del repo — más seguro que pytest, que ya está admitido (A45). El scope es
+    el SUBCOMANDO: lo que ESCRIBE (--fix/--fix-only) o cuelga (-w/--watch) y
+    `ruff format` siguen preguntando."""
+    from utils.policy import clasificar
+
+    assert clasificar("ruff check .") == "auto"
+    assert clasificar("python3 -m ruff check utils/compaccion.py") == "auto"
+    assert clasificar("pytest -q && ruff check .") == "auto"
+    # lo que escribe archivos o cuelga
+    assert clasificar("ruff check --fix fable_judge.py") == "preguntar"
+    assert clasificar("ruff check --fix-only .") == "preguntar"
+    assert clasificar("ruff check -w .") == "preguntar"
+    assert clasificar("python3 -m ruff check --fix .") == "preguntar"
+    # --add-noqa reescribe el código y -o/--output-file escribe a ruta
+    # arbitraria (los destapó el juez de fable refutando la admisión original)
+    assert clasificar("ruff check --add-noqa .") == "preguntar"
+    assert clasificar("ruff check --output-file informe.txt .") == "preguntar"
+    assert clasificar("ruff check -o informe.txt .") == "preguntar"
+    # la forma pegada con = también veta (el juez de fable acusó lo contrario
+    # en exp/92; verificado empíricamente: ya estaba — el caso queda clavado)
+    assert clasificar("ruff check --output-file=informe.txt .") == "preguntar"
+    assert clasificar("ruff check --add-noqa=motivo .") == "preguntar"
+    assert clasificar("ruff check --fix=x .") == "preguntar"
+    # --output-format es solo la forma del stdout, NO un archivo
+    assert clasificar("ruff check --output-format json .") == "auto"
+    # el subcomando que reescribe el formato: fuera del prefijo
+    assert clasificar("ruff format .") == "preguntar"
+    assert clasificar("ruff --fix check .") == "preguntar"
+
+
+def test_explicar_ruff_dice_que_parsea_sin_ejecutar():
+    """La honestidad de A45 al revés: ruff NO ejecuta código del repo (a
+    diferencia de pytest) y el rótulo del s/n tiene que decirlo."""
+    from utils.policy import explicar
+
+    texto = explicar("ruff check .")
+    assert "sin ejecutar" in texto.lower()
