@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 from flow import create_agent_flow
+from utils.costos import costo_desglose
 from utils.fs_tools import allowed_roots
 
 WELCOME = "Agente con DeepSeek V4.1 Flash — pedidos sobre tus archivos y tu código ('salir' o Ctrl+C para terminar)."
@@ -261,20 +262,64 @@ def main():
         print("\n¡Chao! 👋")
     finally:
         resumen_de_sesion(shared)
-        _reporte_tokens()
+        _reporte_tokens(shared)
 
 
-def _reporte_tokens():
+def _miles(n):
+    """Separador de miles a la es-AR: 61.234 (mismo formato que exp/89)."""
+    return f"{n:,}".replace(",", ".")
+
+
+def _dinero(usd):
+    """USD con coma decimal y `~`: es un estimado off-peak, no una factura."""
+    return f"~${usd:.4f}".replace(".", ",")
+
+
+def _linea_preguntas(preguntas, tabla):
+    """La línea de costo por pregunta: tokens y dinero, en orden de llegada."""
+    partes = []
+    for desglose in preguntas:
+        tokens = sum(f["prompt"] + f["completion"] for f in desglose.values())
+        usd, sin_tarifa = costo_desglose(desglose, tabla)
+        if sin_tarifa:
+            partes.append(f"{_miles(tokens)} (sin tarifa)")
+        else:
+            partes.append(f"{_miles(tokens)} ({_dinero(usd)})")
+    return "[tokens] por pregunta: " + " / ".join(partes)
+
+
+def _reporte_tokens(shared):
     """exp/89: el uso de tokens de la sesión, al salir (bookkeeping
     best-effort: nunca corta la salida). La métrica first-class que faltaba
-    — costo_traza medía segundos."""
+    — costo_traza medía segundos. exp/90: además el costo estimado en
+    dinero (off-peak) y el desglose por pregunta."""
     with contextlib.suppress(Exception):
-        from utils.call_llm import uso_de_sesion
+        from utils.call_llm import _setting, desglose_de_sesion, uso_de_sesion
+        from utils.costos import delta_desglose, precios
 
         uso = uso_de_sesion()
-        if uso["llamadas"]:
-            print(f"[tokens] sesión: {uso['llamadas']} llamadas — "
-                  f"{uso['prompt']:,} prompt + {uso['completion']:,} completion".replace(",", "."))
+        if not uso["llamadas"]:
+            return
+        desglose = desglose_de_sesion()
+        # la última pregunta nunca vuelve a GetQuestion: se cierra acá.
+        # El resumen de memoria corre DESPUÉS y fuera de toda pregunta:
+        # cuenta en el total de sesión y en ninguna pregunta (declarado).
+        inicio = shared.pop("_uso_inicio_pregunta", None)
+        if inicio is not None:
+            shared.setdefault("tokens_por_pregunta", []).append(
+                delta_desglose(inicio, desglose))
+        tabla = precios(_setting("PRECIO_TOKENS"))
+        total, sin_tarifa = costo_desglose(desglose, tabla)
+        base = (f"[tokens] sesión: {uso['llamadas']} llamadas — "
+                f"{_miles(uso['prompt'])} prompt + "
+                f"{_miles(uso['completion'])} completion")
+        if sin_tarifa:
+            print(f"{base} (sin tarifa: {', '.join(sin_tarifa)})")
+        else:
+            print(f"{base} ({_dinero(total)})")
+        preguntas = shared.get("tokens_por_pregunta") or []
+        if preguntas:
+            print(_linea_preguntas(preguntas, tabla))
 
 
 if __name__ == "__main__":

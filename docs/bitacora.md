@@ -1284,6 +1284,45 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/90 — el costo en dinero: la sesión y cada pregunta, cotizadas (2026-10-23)
+
+El follow-up que exp/89 dejó declarado fuera de alcance: tokens sin dólares no
+deciden nada. Lote de "cosas chicas" del operador (junto con X7 resuelto —
+ruff del entorno subido al pin 0.17.1, gate verde — y el tachado en el roadmap
+de los pendientes de Mesa 1 que exp/89 ya había cerrado).
+Spec: [banco/specs/exp90_costo_dinero.md](../banco/specs/exp90_costo_dinero.md).
+
+**La pieza:** el acumulador de exp/89 gana el desglose POR MODELO con el split
+cache hit/miss (`prompt_cache_hit_tokens`/`prompt_cache_miss_tokens` de
+DeepSeek; sin split reportado, todo el prompt cotiza como miss — techo
+conservador, nunca subestima); `utils/costos.py` (puro, sin env) trae la tabla
+off-peak por 1M al 2026-10-23 (flash 0,003 hit / 0,15 miss / 0,60 completion;
+pico = exactamente el doble; chat/reasoner legacy a precio Flash, la doc lo
+dice) pisable por `PRECIO_TOKENS` (JSON; basura → aviso y defaults, patrón
+`_entero`); `GetQuestion.post` cierra cada pregunta con el delta del desglose
+y el reporte de salida imprime `~$` por sesión y por pregunta (modelo sin
+tarifa: tokens sin `$` y el nombre a la vista). El evento de traza NO cambia:
+sin modelo por llamada, evals queda en tokens (declarado).
+
+**Medición (e2e real, dos corridas):** una pregunta DIRECTA cuesta
+**~$0.0001** (5.005 prompt + 3 completion); la segunda corrida idéntica, con
+el cache del servidor caliente, da **~$0.0000** con los mismos 5.004 tokens
+de prompt. El hallazgo caro: los "5.009 tokens fijos" de exp/89 son el system
+prompt (328 tokens) + los esquemas de las 30 tools — un PREFIJO ESTABLE que
+DeepSeek sirve casi entero como cache hit (>93% en la segunda corrida, 50×
+más barato). **Lo que se paga de verdad es lo nuevo: misses y completion.**
+Esto cambia el encuadre de la deuda de fondo de exp/88 (recortar tool results
+viejos de la ventana caliente): el argumento DINERO es más débil de lo que el
+conteo de tokens sugería (~12×60k tokens/hora no son ~$0.11/hora mientras el
+prefijo siga siendo hit); quedan como justificación real el límite de
+contexto, la latencia y los misses cuando el cache expira. Contaminación
+declarada: las corridas e2e dejaron 3 filas de preguntas de test en el log
+orgánico (`terminal`) — mismo espíritu de exp/71.
+
+**Veredicto:** ✅ C1–C4 OK (gate verde, 906 tests: +15). El dinero salió del
+reino de la estimación a mano y el cache hit dejó de ser invisible.
+Presupuesto por tokens sigue esperando datos de uso real.
+
 ## exp/89 — tokens por llamada: la métrica first-class que faltaba (2026-10-22)
 
 El ítem pendiente de Mesa 1 ("costo por sesión (tokens/latencia) como

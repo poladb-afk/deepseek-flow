@@ -402,6 +402,32 @@ def test_agotado_fuerza_respuesta_sin_tools():
     assert "_aviso_cierre" not in shared
 
 
+def test_getquestion_cierra_el_costo_de_la_pregunta_anterior(monkeypatch):
+    """exp/90: la pregunta nueva cierra la ANTERIOR con el delta del
+    desglose (volvió por "answer"); la primera solo deja el snapshot."""
+    import utils.call_llm as c
+    from nodes import GetQuestion
+
+    def _fila(prompt):
+        return {"llamadas": 1, "prompt": prompt, "completion": 0,
+                "cache_hit": 0, "cache_miss": prompt}
+
+    uso = {"deepseek-flash": _fila(100)}
+    monkeypatch.setattr(c, "USO_POR_MODELO", uso)
+    shared = {"messages": [{"role": "system", "content": "s"}]}
+
+    GetQuestion().post(shared, None, "primera")
+    assert "tokens_por_pregunta" not in shared
+    assert shared["_uso_inicio_pregunta"]["deepseek-flash"]["prompt"] == 100
+
+    # la primera pregunta respondió gastando 50 más: la segunda la cierra
+    uso["deepseek-flash"] = _fila(150)
+    GetQuestion().post(shared, None, "segunda")
+    cerradas = shared["tokens_por_pregunta"]
+    assert len(cerradas) == 1
+    assert cerradas[0]["deepseek-flash"]["prompt"] == 50
+
+
 def test_preguntas_reales_ignora_prefetch_y_compaccion():
     """El resumen de sesión cuenta preguntas REALES: un mensaje sintético de
     prefetch o el marcador de compacción no lo disparan (medido en vivo)."""

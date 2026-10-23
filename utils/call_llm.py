@@ -108,20 +108,46 @@ def _model():
 # llamada; este acumulador alimenta el reporte de salida del chat).
 USO = {"llamadas": 0, "prompt": 0, "completion": 0}
 
+# exp/90 — el mismo uso desglosado POR MODELO y con el split de cache:
+# cada modelo tiene su tarifa y el cache hit paga ~50× menos que el miss,
+# así que sin esto el costo en dinero no se puede cotizar.
+USO_POR_MODELO = {}
+
 
 def uso_de_sesion():
     """Copia del uso acumulado (llamadas, prompt, completion)."""
     return dict(USO)
 
 
-def _contabilizar(usage):
+def desglose_de_sesion():
+    """Copia del uso acumulado por modelo (para cotizar y por pregunta)."""
+    return {modelo: dict(fila) for modelo, fila in USO_POR_MODELO.items()}
+
+
+def _contabilizar(usage, modelo=None):
     """Registra el usage de UNA respuesta: acumulador + evento de traza.
-    Una respuesta sin usage (proveedor viejo, mock) cuenta 0 y no rompe."""
+    Una respuesta sin usage (proveedor viejo, mock) cuenta 0 y no rompe.
+
+    El modelo lo pasa el sitio de llamada (el que viajó en el request).
+    Sin split de cache en el usage, todo el prompt cuenta como cache miss:
+    techo conservador — el reporte de dinero nunca subestima."""
     pt = int(getattr(usage, "prompt_tokens", 0) or 0)
     ct = int(getattr(usage, "completion_tokens", 0) or 0)
+    hit = int(getattr(usage, "prompt_cache_hit_tokens", 0) or 0)
+    miss = int(getattr(usage, "prompt_cache_miss_tokens", 0) or 0) or (pt - hit)
     USO["llamadas"] += 1
     USO["prompt"] += pt
     USO["completion"] += ct
+    fila = USO_POR_MODELO.setdefault(
+        modelo or "(sin modelo)",
+        {"llamadas": 0, "prompt": 0, "completion": 0,
+         "cache_hit": 0, "cache_miss": 0},
+    )
+    fila["llamadas"] += 1
+    fila["prompt"] += pt
+    fila["completion"] += ct
+    fila["cache_hit"] += hit
+    fila["cache_miss"] += miss
     with contextlib.suppress(Exception):
         from utils.tracing import evento_llm
 
@@ -140,11 +166,12 @@ def call_llm(messages):
     """
     if isinstance(messages, str):
         messages = [{"role": "user", "content": messages}]
+    modelo = _model()
     response = _client().chat.completions.create(
-        model=_model(),
+        model=modelo,
         messages=messages,
     )
-    _contabilizar(getattr(response, "usage", None))
+    _contabilizar(getattr(response, "usage", None), modelo)
     return response.choices[0].message.content
 
 
@@ -196,8 +223,9 @@ def _kwargs_agente(messages, tools=None):
 def call_llm_agent(messages, tools=None):
     """Una vuelta del agente: devuelve el mensaje del asistente
     (con .tool_calls si pidió herramientas)."""
-    response = _client().chat.completions.create(**_kwargs_agente(messages, tools))
-    _contabilizar(getattr(response, "usage", None))
+    kwargs = _kwargs_agente(messages, tools)
+    response = _client().chat.completions.create(**kwargs)
+    _contabilizar(getattr(response, "usage", None), kwargs.get("model"))
     return response.choices[0].message
 
 
@@ -309,7 +337,7 @@ def call_llm_agent_stream(messages, tools=None):
     # cierra el stream si quedó abierto por la interrupción (libera la conexión)
     if cortado:
         _cerrar_stream(stream)
-    _contabilizar(uso)
+    _contabilizar(uso, kwargs.get("model"))
     # Un stream CORTADO (Ctrl+C o red) no despacha tool calls: sus argumentos
     # pueden estar truncados y el usuario pidió parar (medido: tras Ctrl+C la
     # llamada se conservaba y se ejecutaba). Tampoco viaja un fragmento sin
@@ -326,14 +354,15 @@ async def call_llm_async(messages):
     donde cada exec_async debe esperar I/O real para que se solapen."""
     if isinstance(messages, str):
         messages = [{"role": "user", "content": messages}]
+    modelo = _model()
     response = await AsyncOpenAI(
         api_key=get_api_key(),
         base_url=_setting("LLM_BASE_URL", DEFAULT_BASE_URL),
     ).chat.completions.create(
-        model=_model(),
+        model=modelo,
         messages=messages,
     )
-    _contabilizar(getattr(response, "usage", None))
+    _contabilizar(getattr(response, "usage", None), modelo)
     return response.choices[0].message.content
 
 

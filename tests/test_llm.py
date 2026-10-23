@@ -220,3 +220,79 @@ def test_el_stream_pide_usage_y_lo_captura_del_ultimo_chunk(monkeypatch):
     assert r.content == "hola"
     assert c.USO["prompt"] == antes["prompt"] + 200
     assert c.USO["completion"] == antes["completion"] + 80
+
+
+def test_el_usage_acumula_por_modelo_con_split_de_cache(monkeypatch):
+    """exp/90: cada respuesta cuenta en el desglose del modelo que la
+    atendió, con el split cache hit/miss cuando el proveedor lo trae."""
+    from types import SimpleNamespace
+
+    import utils.call_llm as c
+
+    monkeypatch.setattr(c, "_model", lambda: "modelo-falso")
+    monkeypatch.setattr(c, "USO_POR_MODELO", {})
+    monkeypatch.setattr(c, "_client", lambda: _fake(usage=SimpleNamespace(
+        prompt_tokens=100, completion_tokens=10,
+        prompt_cache_hit_tokens=60, prompt_cache_miss_tokens=40)))
+
+    c.call_llm("hola")
+
+    fila = c.USO_POR_MODELO["modelo-falso"]
+    assert fila["llamadas"] == 1
+    assert fila["prompt"] == 100
+    assert fila["cache_hit"] == 60
+    assert fila["cache_miss"] == 40
+
+
+def test_sin_split_de_cache_todo_el_prompt_cotiza_como_miss(monkeypatch):
+    """Un proveedor que no reporta el split (OpenAI genérico, mocks) no
+    subestima: todo el prompt cuenta como cache miss (techo conservador)."""
+    from types import SimpleNamespace
+
+    import utils.call_llm as c
+
+    monkeypatch.setattr(c, "_model", lambda: "modelo-falso")
+    monkeypatch.setattr(c, "USO_POR_MODELO", {})
+    monkeypatch.setattr(c, "_client", lambda: _fake(usage=SimpleNamespace(
+        prompt_tokens=100, completion_tokens=10)))
+
+    c.call_llm("hola")
+
+    fila = c.USO_POR_MODELO["modelo-falso"]
+    assert fila["cache_hit"] == 0
+    assert fila["cache_miss"] == 100
+
+
+def test_el_stream_contabiliza_en_el_modelo_del_request(monkeypatch):
+    """El camino streaming también deja el uso en el modelo que viajó en
+    el request (kwargs.get("model"), no una relectura del setting)."""
+    from types import SimpleNamespace
+
+    import utils.call_llm as c
+
+    class Chunk:
+        def __init__(self, usage=None, choices=None):
+            self.choices = choices if choices is not None else (
+                [SimpleNamespace(delta=SimpleNamespace(
+                    content="ok", tool_calls=None))])
+            self.usage = usage
+
+    class FakeStream:
+        def __iter__(self):
+            yield Chunk(usage=SimpleNamespace(prompt_tokens=50, completion_tokens=5),
+                        choices=[])
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            return FakeStream()
+
+    class FakeClient:
+        chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setattr(c, "_model", lambda: "modelo-stream")
+    monkeypatch.setattr(c, "USO_POR_MODELO", {})
+    monkeypatch.setattr(c, "_client", lambda: FakeClient())
+
+    c.call_llm_agent_stream([{"role": "user", "content": "hola"}])
+
+    assert c.USO_POR_MODELO["modelo-stream"]["prompt"] == 50

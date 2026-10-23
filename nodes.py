@@ -365,6 +365,18 @@ class GetQuestion(Node):
         if exec_res.strip().lower() not in {"seguí", "segui", "continúa", "continua", "continue"}:
             shared["_objetivo"] = exec_res
         shared["messages"].append({"role": "user", "content": exec_res})
+        # exp/90: el costo POR PREGUNTA se cierra acá — se vuelve por
+        # "answer", así que la pregunta anterior ya respondió: su costo es
+        # el delta del desglose desde su propio arranque. La última nunca
+        # pasa de nuevo por acá: la cierra el reporte de salida.
+        from utils.call_llm import desglose_de_sesion
+        from utils.costos import delta_desglose
+
+        inicio = shared.pop("_uso_inicio_pregunta", None)
+        if inicio is not None:
+            shared.setdefault("tokens_por_pregunta", []).append(
+                delta_desglose(inicio, desglose_de_sesion()))
+        shared["_uso_inicio_pregunta"] = desglose_de_sesion()
         # exp/48: punto seguro 1 — la pregunta del usuario quedó registrada.
         # Checkpoint del shared COMPLETO (bookkeeping: jamás corta el chat).
         checkpoint(thread_id(), "GetQuestion", "continue", shared)
