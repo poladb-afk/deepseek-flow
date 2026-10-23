@@ -1,6 +1,6 @@
 # Estado de los hallazgos — deepseek-flow
 
-**Actualizado:** 2026-10-22 · **Contra:** el árbol de `main` (los hallazgos vienen de las
+**Actualizado:** 2026-10-23 · **Contra:** el árbol de `main` (los hallazgos vienen de las
 auditorías externas del 2026-10-15 — los `E*`, de la del 2026-10-21; el mapeo A↔H↔R está en
 [informes/archivo/2026-10/contraste_auditoria_2026-10-15.md](informes/archivo/2026-10/contraste_auditoria_2026-10-15.md)).
 
@@ -90,7 +90,7 @@ lleva el motivo o el PR que lo cierra. Si algo se cierra sin test, se dice expl�
 | X5 | H19 | El README describía un harness que ya no existe | ✅ 2026-10-15 | README (29 tools, supervisor v2, `ver_pdf`) | `test_docs_sin_deriva.py` |
 | X6 | H20 | No hay CI que corra el gate | ✅ 2026-10-16 | `.github/workflows/calidad.yml` + badge en el README (verde al primer push) | — |
 | X9 | H19 | Rutas absolutas del autor y `.env` de otro proyecto | ✅ 2026-10-16 | `{RAIZ}`/`{HOME}` en 62 escenarios/specs · `LEER_BMO_ENV=0` · `heartbeat.example.jsonl` | `test_pendientes.py` |
-| X7 | — | `requirements.txt` fija `ruff==0.17.1` y el entorno tiene 0.15.15 | ⏳ entorno | verificado: la 0.17.1 da «All checks passed» | — |
+| X7 | — | `requirements.txt` fija `ruff==0.17.1` y el entorno tiene 0.15.15 | ✅ 2026-10-23 | ruff del entorno subido al pin (`pip install --user ruff==0.17.1`); gate completo verde con la 0.17.1 (891 passed + 3 skips) | — |
 | X8 | H02 | `escribir_salida` pisa archivos dentro de las raíces sin HITL | ⏳ decisión | los flujos de la CLI reescriben a propósito; el chat ya no pisa (A09) | `test_pendientes.py` (lado chat) |
 | X10 | — | No había contrato versionado para agentes ni linter de sus reglas: las reglas del repo vivían en prosa (y `docs/agents/` apunta a un `CONTEXT.md` inexistente) | ✅ 2026-10-19 | `AGENTS.md` (8 reglas con gate + blandas declaradas + bypasses) + `tests/test_deriva_reglas.py` (bloat, rutas/tests citados, tabla de enforcement) | `test_deriva_reglas.py` |
 | X11 | — | Helpers privados bifurcados y tests nuevos borrables sin gate: no había métrica estructural con baseline (el inventario del PR 4 solo vigila su foto) | ✅ 2026-10-19 | `ratchet.py` + `ratchets/baseline.json` (siembra: 20 helpers duplicados · 491 tests definidos) + guardia anti-bypass; palanca 3 de `calidad.sh` y CI | `test_ratchet.py` |
@@ -153,6 +153,5 @@ gate integral) se cerraron el 2026-10-16. Queda:
 
 | Id | Qué falta | Dueño |
 |---|---|---|
-| X7 | `python3 -m pip install --user 'ruff==0.17.1'` (o bajar el pin) | operador |
 | X8 | Decidir si el chat debe no-clobber también en los defaults | operador |
 | — | H16: el juez verifica 5 citas, no toda la verdad (límite deliberado) | diseño |

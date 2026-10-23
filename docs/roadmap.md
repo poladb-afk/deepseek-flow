@@ -61,7 +61,10 @@ Cada ítem indica qué pieza lo apoya y qué falta.
    voto local resolvió 10/18. **Hallazgo c01**: "debatí en 2 rondas…" → voto
    local conf 0,94 directo (no consulta al árbitro, que habría dicho
    herramientas) → falso directo de producto; c02 lo cubre `regla_temporal`.
-   Queda pendiente de la mesa: costo por sesión (tokens/latencia) as first-class.
+   ~~Queda pendiente de la mesa: costo por sesión (tokens/latencia) as
+   first-class~~ **✅ exp/89 (2026-10-22)**: usage capturado por llamada (evento
+   `llm` en `.runs` sin contenido), reporte `[tokens]` al salir del chat y
+   columna tokens en el informe de evals; la latencia ya la medía `costo_traza`.
 8. **Mesas 4/5/7/8** (agentes fractales, async, skills, web UX): sin
    cambios de prioridad por la evidencia nueva.
 9. ~~**Paydown del ratchet**: 20 ocurrencias de helpers privados duplicados
@@ -190,10 +193,13 @@ defecto, no un waterfall — los cortes ligeros y reversibles de otras
 mesas pueden avanzar en paralelo con evidencia propia): (1) Replay-evals, (2) HITL graduado + hooks, (3) Laya en
 el voto del router.
 
-**Mesa 1 — Evals (el harness juzgándose, 12-factor #8) — ✅ MVP hecho (2026-10-05):** evals.py (bench del router con baseline git-sha: 93.3%/ECE 0.0658, reproduce los históricos; linter de invariantes sobre 114 trazas — detectó el ciego histórico de evento_tool; costo por sesión). Matiz del consejo en la primera corrida: es instrumento de SEÑAL, no gate — antes de bloquear cualquier CI hay que medir sensibilidad/especificidad contra los P0/P1 históricos (¿cuáles habría bloqueado?) y la tasa de falsos bloqueos. ~~Pendiente de la mesa: replay de trazas de .runs contra código actual (regresión de comportamiento, no de unidades)~~ — **✅ replay hecho (exp/41, 2026-10-13):** `replay.py` valida las caminatas reales de .runs contra los grafos VIVOS (emisibilidad, adyacencia del chat, registro de tools, política del router sobre routing.jsonl). Primera corrida 214 trazas: 0/0/0/2/0 (los 2: artefactos de tests viejos), baseline fijado. Limitación documentada: la traza no guarda contenido — la regresión SEMÁNTICA sigue siendo de los benches con contenido. Sigue pendiente de la mesa: bench
+**Mesa 1 — Evals (el harness juzgándose, 12-factor #8) — ✅ MVP hecho (2026-10-05):** evals.py (bench del router con baseline git-sha: 93.3%/ECE 0.0658, reproduce los históricos; linter de invariantes sobre 114 trazas — detectó el ciego histórico de evento_tool; costo por sesión). Matiz del consejo en la primera corrida: es instrumento de SEÑAL, no gate — antes de bloquear cualquier CI hay que medir sensibilidad/especificidad contra los P0/P1 históricos (¿cuáles habría bloqueado?) y la tasa de falsos bloqueos. ~~Pendiente de la mesa: replay de trazas de .runs contra código actual (regresión de comportamiento, no de unidades)~~ — **✅ replay hecho (exp/41, 2026-10-13):** `replay.py` valida las caminatas reales de .runs contra los grafos VIVOS (emisibilidad, adyacencia del chat, registro de tools, política del router sobre routing.jsonl). Primera corrida 214 trazas: 0/0/0/2/0 (los 2: artefactos de tests viejos), baseline fijado. limitación documentada: la traza no guarda contenido — la regresión SEMÁNTICA sigue siendo de los benches con contenido. ~~Sigue pendiente de la mesa: bench
 de decisiones del voto (los casos donde corrigió a Laya como dataset
 permanente); costo por sesión (tokens/latencia) como métrica first-class
-derivable de las trazas.
+derivable de las trazas.~~ **Ambos cerrados:** el bench del voto en exp/53
+(2026-10-19, `banco/voto_casos.jsonl` + `bench_voto.py`) y el costo por
+sesión en exp/89 (2026-10-22, usage por llamada + reporte `[tokens]` +
+columna tokens en el informe de evals).
 
 **Mesa 2 — HITL graduado + hooks (12-factor #6) — ✅ MVP hecho (2026-10-05):**
 `utils/policy.py` (clasificador determinista sin LLM: `auto`/`preguntar`/`confirmar_doble`)
