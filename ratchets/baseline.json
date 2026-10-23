@@ -33,8 +33,8 @@
           91
         ],
         "main.py": [
-          201,
-          235
+          202,
+          236
         ],
         "modules/db.py": [
           131
@@ -65,7 +65,7 @@
           42
         ],
         "utils/call_llm.py": [
-          267
+          299
         ],
         "utils/contexto.py": [
           119
@@ -98,8 +98,8 @@
           144
         ],
         "utils/tracing.py": [
-          145,
-          164
+          161,
+          180
         ],
         "utils/websearch.py": [
           16
@@ -171,7 +171,7 @@
         "tests/test_laya.py": 6,
         "tests/test_laya_cache_reintento.py": 5,
         "tests/test_laya_routing.py": 38,
-        "tests/test_llm.py": 5,
+        "tests/test_llm.py": 8,
         "tests/test_mcp_laya.py": 11,
         "tests/test_memoria.py": 25,
         "tests/test_minar_errores.py": 16,
@@ -203,7 +203,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 875
+      "metrica": 878
     }
   },
   "version": 1

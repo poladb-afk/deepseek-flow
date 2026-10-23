@@ -104,6 +104,30 @@ def _model():
     return _setting("LLM_MODEL", DEFAULT_MODEL)
 
 
+# exp/89 — uso de tokens por proceso (la traza lleva el evento por
+# llamada; este acumulador alimenta el reporte de salida del chat).
+USO = {"llamadas": 0, "prompt": 0, "completion": 0}
+
+
+def uso_de_sesion():
+    """Copia del uso acumulado (llamadas, prompt, completion)."""
+    return dict(USO)
+
+
+def _contabilizar(usage):
+    """Registra el usage de UNA respuesta: acumulador + evento de traza.
+    Una respuesta sin usage (proveedor viejo, mock) cuenta 0 y no rompe."""
+    pt = int(getattr(usage, "prompt_tokens", 0) or 0)
+    ct = int(getattr(usage, "completion_tokens", 0) or 0)
+    USO["llamadas"] += 1
+    USO["prompt"] += pt
+    USO["completion"] += ct
+    with contextlib.suppress(Exception):
+        from utils.tracing import evento_llm
+
+        evento_llm(pt, ct)
+
+
 def call_llm(messages):
     """Una pasada SIMPLE, sin agente: sin tools, sin thinking, sin streaming.
 
@@ -120,6 +144,7 @@ def call_llm(messages):
         model=_model(),
         messages=messages,
     )
+    _contabilizar(getattr(response, "usage", None))
     return response.choices[0].message.content
 
 
@@ -172,6 +197,7 @@ def call_llm_agent(messages, tools=None):
     """Una vuelta del agente: devuelve el mensaje del asistente
     (con .tool_calls si pidió herramientas)."""
     response = _client().chat.completions.create(**_kwargs_agente(messages, tools))
+    _contabilizar(getattr(response, "usage", None))
     return response.choices[0].message
 
 
@@ -243,15 +269,21 @@ def call_llm_agent_stream(messages, tools=None):
     stream y se devuelve lo acumulado (el chat sigue, no se cae); se imprime
     un aviso "[interrumpido]". Con 0, el Ctrl+C se propaga como siempre
     (main lo toma como salida). El Ctrl+C fuera del stream no se toca."""
-    stream = _client().chat.completions.create(
-        **_kwargs_agente(messages, tools), stream=True
-    )
+    kwargs = _kwargs_agente(messages, tools)
+    # exp/89: el último chunk trae usage solo si se pide (OpenAI-compat)
+    kwargs["stream_options"] = {"include_usage": True}
+    stream = _client().chat.completions.create(**kwargs, stream=True)
     interrumpible = _setting("CHAT_STREAM_INTERRUPT", "1") == "1"
     contenido = []
     por_indice = {}  # index -> {"id", "name", "arguments"}
     cortado = False
+    uso = None
     try:
         for chunk in stream:
+            # el chunk final de usage viene SIN choices: se captura antes
+            # del continue (y si un proveedor lo manda con choices, también)
+            if getattr(chunk, "usage", None):
+                uso = chunk.usage
             if not chunk.choices:
                 continue
             # los deltas de reasoning_content NO se imprimen (se descartan)
@@ -277,6 +309,7 @@ def call_llm_agent_stream(messages, tools=None):
     # cierra el stream si quedó abierto por la interrupción (libera la conexión)
     if cortado:
         _cerrar_stream(stream)
+    _contabilizar(uso)
     # Un stream CORTADO (Ctrl+C o red) no despacha tool calls: sus argumentos
     # pueden estar truncados y el usuario pidió parar (medido: tras Ctrl+C la
     # llamada se conservaba y se ejecutaba). Tampoco viaja un fragmento sin
@@ -300,6 +333,7 @@ async def call_llm_async(messages):
         model=_model(),
         messages=messages,
     )
+    _contabilizar(getattr(response, "usage", None))
     return response.choices[0].message.content
 
 

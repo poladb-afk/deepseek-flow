@@ -131,3 +131,92 @@ def test_get_api_key_error_menciona_bmo_condicional(monkeypatch):
     with pytest.raises(RuntimeError) as exc:
         c.get_api_key()
     assert "LEER_BMO_ENV=1" in str(exc.value)
+
+
+# ── exp/89: tokens por llamada ──────────────────────────────────────────
+
+
+def _fake(usage=None, contenido="ok", con_tools=False):
+    from types import SimpleNamespace
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            mensaje = SimpleNamespace(content=contenido, tool_calls=None)
+            if con_tools:
+                mensaje.tool_calls = None
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=mensaje)], usage=usage)
+
+    class FakeClient:
+        chat = SimpleNamespace(completions=FakeCompletions())
+
+    return FakeClient()
+
+
+def test_call_llm_registra_el_usage_en_acumulador_y_evento(monkeypatch):
+    from types import SimpleNamespace
+
+    import utils.call_llm as c
+    eventos = []
+    monkeypatch.setattr(c, "_client", lambda: _fake(
+        usage=SimpleNamespace(prompt_tokens=100, completion_tokens=50)))
+    monkeypatch.setattr("utils.tracing.evento_llm",
+                        lambda pt, ct: eventos.append((pt, ct)))
+    antes = dict(c.USO)
+
+    c.call_llm("hola")
+
+    assert c.USO["llamadas"] == antes["llamadas"] + 1
+    assert c.USO["prompt"] == antes["prompt"] + 100
+    assert c.USO["completion"] == antes["completion"] + 50
+    assert eventos == [(100, 50)]
+
+
+def test_respuesta_sin_usage_cuenta_cero_y_no_rompe(monkeypatch):
+    import utils.call_llm as c
+
+    monkeypatch.setattr(c, "_client", lambda: _fake(usage=None))
+    antes = dict(c.USO)
+    c.call_llm("hola")
+    assert c.USO["llamadas"] == antes["llamadas"] + 1
+    assert c.USO["prompt"] == antes["prompt"]  # 0 sumado
+
+
+def test_el_stream_pide_usage_y_lo_captura_del_ultimo_chunk(monkeypatch):
+    from types import SimpleNamespace
+
+    import utils.call_llm as c
+    capturado = {}
+
+    class Chunk:
+        def __init__(self, content=None, usage=None, choices=None):
+            self.choices = choices if choices is not None else (
+                [SimpleNamespace(delta=SimpleNamespace(
+                    content=content, tool_calls=None))])
+            self.usage = usage
+
+    class FakeStream:
+        def __iter__(self):
+            yield Chunk(content="ho")
+            yield Chunk(content="la")
+            # el chunk final de usage viene SIN choices
+            yield Chunk(usage=SimpleNamespace(
+                prompt_tokens=200, completion_tokens=80), choices=[])
+
+    class FakeCompletions:
+        def create(self, **kwargs):
+            capturado.update(kwargs)
+            return FakeStream()
+
+    class FakeClient:
+        chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setattr(c, "_client", lambda: FakeClient())
+    antes = dict(c.USO)
+
+    r = c.call_llm_agent_stream([{"role": "user", "content": "hola"}])
+
+    assert capturado["stream_options"] == {"include_usage": True}
+    assert r.content == "hola"
+    assert c.USO["prompt"] == antes["prompt"] + 200
+    assert c.USO["completion"] == antes["completion"] + 80

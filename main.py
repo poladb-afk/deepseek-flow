@@ -1,3 +1,4 @@
+import contextlib
 import importlib
 import sys
 from pathlib import Path
@@ -260,6 +261,20 @@ def main():
         print("\n¡Chao! 👋")
     finally:
         resumen_de_sesion(shared)
+        _reporte_tokens()
+
+
+def _reporte_tokens():
+    """exp/89: el uso de tokens de la sesión, al salir (bookkeeping
+    best-effort: nunca corta la salida). La métrica first-class que faltaba
+    — costo_traza medía segundos."""
+    with contextlib.suppress(Exception):
+        from utils.call_llm import uso_de_sesion
+
+        uso = uso_de_sesion()
+        if uso["llamadas"]:
+            print(f"[tokens] sesión: {uso['llamadas']} llamadas — "
+                  f"{uso['prompt']:,} prompt + {uso['completion']:,} completion".replace(",", "."))
 
 
 if __name__ == "__main__":

@@ -1284,6 +1284,39 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/89 — tokens por llamada: la métrica first-class que faltaba (2026-10-22)
+
+El ítem pendiente de Mesa 1 ("costo por sesión (tokens/latencia) como
+métrica first-class derivable de las trazas") y la conclusión #2 de la
+comparativa del paper: sin tokens por llamada no hay costo por pregunta, ni
+ROI del router en dinero, ni señal para decidir dónde recortar contexto —
+`costo_traza` medía SEGUNDOS y el cliente descartaba el `usage` de la API.
+Spec: [banco/specs/exp89_tokens.md](../banco/specs/exp89_tokens.md).
+
+**La pieza:** captura del `usage` en los cuatro caminos del cliente
+(`call_llm`, `call_llm_agent`, `call_llm_agent_stream` con
+`stream_options={"include_usage": True}` — el chunk final llega SIN choices
+y se captura antes del continue —, `call_llm_async`); registro en dos
+niveles (evento `llm` en `.runs` SIN contenido — mismo contrato social que
+el resto de la traza — y acumulador por proceso); reporte `[tokens]` al
+salir del chat (best-effort) y `evals.tokens_traza` + columna de tokens en
+el informe de costos (las trazas previas no tienen eventos: el conteo
+arranca de cero, declarado).
+
+**Medición (e2e real, un turno):** `[tokens] sesión: 1 llamadas — 5.009
+prompt + 1 completion`, evento verificado en `.runs`. **Primer dato del
+producto: el system prompt cuesta 5.009 tokens de prompt por llamada** —
+con la sesión del operador de exp/88 como referencia (contexto clavado en
+60–75k), ahora se puede PONER número al costo de la ventana caliente.
+Gate verde (891 tests). De paso, housekeeping: los 19 respaldos del churn
+de exp/88 se movieron de `memoria/` a `salidas/memoria_respaldos_churn/`
+(precedente X41: la biblioteca queda curada, nada se borra).
+
+**Veredicto:** ✅ "own your evals" tiene ahora la métrica que el paper señala
+como eje diferencial. Siguientes habilitados (no pedidos): costo en dinero
+por pregunta, presupuesto de tokens, y la deuda de fondo de exp/88 (recortar
+tool results viejos) ahora con la señal para justificarla.
+
 ## exp/88 — la compacción rodante no puede escupir respaldos por ronda (2026-10-22)
 
 El operador usó el chat en una sesión real (research del harness Pi + deep

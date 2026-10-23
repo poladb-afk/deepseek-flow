@@ -54,6 +54,22 @@ def evento_tool(nombre, ok, seg, codigo=None, huella=None):
     _escribir(evento)
 
 
+def evento_llm(prompt_tokens, completion_tokens):
+    """Uso de UNA llamada al LLM: solo NÚMEROS, sin contenido ni pregunta
+    (mismo contrato social que el resto de la traza — exp/89: la métrica
+    first-class que faltaba; costo_traza medía segundos)."""
+    _escribir(
+        {
+            "ts": round(time.time(), 3),
+            "nodo": "llm",
+            "accion": "usage",
+            "seg": 0.0,
+            "prompt_tokens": int(prompt_tokens or 0),
+            "completion_tokens": int(completion_tokens or 0),
+        }
+    )
+
+
 def evento_hitl(tipo, nivel, decision, seg=0.0):
     """Decisión HITL compacta (SIN contenido): tipo, nivel y decisión.
     `seg` es opcional y hoy el chat pasa 0 (no mide latencia HITL): el campo

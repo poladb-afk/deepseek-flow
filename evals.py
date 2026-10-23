@@ -519,6 +519,17 @@ def costo_traza(eventos):
             "tools": tools, "dominante": dominante}
 
 
+def tokens_traza(eventos):
+    """Tokens de UNA traza: suma los eventos llm (exp/89). Las trazas
+    previas a exp/89 no tienen eventos: 0 y se declara, no se estima."""
+    prompt = sum(int(e.get("prompt_tokens", 0)) for e in eventos
+                 if e.get("nodo") == "llm")
+    completion = sum(int(e.get("completion_tokens", 0)) for e in eventos
+                     if e.get("nodo") == "llm")
+    llamadas = sum(1 for e in eventos if e.get("nodo") == "llm")
+    return {"llamadas": llamadas, "prompt": prompt, "completion": completion}
+
+
 def costos_runs(directorio=DIR_RUNS):
     """Costo por sesión de todas las trazas, ordenadas de más cara a más barata.
     La fecha sale del nombre del archivo (YYYYMMDD_HHMMSS.jsonl)."""
@@ -529,6 +540,7 @@ def costos_runs(directorio=DIR_RUNS):
         if not eventos:
             continue
         info = costo_traza(eventos)
+        info["tokens"] = tokens_traza(eventos)
         info["archivo"] = archivo.name
         info["fecha"] = _fecha_de(archivo.stem)
         sesiones.append(info)
@@ -637,11 +649,13 @@ def informe_markdown(bench, comparacion, linter, costos, sha, fecha):
     if costos:
         L.append("### Las 5 sesiones más caras")
         L.append("")
-        L.append("| # | fecha | total (s) | tools | nodo dominante | archivo |")
-        L.append("|---|-------|-----------|-------|----------------|---------|")
+        L.append("| # | fecha | total (s) | tokens (p+c) | tools | nodo dominante | archivo |")
+        L.append("|---|-------|-----------|--------------|-------|----------------|---------|")
         for i, s in enumerate(costos[:5], 1):
             dom = s["por_nodo"].get(s["dominante"], 0)
-            L.append(f"| {i} | {s['fecha']} | {s['total']:.1f} | {s['tools']} | "
+            tok = s.get("tokens", {})
+            tokens = f"{tok.get('prompt', 0):,}+{tok.get('completion', 0):,}".replace(",", ".")
+            L.append(f"| {i} | {s['fecha']} | {s['total']:.1f} | {tokens} | {s['tools']} | "
                      f"{s['dominante']} ({dom:.1f}s) | {s['archivo']} |")
         L.append("")
 
