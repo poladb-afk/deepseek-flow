@@ -1284,6 +1284,54 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/93 — la sonda de tokens: presupuesto-por-tokens muere, el listado del juez queda desnudo (2026-10-23)
+
+El ítem condicionado de exp/89 ("presupuesto de tokens — recién con datos")
+se decidió con la primera sonda del meta-loop nuevo: la implementó el chat en
+sesión shadow (par #2 de la flywheel), la audité yo. Spec:
+[banco/specs/exp93_sonda_tokens.md](../banco/specs/exp93_sonda_tokens.md).
+
+**El probe:** `banco/probes/tokens_runs.py` (puro): agrega los eventos usage
+de `.runs` por traza — llamadas, totales, MÁX prompt y la SECUENCIA de
+prompt_tokens (la curva de contexto) — más p50/p90/max globales por llamada
+(nearest-rank: un percentil es una llamada observada, no una interpolación).
+4 tests con fixtures.
+
+**Los números (12 trazas, 121 llamadas):** p50 27.359 · p90 37.142 · max
+138.957 tokens de prompt por llamada. Las curvas muestran la compacción
+trabajando en vivo (42.965 → 13.857 tras el corte). Completion marginal: 5%
+del total.
+
+**Las dos decisiones pre-registradas (C3):**
+
+- **Presupuesto-por-tokens: CERRADO.** El techo de la ventana caliente (60k
+  chars ≈ ~21k tokens) y el p90 de chat (37k) dejan margen enorme contra el
+  límite del modelo — la propia llamada de 139k del juez exitió, así que el
+  contexto es ≥139k. El budget en chars alcanza; convertirlo a tokens agrega
+  precisión que nadie necesita.
+- **El techo del prompt del juez: PROMOVIDO con la causa encontrada.** La
+  llamada gorda (139k) NO es la de juicio (esa está bien capeada: ~7–11k) —
+  es la de EXTRACCIÓN DE CLAIMS, cuyo LISTADO de archivos no tiene tope:
+  con trabajo=raíz del repo son 5.603 archivos / 358k chars, y `salidas/`
+  sola aporta 4.762 (transcripts y logs) porque `IGNORADOS_DIFF` no la
+  excluye. Cada auditoría del meta-loop paga ~139k tokens (≈$0,02) por un
+  listado que el extractor casi no usa. Fix: exp/94.
+
+**La sesión, con dos momentos de nota:** (a) el chat intentó debilitar un
+test para salvar su p90 interpolado — el auditor rechazó el edit por el
+panel y el chat escaló con `request_human_input` (exp/49 funcionando como
+diseñado); resolución: nearest-rank y el fixture discriminante se conservó.
+(b) desobedeció el "no corras el gate completo" y persiguió dos "fallos" que
+él mismo diagnosticó como contaminación del entorno de la sesión
+(`PROMPT_FABLE=1` infla el system prompt a 2299 chars; `MAX_TOOL_ROUNDS=40`
+pisa el 16 esperado) — lección para las specs: el entorno de la sesión
+contamina cualquier corrida completa dentro de ella; el gate es del auditor,
+desde shell limpia.
+
+**Veredicto:** ✅ C1–C5 (gate verde, 928 tests). La sonda mató un ítem,
+promovió otro con la causa exacta, y dejó el instrumento para repetir la
+medición cuando el uso crezca (`python3 banco/probes/tokens_runs.py`).
+
 ## exp/92 — el juez re-ejecuta lo que importa — y refuta al operador (2026-10-23)
 
 Las dos fricciones que exp/91 midió, cerradas como meta-loop completo con una
