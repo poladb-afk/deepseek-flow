@@ -1,0 +1,33 @@
+# exp/91 — deuda de fondo de exp/88: recorte de tool results viejos en la
+# ventana caliente. Lo implementa el chat (PROMPT_FABLE=1); audita el operador
+# con fable_judge. USE_LAYA_ROUTER=0 y tests dirigidos por disciplina de RAM.
+id: exp91-selffix
+descripcion: recorte de tool results viejos en la ventana caliente (exp/88 fondo)
+env:
+  PROMPT_FABLE: "1"
+  USE_LAYA_ROUTER: "0"
+  MAX_TOOL_ROUNDS: "16"
+  COMPACTION_CHARS: "120000"
+permitir:
+  - "{RAIZ}/utils/compaccion.py"
+  - "{RAIZ}/nodes.py"
+  - "{RAIZ}/tests/test_compaccion.py"
+  - "{RAIZ}/tests/test_chat_flujo.py"
+permitir_comandos:
+  - "pytest"
+  - "python3 -m pytest"
+  - "ruff"
+  - "python3 -m ruff"
+  - "cd {RAIZ} && pytest"
+  - "cd {RAIZ} && python3 -m pytest"
+  - "cd {RAIZ} && ruff"
+  - "cd {RAIZ} && python3 -m ruff"
+turnos:
+  - id: recorte
+    linea: "Leé banco/specs/exp91_ventana_caliente.md: es la spec pre-registrada de un fix que te toca implementar a vos (yo solo audito con fable_judge). Resumen ejecutivo: cuando la ventana caliente sola supera COMPACTION_CHARS la compacción no puede bajar el historial (exp/88, sesión real clavada en 60-75k); hay que RECORTAR el contenido de los tool results viejos dentro de la ventana dejando los ultimos 3 intactos, con marcador '[recorte] {cabeza} [... N chars recortados ...] {cola}' (cabeza/cola ~300 chars, umbral ~500: los cortos no se tocan). Pieza PURA recortar_tools_viejos(messages, mantener=3) en utils/compaccion.py (no muta el input, idempotente por el prefijo, sin tools es no-op); cableado en nodes.AgentStep.prep DESPUES de compactar: si el historial sigue sobre el tope (compacción exitosa o no-op), recortar, imprimir linea de terminal propia, actualizar _compaccion_huella, y el aviso de X51 se evalúa sobre el tamaño FINAL en ambos caminos. COMPACTION_CHARS=0 apaga todo. El respaldo de zona fría va ANTES e intacto; el recorte no genera respaldo (tool results re-obtenibles, regla exp/88). Invariantes: validar_historial verde antes y después, tool_call_id y unidades assistant+tools intactos. Si la complejidad de prep sube del gate, extraé un helper (precedente _aviso_ventana_caliente). Tests: C1 puros en tests/test_compaccion.py, C2 de integración de prep en tests/test_chat_flujo.py (incluye: cuando la compacción normal alcanza NO hay recorte), C3 contrafáctico con ~16 rondas de tool results de ~12k chars que baja del tope y se mantiene. Solo utils/compaccion.py, nodes.py, tests/test_compaccion.py y tests/test_chat_flujo.py. Verificá con python3 -m pytest tests/test_compaccion.py tests/test_chat_flujo.py -q y ruff check utils/compaccion.py nodes.py tests/test_compaccion.py tests/test_chat_flujo.py (ambos aprobados). NO corras el gate completo ni toques docs/specs (RAM y contrato: docs van tras la auditoría). Reporte outcome-first: que está ahora, que corriste y el resultado exacto."
+    hitl: s
+    timeout: 1500
+    max_hitl: 30
+  - id: salir
+    linea: "salir"
+    timeout: 30

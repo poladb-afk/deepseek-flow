@@ -1,0 +1,34 @@
+# exp/91 vuelta 2 — la vuelta 1 (exp91-selffix) gastó las 16 rondas en el
+# assessment (leyó todo, verificó citas, no editó nada y paró honesto en el
+# presupuesto). Presupuesto de aplicación (40) + la respuesta del auditor a su
+# pregunta: el C2 de integración va en tests/test_compaccion.py.
+id: exp91-selffix2
+descripcion: vuelta 2 del recorte de tool results viejos (implementación, 40 rondas)
+env:
+  PROMPT_FABLE: "1"
+  USE_LAYA_ROUTER: "0"
+  MAX_TOOL_ROUNDS: "40"
+  COMPACTION_CHARS: "120000"
+permitir:
+  - "{RAIZ}/utils/compaccion.py"
+  - "{RAIZ}/nodes.py"
+  - "{RAIZ}/tests/test_compaccion.py"
+  - "{RAIZ}/tests/test_chat_flujo.py"
+permitir_comandos:
+  - "pytest"
+  - "python3 -m pytest"
+  - "ruff"
+  - "python3 -m ruff"
+  - "cd {RAIZ} && pytest"
+  - "cd {RAIZ} && python3 -m pytest"
+  - "cd {RAIZ} && ruff"
+  - "cd {RAIZ} && python3 -m ruff"
+turnos:
+  - id: recorte
+    linea: "Leé banco/specs/exp91_ventana_caliente.md y implementá el fix que describe. Esto es una TAREA (cambio verificado), no un assessment: el deliverable es el código editado y los tests corriendo verde, no un plan ni un análisis. Datos del auditor para que no gastes rondas de lectura: (1) AgentStep.prep está en nodes.py alrededor de las líneas 526-586; el bloque de compacción hace: tope COMPACTION_CHARS -> _respaldar_zona_fria ANTES -> compactar -> si achicó, asigna messages/compacciones/_compaccion_huella y llama _aviso_ventana_caliente; tu recorte va DESPUÉS de compactar, si el historial sigue sobre el tope (compaction exitosa o no-op), con su propia linea de terminal, actualizando _compaccion_huella y evaluando el aviso sobre el tamaño FINAL en ambos caminos. (2) Respuesta a tu pregunta de la vuelta anterior: el C2 de integración de prep va en tests/test_compaccion.py (test_agent_step_prep_compacta_y_cuenta es el precedente), NO en test_chat_flujo.py; el C1 puro también en tests/test_compaccion.py. (3) Tenés 40 rondas: los archivos a leer son utils/compaccion.py completo y la zona de prep de nodes.py; no re-leas specs ni tests completos de otros archivos. Solo editá utils/compaccion.py, nodes.py y tests/test_compaccion.py. Verificá con python3 -m pytest tests/test_compaccion.py -q y ruff check utils/compaccion.py nodes.py tests/test_compaccion.py (ambos aprobados); si querés anticipar el gate de complejidad: ruff check --config 'lint.mccabe.max-complexity=12' sobre esos tres archivos. NO corras el gate completo ni toques docs/specs. Reporte outcome-first: que cambió, que corriste y el resultado exacto."
+    hitl: s
+    timeout: 1500
+    max_hitl: 30
+  - id: salir
+    linea: "salir"
+    timeout: 30

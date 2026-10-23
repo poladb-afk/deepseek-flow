@@ -1284,6 +1284,62 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/91 — la ventana caliente se recorta a sí misma: tool results viejos → marcadores (2026-10-23)
+
+La deuda de fondo que exp/88 declaró, ejecutada como meta-loop completo: la
+implementó el propio chat del harness y la auditó el juez de fable — que
+encontró dos residuos reales que la review manual del auditor había pasado.
+Spec: [banco/specs/exp91_ventana_caliente.md](../banco/specs/exp91_ventana_caliente.md).
+
+**La pieza:** `recortar_tools_viejos` (pura, en `utils/compaccion.py`) — cuando
+la ventana caliente sola supera `COMPACTION_CHARS` y `compactar` no puede bajar
+el historial, el CONTENIDO de los tool results viejos (todos menos los últimos
+3) se reemplaza por `"[recorte] {cabeza} [… N chars recortados …] {cola}"`
+(anclas de 300 c/u, umbral 500, idempotente por prefijo, estructura e
+invariantes intactos). Cableado en `AgentStep.prep` DESPUÉS de compactar y en
+ambos caminos (exitosa o no-op), con línea de terminal propia y el aviso de
+X51 evaluado sobre el tamaño FINAL. El recorte no genera respaldo: los tool
+results son re-obtenibles (regla exp/88). Si el marcador no achica, no se toca
+(principio de `compactar`, fix post-juicio).
+
+**El meta-loop (dos vueltas de banco + dos juicios):**
+
+- **Vuelta 1** (16 rondas): el chat clasificó el pedido con la directiva
+  fable, leyó TODO (441k prompt tokens), verificó 4/4 citas y paró honesto
+  sin editar nada — "esperando tu autorización para retomarlo con presupuesto
+  nuevo": el assessment se comió las 16 rondas. Dejó además una pregunta de
+  auditor válida (dónde vive el C2 por convención del repo).
+- **Vuelta 2** (40 rondas, presupuesto de aplicación, con la pregunta
+  respondida): implementó los tres archivos (+259 líneas, 32 rondas, 17 HITL,
+  146 s), corrió los tests dirigidos y reportó outcome-first con caveats.
+- **Juicio 1** (fable_judge): VERIFIED WITH CAVEATS con dos hallazgos REALES
+  que la review del auditor pasó por alto: (a) el reporte decía "9 tests
+  nuevos" y eran 8 — el conteo del chat, no el código; (b) el borde del
+  umbral: entre 501 y ~635 chars el marcador quedaba MÁS LARGO que el
+  original — un recorte que infla. Fix del auditor: `len(marcador) <
+  len(contenido)` o no se toca, + test del borde.
+- **Juicio 2** (reporte reordenado, verificaciones primero): ambas corridas
+  de pytest re-ejecutadas exit 0; `ruff check` no lo pudo re-ejecutar (el
+  HITL pidió s/n en una corrida sin terminal — la política no lista ruff
+  como solo-lectura; evidencia del auditor: All checks passed).
+
+**Limitaciones declaradas:** MAX_CLAIMS=12 se comió los claims verificables
+cuando el reporte los lista al final (el juicio 1 no re-ejecutó nada por eso);
+priorizar los claims re-ejecutables queda como mejora del instrumento.
+Desviaciones por RAM (declaradas en la spec): `USE_LAYA_ROUTER=0` en el banco
+y el gate completo lo corrió el auditor después, no el chat.
+
+**Medición (C3, contrafáctico determinista):** 16 rondas con tool results de
+12k chars: el historial se mantiene ≤ 60k en CADA ronda (antes quedaba clavado
+por encima, sesión real de exp/88). Con el encuadre de exp/90: gran parte de
+ese reenvío era cache hit del servidor, así que el fix se justifica por el
+límite de contexto, la latencia y los misses al cambiar el prefijo — no por
+tarifa llena.
+
+**Veredicto:** ✅ C1–C5 OK (gate verde, 915 tests: +9). La ventana caliente ya
+no es un techo rígido: recorta lo viejo y mantiene intacto lo reciente. Y el
+meta-loop volvió a pagar su costo: el juez encontró lo que la review manual no.
+
 ## exp/90 — el costo en dinero: la sesión y cada pregunta, cotizadas (2026-10-23)
 
 El follow-up que exp/89 dejó declarado fuera de alcance: tokens sin dólares no

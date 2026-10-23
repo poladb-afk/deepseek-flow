@@ -467,6 +467,36 @@ def _aviso_ventana_caliente(shared, tamano, tope):
         "recortá lecturas o subí COMPACTION_CHARS", "aviso"), flush=True)
 
 
+def _recortar_si_sigue_sobre_el_tope(shared, tope):
+    """exp/91: si tras compactar (exitosa o no-op) el historial sigue sobre el
+    tope, la masa está en el CONTENIDO de la ventana caliente — recortá el de
+    los tool results VIEJOS (estructura intacta). La línea de terminal es
+    propia y visible: la causa invisible mató la sesión de exp/88.
+
+    Se evalúa DESPUÉS del respaldo de zona fría (A17) y no genera respaldo
+    propio: un tool result se re-obtiene re-corriendo la tool."""
+    from utils.compaccion import (
+        PREFIJO_COMPACCION,
+        huella,
+        recortar_tools_viejos,
+        serializar,
+    )
+
+    mensajes = shared["messages"]
+    if len(serializar(mensajes)) <= tope:
+        return
+    nuevo = recortar_tools_viejos(mensajes)
+    if nuevo == mensajes:
+        return
+    recortados = sum(1 for a, b in zip(mensajes, nuevo, strict=True) if a is not b)
+    print(
+        f"{PREFIJO_COMPACCION} recorte: {recortados} resultados viejos → marcadores",
+        flush=True,
+    )
+    shared["messages"] = nuevo
+    shared["_compaccion_huella"] = huella(nuevo)
+
+
 def _respaldar_zona_fria(mensajes, shared=None):
     """Guarda en memoria/ los mensajes que la compacción va a descartar (A17).
 
@@ -553,7 +583,11 @@ class AgentStep(Node):
                     shared["messages"] = nuevo
                     shared["compacciones"] = shared.get("compacciones", 0) + 1
                     shared["_compaccion_huella"] = huella(nuevo)
-                    _aviso_ventana_caliente(shared, len(serializar(nuevo)), tope)
+            # exp/91: si ni así se baja del tope, la masa está en el CONTENIDO
+            # de la ventana caliente. Se evalúa en los DOS caminos (compacción
+            # exitosa o no-op) y el aviso de X51 mira el tamaño FINAL.
+            _recortar_si_sigue_sobre_el_tope(shared, tope)
+            _aviso_ventana_caliente(shared, len(serializar(shared["messages"])), tope)
         # Techo adaptativo por operación (exp/13) + escape por no-progreso:
         # si el modelo repite la MISMA ronda de tools demasiadas veces, se
         # retiran las tools sin esperar el techo — el loop no se paga hasta

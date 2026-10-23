@@ -41,6 +41,16 @@ VENTANA_DEFAULT = 6
 # transcripción completa va a memoria/ y no conviene que crezca sin límite.
 MAX_RESPALDO_CHARS = 200_000
 
+# Recorte de tool results viejos DENTRO de la ventana caliente (exp/91): cuando
+# la ventana sola supera el tope, la compacción no puede bajarlo y el contexto
+# se clava. Recortar el CONTENIDO (no la estructura) lo desbloquea; el prefijo
+# hace la operación idempotente y delata el marcador en el historial.
+PREFIJO_RECORTE = "[recorte]"
+UMBRAL_RECORTE = 500   # por debajo no vale la pena: un resultado corto no pesa
+CABEZA_RECORTE = 300   # ancla de contexto conservada al principio
+COLA_RECORTE = 300     # ancla de contexto conservada al final
+MANTENER_TOOLS = 3     # los últimos N tool results quedan INTACTOS
+
 # Claves canónicas permitidas por rol (contrato de la API DeepSeek).
 _CLAVES = {
     "system": {"role", "content"},
@@ -255,3 +265,50 @@ def compactar(messages, max_chars, ventana=VENTANA_DEFAULT, respaldo=None,
     # achica (medido: 9 mensajes/60.403 chars → 8/60.644) y el llamador
     # re-compactaría en cada ronda sin bajar nunca. Si no achica, no se toca.
     return nuevo if _tamano(nuevo) < _tamano(original) else original
+
+
+# Recorte del contenido de tool results viejos (exp/91)
+
+def _marcador_recorte(contenido):
+    """El marcador que reemplaza un resultado viejo: prefijo que lo delata
+    como recortado, cabeza y cola como anclas y el conteo de lo comido."""
+    cabeza = contenido[:CABEZA_RECORTE]
+    cola = contenido[-COLA_RECORTE:]
+    comidos = len(contenido) - len(cabeza) - len(cola)
+    return f"{PREFIJO_RECORTE} {cabeza} [… {comidos} chars recortados …] {cola}"
+
+
+def recortar_tools_viejos(messages, mantener=MANTENER_TOOLS):
+    """Recorta el CONTENIDO de los tool results viejos. PURA: no muta el input.
+
+    Cuando la ventana caliente sola supera `max_chars`, `compactar` es no-op y
+    el historial se clava: cada ronda reenvía los resultados enteros de
+    lecturas que ya nadie mira (medido, sesión exp/88: 60–75k por ronda).
+    Se recorta el contenido de TODOS los tool messages salvo los últimos
+    `mantener` (los que el modelo está usando ahora), respetando la
+    ESTRUCTURA (roles, `tool_call_id`, unidades assistant+tools): los
+    invariantes del modo thinking y el candado `validar_historial` quedan
+    intactos.
+
+    Idempotente por `PREFIJO_RECORTE`: un recortado no se vuelve a recortar.
+    Los resultados cortos (< `UMBRAL_RECORTE`) ni se tocan.
+    """
+    if not isinstance(messages, list):
+        return list(messages or [])
+    indices = [i for i, m in enumerate(messages)
+               if isinstance(m, dict) and m.get("role") == "tool"]
+    viejos = set(indices[:-mantener] if mantener > 0 else indices)
+    nuevo = []
+    for i, m in enumerate(messages):
+        contenido = m.get("content") if i in viejos and isinstance(m, dict) else None
+        if (isinstance(contenido, str) and len(contenido) > UMBRAL_RECORTE
+                and not contenido.startswith(PREFIJO_RECORTE)):
+            marcador = _marcador_recorte(contenido)
+            # si no achica, no se toca (mismo principio que compactar): un
+            # contenido apenas sobre el umbral puede ser más corto que el
+            # marcador (cabeza+cola+prefijo ~640) y recortarlo lo INFLARÍA
+            # (hallazgo del juez de fable sobre exp/91)
+            if len(marcador) < len(contenido):
+                m = {**m, "content": marcador}
+        nuevo.append(m)
+    return nuevo
