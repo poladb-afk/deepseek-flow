@@ -47,6 +47,7 @@ from pocketflow import Flow, Node
 from modules import discover
 from utils import fs_tools
 from utils.call_llm import call_llm, call_llm_agent
+from utils.convergencia import seco
 from utils.fs_tools import TOOLS as BASE_TOOLS
 from utils.fs_tools import escribir_salida
 
@@ -169,6 +170,7 @@ def semilla(tarea, salida):
         "previas": {},
         "hechos": [],
         "resultados": [],
+        "secadas": [],
     }
 
 
@@ -334,6 +336,16 @@ class Ejecutar(Node):
         shared.setdefault("hechos", []).extend(hechos)
         shared.setdefault("resultados", []).extend(resultados)
         shared["rondas"] = shared.get("rondas", 0) + 1
+        # exp/96: telemetría de convergencia, SIN corte. Se compara la TANDA
+        # de esta ronda contra la tanda de la ANTERIOR (no el acumulado: el
+        # prefijo idéntico inflaría el ratio y toda ronda tardía saldría seca).
+        tanda = "\n".join(hechos)
+        if "_tanda_previa" in shared:
+            es_seca = seco(shared["_tanda_previa"], tanda)
+            shared.setdefault("secadas", []).append(es_seca)
+            print(f"  [supervisor] ronda {shared['rondas']}: seca: "
+                  f"{'sí' if es_seca else 'no'}")
+        shared["_tanda_previa"] = tanda
         shared.pop("_paso_tool_calls", None)
         return "default"
 

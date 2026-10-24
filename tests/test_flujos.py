@@ -281,6 +281,7 @@ def test_supervisor_flujo_nuevo_guarda_antes_de_despachar(tmp_path, monkeypatch)
     texto = (tmp_path / "sup.md").read_text(encoding="utf-8")
     assert "## Pasos" in texto  # Sintetizar escribió la auditoría
 
+
 def test_heartbeat_vencidas():
     import time
 

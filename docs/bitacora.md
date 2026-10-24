@@ -1284,6 +1284,43 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/96 — dried muere medido: el supervisor no gira en redondo (2026-10-24)
+
+La recomendación #1 del research de SOTA, ejecutada como meta-loop y cerrada
+con la respuesta más sana que puede tener un experimento: **la señal no
+existe, y ahora está medido**. Spec:
+[banco/specs/exp96_dried.md](../banco/specs/exp96_dried.md).
+
+**La pieza:** `seco(a, b)` pura (`utils/convergencia.py`: normaliza espacios;
+iguales → True; si no `difflib` ratio ≥ umbral) + telemetría por ronda en el
+supervisor que compara la TANDA de hechos de esta ronda contra la de la
+anterior — la primera versión del chat comparaba el acumulado contra
+acumulado+nuevos (el prefijo idéntico inflaba el ratio: toda ronda tardía
+salía seca); el edit se RECHAZÓ y la métrica correcta llegó por mensaje del
+auditor, con el comentario en el código explicando el falso positivo evitado.
+
+**La medición (C3):** 4 tareas reales + 1 corta: **10 comparaciones, CERO
+rondas secas**. Ninguna corrida con ≥2 secas consecutivas → el corte NO se
+activa (criterio bifurcante pre-registrado, precedente exp/52-B). Lectura
+estructural: el supervisor es un loop de PLANIFICACIÓN (cada paso una tool
+distinta, material nuevo por construcción), no de refinamiento — `dried`
+aplica donde el mismo artefacto se pule (el `until_dry` del prototipo envolvía
+un refiner). La utilidad queda instalada para ese día.
+
+**El incidente que vale una mejora del instrumento:** al auditar el diff
+final, `supervisor.py` tenía cambios que NADIE había visto completos —
+removieron `catalogo()` (que `sonda_supervisor.py` importa: el gate lo cazó)
+y refactorizaron el `system_prompt`. Los hunks visibles del panel al aprobar
+eran solo la punta: **el panel trunca diffs multi-hunk y el supervisor aprobó
+vistas parciales**. Resolución: checkout + reaplicación textual de los 4
+hunks aprobados. La lección HITL queda registrada: el diff de `edit_file`
+debe mostrar el cambio completo o declarar qué quedó fuera de vista. Pares
+#10 y #11 de la flywheel (la sesión tuvo dos preguntas).
+
+**Veredicto:** ✅ C1–C5 (gate verde). Un ítem muerto con medición es un ítem
+que no va a resucitar por intuición — y la telemetría sigue ahí, gratis,
+por si el uso dice lo contrario algún día.
+
 ## exp/95 — la evidencia del juez también se verifica (2026-10-23)
 
 El cierre del ciclo abierto en exp/92: el juez puede citar código que no
