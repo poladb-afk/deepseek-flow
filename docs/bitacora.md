@@ -1284,6 +1284,44 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/97 — el explorador aislado existe; el modelo no lo quiso (todavía) (2026-10-24)
+
+La brecha que la comparativa marcó con nombre ("no hay aislamiento de
+contexto por subagente") quedó cerrada como CAPACIDAD — y el A/B smoke trajo
+el hallazgo honesto que faltaba: **la capacidad instalada no implica la
+adopción**. Spec: [banco/specs/exp97_explorador.md](../banco/specs/exp97_explorador.md).
+
+**La pieza:** `explorador.py` — mini-flow síncrono con contexto fresco por
+construcción (nace con system+pregunta, nada del padre viaja, el historial
+muere con la exploración), toolset whitelist de sólo lectura
+(`read_file/list_files/search_files`; run_command y toda escritura no
+EXISTEN para él — mitigación canónica de OWASP LLM06: el permiso es el
+mapa), presupuesto propio (`MAX_PASOS_EXPLORADOR=3`, declara "usó N de 3"),
+y cableado en el supervisor bajo `EXPLORAR` (default 0, off hasta medir). En
+la última ronda del padre no se anuncia.
+
+**La medición (C3, smoke n=3):** disponible en 3 corridas — 2 tareas de
+investigación × EXPLORAR=1/0 y 1 tarea grande multi-archivo de seguridad —
+**cero usos**. Con MAX_PASOS=5 y tareas de 2-4 lecturas, leer directo es lo
+natural: no hay contexto que aislar. Brazos indistinguibles. La lectura
+pre-registrada: no se coacciona el prompt para forzar adopción; la
+re-medición exige presión de contexto real (tareas largas donde el historial
+pese — que exp/93 puede medir cuando existan). La capacidad queda opt-in, y
+el día que duela, ya está.
+
+**Los gates trabajaron:** el TWINS (exp/85) cazó el sitio LLM sin clasificar
+del explorador — clasificado como "e" (ejecutor con tools, como el
+supervisor); el ratchet cazó DOS helpers duplicados (`_historiar` y
+`_as_dict`, copiados del supervisor) — extraídos a `utils/historial.py`
+(patrón X14, la métrica volvió a 10). Dos rechazos del supervisor en sesión
+evitaron lógica enredada de última ronda (la versión con key compartida
+invertía el default); el diff final se auditó hunk por hunk contra el log
+(lección exp/96): sin extraños. Par #12 de la flywheel.
+
+**Veredicto:** ✅ C1–C5 (gate verde, 951 tests). Mesa 4 tiene su primera
+pieza real: sub-agente aislado, sólo lectura, presupuesto propio — apagado
+hasta que el uso lo pida, como corresponde.
+
 ## exp/96 — dried muere medido: el supervisor no gira en redondo (2026-10-24)
 
 La recomendación #1 del research de SOTA, ejecutada como meta-loop y cerrada

@@ -44,21 +44,29 @@ from pathlib import Path
 
 from pocketflow import Flow, Node
 
+import explorador
 from modules import discover
 from utils import fs_tools
-from utils.call_llm import call_llm, call_llm_agent
+from utils.call_llm import _setting, call_llm, call_llm_agent
 from utils.convergencia import seco
 from utils.fs_tools import TOOLS as BASE_TOOLS
 from utils.fs_tools import escribir_salida
+from utils.historial import as_dict, historiar
 
 MAX_PASOS = 5
 HECHO_LARGO = 160
 MAX_FALLOS_POR_HERRAMIENTA = 2  # L8: dos errores y la herramienta se veta
+# exp/97: la tool `explorar` (sub-agente de sólo lectura, contexto fresco).
+# Se lee al importar (mismo criterio que MAX_TOOL_ROUNDS): cambiarla exige
+# reiniciar el proceso.
+EXPLORAR = _setting("EXPLORAR", "0").strip().lower() in ("1", "true", "si", "sí", "yes")
 
 MODULE_TOOLS, MODULE_IMPLS = discover()
 # Ley anti-recursión (L1 de bmo): el supervisor no se despacha a sí mismo.
 _MODULE_IMPLS = {k: v for k, v in MODULE_IMPLS.items() if k != "run_supervisor"}
 _TODAS = [t for t in BASE_TOOLS + MODULE_TOOLS if t["function"]["name"] != "run_supervisor"]
+if EXPLORAR:  # off por default: sin el setting el catálogo queda byte-idéntico
+    _TODAS = _TODAS + [explorador.TOOL_EXPLORAR]
 
 REGISTRO = {
     "list_files": fs_tools.list_files,
@@ -66,6 +74,8 @@ REGISTRO = {
     "search_files": fs_tools.search_files,
     **_MODULE_IMPLS,
 }
+if EXPLORAR:
+    REGISTRO[explorador.NOMBRE_TOOL] = explorador.explorar
 
 # Herramientas sin argumentos: repetirlas en una corrida es quemar presupuesto
 # (patología medida: db_schema corrió 4 veces en una tarea real de 5 pasos).
@@ -174,32 +184,6 @@ def semilla(tarea, salida):
     }
 
 
-def _historiar(msg):
-    """El mensaje del asistente en forma canónica para el historial: solo
-    role/content/tool_calls (el reasoning_content del modo thinking no
-    viaja)."""
-    m = {"role": "assistant", "content": getattr(msg, "content", None)}
-    if getattr(msg, "tool_calls", None):
-        m["tool_calls"] = [
-            {"id": tc.id, "type": "function",
-             "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-            for tc in msg.tool_calls
-        ]
-    return m
-
-
-def _as_dict(tc):
-    """La tool call como dict canónico del historial (lo que come
-    run_tool_call). Acepta el objeto del SDK o un dict ya armado."""
-    if isinstance(tc, dict):
-        return tc
-    return {
-        "id": tc.id,
-        "type": "function",
-        "function": {"name": tc.function.name, "arguments": tc.function.arguments},
-    }
-
-
 class UnPaso(Node):
     """La llamada del paso: el modelo elige herramienta Y args juntos. Con
     tool_calls → "tool"; sin ellas → "sintetizar" (el contenido es el cierre
@@ -209,6 +193,10 @@ class UnPaso(Node):
     def prep(self, shared):
         rondas = shared.get("rondas", 0)
         tools = None if rondas >= MAX_PASOS else _TODAS
+        # exp/97: en la última ronda `explorar` no se anuncia — una
+        # exploración no puede arrancar cuando ya hay que cerrar.
+        if tools and rondas >= MAX_PASOS - 1:
+            tools = [t for t in tools if t["function"]["name"] != explorador.NOMBRE_TOOL]
         return shared["messages"], tools
 
     def exec(self, inputs):
@@ -216,9 +204,9 @@ class UnPaso(Node):
         return call_llm_agent(messages, tools=tools)
 
     def post(self, shared, prep_res, exec_res):
-        shared["messages"].append(_historiar(exec_res))
+        shared["messages"].append(historiar(exec_res))
         if getattr(exec_res, "tool_calls", None):
-            shared["_paso_tool_calls"] = [_as_dict(tc) for tc in exec_res.tool_calls]
+            shared["_paso_tool_calls"] = [as_dict(tc) for tc in exec_res.tool_calls]
             return "tool"
         shared["_cierre_parcial"] = getattr(exec_res, "content", None)
         return "sintetizar"
