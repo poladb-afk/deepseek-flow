@@ -13,7 +13,7 @@ def test_action_space_completo():
         "rag_search", "rag_index", "debate",  # módulos
         "mcp_tools", "mcp_call", "search_web", "deep_research", "run_supervisor",
         "sql", "db_schema", "run_effective_n", "evals", "request_human_input",
-        "verificar_trabajo",
+        "verificar_trabajo", "delegar_tarea",
     }
     assert esperadas <= nombres, f"faltan: {esperadas - nombres}"
 

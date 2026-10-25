@@ -841,7 +841,29 @@ cuentan como origen `terminal` y alimentan la flywheel del router (X42). Con
 (decisión+resultado: la receta de sesión shadow de exp/95 — en enforce el
 resultado no se registra porque la ruta aplicada ya cambió el contexto).
 
-Leyes del conductor (spec [exp99](../banco/specs/exp99_delegar.md)):
+**Los tres momentos del ciclo de vida del chat (exp/100 — el operador vive
+en el chat, lo que no se activa ahí no se usa):**
+
+- **Durante** — tool `delegar_tarea` ([modules/delegar.py](../modules/delegar.py)):
+  el modelo propone pedido+scope; UNA aprobación del operador con el cuerpo
+  impreso antes del s/n (patrón run_command; el rechazo con motivo de
+  exp/98 vuelve al modelo); aprobada → `Popen` **detached**
+  (`start_new_session=True`, stdio a DEVNULL): la tarea sigue aunque el chat
+  se cierre. `shadow="1"` fuerza `LAYA_MODO=shadow` del conductor.
+- **Al arrancar** — `main.estado_delegadas()` imprime `panorama_delegadas()`:
+  las últimas 3 corridas con su estado (`ok`/`timeout`/`muerto-sin-resume`/
+  `en curso` —pid del conductor vivo en `conductor.pid`—/`murió sin
+  resumen`), best-effort junto al catálogo de memoria.
+- **Al cerrar** — `main.aviso_delegadas_al_cerrar()`: si hay delegadas
+  activas (pid vivo y sin `resumen.md`), el cierre las nombra; el resultado
+  se reporta al próximo arranque.
+
+La regla que no se relaja: el que aprueba los HITL de la tarea es el
+conductor (proceso aparte) con el scope que el operador firmó en el
+lanzamiento — el chat dispara, no aprueba. La denylist dura corre siempre.
+
+Leyes del conductor (spec [exp99](../banco/specs/exp99_delegar.md) y
+[exp100](../banco/specs/exp100_delegar_en_chat.md)):
 
 - **HITL por scope**: reusa `decision_hitl` del banco; `--permitir`/
   `--permitir-comandos` son prefijos; sin ellos vale solo la denylist dura

@@ -1284,6 +1284,44 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/100 — `delegar` se muda al ciclo de vida del chat (2026-10-25)
+
+La señal de uso que exp/97 pedía, llegó antes del uso y de la boca del
+operador: "mi uso principal es por chat. Si algo no se activa cuando quiero
+iniciar el chat, durante el chat, o al cerrar el chat, entonces no creo que
+lo use". El conductor de exp/99 como comando aparte era, para él, como si
+no existiera. Spec:
+[banco/specs/exp100_delegar_en_chat.md](../banco/specs/exp100_delegar_en_chat.md).
+
+**Los tres momentos:** DURANTE — tool `delegar_tarea` (#31): el modelo
+propone pedido+scope, el operador da UNA aprobación con todo a la vista
+(patrón run_command: el cuerpo se imprime antes del s/n; el rechazo con
+motivo de exp/98 vuelve al modelo) y el conductor se lanza **detached**
+(`start_new_session`: la tarea sigue aunque el chat se cierre). AL ARRANCAR
+— `panorama_delegadas()`: las últimas 3 corridas con su estado (`ok` /
+`timeout` / `en curso` —pid del conductor vivo— / `murió sin resumen`),
+best-effort junto al catálogo de memoria. AL CERRAR — aviso de las
+delegadas activas, después del reporte de tokens. La regla de exp/99 queda
+intacta: el que aprueba los HITL de la tarea sigue siendo un proceso aparte
+— el chat solo dispara el conductor con el scope que el operador vetó o
+firmó.
+
+**El e2e (criterio pre-registrado, n=1):** en el chat real por PTY — el
+modelo llamó solo la tool, el lanzamiento se aprobó, `salir` cerró el chat
+con el aviso `1 tarea(s) delegadas siguen corriendo (20261025-114334)`, el
+conductor completó igual (estado ok, archivo creado a los ~40 s) y el
+arranque siguiente reportó las últimas 3. Gate verde completo (976 tests;
+ratchet: `tests_definidos` 955→963, baseline actualizado por el propio
+ratchet — que a mí me frenó dos veces: cuerpo de test duplicado con
+`test_hitl` y dos `except` amplios que pasaron a `contextlib.suppress` como
+manda la casa).
+
+**Declarado:** se pueden lanzar varias delegaciones a la vez (el panorama
+muestra las últimas 3, sin cola ni notificación push — el reporte es del
+próximo arranque); `shadow="1"` en la tool fuerza `LAYA_MODO=shadow` del
+conductor (la receta de pares de exp/43); los sub-agentes dentro del chat
+(exp/97) siguen apagados — esto es lanzar el conductor, no anidarlo.
+
 ## exp/99 — `delegar`: la tarea delegada sin timón; la flywheel se mueve sola (2026-10-25)
 
 La primera opción del cierre de la sesión anterior, hecha: el conductor

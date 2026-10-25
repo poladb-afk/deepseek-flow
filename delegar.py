@@ -59,6 +59,72 @@ def thread_reciente(dir_threads):
     return archivos[-1].stem if archivos else None
 
 
+def _pid_vivo(pid):
+    """True si el proceso existe (PermissionError cuenta como vivo: existe,
+    aunque sea de otro usuario)."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def _leer_pid(run):
+    try:
+        return int((run / "conductor.pid").read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _estado_de_corrida(run):
+    """El estado legible de UNA corrida: el de su resumen, o 'en curso' si
+    el conductor vive, o 'murió sin resumen' si el pid feneció antes de
+    escribirlo (p. ej. un SIGKILL externo)."""
+    resumen = run / "resumen.md"
+    if resumen.exists():
+        for linea in resumen.read_text(encoding="utf-8").splitlines():
+            if linea.startswith("- estado:"):
+                return linea.split(":", 1)[1].strip()
+    pid = _leer_pid(run)
+    if pid is not None and _pid_vivo(pid):
+        return "en curso"
+    return "murió sin resumen"
+
+
+def _corridas(dir_salidas):
+    """Las corridas del conductor, la más reciente primero (el stamp del
+    nombre ordena lexicográficamente)."""
+    base = Path(dir_salidas)
+    try:
+        return sorted((d for d in base.iterdir() if d.is_dir()),
+                      key=lambda d: d.name, reverse=True)
+    except OSError:
+        return []
+
+
+def panorama_delegadas(dir_salidas=None, maximo=3):
+    """Las últimas corridas con su estado, para el ARRANQUE del chat
+    (exp/100: el operador vive en el chat; si el resultado de lo delegado no
+    aparece ahí, es como si no existiera). Best-effort."""
+    base = dir_salidas or (RAIZ / "salidas" / "delegar")
+    return [f"{d.name}: {_estado_de_corrida(d)}" for d in _corridas(base)[:maximo]]
+
+
+def corridas_activas(dir_salidas=None):
+    """Las delegadas cuyo conductor sigue vivo y no terminó (el aviso al
+    CERRAR el chat: la tarea sigue aunque el chat no — el conductor corre
+    detached)."""
+    base = dir_salidas or (RAIZ / "salidas" / "delegar")
+    return [d for d in _corridas(base)
+            if not (d / "resumen.md").exists()
+            and _leer_pid(d) is not None
+            and _pid_vivo(_leer_pid(d))]
+
+
 def tipo_prompt(ultima_linea):
     """Qué prompt HITL está pendiente en la última línea: "sn", "doble" o None.
 
@@ -184,6 +250,9 @@ def conducir(pedido, dir_salida, permitir=None, permitir_comandos=None,
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     run = Path(dir_salida) / stamp
     (run / "threads").mkdir(parents=True, exist_ok=True)
+    # el pid hace consultable el estado de la corrida desde afuera (el
+    # arranque del chat reporta "en curso" vs "murió sin resumen")
+    (run / "conductor.pid").write_text(str(os.getpid()), encoding="utf-8")
     env = env_delegar(run / "threads", extras)
     crudo = run / "transcript.log"
     lanzador = lanzar or (lambda env, argv: Chat(env=env, argv=argv))

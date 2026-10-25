@@ -5,6 +5,8 @@ la clasificación de prompts HITL, el rechazo con motivo (contract link con
 exp/98), el checkpoint más reciente y la máquina de estados muerte→resume
 (con un chat fake inyectado en `conducir`)."""
 import json
+import os
+import subprocess
 import time
 from pathlib import Path
 
@@ -12,6 +14,7 @@ from delegar import (
     LINEA_RESUME,
     conducir,
     env_delegar,
+    panorama_delegadas,
     plan_respuesta,
     thread_reciente,
     tipo_prompt,
@@ -284,3 +287,144 @@ def test_conducir_timeout_corta_con_ctrl_c(tmp_path):
     assert codigo == 1
     run = _run_de(tmp_path)
     assert _leer_eventos(run)[-1]["detalle"]["estado"] == "timeout"
+
+
+# exp/100: el conductor en el ciclo de vida del chat ------------------------
+
+def test_panorama_delegadas_distingue_los_estados(tmp_path):
+    """Arranque del chat: ok del resumen, 'en curso' con pid vivo, 'murió sin
+    resumen' si el pid feneció antes de escribirlo."""
+    muerto = subprocess.Popen(["true"])  # un pid real que muere al esperar
+    muerto.wait()
+    corridas = {
+        "20261025-100000-ok": [("resumen.md", "# …\n- estado: ok\n")],
+        "20261025-100100-curso": [("conductor.pid", str(os.getpid()))],
+        "20261025-100200-muerto": [("conductor.pid", str(muerto.pid))],
+    }
+    for nombre, archivos in corridas.items():
+        run = tmp_path / nombre
+        run.mkdir()
+        for nombre_archivo, contenido in archivos:
+            (run / nombre_archivo).write_text(contenido, encoding="utf-8")
+    lineas = panorama_delegadas(tmp_path)
+    assert lineas == [
+        "20261025-100200-muerto: murió sin resumen",
+        "20261025-100100-curso: en curso",
+        "20261025-100000-ok: ok",
+    ]
+    assert panorama_delegadas(tmp_path, maximo=2) == lineas[:2]
+    assert panorama_delegadas(tmp_path / "no-existe") == []
+
+
+def test_corridas_activas_solo_las_vivas_sin_resumen(tmp_path):
+    from delegar import corridas_activas
+
+    for nombre, archivos in {
+        "a-terminada": [("resumen.md", "- estado: ok"), ("conductor.pid", "1")],
+        "b-curso": [("conductor.pid", str(os.getpid()))],
+        "c-sin-pid": [],
+    }.items():
+        run = tmp_path / nombre
+        run.mkdir()
+        for nombre_archivo, contenido in archivos:
+            (run / nombre_archivo).write_text(contenido, encoding="utf-8")
+    activas = corridas_activas(tmp_path)
+    assert [d.name for d in activas] == ["b-curso"]
+
+
+def test_el_modulo_expone_la_tool_con_su_impl():
+    """El contrato de modules/: TOOLS declara `delegar_tarea` e IMPL tiene
+    la implementación bajo el MISMO nombre (el action space arma el par)."""
+    from modules.delegar import IMPL, TOOLS
+
+    nombres = [t["function"]["name"] for t in TOOLS]
+    assert nombres == ["delegar_tarea"]
+    assert set(IMPL) == set(nombres) and callable(IMPL["delegar_tarea"])
+
+
+def test_delegar_tarea_rechazada_no_lanza_nada(monkeypatch, capsys):
+    """El rechazo del lanzamiento (exp/98, con motivo) no spawnea proceso y
+    el motivo le vuelve al modelo."""
+    import modules.delegar as mod
+    from utils.aprobaciones import Decision
+
+    def lanzar_si_me_dejan(*a, **k):
+        raise AssertionError("un rechazo no debe lanzar el conductor")
+
+    monkeypatch.setattr(mod.subprocess, "Popen", lanzar_si_me_dejan)
+    monkeypatch.setattr(mod, "pedir_aprobacion",
+                        lambda prompt, cuerpo="": Decision(False, "apretado de tiempo"))
+    salida = mod.delegar_tarea("creá el informe X", permitir="/repo/salidas")
+    assert "RECHAZADO" in salida and "apretado de tiempo" in salida
+    assert "no se lanzó" in salida
+    # el operador vio el pedido y el scope ANTES del s/n (patrón run_command)
+    impreso = capsys.readouterr().out
+    assert "creá el informe X" in impreso and "/repo/salidas" in impreso
+
+
+def test_delegar_tarea_lanza_el_conductor_detached(monkeypatch):
+    import modules.delegar as mod
+
+    lanzamientos = []
+
+    def popen_falso(argv, **kwargs):
+        lanzamientos.append((argv, kwargs))
+
+    monkeypatch.setattr(mod.subprocess, "Popen", popen_falso)
+    monkeypatch.setattr(mod, "pedir_aprobacion", lambda prompt, cuerpo="": True)
+    salida = mod.delegar_tarea("creá X y verificalo", permitir="/repo/a, /repo/b",
+                               permitir_comandos="python3 -m pytest", timeout_min="45")
+    argv, kwargs = lanzamientos[0]
+    assert argv[1:5] == ["main.py", "delegar", "creá X y verificalo", "--permitir"]
+    assert argv[5:8] == ["/repo/a", "--permitir", "/repo/b"]
+    assert "python3 -m pytest" in argv and "--timeout-min" in argv
+    assert kwargs["start_new_session"] is True  # sobrevive al cierre del chat
+    assert kwargs["cwd"] == mod.RAIZ
+    assert kwargs["stdin"] is subprocess.DEVNULL
+    assert "salidas/delegar" in salida
+
+
+def test_delegar_tarea_valida_sus_entradas(monkeypatch):
+    import modules.delegar as mod
+
+    monkeypatch.setattr(mod.subprocess, "Popen", lambda *a, **k: None)
+    assert mod.delegar_tarea("   ") .startswith("ERROR")
+    assert mod.delegar_tarea("tarea", timeout_min="cero").startswith("ERROR")
+    assert mod.delegar_tarea("tarea", timeout_min="0").startswith("ERROR")
+
+
+def test_delegar_tarea_shadow_fuerza_el_modo(monkeypatch):
+    import modules.delegar as mod
+
+    lanzamientos = []
+
+    def popen_falso(argv, env=None, **kwargs):
+        lanzamientos.append(env)
+
+    monkeypatch.setattr(mod.subprocess, "Popen", popen_falso)
+    monkeypatch.setattr(mod, "pedir_aprobacion", lambda prompt, cuerpo="": True)
+    mod.delegar_tarea("tarea", shadow="1")
+    assert lanzamientos[0]["LAYA_MODO"] == "shadow"
+
+
+def test_el_arranque_y_cierre_del_chat_reportan_delegadas(monkeypatch, capsys):
+    """main.estado_delegadas imprime el panorama; el aviso de cierre solo
+    sale cuando hay corridas activas (exp/100, los tres momentos)."""
+    import delegar
+    import main
+
+    monkeypatch.setattr(delegar, "panorama_delegadas",
+                        lambda: ["20261025-101000: ok", "20261025-100900: en curso"])
+    main.estado_delegadas()
+    out = capsys.readouterr().out
+    assert "[delegar]" in out and "20261025-101000: ok" in out
+
+    monkeypatch.setattr(delegar, "corridas_activas", lambda: [])
+    main.aviso_delegadas_al_cerrar()
+    assert capsys.readouterr().out == ""
+
+    from pathlib import Path as _Path
+
+    monkeypatch.setattr(delegar, "corridas_activas", lambda: [_Path("20261025-101500")])
+    main.aviso_delegadas_al_cerrar()
+    assert "siguen corriendo" in capsys.readouterr().out

@@ -80,7 +80,7 @@ Sin ese paso el harness funciona igual — el router del chat y el Choose del
 supervisor degradan al lado DeepSeek; solo se pierden los ifs locales (ms,
 costo 0).
 
-## Capacidades (30 tools, al día de hoy)
+## Capacidades (31 tools, al día de hoy)
 
 | Origen | Herramientas |
 |---|---|
@@ -107,6 +107,7 @@ costo 0).
 | mcp | `mcp_tools` / `mcp_call` — consume servidores MCP externos |
 | a2a | `agentes_remotos` / `a2a_tarea` — consume agentes remotos (protocolo agent2agent); setting `A2A_AGENTS` |
 | humano | `request_human_input` — el modelo le pregunta al usuario cuando le falta información (factor 7) |
+| delegar (HITL) | `delegar_tarea` — lanza el conductor en background (proceso aparte que sobrevive al chat): UNA aprobación con pedido+scope a la vista, HITL de la tarea por scope, y el resultado se reporta al próximo arranque (exp/99–100) |
 
 ## Memoria entre sesiones
 

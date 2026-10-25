@@ -239,6 +239,35 @@ def catalogo_memoria():
         pass
 
 
+def estado_delegadas():
+    """exp/100: el resultado de lo delegado aparece AL ARRANCAR el chat (el
+    operador vive acá; si no se reporta, es como si no hubiera pasado).
+    Best-effort: sin corridas no imprime nada y un fallo jamás corta el
+    arranque, igual que el catálogo."""
+    with contextlib.suppress(Exception):  # noqa: BLE001 (reportar nunca corta el arranque)
+        from delegar import panorama_delegadas
+
+        lineas = panorama_delegadas()
+        if lineas:
+            print(f"\n[delegar] últimas tareas delegadas: {len(lineas)}")
+            for linea in lineas:
+                print(f"  - {linea}")
+
+
+def aviso_delegadas_al_cerrar():
+    """exp/100: si hay delegadas corriendo, el cierre las nombra — siguen en
+    background (el conductor corre detached) y el resultado se reporta al
+    próximo arranque. Sin activas, silencio."""
+    with contextlib.suppress(Exception):  # noqa: BLE001 (aviso de cierre best-effort)
+        from delegar import corridas_activas
+
+        activas = corridas_activas()
+        if activas:
+            nombres = ", ".join(d.name for d in activas)
+            print(f"[delegar] {len(activas)} tarea(s) delegadas siguen corriendo "
+                  f"({nombres}) — el resultado se reporta al próximo arranque")
+
+
 def main():
     from utils.tracing import activar
 
@@ -257,6 +286,7 @@ def main():
     }
     print(WELCOME)
     catalogo_memoria()
+    estado_delegadas()
     try:
         create_agent_flow().run(shared)
     except KeyboardInterrupt:
@@ -264,6 +294,7 @@ def main():
     finally:
         resumen_de_sesion(shared)
         _reporte_tokens(shared)
+        aviso_delegadas_al_cerrar()
 
 
 def _miles(n):
