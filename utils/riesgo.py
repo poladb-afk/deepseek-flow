@@ -95,12 +95,24 @@ def origen():
     return "terminal"
 
 
+def origen_etiqueta():
+    """La procedencia de la ETIQUETA de riesgo (exp/101) — no la del par de
+    routing: en una corrida delegada (DELEGADO=1) el s/n lo decide el scope
+    del conductor, no un humano, así que su etiqueta no cuenta como orgánica
+    para el fine-tune (mismo criterio que el banco, X18). El PAR de routing
+    de esas corridas SÍ es orgánico — su etiqueta es el uso observado de
+    tools — y por eso `origen()` no cambia."""
+    if _setting("DELEGADO", "0") == "1":
+        return "delegado"
+    return origen()
+
+
 def registrar(comando, mensaje, juicios, aprobado, ruta=None):
     """Una línea en RIESGO_ARCHIVO (default salidas/riesgo.jsonl), gated por
     RIESGO_LOG (default 1). Bookkeeping: nunca rompe la acción.
 
     {"ts", "comando"[:200], "mensaje"[:200], "juicios": {pregunta:
-    [respuesta, conf]}, "aprobado": bool, "origen": banco|web|terminal}"""
+    [respuesta, conf]}, "aprobado": bool, "origen": banco|web|terminal|delegado}"""
     if _setting("RIESGO_LOG", "1") != "1":
         return
     try:
@@ -114,7 +126,7 @@ def registrar(comando, mensaje, juicios, aprobado, ruta=None):
                     "mensaje": str(mensaje)[:200],
                     "juicios": {k: list(v) for k, v in (juicios or {}).items()},
                     "aprobado": bool(aprobado),
-                    "origen": origen(),
+                    "origen": origen_etiqueta(),
                 },
                 ensure_ascii=False,
             ) + "\n")

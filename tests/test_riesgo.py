@@ -147,6 +147,50 @@ def test_registrar_marca_el_origen_de_la_decision(tmp_path, monkeypatch):
     assert origenes == ["terminal", "banco", "web"]
 
 
+# exp/101 — la etiqueta de una corrida delegada no es juicio humano
+
+def test_la_etiqueta_delegada_no_cuenta_como_humana(tmp_path, monkeypatch):
+    """En una corrida delegada el s/n lo decide el scope del conductor: la
+    ETIQUETA de riesgo es `delegado` (excluida del fine-tune, como el banco),
+    pero el `origen()` del PAR de routing sigue `terminal` — la flywheel no
+    pierde las delegadas (contrato clavado de exp/99)."""
+    import json
+
+    from utils.riesgo import origen, origen_etiqueta, registrar
+
+    ruta = tmp_path / "riesgo.jsonl"
+    monkeypatch.delenv("BANCO", raising=False)
+    monkeypatch.delenv("HITL_WEB", raising=False)
+    monkeypatch.setenv("DELEGADO", "1")
+    assert origen_etiqueta() == "delegado"
+    assert origen() == "terminal"  # el par de routing NO cambia
+    registrar("du -sh salidas", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
+    monkeypatch.setenv("DELEGADO", "0")
+    assert origen_etiqueta() == "terminal"
+    registrar("du -sh salidas", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
+    origenes = [json.loads(linea)["origen"] for linea
+                in ruta.read_text(encoding="utf-8").splitlines()]
+    assert origenes == ["delegado", "terminal"]
+
+
+def test_estado_riesgo_cuenta_las_delegadas_aparte():
+    """El probe de readiness: `delegado` queda fuera de las orgánicas y tiene
+    su propia fila de no-cuentan (igual que banco)."""
+    from banco.probes.estado_riesgo import estado
+
+    filas = [
+        {"origen": "terminal", "aprobado": True},
+        {"origen": "delegado", "aprobado": True},
+        {"origen": "delegado", "aprobado": False},
+        {"origen": "banco", "aprobado": True},
+    ]
+    e = estado(filas)
+    assert e["organicas"] == 1
+    assert e["rechazos"] == 0  # el rechazo delegado no es rechazo humano
+    assert e["delegado"] == 2
+    assert e["banco"] == 1
+
+
 # exp/71 — la suite no ensucia los logs ni carga el checkpoint real
 
 def test_observar_riesgo_solo_juzga_bandas_humanas(monkeypatch):

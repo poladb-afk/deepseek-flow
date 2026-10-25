@@ -34,12 +34,16 @@ def env_delegar(dir_threads, extras=None):
     """El entorno del chat conducido (función PURA).
 
     SIN `BANCO` — y se saca del entorno heredado si estaba: la corrida DEBE
-    contar como origen `terminal` (exp/44), es su razón de ser. Tampoco se
-    toca MEMORIA/MEMORIA_DIR: esto es tráfico orgánico, la biblioteca y los
-    resúmenes son los de producción (el aislamiento de X41/X43 es promesa
-    del BANCO, no de acá). THREADS_DIR propio: el checkpoint de la corrida
-    vive junto a su transcript, y un resume lo encuentra sin adivinar."""
-    env = dict(os.environ, PYTHONUNBUFFERED="1", TERM="dumb",
+    contar como origen `terminal` para el PAR de routing (exp/44), es su
+    razón de ser. `DELEGADO=1` marca la otra procedencia (exp/101): las
+    ETIQUETAS del juez de riesgo de una corrida delegada las decide el scope
+    del conductor, no un humano — no cuentan como orgánicas para el
+    fine-tune. Tampoco se toca MEMORIA/MEMORIA_DIR: esto es tráfico
+    orgánico, la biblioteca y los resúmenes son los de producción (el
+    aislamiento de X41/X43 es promesa del BANCO, no de acá). THREADS_DIR
+    propio: el checkpoint de la corrida vive junto a su transcript, y un
+    resume lo encuentra sin adivinar."""
+    env = dict(os.environ, PYTHONUNBUFFERED="1", TERM="dumb", DELEGADO="1",
                THREADS_DIR=str(dir_threads))
     env.pop("BANCO", None)
     env.update(extras or {})

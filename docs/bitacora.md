@@ -1284,6 +1284,39 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/101 — el origen `delegado`: la etiqueta del conductor no es juicio humano (2026-10-25)
+
+Hallado al revisar los pendientes: las corridas delegadas (exp/99–100)
+heredaban origen `terminal` para TODO. Para el PAR de routing es correcto
+(la etiqueta del par es el uso observado de tools, no el s/n — el par #14 lo
+celebró); para la ETIQUETA del juez de riesgo (exp/44) no: en una delegada el
+s/n lo decide el **scope del conductor**, no un humano — la misma
+contaminación que X18 cerró para el banco, lista para crecer con cada
+delegación. Spec:
+[banco/specs/exp101_origen_delegado.md](../banco/specs/exp101_origen_delegado.md).
+
+**El estado real del log, medido ANTES de la spec:** 0 filas contaminadas —
+`write_file`/`edit_file` no observan riesgo (solo `run_command` en banda
+`preguntar`/`confirmar_doble`) y las verificaciones de las corridas de hoy
+fueron `cat`/`ls` (nivel `auto`). La exposición empezaba con el primer
+`run_command` no whitelisteado aprobado por scope.
+
+**El fix:** `origen_etiqueta()` en `utils/riesgo` (con `DELEGADO=1` →
+`delegado`, excluida del conteo de readiness igual que `banco`);
+`origen()` NO se toca — es la procedencia del par de routing y las delegadas
+siguen contando `terminal` para la flywheel (contrato clavado con test).
+`env_delegar` fija `DELEGADO=1`; el probe muestra la fila "delegadas (no
+cuentan)". El gate de deriva me cazó el setting sin documentar en
+`.env.example` (R3 haciendo su trabajo).
+
+**e2e (criterio pre-registrado):** corrida delegada con `du -sh` (banda
+`preguntar`, aprobado por `--permitir-comandos`) → la fila nueva dice
+`"origen": "delegado"`, el probe la cuenta aparte y las orgánicas quedan en
+70/300. Color de rigor: el juez marcó ese `du` de solo lectura como "daño
+irreversible 0,72 / requiere revisión 0,61" — el checkpoint base desacertando
+es exactamente por lo que el fine-tune necesita etiquetas humanas limpias.
+Gate verde completo (978 tests).
+
 ## exp/100 — `delegar` se muda al ciclo de vida del chat (2026-10-25)
 
 La señal de uso que exp/97 pedía, llegó antes del uso y de la boca del

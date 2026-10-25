@@ -861,6 +861,10 @@ en el chat, lo que no se activa ahí no se usa):**
 La regla que no se relaja: el que aprueba los HITL de la tarea es el
 conductor (proceso aparte) con el scope que el operador firmó en el
 lanzamiento — el chat dispara, no aprueba. La denylist dura corre siempre.
+Y la procedencia se parte en dos (exp/101): el PAR de routing de una
+delegada es orgánico (`origen` sigue `terminal`, alimenta la flywheel), pero
+su ETIQUETA de riesgo es `delegado` (`origen_etiqueta` con `DELEGADO=1`) —
+el s/n lo decidió el scope, no un humano, y no entra al fine-tune.
 
 Leyes del conductor (spec [exp99](../banco/specs/exp99_delegar.md) y
 [exp100](../banco/specs/exp100_delegar_en_chat.md)):

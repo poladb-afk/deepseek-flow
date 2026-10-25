@@ -820,6 +820,7 @@ tests/test_replay.py::test_router_conforme_y_sin_drift
 tests/test_replay.py::test_tools_del_action_space_y_fantasmas
 tests/test_riesgo.py::test_el_contrato_de_riesgo_queda_congelado_sha1
 tests/test_riesgo.py::test_el_contrato_tiene_las_tres_preguntas_de_una_dimension
+tests/test_riesgo.py::test_estado_riesgo_cuenta_las_delegadas_aparte
 tests/test_riesgo.py::test_estado_sesion_recordar_y_leer
 tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[ 0 ]
 tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[0]
@@ -829,6 +830,7 @@ tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[off]
 tests/test_riesgo.py::test_juzgar_con_fallo_degrade_a_none
 tests/test_riesgo.py::test_juzgar_pasa_el_estado_recortado
 tests/test_riesgo.py::test_juzgar_sin_setting_es_none
+tests/test_riesgo.py::test_la_etiqueta_delegada_no_cuenta_como_humana
 tests/test_riesgo.py::test_la_suite_no_escribe_los_logs_ni_la_memoria_de_produccion
 tests/test_riesgo.py::test_observar_riesgo_solo_juzga_bandas_humanas
 tests/test_riesgo.py::test_registrar_escribe_la_linea_completa

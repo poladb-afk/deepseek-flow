@@ -45,6 +45,7 @@ def test_env_delegar_no_marca_banco_y_aisla_threads(tmp_path, monkeypatch):
     monkeypatch.setenv("BANCO", "1")
     env = env_delegar(tmp_path / "threads", {"MAX_TOOL_ROUNDS": "3"})
     assert "BANCO" not in env
+    assert env["DELEGADO"] == "1"  # exp/101: la etiqueta de riesgo no cuenta como humana
     assert env["THREADS_DIR"] == str(tmp_path / "threads")
     assert env["TERM"] == "dumb"
     assert env["MAX_TOOL_ROUNDS"] == "3"
