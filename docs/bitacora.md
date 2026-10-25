@@ -1284,6 +1284,48 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/99 — `delegar`: la tarea delegada sin timón; la flywheel se mueve sola (2026-10-25)
+
+La primera opción del cierre de la sesión anterior, hecha: el conductor
+chico que le delega UNA tarea real al harness sin nadie contestando s/n por
+tmux. Spec con criterio pre-registrado:
+[banco/specs/exp99_delegar.md](../banco/specs/exp99_delegar.md).
+
+**La pieza:** `delegar.py` reusa el driver PTY y el scope HITL del banco
+(`Chat` ganó `argv`/`env`; `decision_hitl` intacto) con tres diferencias que
+son el experimento: **sin `BANCO=1`** (las decisiones cuentan como origen
+`terminal` — tráfico orgánico), **aprobación por scope declarado** con
+rechazo CON MOTIVO (`n fuera-de-scope` viaja al modelo por el parser de
+exp/98), y **muerte → resume**: `THREADS_DIR` propio por corrida, si el chat
+muere relanza `main.py resume <id>` (exp/48) y re-envía el pedido como
+continuación (tope 2). Doble confirmación `(1/2)`: solo con prefijo
+EXPLÍCITO de `--permitir-comandos` — la policy ya dijo destructivo.
+
+**El hallazgo de diseño (cazado por la spec, no por producción):** el prompt
+de `edit_file` cambió en exp/98 a `¿Aplicar? → ruta (2 hunks, +4/−2) (s/n)`
+y la regex de scope del banco `→ (\S+) \(s/n\)` NO matcheaba esa forma →
+`decision_hitl` devolvía no-parseable (dentro=True): el conductor habría
+aprobado **ediciones fuera de scope y de la denylist**. Los escenarios del
+banco no lo pisaban porque usan `write_file`. Regex corregida con test del
+prompt real.
+
+**Las mediciones (criterios pre-registrados):** e2e con LLM real — tarea de
+escritura+verificación: exit 0, 21 s, 1 HITL aprobado por scope, cierre
+limpio (resumen+[tokens] al final del transcript), y línea nueva con
+`"origen": "terminal"` en el routing log. **Drill de muerte:** `kill -9` al
+chat hijo al primer checkpoint → el conductor registró `muerte`+`resume`,
+rehidrató, creó los 3 archivos y cerró `ok` (26 s, 3 HITL, marcador en el
+transcript). **Flywheel:** 5 sesiones delegadas pasaron por el router; la
+receta completa (`--env LAYA_MODO=shadow`, pre-registrada por exp/43: en
+enforce el resultado no se registra) sumó el **par #14/250** — el primero
+que se acumula sin auditor al timón, y día 3/14. Gate verde completo (968
+tests; el ratchet mejoró solo `tests_definidos` 941→955 y actualizó su
+baseline).
+
+**Declarado:** las corridas en enforce suman decisiones orgánicas pero no
+pares (el par exige shadow); `CORTE_NOVEDAD` sigue en 0=off — se re-mide
+cuando existan sesiones largas delegadas, con `huella`, decide el operador.
+
 ## exp/98 — el HITL que muestra todo y explica los rechazos (2026-10-24)
 
 Los dos agujeros del punto de confianza, cerrados con la ironía de rigor: la

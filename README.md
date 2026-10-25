@@ -183,6 +183,7 @@ python3 main.py bench_juez               # bench de answer_verified (grading por
 python3 main.py replay [trace.jsonl]     # re-valida trazas .runs contra los grafos actuales
 python3 main.py ratchet                  # métricas estructurales (helpers, complejidad, anidación, tests…)
 python3 main.py resume <id>              # rehidrata un thread del chat (salidas/threads/)
+python3 main.py delegar "pedido" [--permitir ruta] # delega UNA tarea al chat: HITL por scope + transcript + resume solos (exp/99)
 ```
 
 Cada corrida deja un trace por nodo en `.runs/*.jsonl`.
@@ -211,7 +212,7 @@ deepseek-flow/
 ├── AGENTS.md          # el contrato para agentes: reglas + gate de cada una
 ├── modules/           # capacidades del chat (TOOLS + IMPL por archivo)
 ├── skills/            # skills declarativas (condición regex + prompt + tools)
-├── informe|juez|juez_lote|fable_judge|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|evals|heartbeat|visor|replay|resume|bench_juez|carga_trazas.py
+├── informe|juez|juez_lote|fable_judge|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|evals|heartbeat|visor|replay|resume|delegar|bench_juez|carga_trazas.py
 │                      # piezas standalone (CLI) — los módulos las exponen
 ├── ratchet.py         # las métricas no empeoran (baseline en ratchets/)
 ├── ratchets/          # baseline versionado del ratchet

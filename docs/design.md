@@ -829,6 +829,40 @@ se sale igual sin romper nada. `MEMORIA=0` apaga todo: también el
 respaldo de la zona fría que hace la compacción (`_respaldar_zona_fria`; sin
 biblioteca no hay `memory_search` que lo recupere, exp/71).
 
+### El conductor — `delegar`: UNA tarea real sin nadie al timón (exp/99)
+[delegar.py](../delegar.py) · salidas en `salidas/delegar/<fecha-hora>/`
+
+No es un flujo de PocketFlow: es un **driver** que lanza el chat real bajo
+PTY (reusa `banco.banco.Chat`) y le contesta los HITL. El banco corre
+escenarios guionizados con `BANCO=1` (tráfico sintético); el conductor corre
+el pedido real de UNA tarea del operador **sin** `BANCO` — las decisiones
+cuentan como origen `terminal` y alimentan la flywheel del router (X42). Con
+`--env LAYA_MODO=shadow` cada pregunta delegada suma además su PAR
+(decisión+resultado: la receta de sesión shadow de exp/95 — en enforce el
+resultado no se registra porque la ruta aplicada ya cambió el contexto).
+
+Leyes del conductor (spec [exp99](../banco/specs/exp99_delegar.md)):
+
+- **HITL por scope**: reusa `decision_hitl` del banco; `--permitir`/
+  `--permitir-comandos` son prefijos; sin ellos vale solo la denylist dura
+  (`.env`, `.git/`, `memoria/`, `git push`, `rm -rf`, `rm -fr`). Los
+  rechazos viajan CON MOTIVO (`n fuera-de-scope`, exp/98): el modelo sabe
+  por qué le dijeron que no. La doble confirmación `(1/2)/(2/2)` —nivel
+  destructivo de la policy— SOLO se aprueba con prefijo EXPLÍCITO de
+  `--permitir-comandos`.
+- **Muerte → resume**: `THREADS_DIR` propio por corrida; si el chat muere,
+  relanza `main.py resume <id-reciente>` (exp/48) y re-envía una línea de
+  continuación (protocolo de exp/4). Tope `MAX_RESUMES=2`; sin checkpoint o
+  tope agotado → exit 1 con el transcript a mano.
+- **Presupuestos**: `--max-hitl` (default 12; al tope rechaza con motivo,
+  no cuelga) y `--timeout-min` global (default 30; SIGINT → gracia →
+  SIGKILL → exit 1). El cierre normal manda `salir`: el resumen de sesión y
+  el reporte `[tokens]` quedan al final del transcript.
+- **Artefactos** por corrida: `transcript.log` (PTY crudo, con marcadores
+  del conductor entre relanzamientos), `eventos.jsonl` (inicio, hitl,
+  hitl-fuera, hitl-tope, muerte, resume, fin), `resumen.md`, `threads/`.
+  La memoria NO se aísla: es tráfico orgánico (X41/X43 son del banco).
+
 ## Salidas — una carpeta, no una raíz llena de .md
 
 Higienizado (2026-10-05): todas las piezas escribían sus informes en la

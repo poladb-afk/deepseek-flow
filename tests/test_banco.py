@@ -167,6 +167,30 @@ def test_denylist_dura_es_la_declarada():
     assert "rm -fr" in DENYLIST_DURA["comandos"]
 
 
+def test_el_scope_cubre_el_prompt_de_edit_file_de_exp98():
+    r"""exp/99: el prompt de edit_file cambió en exp/98 (`¿Aplicar? → ruta
+    (2 hunks, +4/−2) (s/n)`) y la extracción vieja `→ (\S+) \(s/n\)` NO
+    matcheaba → decision_hitl devolvía no-parseable (dentro=True): el
+    conductor habría aprobado ediciones fuera de scope y de la denylist."""
+    prompt_edit = "¿Aplicar? → /repo/src/main.py (2 hunks, +4/−2) (s/n): "
+    d = decision_hitl(prompt_edit, "", permitir=["/repo/docs"])
+    assert d["tipo"] == "escritura"
+    assert d["objetivo"] == "/repo/src/main.py"
+    assert d["dentro"] is False
+    assert d["motivo"] == "fuera-de-scope"
+    # dentro del scope aprueba, y el ¿Escribir? clásico no regresa
+    d = decision_hitl(prompt_edit, "", permitir=["/repo/src"])
+    assert d["dentro"] is True
+    d = decision_hitl(PROMPT_ESCRITURA_DENTRO, "", permitir=["/tmp/prueba"])
+    assert d["objetivo"] == "/tmp/prueba_banco/hola.txt"
+    assert d["dentro"] is True
+    # la denylist también corre para ediciones: memoria/ es del operador
+    d = decision_hitl("¿Aplicar? → /repo/memoria/nota.md (1 hunks, +1/−0) (s/n): ",
+                      "", permitir=["/repo"])
+    assert d["dentro"] is False
+    assert d["motivo"] == "denylist"
+
+
 def test_escenario_sin_scope_sigue_siendo_valido():
     # las claves nuevas son OPCIONALES: los escenarios existentes no las traen
     yamls = list(ESCENARIOS.glob("*.yaml"))

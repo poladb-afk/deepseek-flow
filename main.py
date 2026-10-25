@@ -134,6 +134,7 @@ SUBCOMANDOS = {
     "replay": "replay",
     "ratchet": "ratchet",
     "resume": "resume",
+    "delegar": "delegar",
     "webhook": "utils.hitl_web",
 }
 

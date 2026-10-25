@@ -33,8 +33,8 @@
           91
         ],
         "main.py": [
-          203,
-          237
+          204,
+          238
         ],
         "modules/db.py": [
           131
@@ -144,7 +144,7 @@
       "detalle": {
         "tests/test_ab_skills.py": 9,
         "tests/test_absurdos_funcionales.py": 44,
-        "tests/test_banco.py": 15,
+        "tests/test_banco.py": 16,
         "tests/test_bench.py": 18,
         "tests/test_bench_voto.py": 7,
         "tests/test_chat_flujo.py": 24,
@@ -155,6 +155,7 @@
         "tests/test_convergencia.py": 9,
         "tests/test_costos.py": 11,
         "tests/test_db.py": 18,
+        "tests/test_delegar.py": 13,
         "tests/test_deriva_reglas.py": 7,
         "tests/test_docs_sin_deriva.py": 5,
         "tests/test_estado_flywheel.py": 3,
@@ -209,7 +210,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 941
+      "metrica": 955
     }
   },
   "version": 1

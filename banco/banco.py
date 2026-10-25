@@ -41,7 +41,12 @@ MAX_HITL_POR_TURNO = 6
 # Scope HITL (exp/11): el driver deja de aprobar a ciegas. Parsea el objetivo
 # del prompt y solo aprueba si cae DENTRO del alcance del escenario; la
 # denylist dura del conductor manda por encima de cualquier scope.
-RE_HITL_ESCRITURA = re.compile(r"→ (\S+) \(s/n\)")
+# El sufijo parentizado es el de exp/98: `¿Aplicar? → ruta (2 hunks, +4/−2)
+# (s/n)`. Sin tolerarlo, decision_hitl caía a "no-parseable" (dentro=True) y
+# el driver aprobaba EDICIONES fuera de scope y de la denylist (hallazgo de
+# la spec de exp/99: los escenarios del banco no lo pisaban porque usan
+# write_file, que siempre matcheó).
+RE_HITL_ESCRITURA = re.compile(r"→ (\S+)(?: \([^)]*\))? \(s/n\)")
 RE_HITL_COMANDO = re.compile(r"¿Ejecutar\? \(s/n\)")
 DENYLIST_DURA = {
     "rutas": (".env", ".git/", "memoria/"),
@@ -148,7 +153,10 @@ class Chat:
     rótulos de turno quedaban desplazados una posición).
     """
 
-    def __init__(self, env_extra=None):
+    def __init__(self, env_extra=None, argv=None, env=None):
+        """`env` explícito es el del conductor (exp/99): NO pasa por
+        _env_del_chat — sin BANCO=1 (origen terminal) y sin tocar MEMORIA.
+        Sin `env`, el comportamiento del banco queda intacto."""
         self.pid, self.master = pty.fork()
         if self.pid == 0:
             import termios
@@ -157,8 +165,8 @@ class Chat:
             attrs[3] &= ~termios.ECHO
             termios.tcsetattr(0, termios.TCSANOW, attrs)
             os.chdir(RAIZ)
-            os.execvpe(sys.executable, [sys.executable, "main.py"],
-                       _env_del_chat(env_extra))
+            os.execvpe(sys.executable, [sys.executable, *(argv or ["main.py"])],
+                       env if env is not None else _env_del_chat(env_extra))
         self.nuevo = ""
         self.raw = None
         self.vivo = True
