@@ -1284,6 +1284,33 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## Jornada de higiene 2026-10-25 — 205 MB y el roadmap al día
+
+Tras exp/99–102 en un día, pasada de orden. **Lo medido:** `salidas/` pesaba
+271 MB — 193 de `salidas/threads` (los checkpoints de exp/48 appendean el
+`shared` COMPLETO por ciclo: una sesión de 40 rondas deja 12 MB de los que
+`cargar()` solo lee la última línea) y 75 de un `.mypy_cache` que ninguna
+pieza del repo usa (crujiente de una sesión vieja; mypy no está ni en
+pyproject ni en requirements ni en el gate).
+
+**Lo hecho:** (1) `.mypy_cache` y los temporales de los e2e de hoy, fuera;
+(2) poda de threads: los archivos con más de 48 h quedaron con SOLO su
+última línea válida — exactamente lo que `cargar()`/resume leen, así que la
+resumabilidad no cambia (verificado cargando el más grande: 71 mensajes
+restaurados) — **471 podados: 147,9 → 7,4 MB**; los 9 de las últimas 48 h
+quedan intactos; (3) roadmap al día: los contadores del fine-tune de riesgo
+(70/300 y 6/100) y de la flywheel (14/250, día 3/14) estaban en 0 de
+octubre, la receta de acumulación ahora nombra `delegar_tarea` con
+`shadow="1"`, y el diff paginado quedó como ítem 22.
+
+**Reportado sin tocar:** 66 de los 117 archivos de `memoria/` son respaldos
+de compacción vs ~49 notas reales y 2 sesiones — la decisión de moverlos
+fuera de la biblioteca sigue siendo la pendiente declarada de X37 (moverlos
+rompe `memory_search`, que es su propósito; hay que cambiar el código, no
+los archivos). `salidas/auditoria_2026-10` (50 MB) es evidencia linkada
+desde estado.md. `salidas/memoria_respaldos_suite` (9,2 MB) es la
+cuarentena declarada de exp/71.
+
 ## exp/102 — el motivo del rechazo también viaja por el navegador (2026-10-25)
 
 El PENDING declarado de la v1 de exp/98, cerrado: con `HITL_WEB=1` el

@@ -44,8 +44,10 @@ Cada ítem indica qué pieza lo apoya y qué falta.
    (59% de rechazo = banco sintético mezclado). Ya se instrumentó `origen`, y
    exp/71 (2026-10-21) midió que además la SUITE escribía 541 filas como
    `terminal`: el log viejo quedó en cuarentena y el conteo arranca limpio
-   (`python3 banco/probes/estado_riesgo.py` · **0/300 orgánicas, 0/100
-   rechazos** al 2026-10-21). **Criterio pre-registrado, sin cambios: ≥300
+   (`python3 banco/probes/estado_riesgo.py` · **70/300 orgánicas, 6/100
+   rechazos** al 2026-10-25 — el conteo arrancó a mover con las sesiones
+   reales de exp/95–102; las corridas delegadas quedan fuera: origen
+   `delegado`, exp/101). **Criterio pre-registrado, sin cambios: ≥300
    etiquetas orgánicas y ≥100 rechazos orgánicos** (las históricas sin
    procedencia no se usan; el banco no cuenta). `requiere_revision` casi no
    dispara (5/1467): esa dimensión es la que el fine-tune tiene que arreglar.
@@ -134,17 +136,22 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     −0,67 vs control); C4 ✅ ruido 0,41× (−59%). La skill queda como
     reductor de ruido, no detector (detalle en bitácora exp/56b).
 16. **Revisión de ROI del router (condición pre-registrada)**: cuando haya
-    **≥250 pares y ≥14 días** (hoy **0/250 y 0/14**: el conteo arranca de cero,
-    exp/71b), correr
+    **≥250 pares y ≥14 días** (**14/250 y 3/14** al 2026-10-25 — el par #14
+    fue el primero sin auditor al timón, exp/99), correr
     `python3 banco/probes/etiquetar_ambiental.py && python3 banco/probes/veredicto_router.py`
     y aplicar la regla de ROI. El banco no cuenta: las decisiones llevan
     `origen` y el join solo acepta `web`/`terminal` (el log previo a exp/71b,
     que no tiene el campo, también queda afuera: 80 de sus 152 pares eran del
     banco); vigilar falsos directo del enforce.
     **Acumulación:** ventanas de uso con la política en shadow (en enforce el
-    par no se etiqueta, exp/43) y, hasta la revisión, NO correr
-    `etiquetar_ambiental` con la salida default (pisa el artefacto que usa
-    `.env`); progreso con `python3 banco/probes/estado_flywheel.py`.
+    par no se etiqueta, exp/43) — desde exp/100 la palanca es delegar desde
+    el chat con `delegar_tarea` y `shadow="1"` — y, hasta la revisión, NO
+    correr `etiquetar_ambiental` con la salida default (pisa el artefacto
+    que usa `.env`); progreso con `python3 banco/probes/estado_flywheel.py`.
+22. **Diff paginado a pedido en el HITL web** (follow-up de exp/98, la otra
+    mitad de la cola chica junto al ya-cerrado motivo de exp/102): el panel
+    muestra los hunks que caben; falta poder VER los que quedaron fuera.
+    Media sesión, necesita diseño de UX propio (paginación del `<pre>`).
 14. ~~**Repetir exp/51 chat con más n**~~ **✅ (2026-10-19)**: flash n=5 por
     brazo (SLOC 115 → 25, −78%; sesiones 32,3 → 25,7 s) y deepseek-chat n=3
     (179 → 21, −88%; 33,6 → 24,6 s), 16/16 sesiones OK. El efecto del
