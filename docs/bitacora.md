@@ -1311,6 +1311,21 @@ los archivos). `salidas/auditoria_2026-10` (50 MB) es evidencia linkada
 desde estado.md. `salidas/memoria_respaldos_suite` (9,2 MB) es la
 cuarentena declarada de exp/71.
 
+**docs/informes (segunda pasada):** 31 .md → 6 activos + 23 archivados.
+**Borrados (4, sin referencia alguna y superados por lo curado):** el
+informe de integración Laya smart-if (2026-10-08, superado por design.md §Laya
+y exp/7–8), el reporte AI-smell (ya marcado "salida cruda" por su propia nota
+de triage), las sugerencias de absurdos (autodeclaradas "aplicado en exp/68")
+y la discusión ia-vs-humano (la evidencia canónica es
+`codigo_ia_vs_humano_2026-10-19.md`, que se queda). **Archivados (8):** los
+planes ya ejecutados (plan de orden, plan de auditoría) y sus evidencias, la
+comparativa paper-vs-harness con su insumo (la que parió exp/96–98), las
+fuentes del juez y la evidencia de spawn fractal. **Se quedan (6):** los
+citados por contrato — `codigo_ia_vs_humano` (AGENTS/README/ratchet/tests),
+`evidencia_absurdos` (test), `fable_method_mapeo` (fable_judge.py),
+`ratchets_y_reglas` (test de deriva), `sota_experimentos` (specs 96–97) y
+`fractal_agent_mapeo` (roadmap).
+
 ## exp/102 — el motivo del rechazo también viaja por el navegador (2026-10-25)
 
 El PENDING declarado de la v1 de exp/98, cerrado: con `HITL_WEB=1` el
