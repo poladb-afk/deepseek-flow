@@ -75,7 +75,7 @@ def test_hitl_web(monkeypatch):
     assert _token_unico() is not None
     post("s")
     hilo.join(5)
-    assert resultados["ok"] is True
+    assert resultados["ok"].ok is True
 
     # 2) rechazar: POST de rechazar devuelve False
     hilo = threading.Thread(
@@ -84,11 +84,11 @@ def test_hitl_web(monkeypatch):
     assert _token_unico() is not None
     post("n")
     hilo.join(5)
-    assert resultados["ok"] is False
+    assert resultados["ok"].ok is False
 
     # 3) timeout: nadie vota y expira -> default seguro False
     monkeypatch.setenv("HITL_WEB_TIMEOUT", "0.2")
-    assert hitl.aprobar("¿Aplicar?", "diff huérfano") is False
+    assert hitl.aprobar("¿Aplicar?", "diff huérfano").ok is False
 
     # 4) timeout inválido (setting corrupto) no rompe: cae al default seguro
     monkeypatch.setenv("HITL_WEB_TIMEOUT", "no-es-numero")
@@ -154,7 +154,7 @@ def test_hitl_web_rechaza_post_cross_origin(monkeypatch):
         data=b"")
     urllib.request.urlopen(req, timeout=5)
     hilo.join(5)
-    assert resultados["ok"] is True
+    assert resultados["ok"].ok is True
 
 def test_hitl_web_post_tardio_no_contamina_el_siguiente(monkeypatch):
     """Un POST que trae una decisión vieja (llega mientras el pedido
@@ -185,7 +185,7 @@ def test_hitl_web_post_tardio_no_contamina_el_siguiente(monkeypatch):
 
     # pedido A: expira por timeout sin que nadie vote. Su token queda viejo.
     monkeypatch.setenv("HITL_WEB_TIMEOUT", "0.15")
-    assert hitl.aprobar("¿A?", "a") is False
+    assert hitl.aprobar("¿A?", "a").ok is False
     post("aprobar", token="token-viejo-de-A")  # POST TARDÍO de A: nadie espera
     _t.sleep(0.05)
 
@@ -197,7 +197,7 @@ def test_hitl_web_post_tardio_no_contamina_el_siguiente(monkeypatch):
         target=lambda: resultados.update(ok=hitl.aprobar("¿B?", "b")))
     hilo.start()
     hilo.join(5)
-    assert resultados["ok"] is False, "una decisión con token viejo resolvió B"
+    assert resultados["ok"].ok is False, "una decisión con token viejo resolvió B"
 
 def test_hitl_web_puerto_ocupado_default_seguro(monkeypatch):
     """Si el servidor no puede levantar (puerto inválido), aprobar() devuelve
@@ -206,7 +206,7 @@ def test_hitl_web_puerto_ocupado_default_seguro(monkeypatch):
 
     monkeypatch.setattr(hitl, "_servidor", None)  # forzar arranque
     monkeypatch.setenv("HITL_WEB_PORT", "no-es-un-puerto")
-    assert hitl.aprobar("¿Escribir?", "algo") is False
+    assert hitl.aprobar("¿Escribir?", "algo").ok is False
 
 def test_hitl_web_get_valida_origen():
     """Corte ligero (auditoría): un GET con Host ajeno (DNS-rebinding) no
@@ -489,3 +489,107 @@ def test_motivo_del_rechazo_viaja_al_modelo(tmp_path, monkeypatch):
     assert aprobaciones.eventos()[-1]["tipo"] == "write_file"
     aprobaciones.limpiar()
 
+
+
+# exp/102 — el motivo del rechazo también viaja por el navegador
+
+def test_hitl_web_rechazo_con_motivo_viaja(monkeypatch):
+    """El form de rechazo trae un campo `motivo` URL-encoded: la Decision que
+    vuelve al modelo lo lleva entero (decodificado, no el crudo %XX)."""
+    import threading
+    import time as _t
+    import urllib.parse
+    import urllib.request
+
+    import utils.hitl_web as hitl
+
+    puerto = 8794
+    monkeypatch.setenv("HITL_WEB_PORT", str(puerto))
+    monkeypatch.setenv("HITL_WEB_TIMEOUT", "5")
+    monkeypatch.setattr(hitl, "_servidor", None)  # puerto propio (aislado)
+    assert hitl._arrancar() == puerto
+
+    def _token_unico():
+        for _ in range(100):
+            with hitl._lock:
+                if hitl._pendientes:
+                    return next(iter(hitl._pendientes))
+            _t.sleep(0.02)
+        return None
+
+    resultados = {}
+
+    def post(motivo):
+        token = _token_unico()
+        datos = urllib.parse.urlencode({"motivo": motivo}).encode()
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{puerto}/decision?token={token}&respuesta=n", data=datos)
+        return urllib.request.urlopen(req, timeout=5).read()
+
+    # rechazo CON motivo (espacios, + y acentos: la codificación del navegador)
+    hilo = threading.Thread(
+        target=lambda: resultados.update(d=hitl.aprobar("¿Escribir? → /repo/x.py", "diff")))
+    hilo.start()
+    cuerpo = post("no toques policy.py sin tests + revisá la línea 88 —取消了")
+    hilo.join(5)
+    assert resultados["d"].ok is False
+    assert resultados["d"].motivo == "no toques policy.py sin tests + revisá la línea 88 —取消了"
+    assert b"motivo" in cuerpo  # la página de gracias lo confirma al humano
+
+    # rechazo SIN motivo: Decision limpia, sin adivinanzas
+    hilo = threading.Thread(
+        target=lambda: resultados.update(s=hitl.aprobar("¿Ejecutar?", "du -sh")))
+    hilo.start()
+    post("")
+    hilo.join(5)
+    assert resultados["s"].ok is False and resultados["s"].motivo == ""
+
+    # aprobación con motivo en el form: el motivo se descarta (contrato del
+    # parser: en los YES el resto se ignora)
+    hilo = threading.Thread(
+        target=lambda: resultados.update(a=hitl.aprobar("¿Escribir? → /repo/y.py", "diff")))
+    hilo.start()
+    datos = urllib.parse.urlencode({"motivo": "dale igual"}).encode()
+    token = _token_unico()
+    urllib.request.urlopen(urllib.request.Request(
+        f"http://127.0.0.1:{puerto}/decision?token={token}&respuesta=s", data=datos),
+        timeout=5)
+    hilo.join(5)
+    assert resultados["a"].ok is True and resultados["a"].motivo == ""
+
+
+def test_la_pagina_del_hitl_tiene_el_campo_de_motivo():
+    """El contrato de la UI: el form de rechazar sirve el input `motivo`
+    (maxlength 300, mismo acorte del server)."""
+    import utils.hitl_web as hitl
+
+    pagina = hitl._PEDIDO_HTML
+    assert 'name="motivo"' in pagina
+    assert 'maxlength="300"' in pagina
+
+
+def test_el_motivo_se_acorta_a_300():
+    """Un motivo kilométrico no viaja entero al modelo: el server lo acota."""
+    from types import SimpleNamespace
+
+    import utils.hitl_web as hitl
+
+    handler = SimpleNamespace(headers={"Content-Length": "10"})
+    handler.rfile = SimpleNamespace(read=lambda n: b"motivo=" + b"x" * 400)
+    _, _, motivo = hitl._Handler._leer_form_decision(handler, "", "")
+    assert len(motivo) == 300
+
+
+def test_pedir_aprobacion_web_devuelve_la_decision_entera(monkeypatch):
+    """La costura: pedir_aprobacion con HITL_WEB=1 devuelve la Decision del
+    navegador TAL CUAL (antes la envolvía en bool() y el motivo moría ahí —
+    el PENDING declarado de la v1 de exp/98)."""
+    import utils.hitl_web as hitl
+    from utils.aprobaciones import Decision, pedir_aprobacion
+
+    monkeypatch.setenv("HITL_WEB", "1")
+    monkeypatch.setattr(hitl, "aprobar",
+                        lambda prompt, cuerpo="": Decision(False, "fuera de scope"))
+    decision = pedir_aprobacion("¿Escribir? → /repo/z.py")
+    assert decision.ok is False
+    assert decision.motivo == "fuera de scope"

@@ -21,8 +21,9 @@ Contrato y contención:
   Una página ajena puede auto-postear, pero su Origin la delata y se
   ignora sin decidir (loopback solo NO alcanzaba como contención).
 - `aprobar()` espera el Event con timeout (`HITL_WEB_TIMEOUT`, 300s de
-  default) y devuelve True o False. Timeout o error => False: el mismo
-  default seguro que el CLI (un rechazo nunca bloquea al agente).
+  default) y devuelve una `Decision` (ok + motivo del rechazo, exp/102).
+  Timeout o error => rechazo sin motivo: el mismo default seguro que el CLI
+  (un rechazo nunca bloquea al agente).
 - PUERTO ELÁSTICO: si el puerto base (`HITL_WEB_PORT`, default 8765) está
   ocupado por otro proceso, se prueban los siguientes hasta base+5. Si
   ninguno queda libre, se degrada a False (default seguro): nunca romper
@@ -44,8 +45,9 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote_plus, urlsplit
 
+from utils.aprobaciones import Decision
 from utils.call_llm import _setting
 
 HOST = "127.0.0.1"
@@ -167,6 +169,7 @@ class _Pedido:
         self.token = token
         self.evento = threading.Event()
         self.decision = None  # True/False que dejó el navegador
+        self.motivo = ""      # el porqué del rechazo (exp/102; "" si no vino)
 
 
 def _hosts_validos():
@@ -211,6 +214,8 @@ form {{ display: inline-block; margin-right: .5rem; }}
 button {{ font-size: 1rem; padding: .6rem 1.4rem; cursor: pointer; }}
 .aprobar {{ background: #2e7d32; color: #fff; border: 0; }}
 .rechazar {{ background: #b71c1c; color: #fff; border: 0; }}
+.motivo {{ font-size: 1rem; padding: .55rem .6rem; width: 18rem;
+           border: 1px solid #ddd; }}
 </style></head>
 <body>
 <h1>HITL — {cuantos} pedido(s) pendiente(s)</h1>
@@ -225,6 +230,8 @@ _PEDIDO_HTML = """<div class="pedido" id="{token}">
   <button class="aprobar">Aprobar</button>
 </form>
 <form method="post" action="/decision?token={token}&amp;respuesta=n">
+  <input class="motivo" name="motivo" maxlength="300"
+         placeholder="motivo del rechazo (opcional)">
   <button class="rechazar">Rechazar</button>
 </form>
 </div>
@@ -234,7 +241,8 @@ _SIN_PENDIENTES = "<p>No hay ningún pedido pendiente.</p>"
 
 _GRACIAS = """<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8"><title>HITL</title></head>
-<body><p>Decisión registrada: <b>{decision}</b>. Podés cerrar esta pestaña.</p></body></html>
+<body><p>Decisión registrada: <b>{decision}</b>{motivo}. Podés cerrar esta
+pestaña.</p></body></html>
 """
 
 
@@ -464,8 +472,9 @@ class _Handler(BaseHTTPRequestHandler):
         token = (consulta.get("token") or [""])[0]
         respuesta = (consulta.get("respuesta") or [""])[0]
         # Compatibilidad con el form viejo (decision=aprobar|rechazar en el
-        # cuerpo) y con el nuevo contrato del spec (respuesta=s|n).
-        token, respuesta = self._leer_form_decision(token, respuesta)
+        # cuerpo) y con el nuevo contrato del spec (respuesta=s|n). El motivo
+        # del rechazo viaja en el cuerpo URL-encoded (exp/102).
+        token, respuesta, motivo = self._leer_form_decision(token, respuesta)
         with _lock:
             pedido = _pendientes.get(token)
         # token desconocido o ya resuelto/expirado: 404 claro, sin decidir nada
@@ -473,16 +482,23 @@ class _Handler(BaseHTTPRequestHandler):
             self._responder(404, "<p>Pedido desconocido o expirado.</p>")
             return
         pedido.decision = respuesta == "s"
+        pedido.motivo = "" if pedido.decision else motivo
         pedido.evento.set()
+        detalle = (f" (motivo: {html.escape(motivo)})" if motivo else "")
         self._responder(200, _GRACIAS.format(
-            decision="Aprobar" if pedido.decision else "Rechazar"))
+            decision="Aprobar" if pedido.decision else "Rechazar", motivo=detalle))
 
     def _leer_form_decision(self, token, respuesta):
-        """Form viejo en el cuerpo (token/respuesta/decision) a pares."""
+        """Form del cuerpo (token/respuesta/decision/motivo) a pares.
+
+        Devuelve (token, respuesta, motivo): el motivo viene URL-encoded por
+        el navegador (espacios como +, acentos como %XX) y acotado a 300 —
+        es texto libre que viaja al modelo, no un archivo."""
         largo = int(self.headers.get("Content-Length") or 0)
         if not largo:
-            return token, respuesta
+            return token, respuesta, ""
         datos = self.rfile.read(largo).decode("utf-8", errors="replace")
+        motivo = ""
         for campo in datos.split("&"):
             clave, _, valor = campo.partition("=")
             if clave == "token" and not token:
@@ -491,7 +507,9 @@ class _Handler(BaseHTTPRequestHandler):
                 respuesta = valor
             elif clave == "decision":
                 respuesta = "s" if valor == "aprobar" else "n"
-        return token, respuesta
+            elif clave == "motivo":
+                motivo = unquote_plus(valor)[:300]
+        return token, respuesta, motivo
 
 
 def _arrancar():
@@ -538,14 +556,15 @@ def aprobar(titulo, cuerpo):
 
     Cada llamada crea su token y su Event y espera SOLO el suyo: dos
     aprobaciones en hilos distintos del proceso conviven sin bloquearse.
-    Devuelve True si el navegador aprobó dentro del timeout, False en
-    cualquier otro caso (rechazo, timeout o error): el default seguro.
-    """
+    Devuelve una Decision (exp/102): ok=True si el navegador aprobó dentro
+    del timeout; False en cualquier otro caso (rechazo, timeout o error —
+    el default seguro). El motivo del form de rechazo viaja en la Decision
+    (vacío en todo lo demás)."""
     try:
         puerto = _arrancar()
     except (OSError, ValueError) as e:
         print(f"[hitl_web] no se pudo levantar el servidor: {e}")
-        return False
+        return Decision(False)
 
     token = secrets.token_urlsafe(24)
     pedido = _Pedido(str(titulo), str(cuerpo), token)
@@ -561,11 +580,10 @@ def aprobar(titulo, cuerpo):
     finally:
         with _lock:
             _pendientes.pop(token, None)  # deja de listarse al resolverse/expirar
-    decidido = pedido.decision
     if not listo:
         print("[hitl_web] timeout sin decisión: se rechaza (default seguro)")
-        return False
-    return bool(decidido)
+        return Decision(False)
+    return Decision(bool(pedido.decision), pedido.motivo)
 
 
 def iniciar():

@@ -1284,6 +1284,30 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/102 — el motivo del rechazo también viaja por el navegador (2026-10-25)
+
+El PENDING declarado de la v1 de exp/98, cerrado: con `HITL_WEB=1` el
+rechazo llegaba mudo (`Decision(bool(aprobar(...)))` tiraba el motivo) y el
+modelo volvía a adivinar por qué le dijeron que no — el fix de exp/98 solo
+vivía en la terminal. Spec:
+[banco/specs/exp102_motivo_web.md](../banco/specs/exp102_motivo_web.md).
+
+**El fix:** el form de Rechazar de la página gana un campo `motivo`
+(opcional, maxlength 300); viaja URL-encoded en el cuerpo y el server lo
+decodifica (`unquote_plus`) y lo acota. `hitl_web.aprobar()` pasa a
+devolver una **`Decision`** entera (timeout y error siguen siendo
+`Decision(False)` sin motivo — default seguro intacto) y `pedir_aprobacion`
+la devuelve tal cual. La aprobación descarta el motivo (contrato del
+parser: en los YES el resto se ignora). Los tests de contención existentes
+se adaptaron al contrato extendido — mismo movimiento que exp/98 — sin
+perder ninguna protección (CSRF, POST tardío, puerto roto, timeout).
+
+**e2e:** POST de rechazo con `curl --data-urlencode` contra el server real
+→ `Decision(ok=False, motivo='no está en el scope de hoy')` y la página de
+gracias lo confirma al humano. Gate verde completo (982 tests). Queda
+pendiente de la cola chica: el diff paginado a pedido (necesita diseño de
+UX propio).
+
 ## exp/101 — el origen `delegado`: la etiqueta del conductor no es juicio humano (2026-10-25)
 
 Hallado al revisar los pendientes: las corridas delegadas (exp/99–100)

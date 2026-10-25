@@ -509,6 +509,7 @@ tests/test_hitl.py::test_aprobaciones_emite_evento_hitl_sin_contenido
 tests/test_hitl.py::test_edit_file_diagnostico_whitespace_y_candidatos
 tests/test_hitl.py::test_edit_file_prompt_declara_diff_completo
 tests/test_hitl.py::test_edit_file_quirurgico
+tests/test_hitl.py::test_el_motivo_se_acorta_a_300
 tests/test_hitl.py::test_get_question_slash_aprobaciones
 tests/test_hitl.py::test_historial_aprobaciones
 tests/test_hitl.py::test_hitl_web
@@ -516,8 +517,11 @@ tests/test_hitl.py::test_hitl_web_get_valida_origen
 tests/test_hitl.py::test_hitl_web_post_tardio_no_contamina_el_siguiente
 tests/test_hitl.py::test_hitl_web_puerto_ocupado_default_seguro
 tests/test_hitl.py::test_hitl_web_rechaza_post_cross_origin
+tests/test_hitl.py::test_hitl_web_rechazo_con_motivo_viaja
+tests/test_hitl.py::test_la_pagina_del_hitl_tiene_el_campo_de_motivo
 tests/test_hitl.py::test_motivo_del_rechazo_viaja_al_modelo
 tests/test_hitl.py::test_parser_decision_motivo
+tests/test_hitl.py::test_pedir_aprobacion_web_devuelve_la_decision_entera
 tests/test_hitl.py::test_request_human_input_devuelve_lo_tecleado
 tests/test_hitl.py::test_request_human_input_en_el_registro_del_modulo
 tests/test_hitl.py::test_request_human_input_eof_no_es_crash

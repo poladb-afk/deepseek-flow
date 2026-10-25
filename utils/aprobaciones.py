@@ -92,12 +92,13 @@ def pedir_aprobacion(prompt, cuerpo=""):
     modules/escritura.py tenían el MISMO cuerpo copiado. cuerpo es el contexto
     que viaja al HITL web. Devuelve una Decision (el bool sigue valiendo).
     `n <motivo>` viaja como motivo; s/si/y ignoran el resto. Nunca lanza:
-    EOF o Ctrl+C es RECHAZO sin motivo. El HITL web (v1) rechaza sin motivo."""
+    EOF o Ctrl+C es RECHAZO sin motivo. El HITL web devuelve SU Decision
+    (exp/102: el rechazo del navegador también puede traer motivo)."""
     from utils import hitl_web
     from utils.call_llm import _setting
 
     if _setting("HITL_WEB", "0") == "1":
-        return Decision(bool(hitl_web.aprobar(prompt, cuerpo)))
+        return hitl_web.aprobar(prompt, cuerpo)
     try:
         answer = input(f"{prompt} (s/n): ").strip()
     except (EOFError, KeyboardInterrupt):
