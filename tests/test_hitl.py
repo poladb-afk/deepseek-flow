@@ -1,4 +1,5 @@
 """Aprobaciones humanas: escritura/coding, gate web, historial y pedido al humano (PR 4)."""
+from utils.aprobaciones import Decision
 
 
 def test_edit_file_quirurgico(tmp_path, monkeypatch):
@@ -7,7 +8,7 @@ def test_edit_file_quirurgico(tmp_path, monkeypatch):
     archivo = tmp_path / "demo.py"
     archivo.write_text("def suma(a, b):\n    return a + b\n", encoding="utf-8")
     monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
-    monkeypatch.setattr(coding, "_approve", lambda p: True)
+    monkeypatch.setattr(coding, "_approve", lambda p: Decision(True))
 
     # happy path: ocurrencia única, reemplazo exacto
     r = coding.edit_file(str(archivo), "a + b", "a - b")
@@ -27,7 +28,7 @@ def test_edit_file_quirurgico(tmp_path, monkeypatch):
     assert "base" in archivo.read_text(encoding="utf-8")
 
     # rechazado: el diff se muestra pero el disco queda intacto
-    monkeypatch.setattr(coding, "_approve", lambda p: False)
+    monkeypatch.setattr(coding, "_approve", lambda p: Decision(False))
     r = coding.edit_file(str(archivo), "base = 1", "base = 10")
     assert r.startswith("RECHAZADO")
     assert "base = 1" in archivo.read_text(encoding="utf-8")
@@ -277,13 +278,13 @@ def test_approve_registra_aprobaciones(monkeypatch, tmp_path):
     ap.limpiar()
 
     # run_command rechazado: queda registrado como rechazo
-    monkeypatch.setattr(coding, "_approve", lambda p: False)
+    monkeypatch.setattr(coding, "_approve", lambda p: Decision(False))
     coding.run_command("echo x")
     assert ap.eventos()[-1]["tipo"] == "run_command"
     assert ap.eventos()[-1]["decision"] is False
 
     # write_file aprobado: queda registrado como aprobación
-    monkeypatch.setattr(esc, "_approve", lambda p: True)
+    monkeypatch.setattr(esc, "_approve", lambda p: Decision(True))
     esc.write_file(str(tmp_path / "nuevo.txt"), "contenido")
     assert ap.eventos()[-1]["tipo"] == "write_file"
     assert ap.eventos()[-1]["decision"] is True
@@ -381,3 +382,110 @@ def test_aprobaciones_emite_evento_hitl_sin_contenido(monkeypatch):
         assert "contenido que no debe persistirse" not in repr(capturado)
     finally:
         aprobaciones.limpiar()
+
+
+# exp/98 — el HITL que muestra todo y explica los rechazos
+
+def test_parser_decision_motivo(monkeypatch):
+    """C1: el lector del HITL acepta 'n <motivo>' y la Decision sigue siendo
+    truthiness-compatible con el contrato bool de los callers."""
+    from utils.aprobaciones import Decision, pedir_aprobacion
+
+    monkeypatch.delenv("HITL_WEB", raising=False)
+
+    def responde(*partes):
+        monkeypatch.setattr("builtins.input", lambda *a, **k: " ".join(partes))
+
+    # aprobaciones: s/si/y, y lo que sigue a la palabra se ignora
+    for tecla, resto in (("s", ""), ("si", ""), ("y", ""), ("s", "dale"), ("si", "porque sí")):
+        responde(tecla, resto)
+        d = pedir_aprobacion("¿Aplicar?")
+        assert d.ok and bool(d) and d.motivo == "", (tecla, resto, d)
+
+    # rechazos sin motivo
+    for tecla in ("n", "no"):
+        responde(tecla)
+        d = pedir_aprobacion("¿Aplicar?")
+        assert not d and not d.ok and d.motivo == ""
+
+    # rechazo con motivo: lo que sigue a la PRIMERA palabra (normalizado)
+    responde("n", "porque", "X")
+    d = pedir_aprobacion("¿Aplicar?")
+    assert not d and d.motivo == "porque X"
+
+    # EOF / Ctrl+C: rechazo sin motivo, sin excepción
+    def eof(*a, **k):
+        raise EOFError()
+
+    monkeypatch.setattr("builtins.input", eof)
+    d = pedir_aprobacion("¿Aplicar?")
+    assert not d and d.motivo == ""
+
+    # el contrato bool: el rechazo cae en `if not d`, la aprobación en `if d`
+    assert bool(Decision(True)) is True and bool(Decision(False, "x")) is False
+    monkeypatch.undo()
+
+
+def test_edit_file_prompt_declara_diff_completo(tmp_path, monkeypatch):
+    """C2: con un diff multi-hunk mayor a SALIDA_MAX el prompt declara los
+    hunks y +/− reales, y el marcador dice cuánto quedó sin ver."""
+    import modules.coding as coding
+    from utils.aprobaciones import Decision
+
+    # 6 hunks separados por relleno único; old_string son los 6 bloques de
+    # ancla contiguos (un solo replace hace los 6 cambios). El diff supera
+    # holgadamente SALIDA_MAX (4000 chars) y el panel no lo muestra entero.
+    def bloques(valor):
+        return [
+            linea for i in range(6) for linea in
+            # relleno LARGO: con contexto ±3 de difflib hace falta que las
+            # líneas del contexto pesen, no que haya muchas
+            [f"unico_{i} = {valor}"] + [f"relleno_{i}_{j} = " + "x" * 180 for j in range(8)]
+        ]
+
+    viejo, nuevo = "\n".join(bloques(0)), "\n".join(bloques(1))
+    archivo = tmp_path / "grande.py"
+    archivo.write_text(viejo + "\n", encoding="utf-8")
+
+    prompts = []
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.setattr(coding, "_approve",
+                        lambda p: prompts.append(p) or Decision(False))
+    r = coding.edit_file(str(archivo), viejo, nuevo)
+
+    assert r.startswith("RECHAZADO")
+    assert len(prompts) == 1
+    assert "(6 hunks, +6/−6)" in prompts[0], prompts[0]
+    cuerpo = coding._cuerpo[0]
+    assert "diff truncado:" in cuerpo
+    assert "caracteres sin ver" in cuerpo
+    oculto = int(cuerpo.split("quedan ")[1].split(" de")[0])
+    assert oculto > 0
+
+
+def test_motivo_del_rechazo_viaja_al_modelo(tmp_path, monkeypatch):
+    """C3: 'n <motivo>' en el HITL de edit_file/write_file llega al string que
+    se le devuelve al modelo (con el motivo, no el genérico)."""
+    import modules.coding as coding
+    import modules.escritura as esc
+    from utils import aprobaciones
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.delenv("HITL_WEB", raising=False)
+    monkeypatch.setattr("builtins.input", lambda *a, **k: "n porque rompe catalogo")
+
+    archivo = tmp_path / "demo.py"
+    archivo.write_text("base = 1\n", encoding="utf-8")
+    aprobaciones.limpiar()
+
+    r = coding.edit_file(str(archivo), "base = 1", "base = 2")
+    assert "RECHAZADO por el usuario: porque rompe catalogo" in r
+    assert archivo.read_text(encoding="utf-8") == "base = 1\n"
+    assert aprobaciones.eventos()[-1]["decision"] is False
+
+    r = esc.write_file(str(tmp_path / "nuevo.txt"), "contenido")
+    assert "RECHAZADO por el usuario: porque rompe catalogo" in r
+    assert not (tmp_path / "nuevo.txt").exists()
+    assert aprobaciones.eventos()[-1]["tipo"] == "write_file"
+    aprobaciones.limpiar()
+

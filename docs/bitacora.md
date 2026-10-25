@@ -1284,6 +1284,36 @@ no-código por dominio. Los 7 adapters restantes quedan como datos cargables
 de uso real no se afirman). Deuda: n=1 smoke; F2 (el flow del método como
 ejecutor) sigue cerrado.
 
+## exp/98 — el HITL que muestra todo y explica los rechazos (2026-10-24)
+
+Los dos agujeros del punto de confianza, cerrados con la ironía de rigor: la
+primera aprobación que usó el fix mostraba "(1 hunks, +4/−2)" en su propio
+prompt — el instrumento verificándose en vivo. Spec:
+[banco/specs/exp98_hitl_honesto.md](../banco/specs/exp98_hitl_honesto.md).
+
+**Los fixes:** (1) el prompt de `edit_file` declara el tamaño REAL del cambio
+(`(N hunks, +A/−B)`, contado sobre el diff completo antes del recorte) y el
+marcador de truncado dice cuánto queda oculto — el incidente de exp/96
+(aprobar hunks nunca vistos) ya no puede repetirse en silencio; (2)
+`pedir_aprobacion` devuelve `Decision(ok, motivo)` con `__bool__`: el rechazo
+acepta `n <motivo>` y el motivo viaja al modelo en edit_file, write_file y
+run_command — el chat ya no adivina por qué le dijeron que no. El casing del
+motivo se conserva (solo la primera palabra se normaliza).
+
+**La mejora del auditor sobre el diseño:** los callers leen el motivo con
+`getattr(decision, "motivo", "")` — el seam `_approve` acepta bools para
+siempre y los ~8 mocks existentes quedaron intactos (R2). Y el hallazgo fino
+del C2: un diff de 6 hunks con contexto ±3 da ~2000 chars — HACE FALTA que
+las líneas de contexto PESen para pasar SALIDA_MAX; el fixture original con
+700 líneas cortas nunca truncaba.
+
+**Las sesiones:** la primera murió con el servidor tmux entero (su última
+aprobación no llegó: el árbol quedó incoherente y el auditor restauró
+`_cuenta_diff` desde el log). La segunda completó; un rechazo CON contexto
+evitó un fixture con placeholder no-op — y el chat no tuvo que adivinar el
+motivo: la otra mitad del fix trabajando. Gate verde (955 tests). Par #13 de
+la flywheel.
+
 ## exp/97 — el explorador aislado existe; el modelo no lo quiso (todavía) (2026-10-24)
 
 La brecha que la comparativa marcó con nombre ("no hay aislamiento de

@@ -74,9 +74,11 @@ def write_file(path, content):
     print(highlight_diff(cuerpo))
     _cuerpo[0] = cuerpo
 
-    if not _approve(f"¿Escribir? → {resolved}"):
+    decision = _approve(f"¿Escribir? → {resolved}")
+    if not decision:
         registrar_aprobacion("write_file", f"{resolved}", False, "preguntar")
-        return "RECHAZADO por el usuario: el archivo no se modificó. Puedes proponer otro contenido o preguntar qué cambiaría."
+        motivo = getattr(decision, "motivo", "") or "el archivo no se modificó"
+        return f"RECHAZADO por el usuario: {motivo}."
     registrar_aprobacion("write_file", f"{resolved}", True, "preguntar")
 
     try:

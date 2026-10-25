@@ -295,12 +295,16 @@ def _aprobar(command, nivel, juicios):
     print(f"   ↳ {explicar(command)}")
     print(command)
     _cuerpo[0] = command
-    for pregunta, motivo in preguntas:
-        if _approve(pregunta):
+    for pregunta, motivo_rechazo in preguntas:
+        decision = _approve(pregunta)
+        if decision:
             continue
         registrar_aprobacion("run_command", command, False, nivel)
         _registrar_riesgo(command, juicios, False)
-        return False, motivo
+        motivo = getattr(decision, "motivo", "")
+        if motivo:
+            return False, f'{motivo_rechazo} Motivo del humano: "{motivo}"'
+        return False, motivo_rechazo
     registrar_aprobacion("run_command", command, True, nivel)
     _registrar_riesgo(command, juicios, True)
     return True, ""
@@ -427,6 +431,20 @@ def _error_no_aparece(resolved, texto, old_string):
     return mensaje
 
 
+def _cuenta_diff(diff):
+    """(hunks, agregadas, borradas) del diff COMPLETO: es lo que el aprobador
+    tiene que ver, aunque el panel recorte el texto."""
+    hunks = agrega = borra = 0
+    for linea in diff.splitlines():
+        if linea.startswith("@@"):
+            hunks += 1
+        elif linea.startswith("+") and not linea.startswith("+++"):
+            agrega += 1
+        elif linea.startswith("-") and not linea.startswith("---"):
+            borra += 1
+    return hunks, agrega, borra
+
+
 def edit_file(path, old_string, new_string):
     resolved, err = _resolve(path)
     if err:
@@ -464,12 +482,24 @@ def edit_file(path, old_string, new_string):
         )
     )
     print(f"\n── edit_file: {resolved} ──")
-    diff_mostrado = recortar_chars(diff, SALIDA_MAX, "[... diff truncado ...]")
+    hunks, agrega, borra = _cuenta_diff(diff)
+    if len(diff) <= SALIDA_MAX:
+        diff_mostrado = diff
+    else:
+        vista = recortar_chars(diff, SALIDA_MAX, "\0")
+        inicial, _, final = vista.partition("\0")
+        oculto = len(diff) - len(inicial) - len(final)
+        diff_mostrado = recortar_chars(
+            diff, SALIDA_MAX,
+            f"[... diff truncado: quedan {oculto} de {len(diff)} caracteres sin ver ...]")
     print(highlight_diff(diff_mostrado))
     _cuerpo[0] = diff_mostrado
-    if not _approve(f"¿Aplicar? → {resolved}"):
+    decision = _approve(f"¿Aplicar? → {resolved} ({hunks} hunks, +{agrega}/−{borra})")
+    if not decision:
         registrar_aprobacion("edit_file", f"{resolved}", False, "preguntar")
-        return "RECHAZADO por el usuario: el archivo no se modificó."
+        # getattr: el seam _approve también acepta bools (los mocks viejos)
+        motivo = getattr(decision, "motivo", "") or "el archivo no se modificó"
+        return f"RECHAZADO por el usuario: {motivo}."
     registrar_aprobacion("edit_file", f"{resolved}", True, "preguntar")
 
     try:

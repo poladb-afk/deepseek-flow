@@ -14,6 +14,8 @@ fricción. Sirve para dos cosas:
 Contrato: solo registra; nunca decide, nunca pide input, nunca rompe. Si algo
 falla al registrar, se ignora (es UX, no contención)."""
 
+from typing import NamedTuple
+
 from utils.policy import PREGUNTAR
 
 _MAX = 200  # tope del buffer circular: una sesión larga no crece sin techo
@@ -69,6 +71,18 @@ def limpiar():
 
 
 YES = {"s", "si", "sí", "y", "yes"}
+NO = {"n", "no"}
+
+
+class Decision(NamedTuple):
+    """La respuesta del HITL: `ok` decide, `motivo` es lo que el humano
+    explicó después del n. Verdadera solo si `ok` (contrato bool de siempre)."""
+
+    ok: bool
+    motivo: str = ""
+
+    def __bool__(self):
+        return self.ok
 
 
 def pedir_aprobacion(prompt, cuerpo=""):
@@ -76,15 +90,24 @@ def pedir_aprobacion(prompt, cuerpo=""):
 
     Unificada acá (PR 3 del plan de orden): modules/coding.py y
     modules/escritura.py tenían el MISMO cuerpo copiado. cuerpo es el contexto
-    que viaja al HITL web. Nunca lanza: EOF o Ctrl+C es RECHAZO."""
+    que viaja al HITL web. Devuelve una Decision (el bool sigue valiendo).
+    `n <motivo>` viaja como motivo; s/si/y ignoran el resto. Nunca lanza:
+    EOF o Ctrl+C es RECHAZO sin motivo. El HITL web (v1) rechaza sin motivo."""
     from utils import hitl_web
     from utils.call_llm import _setting
 
     if _setting("HITL_WEB", "0") == "1":
-        return hitl_web.aprobar(prompt, cuerpo)
+        return Decision(bool(hitl_web.aprobar(prompt, cuerpo)))
     try:
-        answer = input(f"{prompt} (s/n): ").strip().lower()
+        answer = input(f"{prompt} (s/n): ").strip()
     except (EOFError, KeyboardInterrupt):
         print()
-        return False
-    return answer in YES
+        return Decision(False)
+    # la MINÚSCULA es solo para la primera palabra: el motivo viaja con su
+    # casing original (un "no toques Policy.py" no llega como "policy.py")
+    primera, _, resto = answer.partition(" ")
+    if primera.lower() in YES:
+        return Decision(True)
+    if primera.lower() in NO:
+        return Decision(False, resto.strip())
+    return Decision(False)

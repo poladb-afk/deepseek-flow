@@ -62,7 +62,7 @@
           205
         ],
         "utils/aprobaciones.py": [
-          42
+          44
         ],
         "utils/call_llm.py": [
           327
@@ -170,7 +170,7 @@
         "tests/test_forma_larga.py": 5,
         "tests/test_fs_tools.py": 16,
         "tests/test_grafos_sin_calles_muertas.py": 4,
-        "tests/test_hitl.py": 16,
+        "tests/test_hitl.py": 19,
         "tests/test_inventario.py": 3,
         "tests/test_laya.py": 6,
         "tests/test_laya_cache_reintento.py": 5,
@@ -209,7 +209,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 938
+      "metrica": 941
     }
   },
   "version": 1
