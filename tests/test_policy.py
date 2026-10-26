@@ -444,18 +444,16 @@ def test_supervisor_no_puede_saltear_el_denylist(monkeypatch):
 
     monkeypatch.setitem(HOOKS_PRE, "run_command", [veto])
 
-    # El flujo v2 despacha por run_tool_call dentro de Ejecutar.exec: el hook
-    # de la denylist corre igual que en el chat (no hay camino que lo saltee).
-    snap = {
-        "tool_calls": [{
-            "id": "c1", "type": "function",
-            "function": {"name": "run_command", "arguments": '{"command": "rm -rf /"}'},
-        }],
-        "fallos": {}, "exitosas": [], "previas": {}, "base": 0,
-    }
-    salidas = sup.Ejecutar().exec(snap)
-    assert salidas[0]["resultado"].startswith("ERROR: comando prohibido")
+    # v3: cada tool del catálogo es una Tool del kernel con las leyes
+    # alrededor, y despacha por run_tool_call: el hook de la denylist corre
+    # igual que en el chat (no hay camino que lo saltee).
+    shared = sup.semilla("tarea", "salidas/x.md", llm=lambda m, t: None)
+    run_command = next(t for t in shared["tools"] if t.nombre == "run_command")
+    resultado = run_command.correr({"id": "c1", "type": "function", "function": {
+        "name": "run_command", "arguments": '{"command": "rm -rf /"}'}}, shared["ctx"])
+    assert resultado.startswith("ERROR: comando prohibido")
     assert visto["comando"] == "rm -rf /"
+    assert run_command.efecto == "escritura"  # nunca en paralelo
 
 
 @pytest.mark.parametrize("casos", [

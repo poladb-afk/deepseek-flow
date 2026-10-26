@@ -1,45 +1,34 @@
-"""Supervisor v2: un paso = UNA llamada que elige herramienta Y args juntos.
+"""Supervisor v3 (H2 PR 2): una instancia del kernel con las leyes del ejecutor.
 
-El bench (2026-10-13, salidas/evals/bench_supervisor_2026-10-13.md) midió que
-el supervisor reactivo gastaba 65 llamadas remotas / 358 s donde un agente
-plano con tool-calling nativo resolvía LO MISMO (6/6 ambos) en 14 / 26 s. El
-valor del supervisor nunca estuvo en el Choose (Laya + mayoría 2-de-3): está
-en las LEYES de código — vetos, caché, presupuesto, fallo-como-feedback,
-anti-recursión. Esta versión aplica ese veredicto: cada ronda es UNA llamada
-a call_llm_agent(messages, tools) que elige la herramienta y redacta sus args
-juntos, con las leyes intactas como guardas PURAS del ejecutor.
+El bench de 2026-10-13 midió que el valor del supervisor no estaba en el
+Choose (Laya + mayoría) sino en las LEYES de código: vetos, caché,
+presupuesto, fallo-como-feedback, anti-recursión. v2 ya despachaba con UNA
+llamada que elige herramienta y args; v3 deja de tener loop propio: el loop
+es el del kernel (`utils/kernel.loop`) y lo que queda acá es lo que lo hace
+supervisor.
 
-Flujo (Flow de la casa):
+    loop del kernel ──▶ Auditar ──▶ Sintetizar
 
-    UnPaso ──tool────▶ Ejecutar ──default──▶ UnPaso
-    UnPaso ──answer──▶ Sintetizar
-    UnPaso ──sintetizar──▶ Sintetizar
-
-- **UnPaso**: arma messages + tools (retiradas al llegar a MAX_PASOS rondas:
-  la ley del chat — el modelo debe cerrar), llama un paso y decide: con
-  tool_calls → "tool"; sin ellas → "sintetizar" (el contenido es el cierre
-  parcial que Sintetizar puede reusar). El historial viaja COMPLETO entre
-  pasos (los resultados reales, no hechos recortados).
-- **Ejecutar**: por cada tool_call corre las guardas de ley ANTES de
-  despachar y luego fs_tools.run_tool_call (el único camino con hooks); el
-  resultado —o el texto de la guarda— vuelve como mensaje role=tool (el canal
-  fallo-como-feedback de siempre). Arma el hecho de auditoría para la
-  sección "Pasos".
+- **Las leyes envuelven cada Tool** (`con_leyes`): veto por fallos, caché de
+  la llamada idéntica, veto de repetición. Las guardas siguen PURAS
+  (`guarda_vetada`, `guarda_repetida`) y el estado de ley vive en el shared
+  del supervisor, no en globals. Un lock serializa la consulta y el registro
+  (las lecturas del kernel pueden correr en paralelo).
+- **Un saldo para todo el árbol** (`Ledger(MAX_PASOS)`): con `EXPLORAR=1` la
+  tool `explorar` es el sub-agente del kernel y gasta del MISMO saldo que el
+  supervisor. El kernel no la ofrece si no queda saldo para ella y su loop.
+- **Auditar**: arma la sección "Pasos" y la telemetría de rondas secas (exp/96,
+  sin corte) desde el registro de llamadas.
 - **Sintetizar**: igual que siempre (informe + sección "Pasos").
 
-Leyes (guards del §2, puras y testeables sin LLM): MAX_PASOS=5 (L8);
-anti-recursión — run_supervisor no está en _TODAS (L1); MAX_FALLOS_POR_
-HERRAMIENTA=2 veta una herramienta que falló dos veces; caché de llamadas
-idénticas exitosas; sin-args ya exitosa o misma firma dos veces → veto.
-
-El contrato del fine-tune supervisor_dispatch (PREGUNTA_DESPACHO y
-elegir_con_deepseek) se mudó a sonda_supervisor.py: la sonda mide el
-checkpoint jubilado como evidencia histórica.
+Anti-recursión (L1): run_supervisor no está en el catálogo. El contrato del
+fine-tune supervisor_dispatch vive en sonda_supervisor.py.
 
 Uso: python3 main.py supervisor "tarea" [--salida supervisor.md]
 """
 import argparse
 import json
+import threading
 from pathlib import Path
 
 from pocketflow import Flow, Node
@@ -51,7 +40,8 @@ from utils.call_llm import _setting, call_llm, call_llm_agent
 from utils.convergencia import seco
 from utils.fs_tools import TOOLS as BASE_TOOLS
 from utils.fs_tools import escribir_salida
-from utils.historial import as_dict, historiar
+from utils.kernel import Ctx, Ledger, Tool, loop
+from utils.kernel import semilla as semilla_agente
 
 MAX_PASOS = 5
 HECHO_LARGO = 160
@@ -80,6 +70,9 @@ if EXPLORAR:
 # Herramientas sin argumentos: repetirlas en una corrida es quemar presupuesto
 # (patología medida: db_schema corrió 4 veces en una tarea real de 5 pasos).
 SIN_ARGS = {t["function"]["name"] for t in _TODAS if not t["function"].get("parameters", {}).get("properties")}
+# Lo que se puede correr en paralelo: lo que solo lee. El resto (escrituras,
+# comandos, tools de módulos sin declarar) va en orden, en un solo hilo.
+LECTURA = {"list_files", "read_file", "search_files", explorador.NOMBRE_TOOL}
 
 TEXTO_VETO = (
     f"ERROR: herramienta vetada en esta corrida (falló {MAX_FALLOS_POR_HERRAMIENTA} veces) "
@@ -88,8 +81,6 @@ TEXTO_VETO = (
 
 
 # Leyes como guardas PURAS (§2): sin LLM, sin estado compartido, testeables.
-# La semántica es la de siempre — los contadores se actualizan DESPUÉS de
-# ejecutar (éxito limpia fallos, registro en previas/exitosas).
 
 def clave_de(args):
     """La firma canónica de los args de una llamada: json con claves
@@ -133,8 +124,7 @@ def hecho_de(n, herramienta, args, resultado):
 
 
 def catalogo():
-    """El catálogo en prosa: solo para el system prompt corto. Los schemas
-    son la fuente de verdad de las tools; esto es la vista legible."""
+    """El catálogo en prosa (lo usa la sonda del despacho jubilado)."""
     lineas = []
     for t in _TODAS:
         f = t["function"]
@@ -164,178 +154,117 @@ def system_prompt(tarea):
     )
 
 
-def semilla(tarea, salida):
-    """El `shared` semilla del supervisor. El historial (messages) viaja
-    completo entre pasos — el modelo ve los resultados reales."""
-    return {
-        "tarea": tarea,
-        "salida": salida,
-        "messages": [
-            {"role": "system", "content": system_prompt(tarea)},
-            {"role": "user", "content": tarea},
-        ],
-        "rondas": 0,
-        "fallos": {},
-        "exitosas": [],
-        "previas": {},
-        "hechos": [],
-        "resultados": [],
-        "secadas": [],
-    }
-
-
-class UnPaso(Node):
-    """La llamada del paso: el modelo elige herramienta Y args juntos. Con
-    tool_calls → "tool"; sin ellas → "sintetizar" (el contenido es el cierre
-    parcial que Sintetizar reusa). Al llegar a MAX_PASOS rondas se retiran
-    las tools (la ley del chat: el modelo debe cerrar)."""
-
-    def prep(self, shared):
-        rondas = shared.get("rondas", 0)
-        tools = None if rondas >= MAX_PASOS else _TODAS
-        # exp/97: en la última ronda `explorar` no se anuncia — una
-        # exploración no puede arrancar cuando ya hay que cerrar.
-        if tools and rondas >= MAX_PASOS - 1:
-            tools = [t for t in tools if t["function"]["name"] != explorador.NOMBRE_TOOL]
-        return shared["messages"], tools
-
-    def exec(self, inputs):
-        messages, tools = inputs
-        return call_llm_agent(messages, tools=tools)
-
-    def post(self, shared, prep_res, exec_res):
-        shared["messages"].append(historiar(exec_res))
-        if getattr(exec_res, "tool_calls", None):
-            shared["_paso_tool_calls"] = [as_dict(tc) for tc in exec_res.tool_calls]
-            return "tool"
-        shared["_cierre_parcial"] = getattr(exec_res, "content", None)
-        return "sintetizar"
-
-
-def _args_de(tc):
+def _args_de(llamada):
     try:
-        args = json.loads(tc["function"].get("arguments") or "{}")
+        args = json.loads(llamada["function"].get("arguments") or "{}")
     except (TypeError, ValueError):
         args = {}
     return args if isinstance(args, dict) else {}
 
 
-class Ejecutar(Node):
-    """Por cada tool_call: las guardas de ley ANTES de despachar (§2) y luego
-    run_tool_call (el único camino con hooks). El resultado —o el texto de la
-    guarda— vuelve como mensaje role=tool: el canal fallo-como-feedback. El
-    hecho de auditoría se arma con hecho_de para la sección "Pasos".
+def _despachar(llamada, ctx):
+    """Una tool del catálogo por run_tool_call (hooks, denylist, contención);
+    `explorar` es el sub-agente del kernel y gasta del saldo del árbol."""
+    if llamada["function"]["name"] == explorador.NOMBRE_TOOL:
+        return explorador.AGENTE.correr(llamada, ctx)
+    return fs_tools.run_tool_call(llamada, REGISTRO)["content"]
 
-    Contadores se actualizan DESPUÉS de ejecutar (éxito limpia fallos,
-    registro en previas/exitosas) — la semántica de siempre."""
 
-    def prep(self, shared):
-        """Snapshot de la ronda: las tool_calls elegidas por UnPaso + una
-        copia de los contadores de ley (exec() NO toca shared; post() sí)."""
-        return {
-            "tool_calls": shared.get("_paso_tool_calls") or [],
-            "fallos": dict(shared.get("fallos", {})),
-            "exitosas": list(shared.get("exitosas", [])),
-            "previas": {k: dict(v) for k, v in shared.get("previas", {}).items()},
-            "base": len(shared.get("hechos", [])),
-        }
+def _decidir(nombre, firma, ley):
+    """(texto, repetida) si una ley frena la llamada; (None, None) si corre."""
+    texto = guarda_vetada(nombre, ley["fallos"])
+    if texto is not None:
+        return texto, None
+    veredicto = guarda_repetida(firma, ley["previas"], ley["exitosas"], SIN_ARGS)
+    if veredicto is None:
+        return None, None
+    modo, valor = veredicto
+    if modo == "cached":
+        print("  [L8] llamada idéntica a una previa: se reutiliza el resultado")
+        return valor, True
+    return valor, None
 
-    @staticmethod
-    def _veto(nombre, firma, fallos, vivas, exitosas_vivas):
-        """(resultado, repetida) si la ley L8 frena la llamada; (None, None)
-        si toca ejecutarla."""
-        texto = guarda_vetada(nombre, fallos)
-        if texto is not None:
-            return texto, None
-        veredicto = guarda_repetida(firma, vivas, exitosas_vivas, SIN_ARGS)
-        if veredicto is None:
-            return None, None
-        modo, valor = veredicto
-        if modo == "cached":
-            print("  [L8] llamada idéntica a una previa: se reutiliza el resultado")
-            return valor, True
-        return valor, None
 
-    @staticmethod
-    def _cachear_exito(nombre, firma, texto, vivas, exitosas_vivas):
-        """Registra una llamada exitosa en el estado VIVO de la ronda."""
-        vivas[firma] = {"n": vivas.get(firma, {}).get("n", 0) + 1,
-                        "resultado": texto}
-        if nombre not in exitosas_vivas:
-            exitosas_vivas.append(nombre)
+def _registrar(nombre, firma, texto, ley):
+    """Los contadores DESPUÉS de ejecutar: un error suma al veto; un éxito
+    limpia el contador y deja el resultado para el caché."""
+    if texto.startswith("ERROR"):
+        ley["fallos"][nombre] = ley["fallos"].get(nombre, 0) + 1
+        print(f"  ✗ paso erróneo ({ley['fallos'][nombre]}/{MAX_FALLOS_POR_HERRAMIENTA} de {nombre})")
+        return
+    ley["fallos"][nombre] = 0  # el éxito limpia el contador
+    ley["exitosas"].append(nombre)
+    registro = ley["previas"].setdefault(firma, {"n": 0, "resultado": None})
+    registro["n"] += 1
+    registro["resultado"] = texto
+    print(f"  → {texto[:120]}")
 
-    def exec(self, snap):
-        """Una entrada por tool_call: guarda vetada/repetida (pura) y, si
-        pasa, run_tool_call. NO actualiza los contadores (eso es post, y así
-        la ley se prueba pura)."""
-        salidas = []
-        # estado VIVO de la ronda: el snapshot de prep no ve lo que pasa
-        # DENTRO de la tanda, y los modelos sí emiten llamadas duplicadas en
-        # una misma ronda — el caché tiene que alcanzarlas.
-        vivas = {k: dict(v) for k, v in snap["previas"].items()}
-        exitosas_vivas = list(snap["exitosas"])
-        for i, tc in enumerate(snap["tool_calls"]):
-            nombre = tc["function"]["name"]
-            args = _args_de(tc)
-            firma = (nombre, clave_de(args))
-            n = snap["base"] + i + 1
-            texto, repetida = self._veto(nombre, firma, snap["fallos"], vivas, exitosas_vivas)
-            ejecuto = texto is None
-            if ejecuto:
-                texto = fs_tools.run_tool_call(tc, REGISTRO)["content"]
-                if not texto.startswith("ERROR"):
-                    self._cachear_exito(nombre, firma, texto, vivas, exitosas_vivas)
-            else:
-                print(f"  [L8] {nombre}: {texto}")
-            salidas.append({
-                "tool_call": tc, "herramienta": nombre, "args": args,
-                "firma": firma, "n": n, "resultado": texto,
-                "repetida": repetida, "ejecuto": ejecuto,
-            })
-        return salidas
 
-    def post(self, shared, prep_res, exec_res):
-        fallos = shared.setdefault("fallos", {})
-        exitosas = shared.setdefault("exitosas", [])
-        previas = shared.setdefault("previas", {})
-        hechos, resultados = [], []
-        for r in exec_res:
-            shared["messages"].append(
-                {"role": "tool", "tool_call_id": r["tool_call"]["id"], "content": r["resultado"]}
-            )
-            hechos.append(hecho_de(r["n"], r["herramienta"], r["args"], r["resultado"]))
-            resultados.append({"herramienta": r["herramienta"], "args": r["args"],
-                               "resultado": r["resultado"][:4000], "n": r["n"], "repetida": r["repetida"]})
-            if not r["ejecuto"]:
-                continue
-            # Contadores DESPUÉS de ejecutar.
-            if r["resultado"].startswith("ERROR"):
-                fallos[r["herramienta"]] = fallos.get(r["herramienta"], 0) + 1
-                print(f"  ✗ paso erróneo ({fallos[r['herramienta']]}/"
-                      f"{MAX_FALLOS_POR_HERRAMIENTA} de {r['herramienta']})")
-            else:
-                fallos[r["herramienta"]] = 0  # el éxito limpia el contador
-                exitosas.append(r["herramienta"])
-                registro = previas.setdefault(r["firma"], {"n": 0, "resultado": None})
-                registro["n"] += 1  # el intento cuenta aunque haya sido cacheado
-                if not r["repetida"]:
-                    registro["resultado"] = r["resultado"]
-                print(f"  → {r['resultado'][:120]}")
-        shared.setdefault("hechos", []).extend(hechos)
-        shared.setdefault("resultados", []).extend(resultados)
-        shared["rondas"] = shared.get("rondas", 0) + 1
-        # exp/96: telemetría de convergencia, SIN corte. Se compara la TANDA
-        # de esta ronda contra la tanda de la ANTERIOR (no el acumulado: el
-        # prefijo idéntico inflaría el ratio y toda ronda tardía saldría seca).
-        tanda = "\n".join(hechos)
-        if "_tanda_previa" in shared:
-            es_seca = seco(shared["_tanda_previa"], tanda)
-            shared.setdefault("secadas", []).append(es_seca)
-            print(f"  [supervisor] ronda {shared['rondas']}: seca: "
-                  f"{'sí' if es_seca else 'no'}")
-        shared["_tanda_previa"] = tanda
-        shared.pop("_paso_tool_calls", None)
-        return "default"
+def con_leyes(esquema, ley):
+    """La Tool del kernel para una tool del catálogo, con las leyes alrededor:
+    las guardas deciden ANTES de despachar y los contadores se actualizan
+    DESPUÉS. Cada llamada (corrida, cacheada o vetada) queda en `ley["llamadas"]`
+    para la auditoría. El lock hace atómicas la consulta y el registro."""
+    nombre = esquema["function"]["name"]
+
+    def correr(llamada, ctx):
+        args = _args_de(llamada)
+        firma = (nombre, clave_de(args))
+        with ley["lock"]:
+            texto, repetida = _decidir(nombre, firma, ley)
+            ronda = MAX_PASOS - ctx.ledger.rondas
+        corrio = texto is None
+        if corrio:
+            texto = _despachar(llamada, ctx)
+        else:
+            print(f"  [L8] {nombre}: {texto[:120]}")
+        with ley["lock"]:
+            if corrio:
+                _registrar(nombre, firma, texto, ley)
+            ley["llamadas"].append({"ronda": ronda, "herramienta": nombre, "args": args,
+                                    "resultado": texto, "repetida": repetida})
+        return texto
+
+    efecto = "lectura" if nombre in LECTURA else "escritura"
+    return Tool(nombre, esquema, correr, efecto, agente=nombre == explorador.NOMBRE_TOOL)
+
+
+def semilla(tarea, salida, llm=None):
+    """El shared del supervisor: el del kernel (contexto fresco, saldo del
+    árbol) + las tools con sus leyes + lo que necesita la síntesis."""
+    ley = {"fallos": {}, "exitosas": [], "previas": {}, "llamadas": [], "lock": threading.Lock()}
+    ctx = Ctx(llm or (lambda m, t: call_llm_agent(m, tools=t)), Ledger(MAX_PASOS))
+    tools = [con_leyes(t, ley) for t in _TODAS]
+    s = semilla_agente(system_prompt(tarea), tarea, tools, ctx)
+    s.update({"tarea": tarea, "salida": salida, "ley": ley})
+    return s
+
+
+class Auditar(Node):
+    """De las llamadas registradas: los hechos de la sección "Pasos", los
+    resultados para la síntesis y la telemetría de rondas secas (exp/96:
+    la TANDA de una ronda contra la de la anterior, SIN corte)."""
+
+    def prep(self, s):
+        return [dict(c) for c in s["ley"]["llamadas"]]
+
+    def exec(self, llamadas):
+        hechos, resultados, tandas = [], [], {}
+        for n, c in enumerate(llamadas, 1):
+            hecho = hecho_de(n, c["herramienta"], c["args"], c["resultado"])
+            hechos.append(hecho)
+            resultados.append({"herramienta": c["herramienta"], "args": c["args"],
+                               "resultado": c["resultado"][:4000], "n": n, "repetida": c["repetida"]})
+            tandas.setdefault(c["ronda"], []).append(hecho)
+        orden = ["\n".join(tandas[r]) for r in sorted(tandas)]
+        secadas = [seco(a, b) for a, b in zip(orden, orden[1:], strict=False)]
+        return hechos, resultados, secadas
+
+    def post(self, s, _, auditoria):
+        s["hechos"], s["resultados"], s["secadas"] = auditoria
+        s["rondas"] = MAX_PASOS - s["ctx"].ledger.rondas
+        for n, es_seca in enumerate(s["secadas"], 2):
+            print(f"  [supervisor] ronda {n}: seca: {'sí' if es_seca else 'no'}")
 
 
 class Sintetizar(Node):
@@ -367,13 +296,12 @@ class Sintetizar(Node):
 
 
 def create_supervisor_flow():
-    un_paso = UnPaso(max_retries=3, wait=5)
-    ejecutar = Ejecutar(max_retries=3, wait=5)
+    """El loop del kernel es un Node más del flujo (agente = Flow = Node)."""
+    agente = loop()
+    auditar = Auditar()
     sintetizar = Sintetizar(max_retries=3, wait=5)
-    un_paso - "tool" >> ejecutar
-    un_paso - "sintetizar" >> sintetizar
-    ejecutar - "default" >> un_paso
-    return Flow(start=un_paso)
+    agente >> auditar >> sintetizar
+    return Flow(start=agente)
 
 
 def supervisar(tarea, salida="salidas/supervisor.md"):
@@ -384,7 +312,7 @@ def supervisar(tarea, salida="salidas/supervisor.md"):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        prog="supervisor", description="Supervisor v2: un paso = una llamada que elige herramienta y args"
+        prog="supervisor", description="Supervisor v3: el loop del kernel con las leyes del ejecutor"
     )
     parser.add_argument("tarea")
     parser.add_argument("--salida", default="salidas/supervisor.md")

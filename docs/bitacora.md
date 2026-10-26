@@ -4602,3 +4602,12 @@ la sección "Vision/PDF y A2A" de design.md.
 **Medición del operador con LLM real**: fable s17–s20 con `EXPLORAR=1` dio s17=1, s18=1, s19=0, s20=2 con **0 llamadas a `explorar`** (con adopción forzada el modelo respondió "No existe la tool `explorar`"): la tool vive solo en el catálogo del supervisor. El gate estaba mal escrito y medía varianza del chat. `explorar()` en vivo: citas exactas de `policy.py` y `usó 3 de 3 rondas`.
 
 **Cambio**: `agente()` exige system y acepta `pedido -> texto`; `explorador.AGENTE` lo arma con `system_prompt` (antes vacío); argumentos ilegibles o vacíos vuelven como ERROR. Gate del explorador movido al PR 2 (`bench_supervisor` con los dos brazos) y regla nueva en el roadmap: el gate prueba que la pieza corrió.
+
+
+## H2 PR 2 — el supervisor sobre el kernel (2026-10-26)
+
+**Cambio**: `supervisor.py` sin loop propio (396 → 324 líneas): `loop()` del kernel como Node, `Auditar` y `Sintetizar`. Las guardas puras siguen igual; las envuelve `con_leyes` con el estado de ley en el shared y un lock (el kernel corre las lecturas en paralelo). Un `Ledger(MAX_PASOS)` para el árbol: `explorar` es `explorador.AGENTE` y gasta del mismo saldo. El kernel suma `Tool.agente` (un sub-agente se ofrece solo con saldo ≥ 2: reemplaza el filtro manual "no anunciar explorar en la última ronda") y `loop()` lee el LLM del `ctx` (así es un Node sin params).
+
+**Medición sin LLM**: v2 y v3 con el mismo LLM guionado en 5 casos (cierre sin tools, dos lecturas, agotar el tope, veto por fallos, caché de la idéntica): mismas llamadas al LLM, mismas tools en la última, mismos pasos y mismos vetos en el informe. Los 6 tests que usaban `UnPaso`/`Ejecutar` conservan su nombre sobre el flujo nuevo; 3 nuevos (saldo compartido, efecto por tool, conteo de exploraciones). Caracterización del chat idéntica. Suite 1044 passed; ratchet 1038 → 1041.
+
+**Gate con LLM real (pendiente)**: `bench_supervisor` con `EXPLORAR=0` y `EXPLORAR=1` contra el baseline de v2; con `=1`, la columna `explorar` tiene que ser > 0.

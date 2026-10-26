@@ -91,18 +91,21 @@ def test_explorador_cableado_en_supervisor_solo_con_setting(tmp_path, monkeypatc
 
 def test_supervisor_no_anuncia_explorar_en_la_ultima_ronda(monkeypatch):
     """exp/97 §3: en la última ronda `explorar` no se anuncia (evita cerrar
-    con una exploración colgada)."""
-    monkeypatch.setattr(sup, "EXPLORAR", True)
-    monkeypatch.setattr(sup, "_TODAS", sup._TODAS + [ex.TOOL_EXPLORAR])
+    con una exploración colgada). Desde H2 PR 2 lo garantiza el kernel: un
+    sub-agente solo se ofrece si queda saldo para él y su loop (≥ 2)."""
+    import supervisor as sup
+    from utils.kernel import Paso
 
-    shared = sup.semilla("tarea", "salidas/sup.md")
-    shared["rondas"] = sup.MAX_PASOS - 1
-    _, tools = sup.UnPaso().prep(shared)
+    monkeypatch.setattr(sup, "_TODAS", sup._TODAS + [ex.TOOL_EXPLORAR])
+    shared = sup.semilla("tarea", "salidas/sup.md", llm=lambda m, t: None)
+
+    shared["ctx"].ledger.rondas = 1
+    _, _, tools = Paso().prep(shared)
     assert "explorar" not in {t["function"]["name"] for t in tools}
     assert "read_file" in {t["function"]["name"] for t in tools}
 
-    shared["rondas"] = 0
-    _, tools = sup.UnPaso().prep(shared)
+    shared["ctx"].ledger.rondas = sup.MAX_PASOS
+    _, _, tools = Paso().prep(shared)
     assert "explorar" in {t["function"]["name"] for t in tools}
 
 

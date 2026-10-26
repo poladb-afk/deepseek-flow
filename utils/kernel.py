@@ -48,7 +48,8 @@ class Tool:
     nombre: str
     esquema: dict
     correr: object
-    efecto: str = "lectura"  # lectura | escritura
+    efecto: str = "lectura"  # lectura | escritura (lo no declarado, escritura)
+    agente: bool = False     # es un sub-agente: necesita saldo para correr su propio loop
 
 
 @dataclass
@@ -98,15 +99,18 @@ def normalizar(msg, ofrece_tools):
 
 
 class Paso(Node):
-    """Una llamada al modelo. Sin saldo, la llamada va SIN tools (cierre)."""
+    """Una llamada al modelo. Sin saldo, la llamada va SIN tools (cierre). Un
+    sub-agente solo se ofrece si queda saldo para él Y para su loop (≥ 2): con
+    1, arrancaría sin poder leer nada."""
 
     def prep(self, s):
-        tools = [t.esquema for t in s["tools"]] if s["ctx"].ledger.rondas > 0 else None
-        return s["mensajes"], tools
+        saldo = s["ctx"].ledger.rondas
+        tools = [t.esquema for t in s["tools"] if saldo >= (2 if t.agente else 1)] or None
+        return s["ctx"].llm, s["mensajes"], tools
 
     def exec(self, entrada):
-        mensajes, tools = entrada
-        return normalizar(self.params["llm"](mensajes, tools), tools is not None)
+        llm, mensajes, tools = entrada
+        return normalizar(llm(mensajes, tools), tools is not None)
 
     def post(self, s, entrada, msg):
         s["mensajes"].append(historiar(msg))
@@ -151,35 +155,42 @@ class Fin(Node):
     """La respuesta quedó en el historial: el loop termina acá."""
 
 
+NO_EJECUTADA = "(no ejecutada: presupuesto de herramientas agotado)"
+
+
 class Cerrar(Node):
     """Saldo agotado con tool calls pendientes: no se ejecutan; se responden
     como no ejecutadas (el historial queda válido) y el modelo cierra sin tools."""
 
     def post(self, s, *_):
         for tc in s["mensajes"][-1]["tool_calls"]:
-            s["mensajes"].append({"role": "tool", "tool_call_id": tc["id"],
-                                  "content": "(no ejecutada: presupuesto de herramientas agotado)"})
+            s["mensajes"].append({"role": "tool", "tool_call_id": tc["id"], "content": NO_EJECUTADA})
         return "paso"
 
 
-def loop(llm, max_retries=3, wait=5):
+def loop(max_retries=3, wait=5):
+    """El grafo del agente. Es un Flow, así que también es un Node: otro flujo
+    lo encadena como un paso más (el supervisor: loop >> Auditar >> Sintetizar).
+    Lee del shared `ctx` (el LLM y el saldo), `tools` y `mensajes`."""
     paso, actuar, cerrar = Paso(max_retries=max_retries, wait=wait), Actuar(), Cerrar()
     paso - "actuar" >> actuar
     paso - "cerrar" >> cerrar
     paso - "respuesta" >> Fin()
     actuar - "paso" >> paso
     cerrar - "paso" >> paso
-    flujo = Flow(start=paso)
-    flujo.set_params({"llm": llm})
-    return flujo
+    return Flow(start=paso)
+
+
+def semilla(system, pedido, tools, ctx):
+    """El shared de un agente: contexto FRESCO (system + pedido, nada del llamador)."""
+    return {"ctx": ctx, "tools": tools,
+            "mensajes": [{"role": "system", "content": system}, {"role": "user", "content": pedido}]}
 
 
 def correr(system, pedido, tools, ctx, max_retries=3, wait=5):
-    """Un agente de punta a punta con contexto FRESCO (system + pedido, nada
-    del llamador). Devuelve (respuesta, mensajes)."""
-    s = {"ctx": ctx, "tools": tools,
-         "mensajes": [{"role": "system", "content": system}, {"role": "user", "content": pedido}]}
-    loop(ctx.llm, max_retries, wait).run(s)
+    """Un agente de punta a punta. Devuelve (respuesta, mensajes)."""
+    s = semilla(system, pedido, tools, ctx)
+    loop(max_retries, wait).run(s)
     return s["mensajes"][-1].get("content") or "", s["mensajes"]
 
 
@@ -215,4 +226,5 @@ def agente(nombre, descripcion, system, tools, parametro="pedido"):
         respuesta, _ = correr(armar(pedido), pedido, tools, ctx.hijo())
         return respuesta
 
-    return Tool(nombre, esquema, correr_agente, "lectura" if all(t.efecto == "lectura" for t in tools) else "escritura")
+    lectura = all(t.efecto == "lectura" for t in tools)
+    return Tool(nombre, esquema, correr_agente, "lectura" if lectura else "escritura", agente=True)

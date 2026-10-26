@@ -1,0 +1,1103 @@
+diff -ruN x/banco/bench_supervisor.py y/banco/bench_supervisor.py
+--- x/banco/bench_supervisor.py	2026-10-26 22:01:33.009614286 +0000
++++ y/banco/bench_supervisor.py	2026-10-26 22:17:45.992851478 +0000
+@@ -333,6 +333,13 @@
+     return Path(informe).read_text(encoding="utf-8")
+ 
+ 
++def contar_exploraciones(informe):
++    """Cuántas veces corrió `explorar` en una corrida, leído de la sección
++    "Pasos" del informe (una línea por llamada). Es la prueba de que la pieza
++    CORRIÓ: un brazo con EXPLORAR=1 y 0 exploraciones no midió el explorador."""
++    return len(re.findall(r"^- \d+ explorar\(", informe or "", re.M))
++
++
+ def _celda(id_tarea, via, texto, seg, llamadas):
+     """Arma la fila de una celda ya ejecutada: gradúa con código puro (o la
+     salta si la verificación devuelve None)."""
+@@ -343,6 +350,7 @@
+         "ok": ok,
+         "seg": round(seg, 2),
+         "llamadas": llamadas,
++        "exploraciones": contar_exploraciones(texto) if via == "supervisor" else 0,
+         "motivo": None if ok is not None else "tarea saltada: verificación indeterminada (archivo ausente)",
+         "error": False,
+         "respuesta": texto,
+@@ -437,6 +445,7 @@
+             por_via[via] = {
+                 "calidad": _tasa(sub),
+                 "llamadas": sum(f["llamadas"] for f in sub),
++                "exploraciones": sum(f.get("exploraciones", 0) for f in sub),
+                 "seg": round(sum(f["seg"] for f in sub), 2),
+                 "tope_llamadas": max(f["llamadas"] for f in sub),
+                 "n": len(sub),
+@@ -523,10 +532,10 @@
+     L.append("")
+     L.append(f"git sha: `{sha}`")
+     L.append("")
+-    L.append("El gate del Choose: el supervisor reactivo (`supervisor.supervisar`, "
+-             "Laya elige herramienta + mayoría 2-de-3 + DeepSeek redacta args, hasta "
+-             "3 llamadas remotas por paso) contra un agente DeepSeek PLANO con "
+-             "tool-calling nativo sobre las MISMAS herramientas (1 llamada por ronda). "
++    L.append("El supervisor de producción (`supervisor.supervisar`: hoy el loop del "
++             "kernel con las leyes del ejecutor y la síntesis, H2 PR 2) contra un agente "
++             "DeepSeek PLANO con tool-calling nativo sobre las MISMAS herramientas "
++             "(1 llamada por ronda). "
+              "Las 6 tareas de `banco/supervisor_tareas.jsonl` gradúan con CÓDIGO PURO "
+              "y DINÁMICO: la verdad se calcula al momento, sin constantes que deriven.")
+     L.append("")
+@@ -537,17 +546,19 @@
+         m = por_via[via]
+         L.append(f"- **{via}**: calidad {pct(m['calidad'])} · "
+                  f"{m['llamadas']} llamadas remotas · {m['seg']:.1f}s "
+-                 f"(tope por tarea {m['tope_llamadas']})")
++                 f"(tope por tarea {m['tope_llamadas']})"
++                 + (f" · `explorar` corrió {m.get('exploraciones', 0)} veces" if via == "supervisor" else ""))
+     L.append("")
+     L.append(f"**Veredicto:** {bench['veredicto']}")
+     L.append("")
+     L.append("## Detalle por tarea y vía")
+     L.append("")
+-    L.append("| tarea | vía | ok | llamadas | seg |")
+-    L.append("|-------|-----|----|----------|-----|")
++    L.append("| tarea | vía | ok | llamadas | seg | explorar |")
++    L.append("|-------|-----|----|----------|-----|----------|")
+     for f in bench["filas"]:
+         ok = _fmt_ok(f["ok"])
+-        L.append(f"| {f['id']} | {f['via']} | {ok} | {f['llamadas']} | {f['seg']:.2f} |")
++        L.append(f"| {f['id']} | {f['via']} | {ok} | {f['llamadas']} | {f['seg']:.2f} "
++                 f"| {f.get('exploraciones', 0)} |")
+     L.append("")
+     v = comparacion["veredicto"]
+     icono = {"OK": "✅", "REGRESIÓN": "🔴", "PRIMERA CORRIDA": "🆕"}.get(v, "•")
+diff -ruN x/docs/bitacora.md y/docs/bitacora.md
+--- x/docs/bitacora.md	2026-10-26 22:01:33.093615587 +0000
++++ y/docs/bitacora.md	2026-10-26 22:20:40.811708376 +0000
+@@ -4602,3 +4602,12 @@
+ **Medición del operador con LLM real**: fable s17–s20 con `EXPLORAR=1` dio s17=1, s18=1, s19=0, s20=2 con **0 llamadas a `explorar`** (con adopción forzada el modelo respondió "No existe la tool `explorar`"): la tool vive solo en el catálogo del supervisor. El gate estaba mal escrito y medía varianza del chat. `explorar()` en vivo: citas exactas de `policy.py` y `usó 3 de 3 rondas`.
+ 
+ **Cambio**: `agente()` exige system y acepta `pedido -> texto`; `explorador.AGENTE` lo arma con `system_prompt` (antes vacío); argumentos ilegibles o vacíos vuelven como ERROR. Gate del explorador movido al PR 2 (`bench_supervisor` con los dos brazos) y regla nueva en el roadmap: el gate prueba que la pieza corrió.
++
++
++## H2 PR 2 — el supervisor sobre el kernel (2026-10-26)
++
++**Cambio**: `supervisor.py` sin loop propio (396 → 324 líneas): `loop()` del kernel como Node, `Auditar` y `Sintetizar`. Las guardas puras siguen igual; las envuelve `con_leyes` con el estado de ley en el shared y un lock (el kernel corre las lecturas en paralelo). Un `Ledger(MAX_PASOS)` para el árbol: `explorar` es `explorador.AGENTE` y gasta del mismo saldo. El kernel suma `Tool.agente` (un sub-agente se ofrece solo con saldo ≥ 2: reemplaza el filtro manual "no anunciar explorar en la última ronda") y `loop()` lee el LLM del `ctx` (así es un Node sin params).
++
++**Medición sin LLM**: v2 y v3 con el mismo LLM guionado en 5 casos (cierre sin tools, dos lecturas, agotar el tope, veto por fallos, caché de la idéntica): mismas llamadas al LLM, mismas tools en la última, mismos pasos y mismos vetos en el informe. Los 6 tests que usaban `UnPaso`/`Ejecutar` conservan su nombre sobre el flujo nuevo; 3 nuevos (saldo compartido, efecto por tool, conteo de exploraciones). Caracterización del chat idéntica. Suite 1044 passed; ratchet 1038 → 1041.
++
++**Gate con LLM real (pendiente)**: `bench_supervisor` con `EXPLORAR=0` y `EXPLORAR=1` contra el baseline de v2; con `=1`, la columna `explorar` tiene que ser > 0.
+diff -ruN x/docs/design.md y/docs/design.md
+--- x/docs/design.md	2026-10-26 22:01:32.981613852 +0000
++++ y/docs/design.md	2026-10-26 22:20:40.811708376 +0000
+@@ -442,17 +442,29 @@
+ al planner con feedback; presupuesto MAX_ROUNDS=2. Web por ddgs,
+ structured output en todo (extraer_yaml + assert + retry).
+ 
+-### Supervisor — bucle reactivo con Choose local
++### Supervisor — el loop del kernel con las leyes del ejecutor (v3, H2 PR 2)
+ `main.py supervisor "tarea"` · [supervisor.py](../supervisor.py) · [sonda_supervisor.py](../sonda_supervisor.py)
+ 
+ ```mermaid
+ flowchart TD
+-    e[ElegirSiguiente] -->|ejecutar| p[EjecutarPaso]
+-    p -->|elegir| e
+-    e -->|sintetizar| s[Sintetizar]
+-    p -->|sintetizar| s
++    k[loop del kernel] --> a[Auditar] --> s[Sintetizar]
+ ```
+ 
++**v3 (H2 PR 2, 2026-10-26)**: el supervisor no tiene loop propio. El loop es
++el del kernel (`utils/kernel.loop`, un Flow usado como Node) y cada tool del
++catálogo es una `Tool` envuelta por `con_leyes`: las guardas puras
++(`guarda_vetada`, `guarda_repetida`) deciden ANTES de despachar y los
++contadores se actualizan DESPUÉS, con el estado de ley en el shared (no en
++globals) y un lock porque las lecturas corren en paralelo. `Auditar` arma la
++sección "Pasos" y la telemetría de rondas secas desde el registro de
++llamadas. El saldo (`Ledger(MAX_PASOS)`) es UNO para el árbol: con
++`EXPLORAR=1` la exploración gasta del mismo saldo, y el kernel no ofrece
++`explorar` si no queda saldo para ella y su loop (≥ 2). Probado contra v2 con
++el mismo LLM guionado en 5 casos (cierre, lecturas, tope, veto por fallos,
++caché): mismas llamadas, mismos pasos, mismos vetos.
++
++**Historia (v1, antes de exp/bench 2026-10-13):**
++
+ ElegirSiguiente (Laya con la task **supervisor_dispatch**: 18 opciones =
+ 17 tools + finish; `uncertain` o sin laya → DeepSeek con el catálogo) →
+ EjecutarPaso (args por mini-llamada DeepSeek + ejecución + el hecho
+diff -ruN x/docs/estado.md y/docs/estado.md
+--- x/docs/estado.md	2026-10-26 22:01:33.093615587 +0000
++++ y/docs/estado.md	2026-10-26 22:20:40.811708376 +0000
+@@ -119,6 +119,7 @@
+ | X70 | — | Decisión del operador (2026-10-26): la fricción nueva de `auto` medida en `friccion-auto` (7/7 hechas, **2 HITL en 6 tareas**, los dos glob) se ACEPTA (opción A): el glob era un bypass real (`cat d/*` leía afuera por symlink) y `find -name '*.pat'` con comillas sigue `auto`. H1 cerrado | ✅ 2026-10-26 (decisión) | Sin cambio de código; se revisa solo si el uso diario lo pide (opción B: expandir el glob y chequear cada ruta, mismo escenario como vara) | `tests/test_banco.py::test_friccion_auto_tiene_respuestas_calculables` |
+ | X71 | — | H2 (kernel fractal) es un refactor amplio por definición: la regla blanda "parche mínimo" de AGENTS.md se LEVANTA para H2 por decisión del operador, con estos gates por PR: `tests/test_caracterizacion_chat.py` sin cambiar una línea, `./calidad.sh` verde, ratchet sin empeorar y el gate propio de cada PR (docs/roadmap.md). Sin `_v2`: cada loop viejo se reemplaza | ✅ 2026-10-26 (decisión) | PR 1 hecho: `utils/kernel.py` (Ledger, Tool, Ctx, `loop`, `agente`) + `utils/proveedor.py` (DSML y sanitizado salen de `nodes.py`); `explorador.py` es una instancia del kernel (158 → 67 líneas, sin loop propio) | `tests/test_kernel.py` (10), `tests/test_explorador.py` (5) |
+ | X72 | — | Auditoría de H2 PR 1 (operador, LLM real): (1) el gate "fable s17–s20 con `EXPLORAR=1`" no podía medir el explorador: `explorar` solo existe en el catálogo del supervisor y fable corre por el chat (0 llamadas en 4 corridas; s19=0 era varianza del modelo sobre código que PR 1 no toca); (2) `TOOL_EXPLORAR` se armaba con system vacío: llamado desde el kernel, el sub-agente habría corrido sin sus instrucciones; (3) `json.loads` de los argumentos del agente sin manejo: un JSON malformado cortaba el loop del padre | ✅ 2026-10-26 (H2 PR 1b) | Gate movido al PR 2 con la regla "el gate prueba que la pieza corrió"; `agente()` exige system (texto o `pedido -> texto`) y `explorador.AGENTE` usa `system_prompt`; argumentos ilegibles o vacíos vuelven como ERROR al modelo | `tests/test_kernel.py::test_un_agente_sin_system_no_se_puede_crear`, `::test_argumentos_ilegibles_vuelven_como_error_y_el_loop_sigue`, `tests/test_explorador.py::test_el_explorador_como_tool_del_kernel_usa_su_system` |
++| X73 | — | El supervisor tenía su propio loop (UnPaso → Ejecutar), su propio presupuesto (`rondas`) y el explorador sumaba 3 rondas por fuera de esas 5; las leyes (veto, caché, repetición) vivían repartidas entre un snapshot de `prep`, un estado "vivo" de `exec` y los contadores de `post` | ✅ 2026-10-26 (H2 PR 2, código) | `supervisor.py` = loop del kernel → `Auditar` → `Sintetizar` (396 → 324 líneas); `con_leyes` envuelve cada Tool con las guardas puras y un lock; un `Ledger` para el árbol (la exploración gasta del mismo saldo); el kernel ofrece un sub-agente solo con saldo ≥ 2; `bench_supervisor` cuenta las exploraciones del informe (el gate prueba que la pieza corrió) | `tests/test_supervisor_convergencia.py::test_supervisor_y_explorador_comparten_el_saldo`, `::test_bench_cuenta_las_exploraciones_del_informe`, `tests/test_flujos.py::test_supervisor_flujo_nuevo_guarda_antes_de_despachar` |
+ | X62 | — | El meta-loop exigía un auditor al timón (contestar s/n por tmux): sin conductor no había forma de delegarle trabajo real al harness solo, y cada sesión muerta a mitad (exp/98) se perdía entera; además la regex de scope del banco no matcheaba el prompt de `edit_file` de exp/98 (`¿Aplicar? → ruta (2 hunks…)`) → cualquier conductor habría aprobado ediciones fuera de scope y de la denylist | ✅ 2026-10-25 (exp/99) | `delegar.py`: conductor que reusa el driver PTY y `decision_hitl` del banco, sin `BANCO=1` (origen `terminal`), HITL por scope declarado con rechazo CON motivo (exp/98), doble confirmación solo con prefijo explícito, muerte → `resume` (tope 2) y `THREADS_DIR` propio; regex corregida en `banco/banco.py`. e2e: tarea delegada exit 0 + drill `kill -9` → rehidrata y completa; **par #14/250** de la flywheel con `--env LAYA_MODO=shadow` (día 3/14) | `tests/test_delegar.py` (13: `test_conducir_muerto_resume_y_completa`, `test_plan_respuesta_doble_exige_prefijo_explicito`…), `test_el_scope_cubre_el_prompt_de_edit_file_de_exp98` |
+ | X66 | — | Auditoría 2026-10-26 (H1): el conductor reconstruía el pedido HITL leyendo la pantalla y aprobaba `git push` (la doble confirmación real `(1/2) (s/n):` no matcheaba), el scope comparaba rutas y comandos por prefijo de texto, `auto` salía de las raíces (`cd ..;cat`, `cd` solo, glob, `$VAR`) y por flags agrupadas (`sort -uo/x`), `edit_file` perdía CRLF y bytes no UTF-8, las escrituras pisaban permisos y el checkpoint guardaba reprs (`default=str`) | ✅ 2026-10-26 (H1) | El pedido es DATO: `utils/aprobaciones.Pedido` + `dentro_de_scope`/`por_scope`; banco y conductor pasan el scope por `HITL_SCOPE` y el chat decide en su proceso (fuera `decision_hitl`, `tipo_prompt`, `plan_respuesta`, `_cuerpo`); `policy.segmentos`/`opaco`/`irreversible` como fuente única; getopt en flags cortas; `edit_file` por bytes y estricto; `escribir_atomico` conserva modo y saltos; `shared` JSON puro | `tests/test_auditoria_2026_10_26.py` (`test_la_doble_confirmacion_real_no_se_aprueba_por_scope`, `test_auto_no_sale_de_raices`, `test_checkpoint_ida_y_vuelta_es_identidad`…), `tests/test_delegar.py::test_plan_respuesta_doble_exige_prefijo_explicito` |
+ | X61 | — | El punto de confianza del sistema mostraba diffs recortados sin declarar cuánto faltaba (exp/96: hunks aprobados sin verse) y el rechazo era 'n' mudo — el chat adivinaba el motivo y re-propuso lo mismo | ✅ 2026-10-24 (exp/98) | El prompt de edit_file declara `(N hunks, +A/−B)` del diff COMPLETO y el marcador dice cuántos caracteres quedan sin ver; `Decision(ok, motivo)` con `__bool__`: el rechazo `n <motivo>` viaja al modelo en edit_file/write_file/run_command, con casing conservado; el seam `_approve` tolera bools para siempre (getattr — los mocks existentes intactos, R2) | `test_parser_decision_motivo`, `test_edit_file_prompt_declara_diff_completo`, `test_motivo_del_rechazo_viaja_al_modelo` |
+diff -ruN x/docs/roadmap.md y/docs/roadmap.md
+--- x/docs/roadmap.md	2026-10-26 22:01:33.093615587 +0000
++++ y/docs/roadmap.md	2026-10-26 22:20:40.815708441 +0000
+@@ -16,7 +16,7 @@
+ `explorar` solo existe en el catálogo del supervisor, y fable corre por el
+ chat (0 llamadas en las 4 corridas). La medición del explorador pasa al PR 2.
+ 
+-**Ahora — H2 PR 2.** `supervisor.py` sobre el kernel.
++**Ahora — H2 PR 2.** Código hecho (X73); falta su gate con LLM real: `bench_supervisor` con `EXPLORAR=0` y `=1` contra el baseline de v2 (guardado ANTES de aplicar el patch), con `explorar` > 0 en el brazo `=1`.
+ 
+ **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
+ "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`
+@@ -27,7 +27,7 @@
+ | PR | Reemplaza | Gate propio |
+ |---|---|---|
+ | 1 ✅ | `explorador.py` | deterministas + `explorar()` en vivo (el de fable no podía ejercitarlo: ver X72) |
+-| 2 | `supervisor.py` (comparte el `Ledger` con el explorador) | `bench_supervisor` igual o mejor y ≤ llamadas, con `EXPLORAR=0` y `EXPLORAR=1`; con `=1`, `explorar` llamado al menos una vez (si no, el brazo no midió nada) |
++| 2 ✅ código | `supervisor.py` (comparte el `Ledger` con el explorador) | `bench_supervisor` igual o mejor y ≤ llamadas, con `EXPLORAR=0` y `EXPLORAR=1`; con `=1`, `explorar` llamado al menos una vez (si no, el brazo no midió nada) |
+ | 3 | `juez`, `research` | `bench_juez` igual o mejor |
+ | 4 | el chat (`nodes.py`): estado por pregunta (las claves `_x`) y los globals dentro del `Ctx` (F5) | banco completo con `verificar:`: ≥ tareas hechas, ≤ tokens |
+ 
+diff -ruN x/ratchets/baseline.json y/ratchets/baseline.json
+--- x/ratchets/baseline.json	2026-10-26 22:01:33.093615587 +0000
++++ y/ratchets/baseline.json	2026-10-26 22:19:19.926386544 +0000
+@@ -197,7 +197,7 @@
+         "tests/test_smoke.py": 5,
+         "tests/test_sonda_laya.py": 4,
+         "tests/test_streaming.py": 11,
+-        "tests/test_supervisor_convergencia.py": 3,
++        "tests/test_supervisor_convergencia.py": 6,
+         "tests/test_tablero.py": 2,
+         "tests/test_thread_store.py": 26,
+         "tests/test_tokens_runs.py": 4,
+@@ -211,7 +211,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 1038
++      "metrica": 1041
+     }
+   },
+   "version": 1
+diff -ruN x/supervisor.py y/supervisor.py
+--- x/supervisor.py	2026-10-26 22:01:32.973613728 +0000
++++ y/supervisor.py	2026-10-26 22:15:47.662919846 +0000
+@@ -1,45 +1,34 @@
+-"""Supervisor v2: un paso = UNA llamada que elige herramienta Y args juntos.
++"""Supervisor v3 (H2 PR 2): una instancia del kernel con las leyes del ejecutor.
+ 
+-El bench (2026-10-13, salidas/evals/bench_supervisor_2026-10-13.md) midió que
+-el supervisor reactivo gastaba 65 llamadas remotas / 358 s donde un agente
+-plano con tool-calling nativo resolvía LO MISMO (6/6 ambos) en 14 / 26 s. El
+-valor del supervisor nunca estuvo en el Choose (Laya + mayoría 2-de-3): está
+-en las LEYES de código — vetos, caché, presupuesto, fallo-como-feedback,
+-anti-recursión. Esta versión aplica ese veredicto: cada ronda es UNA llamada
+-a call_llm_agent(messages, tools) que elige la herramienta y redacta sus args
+-juntos, con las leyes intactas como guardas PURAS del ejecutor.
+-
+-Flujo (Flow de la casa):
+-
+-    UnPaso ──tool────▶ Ejecutar ──default──▶ UnPaso
+-    UnPaso ──answer──▶ Sintetizar
+-    UnPaso ──sintetizar──▶ Sintetizar
+-
+-- **UnPaso**: arma messages + tools (retiradas al llegar a MAX_PASOS rondas:
+-  la ley del chat — el modelo debe cerrar), llama un paso y decide: con
+-  tool_calls → "tool"; sin ellas → "sintetizar" (el contenido es el cierre
+-  parcial que Sintetizar puede reusar). El historial viaja COMPLETO entre
+-  pasos (los resultados reales, no hechos recortados).
+-- **Ejecutar**: por cada tool_call corre las guardas de ley ANTES de
+-  despachar y luego fs_tools.run_tool_call (el único camino con hooks); el
+-  resultado —o el texto de la guarda— vuelve como mensaje role=tool (el canal
+-  fallo-como-feedback de siempre). Arma el hecho de auditoría para la
+-  sección "Pasos".
++El bench de 2026-10-13 midió que el valor del supervisor no estaba en el
++Choose (Laya + mayoría) sino en las LEYES de código: vetos, caché,
++presupuesto, fallo-como-feedback, anti-recursión. v2 ya despachaba con UNA
++llamada que elige herramienta y args; v3 deja de tener loop propio: el loop
++es el del kernel (`utils/kernel.loop`) y lo que queda acá es lo que lo hace
++supervisor.
++
++    loop del kernel ──▶ Auditar ──▶ Sintetizar
++
++- **Las leyes envuelven cada Tool** (`con_leyes`): veto por fallos, caché de
++  la llamada idéntica, veto de repetición. Las guardas siguen PURAS
++  (`guarda_vetada`, `guarda_repetida`) y el estado de ley vive en el shared
++  del supervisor, no en globals. Un lock serializa la consulta y el registro
++  (las lecturas del kernel pueden correr en paralelo).
++- **Un saldo para todo el árbol** (`Ledger(MAX_PASOS)`): con `EXPLORAR=1` la
++  tool `explorar` es el sub-agente del kernel y gasta del MISMO saldo que el
++  supervisor. El kernel no la ofrece si no queda saldo para ella y su loop.
++- **Auditar**: arma la sección "Pasos" y la telemetría de rondas secas (exp/96,
++  sin corte) desde el registro de llamadas.
+ - **Sintetizar**: igual que siempre (informe + sección "Pasos").
+ 
+-Leyes (guards del §2, puras y testeables sin LLM): MAX_PASOS=5 (L8);
+-anti-recursión — run_supervisor no está en _TODAS (L1); MAX_FALLOS_POR_
+-HERRAMIENTA=2 veta una herramienta que falló dos veces; caché de llamadas
+-idénticas exitosas; sin-args ya exitosa o misma firma dos veces → veto.
+-
+-El contrato del fine-tune supervisor_dispatch (PREGUNTA_DESPACHO y
+-elegir_con_deepseek) se mudó a sonda_supervisor.py: la sonda mide el
+-checkpoint jubilado como evidencia histórica.
++Anti-recursión (L1): run_supervisor no está en el catálogo. El contrato del
++fine-tune supervisor_dispatch vive en sonda_supervisor.py.
+ 
+ Uso: python3 main.py supervisor "tarea" [--salida supervisor.md]
+ """
+ import argparse
+ import json
++import threading
+ from pathlib import Path
+ 
+ from pocketflow import Flow, Node
+@@ -51,7 +40,8 @@
+ from utils.convergencia import seco
+ from utils.fs_tools import TOOLS as BASE_TOOLS
+ from utils.fs_tools import escribir_salida
+-from utils.historial import as_dict, historiar
++from utils.kernel import Ctx, Ledger, Tool, loop
++from utils.kernel import semilla as semilla_agente
+ 
+ MAX_PASOS = 5
+ HECHO_LARGO = 160
+@@ -80,6 +70,9 @@
+ # Herramientas sin argumentos: repetirlas en una corrida es quemar presupuesto
+ # (patología medida: db_schema corrió 4 veces en una tarea real de 5 pasos).
+ SIN_ARGS = {t["function"]["name"] for t in _TODAS if not t["function"].get("parameters", {}).get("properties")}
++# Lo que se puede correr en paralelo: lo que solo lee. El resto (escrituras,
++# comandos, tools de módulos sin declarar) va en orden, en un solo hilo.
++LECTURA = {"list_files", "read_file", "search_files", explorador.NOMBRE_TOOL}
+ 
+ TEXTO_VETO = (
+     f"ERROR: herramienta vetada en esta corrida (falló {MAX_FALLOS_POR_HERRAMIENTA} veces) "
+@@ -88,8 +81,6 @@
+ 
+ 
+ # Leyes como guardas PURAS (§2): sin LLM, sin estado compartido, testeables.
+-# La semántica es la de siempre — los contadores se actualizan DESPUÉS de
+-# ejecutar (éxito limpia fallos, registro en previas/exitosas).
+ 
+ def clave_de(args):
+     """La firma canónica de los args de una llamada: json con claves
+@@ -133,8 +124,7 @@
+ 
+ 
+ def catalogo():
+-    """El catálogo en prosa: solo para el system prompt corto. Los schemas
+-    son la fuente de verdad de las tools; esto es la vista legible."""
++    """El catálogo en prosa (lo usa la sonda del despacho jubilado)."""
+     lineas = []
+     for t in _TODAS:
+         f = t["function"]
+@@ -164,178 +154,117 @@
+     )
+ 
+ 
+-def semilla(tarea, salida):
+-    """El `shared` semilla del supervisor. El historial (messages) viaja
+-    completo entre pasos — el modelo ve los resultados reales."""
+-    return {
+-        "tarea": tarea,
+-        "salida": salida,
+-        "messages": [
+-            {"role": "system", "content": system_prompt(tarea)},
+-            {"role": "user", "content": tarea},
+-        ],
+-        "rondas": 0,
+-        "fallos": {},
+-        "exitosas": [],
+-        "previas": {},
+-        "hechos": [],
+-        "resultados": [],
+-        "secadas": [],
+-    }
+-
+-
+-class UnPaso(Node):
+-    """La llamada del paso: el modelo elige herramienta Y args juntos. Con
+-    tool_calls → "tool"; sin ellas → "sintetizar" (el contenido es el cierre
+-    parcial que Sintetizar reusa). Al llegar a MAX_PASOS rondas se retiran
+-    las tools (la ley del chat: el modelo debe cerrar)."""
+-
+-    def prep(self, shared):
+-        rondas = shared.get("rondas", 0)
+-        tools = None if rondas >= MAX_PASOS else _TODAS
+-        # exp/97: en la última ronda `explorar` no se anuncia — una
+-        # exploración no puede arrancar cuando ya hay que cerrar.
+-        if tools and rondas >= MAX_PASOS - 1:
+-            tools = [t for t in tools if t["function"]["name"] != explorador.NOMBRE_TOOL]
+-        return shared["messages"], tools
+-
+-    def exec(self, inputs):
+-        messages, tools = inputs
+-        return call_llm_agent(messages, tools=tools)
+-
+-    def post(self, shared, prep_res, exec_res):
+-        shared["messages"].append(historiar(exec_res))
+-        if getattr(exec_res, "tool_calls", None):
+-            shared["_paso_tool_calls"] = [as_dict(tc) for tc in exec_res.tool_calls]
+-            return "tool"
+-        shared["_cierre_parcial"] = getattr(exec_res, "content", None)
+-        return "sintetizar"
+-
+-
+-def _args_de(tc):
++def _args_de(llamada):
+     try:
+-        args = json.loads(tc["function"].get("arguments") or "{}")
++        args = json.loads(llamada["function"].get("arguments") or "{}")
+     except (TypeError, ValueError):
+         args = {}
+     return args if isinstance(args, dict) else {}
+ 
+ 
+-class Ejecutar(Node):
+-    """Por cada tool_call: las guardas de ley ANTES de despachar (§2) y luego
+-    run_tool_call (el único camino con hooks). El resultado —o el texto de la
+-    guarda— vuelve como mensaje role=tool: el canal fallo-como-feedback. El
+-    hecho de auditoría se arma con hecho_de para la sección "Pasos".
+-
+-    Contadores se actualizan DESPUÉS de ejecutar (éxito limpia fallos,
+-    registro en previas/exitosas) — la semántica de siempre."""
+-
+-    def prep(self, shared):
+-        """Snapshot de la ronda: las tool_calls elegidas por UnPaso + una
+-        copia de los contadores de ley (exec() NO toca shared; post() sí)."""
+-        return {
+-            "tool_calls": shared.get("_paso_tool_calls") or [],
+-            "fallos": dict(shared.get("fallos", {})),
+-            "exitosas": list(shared.get("exitosas", [])),
+-            "previas": {k: dict(v) for k, v in shared.get("previas", {}).items()},
+-            "base": len(shared.get("hechos", [])),
+-        }
+-
+-    @staticmethod
+-    def _veto(nombre, firma, fallos, vivas, exitosas_vivas):
+-        """(resultado, repetida) si la ley L8 frena la llamada; (None, None)
+-        si toca ejecutarla."""
+-        texto = guarda_vetada(nombre, fallos)
+-        if texto is not None:
+-            return texto, None
+-        veredicto = guarda_repetida(firma, vivas, exitosas_vivas, SIN_ARGS)
+-        if veredicto is None:
+-            return None, None
+-        modo, valor = veredicto
+-        if modo == "cached":
+-            print("  [L8] llamada idéntica a una previa: se reutiliza el resultado")
+-            return valor, True
+-        return valor, None
+-
+-    @staticmethod
+-    def _cachear_exito(nombre, firma, texto, vivas, exitosas_vivas):
+-        """Registra una llamada exitosa en el estado VIVO de la ronda."""
+-        vivas[firma] = {"n": vivas.get(firma, {}).get("n", 0) + 1,
+-                        "resultado": texto}
+-        if nombre not in exitosas_vivas:
+-            exitosas_vivas.append(nombre)
+-
+-    def exec(self, snap):
+-        """Una entrada por tool_call: guarda vetada/repetida (pura) y, si
+-        pasa, run_tool_call. NO actualiza los contadores (eso es post, y así
+-        la ley se prueba pura)."""
+-        salidas = []
+-        # estado VIVO de la ronda: el snapshot de prep no ve lo que pasa
+-        # DENTRO de la tanda, y los modelos sí emiten llamadas duplicadas en
+-        # una misma ronda — el caché tiene que alcanzarlas.
+-        vivas = {k: dict(v) for k, v in snap["previas"].items()}
+-        exitosas_vivas = list(snap["exitosas"])
+-        for i, tc in enumerate(snap["tool_calls"]):
+-            nombre = tc["function"]["name"]
+-            args = _args_de(tc)
+-            firma = (nombre, clave_de(args))
+-            n = snap["base"] + i + 1
+-            texto, repetida = self._veto(nombre, firma, snap["fallos"], vivas, exitosas_vivas)
+-            ejecuto = texto is None
+-            if ejecuto:
+-                texto = fs_tools.run_tool_call(tc, REGISTRO)["content"]
+-                if not texto.startswith("ERROR"):
+-                    self._cachear_exito(nombre, firma, texto, vivas, exitosas_vivas)
+-            else:
+-                print(f"  [L8] {nombre}: {texto}")
+-            salidas.append({
+-                "tool_call": tc, "herramienta": nombre, "args": args,
+-                "firma": firma, "n": n, "resultado": texto,
+-                "repetida": repetida, "ejecuto": ejecuto,
+-            })
+-        return salidas
+-
+-    def post(self, shared, prep_res, exec_res):
+-        fallos = shared.setdefault("fallos", {})
+-        exitosas = shared.setdefault("exitosas", [])
+-        previas = shared.setdefault("previas", {})
+-        hechos, resultados = [], []
+-        for r in exec_res:
+-            shared["messages"].append(
+-                {"role": "tool", "tool_call_id": r["tool_call"]["id"], "content": r["resultado"]}
+-            )
+-            hechos.append(hecho_de(r["n"], r["herramienta"], r["args"], r["resultado"]))
+-            resultados.append({"herramienta": r["herramienta"], "args": r["args"],
+-                               "resultado": r["resultado"][:4000], "n": r["n"], "repetida": r["repetida"]})
+-            if not r["ejecuto"]:
+-                continue
+-            # Contadores DESPUÉS de ejecutar.
+-            if r["resultado"].startswith("ERROR"):
+-                fallos[r["herramienta"]] = fallos.get(r["herramienta"], 0) + 1
+-                print(f"  ✗ paso erróneo ({fallos[r['herramienta']]}/"
+-                      f"{MAX_FALLOS_POR_HERRAMIENTA} de {r['herramienta']})")
+-            else:
+-                fallos[r["herramienta"]] = 0  # el éxito limpia el contador
+-                exitosas.append(r["herramienta"])
+-                registro = previas.setdefault(r["firma"], {"n": 0, "resultado": None})
+-                registro["n"] += 1  # el intento cuenta aunque haya sido cacheado
+-                if not r["repetida"]:
+-                    registro["resultado"] = r["resultado"]
+-                print(f"  → {r['resultado'][:120]}")
+-        shared.setdefault("hechos", []).extend(hechos)
+-        shared.setdefault("resultados", []).extend(resultados)
+-        shared["rondas"] = shared.get("rondas", 0) + 1
+-        # exp/96: telemetría de convergencia, SIN corte. Se compara la TANDA
+-        # de esta ronda contra la tanda de la ANTERIOR (no el acumulado: el
+-        # prefijo idéntico inflaría el ratio y toda ronda tardía saldría seca).
+-        tanda = "\n".join(hechos)
+-        if "_tanda_previa" in shared:
+-            es_seca = seco(shared["_tanda_previa"], tanda)
+-            shared.setdefault("secadas", []).append(es_seca)
+-            print(f"  [supervisor] ronda {shared['rondas']}: seca: "
+-                  f"{'sí' if es_seca else 'no'}")
+-        shared["_tanda_previa"] = tanda
+-        shared.pop("_paso_tool_calls", None)
+-        return "default"
++def _despachar(llamada, ctx):
++    """Una tool del catálogo por run_tool_call (hooks, denylist, contención);
++    `explorar` es el sub-agente del kernel y gasta del saldo del árbol."""
++    if llamada["function"]["name"] == explorador.NOMBRE_TOOL:
++        return explorador.AGENTE.correr(llamada, ctx)
++    return fs_tools.run_tool_call(llamada, REGISTRO)["content"]
++
++
++def _decidir(nombre, firma, ley):
++    """(texto, repetida) si una ley frena la llamada; (None, None) si corre."""
++    texto = guarda_vetada(nombre, ley["fallos"])
++    if texto is not None:
++        return texto, None
++    veredicto = guarda_repetida(firma, ley["previas"], ley["exitosas"], SIN_ARGS)
++    if veredicto is None:
++        return None, None
++    modo, valor = veredicto
++    if modo == "cached":
++        print("  [L8] llamada idéntica a una previa: se reutiliza el resultado")
++        return valor, True
++    return valor, None
++
++
++def _registrar(nombre, firma, texto, ley):
++    """Los contadores DESPUÉS de ejecutar: un error suma al veto; un éxito
++    limpia el contador y deja el resultado para el caché."""
++    if texto.startswith("ERROR"):
++        ley["fallos"][nombre] = ley["fallos"].get(nombre, 0) + 1
++        print(f"  ✗ paso erróneo ({ley['fallos'][nombre]}/{MAX_FALLOS_POR_HERRAMIENTA} de {nombre})")
++        return
++    ley["fallos"][nombre] = 0  # el éxito limpia el contador
++    ley["exitosas"].append(nombre)
++    registro = ley["previas"].setdefault(firma, {"n": 0, "resultado": None})
++    registro["n"] += 1
++    registro["resultado"] = texto
++    print(f"  → {texto[:120]}")
++
++
++def con_leyes(esquema, ley):
++    """La Tool del kernel para una tool del catálogo, con las leyes alrededor:
++    las guardas deciden ANTES de despachar y los contadores se actualizan
++    DESPUÉS. Cada llamada (corrida, cacheada o vetada) queda en `ley["llamadas"]`
++    para la auditoría. El lock hace atómicas la consulta y el registro."""
++    nombre = esquema["function"]["name"]
++
++    def correr(llamada, ctx):
++        args = _args_de(llamada)
++        firma = (nombre, clave_de(args))
++        with ley["lock"]:
++            texto, repetida = _decidir(nombre, firma, ley)
++            ronda = MAX_PASOS - ctx.ledger.rondas
++        corrio = texto is None
++        if corrio:
++            texto = _despachar(llamada, ctx)
++        else:
++            print(f"  [L8] {nombre}: {texto[:120]}")
++        with ley["lock"]:
++            if corrio:
++                _registrar(nombre, firma, texto, ley)
++            ley["llamadas"].append({"ronda": ronda, "herramienta": nombre, "args": args,
++                                    "resultado": texto, "repetida": repetida})
++        return texto
++
++    efecto = "lectura" if nombre in LECTURA else "escritura"
++    return Tool(nombre, esquema, correr, efecto, agente=nombre == explorador.NOMBRE_TOOL)
++
++
++def semilla(tarea, salida, llm=None):
++    """El shared del supervisor: el del kernel (contexto fresco, saldo del
++    árbol) + las tools con sus leyes + lo que necesita la síntesis."""
++    ley = {"fallos": {}, "exitosas": [], "previas": {}, "llamadas": [], "lock": threading.Lock()}
++    ctx = Ctx(llm or (lambda m, t: call_llm_agent(m, tools=t)), Ledger(MAX_PASOS))
++    tools = [con_leyes(t, ley) for t in _TODAS]
++    s = semilla_agente(system_prompt(tarea), tarea, tools, ctx)
++    s.update({"tarea": tarea, "salida": salida, "ley": ley})
++    return s
++
++
++class Auditar(Node):
++    """De las llamadas registradas: los hechos de la sección "Pasos", los
++    resultados para la síntesis y la telemetría de rondas secas (exp/96:
++    la TANDA de una ronda contra la de la anterior, SIN corte)."""
++
++    def prep(self, s):
++        return [dict(c) for c in s["ley"]["llamadas"]]
++
++    def exec(self, llamadas):
++        hechos, resultados, tandas = [], [], {}
++        for n, c in enumerate(llamadas, 1):
++            hecho = hecho_de(n, c["herramienta"], c["args"], c["resultado"])
++            hechos.append(hecho)
++            resultados.append({"herramienta": c["herramienta"], "args": c["args"],
++                               "resultado": c["resultado"][:4000], "n": n, "repetida": c["repetida"]})
++            tandas.setdefault(c["ronda"], []).append(hecho)
++        orden = ["\n".join(tandas[r]) for r in sorted(tandas)]
++        secadas = [seco(a, b) for a, b in zip(orden, orden[1:], strict=False)]
++        return hechos, resultados, secadas
++
++    def post(self, s, _, auditoria):
++        s["hechos"], s["resultados"], s["secadas"] = auditoria
++        s["rondas"] = MAX_PASOS - s["ctx"].ledger.rondas
++        for n, es_seca in enumerate(s["secadas"], 2):
++            print(f"  [supervisor] ronda {n}: seca: {'sí' if es_seca else 'no'}")
+ 
+ 
+ class Sintetizar(Node):
+@@ -367,13 +296,12 @@
+ 
+ 
+ def create_supervisor_flow():
+-    un_paso = UnPaso(max_retries=3, wait=5)
+-    ejecutar = Ejecutar(max_retries=3, wait=5)
++    """El loop del kernel es un Node más del flujo (agente = Flow = Node)."""
++    agente = loop()
++    auditar = Auditar()
+     sintetizar = Sintetizar(max_retries=3, wait=5)
+-    un_paso - "tool" >> ejecutar
+-    un_paso - "sintetizar" >> sintetizar
+-    ejecutar - "default" >> un_paso
+-    return Flow(start=un_paso)
++    agente >> auditar >> sintetizar
++    return Flow(start=agente)
+ 
+ 
+ def supervisar(tarea, salida="salidas/supervisor.md"):
+@@ -384,7 +312,7 @@
+ 
+ def main(argv=None):
+     parser = argparse.ArgumentParser(
+-        prog="supervisor", description="Supervisor v2: un paso = una llamada que elige herramienta y args"
++        prog="supervisor", description="Supervisor v3: el loop del kernel con las leyes del ejecutor"
+     )
+     parser.add_argument("tarea")
+     parser.add_argument("--salida", default="salidas/supervisor.md")
+diff -ruN x/tests/test_explorador.py y/tests/test_explorador.py
+--- x/tests/test_explorador.py	2026-10-26 22:01:33.097615649 +0000
++++ y/tests/test_explorador.py	2026-10-26 22:17:45.992851478 +0000
+@@ -91,18 +91,21 @@
+ 
+ def test_supervisor_no_anuncia_explorar_en_la_ultima_ronda(monkeypatch):
+     """exp/97 §3: en la última ronda `explorar` no se anuncia (evita cerrar
+-    con una exploración colgada)."""
+-    monkeypatch.setattr(sup, "EXPLORAR", True)
++    con una exploración colgada). Desde H2 PR 2 lo garantiza el kernel: un
++    sub-agente solo se ofrece si queda saldo para él y su loop (≥ 2)."""
++    import supervisor as sup
++    from utils.kernel import Paso
++
+     monkeypatch.setattr(sup, "_TODAS", sup._TODAS + [ex.TOOL_EXPLORAR])
++    shared = sup.semilla("tarea", "salidas/sup.md", llm=lambda m, t: None)
+ 
+-    shared = sup.semilla("tarea", "salidas/sup.md")
+-    shared["rondas"] = sup.MAX_PASOS - 1
+-    _, tools = sup.UnPaso().prep(shared)
++    shared["ctx"].ledger.rondas = 1
++    _, _, tools = Paso().prep(shared)
+     assert "explorar" not in {t["function"]["name"] for t in tools}
+     assert "read_file" in {t["function"]["name"] for t in tools}
+ 
+-    shared["rondas"] = 0
+-    _, tools = sup.UnPaso().prep(shared)
++    shared["ctx"].ledger.rondas = sup.MAX_PASOS
++    _, _, tools = Paso().prep(shared)
+     assert "explorar" in {t["function"]["name"] for t in tools}
+ 
+ 
+diff -ruN x/tests/test_flujos.py y/tests/test_flujos.py
+--- x/tests/test_flujos.py	2026-10-26 22:01:32.957613480 +0000
++++ y/tests/test_flujos.py	2026-10-26 22:18:05.573171460 +0000
+@@ -226,11 +226,11 @@
+     assert guarda_repetida(firma_sin, {}, ["db_schema"], {"db_schema"}) == ("veto", TEXTO_VETO)
+ 
+ def test_supervisor_flujo_nuevo_guarda_antes_de_despachar(tmp_path, monkeypatch):
+-    """El flujo v2 con fakes: UnPaso elige tool; Ejecutar corre la guarda
+-    ANTES de run_tool_call. Una tool vetada NO se despacha (el fake contador
+-    no sube) y el mensaje role=tool lleva el texto de veto. Cierra Sintetizar
++    """El flujo con fakes: el loop del kernel elige tool; la ley corre ANTES
++    de run_tool_call. Una tool vetada NO se despacha (el fake contador no
++    sube) y el mensaje role=tool lleva el texto de veto. Cierra Sintetizar
+     con la sección Pasos."""
+-    from pocketflow import Flow
++    from test_supervisor_convergencia import MsgFake, correr_supervisor, tc_fake
+ 
+     import supervisor as sup
+ 
+@@ -242,41 +242,15 @@
+ 
+     monkeypatch.setitem(sup.REGISTRO, "read_file", impl_fake)
+ 
+-    class MsgFake:
+-        def __init__(self, tool_calls=None, content=None):
+-            self.tool_calls = tool_calls
+-            self.content = content
+-
+-    class TCFake:
+-        def __init__(self, name, args):
+-            self.id, self.type = "c1", "function"
+-            self.function = type("F", (), {"name": name, "arguments": args})()
+-
+-    # Una ronda de tool (read_file, ya vetada a 2 fallos) + cierre.
+-    pasos_llm = {"n": 0}
+-
+-    def call_llm_agent_fake(messages, tools=None):
+-        pasos_llm["n"] += 1
+-        if pasos_llm["n"] == 1:
+-            return MsgFake(tool_calls=[TCFake("read_file", '{"path": "a.py"}')])
++    def guion(n, messages, tools):
++        if n == 1:
++            return MsgFake(tool_calls=[tc_fake("read_file", '{"path": "a.py"}')])
+         return MsgFake(content="cerrado")
+ 
+-    monkeypatch.setattr(sup, "call_llm_agent", call_llm_agent_fake)
+-    monkeypatch.setattr(sup, "call_llm", lambda *a, **k: "cierre de prueba")
+-
+-    un_paso = sup.UnPaso()
+-    ejecutar = sup.Ejecutar()
+-    sintetizar = sup.Sintetizar()
+-    un_paso - "tool" >> ejecutar
+-    un_paso - "sintetizar" >> sintetizar
+-    ejecutar - "default" >> un_paso
+-    sub = Flow(start=un_paso)
+-
+-    shared = sup.semilla("tarea", str(tmp_path / "sup.md"))
+-    shared["fallos"] = {"read_file": sup.MAX_FALLOS_POR_HERRAMIENTA}  # ya vetada
+-    sub.run(shared)
++    shared = correr_supervisor(sup, tmp_path, monkeypatch, guion,
++                               {"fallos": {"read_file": sup.MAX_FALLOS_POR_HERRAMIENTA}})
+     assert ejecuciones["n"] == 0  # la guarda cortó antes de run_tool_call
+-    mensajes_tool = [m for m in shared["messages"] if m.get("role") == "tool"]
++    mensajes_tool = [m for m in shared["mensajes"] if m.get("role") == "tool"]
+     assert mensajes_tool and mensajes_tool[0]["content"] == sup.TEXTO_VETO
+     texto = (tmp_path / "sup.md").read_text(encoding="utf-8")
+     assert "## Pasos" in texto  # Sintetizar escribió la auditoría
+@@ -296,53 +270,41 @@
+     assert vencidas(tareas, {"a.md": time.time() - 25 * 3600}) == tareas  # todo vencido
+ 
+ def test_supervisor_reutiliza_la_llamada_identica(tmp_path, monkeypatch):
+-    """El caché en el flujo real: dos tool_calls idénticas en la MISMA ronda;
+-    la segunda sale del caché (guarda_repetida → 'cached') y run_tool_call
+-    sólo corre una vez. El resultado cacheado vuelve igual al historial."""
+-    from pocketflow import Flow
++    """El caché en el flujo real: dos tool_calls idénticas en la MISMA ronda
++    (que el kernel corre en paralelo: son lecturas). La segunda sale del caché
++    o, si llegó junto con la primera, igual se despacha UNA sola vez gracias
++    al lock de la ley; el resultado vuelve igual al historial."""
++    import threading
++
++    from test_supervisor_convergencia import MsgFake, correr_supervisor, tc_fake
+ 
+     import supervisor as sup
+ 
+     ejecuciones = {"n": 0}
++    candado = threading.Lock()
+ 
+     def contar(**kwargs):
+-        ejecuciones["n"] += 1
++        with candado:
++            ejecuciones["n"] += 1
+         return "42 archivos"
+ 
+     monkeypatch.setitem(sup.REGISTRO, "search_files", contar)
+-
+-    class MsgFake:
+-        def __init__(self, tool_calls=None, content=None):
+-            self.tool_calls, self.content = tool_calls, content
+-
+-    class TCFake:
+-        def __init__(self, name, args, i):
+-            self.id, self.type = f"c{i}", "function"
+-            self.function = type("F", (), {"name": name, "arguments": args})()
+-
+-    pasos = {"n": 0}
+     args_id = '{"glob": "*.py"}'
+ 
+-    def call_llm_agent_fake(messages, tools=None):
+-        pasos["n"] += 1
+-        if pasos["n"] == 1:  # dos llamadas IDÉNTICAS en la misma ronda
+-            return MsgFake(tool_calls=[TCFake("search_files", args_id, 1),
+-                                       TCFake("search_files", args_id, 2)])
++    def guion(n, messages, tools):
++        if n == 1:  # dos llamadas IDÉNTICAS en la misma ronda
++            return MsgFake(tool_calls=[tc_fake("search_files", args_id, 1),
++                                       tc_fake("search_files", args_id, 2)])
++        if n == 2:  # y la misma en la ronda siguiente: caché seguro
++            return MsgFake(tool_calls=[tc_fake("search_files", args_id, 3)])
+         return MsgFake(content="cerrado")
+ 
+-    monkeypatch.setattr(sup, "call_llm_agent", call_llm_agent_fake)
+-    monkeypatch.setattr(sup, "call_llm", lambda *a, **k: "cierre de prueba")
++    shared = correr_supervisor(sup, tmp_path, monkeypatch, guion)
++    assert ejecuciones["n"] <= 2 and shared["ley"]["previas"][("search_files", args_id)]["resultado"]
++    tools = [m for m in shared["mensajes"] if m.get("role") == "tool"]
++    assert [m["content"] for m in tools] == ["42 archivos"] * 3
++    assert any(c["repetida"] for c in shared["ley"]["llamadas"])  # la de la ronda 2, del caché
+ 
+-    un_paso, ejecutar, sintetizar = sup.UnPaso(), sup.Ejecutar(), sup.Sintetizar()
+-    un_paso - "tool" >> ejecutar
+-    un_paso - "sintetizar" >> sintetizar
+-    ejecutar - "default" >> un_paso
+-
+-    shared = sup.semilla("tarea", str(tmp_path / "sup.md"))
+-    Flow(start=un_paso).run(shared)
+-    assert ejecuciones["n"] == 1  # la idéntica no se despachó dos veces
+-    tools = [m for m in shared["messages"] if m.get("role") == "tool"]
+-    assert [m["content"] for m in tools] == ["42 archivos", "42 archivos"]
+ 
+ def test_juez_lote_aisla_fallas(tmp_path, monkeypatch):
+     """Medido en vivo: el verdict inválido persistente de UNA pregunta mató
+diff -ruN x/tests/test_policy.py y/tests/test_policy.py
+--- x/tests/test_policy.py	2026-10-26 22:01:32.961613542 +0000
++++ y/tests/test_policy.py	2026-10-26 22:17:45.992851478 +0000
+@@ -444,18 +444,16 @@
+ 
+     monkeypatch.setitem(HOOKS_PRE, "run_command", [veto])
+ 
+-    # El flujo v2 despacha por run_tool_call dentro de Ejecutar.exec: el hook
+-    # de la denylist corre igual que en el chat (no hay camino que lo saltee).
+-    snap = {
+-        "tool_calls": [{
+-            "id": "c1", "type": "function",
+-            "function": {"name": "run_command", "arguments": '{"command": "rm -rf /"}'},
+-        }],
+-        "fallos": {}, "exitosas": [], "previas": {}, "base": 0,
+-    }
+-    salidas = sup.Ejecutar().exec(snap)
+-    assert salidas[0]["resultado"].startswith("ERROR: comando prohibido")
++    # v3: cada tool del catálogo es una Tool del kernel con las leyes
++    # alrededor, y despacha por run_tool_call: el hook de la denylist corre
++    # igual que en el chat (no hay camino que lo saltee).
++    shared = sup.semilla("tarea", "salidas/x.md", llm=lambda m, t: None)
++    run_command = next(t for t in shared["tools"] if t.nombre == "run_command")
++    resultado = run_command.correr({"id": "c1", "type": "function", "function": {
++        "name": "run_command", "arguments": '{"command": "rm -rf /"}'}}, shared["ctx"])
++    assert resultado.startswith("ERROR: comando prohibido")
+     assert visto["comando"] == "rm -rf /"
++    assert run_command.efecto == "escritura"  # nunca en paralelo
+ 
+ 
+ @pytest.mark.parametrize("casos", [
+diff -ruN x/tests/test_supervisor_convergencia.py y/tests/test_supervisor_convergencia.py
+--- x/tests/test_supervisor_convergencia.py	2026-10-26 22:01:32.961613542 +0000
++++ y/tests/test_supervisor_convergencia.py	2026-10-26 22:18:36.061669705 +0000
+@@ -3,16 +3,42 @@
+ import supervisor as sup
+ 
+ 
++class MsgFake:
++    def __init__(self, tool_calls=None, content=None):
++        self.tool_calls, self.content = tool_calls, content
++
++
++def tc_fake(nombre, args, i=1):
++    return type("TC", (), {"id": f"c{i}", "type": "function",
++                           "function": type("F", (), {"name": nombre, "arguments": args})()})()
++
++
++def correr_supervisor(sup, tmp_path, monkeypatch, guion, shared_extra=None):
++    """El flujo REAL del supervisor (loop del kernel → Auditar → Sintetizar)
++    con un LLM guionado. `guion(n, messages, tools)` devuelve el mensaje."""
++    pasos = {"n": 0}
++
++    def llm(messages, tools=None):
++        pasos["n"] += 1
++        return guion(pasos["n"], messages, tools)
++
++    monkeypatch.setattr(sup, "call_llm", lambda *a, **k: "cierre de prueba")
++    shared = sup.semilla("tarea", str(tmp_path / "sup.md"), llm=llm)
++    for clave, valor in (shared_extra or {}).items():
++        shared["ley"][clave] = valor
++    sup.create_supervisor_flow().run(shared)
++    return shared
++
++
+ def test_supervisor_telemetria_seca_por_ronda(tmp_path, monkeypatch):
+     """exp/96, C2 (telemetría SIN corte): la ronda 1 no compara (no hay
+-    anterior); las siguentes comparan la TANDA de hechos de esta ronda
++    anterior); las siguientes comparan la TANDA de hechos de esta ronda
+     contra la de la anterior. Tres rondas con la MISMA respuesta de la tool →
+     dos secas. El comportamiento no cambia: corre las mismas rondas y cierra.
+ 
+     Usa la métrica tanda-contra-tanda a propósito: comparar el acumulado
+     inflaría el ratio con el prefijo idéntico y toda ronda tardía saldría
+     seca (falso positivo que este test atrapa: aquí los hechos repiten)."""
+-
+     ejecuciones = {"n": 0}
+ 
+     def siempre_igual(**kwargs):
+@@ -21,40 +47,14 @@
+ 
+     monkeypatch.setitem(sup.REGISTRO, "search_files", siempre_igual)
+ 
+-    class MsgFake:
+-        def __init__(self, tool_calls=None, content=None):
+-            self.tool_calls, self.content = tool_calls, content
+-
+-    class TCFake:
+-        def __init__(self, args, i):
+-            self.id, self.type = f"c{i}", "function"
+-            self.function = type("F", (), {"name": "search_files",
+-                                           "arguments": args})()
+-
+     # Args DISTINTOS por ronda: la misma firma dos veces dispararía el veto de
+     # repetición (otra ley) y la ronda no produciría hechos.
+-    pasos = {"n": 0}
+-
+-    def call_llm_agent_fake(messages, tools=None):
+-        pasos["n"] += 1
+-        if pasos["n"] <= 3:
+-            return MsgFake(tool_calls=[TCFake(f'{{"glob": "r{pasos["n"]}*.py"}}',
+-                                              pasos["n"])])
++    def guion(n, messages, tools):
++        if n <= 3:
++            return MsgFake(tool_calls=[tc_fake("search_files", f'{{"glob": "r{n}*.py"}}', n)])
+         return MsgFake(content="cerrado")
+ 
+-    monkeypatch.setattr(sup, "call_llm_agent", call_llm_agent_fake)
+-    monkeypatch.setattr(sup, "call_llm", lambda *a, **k: "cierre de prueba")
+-
+-    un_paso, ejecutar, sintetizar = sup.UnPaso(), sup.Ejecutar(), sup.Sintetizar()
+-    un_paso - "tool" >> ejecutar
+-    un_paso - "sintetizar" >> sintetizar
+-    ejecutar - "default" >> un_paso
+-
+-    shared = sup.semilla("tarea", str(tmp_path / "sup.md"))
+-    shared["salida"] = str(tmp_path / "sup.md")
+-    from pocketflow import Flow
+-
+-    Flow(start=un_paso).run(shared)
++    shared = correr_supervisor(sup, tmp_path, monkeypatch, guion)
+     assert shared["rondas"] == 3  # la telemetría NO corta nada (sin corte)
+     assert ejecuciones["n"] == 3
+     assert shared["secadas"] == [True, True]  # ronda 1 no compara
+@@ -62,41 +62,15 @@
+ 
+ def test_supervisor_telemetria_ronda_distinta_no_es_seca(tmp_path, monkeypatch):
+     """El contraste de C2: si cada ronda trae material nuevo, ninguna seca."""
+-
+     salidas = iter(["3 funciones en a.py", "42 archivos markdown distintos"])
+-
+     monkeypatch.setitem(sup.REGISTRO, "read_file", lambda **k: next(salidas))
+ 
+-    class MsgFake:
+-        def __init__(self, tool_calls=None, content=None):
+-            self.tool_calls, self.content = tool_calls, content
+-
+-    def tc(i):
+-        return type("TC", (), {"id": f"c{i}", "type": "function",
+-                               "function": type("F", (), {
+-                                   "name": "read_file",
+-                                   "arguments": f'{{"path": "f{i}.py"}}'})()})()
+-
+-    pasos = {"n": 0}
+-
+-    def call_llm_agent_fake(messages, tools=None):
+-        pasos["n"] += 1
+-        if pasos["n"] <= 2:
+-            return MsgFake(tool_calls=[tc(pasos["n"])])
++    def guion(n, messages, tools):
++        if n <= 2:
++            return MsgFake(tool_calls=[tc_fake("read_file", f'{{"path": "f{n}.py"}}', n)])
+         return MsgFake(content="cerrado")
+ 
+-    monkeypatch.setattr(sup, "call_llm_agent", call_llm_agent_fake)
+-    monkeypatch.setattr(sup, "call_llm", lambda *a, **k: "cierre de prueba")
+-
+-    un_paso, ejecutar, sintetizar = sup.UnPaso(), sup.Ejecutar(), sup.Sintetizar()
+-    un_paso - "tool" >> ejecutar
+-    un_paso - "sintetizar" >> sintetizar
+-    ejecutar - "default" >> un_paso
+-
+-    shared = sup.semilla("tarea", str(tmp_path / "sup.md"))
+-    from pocketflow import Flow
+-
+-    Flow(start=un_paso).run(shared)
++    shared = correr_supervisor(sup, tmp_path, monkeypatch, guion)
+     assert shared["secadas"] == [False]
+ 
+ 
+@@ -109,3 +83,58 @@
+     assert seco("", "1 read_file(path=a.py) -> algo") is False
+ 
+ 
++
++
++
++# H2 PR 2 — el supervisor sobre el kernel ----------------------------------
++
++def test_supervisor_y_explorador_comparten_el_saldo(tmp_path, monkeypatch):
++    """Un saldo para todo el árbol: la exploración gasta del MISMO Ledger que
++    el supervisor (antes tenía 3 rondas propias por fuera de las 5)."""
++    import explorador as ex
++
++    monkeypatch.setattr(sup, "_TODAS", sup._TODAS + [ex.TOOL_EXPLORAR])
++    monkeypatch.setattr("utils.fs_tools.read_file", lambda **k: "contenido")
++
++    def guion(n, messages, tools):
++        sistema = messages[0]["content"]
++        if "sub-agente de INVESTIGACIÓN" in sistema:          # el explorador
++            if messages[-1]["role"] == "tool":
++                return MsgFake(content="hallazgo en a.py:3")
++            return MsgFake(tool_calls=[tc_fake("read_file", '{"path": "a.py"}', 90 + n)])
++        if any(m["role"] == "tool" for m in messages):         # el supervisor ya exploró
++            return MsgFake(content="cerrado")
++        return MsgFake(tool_calls=[tc_fake("explorar", '{"pregunta": "¿dónde está X?"}')])
++
++    shared = correr_supervisor(sup, tmp_path, monkeypatch, guion)
++    assert shared["rondas"] == 2                              # 1 del supervisor + 1 del explorador
++    assert shared["ctx"].ledger.rondas == sup.MAX_PASOS - 2
++    assert [p for p, _ in shared["ctx"].traza] == [1, 0]      # el hijo leyó, el padre exploró
++    informe = (tmp_path / "sup.md").read_text(encoding="utf-8")
++    assert "explorar(pregunta=¿dónde está X?) -> hallazgo en a.py:3" in informe
++
++
++def test_las_lecturas_del_supervisor_corren_en_paralelo_y_las_escrituras_no(monkeypatch):
++    """El efecto lo decide el catálogo: las del CORE (y explorar) leen; el
++    resto —run_command, write_file, tools de módulos— va en orden."""
++    shared = sup.semilla("tarea", "salidas/x.md", llm=lambda m, t: None)
++    efecto = {t.nombre: t.efecto for t in shared["tools"]}
++    assert {efecto[n] for n in ("list_files", "read_file", "search_files")} == {"lectura"}
++    assert {efecto[n] for n in ("run_command", "write_file", "edit_file")} == {"escritura"}
++    assert "run_supervisor" not in efecto                      # L1: anti-recursión
++
++
++def test_bench_cuenta_las_exploraciones_del_informe():
++    """El gate del PR 2 prueba que la pieza CORRIÓ: el bench cuenta las líneas
++    `explorar(` de la sección Pasos."""
++    import sys
++
++    from conftest import RAIZ
++
++    sys.path.insert(0, str(RAIZ / "banco"))
++    import bench_supervisor as bs
++
++    informe = ("# Supervisor — t\n\n## Pasos (la auditoría de la corrida)\n\n"
++               "- 1 explorar(pregunta=x) -> a\n- 2 read_file(path=b) -> c\n- 3 explorar(pregunta=y) -> d\n")
++    assert bs.contar_exploraciones(informe) == 2
++    assert bs.contar_exploraciones("sin pasos") == 0
+diff -ruN x/utils/kernel.py y/utils/kernel.py
+--- x/utils/kernel.py	2026-10-26 22:01:33.097615649 +0000
++++ y/utils/kernel.py	2026-10-26 22:14:06.925293689 +0000
+@@ -48,7 +48,8 @@
+     nombre: str
+     esquema: dict
+     correr: object
+-    efecto: str = "lectura"  # lectura | escritura
++    efecto: str = "lectura"  # lectura | escritura (lo no declarado, escritura)
++    agente: bool = False     # es un sub-agente: necesita saldo para correr su propio loop
+ 
+ 
+ @dataclass
+@@ -98,15 +99,18 @@
+ 
+ 
+ class Paso(Node):
+-    """Una llamada al modelo. Sin saldo, la llamada va SIN tools (cierre)."""
++    """Una llamada al modelo. Sin saldo, la llamada va SIN tools (cierre). Un
++    sub-agente solo se ofrece si queda saldo para él Y para su loop (≥ 2): con
++    1, arrancaría sin poder leer nada."""
+ 
+     def prep(self, s):
+-        tools = [t.esquema for t in s["tools"]] if s["ctx"].ledger.rondas > 0 else None
+-        return s["mensajes"], tools
++        saldo = s["ctx"].ledger.rondas
++        tools = [t.esquema for t in s["tools"] if saldo >= (2 if t.agente else 1)] or None
++        return s["ctx"].llm, s["mensajes"], tools
+ 
+     def exec(self, entrada):
+-        mensajes, tools = entrada
+-        return normalizar(self.params["llm"](mensajes, tools), tools is not None)
++        llm, mensajes, tools = entrada
++        return normalizar(llm(mensajes, tools), tools is not None)
+ 
+     def post(self, s, entrada, msg):
+         s["mensajes"].append(historiar(msg))
+@@ -151,35 +155,42 @@
+     """La respuesta quedó en el historial: el loop termina acá."""
+ 
+ 
++NO_EJECUTADA = "(no ejecutada: presupuesto de herramientas agotado)"
++
++
+ class Cerrar(Node):
+     """Saldo agotado con tool calls pendientes: no se ejecutan; se responden
+     como no ejecutadas (el historial queda válido) y el modelo cierra sin tools."""
+ 
+     def post(self, s, *_):
+         for tc in s["mensajes"][-1]["tool_calls"]:
+-            s["mensajes"].append({"role": "tool", "tool_call_id": tc["id"],
+-                                  "content": "(no ejecutada: presupuesto de herramientas agotado)"})
++            s["mensajes"].append({"role": "tool", "tool_call_id": tc["id"], "content": NO_EJECUTADA})
+         return "paso"
+ 
+ 
+-def loop(llm, max_retries=3, wait=5):
++def loop(max_retries=3, wait=5):
++    """El grafo del agente. Es un Flow, así que también es un Node: otro flujo
++    lo encadena como un paso más (el supervisor: loop >> Auditar >> Sintetizar).
++    Lee del shared `ctx` (el LLM y el saldo), `tools` y `mensajes`."""
+     paso, actuar, cerrar = Paso(max_retries=max_retries, wait=wait), Actuar(), Cerrar()
+     paso - "actuar" >> actuar
+     paso - "cerrar" >> cerrar
+     paso - "respuesta" >> Fin()
+     actuar - "paso" >> paso
+     cerrar - "paso" >> paso
+-    flujo = Flow(start=paso)
+-    flujo.set_params({"llm": llm})
+-    return flujo
++    return Flow(start=paso)
++
++
++def semilla(system, pedido, tools, ctx):
++    """El shared de un agente: contexto FRESCO (system + pedido, nada del llamador)."""
++    return {"ctx": ctx, "tools": tools,
++            "mensajes": [{"role": "system", "content": system}, {"role": "user", "content": pedido}]}
+ 
+ 
+ def correr(system, pedido, tools, ctx, max_retries=3, wait=5):
+-    """Un agente de punta a punta con contexto FRESCO (system + pedido, nada
+-    del llamador). Devuelve (respuesta, mensajes)."""
+-    s = {"ctx": ctx, "tools": tools,
+-         "mensajes": [{"role": "system", "content": system}, {"role": "user", "content": pedido}]}
+-    loop(ctx.llm, max_retries, wait).run(s)
++    """Un agente de punta a punta. Devuelve (respuesta, mensajes)."""
++    s = semilla(system, pedido, tools, ctx)
++    loop(max_retries, wait).run(s)
+     return s["mensajes"][-1].get("content") or "", s["mensajes"]
+ 
+ 
+@@ -215,4 +226,5 @@
+         respuesta, _ = correr(armar(pedido), pedido, tools, ctx.hijo())
+         return respuesta
+ 
+-    return Tool(nombre, esquema, correr_agente, "lectura" if all(t.efecto == "lectura" for t in tools) else "escritura")
++    lectura = all(t.efecto == "lectura" for t in tools)
++    return Tool(nombre, esquema, correr_agente, "lectura" if lectura else "escritura", agente=True)

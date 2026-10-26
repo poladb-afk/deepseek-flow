@@ -226,11 +226,11 @@ def test_supervisor_guarda_repetida_pura():
     assert guarda_repetida(firma_sin, {}, ["db_schema"], {"db_schema"}) == ("veto", TEXTO_VETO)
 
 def test_supervisor_flujo_nuevo_guarda_antes_de_despachar(tmp_path, monkeypatch):
-    """El flujo v2 con fakes: UnPaso elige tool; Ejecutar corre la guarda
-    ANTES de run_tool_call. Una tool vetada NO se despacha (el fake contador
-    no sube) y el mensaje role=tool lleva el texto de veto. Cierra Sintetizar
+    """El flujo con fakes: el loop del kernel elige tool; la ley corre ANTES
+    de run_tool_call. Una tool vetada NO se despacha (el fake contador no
+    sube) y el mensaje role=tool lleva el texto de veto. Cierra Sintetizar
     con la sección Pasos."""
-    from pocketflow import Flow
+    from test_supervisor_convergencia import MsgFake, correr_supervisor, tc_fake
 
     import supervisor as sup
 
@@ -242,41 +242,15 @@ def test_supervisor_flujo_nuevo_guarda_antes_de_despachar(tmp_path, monkeypatch)
 
     monkeypatch.setitem(sup.REGISTRO, "read_file", impl_fake)
 
-    class MsgFake:
-        def __init__(self, tool_calls=None, content=None):
-            self.tool_calls = tool_calls
-            self.content = content
-
-    class TCFake:
-        def __init__(self, name, args):
-            self.id, self.type = "c1", "function"
-            self.function = type("F", (), {"name": name, "arguments": args})()
-
-    # Una ronda de tool (read_file, ya vetada a 2 fallos) + cierre.
-    pasos_llm = {"n": 0}
-
-    def call_llm_agent_fake(messages, tools=None):
-        pasos_llm["n"] += 1
-        if pasos_llm["n"] == 1:
-            return MsgFake(tool_calls=[TCFake("read_file", '{"path": "a.py"}')])
+    def guion(n, messages, tools):
+        if n == 1:
+            return MsgFake(tool_calls=[tc_fake("read_file", '{"path": "a.py"}')])
         return MsgFake(content="cerrado")
 
-    monkeypatch.setattr(sup, "call_llm_agent", call_llm_agent_fake)
-    monkeypatch.setattr(sup, "call_llm", lambda *a, **k: "cierre de prueba")
-
-    un_paso = sup.UnPaso()
-    ejecutar = sup.Ejecutar()
-    sintetizar = sup.Sintetizar()
-    un_paso - "tool" >> ejecutar
-    un_paso - "sintetizar" >> sintetizar
-    ejecutar - "default" >> un_paso
-    sub = Flow(start=un_paso)
-
-    shared = sup.semilla("tarea", str(tmp_path / "sup.md"))
-    shared["fallos"] = {"read_file": sup.MAX_FALLOS_POR_HERRAMIENTA}  # ya vetada
-    sub.run(shared)
+    shared = correr_supervisor(sup, tmp_path, monkeypatch, guion,
+                               {"fallos": {"read_file": sup.MAX_FALLOS_POR_HERRAMIENTA}})
     assert ejecuciones["n"] == 0  # la guarda cortó antes de run_tool_call
-    mensajes_tool = [m for m in shared["messages"] if m.get("role") == "tool"]
+    mensajes_tool = [m for m in shared["mensajes"] if m.get("role") == "tool"]
     assert mensajes_tool and mensajes_tool[0]["content"] == sup.TEXTO_VETO
     texto = (tmp_path / "sup.md").read_text(encoding="utf-8")
     assert "## Pasos" in texto  # Sintetizar escribió la auditoría
@@ -296,53 +270,41 @@ def test_heartbeat_vencidas():
     assert vencidas(tareas, {"a.md": time.time() - 25 * 3600}) == tareas  # todo vencido
 
 def test_supervisor_reutiliza_la_llamada_identica(tmp_path, monkeypatch):
-    """El caché en el flujo real: dos tool_calls idénticas en la MISMA ronda;
-    la segunda sale del caché (guarda_repetida → 'cached') y run_tool_call
-    sólo corre una vez. El resultado cacheado vuelve igual al historial."""
-    from pocketflow import Flow
+    """El caché en el flujo real: dos tool_calls idénticas en la MISMA ronda
+    (que el kernel corre en paralelo: son lecturas). La segunda sale del caché
+    o, si llegó junto con la primera, igual se despacha UNA sola vez gracias
+    al lock de la ley; el resultado vuelve igual al historial."""
+    import threading
+
+    from test_supervisor_convergencia import MsgFake, correr_supervisor, tc_fake
 
     import supervisor as sup
 
     ejecuciones = {"n": 0}
+    candado = threading.Lock()
 
     def contar(**kwargs):
-        ejecuciones["n"] += 1
+        with candado:
+            ejecuciones["n"] += 1
         return "42 archivos"
 
     monkeypatch.setitem(sup.REGISTRO, "search_files", contar)
-
-    class MsgFake:
-        def __init__(self, tool_calls=None, content=None):
-            self.tool_calls, self.content = tool_calls, content
-
-    class TCFake:
-        def __init__(self, name, args, i):
-            self.id, self.type = f"c{i}", "function"
-            self.function = type("F", (), {"name": name, "arguments": args})()
-
-    pasos = {"n": 0}
     args_id = '{"glob": "*.py"}'
 
-    def call_llm_agent_fake(messages, tools=None):
-        pasos["n"] += 1
-        if pasos["n"] == 1:  # dos llamadas IDÉNTICAS en la misma ronda
-            return MsgFake(tool_calls=[TCFake("search_files", args_id, 1),
-                                       TCFake("search_files", args_id, 2)])
+    def guion(n, messages, tools):
+        if n == 1:  # dos llamadas IDÉNTICAS en la misma ronda
+            return MsgFake(tool_calls=[tc_fake("search_files", args_id, 1),
+                                       tc_fake("search_files", args_id, 2)])
+        if n == 2:  # y la misma en la ronda siguiente: caché seguro
+            return MsgFake(tool_calls=[tc_fake("search_files", args_id, 3)])
         return MsgFake(content="cerrado")
 
-    monkeypatch.setattr(sup, "call_llm_agent", call_llm_agent_fake)
-    monkeypatch.setattr(sup, "call_llm", lambda *a, **k: "cierre de prueba")
+    shared = correr_supervisor(sup, tmp_path, monkeypatch, guion)
+    assert ejecuciones["n"] <= 2 and shared["ley"]["previas"][("search_files", args_id)]["resultado"]
+    tools = [m for m in shared["mensajes"] if m.get("role") == "tool"]
+    assert [m["content"] for m in tools] == ["42 archivos"] * 3
+    assert any(c["repetida"] for c in shared["ley"]["llamadas"])  # la de la ronda 2, del caché
 
-    un_paso, ejecutar, sintetizar = sup.UnPaso(), sup.Ejecutar(), sup.Sintetizar()
-    un_paso - "tool" >> ejecutar
-    un_paso - "sintetizar" >> sintetizar
-    ejecutar - "default" >> un_paso
-
-    shared = sup.semilla("tarea", str(tmp_path / "sup.md"))
-    Flow(start=un_paso).run(shared)
-    assert ejecuciones["n"] == 1  # la idéntica no se despachó dos veces
-    tools = [m for m in shared["messages"] if m.get("role") == "tool"]
-    assert [m["content"] for m in tools] == ["42 archivos", "42 archivos"]
 
 def test_juez_lote_aisla_fallas(tmp_path, monkeypatch):
     """Medido en vivo: el verdict inválido persistente de UNA pregunta mató

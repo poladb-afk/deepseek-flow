@@ -442,16 +442,28 @@ El synthesizer juzga la COBERTURA (no la respuesta): con huecos, vuelve
 al planner con feedback; presupuesto MAX_ROUNDS=2. Web por ddgs,
 structured output en todo (extraer_yaml + assert + retry).
 
-### Supervisor — bucle reactivo con Choose local
+### Supervisor — el loop del kernel con las leyes del ejecutor (v3, H2 PR 2)
 `main.py supervisor "tarea"` · [supervisor.py](../supervisor.py) · [sonda_supervisor.py](../sonda_supervisor.py)
 
 ```mermaid
 flowchart TD
-    e[ElegirSiguiente] -->|ejecutar| p[EjecutarPaso]
-    p -->|elegir| e
-    e -->|sintetizar| s[Sintetizar]
-    p -->|sintetizar| s
+    k[loop del kernel] --> a[Auditar] --> s[Sintetizar]
 ```
+
+**v3 (H2 PR 2, 2026-10-26)**: el supervisor no tiene loop propio. El loop es
+el del kernel (`utils/kernel.loop`, un Flow usado como Node) y cada tool del
+catálogo es una `Tool` envuelta por `con_leyes`: las guardas puras
+(`guarda_vetada`, `guarda_repetida`) deciden ANTES de despachar y los
+contadores se actualizan DESPUÉS, con el estado de ley en el shared (no en
+globals) y un lock porque las lecturas corren en paralelo. `Auditar` arma la
+sección "Pasos" y la telemetría de rondas secas desde el registro de
+llamadas. El saldo (`Ledger(MAX_PASOS)`) es UNO para el árbol: con
+`EXPLORAR=1` la exploración gasta del mismo saldo, y el kernel no ofrece
+`explorar` si no queda saldo para ella y su loop (≥ 2). Probado contra v2 con
+el mismo LLM guionado en 5 casos (cierre, lecturas, tope, veto por fallos,
+caché): mismas llamadas, mismos pasos, mismos vetos.
+
+**Historia (v1, antes de exp/bench 2026-10-13):**
 
 ElegirSiguiente (Laya con la task **supervisor_dispatch**: 18 opciones =
 17 tools + finish; `uncertain` o sin laya → DeepSeek con el catálogo) →

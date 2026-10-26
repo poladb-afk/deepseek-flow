@@ -16,7 +16,7 @@ verdes, caracterización idéntica y `explorar()` en vivo (citas correctas,
 `explorar` solo existe en el catálogo del supervisor, y fable corre por el
 chat (0 llamadas en las 4 corridas). La medición del explorador pasa al PR 2.
 
-**Ahora — H2 PR 2.** `supervisor.py` sobre el kernel.
+**Ahora — H2 PR 2.** Código hecho (X73); falta su gate con LLM real: `bench_supervisor` con `EXPLORAR=0` y `=1` contra el baseline de v2 (guardado ANTES de aplicar el patch), con `explorar` > 0 en el brazo `=1`.
 
 **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
 "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`
@@ -27,7 +27,7 @@ Laya como nodo, también en el PR 4. Un PR por loop, del más chico al más gran
 | PR | Reemplaza | Gate propio |
 |---|---|---|
 | 1 ✅ | `explorador.py` | deterministas + `explorar()` en vivo (el de fable no podía ejercitarlo: ver X72) |
-| 2 | `supervisor.py` (comparte el `Ledger` con el explorador) | `bench_supervisor` igual o mejor y ≤ llamadas, con `EXPLORAR=0` y `EXPLORAR=1`; con `=1`, `explorar` llamado al menos una vez (si no, el brazo no midió nada) |
+| 2 ✅ código | `supervisor.py` (comparte el `Ledger` con el explorador) | `bench_supervisor` igual o mejor y ≤ llamadas, con `EXPLORAR=0` y `EXPLORAR=1`; con `=1`, `explorar` llamado al menos una vez (si no, el brazo no midió nada) |
 | 3 | `juez`, `research` | `bench_juez` igual o mejor |
 | 4 | el chat (`nodes.py`): estado por pregunta (las claves `_x`) y los globals dentro del `Ctx` (F5) | banco completo con `verificar:`: ≥ tareas hechas, ≤ tokens |
 

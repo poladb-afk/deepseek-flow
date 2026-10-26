@@ -197,7 +197,7 @@
         "tests/test_smoke.py": 5,
         "tests/test_sonda_laya.py": 4,
         "tests/test_streaming.py": 11,
-        "tests/test_supervisor_convergencia.py": 3,
+        "tests/test_supervisor_convergencia.py": 6,
         "tests/test_tablero.py": 2,
         "tests/test_thread_store.py": 26,
         "tests/test_tokens_runs.py": 4,
@@ -211,7 +211,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1038
+      "metrica": 1041
     }
   },
   "version": 1
