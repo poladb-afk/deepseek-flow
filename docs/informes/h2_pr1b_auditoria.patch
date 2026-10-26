@@ -1,0 +1,221 @@
+diff -ruN x/docs/bitacora.md y/docs/bitacora.md
+--- x/docs/bitacora.md	2026-10-26 21:57:27.177719202 +0000
++++ y/docs/bitacora.md	2026-10-26 21:58:55.919181454 +0000
+@@ -4595,3 +4595,10 @@
+ **Medición sin LLM**: `tests/test_kernel.py` (10) fija las leyes: contexto fresco, saldo único compartido por el árbol, cierre como arista (incluida la carrera de saldo entre agentes), lecturas en paralelo (4 × 0,3 s en < 0,9 s) y escrituras en orden, profundidad acotada, DSML y sanitizado. Los 5 tests de `test_explorador.py` siguen con su nombre (2 adaptados: el registro privado y el flow privado ya no existen). Caracterización del chat: idéntica byte a byte. Suite 1037 passed; ratchet `tests_definidos` 1024 → 1034, el resto igual.
+ 
+ **Pendiente con LLM real (gate propio del PR 1)**: fable s17–s20 con `EXPLORAR=1`, igual o mejor que antes.
++
++
++## H2 PR 1b — lo que dejó la auditoría del PR 1 (2026-10-26)
++
++**Medición del operador con LLM real**: fable s17–s20 con `EXPLORAR=1` dio s17=1, s18=1, s19=0, s20=2 con **0 llamadas a `explorar`** (con adopción forzada el modelo respondió "No existe la tool `explorar`"): la tool vive solo en el catálogo del supervisor. El gate estaba mal escrito y medía varianza del chat. `explorar()` en vivo: citas exactas de `policy.py` y `usó 3 de 3 rondas`.
++
++**Cambio**: `agente()` exige system y acepta `pedido -> texto`; `explorador.AGENTE` lo arma con `system_prompt` (antes vacío); argumentos ilegibles o vacíos vuelven como ERROR. Gate del explorador movido al PR 2 (`bench_supervisor` con los dos brazos) y regla nueva en el roadmap: el gate prueba que la pieza corrió.
+diff -ruN x/docs/estado.md y/docs/estado.md
+--- x/docs/estado.md	2026-10-26 21:57:27.177719202 +0000
++++ y/docs/estado.md	2026-10-26 21:58:55.915181392 +0000
+@@ -118,6 +118,7 @@
+ | X69 | — | La suite corrida DENTRO de un chat con aprobador por scope (el modelo verificando con `pytest`) heredaba `HITL_SCOPE`: `por_scope` contestaba los HITL que los tests esperaban de su `input()` falso → 3 tests fallaban solo ahí, `mkdir no_se_debe_crear` se aprobó y quedó en la raíz, y `friccion-auto/correr-tests` dio `no-hecha` (el modelo vio 24 passed, el driver esperaba 26) | ✅ 2026-10-26 (H1e) | Fixture autouse en `tests/conftest.py`: la suite no hereda `HITL_SCOPE` ni `HITL_WEB` del proceso que la corre; los tests que prueban esos canales los fijan ellos | `tests/test_auditoria_2026_10_26.py::test_la_suite_no_hereda_el_aprobador_del_chat` |
+ | X70 | — | Decisión del operador (2026-10-26): la fricción nueva de `auto` medida en `friccion-auto` (7/7 hechas, **2 HITL en 6 tareas**, los dos glob) se ACEPTA (opción A): el glob era un bypass real (`cat d/*` leía afuera por symlink) y `find -name '*.pat'` con comillas sigue `auto`. H1 cerrado | ✅ 2026-10-26 (decisión) | Sin cambio de código; se revisa solo si el uso diario lo pide (opción B: expandir el glob y chequear cada ruta, mismo escenario como vara) | `tests/test_banco.py::test_friccion_auto_tiene_respuestas_calculables` |
+ | X71 | — | H2 (kernel fractal) es un refactor amplio por definición: la regla blanda "parche mínimo" de AGENTS.md se LEVANTA para H2 por decisión del operador, con estos gates por PR: `tests/test_caracterizacion_chat.py` sin cambiar una línea, `./calidad.sh` verde, ratchet sin empeorar y el gate propio de cada PR (docs/roadmap.md). Sin `_v2`: cada loop viejo se reemplaza | ✅ 2026-10-26 (decisión) | PR 1 hecho: `utils/kernel.py` (Ledger, Tool, Ctx, `loop`, `agente`) + `utils/proveedor.py` (DSML y sanitizado salen de `nodes.py`); `explorador.py` es una instancia del kernel (158 → 67 líneas, sin loop propio) | `tests/test_kernel.py` (10), `tests/test_explorador.py` (5) |
++| X72 | — | Auditoría de H2 PR 1 (operador, LLM real): (1) el gate "fable s17–s20 con `EXPLORAR=1`" no podía medir el explorador: `explorar` solo existe en el catálogo del supervisor y fable corre por el chat (0 llamadas en 4 corridas; s19=0 era varianza del modelo sobre código que PR 1 no toca); (2) `TOOL_EXPLORAR` se armaba con system vacío: llamado desde el kernel, el sub-agente habría corrido sin sus instrucciones; (3) `json.loads` de los argumentos del agente sin manejo: un JSON malformado cortaba el loop del padre | ✅ 2026-10-26 (H2 PR 1b) | Gate movido al PR 2 con la regla "el gate prueba que la pieza corrió"; `agente()` exige system (texto o `pedido -> texto`) y `explorador.AGENTE` usa `system_prompt`; argumentos ilegibles o vacíos vuelven como ERROR al modelo | `tests/test_kernel.py::test_un_agente_sin_system_no_se_puede_crear`, `::test_argumentos_ilegibles_vuelven_como_error_y_el_loop_sigue`, `tests/test_explorador.py::test_el_explorador_como_tool_del_kernel_usa_su_system` |
+ | X62 | — | El meta-loop exigía un auditor al timón (contestar s/n por tmux): sin conductor no había forma de delegarle trabajo real al harness solo, y cada sesión muerta a mitad (exp/98) se perdía entera; además la regex de scope del banco no matcheaba el prompt de `edit_file` de exp/98 (`¿Aplicar? → ruta (2 hunks…)`) → cualquier conductor habría aprobado ediciones fuera de scope y de la denylist | ✅ 2026-10-25 (exp/99) | `delegar.py`: conductor que reusa el driver PTY y `decision_hitl` del banco, sin `BANCO=1` (origen `terminal`), HITL por scope declarado con rechazo CON motivo (exp/98), doble confirmación solo con prefijo explícito, muerte → `resume` (tope 2) y `THREADS_DIR` propio; regex corregida en `banco/banco.py`. e2e: tarea delegada exit 0 + drill `kill -9` → rehidrata y completa; **par #14/250** de la flywheel con `--env LAYA_MODO=shadow` (día 3/14) | `tests/test_delegar.py` (13: `test_conducir_muerto_resume_y_completa`, `test_plan_respuesta_doble_exige_prefijo_explicito`…), `test_el_scope_cubre_el_prompt_de_edit_file_de_exp98` |
+ | X66 | — | Auditoría 2026-10-26 (H1): el conductor reconstruía el pedido HITL leyendo la pantalla y aprobaba `git push` (la doble confirmación real `(1/2) (s/n):` no matcheaba), el scope comparaba rutas y comandos por prefijo de texto, `auto` salía de las raíces (`cd ..;cat`, `cd` solo, glob, `$VAR`) y por flags agrupadas (`sort -uo/x`), `edit_file` perdía CRLF y bytes no UTF-8, las escrituras pisaban permisos y el checkpoint guardaba reprs (`default=str`) | ✅ 2026-10-26 (H1) | El pedido es DATO: `utils/aprobaciones.Pedido` + `dentro_de_scope`/`por_scope`; banco y conductor pasan el scope por `HITL_SCOPE` y el chat decide en su proceso (fuera `decision_hitl`, `tipo_prompt`, `plan_respuesta`, `_cuerpo`); `policy.segmentos`/`opaco`/`irreversible` como fuente única; getopt en flags cortas; `edit_file` por bytes y estricto; `escribir_atomico` conserva modo y saltos; `shared` JSON puro | `tests/test_auditoria_2026_10_26.py` (`test_la_doble_confirmacion_real_no_se_aprueba_por_scope`, `test_auto_no_sale_de_raices`, `test_checkpoint_ida_y_vuelta_es_identidad`…), `tests/test_delegar.py::test_plan_respuesta_doble_exige_prefijo_explicito` |
+ | X61 | — | El punto de confianza del sistema mostraba diffs recortados sin declarar cuánto faltaba (exp/96: hunks aprobados sin verse) y el rechazo era 'n' mudo — el chat adivinaba el motivo y re-propuso lo mismo | ✅ 2026-10-24 (exp/98) | El prompt de edit_file declara `(N hunks, +A/−B)` del diff COMPLETO y el marcador dice cuántos caracteres quedan sin ver; `Decision(ok, motivo)` con `__bool__`: el rechazo `n <motivo>` viaja al modelo en edit_file/write_file/run_command, con casing conservado; el seam `_approve` tolera bools para siempre (getattr — los mocks existentes intactos, R2) | `test_parser_decision_motivo`, `test_edit_file_prompt_declara_diff_completo`, `test_motivo_del_rechazo_viaja_al_modelo` |
+diff -ruN x/docs/roadmap.md y/docs/roadmap.md
+--- x/docs/roadmap.md	2026-10-26 21:57:27.177719202 +0000
++++ y/docs/roadmap.md	2026-10-26 21:58:55.915181392 +0000
+@@ -10,8 +10,13 @@
+ del chat, X69). **H1 cerrado** (X70): `friccion-auto` 7/7 con 2 HITL (glob)
+ en 6 tareas, aceptado por el operador.
+ 
+-**Ahora — H2 PR 1.** Kernel y explorador hechos (X71); falta su gate con LLM
+-real: fable s17–s20 con `EXPLORAR=1`, igual o mejor que antes.
++**H2 PR 1 cerrado** (X71, X72): kernel y explorador; gates deterministas
++verdes, caracterización idéntica y `explorar()` en vivo (citas correctas,
++`usó 3 de 3`). El gate "fable s17–s20 con `EXPLORAR=1`" estaba mal escrito:
++`explorar` solo existe en el catálogo del supervisor, y fable corre por el
++chat (0 llamadas en las 4 corridas). La medición del explorador pasa al PR 2.
++
++**Ahora — H2 PR 2.** `supervisor.py` sobre el kernel.
+ 
+ **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
+ "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`
+@@ -21,8 +26,8 @@
+ 
+ | PR | Reemplaza | Gate propio |
+ |---|---|---|
+-| 1 ✅ código | `explorador.py` | fable s17–s20 igual o mejor (pendiente con LLM real) |
+-| 2 | `supervisor.py` | `bench_supervisor` igual o mejor, ≤ llamadas |
++| 1 ✅ | `explorador.py` | deterministas + `explorar()` en vivo (el de fable no podía ejercitarlo: ver X72) |
++| 2 | `supervisor.py` (comparte el `Ledger` con el explorador) | `bench_supervisor` igual o mejor y ≤ llamadas, con `EXPLORAR=0` y `EXPLORAR=1`; con `=1`, `explorar` llamado al menos una vez (si no, el brazo no midió nada) |
+ | 3 | `juez`, `research` | `bench_juez` igual o mejor |
+ | 4 | el chat (`nodes.py`): estado por pregunta (las claves `_x`) y los globals dentro del `Ctx` (F5) | banco completo con `verificar:`: ≥ tareas hechas, ≤ tokens |
+ 
+@@ -38,6 +43,8 @@
+ 
+ **Regla para el banco**: todo escenario nuevo trae `verificar:` con un
+ chequeo que falle si el modelo no hace nada (lo exige `cargar_escenario`).
++**Regla para los gates**: un gate que mide una pieza tiene que probar que la
++pieza CORRIÓ (conteo de llamadas, marcador en la traza). Sin eso mide ruido.
+ 
+ ## Historial (cola previa a la auditoría)
+ 
+diff -ruN x/explorador.py y/explorador.py
+--- x/explorador.py	2026-10-26 21:57:27.169719068 +0000
++++ y/explorador.py	2026-10-26 21:57:50.734113142 +0000
+@@ -49,8 +49,10 @@
+     )
+ 
+ 
+-# La tool para el catálogo del supervisor (forma OpenAI) y para el kernel.
+-TOOL_EXPLORAR = agente(NOMBRE_TOOL, DESCRIPCION, "", TOOLS, parametro="pregunta").esquema
++# El explorador como Tool del kernel (con SU system: el que arma con la
++# pregunta) y su esquema para el catálogo del supervisor (forma OpenAI).
++AGENTE = agente(NOMBRE_TOOL, DESCRIPCION, system_prompt, TOOLS, parametro="pregunta")
++TOOL_EXPLORAR = AGENTE.esquema
+ 
+ 
+ def explorar(pregunta):
+diff -ruN x/ratchets/baseline.json y/ratchets/baseline.json
+--- x/ratchets/baseline.json	2026-10-26 21:57:27.189719403 +0000
++++ y/ratchets/baseline.json	2026-10-26 21:58:57.695208959 +0000
+@@ -162,7 +162,7 @@
+         "tests/test_estado_riesgo.py": 3,
+         "tests/test_estilo_humano.py": 9,
+         "tests/test_evals.py": 15,
+-        "tests/test_explorador.py": 5,
++        "tests/test_explorador.py": 6,
+         "tests/test_fable.py": 29,
+         "tests/test_fable_dominios.py": 6,
+         "tests/test_fable_judge.py": 66,
+@@ -173,7 +173,7 @@
+         "tests/test_grafos_sin_calles_muertas.py": 4,
+         "tests/test_hitl.py": 23,
+         "tests/test_inventario.py": 3,
+-        "tests/test_kernel.py": 10,
++        "tests/test_kernel.py": 13,
+         "tests/test_laya.py": 6,
+         "tests/test_laya_cache_reintento.py": 5,
+         "tests/test_laya_routing.py": 38,
+@@ -211,7 +211,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 1034
++      "metrica": 1038
+     }
+   },
+   "version": 1
+diff -ruN x/tests/test_explorador.py y/tests/test_explorador.py
+--- x/tests/test_explorador.py	2026-10-26 21:57:27.161718935 +0000
++++ y/tests/test_explorador.py	2026-10-26 21:58:55.915181392 +0000
+@@ -116,3 +116,23 @@
+     assert texto.startswith("resumen: a.py:3")
+     assert "usó 0 de" in texto
+     assert len(vistos) == 1 and {t["function"]["name"] for t in vistos[0]} == set(ex.PERMITIDAS)
++
++
++def test_el_explorador_como_tool_del_kernel_usa_su_system(monkeypatch):
++    """La tool que el supervisor va a llamar desde el kernel (PR 2) corre con
++    el MISMO system de solo lectura que explorar(): no uno vacío."""
++    import json
++
++    from utils.kernel import Ctx, Ledger
++
++    vistos = []
++
++    def llm(messages, tools=None):
++        vistos.append(messages[0]["content"])
++        return MsgFake(content="resumen")
++
++    llamada = {"id": "1", "function": {"name": "explorar",
++                                        "arguments": json.dumps({"pregunta": "¿dónde está X?"})}}
++    assert ex.AGENTE.correr(llamada, Ctx(llm, Ledger(3))) == "resumen"
++    assert "sub-agente de INVESTIGACIÓN" in vistos[0] and "¿dónde está X?" in vistos[0]
++    assert ex.AGENTE.efecto == "lectura"
+diff -ruN x/tests/test_kernel.py y/tests/test_kernel.py
+--- x/tests/test_kernel.py	2026-10-26 21:57:27.169719068 +0000
++++ y/tests/test_kernel.py	2026-10-26 21:58:20.290607424 +0000
+@@ -173,3 +173,41 @@
+     adentro = leer.correr({"id": "2", "function": {"name": "read_file",
+                                                    "arguments": json.dumps({"path": str(tmp_path / "a.txt")})}}, None)
+     assert afuera.startswith("ERROR") and "contenido" in adentro
++
++
++def test_un_agente_sin_system_no_se_puede_crear():
++    """Auditoría de PR 1: TOOL_EXPLORAR se armaba con system vacío; llamado
++    por el kernel, el sub-agente habría corrido sin sus instrucciones."""
++    import pytest
++
++    with pytest.raises(ValueError):
++        agente("x", "d", "", [])
++
++
++def test_el_system_del_agente_puede_depender_del_pedido():
++    vistos = []
++
++    def llm(mensajes, tools=None):
++        vistos.append(mensajes[0]["content"])
++        if mensajes[0]["content"].startswith("sub:"):
++            return msg("visto")
++        if mensajes[-1]["role"] == "tool":
++            return msg("fin")
++        return msg(None, llamada("explorar", 0, pedido="¿dónde?"))
++
++    hijo = agente("explorar", "d", lambda p: f"sub: {p}", [])
++    correr("raíz", "q", [hijo], Ctx(llm, Ledger(3)), wait=0)
++    assert "sub: ¿dónde?" in vistos
++
++
++def test_argumentos_ilegibles_vuelven_como_error_y_el_loop_sigue():
++    """Auditoría de PR 1: un JSON malformado del modelo tiraba el loop del padre."""
++    hijo = agente("explorar", "d", "sub", [])
++    roto = NS(id="x", function=NS(name="explorar", arguments="{no es json"))
++    vacio = NS(id="y", function=NS(name="explorar", arguments="{}"))
++    llm, _ = guion(msg(None, roto, vacio), msg("seguí igual"))
++    respuesta, mensajes = correr("raíz", "q", [hijo], Ctx(llm, Ledger(3)), wait=0)
++    assert respuesta == "seguí igual"
++    errores = [m["content"] for m in mensajes if m["role"] == "tool"]
++    assert errores[0].startswith("ERROR: argumentos") and errores[1].startswith("ERROR: explorar necesita")
++    assert validar_historial(mensajes) == []
+diff -ruN x/utils/kernel.py y/utils/kernel.py
+--- x/utils/kernel.py	2026-10-26 21:57:27.185719336 +0000
++++ y/utils/kernel.py	2026-10-26 21:57:50.734113142 +0000
+@@ -186,9 +186,17 @@
+ def agente(nombre, descripcion, system, tools, parametro="pedido"):
+     """El fractal: un agente ES una Tool. El que lo llama le pasa el pedido;
+     el agente corre su loop con contexto fresco y el MISMO ledger, y devuelve
+-    su respuesta como texto. Más allá de `max_profundidad`, se niega."""
++    su respuesta como texto. Más allá de `max_profundidad`, se niega.
++
++    `system` es el texto o una función `pedido -> texto` (el explorador arma
++    el suyo con la pregunta). Argumentos ilegibles vuelven como ERROR al
++    modelo, como cualquier tool: no cortan el loop del padre."""
+     import json
+ 
++    if not system:
++        raise ValueError(f"agente {nombre!r} sin system: el sub-agente correría sin instrucciones")
++    armar = system if callable(system) else (lambda _pedido: system)
++
+     esquema = {"type": "function", "function": {
+         "name": nombre, "description": descripcion,
+         "parameters": {"type": "object", "required": [parametro], "properties": {
+@@ -197,8 +205,14 @@
+     def correr_agente(llamada, ctx):
+         if ctx.profundidad >= ctx.max_profundidad:
+             return f"ERROR: {nombre} no puede delegar más (profundidad máxima {ctx.max_profundidad})"
+-        args = json.loads(llamada["function"].get("arguments") or "{}")
+-        respuesta, _ = correr(system, str(args.get(parametro, "")), tools, ctx.hijo())
++        try:
++            args = json.loads(llamada["function"].get("arguments") or "{}")
++        except (ValueError, TypeError):
++            return f"ERROR: argumentos de {nombre} ilegibles (se espera JSON con `{parametro}`)"
++        pedido = str(args.get(parametro, "") if isinstance(args, dict) else "").strip()
++        if not pedido:
++            return f"ERROR: {nombre} necesita `{parametro}`"
++        respuesta, _ = correr(armar(pedido), pedido, tools, ctx.hijo())
+         return respuesta
+ 
+     return Tool(nombre, esquema, correr_agente, "lectura" if all(t.efecto == "lectura" for t in tools) else "escritura")

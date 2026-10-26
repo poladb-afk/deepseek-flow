@@ -3,7 +3,6 @@ import json
 import re
 import time
 from pathlib import Path
-from types import SimpleNamespace
 
 from pocketflow import Node
 
@@ -11,6 +10,14 @@ from modules import discover
 from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_stream
 from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
 from utils.fs_tools import TOOLS as CORE_TOOLS
+from utils.proveedor import (
+    MENSAJE_DSML_AGOTADO,
+    MENSAJE_DSML_SIN_TOOLS,
+    RE_DSML,
+    dsml_a_tool_calls,
+    dsml_con_presupuesto_agotado,
+    sanitizar,
+)
 from utils.terminal import colorear, progreso_ronda
 from utils.thread_store import checkpoint
 from utils.tracing import evento_politica, evento_tool, thread_id
@@ -48,30 +55,6 @@ def registrar_pregunta(texto, ruta=None):
     except Exception:  # bookkeeping: nunca corta el chat  # noqa: BLE001 (bookkeeping de traza: nunca corta el chat)
         pass
 
-# Recuperación del canal de tools: a veces DeepSeek emite las llamadas como
-# TEXTO con su markup interno (DSML) en vez del canal estructurado — el chat
-# las imprimiría como respuesta y se quedaría colgado (medido en producción).
-# El separador real llega con UNA o DOS barras fullwidth (medido en
-# producción: el log trae <｜｜DSML｜｜, el transcript pegado una sola)
-_SEP = r"[｜|]{1,2}"
-RE_DSML = re.compile(rf"<{_SEP}DSML")
-DSML_INVOKE = re.compile(rf'<{_SEP}DSML{_SEP} invoke name="([^"]+)">(.*?)</{_SEP}DSML{_SEP} invoke>', re.DOTALL)
-DSML_PARAM = re.compile(rf'<{_SEP}DSML{_SEP} parameter name="([^"]+)"[^>]*>(.*?)</{_SEP}DSML{_SEP} parameter>', re.DOTALL)
-
-
-def dsml_a_tool_calls(content):
-    """El texto DSML de vuelta en objetos con la forma de la API (atributos
-    .function.name/.arguments/.id): el camino `tool` existente sigue intacto."""
-    calls = []
-    for m in DSML_INVOKE.finditer(content):
-        args = {k: v.strip() for k, v in DSML_PARAM.findall(m.group(2))}
-        calls.append(SimpleNamespace(
-            id=f"dsml-{len(calls)}",
-            function=SimpleNamespace(name=m.group(1), arguments=json.dumps(args, ensure_ascii=False)),
-        ))
-    return calls
-
-
 def nota_presupuesto(ronda, maximo):
     """La nota que ve el MODELO al entrar a la anteúltima ronda: su única
     vista del presupuesto (el ⚙ de la terminal no llega a la conversación).
@@ -84,12 +67,6 @@ def nota_presupuesto(ronda, maximo):
             "usuario reinicia el presupuesto."
         )
     return None
-
-
-MENSAJE_DSML_AGOTADO = (
-    "(sin texto: emitiste tool-calls con el presupuesto agotado — decí "
-    "'seguí' para reiniciarlo)"
-)
 
 
 # Techo adaptativo de rondas por operación (exp/13, opción C del consejo).
@@ -272,35 +249,11 @@ MENSAJE_SIN_RESPUESTA = (
 )
 
 
-MENSAJE_DSML_SIN_TOOLS = (
-    "(sin texto: emitiste tool-calls en la ruta directa, donde no hay "
-    "herramientas disponibles — respondé sin ellas)"
-)
-
 AVISO_CIERRE = (
     "(presupuesto de herramientas agotado) Respondé AHORA con lo que tengas: "
     "hallazgos, límites y qué falta. No emitas tool calls; si te falta "
     "información, decilo como límite."
 )
-
-
-def dsml_con_presupuesto_agotado(content, parseados, tools, ofrece_tools=True):
-    """(nuevo_content, avisar): la recuperación DSML no re-armó tools que
-    el tope retiró (ley L8 — medido en exp/4 que sí las ejecutaba: el
-    write_file corría después del retiro). Con tools presentes la
-    recuperación de siempre; sin tools, el markup se corta y el mensaje
-    que queda es honesto y accionable.
-
-    `ofrece_tools=False` (DirectAnswer) distingue "nunca se ofrecieron" de
-    "las retiró el tope": el mensaje de presupuesto agotado era FALSO en la
-    ruta directa y descartaba la llamada (medido, exp/36)."""
-    if tools is not None or not parseados:
-        return content, False
-    m = RE_DSML.search(content or "")
-    limpio = (content or "")[: m.start()].rstrip() if m else ""
-    if not limpio:
-        return (MENSAJE_DSML_AGOTADO if ofrece_tools else MENSAJE_DSML_SIN_TOOLS), True
-    return limpio, True
 
 
 def historiar(msg):
@@ -430,28 +383,6 @@ class PreFetch(Node):
             for path, _ in exec_res:
                 print(colorear(f"  [pre-fetch] {path}", "info"))
         return "continue"
-
-
-# Markers de rol que el modelo a veces emite a mitad de respuesta cuando
-# descarrila (medido en producción: un system prompt ajeno de agente
-# genérico apareció pegado al saludo). El chat no debe mostrar ni guardarlos.
-MARKERS_ROL = ("<system>", "<<SYS>>", "<|im_start|>", "[INST]", "<｜System｜>")
-# Tags HTML espurios que parten palabras (S<small>oy) pero dejan el resto
-# utilizable: se quitan y el texto se recompone (segunda medición en prod.)
-TAG_HTML = re.compile(
-    r"</?(?:small|b|i|em|strong|code|pre|div|span|p|br|sub|sup|u|s|mark|h[1-6]|ul|ol|li)\b[^>]*>")
-
-
-def sanitizar(texto):
-    """(contenido_limpio, se_modifico). Dos descarrilos medidos: un marker de
-    rol ajeno (se corta: lo que sigue es basura) y tags HTML que parten
-    palabras (se quitan: el texto sigue siendo la respuesta)."""
-    for marca in MARKERS_ROL:
-        i = texto.find(marca)
-        if i >= 0:
-            return texto[:i].rstrip(), True
-    limpio = TAG_HTML.sub("", texto)
-    return limpio, limpio != texto
 
 
 def _ahora():

@@ -893,6 +893,32 @@ Leyes del conductor (spec [exp99](../banco/specs/exp99_delegar.md) y
   hitl-fuera, hitl-tope, muerte, resume, fin), `resumen.md`, `threads/`.
   La memoria NO se aísla: es tráfico orgánico (X41/X43 son del banco).
 
+## El kernel fractal (H2) — agente = Flow = Node = Tool
+
+[utils/kernel.py](../utils/kernel.py) es la primitiva del loop agéntico: un
+`Flow` de PocketFlow (`Paso -actuar-> Actuar -paso-> Paso`, `Paso -cerrar->
+Cerrar -paso-> Paso`, `Paso -respuesta-> Fin`) y `agente()`, que lo envuelve
+como una `Tool` que otro loop puede llamar. Leyes por construcción:
+
+- **Contexto fresco**: `correr()` arma `[system, pedido]`; nada del llamador.
+- **Un saldo por árbol** (`Ledger`): un sub-agente gasta del mismo saldo que
+  su padre. Sin saldo, la llamada va SIN tools; si el saldo se acaba entre el
+  prep y el post (otro agente del árbol lo gastó), la tool call no corre y va
+  por la arista `cerrar`, que la responde como no ejecutada (historial válido).
+- **Paralelo solo para lecturas** (`Tool.efecto`): si todas las llamadas de una
+  ronda leen, corren en hilos (`PARALELO_MAX=8`); si alguna escribe, todas en
+  orden. Un agente es de lectura si todas sus tools lo son.
+- **Profundidad acotada** (`max_profundidad=1`): un agente puede llamar
+  agentes; esos no (evidencia: RLM con profundidad 2 empeora).
+- **Las tools del CORE pasan por `run_tool_call`** (`desde_fs`): hooks,
+  denylist y contención de siempre.
+- **El proveedor se normaliza en el adaptador**: DSML → tool calls y
+  sanitizado viven en [utils/proveedor.py](../utils/proveedor.py), que usan
+  el chat y el kernel (antes estaban solo en `nodes.py`).
+
+Instancias: `explorador.py` (PR 1). Siguen supervisor (PR 2), juez y research
+(PR 3) y el chat (PR 4), con los gates de [roadmap.md](roadmap.md).
+
 ## Salidas — una carpeta, no una raíz llena de .md
 
 Higienizado (2026-10-05): todas las piezas escribían sus informes en la

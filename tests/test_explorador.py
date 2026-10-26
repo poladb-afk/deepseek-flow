@@ -19,7 +19,7 @@ def test_explorador_contexto_fresco_whitelist_y_presupuesto(tmp_path, monkeypatc
     pregunta (nada del padre); la whitelist no tiene escritura ni
     run_command; el presupuesto se respeta y se declara; el retorno es texto."""
     monkeypatch.setattr(ex, "MAX_PASOS_EXPLORADOR", 2)
-    monkeypatch.setitem(ex.REGISTRO, "read_file", lambda **k: "contenido de a.py")
+    monkeypatch.setattr("utils.fs_tools.read_file", lambda **k: "contenido de a.py")
 
     vistos = []
 
@@ -32,6 +32,7 @@ def test_explorador_contexto_fresco_whitelist_y_presupuesto(tmp_path, monkeypatc
     monkeypatch.setattr(ex, "call_llm_agent", call_llm_agent_fake)
 
     texto = ex.explorar("¿dónde se define la whitelist?")
+    # desde H2 el cierre forzado es la llamada SIN tools: con saldo 2 hay 3 llamadas
 
     # contexto fresco: la 1ª llamada ve exactamente system + pregunta
     primeros = vistos[0][0]
@@ -53,7 +54,7 @@ def test_explorador_tool_fuera_de_la_whitelist_no_existe(tmp_path, monkeypatch):
     """C2: aunque el modelo pida run_command, run_tool_call no la conoce para
     el explorador (el permiso es el mapa) y no se ejecuta nada."""
     ejecutados = []
-    monkeypatch.setitem(ex.REGISTRO, "read_file", lambda **k: ejecutados.append(k) or "x")
+    monkeypatch.setattr("utils.fs_tools.read_file", lambda **k: ejecutados.append(k) or "x")
 
     pasos = {"n": 0}
 
@@ -106,12 +107,32 @@ def test_supervisor_no_anuncia_explorar_en_la_ultima_ronda(monkeypatch):
 
 
 def test_explorar_por_el_flow_completo(tmp_path, monkeypatch):
-    """El mini-flow real (nodos + Flow) con el LLM mockeado: una ronda de
-    lectura, cierre, y el resumen como texto."""
+    """El loop real (el kernel: nodos + Flow) con el LLM mockeado: sin tools
+    pedidas cierra en una llamada, con el resumen como texto y 0 rondas."""
+    vistos = []
     monkeypatch.setattr(ex, "call_llm_agent",
-                        lambda messages, tools=None: MsgFake(content="resumen: a.py:3"))
-    shared = ex.semilla("¿dónde está?")
-    ex.create_explorador_flow().run(shared)
-    assert shared["_terminado"] is True
-    assert shared["resumen"] == "resumen: a.py:3"
-    assert shared["rondas"] == 0
+                        lambda messages, tools=None: vistos.append(tools) or MsgFake(content="resumen: a.py:3"))
+    texto = ex.explorar("¿dónde está?")
+    assert texto.startswith("resumen: a.py:3")
+    assert "usó 0 de" in texto
+    assert len(vistos) == 1 and {t["function"]["name"] for t in vistos[0]} == set(ex.PERMITIDAS)
+
+
+def test_el_explorador_como_tool_del_kernel_usa_su_system(monkeypatch):
+    """La tool que el supervisor va a llamar desde el kernel (PR 2) corre con
+    el MISMO system de solo lectura que explorar(): no uno vacío."""
+    import json
+
+    from utils.kernel import Ctx, Ledger
+
+    vistos = []
+
+    def llm(messages, tools=None):
+        vistos.append(messages[0]["content"])
+        return MsgFake(content="resumen")
+
+    llamada = {"id": "1", "function": {"name": "explorar",
+                                        "arguments": json.dumps({"pregunta": "¿dónde está X?"})}}
+    assert ex.AGENTE.correr(llamada, Ctx(llm, Ledger(3))) == "resumen"
+    assert "sub-agente de INVESTIGACIÓN" in vistos[0] and "¿dónde está X?" in vistos[0]
+    assert ex.AGENTE.efecto == "lectura"

@@ -49,9 +49,9 @@
           74
         ],
         "nodes.py": [
-          48,
-          1014,
-          1086
+          55,
+          945,
+          1017
         ],
         "research.py": [
           78
@@ -162,7 +162,7 @@
         "tests/test_estado_riesgo.py": 3,
         "tests/test_estilo_humano.py": 9,
         "tests/test_evals.py": 15,
-        "tests/test_explorador.py": 5,
+        "tests/test_explorador.py": 6,
         "tests/test_fable.py": 29,
         "tests/test_fable_dominios.py": 6,
         "tests/test_fable_judge.py": 66,
@@ -173,6 +173,7 @@
         "tests/test_grafos_sin_calles_muertas.py": 4,
         "tests/test_hitl.py": 23,
         "tests/test_inventario.py": 3,
+        "tests/test_kernel.py": 13,
         "tests/test_laya.py": 6,
         "tests/test_laya_cache_reintento.py": 5,
         "tests/test_laya_routing.py": 38,
@@ -210,7 +211,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1024
+      "metrica": 1038
     }
   },
   "version": 1

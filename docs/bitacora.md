@@ -4584,3 +4584,21 @@ la sección "Vision/PDF y A2A" de design.md.
 **El `no-hecha` de `correr-tests` era del entorno, no del modelo**: pytest corrido dentro del chat heredaba `HITL_SCOPE` y `por_scope` contestaba los HITL de los tests (24 passed + 2 failed adentro, 26 afuera). El modelo lo detectó y explicó la discrepancia. También en `banco-1`: un `mkdir no_se_debe_crear` aprobado por scope.
 
 **Cambio**: fixture autouse en `conftest.py` que limpia `HITL_SCOPE` y fija `HITL_WEB=0`. Reproducido sin LLM: con `HITL_SCOPE` en el entorno, `test_policy.py`+`test_hitl.py` daban 3 failed y dejaban el residuo; con el fixture, 49 passed y sin residuo. Esperado en la próxima corrida: `friccion-auto` 7/7.
+
+
+## H2 PR 1 — el kernel y el explorador (2026-10-26)
+
+**Decisiones** (X70, X71): la fricción de `auto` se acepta (A) y H1 queda cerrado; se levanta "parche mínimo" para H2.
+
+**Cambio**: `utils/kernel.py` (204 líneas: Ledger, Tool, Ctx, `loop`, `agente`, `correr`, `desde_fs`) y `utils/proveedor.py` (DSML y sanitizado, movidos de `nodes.py` sin cambios: 1131 → 1062 líneas). `explorador.py` deja su loop propio y es `correr(system, pregunta, TOOLS, Ctx(...))`: 158 → 67 líneas, misma whitelist, mismo presupuesto propio y el mismo `usó N de M`.
+
+**Medición sin LLM**: `tests/test_kernel.py` (10) fija las leyes: contexto fresco, saldo único compartido por el árbol, cierre como arista (incluida la carrera de saldo entre agentes), lecturas en paralelo (4 × 0,3 s en < 0,9 s) y escrituras en orden, profundidad acotada, DSML y sanitizado. Los 5 tests de `test_explorador.py` siguen con su nombre (2 adaptados: el registro privado y el flow privado ya no existen). Caracterización del chat: idéntica byte a byte. Suite 1037 passed; ratchet `tests_definidos` 1024 → 1034, el resto igual.
+
+**Pendiente con LLM real (gate propio del PR 1)**: fable s17–s20 con `EXPLORAR=1`, igual o mejor que antes.
+
+
+## H2 PR 1b — lo que dejó la auditoría del PR 1 (2026-10-26)
+
+**Medición del operador con LLM real**: fable s17–s20 con `EXPLORAR=1` dio s17=1, s18=1, s19=0, s20=2 con **0 llamadas a `explorar`** (con adopción forzada el modelo respondió "No existe la tool `explorar`"): la tool vive solo en el catálogo del supervisor. El gate estaba mal escrito y medía varianza del chat. `explorar()` en vivo: citas exactas de `policy.py` y `usó 3 de 3 rondas`.
+
+**Cambio**: `agente()` exige system y acepta `pedido -> texto`; `explorador.AGENTE` lo arma con `system_prompt` (antes vacío); argumentos ilegibles o vacíos vuelven como ERROR. Gate del explorador movido al PR 2 (`bench_supervisor` con los dos brazos) y regla nueva en el roadmap: el gate prueba que la pieza corrió.

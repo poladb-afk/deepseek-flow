@@ -1,0 +1,218 @@
+"""El kernel fractal (H2): agente = Flow = Node = Tool.
+
+Una sola primitiva para todo loop agéntico del harness. `loop()` es el grafo
+(Paso → Actuar → Paso, con el cierre por presupuesto como ARISTA, no como
+guardas); `agente()` lo envuelve como una `Tool` que cualquier otro loop puede
+llamar, con contexto fresco y profundidad acotada. El presupuesto (`Ledger`)
+es UNO para todo el árbol: un sub-agente gasta del mismo saldo que su padre.
+
+Leyes, por construcción (evidencia en docs/roadmap.md, sección H2/H3):
+- presupuesto en código, único por árbol (L8);
+- en paralelo solo lo que lee (`efecto="lectura"`); lo que escribe, en un
+  solo hilo y por `run_tool_call` (hooks, denylist y HITL de siempre);
+- profundidad máxima 1 por defecto (un agente puede llamar agentes; esos no);
+- la respuesta final es siempre del agente que se llamó (agents as tools).
+
+Sync a propósito: el harness entero lo es (call_llm_agent, run_tool_call,
+input()). Las lecturas en paralelo usan hilos: son I/O."""
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
+
+from pocketflow import Flow, Node
+
+from utils import fs_tools
+from utils.historial import as_dict, historiar
+from utils.proveedor import RE_DSML, dsml_a_tool_calls, sanitizar
+
+PARALELO_MAX = 8
+
+
+@dataclass
+class Ledger:
+    """Rondas de tools que le quedan a TODO el árbol de agentes."""
+
+    rondas: int
+
+    def tomar(self):
+        if self.rondas <= 0:
+            return False
+        self.rondas -= 1
+        return True
+
+
+@dataclass
+class Tool:
+    """Una capacidad: esquema para el modelo + cómo correrla + qué efecto tiene.
+    `correr(args, ctx) -> str`; el texto es lo que ve el modelo."""
+
+    nombre: str
+    esquema: dict
+    correr: object
+    efecto: str = "lectura"  # lectura | escritura
+
+
+@dataclass
+class Ctx:
+    """Lo que el árbol comparte: el LLM, el saldo y la traza."""
+
+    llm: object
+    ledger: Ledger
+    profundidad: int = 0
+    max_profundidad: int = 1
+    traza: list = field(default_factory=list)
+
+    def hijo(self):
+        return Ctx(self.llm, self.ledger, self.profundidad + 1, self.max_profundidad, self.traza)
+
+
+def desde_fs(nombre, efecto="lectura"):
+    """Una tool del CORE (`fs_tools`) como Tool: pasa por `run_tool_call`, el
+    único camino con hooks pre/post."""
+    esquema = next(t for t in fs_tools.TOOLS if t["function"]["name"] == nombre)
+
+    def correr(llamada, ctx):
+        return fs_tools.run_tool_call(llamada)["content"]
+
+    return Tool(nombre, esquema, correr, efecto)
+
+
+SIN_TEXTO = "(sin texto: el modelo pidió herramientas sin presupuesto; cierro con lo leído)"
+
+
+def normalizar(msg, ofrece_tools):
+    """La respuesta del proveedor en forma canónica: DSML → tool calls (solo
+    si se ofrecieron tools), sin markers de rol ni tags espurios. Sin tools
+    ofrecidas, lo que el modelo pida igual se descarta (L8) y queda su texto;
+    si no trajo texto, uno honesto: una respuesta vacía no cierra nada."""
+    if not getattr(msg, "tool_calls", None) and RE_DSML.search(msg.content or ""):
+        corte = RE_DSML.search(msg.content).start()
+        llamadas = dsml_a_tool_calls(msg.content) if ofrece_tools else []
+        msg.content = None if llamadas else msg.content[:corte].rstrip()
+        msg.tool_calls = llamadas or None
+    if not ofrece_tools:
+        msg.tool_calls = None
+    if not msg.tool_calls:
+        msg.content, _ = sanitizar(msg.content or "")
+        msg.content = msg.content or SIN_TEXTO
+    return msg
+
+
+class Paso(Node):
+    """Una llamada al modelo. Sin saldo, la llamada va SIN tools (cierre)."""
+
+    def prep(self, s):
+        tools = [t.esquema for t in s["tools"]] if s["ctx"].ledger.rondas > 0 else None
+        return s["mensajes"], tools
+
+    def exec(self, entrada):
+        mensajes, tools = entrada
+        return normalizar(self.params["llm"](mensajes, tools), tools is not None)
+
+    def post(self, s, entrada, msg):
+        s["mensajes"].append(historiar(msg))
+        if not msg.tool_calls:
+            return "respuesta"
+        return "actuar" if s["ctx"].ledger.tomar() else "cerrar"
+
+
+class Actuar(Node):
+    """Corre las tool calls del último mensaje. Si TODAS son de lectura van
+    en paralelo; si alguna escribe, todas van en orden (un solo hilo)."""
+
+    def prep(self, s):
+        return s
+
+    def exec(self, s):
+        por_nombre = {t.nombre: t for t in s["tools"]}
+        llamadas = [as_dict(tc) for tc in s["mensajes"][-1]["tool_calls"]]
+
+        def una(llamada):
+            tool = por_nombre.get(llamada["function"]["name"])
+            if tool is None:
+                return f"ERROR: herramienta desconocida: {llamada['function']['name']}"
+            return str(tool.correr(llamada, s["ctx"]))
+
+        lectura = all(getattr(por_nombre.get(c["function"]["name"]), "efecto", "") == "lectura"
+                      for c in llamadas)
+        if lectura and len(llamadas) > 1:
+            with ThreadPoolExecutor(min(PARALELO_MAX, len(llamadas))) as hilos:
+                return llamadas, list(hilos.map(una, llamadas))
+        return llamadas, [una(c) for c in llamadas]
+
+    def post(self, s, _, resultado):
+        llamadas, contenidos = resultado
+        for llamada, contenido in zip(llamadas, contenidos, strict=True):
+            s["ctx"].traza.append((s["ctx"].profundidad, llamada["function"]["name"]))
+            s["mensajes"].append({"role": "tool", "tool_call_id": llamada["id"], "content": contenido})
+        return "paso"
+
+
+class Fin(Node):
+    """La respuesta quedó en el historial: el loop termina acá."""
+
+
+class Cerrar(Node):
+    """Saldo agotado con tool calls pendientes: no se ejecutan; se responden
+    como no ejecutadas (el historial queda válido) y el modelo cierra sin tools."""
+
+    def post(self, s, *_):
+        for tc in s["mensajes"][-1]["tool_calls"]:
+            s["mensajes"].append({"role": "tool", "tool_call_id": tc["id"],
+                                  "content": "(no ejecutada: presupuesto de herramientas agotado)"})
+        return "paso"
+
+
+def loop(llm, max_retries=3, wait=5):
+    paso, actuar, cerrar = Paso(max_retries=max_retries, wait=wait), Actuar(), Cerrar()
+    paso - "actuar" >> actuar
+    paso - "cerrar" >> cerrar
+    paso - "respuesta" >> Fin()
+    actuar - "paso" >> paso
+    cerrar - "paso" >> paso
+    flujo = Flow(start=paso)
+    flujo.set_params({"llm": llm})
+    return flujo
+
+
+def correr(system, pedido, tools, ctx, max_retries=3, wait=5):
+    """Un agente de punta a punta con contexto FRESCO (system + pedido, nada
+    del llamador). Devuelve (respuesta, mensajes)."""
+    s = {"ctx": ctx, "tools": tools,
+         "mensajes": [{"role": "system", "content": system}, {"role": "user", "content": pedido}]}
+    loop(ctx.llm, max_retries, wait).run(s)
+    return s["mensajes"][-1].get("content") or "", s["mensajes"]
+
+
+def agente(nombre, descripcion, system, tools, parametro="pedido"):
+    """El fractal: un agente ES una Tool. El que lo llama le pasa el pedido;
+    el agente corre su loop con contexto fresco y el MISMO ledger, y devuelve
+    su respuesta como texto. Más allá de `max_profundidad`, se niega.
+
+    `system` es el texto o una función `pedido -> texto` (el explorador arma
+    el suyo con la pregunta). Argumentos ilegibles vuelven como ERROR al
+    modelo, como cualquier tool: no cortan el loop del padre."""
+    import json
+
+    if not system:
+        raise ValueError(f"agente {nombre!r} sin system: el sub-agente correría sin instrucciones")
+    armar = system if callable(system) else (lambda _pedido: system)
+
+    esquema = {"type": "function", "function": {
+        "name": nombre, "description": descripcion,
+        "parameters": {"type": "object", "required": [parametro], "properties": {
+            parametro: {"type": "string", "description": "Qué tiene que resolver, autocontenido"}}}}}
+
+    def correr_agente(llamada, ctx):
+        if ctx.profundidad >= ctx.max_profundidad:
+            return f"ERROR: {nombre} no puede delegar más (profundidad máxima {ctx.max_profundidad})"
+        try:
+            args = json.loads(llamada["function"].get("arguments") or "{}")
+        except (ValueError, TypeError):
+            return f"ERROR: argumentos de {nombre} ilegibles (se espera JSON con `{parametro}`)"
+        pedido = str(args.get(parametro, "") if isinstance(args, dict) else "").strip()
+        if not pedido:
+            return f"ERROR: {nombre} necesita `{parametro}`"
+        respuesta, _ = correr(armar(pedido), pedido, tools, ctx.hijo())
+        return respuesta
+
+    return Tool(nombre, esquema, correr_agente, "lectura" if all(t.efecto == "lectura" for t in tools) else "escritura")

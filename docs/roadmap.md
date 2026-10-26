@@ -6,22 +6,28 @@
 
 Cada etapa tiene un gate medible y ninguna empieza hasta que la anterior lo
 pasa. Hechos: H1 (el pedido HITL como dato, X66), H1b (cierre y gate de H2,
-X67), H1c (IDs) y H1d (escenarios que miden, X68).
+X67), H1c (IDs), H1d (escenarios que miden, X68), H1e (suite sin el aprobador
+del chat, X69). **H1 cerrado** (X70): `friccion-auto` 7/7 con 2 HITL (glob)
+en 6 tareas, aceptado por el operador.
 
-**Ahora — cerrar H1.** Correr `banco/escenarios/friccion-auto.yaml` con LLM
-real. Gate (decisión del operador): ¿la fricción nueva de `auto` (glob,
-`$VAR`, `~`, llaves → pregunta) es aceptable frente a las tareas hechas? Si
-no, se ajusta qué cuenta como opaco (`utils/policy.opaco`); no se revierte.
+**H2 PR 1 cerrado** (X71, X72): kernel y explorador; gates deterministas
+verdes, caracterización idéntica y `explorar()` en vivo (citas correctas,
+`usó 3 de 3`). El gate "fable s17–s20 con `EXPLORAR=1`" estaba mal escrito:
+`explorar` solo existe en el catálogo del supervisor, y fable corre por el
+chat (0 llamadas en las 4 corridas). La medición del explorador pasa al PR 2.
+
+**Ahora — H2 PR 2.** `supervisor.py` sobre el kernel.
 
 **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
-Antes: registrar en `docs/estado.md` que se levanta "parche mínimo" para H2;
-el kernel con streaming y Ctrl+C; DSML y sanitizado en el adaptador del LLM;
-Laya como nodo. Después, un PR por loop, del más chico al más grande:
+"Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`
+(design.md, "El kernel fractal"); DSML y sanitizado en `utils/proveedor.py`.
+Streaming y Ctrl+C entran con el PR 4 (el chat es el único loop que los usa);
+Laya como nodo, también en el PR 4. Un PR por loop, del más chico al más grande:
 
 | PR | Reemplaza | Gate propio |
 |---|---|---|
-| 1 | `explorador.py` | fable s17–s20 igual o mejor |
-| 2 | `supervisor.py` | `bench_supervisor` igual o mejor, ≤ llamadas |
+| 1 ✅ | `explorador.py` | deterministas + `explorar()` en vivo (el de fable no podía ejercitarlo: ver X72) |
+| 2 | `supervisor.py` (comparte el `Ledger` con el explorador) | `bench_supervisor` igual o mejor y ≤ llamadas, con `EXPLORAR=0` y `EXPLORAR=1`; con `=1`, `explorar` llamado al menos una vez (si no, el brazo no midió nada) |
 | 3 | `juez`, `research` | `bench_juez` igual o mejor |
 | 4 | el chat (`nodes.py`): estado por pregunta (las claves `_x`) y los globals dentro del `Ctx` (F5) | banco completo con `verificar:`: ≥ tareas hechas, ≤ tokens |
 
@@ -37,6 +43,8 @@ iguales, costo ≤ +10%); F sacar del prompt lo que la estructura reemplazó
 
 **Regla para el banco**: todo escenario nuevo trae `verificar:` con un
 chequeo que falle si el modelo no hace nada (lo exige `cargar_escenario`).
+**Regla para los gates**: un gate que mide una pieza tiene que probar que la
+pieza CORRIÓ (conteo de llamadas, marcador en la traza). Sin eso mide ruido.
 
 ## Historial (cola previa a la auditoría)
 
