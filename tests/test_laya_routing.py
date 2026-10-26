@@ -239,7 +239,7 @@ def test_shadow_con_probabilidades_deja_el_pendiente_igual_al_id(tmp_path, monke
                  "probabilities": {"directo": 0.9, "herramientas": 0.1}}
     assert router.post(shared, {"pregunta": "q"}, respuesta) == "herramientas"
     linea = json.loads(archivo.read_text(encoding="utf-8").strip())
-    assert shared["_router_pendiente"] == linea["id"]
+    assert shared["turno"]["router_pendiente"] == linea["id"]
 
 
 def test_shadow_con_log_apagado_no_deja_pendiente_ni_escribe(tmp_path, monkeypatch):
@@ -264,7 +264,7 @@ def test_shadow_con_log_apagado_no_deja_pendiente_ni_escribe(tmp_path, monkeypat
     respuesta = {"choice": "directo",
                  "probabilities": {"directo": 0.9, "herramientas": 0.1}}
     assert router.post(shared, {"pregunta": "q"}, respuesta) == "herramientas"
-    assert "_router_pendiente" not in shared
+    assert shared.get("turno", {}).get("router_pendiente") is None
     assert not archivo.exists()
 
 
@@ -287,13 +287,13 @@ def test_enforce_y_shadow_sin_probabilidades_no_dejan_pendiente(tmp_path, monkey
     router.post(shared, {"pregunta": "q"}, {"choice": "directo",
                                             "probabilities": {"directo": 0.9,
                                                               "herramientas": 0.1}})
-    assert "_router_pendiente" not in shared
+    assert shared.get("turno", {}).get("router_pendiente") is None
 
     # shadow pero respuesta inválida (p_directo None)
     ajustes["LAYA_MODO"] = "shadow"
     shared = {}
     assert router.post(shared, {"pregunta": "q"}, {}) == "herramientas"
-    assert "_router_pendiente" not in shared
+    assert shared.get("turno", {}).get("router_pendiente") is None
 
 
 def test_agentstep_answer_consume_el_pendiente(tmp_path, monkeypatch):
@@ -312,13 +312,13 @@ def test_agentstep_answer_consume_el_pendiente(tmp_path, monkeypatch):
     paso = nodes.AgentStep()
     respuesta = SimpleNamespace(content="listo", tool_calls=None)
 
-    shared = {"messages": [], "tool_rounds": 0, "_router_pendiente": "id0"}
+    shared = {"messages": [], "turno": {**nodes.nuevo_turno(), "router_pendiente": "id0"}}
     assert paso.post(shared, None, respuesta) == "answer"
     linea = json.loads(archivo.read_text(encoding="utf-8").strip())
     assert linea["id"] == "id0" and linea["uso_tools"] is False
-    assert "_router_pendiente" not in shared
+    assert shared["turno"]["router_pendiente"] is None
 
-    shared = {"messages": [], "tool_rounds": 3, "_router_pendiente": "id3"}
+    shared = {"messages": [], "turno": {**nodes.nuevo_turno(), "rondas": 3, "router_pendiente": "id3"}}
     paso.post(shared, None, respuesta)
     ult = json.loads(archivo.read_text(encoding="utf-8").strip().splitlines()[-1])
     assert ult["id"] == "id3" and ult["uso_tools"] is True and ult["rondas"] == 3
@@ -342,9 +342,9 @@ def test_agentstep_con_tool_calls_no_consume_el_pendiente(tmp_path, monkeypatch)
         content=None,
         tool_calls=[SimpleNamespace(id="x", function=SimpleNamespace(name="read_file", arguments="{}"))],
     )
-    shared = {"messages": [], "tool_rounds": 1, "_router_pendiente": "idX"}
+    shared = {"messages": [], "turno": {**nodes.nuevo_turno(), "rondas": 1, "router_pendiente": "idX"}}
     assert paso.post(shared, None, respuesta) == "tool"
-    assert shared["_router_pendiente"] == "idX"
+    assert shared["turno"]["router_pendiente"] == "idX"
     assert not archivo.exists()
 
 
@@ -354,10 +354,10 @@ def test_getquestion_limpia_un_pendiente_huerfano(monkeypatch):
     import nodes
 
     monkeypatch.setattr(nodes, "registrar_pregunta", lambda *a, **k: None)
-    shared = {"messages": [], "tool_rounds": 5, "_router_pendiente": "viejo"}
+    shared = {"messages": [], "turno": {**nodes.nuevo_turno(), "rondas": 5, "router_pendiente": "viejo"}}
     nodes.GetQuestion().post(shared, None, "otra pregunta")
-    assert "_router_pendiente" not in shared
-    assert shared["tool_rounds"] == 0
+    assert shared["turno"]["router_pendiente"] is None
+    assert shared["turno"]["rondas"] == 0
 
 
 def _decision(id_, propuesta, p_directo, ts=1.0, pregunta=None, origen="terminal"):

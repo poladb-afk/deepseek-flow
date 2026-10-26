@@ -125,7 +125,7 @@ def test_actualizar_novedad_queda_json():
     shared = {}
     tc = {"function": {"name": "read_file", "arguments": "{}"}}
     nodes.actualizar_novedad(shared, [tc, tc])
-    assert isinstance(shared["_huellas_vistas"], list) and len(shared["_huellas_vistas"]) == 1
+    assert isinstance(shared["turno"]["huellas_vistas"], list) and len(shared["turno"]["huellas_vistas"]) == 1
     json.dumps(shared)
 
 

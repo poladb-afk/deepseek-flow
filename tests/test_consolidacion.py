@@ -122,7 +122,7 @@ def test_presupuesto_agotado_ignora_tool_calls_nativos(monkeypatch, contenido):
     msg = NS(content=contenido, tool_calls=[NS(id="1", function=NS(name="read_file", arguments="{}"))])
     monkeypatch.setattr(nodes, "call_llm_agent", lambda m, t: msg)
     shared = {"messages": [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}],
-              "tool_rounds": 99}
+              "turno": {**nodes.nuevo_turno(), "rondas": 99}}
     accion = nodes.AgentStep()._run(shared)
     assert accion == "answer"
     ultimo = shared["messages"][-1]

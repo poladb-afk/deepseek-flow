@@ -28,8 +28,9 @@ Laya como nodo, también en el PR 4. Un PR por loop, del más chico al más gran
 |---|---|---|
 | 1 ✅ | `explorador.py` | deterministas + `explorar()` en vivo (el de fable no podía ejercitarlo: ver X72) |
 | 2 ✅ código | `supervisor.py` (comparte el `Ledger` con el explorador) | `bench_supervisor` igual o mejor y ≤ llamadas, con `EXPLORAR=0` y `EXPLORAR=1`; con `=1`, `explorar` llamado al menos una vez (si no, el brazo no midió nada) |
-| 3 | `juez`, `research` | `bench_juez` igual o mejor |
-| 4 | el chat (`nodes.py`): estado por pregunta (las claves `_x`) y los globals dentro del `Ctx` (F5) | banco completo con `verificar:`: ≥ tareas hechas, ≤ tokens |
+| 3 ✅ revisado | `juez`, `research` | no aplica: pipelines con el reintento como arista, no loops de tools (X74) |
+| 4a ✅ | el chat: estado por pregunta en `shared["turno"]` y estado de sesión en el checkpoint (F5, X75) | caracterización idéntica + sesión guionada idéntica |
+| 4b | el chat: su loop sobre el kernel, con streaming y Ctrl+C en el adaptador; Laya y `VerificarCitas` como nodos alrededor | banco completo con `verificar:`: ≥ tareas hechas, ≤ tokens |
 
 Gate común: `tests/test_caracterizacion_chat.py` pasa sin cambiar una línea,
 `./calidad.sh` verde, ratchet sin empeorar; el viejo se reemplaza (sin `_v2`).

@@ -48,12 +48,15 @@ def checkpoint(id_thread, nodo, accion, shared, ruta_dir=None):
     try:
         destino = _ruta_dir(ruta_dir) / f"{id_thread}.jsonl"
         destino.parent.mkdir(parents=True, exist_ok=True)
+        from utils.estado_sesion import capturar
+
         linea = {
             "ts": round(time.time(), 3),
             "evento": "checkpoint",
             "nodo": nodo,
             "accion": accion,
             "shared": shared,
+            "sesion": capturar(),  # lo del proceso que no vive en shared (F5)
         }
         with open(destino, "a", encoding="utf-8") as f:
             f.write(json.dumps(linea, ensure_ascii=False) + "\n")
@@ -64,12 +67,10 @@ def checkpoint(id_thread, nodo, accion, shared, ruta_dir=None):
         print(f"[thread] checkpoint omitido ({type(e).__name__}: {e})", flush=True)
 
 
-def cargar(id_thread, ruta_dir=None):
-    """Devuelve el `shared` de la ÚLTIMA LÍNEA COMPLETA del archivo, o None.
-
-    Tolerante a una cola cortada a mitad por un crash: el JSON que no parsea se
-    saltea desde el final y se retrocede hasta la primera línea que sí parsea.
-    Si no existe el archivo o no hay ninguna línea válida, devuelve None."""
+def _ultima_linea(id_thread, ruta_dir=None):
+    """La ÚLTIMA LÍNEA COMPLETA del archivo (dict), o None. Tolerante a una
+    cola cortada a mitad por un crash: el JSON que no parsea se saltea desde
+    el final y se retrocede hasta la primera línea que sí parsea."""
     try:
         archivo = _ruta_dir(ruta_dir) / f"{id_thread}.jsonl"
         if not archivo.exists():
@@ -85,9 +86,21 @@ def cargar(id_thread, ruta_dir=None):
         except (json.JSONDecodeError, ValueError):
             continue  # cola cortada a mitad: se descarta y se sigue
         if isinstance(evento, dict) and isinstance(evento.get("shared"), dict):
-            return evento["shared"]
+            return evento
     return None
 
+
+def cargar(id_thread, ruta_dir=None):
+    """Devuelve el `shared` de la ÚLTIMA LÍNEA COMPLETA del archivo, o None."""
+    evento = _ultima_linea(id_thread, ruta_dir)
+    return evento["shared"] if evento else None
+
+
+def cargar_sesion(id_thread, ruta_dir=None):
+    """El estado de sesión del proceso guardado con ese checkpoint (o None:
+    los checkpoints anteriores a F5 no lo traen)."""
+    evento = _ultima_linea(id_thread, ruta_dir)
+    return evento.get("sesion") if evento else None
 
 def reparar_pendientes(shared):
     """Repara los `tool_calls` HUÉRFANOS del ÚLTIMO assistant: devuelve cuántos.

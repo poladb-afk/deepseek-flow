@@ -13,12 +13,32 @@ rompería a la primera llamada, así que se avisa y se sale sin arrancar."""
 import sys
 
 from flow import create_agent_flow
-from utils.thread_store import cargar, reparar_pendientes, valido
+from utils.estado_sesion import restaurar
+from utils.thread_store import cargar, cargar_sesion, reparar_pendientes, valido
+
+# Claves sueltas de la pregunta en curso, antes de la caja `turno` (H2 PR 4a):
+# un checkpoint viejo las trae así y se migran al rehidratar.
+CLAVES_VIEJAS = {"tool_rounds": "rondas", "no_progress": "sin_progreso", "_fp": "huella",
+                 "_huellas_vistas": "huellas_vistas", "_racha_sin_novedad": "racha_sin_novedad",
+                 "_corte_novedad": "corte_novedad", "_aviso_cierre": "aviso_cierre",
+                 "_skill_activo": "skill", "_router_pendiente": "router_pendiente",
+                 "_uso_inicio_pregunta": "uso_inicio"}
+
+
+def migrar(shared):
+    """El shared de un checkpoint anterior a la caja `turno`, con su caja.
+    PURA sobre el dict; idempotente."""
+    from nodes import nuevo_turno
+
+    viejas = {nueva: shared.pop(vieja) for vieja, nueva in CLAVES_VIEJAS.items() if vieja in shared}
+    if "turno" not in shared:
+        shared["turno"] = {**nuevo_turno(), **viejas}
+    return shared
 
 
 def _banner(id_thread, shared, reparadas=0):
     mensajes = shared.get("messages", [])
-    rondas = shared.get("tool_rounds", 0)
+    rondas = (shared.get("turno") or {}).get("rondas", 0)
     extra = f" · {reparadas} llamada(s) interrumpida(s) reparadas" if reparadas else ""
     print(
         f"[thread] id {id_thread} · {len(mensajes)} mensajes restaurados · "
@@ -43,6 +63,8 @@ def main(args):
     # exp/49: si el proceso murió entre la SELECCIÓN y la EJECUCIÓN de las
     # tools, el último assistant tiene tool_calls huérfanos. Se reparan ANTES
     # de validar (el mensaje honesto los hace válidos) y el banner lo dice.
+    migrar(shared)
+    restaurar(cargar_sesion(id_thread))  # costo, aprobaciones e intención (F5)
     reparadas = reparar_pendientes(shared)
     violaciones = valido(shared)
     if violaciones:
@@ -59,7 +81,6 @@ def main(args):
     from main import system_prompt
 
     shared.setdefault("messages", [{"role": "system", "content": system_prompt()}])
-    shared.setdefault("tool_rounds", 0)
     _banner(id_thread, shared, reparadas)
     try:
         create_agent_flow().run(shared)

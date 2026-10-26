@@ -4611,3 +4611,14 @@ la sección "Vision/PDF y A2A" de design.md.
 **Medición sin LLM**: v2 y v3 con el mismo LLM guionado en 5 casos (cierre sin tools, dos lecturas, agotar el tope, veto por fallos, caché de la idéntica): mismas llamadas al LLM, mismas tools en la última, mismos pasos y mismos vetos en el informe. Los 6 tests que usaban `UnPaso`/`Ejecutar` conservan su nombre sobre el flujo nuevo; 3 nuevos (saldo compartido, efecto por tool, conteo de exploraciones). Caracterización del chat idéntica. Suite 1044 passed; ratchet 1038 → 1041.
 
 **Gate con LLM real (pendiente)**: `bench_supervisor` con `EXPLORAR=0` y `EXPLORAR=1` contra el baseline de v2; con `=1`, la columna `explorar` tiene que ser > 0.
+
+
+## H2 PR 3 (revisado) y PR 4a — la caja de la pregunta (2026-10-26)
+
+**PR 3, decisión** (X74): juez y research se quedan como pipelines. No son loops de tool calling y su reintento ya es arista.
+
+**PR 4a** (X75): el estado de la pregunta pasa a `shared["turno"]`, que `GetQuestion` reemplaza entera (los 10 `shared.pop` de `nodes.py` → 0). `utils/estado_sesion` es el único dueño del estado de PROCESO (último mensaje del usuario, uso de tokens, historial HITL): `capturar()` lo guarda en cada checkpoint y `resume` lo repone con `restaurar()`, además de migrar checkpoints viejos con claves sueltas.
+
+**Medición sin LLM**: sesión completa guionada (3 preguntas con un "seguí") en 4 casos (presupuesto, sin progreso, directo, mixto) sobre PR 2 y PR 4a: mismas llamadas al LLM, mismas tools por llamada, mismas tools ejecutadas y el mismo historial. Caracterización idéntica. 16 tests que leían claves privadas migrados a la caja con su nombre; 6 nuevos. Suite 1050 passed; ratchet 1041 → 1047.
+
+**Sigue**: PR 4b, el loop del chat sobre el kernel (streaming y Ctrl+C en el adaptador).

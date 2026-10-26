@@ -1,14 +1,14 @@
-"""Estado de sesión mínimo: el último mensaje del usuario (plumbing, exp/44).
+"""Estado de SESIÓN del proceso: lo que no vive en `shared` y un resume debe recuperar.
 
-El juez de riesgo necesita la EVIDENCIA DE INTENCIÓN —el último mensaje del
-usuario del chat— para juzgar si el comando propuesto se alinea con lo pedido
-(ley de la casa: el estado lleva la evidencia de intención, NUNCA el
-razonamiento del propio agente). Los módulos de tools no ven `shared`, así que
-esa evidencia vive acá, en un módulo mínimo con dos funciones.
+Tres piezas viven fuera del grafo porque las tools y el LLM no ven `shared`:
+la evidencia de intención del juez de riesgo (el último mensaje del usuario,
+exp/44), el uso de tokens de la sesión (`utils.call_llm`) y el historial de
+aprobaciones HITL (`utils.aprobaciones`). Este módulo es su ÚNICO dueño para
+guardar y restaurar: `capturar()` las junta en un dict JSON que el checkpoint
+escribe junto al `shared`, y `restaurar()` las repone al rehidratar.
 
-Contrato: `recordar_usuario` no valida ni decide (es plumbing); `ultimo_usuario`
-devuelve '' si nunca se sembró. El docstring del módulo no promete más de lo
-que hay.
+Medido (auditoría de elegancia, F5): tras `resume`, el costo de la sesión,
+`/aprobaciones` y la intención del juez arrancaban de cero.
 """
 _ultimo = {"mensaje": ""}
 
@@ -22,3 +22,29 @@ def recordar_usuario(texto):
 def ultimo_usuario():
     """El último mensaje recordado ('' si nunca)."""
     return _ultimo["mensaje"]
+
+
+def capturar():
+    """El estado de sesión del proceso, como dict JSON."""
+    from utils import aprobaciones, call_llm
+
+    return {"usuario": _ultimo["mensaje"],
+            "uso": dict(call_llm.USO),
+            "uso_por_modelo": {m: dict(f) for m, f in call_llm.USO_POR_MODELO.items()},
+            "aprobaciones": aprobaciones.eventos()}
+
+
+def restaurar(estado):
+    """Repone lo capturado (un checkpoint viejo sin sesión no cambia nada).
+    Los acumuladores se REEMPLAZAN, no se suman: el proceso nuevo arranca de
+    cero y el checkpoint trae el total de la sesión hasta ese punto."""
+    from utils import aprobaciones, call_llm
+
+    if not isinstance(estado, dict):
+        return
+    _ultimo["mensaje"] = str(estado.get("usuario") or "")[:1000]
+    call_llm.USO.update({k: int(v) for k, v in (estado.get("uso") or {}).items()})
+    call_llm.USO_POR_MODELO.clear()
+    call_llm.USO_POR_MODELO.update({m: dict(f) for m, f in (estado.get("uso_por_modelo") or {}).items()})
+    aprobaciones.limpiar()
+    aprobaciones.reponer(estado.get("aprobaciones") or [])

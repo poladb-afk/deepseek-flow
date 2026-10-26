@@ -1,0 +1,918 @@
+diff -ruN x/docs/bitacora.md y/docs/bitacora.md
+--- x/docs/bitacora.md	2026-10-26 22:48:12.933446365 +0000
++++ y/docs/bitacora.md	2026-10-26 23:00:45.528843708 +0000
+@@ -4611,3 +4611,14 @@
+ **Medición sin LLM**: v2 y v3 con el mismo LLM guionado en 5 casos (cierre sin tools, dos lecturas, agotar el tope, veto por fallos, caché de la idéntica): mismas llamadas al LLM, mismas tools en la última, mismos pasos y mismos vetos en el informe. Los 6 tests que usaban `UnPaso`/`Ejecutar` conservan su nombre sobre el flujo nuevo; 3 nuevos (saldo compartido, efecto por tool, conteo de exploraciones). Caracterización del chat idéntica. Suite 1044 passed; ratchet 1038 → 1041.
+ 
+ **Gate con LLM real (pendiente)**: `bench_supervisor` con `EXPLORAR=0` y `EXPLORAR=1` contra el baseline de v2; con `=1`, la columna `explorar` tiene que ser > 0.
++
++
++## H2 PR 3 (revisado) y PR 4a — la caja de la pregunta (2026-10-26)
++
++**PR 3, decisión** (X74): juez y research se quedan como pipelines. No son loops de tool calling y su reintento ya es arista.
++
++**PR 4a** (X75): el estado de la pregunta pasa a `shared["turno"]`, que `GetQuestion` reemplaza entera (los 10 `shared.pop` de `nodes.py` → 0). `utils/estado_sesion` es el único dueño del estado de PROCESO (último mensaje del usuario, uso de tokens, historial HITL): `capturar()` lo guarda en cada checkpoint y `resume` lo repone con `restaurar()`, además de migrar checkpoints viejos con claves sueltas.
++
++**Medición sin LLM**: sesión completa guionada (3 preguntas con un "seguí") en 4 casos (presupuesto, sin progreso, directo, mixto) sobre PR 2 y PR 4a: mismas llamadas al LLM, mismas tools por llamada, mismas tools ejecutadas y el mismo historial. Caracterización idéntica. 16 tests que leían claves privadas migrados a la caja con su nombre; 6 nuevos. Suite 1050 passed; ratchet 1041 → 1047.
++
++**Sigue**: PR 4b, el loop del chat sobre el kernel (streaming y Ctrl+C en el adaptador).
+diff -ruN x/docs/design.md y/docs/design.md
+--- x/docs/design.md	2026-10-26 22:48:12.933446365 +0000
++++ y/docs/design.md	2026-10-26 23:00:45.528843708 +0000
+@@ -101,8 +101,8 @@
+ | Clave | Contenido |
+ |---|---|
+ | `messages` | Historial completo: system (fijo) + user + assistant (con `tool_calls` cuando pidió herramientas) + tool (resultados). Es lo único que DeepSeek recibe en cada vuelta |
+-| `tool_rounds` | Rondas de herramientas gastadas en la pregunta actual; lo resetea `GetQuestion` |
+-| `no_progress` / `_fp` | Repeticiones idénticas de la ronda de tools (huella de nombre+argumentos) y su huella anterior; los resetea `GetQuestion` (exp/13, escape por no-progreso) |
++| `turno` | **La caja de la pregunta en curso** (H2 PR 4a, `nodes.nuevo_turno()`): `rondas` (L8), `sin_progreso`/`huella` (exp/13), `huellas_vistas`/`racha_sin_novedad`/`corte_novedad` (exp/52-B), `aviso_cierre`, `skill` (exp/55), `router_pendiente` (exp/43) y `uso_inicio` (exp/90). `GetQuestion` la REEMPLAZA entera: no hay `pop` que olvidar. Es JSON y viaja en el checkpoint |
++| `_objetivo` / `tokens_por_pregunta` | De la SESIÓN, no de la pregunta: la tarea vigente (un "seguí" no la pisa) y el costo cerrado de cada pregunta |
+ | `compacciones` / `_compaccion_huella` | Compactaciones aplicadas al historial y huella del historial ya compactado (evita re-compactar la misma ronda) |
+ | `_respaldo_huella` / `_respaldo_ruta` | Huella de la última zona fría respaldada en `memoria/` y ruta de ese respaldo: si la siguiente compacción descarta la MISMA zona fría no se reescribe (exp/70; el marcador A17 sigue nombrando la ruta vigente) |
+ | `operacion` / `max_tool_rounds` | Perfil de presupuesto declarado por el invocador y override explícito del techo; los lee `presupuesto()` (hoy el chat no los siembra) |
+diff -ruN x/docs/estado.md y/docs/estado.md
+--- x/docs/estado.md	2026-10-26 22:48:12.933446365 +0000
++++ y/docs/estado.md	2026-10-26 23:00:45.528843708 +0000
+@@ -120,6 +120,8 @@
+ | X71 | — | H2 (kernel fractal) es un refactor amplio por definición: la regla blanda "parche mínimo" de AGENTS.md se LEVANTA para H2 por decisión del operador, con estos gates por PR: `tests/test_caracterizacion_chat.py` sin cambiar una línea, `./calidad.sh` verde, ratchet sin empeorar y el gate propio de cada PR (docs/roadmap.md). Sin `_v2`: cada loop viejo se reemplaza | ✅ 2026-10-26 (decisión) | PR 1 hecho: `utils/kernel.py` (Ledger, Tool, Ctx, `loop`, `agente`) + `utils/proveedor.py` (DSML y sanitizado salen de `nodes.py`); `explorador.py` es una instancia del kernel (158 → 67 líneas, sin loop propio) | `tests/test_kernel.py` (10), `tests/test_explorador.py` (5) |
+ | X72 | — | Auditoría de H2 PR 1 (operador, LLM real): (1) el gate "fable s17–s20 con `EXPLORAR=1`" no podía medir el explorador: `explorar` solo existe en el catálogo del supervisor y fable corre por el chat (0 llamadas en 4 corridas; s19=0 era varianza del modelo sobre código que PR 1 no toca); (2) `TOOL_EXPLORAR` se armaba con system vacío: llamado desde el kernel, el sub-agente habría corrido sin sus instrucciones; (3) `json.loads` de los argumentos del agente sin manejo: un JSON malformado cortaba el loop del padre | ✅ 2026-10-26 (H2 PR 1b) | Gate movido al PR 2 con la regla "el gate prueba que la pieza corrió"; `agente()` exige system (texto o `pedido -> texto`) y `explorador.AGENTE` usa `system_prompt`; argumentos ilegibles o vacíos vuelven como ERROR al modelo | `tests/test_kernel.py::test_un_agente_sin_system_no_se_puede_crear`, `::test_argumentos_ilegibles_vuelven_como_error_y_el_loop_sigue`, `tests/test_explorador.py::test_el_explorador_como_tool_del_kernel_usa_su_system` |
+ | X73 | — | El supervisor tenía su propio loop (UnPaso → Ejecutar), su propio presupuesto (`rondas`) y el explorador sumaba 3 rondas por fuera de esas 5; las leyes (veto, caché, repetición) vivían repartidas entre un snapshot de `prep`, un estado "vivo" de `exec` y los contadores de `post` | ✅ 2026-10-26 (H2 PR 2, código) | `supervisor.py` = loop del kernel → `Auditar` → `Sintetizar` (396 → 324 líneas); `con_leyes` envuelve cada Tool con las guardas puras y un lock; un `Ledger` para el árbol (la exploración gasta del mismo saldo); el kernel ofrece un sub-agente solo con saldo ≥ 2; `bench_supervisor` cuenta las exploraciones del informe (el gate prueba que la pieza corrió) | `tests/test_supervisor_convergencia.py::test_supervisor_y_explorador_comparten_el_saldo`, `::test_bench_cuenta_las_exploraciones_del_informe`, `tests/test_flujos.py::test_supervisor_flujo_nuevo_guarda_antes_de_despachar` |
++| X74 | — | PR 3 de H2 revisado (decisión del operador): `juez` y `research` NO son loops de tool calling (el modelo no elige tools; el reintento ya es una arista del grafo, el patrón objetivo) y como tools no consumen rondas del llamador: migrarlos al kernel sumaría un grafo genérico sin cerrar ningún bug | ✅ 2026-10-26 (decisión) | Sin cambio de código; se quedan como pipelines | `tests/test_grafos_sin_calles_muertas.py::test_ningun_nodo_devuelve_una_accion_sin_arista` |
++| X75 | — | El estado de la pregunta eran 10 claves sueltas en `shared` con un `pop` por cada una en `GetQuestion.post` (una clave nueva sin su `pop` se filtraba a la pregunta siguiente, E5), y lo que vive fuera de `shared` (uso de tokens, historial HITL, intención del juez de riesgo) se perdía en `resume` (F5) | ✅ 2026-10-26 (H2 PR 4a) | `shared["turno"]` (`nodes.nuevo_turno()`), reemplazada entera por pregunta: 10 `pop` → 0; `utils/estado_sesion.capturar`/`restaurar` como único dueño del estado de proceso, en cada checkpoint; `resume` migra checkpoints viejos (`resume.migrar`) y repone la sesión | `tests/test_estado_turno.py` (6: `test_una_clave_nueva_de_la_pregunta_no_se_filtra_a_la_siguiente`, `test_el_checkpoint_lleva_la_sesion_y_resume_la_repone`, `test_un_checkpoint_viejo_se_migra_a_la_caja`…) |
+ | X62 | — | El meta-loop exigía un auditor al timón (contestar s/n por tmux): sin conductor no había forma de delegarle trabajo real al harness solo, y cada sesión muerta a mitad (exp/98) se perdía entera; además la regex de scope del banco no matcheaba el prompt de `edit_file` de exp/98 (`¿Aplicar? → ruta (2 hunks…)`) → cualquier conductor habría aprobado ediciones fuera de scope y de la denylist | ✅ 2026-10-25 (exp/99) | `delegar.py`: conductor que reusa el driver PTY y `decision_hitl` del banco, sin `BANCO=1` (origen `terminal`), HITL por scope declarado con rechazo CON motivo (exp/98), doble confirmación solo con prefijo explícito, muerte → `resume` (tope 2) y `THREADS_DIR` propio; regex corregida en `banco/banco.py`. e2e: tarea delegada exit 0 + drill `kill -9` → rehidrata y completa; **par #14/250** de la flywheel con `--env LAYA_MODO=shadow` (día 3/14) | `tests/test_delegar.py` (13: `test_conducir_muerto_resume_y_completa`, `test_plan_respuesta_doble_exige_prefijo_explicito`…), `test_el_scope_cubre_el_prompt_de_edit_file_de_exp98` |
+ | X66 | — | Auditoría 2026-10-26 (H1): el conductor reconstruía el pedido HITL leyendo la pantalla y aprobaba `git push` (la doble confirmación real `(1/2) (s/n):` no matcheaba), el scope comparaba rutas y comandos por prefijo de texto, `auto` salía de las raíces (`cd ..;cat`, `cd` solo, glob, `$VAR`) y por flags agrupadas (`sort -uo/x`), `edit_file` perdía CRLF y bytes no UTF-8, las escrituras pisaban permisos y el checkpoint guardaba reprs (`default=str`) | ✅ 2026-10-26 (H1) | El pedido es DATO: `utils/aprobaciones.Pedido` + `dentro_de_scope`/`por_scope`; banco y conductor pasan el scope por `HITL_SCOPE` y el chat decide en su proceso (fuera `decision_hitl`, `tipo_prompt`, `plan_respuesta`, `_cuerpo`); `policy.segmentos`/`opaco`/`irreversible` como fuente única; getopt en flags cortas; `edit_file` por bytes y estricto; `escribir_atomico` conserva modo y saltos; `shared` JSON puro | `tests/test_auditoria_2026_10_26.py` (`test_la_doble_confirmacion_real_no_se_aprueba_por_scope`, `test_auto_no_sale_de_raices`, `test_checkpoint_ida_y_vuelta_es_identidad`…), `tests/test_delegar.py::test_plan_respuesta_doble_exige_prefijo_explicito` |
+ | X61 | — | El punto de confianza del sistema mostraba diffs recortados sin declarar cuánto faltaba (exp/96: hunks aprobados sin verse) y el rechazo era 'n' mudo — el chat adivinaba el motivo y re-propuso lo mismo | ✅ 2026-10-24 (exp/98) | El prompt de edit_file declara `(N hunks, +A/−B)` del diff COMPLETO y el marcador dice cuántos caracteres quedan sin ver; `Decision(ok, motivo)` con `__bool__`: el rechazo `n <motivo>` viaja al modelo en edit_file/write_file/run_command, con casing conservado; el seam `_approve` tolera bools para siempre (getattr — los mocks existentes intactos, R2) | `test_parser_decision_motivo`, `test_edit_file_prompt_declara_diff_completo`, `test_motivo_del_rechazo_viaja_al_modelo` |
+diff -ruN x/docs/roadmap.md y/docs/roadmap.md
+--- x/docs/roadmap.md	2026-10-26 22:48:12.937446466 +0000
++++ y/docs/roadmap.md	2026-10-26 23:00:45.528843708 +0000
+@@ -28,8 +28,9 @@
+ |---|---|---|
+ | 1 ✅ | `explorador.py` | deterministas + `explorar()` en vivo (el de fable no podía ejercitarlo: ver X72) |
+ | 2 ✅ código | `supervisor.py` (comparte el `Ledger` con el explorador) | `bench_supervisor` igual o mejor y ≤ llamadas, con `EXPLORAR=0` y `EXPLORAR=1`; con `=1`, `explorar` llamado al menos una vez (si no, el brazo no midió nada) |
+-| 3 | `juez`, `research` | `bench_juez` igual o mejor |
+-| 4 | el chat (`nodes.py`): estado por pregunta (las claves `_x`) y los globals dentro del `Ctx` (F5) | banco completo con `verificar:`: ≥ tareas hechas, ≤ tokens |
++| 3 ✅ revisado | `juez`, `research` | no aplica: pipelines con el reintento como arista, no loops de tools (X74) |
++| 4a ✅ | el chat: estado por pregunta en `shared["turno"]` y estado de sesión en el checkpoint (F5, X75) | caracterización idéntica + sesión guionada idéntica |
++| 4b | el chat: su loop sobre el kernel, con streaming y Ctrl+C en el adaptador; Laya y `VerificarCitas` como nodos alrededor | banco completo con `verificar:`: ≥ tareas hechas, ≤ tokens |
+ 
+ Gate común: `tests/test_caracterizacion_chat.py` pasa sin cambiar una línea,
+ `./calidad.sh` verde, ratchet sin empeorar; el viejo se reemplaza (sin `_v2`).
+diff -ruN x/main.py y/main.py
+--- x/main.py	2026-10-26 22:48:12.817443428 +0000
++++ y/main.py	2026-10-26 22:51:50.515060969 +0000
+@@ -280,10 +280,7 @@
+         if isinstance(codigo, int) and not isinstance(codigo, bool):
+             sys.exit(codigo)
+         return
+-    shared = {
+-        "messages": [{"role": "system", "content": system_prompt()}],
+-        "tool_rounds": 0,
+-    }
++    shared = {"messages": [{"role": "system", "content": system_prompt()}]}
+     print(WELCOME)
+     catalogo_memoria()
+     estado_delegadas()
+@@ -336,7 +333,7 @@
+         # la última pregunta nunca vuelve a GetQuestion: se cierra acá.
+         # El resumen de memoria corre DESPUÉS y fuera de toda pregunta:
+         # cuenta en el total de sesión y en ninguna pregunta (declarado).
+-        inicio = shared.pop("_uso_inicio_pregunta", None)
++        inicio = (shared.get("turno") or {}).get("uso_inicio")
+         if inicio is not None:
+             shared.setdefault("tokens_por_pregunta", []).append(
+                 delta_desglose(inicio, desglose))
+diff -ruN x/nodes.py y/nodes.py
+--- x/nodes.py	2026-10-26 22:48:12.825443631 +0000
++++ y/nodes.py	2026-10-26 22:51:50.511060865 +0000
+@@ -165,6 +165,34 @@
+     return masa >= AMPLIO_LINEAS
+ 
+ 
++def nuevo_turno():
++    """El estado de UNA pregunta: todo lo que vale hasta la próxima.
++
++    GetQuestion lo reemplaza ENTERO al recibir una pregunta. Antes eran diez
++    claves sueltas en `shared` y un `pop` por cada una: una clave nueva sin su
++    `pop` se filtraba a la pregunta siguiente y nada lo detectaba (auditoría
++    de elegancia, 2026-10-26). Lo de la sesión (`messages`, compacción,
++    respaldo) y lo de la tarea (`_objetivo`, que sobrevive a un "seguí")
++    quedan fuera de la caja a propósito. Todo es JSON: viaja en el checkpoint."""
++    return {
++        "rondas": 0,             # rondas de tools gastadas (ley L8)
++        "sin_progreso": 0,       # repeticiones de la MISMA ronda (exp/13)
++        "huella": None,          # huella de la última ronda
++        "huellas_vistas": [],    # novedad acumulada (exp/52-B)
++        "racha_sin_novedad": 0,
++        "corte_novedad": False,
++        "aviso_cierre": False,   # el aviso efímero de cierre ya se mandó
++        "skill": None,           # id del skill activo (exp/55)
++        "router_pendiente": None,  # id de la decisión shadow a etiquetar (exp/43)
++        "uso_inicio": None,      # desglose de tokens al empezar (exp/90)
++    }
++
++
++def turno(shared):
++    """La caja de la pregunta en curso (la crea si el shared no la trae)."""
++    return shared.setdefault("turno", nuevo_turno())
++
++
+ def presupuesto(shared):
+     """Techo de rondas de tools para ESTA pregunta. Si el invocador declaró
+     shared['operacion'] con perfil, se usa; si no, un pedido de alcance
+@@ -218,13 +246,11 @@
+     NINGUNA llamada nueva (p. ej. A, B, A, B) también cuenta como sin novedad.
+     Devuelve True si la ronda no estrenó ninguna llamada.
+     """
+-    vistas = shared.setdefault("_huellas_vistas", [])  # lista: el checkpoint es JSON
+-    nuevas = [h for h in dict.fromkeys(huella_llamada(tc) for tc in tool_calls or []) if h not in vistas]
+-    vistas.extend(nuevas)
+-    if nuevas:
+-        shared["_racha_sin_novedad"] = 0
+-    else:
+-        shared["_racha_sin_novedad"] = shared.get("_racha_sin_novedad", 0) + 1
++    t = turno(shared)
++    nuevas = [h for h in dict.fromkeys(huella_llamada(tc) for tc in tool_calls or [])
++              if h not in t["huellas_vistas"]]
++    t["huellas_vistas"].extend(nuevas)
++    t["racha_sin_novedad"] = 0 if nuevas else t["racha_sin_novedad"] + 1
+     return not nuevas
+ 
+ 
+@@ -240,8 +266,8 @@
+     if k <= 0:
+         return False
+     minimo = _entero("CORTE_NOVEDAD_MIN", 3)
+-    return (shared.get("tool_rounds", 0) >= minimo
+-            and shared.get("_racha_sin_novedad", 0) >= k)
++    t = turno(shared)
++    return t["rondas"] >= minimo and t["racha_sin_novedad"] >= k
+ 
+ 
+ MENSAJE_SIN_RESPUESTA = (
+@@ -300,23 +326,12 @@
+         # exp/34: la pregunta real queda registrada para calibrar el router con
+         # tráfico natural (bookkeeping; nunca corta el chat).
+         registrar_pregunta(exec_res)
+-        # Todo presupuesto es POR PREGUNTA (ley L8): el techo de rondas y el
+-        # contador de no-progreso se reinician acá. Sin este reset, un corte
+-        # por no-progreso dejaba las tools retiradas para el resto de la
+-        # sesión (el contador solo se reseteaba en ExecuteTools.post, que ya
+-        # no corría) y el protocolo de continuación de exp/4 quedaba falso.
++        # Todo lo de la pregunta anterior muere acá, de una vez: presupuesto
++        # (L8), no-progreso, novedad, skill, aviso de cierre y la decisión del
++        # router. El costo de la anterior se cierra con su `uso_inicio`.
+         # (/aprobaciones no llega hasta acá: lo atiende exec(), sin gastar turno.)
+-        shared["tool_rounds"] = 0
+-        shared["no_progress"] = 0
+-        shared.pop("_fp", None)
+-        shared.pop("_router_pendiente", None)
+-        shared.pop("_aviso_cierre", None)
+-        # exp/52-B: la novedad es POR PREGUNTA (misma ley L8 que el presupuesto).
+-        shared.pop("_huellas_vistas", None)
+-        shared.pop("_racha_sin_novedad", None)
+-        shared.pop("_corte_novedad", None)
+-        # exp/55: el skill es POR PREGUNTA (se re-evalúa el disparo en el router).
+-        shared.pop("_skill_activo", None)
++        anterior = turno(shared)
++        shared["turno"] = nuevo_turno()
+         # exp/44: el último mensaje del usuario queda como EVIDENCIA DE
+         # INTENCIÓN para el juez de riesgo (import perezoso; los módulos no
+         # ven `shared`). Plumbing, no decide nada.
+@@ -334,11 +349,10 @@
+         from utils.call_llm import desglose_de_sesion
+         from utils.costos import delta_desglose
+ 
+-        inicio = shared.pop("_uso_inicio_pregunta", None)
+-        if inicio is not None:
++        if anterior["uso_inicio"] is not None:
+             shared.setdefault("tokens_por_pregunta", []).append(
+-                delta_desglose(inicio, desglose_de_sesion()))
+-        shared["_uso_inicio_pregunta"] = desglose_de_sesion()
++                delta_desglose(anterior["uso_inicio"], desglose_de_sesion()))
++        shared["turno"]["uso_inicio"] = desglose_de_sesion()
+         # exp/48: punto seguro 1 — la pregunta del usuario quedó registrada.
+         # Checkpoint del shared COMPLETO (bookkeeping: jamás corta el chat).
+         checkpoint(thread_id(), "GetQuestion", "continue", shared)
+@@ -533,30 +547,31 @@
+         # retiran las tools sin esperar el techo — el loop no se paga hasta
+         # el máximo. presupuesto() lee MAX_TOOL_ROUNDS en runtime.
+         tope = presupuesto(shared)
+-        agotado = shared.get("tool_rounds", 0) >= tope
+-        sin_progreso = shared.get("no_progress", 0) >= UMBRAL_SIN_PROGRESO
+-        corte_novedad = shared.pop("_corte_novedad", False)
++        t = turno(shared)
++        agotado = t["rondas"] >= tope
++        sin_progreso = t["sin_progreso"] >= UMBRAL_SIN_PROGRESO
++        corte_novedad, t["corte_novedad"] = t["corte_novedad"], False
+         if sin_progreso and not agotado:
+             # incidente visible desde .runs: el corte NO fue por techo
+             evento_politica("corte_no_progreso")
+         elif corte_novedad and not agotado:
+             evento_politica(
+                 "corte_sin_novedad",
+-                f"{shared.get('_racha_sin_novedad', 0)} rondas sin llamadas nuevas",
++                f"{t['racha_sin_novedad']} rondas sin llamadas nuevas",
+             )
+         # Al llegar al límite de rondas se retiran las tools: el modelo debe responder ya.
+         tools = None if (agotado or sin_progreso or corte_novedad) else TOOLS
+-        if tools is not None and shared.get("_skill_activo"):
++        if tools is not None and t["skill"]:
+             # exp/55: mientras el skill está activo se anuncia SOLO su subset
+             # (guía, no sandbox: el action space completo sigue existiendo).
+             # En shared viaja el ID (JSON): el objeto Skill se guardaba como su
+             # repr y un resume lo cargaba roto (auditoría 2026-10-26, F4).
+             from utils.skills import disponibles, filtrar_tools
+ 
+-            skill = next((h for h in disponibles() if h.id == shared["_skill_activo"]), None)
++            skill = next((h for h in disponibles() if h.id == t["skill"]), None)
+             tools = filtrar_tools(tools, skill) if skill else tools
+-        if tools is None and not shared.get("_aviso_cierre"):
+-            shared["_aviso_cierre"] = True
++        if tools is None and not t["aviso_cierre"]:
++            t["aviso_cierre"] = True
+             # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
+             # el modelo sigue emitiendo tool calls en vez de cerrar la respuesta.
+             return list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None
+@@ -661,11 +676,12 @@
+             print()
+         else:
+             print(f"\nDeepSeek: {exec_res.content}")
+-        pendiente = shared.pop("_router_pendiente", None)
++        t = turno(shared)
++        pendiente, t["router_pendiente"] = t["router_pendiente"], None
+         if pendiente is not None:
+             from utils.laya_routing import registrar_resultado
+ 
+-            rondas = shared.get("tool_rounds", 0)
++            rondas = t["rondas"]
+             registrar_resultado(pendiente, rondas)
+             etiqueta = "herramientas" if rondas else "directo"
+             print(colorear(f"  [router] etiqueta ambiental: {etiqueta} ({rondas} rondas)", "info"))
+@@ -728,29 +744,27 @@
+         return resultados
+ 
+     def post(self, shared, prep_res, exec_res):
+-        shared["tool_rounds"] = shared.get("tool_rounds", 0) + 1
+-        ronda = shared["tool_rounds"]
++        t = turno(shared)
++        t["rondas"] += 1
++        ronda = t["rondas"]
+         tope = presupuesto(shared)
+         # No-progreso (exp/13, opción D): se compara la HUELLA de esta ronda
+         # de tools con la anterior. Igual → acumula; distinta → resetea. El
+         # warning viaja en la conversación (misma vía que la nota), no en la
+         # terminal: es lo único que el modelo lee.
+         fp = fingerprint(prep_res)
+-        if fp == shared.get("_fp"):
+-            shared["no_progress"] = shared.get("no_progress", 0) + 1
+-        else:
+-            shared["no_progress"] = 0
+-        shared["_fp"] = fp
++        t["sin_progreso"] = t["sin_progreso"] + 1 if fp == t["huella"] else 0
++        t["huella"] = fp
+         # exp/52-B: novedad acumulada (tool+argumentos). Con CORTE_NOVEDAD=k
+         # (default 0=off) el loop se corta tras k rondas sin ninguna llamada
+         # nueva; la calidad se valida en el A/B del banco, no acá.
+         sin_novedad = actualizar_novedad(shared, prep_res or [])
+-        if sin_novedad and corte_por_novedad_activo(shared) and not shared.get("_corte_novedad"):
+-            shared["_corte_novedad"] = True
+-        if shared["no_progress"] >= 1 and exec_res:
++        if sin_novedad and corte_por_novedad_activo(shared):
++            t["corte_novedad"] = True
++        if t["sin_progreso"] >= 1 and exec_res:
+             exec_res[-1]["content"] = (
+                 f"{exec_res[-1]['content']}\n⚠ Sin progreso: repetiste la "
+-                f"misma llamada {shared['no_progress'] + 1}ª vez — cambiá de "
++                f"misma llamada {t['sin_progreso'] + 1}ª vez — cambiá de "
+                 "estrategia o cerrá el estado."
+             )
+         # la nota de presupuesto viaja en la conversación (no en la
+@@ -975,7 +989,7 @@
+                 f"skill {skill.id}: disparo declarativo",
+                 None,
+             )
+-            shared["_skill_activo"] = skill.id
++            turno(shared)["skill"] = skill.id
+             shared["messages"].append({"role": "user", "content": mensaje(skill)})
+             print(colorear(f"  [skill] {skill.id} activo — {skill.descripcion}", "info"),
+                   flush=True)
+@@ -1043,7 +1057,7 @@
+             and p_directo is not None
+             and _setting("LAYA_LOG_DECISIONES", "1") == "1"
+         ):
+-            shared["_router_pendiente"] = id_decision
++            turno(shared)["router_pendiente"] = id_decision
+         if aplicada != "directo":
+             return "herramientas"  # off, shadow y veto conservan las herramientas
+         return "directo"
+diff -ruN x/ratchets/baseline.json y/ratchets/baseline.json
+--- x/ratchets/baseline.json	2026-10-26 22:48:12.937446466 +0000
++++ y/ratchets/baseline.json	2026-10-26 22:58:23.673197487 +0000
+@@ -50,8 +50,8 @@
+         ],
+         "nodes.py": [
+           55,
+-          945,
+-          1017
++          959,
++          1031
+         ],
+         "research.py": [
+           78
+@@ -93,7 +93,7 @@
+           80
+         ],
+         "utils/thread_store.py": [
+-          147
++          160
+         ],
+         "utils/tracing.py": [
+           161,
+@@ -160,6 +160,7 @@
+         "tests/test_docs_sin_deriva.py": 5,
+         "tests/test_estado_flywheel.py": 3,
+         "tests/test_estado_riesgo.py": 3,
++        "tests/test_estado_turno.py": 6,
+         "tests/test_estilo_humano.py": 9,
+         "tests/test_evals.py": 15,
+         "tests/test_explorador.py": 6,
+@@ -211,7 +212,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 1041
++      "metrica": 1047
+     }
+   },
+   "version": 1
+diff -ruN x/resume.py y/resume.py
+--- x/resume.py	2026-10-26 22:48:12.857444441 +0000
++++ y/resume.py	2026-10-26 22:57:01.875094969 +0000
+@@ -13,12 +13,32 @@
+ import sys
+ 
+ from flow import create_agent_flow
+-from utils.thread_store import cargar, reparar_pendientes, valido
++from utils.estado_sesion import restaurar
++from utils.thread_store import cargar, cargar_sesion, reparar_pendientes, valido
++
++# Claves sueltas de la pregunta en curso, antes de la caja `turno` (H2 PR 4a):
++# un checkpoint viejo las trae así y se migran al rehidratar.
++CLAVES_VIEJAS = {"tool_rounds": "rondas", "no_progress": "sin_progreso", "_fp": "huella",
++                 "_huellas_vistas": "huellas_vistas", "_racha_sin_novedad": "racha_sin_novedad",
++                 "_corte_novedad": "corte_novedad", "_aviso_cierre": "aviso_cierre",
++                 "_skill_activo": "skill", "_router_pendiente": "router_pendiente",
++                 "_uso_inicio_pregunta": "uso_inicio"}
++
++
++def migrar(shared):
++    """El shared de un checkpoint anterior a la caja `turno`, con su caja.
++    PURA sobre el dict; idempotente."""
++    from nodes import nuevo_turno
++
++    viejas = {nueva: shared.pop(vieja) for vieja, nueva in CLAVES_VIEJAS.items() if vieja in shared}
++    if "turno" not in shared:
++        shared["turno"] = {**nuevo_turno(), **viejas}
++    return shared
+ 
+ 
+ def _banner(id_thread, shared, reparadas=0):
+     mensajes = shared.get("messages", [])
+-    rondas = shared.get("tool_rounds", 0)
++    rondas = (shared.get("turno") or {}).get("rondas", 0)
+     extra = f" · {reparadas} llamada(s) interrumpida(s) reparadas" if reparadas else ""
+     print(
+         f"[thread] id {id_thread} · {len(mensajes)} mensajes restaurados · "
+@@ -43,6 +63,8 @@
+     # exp/49: si el proceso murió entre la SELECCIÓN y la EJECUCIÓN de las
+     # tools, el último assistant tiene tool_calls huérfanos. Se reparan ANTES
+     # de validar (el mensaje honesto los hace válidos) y el banner lo dice.
++    migrar(shared)
++    restaurar(cargar_sesion(id_thread))  # costo, aprobaciones e intención (F5)
+     reparadas = reparar_pendientes(shared)
+     violaciones = valido(shared)
+     if violaciones:
+@@ -59,7 +81,6 @@
+     from main import system_prompt
+ 
+     shared.setdefault("messages", [{"role": "system", "content": system_prompt()}])
+-    shared.setdefault("tool_rounds", 0)
+     _banner(id_thread, shared, reparadas)
+     try:
+         create_agent_flow().run(shared)
+diff -ruN x/tests/test_auditoria_2026_10_26.py y/tests/test_auditoria_2026_10_26.py
+--- x/tests/test_auditoria_2026_10_26.py	2026-10-26 22:48:12.797442922 +0000
++++ y/tests/test_auditoria_2026_10_26.py	2026-10-26 22:54:28.351134082 +0000
+@@ -125,7 +125,7 @@
+     shared = {}
+     tc = {"function": {"name": "read_file", "arguments": "{}"}}
+     nodes.actualizar_novedad(shared, [tc, tc])
+-    assert isinstance(shared["_huellas_vistas"], list) and len(shared["_huellas_vistas"]) == 1
++    assert isinstance(shared["turno"]["huellas_vistas"], list) and len(shared["turno"]["huellas_vistas"]) == 1
+     json.dumps(shared)
+ 
+ 
+diff -ruN x/tests/test_chat_flujo.py y/tests/test_chat_flujo.py
+--- x/tests/test_chat_flujo.py	2026-10-26 22:48:12.801443023 +0000
++++ y/tests/test_chat_flujo.py	2026-10-26 22:54:07.550597304 +0000
+@@ -295,15 +295,15 @@
+     shared = {"messages": []}
+     # ronda 1: mismo path → sin_progress 0 (primera vez)
+     nodo.post(shared, tc("a"), [{"content": "r1"}])
+-    assert shared["no_progress"] == 0
++    assert shared["turno"]["sin_progreso"] == 0
+     # ronda 2: idéntica → 1 y warning en el contenido
+     nodo.post(shared, tc("a"), [{"content": "r2"}])
+-    assert shared["no_progress"] == 1
++    assert shared["turno"]["sin_progreso"] == 1
+     assert "Sin progreso" in shared["messages"][-1]["content"]
+     # ronda 3: distinta → reset
+     nodo.post(shared, tc("b"), [{"content": "r3"}])
+-    assert shared["no_progress"] == 0
+-    assert shared["_fp"] == fingerprint(tc("b"))
++    assert shared["turno"]["sin_progreso"] == 0
++    assert shared["turno"]["huella"] == fingerprint(tc("b"))
+ 
+ def _corte_por_no_progreso():
+     """Deja la sesión en el estado del corte: contador en el umbral y tools
+@@ -318,11 +318,11 @@
+                               "arguments": _json.dumps({"path": path})}}]
+ 
+     step, tools_node, ask = AgentStep(), ExecuteTools(), GetQuestion()
+-    shared = {"messages": [{"role": "system", "content": "s"}], "tool_rounds": 0}
++    shared = {"messages": [{"role": "system", "content": "s"}]}
+     for i in range(UMBRAL_SIN_PROGRESO + 1):
+         tools_node.post(shared, tc("a.py"),
+                         [{"role": "tool", "tool_call_id": f"t{i}", "content": "r"}])
+-    assert shared["no_progress"] == UMBRAL_SIN_PROGRESO
++    assert shared["turno"]["sin_progreso"] == UMBRAL_SIN_PROGRESO
+     _, tools = step.prep(shared)
+     assert tools is None                       # corte: se retiran las tools
+     return shared, step, ask
+@@ -334,7 +334,7 @@
+     ('un mensaje nuevo reinicia el presupuesto') era falso."""
+     shared, step, ask = _corte_por_no_progreso()
+     ask.post(shared, None, "otra pregunta")    # mensaje nuevo del usuario
+-    assert shared["no_progress"] == 0
++    assert shared["turno"]["sin_progreso"] == 0
+     _, tools = step.prep(shared)
+     assert tools is not None                   # el presupuesto se reinició
+ 
+@@ -383,15 +383,15 @@
+     vivo, sin él el modelo sigue emitiendo tool calls en vez de responder
+     (auditoría de sesión real, A38). El aviso no se duplica y se resetea con
+     la pregunta nueva."""
+-    from nodes import AVISO_CIERRE, AgentStep, GetQuestion
++    from nodes import AVISO_CIERRE, AgentStep, GetQuestion, nuevo_turno
+ 
+     shared = {"messages": [{"role": "system", "content": "s"},
+                              {"role": "user", "content": "auditá el repo"}],
+-              "tool_rounds": 8, "no_progress": 0}
++              "turno": {**nuevo_turno(), "rondas": 8}}
+     mensajes, tools = AgentStep().prep(shared)
+     assert tools is None
+     assert mensajes[-1]["content"] == AVISO_CIERRE
+-    assert shared.get("_aviso_cierre") is True
++    assert shared["turno"]["aviso_cierre"] is True
+ 
+     mensajes2, tools2 = AgentStep().prep(shared)
+     assert tools2 is None
+@@ -399,7 +399,7 @@
+     assert all(m.get("content") != AVISO_CIERRE for m in mensajes2)
+ 
+     GetQuestion().post(shared, None, "otra pregunta")
+-    assert "_aviso_cierre" not in shared
++    assert shared["turno"]["aviso_cierre"] is False
+ 
+ 
+ def test_getquestion_cierra_el_costo_de_la_pregunta_anterior(monkeypatch):
+@@ -418,7 +418,7 @@
+ 
+     GetQuestion().post(shared, None, "primera")
+     assert "tokens_por_pregunta" not in shared
+-    assert shared["_uso_inicio_pregunta"]["deepseek-flash"]["prompt"] == 100
++    assert shared["turno"]["uso_inicio"]["deepseek-flash"]["prompt"] == 100
+ 
+     # la primera pregunta respondió gastando 50 más: la segunda la cierra
+     uso["deepseek-flash"] = _fila(150)
+diff -ruN x/tests/test_consolidacion.py y/tests/test_consolidacion.py
+--- x/tests/test_consolidacion.py	2026-10-26 22:48:12.805443124 +0000
++++ y/tests/test_consolidacion.py	2026-10-26 22:54:28.351134082 +0000
+@@ -122,7 +122,7 @@
+     msg = NS(content=contenido, tool_calls=[NS(id="1", function=NS(name="read_file", arguments="{}"))])
+     monkeypatch.setattr(nodes, "call_llm_agent", lambda m, t: msg)
+     shared = {"messages": [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}],
+-              "tool_rounds": 99}
++              "turno": {**nodes.nuevo_turno(), "rondas": 99}}
+     accion = nodes.AgentStep()._run(shared)
+     assert accion == "answer"
+     ultimo = shared["messages"][-1]
+diff -ruN x/tests/test_estado_turno.py y/tests/test_estado_turno.py
+--- x/tests/test_estado_turno.py	1970-01-01 00:00:00.000000000 +0000
++++ y/tests/test_estado_turno.py	2026-10-26 23:00:00.731692254 +0000
+@@ -0,0 +1,89 @@
++"""H2 PR 4a — la caja de la pregunta y el estado de sesión que sobrevive a resume.
++
++Sin LLM. Clavan dos cosas que la auditoría de elegancia marcó (E5, F5):
++- el estado de la pregunta vive en UNA caja (`shared["turno"]`) que
++  GetQuestion reemplaza entera: no hay `pop` que olvidar;
++- lo que vive fuera de `shared` (costo, aprobaciones, intención del juez de
++  riesgo) viaja en el checkpoint y `resume` lo repone.
++"""
++import json
++
++import nodes
++import resume
++from utils import aprobaciones, call_llm, estado_sesion
++from utils.thread_store import cargar, cargar_sesion, checkpoint
++
++
++def test_una_clave_nueva_de_la_pregunta_no_se_filtra_a_la_siguiente():
++    """El bug que la caja hace imposible: cualquier cosa que un nodo guarde en
++    la caja de la pregunta muere con ella, sin necesidad de un `pop`."""
++    shared = {"messages": [{"role": "system", "content": "s"}]}
++    nodes.GetQuestion().post(shared, None, "primera")
++    shared["turno"]["algo_nuevo"] = "de la primera"
++    shared["turno"]["rondas"] = 7
++    nodes.GetQuestion().post(shared, None, "segunda")
++    assert "algo_nuevo" not in shared["turno"]
++    assert shared["turno"] == {**nodes.nuevo_turno(), "uso_inicio": shared["turno"]["uso_inicio"]}
++
++
++def test_lo_de_la_sesion_queda_fuera_de_la_caja():
++    """Compacción, respaldo y la tarea vigente NO son de la pregunta: un
++    "seguí" conserva el objetivo; la compacción sigue contando."""
++    shared = {"messages": [{"role": "system", "content": "s"}], "compacciones": 2}
++    nodes.GetQuestion().post(shared, None, "auditá policy.py")
++    nodes.GetQuestion().post(shared, None, "seguí")
++    assert shared["_objetivo"] == "auditá policy.py"
++    assert shared["compacciones"] == 2
++
++
++def test_la_caja_es_json():
++    shared = {"messages": []}
++    nodes.GetQuestion().post(shared, None, "hola")
++    nodes.actualizar_novedad(shared, [{"function": {"name": "read_file", "arguments": "{}"}}])
++    assert json.loads(json.dumps(shared["turno"])) == shared["turno"]
++
++
++def test_el_checkpoint_lleva_la_sesion_y_resume_la_repone(tmp_path, monkeypatch):
++    """F5: tras resume, el costo de la sesión, /aprobaciones y la intención del
++    juez de riesgo arrancaban de cero. Ahora viajan con el checkpoint."""
++    monkeypatch.setattr(call_llm, "USO", {"llamadas": 4, "prompt": 900, "completion": 60})
++    monkeypatch.setattr(call_llm, "USO_POR_MODELO", {"m": {"llamadas": 4, "prompt": 900, "completion": 60,
++                                                          "cache_hit": 0, "cache_miss": 900}})
++    aprobaciones.limpiar()
++    aprobaciones.registrar("run_command", "echo hola", True, "auto")
++    estado_sesion.recordar_usuario("borrá los cachés")
++    checkpoint("t", "GetQuestion", "continue", {"messages": []}, ruta_dir=tmp_path)
++
++    # "otro proceso": todo en cero
++    monkeypatch.setattr(call_llm, "USO", {"llamadas": 0, "prompt": 0, "completion": 0})
++    monkeypatch.setattr(call_llm, "USO_POR_MODELO", {})
++    aprobaciones.limpiar()
++    estado_sesion.recordar_usuario("")
++
++    estado_sesion.restaurar(cargar_sesion("t", ruta_dir=tmp_path))
++    assert call_llm.uso_de_sesion() == {"llamadas": 4, "prompt": 900, "completion": 60}
++    assert call_llm.desglose_de_sesion()["m"]["prompt"] == 900
++    assert [e["resumen"] for e in aprobaciones.eventos()] == ["echo hola"]
++    assert estado_sesion.ultimo_usuario() == "borrá los cachés"
++    aprobaciones.limpiar()
++
++
++def test_un_checkpoint_viejo_se_migra_a_la_caja(tmp_path):
++    """Los checkpoints escritos antes de la caja traen las claves sueltas:
++    resume las migra y el chat sigue donde estaba."""
++    viejo = {"messages": [{"role": "system", "content": "s"}], "tool_rounds": 3,
++             "no_progress": 1, "_skill_activo": "revision", "_objetivo": "auditá"}
++    checkpoint("v", "ExecuteTools", "default", viejo, ruta_dir=tmp_path)
++    shared = resume.migrar(cargar("v", ruta_dir=tmp_path))
++    assert shared["turno"]["rondas"] == 3 and shared["turno"]["sin_progreso"] == 1
++    assert shared["turno"]["skill"] == "revision"
++    assert "tool_rounds" not in shared and shared["_objetivo"] == "auditá"
++    assert resume.migrar(shared) == shared  # idempotente
++    assert cargar_sesion("v", ruta_dir=tmp_path) is not None
++
++
++def test_restaurar_tolera_checkpoints_sin_sesion():
++    antes = call_llm.uso_de_sesion()
++    estado_sesion.restaurar(None)
++    estado_sesion.restaurar({})
++    assert call_llm.uso_de_sesion() == antes
+diff -ruN x/tests/test_laya_routing.py y/tests/test_laya_routing.py
+--- x/tests/test_laya_routing.py	2026-10-26 22:48:12.805443124 +0000
++++ y/tests/test_laya_routing.py	2026-10-26 22:54:28.351134082 +0000
+@@ -239,7 +239,7 @@
+                  "probabilities": {"directo": 0.9, "herramientas": 0.1}}
+     assert router.post(shared, {"pregunta": "q"}, respuesta) == "herramientas"
+     linea = json.loads(archivo.read_text(encoding="utf-8").strip())
+-    assert shared["_router_pendiente"] == linea["id"]
++    assert shared["turno"]["router_pendiente"] == linea["id"]
+ 
+ 
+ def test_shadow_con_log_apagado_no_deja_pendiente_ni_escribe(tmp_path, monkeypatch):
+@@ -264,7 +264,7 @@
+     respuesta = {"choice": "directo",
+                  "probabilities": {"directo": 0.9, "herramientas": 0.1}}
+     assert router.post(shared, {"pregunta": "q"}, respuesta) == "herramientas"
+-    assert "_router_pendiente" not in shared
++    assert shared.get("turno", {}).get("router_pendiente") is None
+     assert not archivo.exists()
+ 
+ 
+@@ -287,13 +287,13 @@
+     router.post(shared, {"pregunta": "q"}, {"choice": "directo",
+                                             "probabilities": {"directo": 0.9,
+                                                               "herramientas": 0.1}})
+-    assert "_router_pendiente" not in shared
++    assert shared.get("turno", {}).get("router_pendiente") is None
+ 
+     # shadow pero respuesta inválida (p_directo None)
+     ajustes["LAYA_MODO"] = "shadow"
+     shared = {}
+     assert router.post(shared, {"pregunta": "q"}, {}) == "herramientas"
+-    assert "_router_pendiente" not in shared
++    assert shared.get("turno", {}).get("router_pendiente") is None
+ 
+ 
+ def test_agentstep_answer_consume_el_pendiente(tmp_path, monkeypatch):
+@@ -312,13 +312,13 @@
+     paso = nodes.AgentStep()
+     respuesta = SimpleNamespace(content="listo", tool_calls=None)
+ 
+-    shared = {"messages": [], "tool_rounds": 0, "_router_pendiente": "id0"}
++    shared = {"messages": [], "turno": {**nodes.nuevo_turno(), "router_pendiente": "id0"}}
+     assert paso.post(shared, None, respuesta) == "answer"
+     linea = json.loads(archivo.read_text(encoding="utf-8").strip())
+     assert linea["id"] == "id0" and linea["uso_tools"] is False
+-    assert "_router_pendiente" not in shared
++    assert shared["turno"]["router_pendiente"] is None
+ 
+-    shared = {"messages": [], "tool_rounds": 3, "_router_pendiente": "id3"}
++    shared = {"messages": [], "turno": {**nodes.nuevo_turno(), "rondas": 3, "router_pendiente": "id3"}}
+     paso.post(shared, None, respuesta)
+     ult = json.loads(archivo.read_text(encoding="utf-8").strip().splitlines()[-1])
+     assert ult["id"] == "id3" and ult["uso_tools"] is True and ult["rondas"] == 3
+@@ -342,9 +342,9 @@
+         content=None,
+         tool_calls=[SimpleNamespace(id="x", function=SimpleNamespace(name="read_file", arguments="{}"))],
+     )
+-    shared = {"messages": [], "tool_rounds": 1, "_router_pendiente": "idX"}
++    shared = {"messages": [], "turno": {**nodes.nuevo_turno(), "rondas": 1, "router_pendiente": "idX"}}
+     assert paso.post(shared, None, respuesta) == "tool"
+-    assert shared["_router_pendiente"] == "idX"
++    assert shared["turno"]["router_pendiente"] == "idX"
+     assert not archivo.exists()
+ 
+ 
+@@ -354,10 +354,10 @@
+     import nodes
+ 
+     monkeypatch.setattr(nodes, "registrar_pregunta", lambda *a, **k: None)
+-    shared = {"messages": [], "tool_rounds": 5, "_router_pendiente": "viejo"}
++    shared = {"messages": [], "turno": {**nodes.nuevo_turno(), "rondas": 5, "router_pendiente": "viejo"}}
+     nodes.GetQuestion().post(shared, None, "otra pregunta")
+-    assert "_router_pendiente" not in shared
+-    assert shared["tool_rounds"] == 0
++    assert shared["turno"]["router_pendiente"] is None
++    assert shared["turno"]["rondas"] == 0
+ 
+ 
+ def _decision(id_, propuesta, p_directo, ts=1.0, pregunta=None, origen="terminal"):
+diff -ruN x/tests/test_novedad.py y/tests/test_novedad.py
+--- x/tests/test_novedad.py	2026-10-26 22:48:12.801443023 +0000
++++ y/tests/test_novedad.py	2026-10-26 22:54:07.550597304 +0000
+@@ -15,6 +15,11 @@
+             "function": {"name": nombre, "arguments": args}}
+ 
+ 
++def _con_turno(**campos):
++    """Un shared con la caja de la pregunta en el estado pedido."""
++    return {"turno": {**nodes.nuevo_turno(), **campos}}
++
++
+ def test_huella_llamada_distingue_argumentos_y_nombre():
+     a = nodes.huella_llamada(_tc("read_file", '{"path": "a.py"}'))
+     b = nodes.huella_llamada(_tc("read_file", '{"path": "b.py"}'))
+@@ -27,9 +32,9 @@
+ def test_novedad_acumulada_por_pregunta():
+     shared = {}
+     assert nodes.actualizar_novedad(shared, [_tc("read_file", '{"path": "a"}')]) is False
+-    assert shared["_racha_sin_novedad"] == 0
++    assert shared["turno"]["racha_sin_novedad"] == 0
+     assert nodes.actualizar_novedad(shared, [_tc("read_file", '{"path": "a"}')]) is True
+-    assert shared["_racha_sin_novedad"] == 1
++    assert shared["turno"]["racha_sin_novedad"] == 1
+     # intercalada A,B,A,B: la tercera no estrena nada aunque alternen
+     shared2 = {}
+     nodes.actualizar_novedad(shared2, [_tc("read_file", '{"path": "a"}')])
+@@ -39,26 +44,26 @@
+ 
+ def test_corte_por_novedad_apagado_por_default(monkeypatch):
+     monkeypatch.delenv("CORTE_NOVEDAD", raising=False)
+-    shared = {"tool_rounds": 10, "_racha_sin_novedad": 10}
++    shared = _con_turno(rondas=10, racha_sin_novedad=10)
+     assert nodes.corte_por_novedad_activo(shared) is False
+ 
+ 
+ def test_corte_por_novedad_respeta_k_y_minimo(monkeypatch):
+     monkeypatch.setenv("CORTE_NOVEDAD", "2")
+     monkeypatch.setenv("CORTE_NOVEDAD_MIN", "3")
+-    assert nodes.corte_por_novedad_activo({"tool_rounds": 2, "_racha_sin_novedad": 2}) is False
+-    assert nodes.corte_por_novedad_activo({"tool_rounds": 3, "_racha_sin_novedad": 1}) is False
+-    assert nodes.corte_por_novedad_activo({"tool_rounds": 3, "_racha_sin_novedad": 2}) is True
++    assert nodes.corte_por_novedad_activo(_con_turno(rondas=2, racha_sin_novedad=2)) is False
++    assert nodes.corte_por_novedad_activo(_con_turno(rondas=3, racha_sin_novedad=1)) is False
++    assert nodes.corte_por_novedad_activo(_con_turno(rondas=3, racha_sin_novedad=2)) is True
+ 
+ 
+ def test_agent_step_retira_tools_con_corte_de_novedad():
+     shared = {"messages": [{"role": "user", "content": "hola"}],
+-              "tool_rounds": 4, "_racha_sin_novedad": 2, "_corte_novedad": True}
++              **_con_turno(rondas=4, racha_sin_novedad=2, corte_novedad=True)}
+     mensajes, tools = nodes.AgentStep().prep(shared)
+     assert tools is None
+-    assert shared.get("_aviso_cierre") is True
++    assert shared["turno"]["aviso_cierre"] is True
+     assert mensajes[-1]["content"] == nodes.AVISO_CIERRE
+-    assert "_corte_novedad" not in shared  # el flag se consume una vez
++    assert shared["turno"]["corte_novedad"] is False  # el flag se consume una vez
+ 
+ 
+ def test_evento_tool_guarda_la_huella_sin_contenido(monkeypatch):
+diff -ruN x/tests/test_skills.py y/tests/test_skills.py
+--- x/tests/test_skills.py	2026-10-26 22:48:12.801443023 +0000
++++ y/tests/test_skills.py	2026-10-26 22:54:28.351134082 +0000
+@@ -73,7 +73,7 @@
+     router = nodes.LayaRouter()
+     estado = {"pregunta": "Revisá el código de utils/formato.py y decime si hay problemas."}
+     assert router.post(shared, estado, "herramientas") == "herramientas"
+-    assert shared["_skill_activo"] == "revision"  # el ID: el shared es JSON (F4)
++    assert shared["turno"]["skill"] == "revision"  # el ID: el shared es JSON (F4)
+     assert shared["messages"][-1]["role"] == "user"
+     assert shared["messages"][-1]["content"].startswith(PREFIJO_SKILL)
+     linea = json.loads(archivo.read_text(encoding="utf-8").strip())
+@@ -93,7 +93,7 @@
+     shared = {"messages": []}
+     estado = {"pregunta": "Revisá el código de utils/formato.py."}
+     nodes.LayaRouter().post(shared, estado, "herramientas")
+-    assert "_skill_activo" not in shared
++    assert shared.get("turno", {}).get("skill") is None
+ 
+ 
+ def test_agent_step_anuncia_solo_el_subset_del_skill():
+@@ -102,7 +102,7 @@
+ 
+     revision = next(h for h in disponibles() if h.id == "revision")
+     shared = {"messages": [{"role": "user", "content": "revisá el código"}],
+-              "_skill_activo": revision.id}
++              "turno": {**nodes.nuevo_turno(), "skill": revision.id}}
+     _, tools = nodes.AgentStep().prep(shared)
+     assert {tool["function"]["name"] for tool in tools} == set(revision.tools)
+     _, todos = nodes.AgentStep().prep({"messages": [{"role": "user", "content": "hola"}]})
+diff -ruN x/tests/test_thread_store.py y/tests/test_thread_store.py
+--- x/tests/test_thread_store.py	2026-10-26 22:48:12.805443124 +0000
++++ y/tests/test_thread_store.py	2026-10-26 22:54:46.127592821 +0000
+@@ -219,7 +219,7 @@
+     assert _contar(tmp_path, "chat2") == 1
+     linea = json.loads(_lineas(tmp_path / "chat2.jsonl")[0])
+     assert linea["nodo"] == "ExecuteTools" and linea["accion"] == "default"
+-    assert linea["shared"]["tool_rounds"] == 1
++    assert linea["shared"]["turno"]["rondas"] == 1  # la caja de la pregunta viaja en el checkpoint
+ 
+ 
+ def test_punto_seguro_agentstep_post_answer(tmp_path, monkeypatch):
+diff -ruN x/utils/aprobaciones.py y/utils/aprobaciones.py
+--- x/utils/aprobaciones.py	2026-10-26 22:48:12.821443529 +0000
++++ y/utils/aprobaciones.py	2026-10-26 22:57:01.871094866 +0000
+@@ -68,6 +68,11 @@
+     return [dict(e) for e in _eventos]
+ 
+ 
++def reponer(eventos_previos):
++    """Repone eventos ya registrados (resume): sin re-trazar, con el tope."""
++    _eventos.extend(dict(e) for e in eventos_previos[-_MAX:])
++
++
+ def limpiar():
+     """Vacía el buffer (arranque de sesión o tests)."""
+     _eventos.clear()
+diff -ruN x/utils/estado_sesion.py y/utils/estado_sesion.py
+--- x/utils/estado_sesion.py	2026-10-26 22:48:12.821443529 +0000
++++ y/utils/estado_sesion.py	2026-10-26 22:57:01.871094866 +0000
+@@ -1,14 +1,14 @@
+-"""Estado de sesión mínimo: el último mensaje del usuario (plumbing, exp/44).
++"""Estado de SESIÓN del proceso: lo que no vive en `shared` y un resume debe recuperar.
+ 
+-El juez de riesgo necesita la EVIDENCIA DE INTENCIÓN —el último mensaje del
+-usuario del chat— para juzgar si el comando propuesto se alinea con lo pedido
+-(ley de la casa: el estado lleva la evidencia de intención, NUNCA el
+-razonamiento del propio agente). Los módulos de tools no ven `shared`, así que
+-esa evidencia vive acá, en un módulo mínimo con dos funciones.
+-
+-Contrato: `recordar_usuario` no valida ni decide (es plumbing); `ultimo_usuario`
+-devuelve '' si nunca se sembró. El docstring del módulo no promete más de lo
+-que hay.
++Tres piezas viven fuera del grafo porque las tools y el LLM no ven `shared`:
++la evidencia de intención del juez de riesgo (el último mensaje del usuario,
++exp/44), el uso de tokens de la sesión (`utils.call_llm`) y el historial de
++aprobaciones HITL (`utils.aprobaciones`). Este módulo es su ÚNICO dueño para
++guardar y restaurar: `capturar()` las junta en un dict JSON que el checkpoint
++escribe junto al `shared`, y `restaurar()` las repone al rehidratar.
++
++Medido (auditoría de elegancia, F5): tras `resume`, el costo de la sesión,
++`/aprobaciones` y la intención del juez arrancaban de cero.
+ """
+ _ultimo = {"mensaje": ""}
+ 
+@@ -22,3 +22,29 @@
+ def ultimo_usuario():
+     """El último mensaje recordado ('' si nunca)."""
+     return _ultimo["mensaje"]
++
++
++def capturar():
++    """El estado de sesión del proceso, como dict JSON."""
++    from utils import aprobaciones, call_llm
++
++    return {"usuario": _ultimo["mensaje"],
++            "uso": dict(call_llm.USO),
++            "uso_por_modelo": {m: dict(f) for m, f in call_llm.USO_POR_MODELO.items()},
++            "aprobaciones": aprobaciones.eventos()}
++
++
++def restaurar(estado):
++    """Repone lo capturado (un checkpoint viejo sin sesión no cambia nada).
++    Los acumuladores se REEMPLAZAN, no se suman: el proceso nuevo arranca de
++    cero y el checkpoint trae el total de la sesión hasta ese punto."""
++    from utils import aprobaciones, call_llm
++
++    if not isinstance(estado, dict):
++        return
++    _ultimo["mensaje"] = str(estado.get("usuario") or "")[:1000]
++    call_llm.USO.update({k: int(v) for k, v in (estado.get("uso") or {}).items()})
++    call_llm.USO_POR_MODELO.clear()
++    call_llm.USO_POR_MODELO.update({m: dict(f) for m, f in (estado.get("uso_por_modelo") or {}).items()})
++    aprobaciones.limpiar()
++    aprobaciones.reponer(estado.get("aprobaciones") or [])
+diff -ruN x/utils/thread_store.py y/utils/thread_store.py
+--- x/utils/thread_store.py	2026-10-26 22:48:12.821443529 +0000
++++ y/utils/thread_store.py	2026-10-26 22:57:01.875094969 +0000
+@@ -48,12 +48,15 @@
+     try:
+         destino = _ruta_dir(ruta_dir) / f"{id_thread}.jsonl"
+         destino.parent.mkdir(parents=True, exist_ok=True)
++        from utils.estado_sesion import capturar
++
+         linea = {
+             "ts": round(time.time(), 3),
+             "evento": "checkpoint",
+             "nodo": nodo,
+             "accion": accion,
+             "shared": shared,
++            "sesion": capturar(),  # lo del proceso que no vive en shared (F5)
+         }
+         with open(destino, "a", encoding="utf-8") as f:
+             f.write(json.dumps(linea, ensure_ascii=False) + "\n")
+@@ -64,12 +67,10 @@
+         print(f"[thread] checkpoint omitido ({type(e).__name__}: {e})", flush=True)
+ 
+ 
+-def cargar(id_thread, ruta_dir=None):
+-    """Devuelve el `shared` de la ÚLTIMA LÍNEA COMPLETA del archivo, o None.
+-
+-    Tolerante a una cola cortada a mitad por un crash: el JSON que no parsea se
+-    saltea desde el final y se retrocede hasta la primera línea que sí parsea.
+-    Si no existe el archivo o no hay ninguna línea válida, devuelve None."""
++def _ultima_linea(id_thread, ruta_dir=None):
++    """La ÚLTIMA LÍNEA COMPLETA del archivo (dict), o None. Tolerante a una
++    cola cortada a mitad por un crash: el JSON que no parsea se saltea desde
++    el final y se retrocede hasta la primera línea que sí parsea."""
+     try:
+         archivo = _ruta_dir(ruta_dir) / f"{id_thread}.jsonl"
+         if not archivo.exists():
+@@ -85,10 +86,22 @@
+         except (json.JSONDecodeError, ValueError):
+             continue  # cola cortada a mitad: se descarta y se sigue
+         if isinstance(evento, dict) and isinstance(evento.get("shared"), dict):
+-            return evento["shared"]
++            return evento
+     return None
+ 
+ 
++def cargar(id_thread, ruta_dir=None):
++    """Devuelve el `shared` de la ÚLTIMA LÍNEA COMPLETA del archivo, o None."""
++    evento = _ultima_linea(id_thread, ruta_dir)
++    return evento["shared"] if evento else None
++
++
++def cargar_sesion(id_thread, ruta_dir=None):
++    """El estado de sesión del proceso guardado con ese checkpoint (o None:
++    los checkpoints anteriores a F5 no lo traen)."""
++    evento = _ultima_linea(id_thread, ruta_dir)
++    return evento.get("sesion") if evento else None
++
+ def reparar_pendientes(shared):
+     """Repara los `tool_calls` HUÉRFANOS del ÚLTIMO assistant: devuelve cuántos.
+ 

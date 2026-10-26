@@ -68,6 +68,11 @@ def eventos():
     return [dict(e) for e in _eventos]
 
 
+def reponer(eventos_previos):
+    """Repone eventos ya registrados (resume): sin re-trazar, con el tope."""
+    _eventos.extend(dict(e) for e in eventos_previos[-_MAX:])
+
+
 def limpiar():
     """Vacía el buffer (arranque de sesión o tests)."""
     _eventos.clear()

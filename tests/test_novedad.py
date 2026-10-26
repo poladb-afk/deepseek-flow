@@ -15,6 +15,11 @@ def _tc(nombre, args):
             "function": {"name": nombre, "arguments": args}}
 
 
+def _con_turno(**campos):
+    """Un shared con la caja de la pregunta en el estado pedido."""
+    return {"turno": {**nodes.nuevo_turno(), **campos}}
+
+
 def test_huella_llamada_distingue_argumentos_y_nombre():
     a = nodes.huella_llamada(_tc("read_file", '{"path": "a.py"}'))
     b = nodes.huella_llamada(_tc("read_file", '{"path": "b.py"}'))
@@ -27,9 +32,9 @@ def test_huella_llamada_distingue_argumentos_y_nombre():
 def test_novedad_acumulada_por_pregunta():
     shared = {}
     assert nodes.actualizar_novedad(shared, [_tc("read_file", '{"path": "a"}')]) is False
-    assert shared["_racha_sin_novedad"] == 0
+    assert shared["turno"]["racha_sin_novedad"] == 0
     assert nodes.actualizar_novedad(shared, [_tc("read_file", '{"path": "a"}')]) is True
-    assert shared["_racha_sin_novedad"] == 1
+    assert shared["turno"]["racha_sin_novedad"] == 1
     # intercalada A,B,A,B: la tercera no estrena nada aunque alternen
     shared2 = {}
     nodes.actualizar_novedad(shared2, [_tc("read_file", '{"path": "a"}')])
@@ -39,26 +44,26 @@ def test_novedad_acumulada_por_pregunta():
 
 def test_corte_por_novedad_apagado_por_default(monkeypatch):
     monkeypatch.delenv("CORTE_NOVEDAD", raising=False)
-    shared = {"tool_rounds": 10, "_racha_sin_novedad": 10}
+    shared = _con_turno(rondas=10, racha_sin_novedad=10)
     assert nodes.corte_por_novedad_activo(shared) is False
 
 
 def test_corte_por_novedad_respeta_k_y_minimo(monkeypatch):
     monkeypatch.setenv("CORTE_NOVEDAD", "2")
     monkeypatch.setenv("CORTE_NOVEDAD_MIN", "3")
-    assert nodes.corte_por_novedad_activo({"tool_rounds": 2, "_racha_sin_novedad": 2}) is False
-    assert nodes.corte_por_novedad_activo({"tool_rounds": 3, "_racha_sin_novedad": 1}) is False
-    assert nodes.corte_por_novedad_activo({"tool_rounds": 3, "_racha_sin_novedad": 2}) is True
+    assert nodes.corte_por_novedad_activo(_con_turno(rondas=2, racha_sin_novedad=2)) is False
+    assert nodes.corte_por_novedad_activo(_con_turno(rondas=3, racha_sin_novedad=1)) is False
+    assert nodes.corte_por_novedad_activo(_con_turno(rondas=3, racha_sin_novedad=2)) is True
 
 
 def test_agent_step_retira_tools_con_corte_de_novedad():
     shared = {"messages": [{"role": "user", "content": "hola"}],
-              "tool_rounds": 4, "_racha_sin_novedad": 2, "_corte_novedad": True}
+              **_con_turno(rondas=4, racha_sin_novedad=2, corte_novedad=True)}
     mensajes, tools = nodes.AgentStep().prep(shared)
     assert tools is None
-    assert shared.get("_aviso_cierre") is True
+    assert shared["turno"]["aviso_cierre"] is True
     assert mensajes[-1]["content"] == nodes.AVISO_CIERRE
-    assert "_corte_novedad" not in shared  # el flag se consume una vez
+    assert shared["turno"]["corte_novedad"] is False  # el flag se consume una vez
 
 
 def test_evento_tool_guarda_la_huella_sin_contenido(monkeypatch):

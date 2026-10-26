@@ -280,10 +280,7 @@ def main():
         if isinstance(codigo, int) and not isinstance(codigo, bool):
             sys.exit(codigo)
         return
-    shared = {
-        "messages": [{"role": "system", "content": system_prompt()}],
-        "tool_rounds": 0,
-    }
+    shared = {"messages": [{"role": "system", "content": system_prompt()}]}
     print(WELCOME)
     catalogo_memoria()
     estado_delegadas()
@@ -336,7 +333,7 @@ def _reporte_tokens(shared):
         # la última pregunta nunca vuelve a GetQuestion: se cierra acá.
         # El resumen de memoria corre DESPUÉS y fuera de toda pregunta:
         # cuenta en el total de sesión y en ninguna pregunta (declarado).
-        inicio = shared.pop("_uso_inicio_pregunta", None)
+        inicio = (shared.get("turno") or {}).get("uso_inicio")
         if inicio is not None:
             shared.setdefault("tokens_por_pregunta", []).append(
                 delta_desglose(inicio, desglose))

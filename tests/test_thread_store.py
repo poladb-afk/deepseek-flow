@@ -219,7 +219,7 @@ def test_punto_seguro_executetools_post(tmp_path, monkeypatch):
     assert _contar(tmp_path, "chat2") == 1
     linea = json.loads(_lineas(tmp_path / "chat2.jsonl")[0])
     assert linea["nodo"] == "ExecuteTools" and linea["accion"] == "default"
-    assert linea["shared"]["tool_rounds"] == 1
+    assert linea["shared"]["turno"]["rondas"] == 1  # la caja de la pregunta viaja en el checkpoint
 
 
 def test_punto_seguro_agentstep_post_answer(tmp_path, monkeypatch):

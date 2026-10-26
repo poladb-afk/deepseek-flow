@@ -50,8 +50,8 @@
         ],
         "nodes.py": [
           55,
-          945,
-          1017
+          959,
+          1031
         ],
         "research.py": [
           78
@@ -93,7 +93,7 @@
           80
         ],
         "utils/thread_store.py": [
-          147
+          160
         ],
         "utils/tracing.py": [
           161,
@@ -160,6 +160,7 @@
         "tests/test_docs_sin_deriva.py": 5,
         "tests/test_estado_flywheel.py": 3,
         "tests/test_estado_riesgo.py": 3,
+        "tests/test_estado_turno.py": 6,
         "tests/test_estilo_humano.py": 9,
         "tests/test_evals.py": 15,
         "tests/test_explorador.py": 6,
@@ -211,7 +212,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1041
+      "metrica": 1047
     }
   },
   "version": 1

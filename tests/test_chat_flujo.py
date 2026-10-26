@@ -295,15 +295,15 @@ def test_execute_tools_post_acumula_y_resetea_no_progress():
     shared = {"messages": []}
     # ronda 1: mismo path → sin_progress 0 (primera vez)
     nodo.post(shared, tc("a"), [{"content": "r1"}])
-    assert shared["no_progress"] == 0
+    assert shared["turno"]["sin_progreso"] == 0
     # ronda 2: idéntica → 1 y warning en el contenido
     nodo.post(shared, tc("a"), [{"content": "r2"}])
-    assert shared["no_progress"] == 1
+    assert shared["turno"]["sin_progreso"] == 1
     assert "Sin progreso" in shared["messages"][-1]["content"]
     # ronda 3: distinta → reset
     nodo.post(shared, tc("b"), [{"content": "r3"}])
-    assert shared["no_progress"] == 0
-    assert shared["_fp"] == fingerprint(tc("b"))
+    assert shared["turno"]["sin_progreso"] == 0
+    assert shared["turno"]["huella"] == fingerprint(tc("b"))
 
 def _corte_por_no_progreso():
     """Deja la sesión en el estado del corte: contador en el umbral y tools
@@ -318,11 +318,11 @@ def _corte_por_no_progreso():
                               "arguments": _json.dumps({"path": path})}}]
 
     step, tools_node, ask = AgentStep(), ExecuteTools(), GetQuestion()
-    shared = {"messages": [{"role": "system", "content": "s"}], "tool_rounds": 0}
+    shared = {"messages": [{"role": "system", "content": "s"}]}
     for i in range(UMBRAL_SIN_PROGRESO + 1):
         tools_node.post(shared, tc("a.py"),
                         [{"role": "tool", "tool_call_id": f"t{i}", "content": "r"}])
-    assert shared["no_progress"] == UMBRAL_SIN_PROGRESO
+    assert shared["turno"]["sin_progreso"] == UMBRAL_SIN_PROGRESO
     _, tools = step.prep(shared)
     assert tools is None                       # corte: se retiran las tools
     return shared, step, ask
@@ -334,7 +334,7 @@ def test_no_progress_se_resetea_con_la_pregunta_nueva():
     ('un mensaje nuevo reinicia el presupuesto') era falso."""
     shared, step, ask = _corte_por_no_progreso()
     ask.post(shared, None, "otra pregunta")    # mensaje nuevo del usuario
-    assert shared["no_progress"] == 0
+    assert shared["turno"]["sin_progreso"] == 0
     _, tools = step.prep(shared)
     assert tools is not None                   # el presupuesto se reinició
 
@@ -383,15 +383,15 @@ def test_agotado_fuerza_respuesta_sin_tools():
     vivo, sin él el modelo sigue emitiendo tool calls en vez de responder
     (auditoría de sesión real, A38). El aviso no se duplica y se resetea con
     la pregunta nueva."""
-    from nodes import AVISO_CIERRE, AgentStep, GetQuestion
+    from nodes import AVISO_CIERRE, AgentStep, GetQuestion, nuevo_turno
 
     shared = {"messages": [{"role": "system", "content": "s"},
                              {"role": "user", "content": "auditá el repo"}],
-              "tool_rounds": 8, "no_progress": 0}
+              "turno": {**nuevo_turno(), "rondas": 8}}
     mensajes, tools = AgentStep().prep(shared)
     assert tools is None
     assert mensajes[-1]["content"] == AVISO_CIERRE
-    assert shared.get("_aviso_cierre") is True
+    assert shared["turno"]["aviso_cierre"] is True
 
     mensajes2, tools2 = AgentStep().prep(shared)
     assert tools2 is None
@@ -399,7 +399,7 @@ def test_agotado_fuerza_respuesta_sin_tools():
     assert all(m.get("content") != AVISO_CIERRE for m in mensajes2)
 
     GetQuestion().post(shared, None, "otra pregunta")
-    assert "_aviso_cierre" not in shared
+    assert shared["turno"]["aviso_cierre"] is False
 
 
 def test_getquestion_cierra_el_costo_de_la_pregunta_anterior(monkeypatch):
@@ -418,7 +418,7 @@ def test_getquestion_cierra_el_costo_de_la_pregunta_anterior(monkeypatch):
 
     GetQuestion().post(shared, None, "primera")
     assert "tokens_por_pregunta" not in shared
-    assert shared["_uso_inicio_pregunta"]["deepseek-flash"]["prompt"] == 100
+    assert shared["turno"]["uso_inicio"]["deepseek-flash"]["prompt"] == 100
 
     # la primera pregunta respondió gastando 50 más: la segunda la cierra
     uso["deepseek-flash"] = _fila(150)

@@ -165,6 +165,34 @@ def alcance_amplio(pregunta, raiz=None):
     return masa >= AMPLIO_LINEAS
 
 
+def nuevo_turno():
+    """El estado de UNA pregunta: todo lo que vale hasta la próxima.
+
+    GetQuestion lo reemplaza ENTERO al recibir una pregunta. Antes eran diez
+    claves sueltas en `shared` y un `pop` por cada una: una clave nueva sin su
+    `pop` se filtraba a la pregunta siguiente y nada lo detectaba (auditoría
+    de elegancia, 2026-10-26). Lo de la sesión (`messages`, compacción,
+    respaldo) y lo de la tarea (`_objetivo`, que sobrevive a un "seguí")
+    quedan fuera de la caja a propósito. Todo es JSON: viaja en el checkpoint."""
+    return {
+        "rondas": 0,             # rondas de tools gastadas (ley L8)
+        "sin_progreso": 0,       # repeticiones de la MISMA ronda (exp/13)
+        "huella": None,          # huella de la última ronda
+        "huellas_vistas": [],    # novedad acumulada (exp/52-B)
+        "racha_sin_novedad": 0,
+        "corte_novedad": False,
+        "aviso_cierre": False,   # el aviso efímero de cierre ya se mandó
+        "skill": None,           # id del skill activo (exp/55)
+        "router_pendiente": None,  # id de la decisión shadow a etiquetar (exp/43)
+        "uso_inicio": None,      # desglose de tokens al empezar (exp/90)
+    }
+
+
+def turno(shared):
+    """La caja de la pregunta en curso (la crea si el shared no la trae)."""
+    return shared.setdefault("turno", nuevo_turno())
+
+
 def presupuesto(shared):
     """Techo de rondas de tools para ESTA pregunta. Si el invocador declaró
     shared['operacion'] con perfil, se usa; si no, un pedido de alcance
@@ -218,13 +246,11 @@ def actualizar_novedad(shared, tool_calls):
     NINGUNA llamada nueva (p. ej. A, B, A, B) también cuenta como sin novedad.
     Devuelve True si la ronda no estrenó ninguna llamada.
     """
-    vistas = shared.setdefault("_huellas_vistas", [])  # lista: el checkpoint es JSON
-    nuevas = [h for h in dict.fromkeys(huella_llamada(tc) for tc in tool_calls or []) if h not in vistas]
-    vistas.extend(nuevas)
-    if nuevas:
-        shared["_racha_sin_novedad"] = 0
-    else:
-        shared["_racha_sin_novedad"] = shared.get("_racha_sin_novedad", 0) + 1
+    t = turno(shared)
+    nuevas = [h for h in dict.fromkeys(huella_llamada(tc) for tc in tool_calls or [])
+              if h not in t["huellas_vistas"]]
+    t["huellas_vistas"].extend(nuevas)
+    t["racha_sin_novedad"] = 0 if nuevas else t["racha_sin_novedad"] + 1
     return not nuevas
 
 
@@ -240,8 +266,8 @@ def corte_por_novedad_activo(shared):
     if k <= 0:
         return False
     minimo = _entero("CORTE_NOVEDAD_MIN", 3)
-    return (shared.get("tool_rounds", 0) >= minimo
-            and shared.get("_racha_sin_novedad", 0) >= k)
+    t = turno(shared)
+    return t["rondas"] >= minimo and t["racha_sin_novedad"] >= k
 
 
 MENSAJE_SIN_RESPUESTA = (
@@ -300,23 +326,12 @@ class GetQuestion(Node):
         # exp/34: la pregunta real queda registrada para calibrar el router con
         # tráfico natural (bookkeeping; nunca corta el chat).
         registrar_pregunta(exec_res)
-        # Todo presupuesto es POR PREGUNTA (ley L8): el techo de rondas y el
-        # contador de no-progreso se reinician acá. Sin este reset, un corte
-        # por no-progreso dejaba las tools retiradas para el resto de la
-        # sesión (el contador solo se reseteaba en ExecuteTools.post, que ya
-        # no corría) y el protocolo de continuación de exp/4 quedaba falso.
+        # Todo lo de la pregunta anterior muere acá, de una vez: presupuesto
+        # (L8), no-progreso, novedad, skill, aviso de cierre y la decisión del
+        # router. El costo de la anterior se cierra con su `uso_inicio`.
         # (/aprobaciones no llega hasta acá: lo atiende exec(), sin gastar turno.)
-        shared["tool_rounds"] = 0
-        shared["no_progress"] = 0
-        shared.pop("_fp", None)
-        shared.pop("_router_pendiente", None)
-        shared.pop("_aviso_cierre", None)
-        # exp/52-B: la novedad es POR PREGUNTA (misma ley L8 que el presupuesto).
-        shared.pop("_huellas_vistas", None)
-        shared.pop("_racha_sin_novedad", None)
-        shared.pop("_corte_novedad", None)
-        # exp/55: el skill es POR PREGUNTA (se re-evalúa el disparo en el router).
-        shared.pop("_skill_activo", None)
+        anterior = turno(shared)
+        shared["turno"] = nuevo_turno()
         # exp/44: el último mensaje del usuario queda como EVIDENCIA DE
         # INTENCIÓN para el juez de riesgo (import perezoso; los módulos no
         # ven `shared`). Plumbing, no decide nada.
@@ -334,11 +349,10 @@ class GetQuestion(Node):
         from utils.call_llm import desglose_de_sesion
         from utils.costos import delta_desglose
 
-        inicio = shared.pop("_uso_inicio_pregunta", None)
-        if inicio is not None:
+        if anterior["uso_inicio"] is not None:
             shared.setdefault("tokens_por_pregunta", []).append(
-                delta_desglose(inicio, desglose_de_sesion()))
-        shared["_uso_inicio_pregunta"] = desglose_de_sesion()
+                delta_desglose(anterior["uso_inicio"], desglose_de_sesion()))
+        shared["turno"]["uso_inicio"] = desglose_de_sesion()
         # exp/48: punto seguro 1 — la pregunta del usuario quedó registrada.
         # Checkpoint del shared COMPLETO (bookkeeping: jamás corta el chat).
         checkpoint(thread_id(), "GetQuestion", "continue", shared)
@@ -533,30 +547,31 @@ class AgentStep(Node):
         # retiran las tools sin esperar el techo — el loop no se paga hasta
         # el máximo. presupuesto() lee MAX_TOOL_ROUNDS en runtime.
         tope = presupuesto(shared)
-        agotado = shared.get("tool_rounds", 0) >= tope
-        sin_progreso = shared.get("no_progress", 0) >= UMBRAL_SIN_PROGRESO
-        corte_novedad = shared.pop("_corte_novedad", False)
+        t = turno(shared)
+        agotado = t["rondas"] >= tope
+        sin_progreso = t["sin_progreso"] >= UMBRAL_SIN_PROGRESO
+        corte_novedad, t["corte_novedad"] = t["corte_novedad"], False
         if sin_progreso and not agotado:
             # incidente visible desde .runs: el corte NO fue por techo
             evento_politica("corte_no_progreso")
         elif corte_novedad and not agotado:
             evento_politica(
                 "corte_sin_novedad",
-                f"{shared.get('_racha_sin_novedad', 0)} rondas sin llamadas nuevas",
+                f"{t['racha_sin_novedad']} rondas sin llamadas nuevas",
             )
         # Al llegar al límite de rondas se retiran las tools: el modelo debe responder ya.
         tools = None if (agotado or sin_progreso or corte_novedad) else TOOLS
-        if tools is not None and shared.get("_skill_activo"):
+        if tools is not None and t["skill"]:
             # exp/55: mientras el skill está activo se anuncia SOLO su subset
             # (guía, no sandbox: el action space completo sigue existiendo).
             # En shared viaja el ID (JSON): el objeto Skill se guardaba como su
             # repr y un resume lo cargaba roto (auditoría 2026-10-26, F4).
             from utils.skills import disponibles, filtrar_tools
 
-            skill = next((h for h in disponibles() if h.id == shared["_skill_activo"]), None)
+            skill = next((h for h in disponibles() if h.id == t["skill"]), None)
             tools = filtrar_tools(tools, skill) if skill else tools
-        if tools is None and not shared.get("_aviso_cierre"):
-            shared["_aviso_cierre"] = True
+        if tools is None and not t["aviso_cierre"]:
+            t["aviso_cierre"] = True
             # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
             # el modelo sigue emitiendo tool calls en vez de cerrar la respuesta.
             return list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None
@@ -661,11 +676,12 @@ class AgentStep(Node):
             print()
         else:
             print(f"\nDeepSeek: {exec_res.content}")
-        pendiente = shared.pop("_router_pendiente", None)
+        t = turno(shared)
+        pendiente, t["router_pendiente"] = t["router_pendiente"], None
         if pendiente is not None:
             from utils.laya_routing import registrar_resultado
 
-            rondas = shared.get("tool_rounds", 0)
+            rondas = t["rondas"]
             registrar_resultado(pendiente, rondas)
             etiqueta = "herramientas" if rondas else "directo"
             print(colorear(f"  [router] etiqueta ambiental: {etiqueta} ({rondas} rondas)", "info"))
@@ -728,29 +744,27 @@ class ExecuteTools(Node):
         return resultados
 
     def post(self, shared, prep_res, exec_res):
-        shared["tool_rounds"] = shared.get("tool_rounds", 0) + 1
-        ronda = shared["tool_rounds"]
+        t = turno(shared)
+        t["rondas"] += 1
+        ronda = t["rondas"]
         tope = presupuesto(shared)
         # No-progreso (exp/13, opción D): se compara la HUELLA de esta ronda
         # de tools con la anterior. Igual → acumula; distinta → resetea. El
         # warning viaja en la conversación (misma vía que la nota), no en la
         # terminal: es lo único que el modelo lee.
         fp = fingerprint(prep_res)
-        if fp == shared.get("_fp"):
-            shared["no_progress"] = shared.get("no_progress", 0) + 1
-        else:
-            shared["no_progress"] = 0
-        shared["_fp"] = fp
+        t["sin_progreso"] = t["sin_progreso"] + 1 if fp == t["huella"] else 0
+        t["huella"] = fp
         # exp/52-B: novedad acumulada (tool+argumentos). Con CORTE_NOVEDAD=k
         # (default 0=off) el loop se corta tras k rondas sin ninguna llamada
         # nueva; la calidad se valida en el A/B del banco, no acá.
         sin_novedad = actualizar_novedad(shared, prep_res or [])
-        if sin_novedad and corte_por_novedad_activo(shared) and not shared.get("_corte_novedad"):
-            shared["_corte_novedad"] = True
-        if shared["no_progress"] >= 1 and exec_res:
+        if sin_novedad and corte_por_novedad_activo(shared):
+            t["corte_novedad"] = True
+        if t["sin_progreso"] >= 1 and exec_res:
             exec_res[-1]["content"] = (
                 f"{exec_res[-1]['content']}\n⚠ Sin progreso: repetiste la "
-                f"misma llamada {shared['no_progress'] + 1}ª vez — cambiá de "
+                f"misma llamada {t['sin_progreso'] + 1}ª vez — cambiá de "
                 "estrategia o cerrá el estado."
             )
         # la nota de presupuesto viaja en la conversación (no en la
@@ -975,7 +989,7 @@ class LayaRouter(Node):
                 f"skill {skill.id}: disparo declarativo",
                 None,
             )
-            shared["_skill_activo"] = skill.id
+            turno(shared)["skill"] = skill.id
             shared["messages"].append({"role": "user", "content": mensaje(skill)})
             print(colorear(f"  [skill] {skill.id} activo — {skill.descripcion}", "info"),
                   flush=True)
@@ -1043,7 +1057,7 @@ class LayaRouter(Node):
             and p_directo is not None
             and _setting("LAYA_LOG_DECISIONES", "1") == "1"
         ):
-            shared["_router_pendiente"] = id_decision
+            turno(shared)["router_pendiente"] = id_decision
         if aplicada != "directo":
             return "herramientas"  # off, shadow y veto conservan las herramientas
         return "directo"

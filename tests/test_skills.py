@@ -73,7 +73,7 @@ def test_router_activa_skill_y_fuerza_herramientas(tmp_path, monkeypatch):
     router = nodes.LayaRouter()
     estado = {"pregunta": "Revisá el código de utils/formato.py y decime si hay problemas."}
     assert router.post(shared, estado, "herramientas") == "herramientas"
-    assert shared["_skill_activo"] == "revision"  # el ID: el shared es JSON (F4)
+    assert shared["turno"]["skill"] == "revision"  # el ID: el shared es JSON (F4)
     assert shared["messages"][-1]["role"] == "user"
     assert shared["messages"][-1]["content"].startswith(PREFIJO_SKILL)
     linea = json.loads(archivo.read_text(encoding="utf-8").strip())
@@ -93,7 +93,7 @@ def test_router_en_shadow_no_activa_skill(tmp_path, monkeypatch):
     shared = {"messages": []}
     estado = {"pregunta": "Revisá el código de utils/formato.py."}
     nodes.LayaRouter().post(shared, estado, "herramientas")
-    assert "_skill_activo" not in shared
+    assert shared.get("turno", {}).get("skill") is None
 
 
 def test_agent_step_anuncia_solo_el_subset_del_skill():
@@ -102,7 +102,7 @@ def test_agent_step_anuncia_solo_el_subset_del_skill():
 
     revision = next(h for h in disponibles() if h.id == "revision")
     shared = {"messages": [{"role": "user", "content": "revisá el código"}],
-              "_skill_activo": revision.id}
+              "turno": {**nodes.nuevo_turno(), "skill": revision.id}}
     _, tools = nodes.AgentStep().prep(shared)
     assert {tool["function"]["name"] for tool in tools} == set(revision.tools)
     _, todos = nodes.AgentStep().prep({"messages": [{"role": "user", "content": "hola"}]})
