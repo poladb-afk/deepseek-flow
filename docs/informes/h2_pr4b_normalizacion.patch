@@ -1,0 +1,383 @@
+diff -ruN x/docs/bitacora.md y/docs/bitacora.md
+--- x/docs/bitacora.md	2026-10-26 23:14:31.450509730 +0000
++++ y/docs/bitacora.md	2026-10-26 23:23:18.723756166 +0000
+@@ -4622,3 +4622,12 @@
+ **Medición sin LLM**: sesión completa guionada (3 preguntas con un "seguí") en 4 casos (presupuesto, sin progreso, directo, mixto) sobre PR 2 y PR 4a: mismas llamadas al LLM, mismas tools por llamada, mismas tools ejecutadas y el mismo historial. Caracterización idéntica. 16 tests que leían claves privadas migrados a la caja con su nombre; 6 nuevos. Suite 1050 passed; ratchet 1041 → 1047.
+ 
+ **Sigue**: PR 4b, el loop del chat sobre el kernel (streaming y Ctrl+C en el adaptador).
++
++
++## H2 PR 4b — una sola normalización y el cierre de H2 (2026-10-26)
++
++**Medición antes de reescribir** (la condición acordada: si el refactor no simplifica, se muestra con números): las dos normalizaciones del proveedor (chat y kernel) divergían en 4 de 7 casos, y el kernel tenía un bug real (un "solo markup de rol" volvía como respuesta en vez de re-preguntar), heredado por explorador y supervisor.
++
++**Cambio**: `utils/proveedor.normalizar` es la única (X76). `AgentStep` 183 → 125 líneas y 7 → 3 métodos; `nodes.py` 1076 → 1016; `kernel.py` 230 → 210. 7/7 casos iguales; caracterización idéntica; suite verde.
++
++**Decisión** (X77): el loop del chat no se pasa al kernel. Lo que queda son sus políticas, cada una con su experimento; las dos vías para meterlas (hooks dentro del kernel o nodos alrededor que exigen exponer los internos) reparten la misma complejidad sin cerrar bugs ni duplicación. **H2 cerrado**: kernel en producción (explorador, supervisor), pedido HITL como dato, caja por pregunta, sesión que sobrevive a resume, una normalización. Sigue H3.
+diff -ruN x/docs/design.md y/docs/design.md
+--- x/docs/design.md	2026-10-26 23:14:31.450509730 +0000
++++ y/docs/design.md	2026-10-26 23:23:18.723756166 +0000
+@@ -928,8 +928,13 @@
+   sanitizado viven en [utils/proveedor.py](../utils/proveedor.py), que usan
+   el chat y el kernel (antes estaban solo en `nodes.py`).
+ 
+-Instancias: `explorador.py` (PR 1). Siguen supervisor (PR 2), juez y research
+-(PR 3) y el chat (PR 4), con los gates de [roadmap.md](roadmap.md).
++Instancias: `explorador.py` (PR 1) y `supervisor.py` (PR 2). El chat NO es
++una instancia (H2 PR 4b, X77): `AgentStep`/`ExecuteTools` son "el loop con
++políticas" —compactación, presupuesto adaptativo, no-progreso, novedad,
++aviso de cierre, skills, checkpoints— y el kernel es "el loop mínimo para
++sub-agentes". Los dos comparten el contrato de respuesta: una sola
++normalización del proveedor (`utils.proveedor.normalizar`, X76), el mismo
++historial canónico y el mismo despacho por `run_tool_call`.
+ 
+ ## Salidas — una carpeta, no una raíz llena de .md
+ 
+diff -ruN x/docs/estado.md y/docs/estado.md
+--- x/docs/estado.md	2026-10-26 23:14:31.450509730 +0000
++++ y/docs/estado.md	2026-10-26 23:23:18.723756166 +0000
+@@ -122,6 +122,8 @@
+ | X73 | — | El supervisor tenía su propio loop (UnPaso → Ejecutar), su propio presupuesto (`rondas`) y el explorador sumaba 3 rondas por fuera de esas 5; las leyes (veto, caché, repetición) vivían repartidas entre un snapshot de `prep`, un estado "vivo" de `exec` y los contadores de `post` | ✅ 2026-10-26 (H2 PR 2, código) | `supervisor.py` = loop del kernel → `Auditar` → `Sintetizar` (396 → 324 líneas); `con_leyes` envuelve cada Tool con las guardas puras y un lock; un `Ledger` para el árbol (la exploración gasta del mismo saldo); el kernel ofrece un sub-agente solo con saldo ≥ 2; `bench_supervisor` cuenta las exploraciones del informe (el gate prueba que la pieza corrió) | `tests/test_supervisor_convergencia.py::test_supervisor_y_explorador_comparten_el_saldo`, `::test_bench_cuenta_las_exploraciones_del_informe`, `tests/test_flujos.py::test_supervisor_flujo_nuevo_guarda_antes_de_despachar` |
+ | X74 | — | PR 3 de H2 revisado (decisión del operador): `juez` y `research` NO son loops de tool calling (el modelo no elige tools; el reintento ya es una arista del grafo, el patrón objetivo) y como tools no consumen rondas del llamador: migrarlos al kernel sumaría un grafo genérico sin cerrar ningún bug | ✅ 2026-10-26 (decisión) | Sin cambio de código; se quedan como pipelines | `tests/test_grafos_sin_calles_muertas.py::test_ningun_nodo_devuelve_una_accion_sin_arista` |
+ | X75 | — | El estado de la pregunta eran 10 claves sueltas en `shared` con un `pop` por cada una en `GetQuestion.post` (una clave nueva sin su `pop` se filtraba a la pregunta siguiente, E5), y lo que vive fuera de `shared` (uso de tokens, historial HITL, intención del juez de riesgo) se perdía en `resume` (F5) | ✅ 2026-10-26 (H2 PR 4a) | `shared["turno"]` (`nodes.nuevo_turno()`), reemplazada entera por pregunta: 10 `pop` → 0; `utils/estado_sesion.capturar`/`restaurar` como único dueño del estado de proceso, en cada checkpoint; `resume` migra checkpoints viejos (`resume.migrar`) y repone la sesión | `tests/test_estado_turno.py` (6: `test_una_clave_nueva_de_la_pregunta_no_se_filtra_a_la_siguiente`, `test_el_checkpoint_lleva_la_sesion_y_resume_la_repone`, `test_un_checkpoint_viejo_se_migra_a_la_caja`…) |
++| X76 | — | Chat y kernel tenían DOS normalizaciones de la respuesta del proveedor que divergían en 4 de 7 casos medidos: el kernel devolvía como respuesta un "solo markup de rol" (el chat re-pregunta) y usaba un mensaje falso para el stream cortado ("pidió herramientas sin presupuesto") | ✅ 2026-10-26 (H2 PR 4b) | `utils/proveedor.normalizar(msg, tools, ofrece_tools) -> (msg, avisos)` es la única: la usan `AgentStep.exec` (que pierde 4 helpers: 183 → 125 líneas) y `kernel.Paso`; los avisos de terminal quedan en el chat (`AVISOS`, contrato de MARCADORES del banco). 7/7 casos iguales | `tests/test_kernel.py::test_el_kernel_repregunta_si_la_respuesta_es_solo_markup_de_rol`, `::test_chat_y_kernel_normalizan_igual` |
++| X77 | — | Cierre de H2 (decisión del operador): el loop del chat NO se pasa al kernel. Lo que queda en `AgentStep.prep`/`ExecuteTools.post` son las políticas del chat, cada una con su experimento (compactación exp/70, recorte exp/91, presupuesto exp/13 y exp/86, no-progreso y novedad exp/13 y exp/52-B, aviso de cierre A38, skills exp/55, notas exp/4, checkpoints exp/48–49, traza F4): meterlas al kernel lo llenaría de casos del chat, y rodearlo exigiría exponer sus nodos internos — la misma complejidad en más archivos | ✅ 2026-10-26 (decisión) | Dos loops con un contrato: el chat es "el loop con políticas"; el kernel, "el loop mínimo para sub-agentes" (explorador, supervisor, y los experimentos de H3). Comparten normalización (X76), historial (`utils/historial`) y despacho (`run_tool_call`) | `tests/test_caracterizacion_chat.py::test_el_presupuesto_corta_y_obliga_a_responder`, `tests/test_kernel.py::test_un_agente_es_una_tool_con_contexto_fresco_y_el_mismo_saldo` |
+ | X62 | — | El meta-loop exigía un auditor al timón (contestar s/n por tmux): sin conductor no había forma de delegarle trabajo real al harness solo, y cada sesión muerta a mitad (exp/98) se perdía entera; además la regex de scope del banco no matcheaba el prompt de `edit_file` de exp/98 (`¿Aplicar? → ruta (2 hunks…)`) → cualquier conductor habría aprobado ediciones fuera de scope y de la denylist | ✅ 2026-10-25 (exp/99) | `delegar.py`: conductor que reusa el driver PTY y `decision_hitl` del banco, sin `BANCO=1` (origen `terminal`), HITL por scope declarado con rechazo CON motivo (exp/98), doble confirmación solo con prefijo explícito, muerte → `resume` (tope 2) y `THREADS_DIR` propio; regex corregida en `banco/banco.py`. e2e: tarea delegada exit 0 + drill `kill -9` → rehidrata y completa; **par #14/250** de la flywheel con `--env LAYA_MODO=shadow` (día 3/14) | `tests/test_delegar.py` (13: `test_conducir_muerto_resume_y_completa`, `test_plan_respuesta_doble_exige_prefijo_explicito`…), `test_el_scope_cubre_el_prompt_de_edit_file_de_exp98` |
+ | X66 | — | Auditoría 2026-10-26 (H1): el conductor reconstruía el pedido HITL leyendo la pantalla y aprobaba `git push` (la doble confirmación real `(1/2) (s/n):` no matcheaba), el scope comparaba rutas y comandos por prefijo de texto, `auto` salía de las raíces (`cd ..;cat`, `cd` solo, glob, `$VAR`) y por flags agrupadas (`sort -uo/x`), `edit_file` perdía CRLF y bytes no UTF-8, las escrituras pisaban permisos y el checkpoint guardaba reprs (`default=str`) | ✅ 2026-10-26 (H1) | El pedido es DATO: `utils/aprobaciones.Pedido` + `dentro_de_scope`/`por_scope`; banco y conductor pasan el scope por `HITL_SCOPE` y el chat decide en su proceso (fuera `decision_hitl`, `tipo_prompt`, `plan_respuesta`, `_cuerpo`); `policy.segmentos`/`opaco`/`irreversible` como fuente única; getopt en flags cortas; `edit_file` por bytes y estricto; `escribir_atomico` conserva modo y saltos; `shared` JSON puro | `tests/test_auditoria_2026_10_26.py` (`test_la_doble_confirmacion_real_no_se_aprueba_por_scope`, `test_auto_no_sale_de_raices`, `test_checkpoint_ida_y_vuelta_es_identidad`…), `tests/test_delegar.py::test_plan_respuesta_doble_exige_prefijo_explicito` |
+ | X61 | — | El punto de confianza del sistema mostraba diffs recortados sin declarar cuánto faltaba (exp/96: hunks aprobados sin verse) y el rechazo era 'n' mudo — el chat adivinaba el motivo y re-propuso lo mismo | ✅ 2026-10-24 (exp/98) | El prompt de edit_file declara `(N hunks, +A/−B)` del diff COMPLETO y el marcador dice cuántos caracteres quedan sin ver; `Decision(ok, motivo)` con `__bool__`: el rechazo `n <motivo>` viaja al modelo en edit_file/write_file/run_command, con casing conservado; el seam `_approve` tolera bools para siempre (getattr — los mocks existentes intactos, R2) | `test_parser_decision_motivo`, `test_edit_file_prompt_declara_diff_completo`, `test_motivo_del_rechazo_viaja_al_modelo` |
+diff -ruN x/docs/roadmap.md y/docs/roadmap.md
+--- x/docs/roadmap.md	2026-10-26 23:14:31.454509801 +0000
++++ y/docs/roadmap.md	2026-10-26 23:23:18.723756166 +0000
+@@ -16,7 +16,14 @@
+ `explorar` solo existe en el catálogo del supervisor, y fable corre por el
+ chat (0 llamadas en las 4 corridas). La medición del explorador pasa al PR 2.
+ 
+-**Ahora — H2 PR 2.** Código hecho (X73); falta su gate con LLM real: `bench_supervisor` con `EXPLORAR=0` y `=1` contra el baseline de v2 (guardado ANTES de aplicar el patch), con `explorar` > 0 en el brazo `=1`.
++**H2 cerrado** (X77). El kernel quedó como el loop de los sub-agentes
++(explorador, supervisor); el chat conserva su loop con políticas y comparte
++con el kernel la normalización, el historial y el despacho.
++
++**Ahora — H3.** El primero es B (swarm de exploradores en auditorías
++amplias): es el único experimento donde el kernel aporta lo que el chat no
++tiene (contexto fresco y lecturas en paralelo), y el que mide si la
++adopción cero del explorador (X73) se sostiene donde el contexto pesa.
+ 
+ **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
+ "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`
+@@ -30,7 +37,7 @@
+ | 2 ✅ código | `supervisor.py` (comparte el `Ledger` con el explorador) | `bench_supervisor` igual o mejor y ≤ llamadas, con `EXPLORAR=0` y `EXPLORAR=1`; con `=1`, `explorar` llamado al menos una vez (si no, el brazo no midió nada) |
+ | 3 ✅ revisado | `juez`, `research` | no aplica: pipelines con el reintento como arista, no loops de tools (X74) |
+ | 4a ✅ | el chat: estado por pregunta en `shared["turno"]` y estado de sesión en el checkpoint (F5, X75) | caracterización idéntica + sesión guionada idéntica |
+-| 4b | el chat: su loop sobre el kernel, con streaming y Ctrl+C en el adaptador; Laya y `VerificarCitas` como nodos alrededor | banco completo con `verificar:`: ≥ tareas hechas, ≤ tokens |
++| 4b ✅ | una sola normalización del proveedor para chat y kernel (X76); el loop del chat se queda como "el loop con políticas" (X77) | 7/7 casos iguales + caracterización idéntica |
+ 
+ Gate común: `tests/test_caracterizacion_chat.py` pasa sin cambiar una línea,
+ `./calidad.sh` verde, ratchet sin empeorar; el viejo se reemplaza (sin `_v2`).
+diff -ruN x/nodes.py y/nodes.py
+--- x/nodes.py	2026-10-26 23:14:31.454509801 +0000
++++ y/nodes.py	2026-10-26 23:17:15.177454381 +0000
+@@ -10,12 +10,15 @@
+ from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_stream
+ from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
+ from utils.fs_tools import TOOLS as CORE_TOOLS
+-from utils.proveedor import (
++from utils.proveedor import (  # noqa: F401  (re-export: tests y banco los importan de nodes)
++    AVISOS,
+     MENSAJE_DSML_AGOTADO,
+     MENSAJE_DSML_SIN_TOOLS,
++    MENSAJE_SIN_RESPUESTA,
+     RE_DSML,
+     dsml_a_tool_calls,
+     dsml_con_presupuesto_agotado,
++    normalizar,
+     sanitizar,
+ )
+ from utils.terminal import colorear, progreso_ronda
+@@ -270,11 +273,6 @@
+     return t["rondas"] >= minimo and t["racha_sin_novedad"] >= k
+ 
+ 
+-MENSAJE_SIN_RESPUESTA = (
+-    "(sin respuesta: el stream se cortó sin contenido — reintentá el pedido)"
+-)
+-
+-
+ AVISO_CIERRE = (
+     "(presupuesto de herramientas agotado) Respondé AHORA con lo que tengas: "
+     "hallazgos, límites y qué falta. No emitas tool calls; si te falta "
+@@ -577,68 +575,6 @@
+             return list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None
+         return shared["messages"], tools
+ 
+-    def _recuperar_dsml(self, exec_res, tools):
+-        """Task calls llegadas como texto (DSML) → canónicas, o ignoradas (L8).
+-
+-        Devuelve True si REEMPLAZÓ el contenido (aviso al usuario)."""
+-        if getattr(exec_res, "tool_calls", None) or not RE_DSML.search(exec_res.content or ""):
+-            return False
+-        parseados = dsml_a_tool_calls(exec_res.content)
+-        # ley L8: retiradas las tools, el texto DSML no las re-arma —
+-        # el presupuesto no se by-pasea desde el canal de texto (exp/12)
+-        exec_res.content, avisar = dsml_con_presupuesto_agotado(
+-            exec_res.content, parseados, tools,
+-            ofrece_tools=getattr(self, "ofrece_tools", True))
+-        if avisar:
+-            print(colorear("  [DSML] tool calls como texto: IGNORADOS "
+-                           "(presupuesto agotado; 'seguí' lo reinicia)", "aviso"))
+-            return True
+-        if not parseados:
+-            return False
+-        print(colorear("  [recuperación] tool calls llegaron como texto (DSML) → ejecutando", "aviso"))
+-        # el historial queda canónico: tool_calls, sin el markup crudo
+-        exec_res.content = None
+-        exec_res.tool_calls = parseados
+-        return False
+-
+-    def _respetar_tools_retiradas(self, exec_res, tools):
+-        """Ley L8 por el canal NATIVO: con tools retiradas, una tool call que el
+-        modelo emita igual NO se ejecuta (medido: tool_rounds=99 → corría).
+-        Devuelve True si reemplazó el contenido (aviso)."""
+-        if tools is not None or not getattr(exec_res, "tool_calls", None):
+-            return False
+-        print(colorear("  [L8] tool calls con las tools retiradas: IGNORADAS", "aviso"))
+-        exec_res.tool_calls = None
+-        if (exec_res.content or "").strip():
+-            return False
+-        exec_res.content = (MENSAJE_DSML_AGOTADO if getattr(self, "ofrece_tools", True)
+-                            else MENSAJE_DSML_SIN_TOOLS)
+-        return True
+-
+-    def _respuesta_sin_deltas(self, exec_res):
+-        """Stream cortado sin deltas (401/429/red): mensaje honesto, no null."""
+-        if getattr(exec_res, "tool_calls", None) or (exec_res.content or "").strip():
+-            return False
+-        exec_res.content = MENSAJE_SIN_RESPUESTA
+-        return True
+-
+-    def _sanitizar_respuesta(self, exec_res, stream):
+-        """Descarrilo a prompt ajeno: corta; si no queda nada, re-pregunta."""
+-        if getattr(exec_res, "tool_calls", None):
+-            return
+-        contenido, cortado = sanitizar(exec_res.content or "")
+-        if not cortado:
+-            return
+-        print(colorear("  [sanitizado] la respuesta descarriló a un prompt ajeno: cortada", "aviso"))
+-        if not contenido:
+-            # no quedó nada utilizable: el retry del nodo re-pregunta
+-            raise ValueError("respuesta descarrilada (solo markup de rol)")
+-        # con streaming el crudo ya se imprimió en vivo (a veces con el
+-        # descarrilo incluido): se imprime también la versión limpia
+-        if stream and exec_res.content:
+-            print(f"\nDeepSeek (limpio): {contenido}")
+-        exec_res.content = contenido
+-
+     def exec(self, inputs):
+         messages, tools = inputs
+         stream = _setting("CHAT_STREAM", "1") == "1"
+@@ -649,14 +585,18 @@
+             exec_res = call_llm_agent_stream(messages, tools)
+         else:
+             exec_res = call_llm_agent(messages, tools)
+-        # La recuperación DSML y el sanitizado van en exec, NO en post: los
+-        # max_retries de PocketFlow envuelven exec(), así que un raise acá
+-        # SÍ re-pregunta; en post() cortaría el chat (bug medido).
+-        reemplazado = self._recuperar_dsml(exec_res, tools)
+-        reemplazado = self._respetar_tools_retiradas(exec_res, tools) or reemplazado
+-        reemplazado = self._respuesta_sin_deltas(exec_res) or reemplazado
+-        self._sanitizar_respuesta(exec_res, stream)
+-        if stream and reemplazado:
++        # La normalización va en exec, NO en post: los max_retries de
++        # PocketFlow envuelven exec(), así que un raise acá SÍ re-pregunta; en
++        # post() cortaría el chat (bug medido). Es la misma del kernel.
++        exec_res, avisos = normalizar(exec_res, tools, getattr(self, "ofrece_tools", True))
++        for aviso in avisos:
++            if aviso in AVISOS:
++                print(colorear(AVISOS[aviso], "aviso"))
++        if stream and "sanitizado" in avisos:
++            # con streaming el crudo ya se imprimió en vivo (a veces con el
++            # descarrilo incluido): se imprime también la versión limpia
++            print(f"\nDeepSeek (limpio): {exec_res.content}")
++        if stream and "reemplazado" in avisos:
+             # con streaming el crudo ya se imprimió; si exec() lo REEMPLAZÓ
+             # (fallback/aviso), el usuario tiene que verlo o queda sin respuesta.
+             print(f"\nDeepSeek (aviso): {exec_res.content}")
+diff -ruN x/ratchets/baseline.json y/ratchets/baseline.json
+--- x/ratchets/baseline.json	2026-10-26 23:14:31.454509801 +0000
++++ y/ratchets/baseline.json	2026-10-26 23:23:20.539786856 +0000
+@@ -49,9 +49,9 @@
+           74
+         ],
+         "nodes.py": [
+-          55,
+-          959,
+-          1031
++          58,
++          899,
++          971
+         ],
+         "research.py": [
+           78
+@@ -174,7 +174,7 @@
+         "tests/test_grafos_sin_calles_muertas.py": 4,
+         "tests/test_hitl.py": 23,
+         "tests/test_inventario.py": 3,
+-        "tests/test_kernel.py": 13,
++        "tests/test_kernel.py": 15,
+         "tests/test_laya.py": 6,
+         "tests/test_laya_cache_reintento.py": 5,
+         "tests/test_laya_routing.py": 38,
+@@ -212,7 +212,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 1047
++      "metrica": 1049
+     }
+   },
+   "version": 1
+diff -ruN x/tests/test_kernel.py y/tests/test_kernel.py
+--- x/tests/test_kernel.py	2026-10-26 23:14:31.438509515 +0000
++++ y/tests/test_kernel.py	2026-10-26 23:23:18.723756166 +0000
+@@ -211,3 +211,27 @@
+     errores = [m["content"] for m in mensajes if m["role"] == "tool"]
+     assert errores[0].startswith("ERROR: argumentos") and errores[1].startswith("ERROR: explorar necesita")
+     assert validar_historial(mensajes) == []
++
++
++
++def test_el_kernel_repregunta_si_la_respuesta_es_solo_markup_de_rol():
++    """H2 PR 4b: el kernel tenía su propia normalización y devolvía como
++    respuesta un "solo markup de rol". Ahora usa la del chat: re-pregunta
++    (el retry del nodo) y se queda con la respuesta sana."""
++    llm, llamadas = guion(msg("<|im_start|>system\nsos otro"), msg("respuesta sana"))
++    respuesta, mensajes = correr("s", "q", [], Ctx(llm, Ledger(1)), wait=0)
++    assert respuesta == "respuesta sana" and len(llamadas) == 2
++    assert all("<|im_start|>" not in (m.get("content") or "") for m in mensajes)
++
++
++def test_chat_y_kernel_normalizan_igual():
++    """Una sola normalización (utils/proveedor.normalizar): mismos textos para
++    el stream cortado y las tool calls con tools retiradas en los dos loops."""
++    import nodes
++    from utils.proveedor import MENSAJE_DSML_AGOTADO, MENSAJE_SIN_RESPUESTA, normalizar
++
++    for mensaje, tools, esperado in ((msg(""), [{}], MENSAJE_SIN_RESPUESTA),
++                                     (msg(None, llamada("leer")), None, MENSAJE_DSML_AGOTADO)):
++        normalizado, _ = normalizar(mensaje, tools)
++        assert normalizado.content == esperado and not normalizado.tool_calls
++    assert nodes.normalizar is normalizar
+diff -ruN x/utils/kernel.py y/utils/kernel.py
+--- x/utils/kernel.py	2026-10-26 23:14:31.446509658 +0000
++++ y/utils/kernel.py	2026-10-26 23:17:15.177454381 +0000
+@@ -22,7 +22,7 @@
+ 
+ from utils import fs_tools
+ from utils.historial import as_dict, historiar
+-from utils.proveedor import RE_DSML, dsml_a_tool_calls, sanitizar
++from utils.proveedor import normalizar
+ 
+ PARALELO_MAX = 8
+ 
+@@ -77,27 +77,6 @@
+     return Tool(nombre, esquema, correr, efecto)
+ 
+ 
+-SIN_TEXTO = "(sin texto: el modelo pidió herramientas sin presupuesto; cierro con lo leído)"
+-
+-
+-def normalizar(msg, ofrece_tools):
+-    """La respuesta del proveedor en forma canónica: DSML → tool calls (solo
+-    si se ofrecieron tools), sin markers de rol ni tags espurios. Sin tools
+-    ofrecidas, lo que el modelo pida igual se descarta (L8) y queda su texto;
+-    si no trajo texto, uno honesto: una respuesta vacía no cierra nada."""
+-    if not getattr(msg, "tool_calls", None) and RE_DSML.search(msg.content or ""):
+-        corte = RE_DSML.search(msg.content).start()
+-        llamadas = dsml_a_tool_calls(msg.content) if ofrece_tools else []
+-        msg.content = None if llamadas else msg.content[:corte].rstrip()
+-        msg.tool_calls = llamadas or None
+-    if not ofrece_tools:
+-        msg.tool_calls = None
+-    if not msg.tool_calls:
+-        msg.content, _ = sanitizar(msg.content or "")
+-        msg.content = msg.content or SIN_TEXTO
+-    return msg
+-
+-
+ class Paso(Node):
+     """Una llamada al modelo. Sin saldo, la llamada va SIN tools (cierre). Un
+     sub-agente solo se ofrece si queda saldo para él Y para su loop (≥ 2): con
+@@ -110,7 +89,8 @@
+ 
+     def exec(self, entrada):
+         llm, mensajes, tools = entrada
+-        return normalizar(llm(mensajes, tools), tools is not None)
++        msg, _ = normalizar(llm(mensajes, tools), tools)
++        return msg
+ 
+     def post(self, s, entrada, msg):
+         s["mensajes"].append(historiar(msg))
+diff -ruN x/utils/proveedor.py y/utils/proveedor.py
+--- x/utils/proveedor.py	2026-10-26 23:14:31.318507362 +0000
++++ y/utils/proveedor.py	2026-10-26 23:17:15.173454309 +0000
+@@ -82,3 +82,61 @@
+     if not limpio:
+         return (MENSAJE_DSML_AGOTADO if ofrece_tools else MENSAJE_DSML_SIN_TOOLS), True
+     return limpio, True
++
++
++MENSAJE_SIN_RESPUESTA = (
++    "(sin respuesta: el stream se cortó sin contenido — reintentá el pedido)"
++)
++
++
++# Lo que pasó al normalizar, para quien lo muestre (el chat lo imprime; el
++# kernel lo ignora). Los textos del chat son contrato del banco (MARCADORES).
++AVISOS = {
++    "dsml_ignorado": "  [DSML] tool calls como texto: IGNORADOS (presupuesto agotado; 'seguí' lo reinicia)",
++    "dsml_recuperado": "  [recuperación] tool calls llegaron como texto (DSML) → ejecutando",
++    "l8": "  [L8] tool calls con las tools retiradas: IGNORADAS",
++    "sanitizado": "  [sanitizado] la respuesta descarriló a un prompt ajeno: cortada",
++}
++
++
++def normalizar(msg, tools, ofrece_tools=True):
++    """La respuesta del proveedor en forma canónica. Devuelve (msg, avisos).
++
++    Una sola normalización para el chat y el kernel (H2 PR 4b): antes el
++    kernel tenía una versión más gruesa que, por ejemplo, devolvía como
++    respuesta un "solo markup de rol" en vez de re-preguntar. En orden:
++    - DSML como texto → tool calls, salvo que las tools estén retiradas (L8:
++      el presupuesto no se by-pasea por el canal de texto, exp/12);
++    - tool calls nativas con las tools retiradas → se descartan (L8);
++    - sin texto ni tool calls (stream cortado) → mensaje honesto, no null;
++    - markers de rol ajenos → se corta; si no queda nada, `ValueError` para
++      que el retry del nodo re-pregunte. `ofrece_tools=False` (ruta directa)
++      distingue "nunca se ofrecieron" de "las retiró el tope" (exp/36)."""
++    avisos = []
++    if not getattr(msg, "tool_calls", None) and RE_DSML.search(msg.content or ""):
++        parseados = dsml_a_tool_calls(msg.content)
++        contenido, ignorado = dsml_con_presupuesto_agotado(msg.content, parseados, tools, ofrece_tools)
++        if ignorado:
++            msg.content = contenido
++            avisos += ["dsml_ignorado", "reemplazado"]
++        elif parseados:
++            msg.content, msg.tool_calls = None, parseados
++            avisos.append("dsml_recuperado")
++    if tools is None and getattr(msg, "tool_calls", None):
++        msg.tool_calls = None
++        avisos.append("l8")
++        if not (msg.content or "").strip():
++            msg.content = MENSAJE_DSML_AGOTADO if ofrece_tools else MENSAJE_DSML_SIN_TOOLS
++            avisos.append("reemplazado")
++    if getattr(msg, "tool_calls", None):
++        return msg, avisos
++    if not (msg.content or "").strip():
++        msg.content = MENSAJE_SIN_RESPUESTA
++        avisos.append("reemplazado")
++    contenido, cortado = sanitizar(msg.content)
++    if cortado:
++        if not contenido:
++            raise ValueError("respuesta descarrilada (solo markup de rol)")
++        msg.content = contenido
++        avisos.append("sanitizado")
++    return msg, avisos

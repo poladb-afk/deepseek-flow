@@ -16,7 +16,14 @@ verdes, caracterización idéntica y `explorar()` en vivo (citas correctas,
 `explorar` solo existe en el catálogo del supervisor, y fable corre por el
 chat (0 llamadas en las 4 corridas). La medición del explorador pasa al PR 2.
 
-**Ahora — H2 PR 2.** Código hecho (X73); falta su gate con LLM real: `bench_supervisor` con `EXPLORAR=0` y `=1` contra el baseline de v2 (guardado ANTES de aplicar el patch), con `explorar` > 0 en el brazo `=1`.
+**H2 cerrado** (X77). El kernel quedó como el loop de los sub-agentes
+(explorador, supervisor); el chat conserva su loop con políticas y comparte
+con el kernel la normalización, el historial y el despacho.
+
+**Ahora — H3.** El primero es B (swarm de exploradores en auditorías
+amplias): es el único experimento donde el kernel aporta lo que el chat no
+tiene (contexto fresco y lecturas en paralelo), y el que mide si la
+adopción cero del explorador (X73) se sostiene donde el contexto pesa.
 
 **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
 "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`
@@ -30,7 +37,7 @@ Laya como nodo, también en el PR 4. Un PR por loop, del más chico al más gran
 | 2 ✅ código | `supervisor.py` (comparte el `Ledger` con el explorador) | `bench_supervisor` igual o mejor y ≤ llamadas, con `EXPLORAR=0` y `EXPLORAR=1`; con `=1`, `explorar` llamado al menos una vez (si no, el brazo no midió nada) |
 | 3 ✅ revisado | `juez`, `research` | no aplica: pipelines con el reintento como arista, no loops de tools (X74) |
 | 4a ✅ | el chat: estado por pregunta en `shared["turno"]` y estado de sesión en el checkpoint (F5, X75) | caracterización idéntica + sesión guionada idéntica |
-| 4b | el chat: su loop sobre el kernel, con streaming y Ctrl+C en el adaptador; Laya y `VerificarCitas` como nodos alrededor | banco completo con `verificar:`: ≥ tareas hechas, ≤ tokens |
+| 4b ✅ | una sola normalización del proveedor para chat y kernel (X76); el loop del chat se queda como "el loop con políticas" (X77) | 7/7 casos iguales + caracterización idéntica |
 
 Gate común: `tests/test_caracterizacion_chat.py` pasa sin cambiar una línea,
 `./calidad.sh` verde, ratchet sin empeorar; el viejo se reemplaza (sin `_v2`).

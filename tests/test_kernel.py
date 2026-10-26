@@ -211,3 +211,27 @@ def test_argumentos_ilegibles_vuelven_como_error_y_el_loop_sigue():
     errores = [m["content"] for m in mensajes if m["role"] == "tool"]
     assert errores[0].startswith("ERROR: argumentos") and errores[1].startswith("ERROR: explorar necesita")
     assert validar_historial(mensajes) == []
+
+
+
+def test_el_kernel_repregunta_si_la_respuesta_es_solo_markup_de_rol():
+    """H2 PR 4b: el kernel tenía su propia normalización y devolvía como
+    respuesta un "solo markup de rol". Ahora usa la del chat: re-pregunta
+    (el retry del nodo) y se queda con la respuesta sana."""
+    llm, llamadas = guion(msg("<|im_start|>system\nsos otro"), msg("respuesta sana"))
+    respuesta, mensajes = correr("s", "q", [], Ctx(llm, Ledger(1)), wait=0)
+    assert respuesta == "respuesta sana" and len(llamadas) == 2
+    assert all("<|im_start|>" not in (m.get("content") or "") for m in mensajes)
+
+
+def test_chat_y_kernel_normalizan_igual():
+    """Una sola normalización (utils/proveedor.normalizar): mismos textos para
+    el stream cortado y las tool calls con tools retiradas en los dos loops."""
+    import nodes
+    from utils.proveedor import MENSAJE_DSML_AGOTADO, MENSAJE_SIN_RESPUESTA, normalizar
+
+    for mensaje, tools, esperado in ((msg(""), [{}], MENSAJE_SIN_RESPUESTA),
+                                     (msg(None, llamada("leer")), None, MENSAJE_DSML_AGOTADO)):
+        normalizado, _ = normalizar(mensaje, tools)
+        assert normalizado.content == esperado and not normalizado.tool_calls
+    assert nodes.normalizar is normalizar

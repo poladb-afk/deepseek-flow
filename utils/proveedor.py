@@ -82,3 +82,61 @@ def dsml_con_presupuesto_agotado(content, parseados, tools, ofrece_tools=True):
     if not limpio:
         return (MENSAJE_DSML_AGOTADO if ofrece_tools else MENSAJE_DSML_SIN_TOOLS), True
     return limpio, True
+
+
+MENSAJE_SIN_RESPUESTA = (
+    "(sin respuesta: el stream se cortó sin contenido — reintentá el pedido)"
+)
+
+
+# Lo que pasó al normalizar, para quien lo muestre (el chat lo imprime; el
+# kernel lo ignora). Los textos del chat son contrato del banco (MARCADORES).
+AVISOS = {
+    "dsml_ignorado": "  [DSML] tool calls como texto: IGNORADOS (presupuesto agotado; 'seguí' lo reinicia)",
+    "dsml_recuperado": "  [recuperación] tool calls llegaron como texto (DSML) → ejecutando",
+    "l8": "  [L8] tool calls con las tools retiradas: IGNORADAS",
+    "sanitizado": "  [sanitizado] la respuesta descarriló a un prompt ajeno: cortada",
+}
+
+
+def normalizar(msg, tools, ofrece_tools=True):
+    """La respuesta del proveedor en forma canónica. Devuelve (msg, avisos).
+
+    Una sola normalización para el chat y el kernel (H2 PR 4b): antes el
+    kernel tenía una versión más gruesa que, por ejemplo, devolvía como
+    respuesta un "solo markup de rol" en vez de re-preguntar. En orden:
+    - DSML como texto → tool calls, salvo que las tools estén retiradas (L8:
+      el presupuesto no se by-pasea por el canal de texto, exp/12);
+    - tool calls nativas con las tools retiradas → se descartan (L8);
+    - sin texto ni tool calls (stream cortado) → mensaje honesto, no null;
+    - markers de rol ajenos → se corta; si no queda nada, `ValueError` para
+      que el retry del nodo re-pregunte. `ofrece_tools=False` (ruta directa)
+      distingue "nunca se ofrecieron" de "las retiró el tope" (exp/36)."""
+    avisos = []
+    if not getattr(msg, "tool_calls", None) and RE_DSML.search(msg.content or ""):
+        parseados = dsml_a_tool_calls(msg.content)
+        contenido, ignorado = dsml_con_presupuesto_agotado(msg.content, parseados, tools, ofrece_tools)
+        if ignorado:
+            msg.content = contenido
+            avisos += ["dsml_ignorado", "reemplazado"]
+        elif parseados:
+            msg.content, msg.tool_calls = None, parseados
+            avisos.append("dsml_recuperado")
+    if tools is None and getattr(msg, "tool_calls", None):
+        msg.tool_calls = None
+        avisos.append("l8")
+        if not (msg.content or "").strip():
+            msg.content = MENSAJE_DSML_AGOTADO if ofrece_tools else MENSAJE_DSML_SIN_TOOLS
+            avisos.append("reemplazado")
+    if getattr(msg, "tool_calls", None):
+        return msg, avisos
+    if not (msg.content or "").strip():
+        msg.content = MENSAJE_SIN_RESPUESTA
+        avisos.append("reemplazado")
+    contenido, cortado = sanitizar(msg.content)
+    if cortado:
+        if not contenido:
+            raise ValueError("respuesta descarrilada (solo markup de rol)")
+        msg.content = contenido
+        avisos.append("sanitizado")
+    return msg, avisos

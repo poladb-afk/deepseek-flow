@@ -4622,3 +4622,12 @@ la sección "Vision/PDF y A2A" de design.md.
 **Medición sin LLM**: sesión completa guionada (3 preguntas con un "seguí") en 4 casos (presupuesto, sin progreso, directo, mixto) sobre PR 2 y PR 4a: mismas llamadas al LLM, mismas tools por llamada, mismas tools ejecutadas y el mismo historial. Caracterización idéntica. 16 tests que leían claves privadas migrados a la caja con su nombre; 6 nuevos. Suite 1050 passed; ratchet 1041 → 1047.
 
 **Sigue**: PR 4b, el loop del chat sobre el kernel (streaming y Ctrl+C en el adaptador).
+
+
+## H2 PR 4b — una sola normalización y el cierre de H2 (2026-10-26)
+
+**Medición antes de reescribir** (la condición acordada: si el refactor no simplifica, se muestra con números): las dos normalizaciones del proveedor (chat y kernel) divergían en 4 de 7 casos, y el kernel tenía un bug real (un "solo markup de rol" volvía como respuesta en vez de re-preguntar), heredado por explorador y supervisor.
+
+**Cambio**: `utils/proveedor.normalizar` es la única (X76). `AgentStep` 183 → 125 líneas y 7 → 3 métodos; `nodes.py` 1076 → 1016; `kernel.py` 230 → 210. 7/7 casos iguales; caracterización idéntica; suite verde.
+
+**Decisión** (X77): el loop del chat no se pasa al kernel. Lo que queda son sus políticas, cada una con su experimento; las dos vías para meterlas (hooks dentro del kernel o nodos alrededor que exigen exponer los internos) reparten la misma complejidad sin cerrar bugs ni duplicación. **H2 cerrado**: kernel en producción (explorador, supervisor), pedido HITL como dato, caja por pregunta, sesión que sobrevive a resume, una normalización. Sigue H3.

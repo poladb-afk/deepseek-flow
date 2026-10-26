@@ -928,8 +928,13 @@ como una `Tool` que otro loop puede llamar. Leyes por construcción:
   sanitizado viven en [utils/proveedor.py](../utils/proveedor.py), que usan
   el chat y el kernel (antes estaban solo en `nodes.py`).
 
-Instancias: `explorador.py` (PR 1). Siguen supervisor (PR 2), juez y research
-(PR 3) y el chat (PR 4), con los gates de [roadmap.md](roadmap.md).
+Instancias: `explorador.py` (PR 1) y `supervisor.py` (PR 2). El chat NO es
+una instancia (H2 PR 4b, X77): `AgentStep`/`ExecuteTools` son "el loop con
+políticas" —compactación, presupuesto adaptativo, no-progreso, novedad,
+aviso de cierre, skills, checkpoints— y el kernel es "el loop mínimo para
+sub-agentes". Los dos comparten el contrato de respuesta: una sola
+normalización del proveedor (`utils.proveedor.normalizar`, X76), el mismo
+historial canónico y el mismo despacho por `run_tool_call`.
 
 ## Salidas — una carpeta, no una raíz llena de .md
 

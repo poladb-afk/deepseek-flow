@@ -10,12 +10,15 @@ from modules import discover
 from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_stream
 from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
 from utils.fs_tools import TOOLS as CORE_TOOLS
-from utils.proveedor import (
+from utils.proveedor import (  # noqa: F401  (re-export: tests y banco los importan de nodes)
+    AVISOS,
     MENSAJE_DSML_AGOTADO,
     MENSAJE_DSML_SIN_TOOLS,
+    MENSAJE_SIN_RESPUESTA,
     RE_DSML,
     dsml_a_tool_calls,
     dsml_con_presupuesto_agotado,
+    normalizar,
     sanitizar,
 )
 from utils.terminal import colorear, progreso_ronda
@@ -268,11 +271,6 @@ def corte_por_novedad_activo(shared):
     minimo = _entero("CORTE_NOVEDAD_MIN", 3)
     t = turno(shared)
     return t["rondas"] >= minimo and t["racha_sin_novedad"] >= k
-
-
-MENSAJE_SIN_RESPUESTA = (
-    "(sin respuesta: el stream se cortó sin contenido — reintentá el pedido)"
-)
 
 
 AVISO_CIERRE = (
@@ -577,68 +575,6 @@ class AgentStep(Node):
             return list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None
         return shared["messages"], tools
 
-    def _recuperar_dsml(self, exec_res, tools):
-        """Task calls llegadas como texto (DSML) → canónicas, o ignoradas (L8).
-
-        Devuelve True si REEMPLAZÓ el contenido (aviso al usuario)."""
-        if getattr(exec_res, "tool_calls", None) or not RE_DSML.search(exec_res.content or ""):
-            return False
-        parseados = dsml_a_tool_calls(exec_res.content)
-        # ley L8: retiradas las tools, el texto DSML no las re-arma —
-        # el presupuesto no se by-pasea desde el canal de texto (exp/12)
-        exec_res.content, avisar = dsml_con_presupuesto_agotado(
-            exec_res.content, parseados, tools,
-            ofrece_tools=getattr(self, "ofrece_tools", True))
-        if avisar:
-            print(colorear("  [DSML] tool calls como texto: IGNORADOS "
-                           "(presupuesto agotado; 'seguí' lo reinicia)", "aviso"))
-            return True
-        if not parseados:
-            return False
-        print(colorear("  [recuperación] tool calls llegaron como texto (DSML) → ejecutando", "aviso"))
-        # el historial queda canónico: tool_calls, sin el markup crudo
-        exec_res.content = None
-        exec_res.tool_calls = parseados
-        return False
-
-    def _respetar_tools_retiradas(self, exec_res, tools):
-        """Ley L8 por el canal NATIVO: con tools retiradas, una tool call que el
-        modelo emita igual NO se ejecuta (medido: tool_rounds=99 → corría).
-        Devuelve True si reemplazó el contenido (aviso)."""
-        if tools is not None or not getattr(exec_res, "tool_calls", None):
-            return False
-        print(colorear("  [L8] tool calls con las tools retiradas: IGNORADAS", "aviso"))
-        exec_res.tool_calls = None
-        if (exec_res.content or "").strip():
-            return False
-        exec_res.content = (MENSAJE_DSML_AGOTADO if getattr(self, "ofrece_tools", True)
-                            else MENSAJE_DSML_SIN_TOOLS)
-        return True
-
-    def _respuesta_sin_deltas(self, exec_res):
-        """Stream cortado sin deltas (401/429/red): mensaje honesto, no null."""
-        if getattr(exec_res, "tool_calls", None) or (exec_res.content or "").strip():
-            return False
-        exec_res.content = MENSAJE_SIN_RESPUESTA
-        return True
-
-    def _sanitizar_respuesta(self, exec_res, stream):
-        """Descarrilo a prompt ajeno: corta; si no queda nada, re-pregunta."""
-        if getattr(exec_res, "tool_calls", None):
-            return
-        contenido, cortado = sanitizar(exec_res.content or "")
-        if not cortado:
-            return
-        print(colorear("  [sanitizado] la respuesta descarriló a un prompt ajeno: cortada", "aviso"))
-        if not contenido:
-            # no quedó nada utilizable: el retry del nodo re-pregunta
-            raise ValueError("respuesta descarrilada (solo markup de rol)")
-        # con streaming el crudo ya se imprimió en vivo (a veces con el
-        # descarrilo incluido): se imprime también la versión limpia
-        if stream and exec_res.content:
-            print(f"\nDeepSeek (limpio): {contenido}")
-        exec_res.content = contenido
-
     def exec(self, inputs):
         messages, tools = inputs
         stream = _setting("CHAT_STREAM", "1") == "1"
@@ -649,14 +585,18 @@ class AgentStep(Node):
             exec_res = call_llm_agent_stream(messages, tools)
         else:
             exec_res = call_llm_agent(messages, tools)
-        # La recuperación DSML y el sanitizado van en exec, NO en post: los
-        # max_retries de PocketFlow envuelven exec(), así que un raise acá
-        # SÍ re-pregunta; en post() cortaría el chat (bug medido).
-        reemplazado = self._recuperar_dsml(exec_res, tools)
-        reemplazado = self._respetar_tools_retiradas(exec_res, tools) or reemplazado
-        reemplazado = self._respuesta_sin_deltas(exec_res) or reemplazado
-        self._sanitizar_respuesta(exec_res, stream)
-        if stream and reemplazado:
+        # La normalización va en exec, NO en post: los max_retries de
+        # PocketFlow envuelven exec(), así que un raise acá SÍ re-pregunta; en
+        # post() cortaría el chat (bug medido). Es la misma del kernel.
+        exec_res, avisos = normalizar(exec_res, tools, getattr(self, "ofrece_tools", True))
+        for aviso in avisos:
+            if aviso in AVISOS:
+                print(colorear(AVISOS[aviso], "aviso"))
+        if stream and "sanitizado" in avisos:
+            # con streaming el crudo ya se imprimió en vivo (a veces con el
+            # descarrilo incluido): se imprime también la versión limpia
+            print(f"\nDeepSeek (limpio): {exec_res.content}")
+        if stream and "reemplazado" in avisos:
             # con streaming el crudo ya se imprimió; si exec() lo REEMPLAZÓ
             # (fallback/aviso), el usuario tiene que verlo o queda sin respuesta.
             print(f"\nDeepSeek (aviso): {exec_res.content}")

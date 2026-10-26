@@ -22,7 +22,7 @@ from pocketflow import Flow, Node
 
 from utils import fs_tools
 from utils.historial import as_dict, historiar
-from utils.proveedor import RE_DSML, dsml_a_tool_calls, sanitizar
+from utils.proveedor import normalizar
 
 PARALELO_MAX = 8
 
@@ -77,27 +77,6 @@ def desde_fs(nombre, efecto="lectura"):
     return Tool(nombre, esquema, correr, efecto)
 
 
-SIN_TEXTO = "(sin texto: el modelo pidió herramientas sin presupuesto; cierro con lo leído)"
-
-
-def normalizar(msg, ofrece_tools):
-    """La respuesta del proveedor en forma canónica: DSML → tool calls (solo
-    si se ofrecieron tools), sin markers de rol ni tags espurios. Sin tools
-    ofrecidas, lo que el modelo pida igual se descarta (L8) y queda su texto;
-    si no trajo texto, uno honesto: una respuesta vacía no cierra nada."""
-    if not getattr(msg, "tool_calls", None) and RE_DSML.search(msg.content or ""):
-        corte = RE_DSML.search(msg.content).start()
-        llamadas = dsml_a_tool_calls(msg.content) if ofrece_tools else []
-        msg.content = None if llamadas else msg.content[:corte].rstrip()
-        msg.tool_calls = llamadas or None
-    if not ofrece_tools:
-        msg.tool_calls = None
-    if not msg.tool_calls:
-        msg.content, _ = sanitizar(msg.content or "")
-        msg.content = msg.content or SIN_TEXTO
-    return msg
-
-
 class Paso(Node):
     """Una llamada al modelo. Sin saldo, la llamada va SIN tools (cierre). Un
     sub-agente solo se ofrece si queda saldo para él Y para su loop (≥ 2): con
@@ -110,7 +89,8 @@ class Paso(Node):
 
     def exec(self, entrada):
         llm, mensajes, tools = entrada
-        return normalizar(llm(mensajes, tools), tools is not None)
+        msg, _ = normalizar(llm(mensajes, tools), tools)
+        return msg
 
     def post(self, s, entrada, msg):
         s["mensajes"].append(historiar(msg))
