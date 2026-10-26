@@ -16,7 +16,8 @@ proyecto: `DEEPSEEK_API_KEY` en el entorno o `LLM_API_KEY` en el `.env` de bmo.
 ```mermaid
 flowchart TD
     q[GetQuestion] -->|continue| s[AgentStep]
-    s -->|answer| q
+    s -->|answer| c[VerificarCitas]
+    c --> q
     s -->|tool| t[ExecuteTools]
     t --> s
     q -->|exit| x[ExitChat]
@@ -113,6 +114,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | GetQuestion | Node | — | `input()` (ignora vacías; EOF → exit) | `salir/exit/quit` → `exit`; si no, resetea el presupuesto por pregunta (ley L8) y agrega el mensaje user → `continue`; `/aprobaciones` imprime el historial HITL y NO entra al historial |
 | AgentStep | Node (max_retries=3, wait=5) | historial + tools (sin tools si ya gastó el límite) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
 | ExecuteTools | Node | último `tool_calls` | ejecuta cada llamada (`run_tool_call`) | agrega mensajes tool, suma `tool_rounds` → `default` |
+| VerificarCitas | Node (max_retries=2, wait=2) | la última respuesta (si `CITAS_VERIFICAR=1` y no trae `tool_calls`) | verifica `ruta:línea` contra el disco; si alguna falla, UNA corrección sin tools (`exec_fallback`: si la corrección revienta, queda la respuesta) | reemplaza el contenido corregido → `default` (antes vivía en `AgentStep.post`, sin retry: auditoría F6) |
 | ExitChat | Node | — | — | imprime despedida |
 
 ## Utilities
@@ -869,9 +871,11 @@ el s/n lo decidió el scope, no un humano, y no entra al fine-tune.
 Leyes del conductor (spec [exp99](../banco/specs/exp99_delegar.md) y
 [exp100](../banco/specs/exp100_delegar_en_chat.md)):
 
-- **HITL por scope**: reusa `decision_hitl` del banco; `--permitir`/
-  `--permitir-comandos` son prefijos; sin ellos vale solo la denylist dura
-  (`.env`, `.git/`, `memoria/`, `git push`, `rm -rf`, `rm -fr`). Los
+- **HITL por scope** (H1, 2026-10-26): el conductor escribe el scope a un JSON y lo pasa por `HITL_SCOPE`; el chat decide cada `Pedido` (tipo, objetivo, nivel) con `utils.aprobaciones.por_scope`, sin leer la pantalla. Antes reusaba `decision_hitl` del banco; `--permitir`/
+  `--permitir-comandos` son prefijos. Sin `--permitir` las escrituras valen
+  salvo la denylist dura (`.env`/`*.env`, `.git`, `memoria/`); sin
+  `--permitir-comandos` NINGÚN comando que pida aprobación se aprueba (los de
+  solo-lectura corren `auto` igual), y `git push`/`rm -rf` nunca pasan. Los
   rechazos viajan CON MOTIVO (`n fuera-de-scope`, exp/98): el modelo sabe
   por qué le dijeron que no. La doble confirmación `(1/2)/(2/2)` —nivel
   destructivo de la policy— SOLO se aprueba con prefijo EXPLÍCITO de
@@ -880,7 +884,7 @@ Leyes del conductor (spec [exp99](../banco/specs/exp99_delegar.md) y
   relanza `main.py resume <id-reciente>` (exp/48) y re-envía una línea de
   continuación (protocolo de exp/4). Tope `MAX_RESUMES=2`; sin checkpoint o
   tope agotado → exit 1 con el transcript a mano.
-- **Presupuestos**: `--max-hitl` (default 12; al tope rechaza con motivo,
+- **Presupuestos**: `--max-hitl` (default 12, por corrida con reanudaciones; al tope rechaza con motivo,
   no cuelga) y `--timeout-min` global (default 30; SIGINT → gracia →
   SIGKILL → exit 1). El cierre normal manda `salir`: el resumen de sesión y
   el reporte `[tokens]` quedan al final del transcript.

@@ -137,9 +137,13 @@ _EXTS_ALCANCE = {".py", ".md", ".json", ".csv", ".js", ".yaml", ".jsonl", ".txt"
 
 def _lineas_de(ruta):
     """Masa VISIBLE al agente: la answer sheet del banco (GROUND-TRUTH.md)
-    no cuenta — misma regla que el juez de trabajo de fable (exp/82)."""
+    no cuenta — misma regla que el juez de trabajo de fable (exp/82). Corta al
+    cruzar los umbrales: la respuesta es amplio sí/no, no el conteo exacto, y
+    un directorio enorme se recorría entero en CADA ronda (auditoría F3)."""
     total, archivos = 0, 0
-    for f in sorted(ruta.rglob("*")):
+    for f in ruta.rglob("*"):
+        if archivos >= AMPLIO_ARCHIVOS or total >= AMPLIO_LINEAS:
+            break
         if f.is_file() and f.suffix in _EXTS_ALCANCE and f.name != "GROUND-TRUTH.md":
             archivos += 1
             try:
@@ -163,9 +167,14 @@ def alcance_amplio(pregunta, raiz=None):
         return True
     masa = 0  # suma de líneas de los ARCHIVOS mencionados (spec: la masa, no cada uno)
     tokens = _TOKEN_RUTA.findall(texto) + _TOKEN_ARCHIVO.findall(texto)
+    from utils.fs_tools import allowed_roots
+
+    roots = allowed_roots()
     for token in dict.fromkeys(tokens):  # único: un nombre puede aparecer dos veces
-        p = raiz / token.rstrip(".,;:)")
-        if not p.exists():
+        p = (raiz / token.rstrip(".,;:)")).resolve()
+        # solo la masa que el agente PUEDE leer: `/usr` no es alcance del pedido
+        # (y recorrerlo costaba ~3 s por ronda, auditoría F3)
+        if not p.exists() or not any(p == r or r in p.parents for r in roots):
             continue
         if p.is_dir():
             archivos, lineas = _lineas_de(p)
@@ -232,9 +241,9 @@ def actualizar_novedad(shared, tool_calls):
     NINGUNA llamada nueva (p. ej. A, B, A, B) también cuenta como sin novedad.
     Devuelve True si la ronda no estrenó ninguna llamada.
     """
-    vistas = shared.setdefault("_huellas_vistas", set())
-    nuevas = [h for h in (huella_llamada(tc) for tc in tool_calls or []) if h not in vistas]
-    vistas.update(nuevas)
+    vistas = shared.setdefault("_huellas_vistas", [])  # lista: el checkpoint es JSON
+    nuevas = [h for h in dict.fromkeys(huella_llamada(tc) for tc in tool_calls or []) if h not in vistas]
+    vistas.extend(nuevas)
     if nuevas:
         shared["_racha_sin_novedad"] = 0
     else:
@@ -609,9 +618,12 @@ class AgentStep(Node):
         if tools is not None and shared.get("_skill_activo"):
             # exp/55: mientras el skill está activo se anuncia SOLO su subset
             # (guía, no sandbox: el action space completo sigue existiendo).
-            from utils.skills import filtrar_tools
+            # En shared viaja el ID (JSON): el objeto Skill se guardaba como su
+            # repr y un resume lo cargaba roto (auditoría 2026-10-26, F4).
+            from utils.skills import disponibles, filtrar_tools
 
-            tools = filtrar_tools(tools, shared["_skill_activo"])
+            skill = next((h for h in disponibles() if h.id == shared["_skill_activo"]), None)
+            tools = filtrar_tools(tools, skill) if skill else tools
         if tools is None and not shared.get("_aviso_cierre"):
             shared["_aviso_cierre"] = True
             # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
@@ -704,49 +716,7 @@ class AgentStep(Node):
             print(f"\nDeepSeek (aviso): {exec_res.content}")
         return exec_res
 
-    def _verificar_citas(self, shared, exec_res):
-        """Cita archivo:línea: se comprueba contra el disco; si alguna no
-        coincide, se pide UNA segunda pasada de corrección (sin tools). Best
-        effort: un fallo de verificación o de la llamada no rompe la respuesta."""
-        contenido = (exec_res.content or "").strip()
-        if not contenido or _setting("CITAS_VERIFICAR", "1") != "1":
-            return exec_res
-        from utils.citas import reporte, verificar_citas
-
-        try:
-            resultado = verificar_citas(contenido)
-        except Exception:  # noqa: BLE001 (verificación: nunca corta la respuesta)
-            return exec_res
-        if not resultado["total"]:
-            return exec_res
-        print(colorear(f"  [citas] {resultado['ok']}/{resultado['total']} verificadas", "info"), flush=True)
-        if not resultado["mal"]:
-            return exec_res
-        detalle = reporte(resultado)
-        print(colorear(detalle, "aviso"), flush=True)
-        try:
-            mensajes = list(shared.get("messages", [])) + [
-                {"role": "assistant", "content": contenido},
-                {"role": "user", "content": (
-                    "Verificá y corregí la respuesta. Estas citas NO coinciden con "
-                    "el archivo real:\n" + detalle + "\n\nReescribí la respuesta "
-                    "usando solo citas verificadas (o marcá como no verificado lo "
-                    "que no puedas verificar). No agregues hallazgos nuevos; "
-                    "devolvé solo la respuesta final.")},
-            ]
-            corregido = call_llm_agent(mensajes)
-            nuevo = (getattr(corregido, "content", None) or "").strip()
-        except Exception:  # noqa: BLE001 (la corrección es best-effort)
-            return exec_res
-        if nuevo:
-            exec_res.content = nuevo
-            if _setting("CHAT_STREAM", "1") == "1":
-                print(f"\nDeepSeek (citas corregidas): {nuevo}", flush=True)
-        return exec_res
-
     def post(self, shared, prep_res, exec_res):
-        if not getattr(exec_res, "tool_calls", None):
-            exec_res = self._verificar_citas(shared, exec_res)
         shared["messages"].append(historiar(exec_res))
         if getattr(exec_res, "tool_calls", None):
             # exp/49: punto seguro 4 — la SELECCIÓN: las llamadas quedaron
@@ -864,6 +834,61 @@ class ExecuteTools(Node):
         # exp/48: punto seguro 2 — la ronda de tools quedó registrada.
         checkpoint(thread_id(), "ExecuteTools", "default", shared)
         return "default"
+
+
+class VerificarCitas(Node):
+    """Cita archivo:línea → se comprueba contra el disco; si alguna no
+    coincide, UNA corrección sin tools reemplaza la respuesta (A40).
+
+    Es un nodo del grafo (answer → citas → ask) y no un paso dentro de
+    AgentStep.post: post no tiene retry en PocketFlow y la llamada de
+    corrección corría ahí envuelta en un except amplio (auditoría F6). Acá la
+    llamada vive en exec (con reintentos) y el "best effort" es el
+    exec_fallback explícito: si no se pudo corregir, queda la respuesta."""
+
+    def prep(self, shared):
+        ultimo = shared["messages"][-1] if shared.get("messages") else {}
+        contenido = (ultimo.get("content") or "").strip()
+        if (_setting("CITAS_VERIFICAR", "1") != "1" or ultimo.get("role") != "assistant"
+                or ultimo.get("tool_calls") or not contenido):
+            return None
+        return shared["messages"][:-1], contenido
+
+    def exec(self, entrada):
+        if entrada is None:
+            return None
+        from utils.citas import reporte, verificar_citas
+
+        mensajes, contenido = entrada
+        resultado = verificar_citas(contenido)
+        if not resultado["total"]:
+            return None
+        print(colorear(f"  [citas] {resultado['ok']}/{resultado['total']} verificadas", "info"), flush=True)
+        if not resultado["mal"]:
+            return None
+        detalle = reporte(resultado)
+        print(colorear(detalle, "aviso"), flush=True)
+        corregido = call_llm_agent(list(mensajes) + [
+            {"role": "assistant", "content": contenido},
+            {"role": "user", "content": (
+                "Verificá y corregí la respuesta. Estas citas NO coinciden con "
+                "el archivo real:\n" + detalle + "\n\nReescribí la respuesta "
+                "usando solo citas verificadas (o marcá como no verificado lo "
+                "que no puedas verificar). No agregues hallazgos nuevos; "
+                "devolvé solo la respuesta final.")},
+        ])
+        return (getattr(corregido, "content", None) or "").strip() or None
+
+    def exec_fallback(self, prep_res, exc):
+        print(colorear(f"  [citas] la corrección falló ({type(exc).__name__}): queda la respuesta",
+                       "aviso"), flush=True)
+        return None
+
+    def post(self, shared, prep_res, exec_res):
+        if exec_res:
+            shared["messages"][-1]["content"] = exec_res
+            print(f"\nDeepSeek (citas corregidas): {exec_res}", flush=True)
+            checkpoint(thread_id(), "VerificarCitas", "default", shared)
 
 
 class ExitChat(Node):
@@ -1019,7 +1044,7 @@ class LayaRouter(Node):
                 f"skill {skill.id}: disparo declarativo",
                 None,
             )
-            shared["_skill_activo"] = skill
+            shared["_skill_activo"] = skill.id
             shared["messages"].append({"role": "user", "content": mensaje(skill)})
             print(colorear(f"  [skill] {skill.id} activo — {skill.descripcion}", "info"),
                   flush=True)

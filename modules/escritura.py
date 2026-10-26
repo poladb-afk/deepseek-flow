@@ -6,15 +6,13 @@ El rechazo se devuelve al modelo como texto — es información para corregir,
 no un error. Si el archivo existe, la vista previa es un diff unificado."""
 import difflib
 
-from utils.aprobaciones import pedir_aprobacion
+from utils.aprobaciones import Pedido, pedir_aprobacion
 from utils.aprobaciones import registrar as registrar_aprobacion
 from utils.fs_tools import _resolve, escribir_atomico
 from utils.terminal import highlight_diff, recortar_lineas
 
 PREVIEW_LINES = 30
 DIFF_LINES = 60
-
-_cuerpo = [""]  # cuerpo del próximo pedido HITL web (lo lee _approve local)
 
 TOOLS = [
     {
@@ -38,9 +36,9 @@ TOOLS = [
 
 
 
-def _approve(prompt):
+def _approve(pedido):
     """Punto de parcheo de los tests: la lógica vive en utils/aprobaciones."""
-    return pedir_aprobacion(prompt, _cuerpo[0])
+    return pedir_aprobacion(pedido)
 
 
 def write_file(path, content):
@@ -72,9 +70,8 @@ def write_file(path, content):
         print(f"(archivo nuevo, {len(content.splitlines())} líneas)")
         cuerpo = recortar_lineas(content, PREVIEW_LINES, "[... contenido truncado ...]")
     print(highlight_diff(cuerpo))
-    _cuerpo[0] = cuerpo
 
-    decision = _approve(f"¿Escribir? → {resolved}")
+    decision = _approve(Pedido(f"¿Escribir? → {resolved}", cuerpo, "escritura", str(resolved)))
     if not decision:
         registrar_aprobacion("write_file", f"{resolved}", False, "preguntar")
         motivo = getattr(decision, "motivo", "") or "el archivo no se modificó"

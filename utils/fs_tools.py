@@ -10,6 +10,7 @@ import contextlib
 import fnmatch
 import json
 import os
+import stat
 import subprocess
 import tempfile
 from pathlib import Path
@@ -163,10 +164,14 @@ def escribir_atomico(destino, texto):
         prefix=destino.name + ".", suffix=".tmp", dir=destino.parent,
     )
     tmp = Path(tmp_nombre)
+    # el reemplazo conserva el modo del archivo que pisa (un 0o644 fijo le
+    # sacaba el +x a un .sh y dejaba legible un 0o600) y no traduce saltos de
+    # línea (auditoría 2026-10-26, F1/F2)
+    modo = stat.S_IMODE(destino.stat().st_mode) if destino.exists() else 0o644
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
             f.write(texto)
-        os.chmod(tmp, 0o644)
+        os.chmod(tmp, modo)
         os.replace(tmp, destino)
     except OSError:
         with contextlib.suppress(OSError):

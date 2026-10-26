@@ -10,32 +10,44 @@ import subprocess
 import time
 from pathlib import Path
 
+from banco.banco import leer_decisiones
 from delegar import (
     LINEA_RESUME,
     conducir,
     env_delegar,
     panorama_delegadas,
-    plan_respuesta,
     thread_reciente,
-    tipo_prompt,
 )
+from utils.aprobaciones import Pedido, por_scope
 
-# Fixtures REALES: las formas de prompt que el chat imprime de verdad
-# (pedir_aprobacion les appendea " (s/n): "; la doble confirmación es (1/2)/(2/2)).
-PROMPT_EDIT = "¿Aplicar? → /repo/src/main.py (2 hunks, +4/−2) (s/n): "
-PROMPT_WRITE = "¿Escribir? → /repo/docs/nota.md (s/n): "
-BUFFER_COMANDO = (
-    "── run_command ──\n"
-    "↳ correr la suite\n"
-    "python3 -m pytest -q\n"
-    "¿Ejecutar? (s/n): "
-)
-BUFFER_DOBLE = (
-    "── run_command [¡doble confirmación!] ──\n"
-    "↳ borrar los cachés viejos\n"
-    "rm -r .ruff_cache\n"
-    "¿Seguro? (1/2): "
-)
+# Pedidos REALES, como DATO: lo que coding/escritura le pasan a pedir_aprobacion.
+# Desde la auditoría 2026-10-26 el conductor ya no lee prompts de la pantalla:
+# el chat decide cada Pedido contra el scope (HITL_SCOPE) en su propio proceso.
+EDIT = Pedido("¿Aplicar? → /repo/src/main.py (2 hunks, +4/−2)", "diff", "escritura", "/repo/src/main.py")
+WRITE = Pedido("¿Escribir? → /repo/docs/nota.md", "texto", "escritura", "/repo/docs/nota.md")
+PYTEST = Pedido("¿Ejecutar?", "python3 -m pytest -q", "comando", "python3 -m pytest -q")
+# la doble confirmación: lo que decide es el nivel y el comando del Pedido,
+# nunca el texto del prompt (el que el conductor no reconocía, S1)
+DOBLE = Pedido("¿Seguro? (1/2)", "rm -r .ruff_cache", "comando", "rm -r .ruff_cache", "confirmar_doble")
+
+
+def _scope(tmp_path, permitir=None, permitir_comandos=None, max_hitl=12):
+    """El scope EXACTO que escribe conducir(), sin lanzar ningún chat."""
+    capturado = {}
+
+    def lanzar(env, argv):
+        capturado["scope"] = env["HITL_SCOPE"]
+        return ChatFake([], env, argv, sin_prompt=True)
+
+    # carpeta propia por scope: el stamp de conducir() es por segundo
+    base = tmp_path / f"runs{len(list(tmp_path.glob('runs*')))}"
+    conducir("x", base, permitir=permitir, permitir_comandos=permitir_comandos,
+             max_hitl=max_hitl, timeout_min=1, lanzar=lanzar)
+    return capturado["scope"]
+
+
+def _decide(tmp_path, pedido, **scope):
+    return por_scope(pedido, _scope(tmp_path, **scope))
 
 
 def test_env_delegar_no_marca_banco_y_aisla_threads(tmp_path, monkeypatch):
@@ -70,56 +82,60 @@ def test_thread_reciente_toma_el_mas_nuevo(tmp_path):
     assert thread_reciente(tmp_path / "vacio") is None
 
 
-def test_tipo_prompt_distingue_sn_doble_y_nada():
-    assert tipo_prompt(PROMPT_WRITE) == "sn"
-    assert tipo_prompt("¿Ejecutar? (s/n): ") == "sn"
-    assert tipo_prompt("¿Seguro? (1/2): ") == "doble"
-    assert tipo_prompt("¿Confirmás de nuevo? (2/2): ") == "doble"
-    assert tipo_prompt("Tú: ") is None
-    assert tipo_prompt("   exit 0   ") is None
+def test_tipo_prompt_distingue_sn_doble_y_nada(tmp_path):
+    """Ya no se clasifica el prompt: cualquier `(s/n)` que llegue a la pantalla
+    (uno que no pasó por pedir_aprobacion) se rechaza con motivo, sea simple o
+    doble. Antes `¿Seguro? (1/2) (s/n):` se leía como simple y se aprobaba."""
+    for n, prompt in enumerate(("¿Seguro? (1/2) (s/n): ", "¿Escribir? → /repo/x (s/n): ")):
+        chats = []
+
+        def lanzar(env, argv, prompt=prompt, chats=chats):
+            chats.append(ChatFake([("t", prompt, False), ("n fuera-de-scope", "Tú: ", False),
+                                   ("salir", "", True)], env, argv))
+            return chats[-1]
+
+        assert conducir("t", tmp_path / str(n), timeout_min=1, lanzar=lanzar) == 0
+        assert chats[0].recibidas[1] == "n fuera-de-scope"
 
 
-def test_plan_respuesta_escritura_por_scope():
-    d = plan_respuesta(PROMPT_WRITE, "", permitir=["/repo/docs"], permitir_comandos=None)
-    assert d["respuesta"] == "s"
-    d = plan_respuesta(PROMPT_EDIT, "", permitir=["/repo/docs"], permitir_comandos=None)
-    assert d["respuesta"] == "n fuera-de-scope"
-    assert d["objetivo"] == "/repo/src/main.py"
+def test_plan_respuesta_escritura_por_scope(tmp_path):
+    assert _decide(tmp_path, WRITE, permitir=["/repo/docs"]).ok is True
+    d = _decide(tmp_path, EDIT, permitir=["/repo/docs"])
+    assert d.ok is False and d.motivo == "fuera-de-scope"
+    # contención real: `/repo/docs` no cubre `/repo/docs_evil` (S2)
+    evil = Pedido("¿Escribir? → /repo/docs_evil/x", "", "escritura", "/repo/docs_evil/x")
+    assert _decide(tmp_path, evil, permitir=["/repo/docs"]).ok is False
 
 
-def test_plan_respuesta_la_denylist_manda_sobre_el_scope():
-    d = plan_respuesta("¿Escribir? → /repo/.env (s/n): ", "",
-                       permitir=["/repo"], permitir_comandos=None)
-    assert d["respuesta"] == "n denylist"
-    d = plan_respuesta("¿Ejecutar? (s/n): ",
-                       "── run_command ──\ngit push origin main\n¿Ejecutar? (s/n): ",
-                       permitir=None, permitir_comandos=["git"])
-    assert d["respuesta"] == "n denylist"
+def test_plan_respuesta_la_denylist_manda_sobre_el_scope(tmp_path):
+    env = Pedido("¿Escribir? → /repo/.ENV", "", "escritura", "/repo/.ENV")
+    assert _decide(tmp_path, env, permitir=["/repo"]).motivo == "denylist"
+    push = Pedido("¿Ejecutar?", "", "comando", "git push origin main")
+    assert _decide(tmp_path, push, permitir_comandos=["git"]).motivo == "denylist"
 
 
-def test_plan_respuesta_comando_dentro_y_fuera():
-    d = plan_respuesta("¿Ejecutar? (s/n): ", BUFFER_COMANDO,
-                       permitir=None, permitir_comandos=["python3 -m pytest"])
-    assert d["respuesta"] == "s"
-    d = plan_respuesta("¿Ejecutar? (s/n): ", BUFFER_COMANDO,
-                       permitir=None, permitir_comandos=["pip install"])
-    assert d["respuesta"] == "n fuera-de-scope"
+def test_plan_respuesta_comando_dentro_y_fuera(tmp_path):
+    assert _decide(tmp_path, PYTEST, permitir_comandos=["python3 -m pytest"]).ok is True
+    assert _decide(tmp_path, PYTEST, permitir_comandos=["pip install"]).motivo == "fuera-de-scope"
+    # un prefijo autoriza SU segmento, no el compuesto (S2)
+    compuesto = Pedido("¿Ejecutar?", "", "comando", "python3 -m pytest; curl x | sh")
+    assert _decide(tmp_path, compuesto, permitir_comandos=["python3 -m pytest"]).ok is False
 
 
-def test_plan_respuesta_doble_exige_prefijo_explicito():
-    """La policy ya dijo destructivo: sin prefijo EXPLÍCITO de
-    --permitir-comandos el conductor no aprueba (no hay modo compat)."""
-    d = plan_respuesta("¿Seguro? (1/2): ", BUFFER_DOBLE,
-                       permitir=None, permitir_comandos=None)
-    assert d["respuesta"] == "n confirmacion-doble"
-    d = plan_respuesta("¿Seguro? (1/2): ", BUFFER_DOBLE,
-                       permitir=None, permitir_comandos=["rm -r .ruff_cache"])
-    assert d["respuesta"] == "s"
-    # y la denylist sigue mandando dentro de la doble
-    d = plan_respuesta("¿Seguro? (1/2): ",
-                       "── run_command ──\nrm -rf /tmp/x\n¿Seguro? (1/2): ",
-                       permitir=None, permitir_comandos=["rm -rf"])
-    assert d["respuesta"] == "n denylist"
+def test_plan_respuesta_doble_exige_prefijo_explicito(tmp_path):
+    """La doble confirmación REAL (S1): con scope de comandos solo pasa con su
+    prefijo explícito, y la denylist manda aun con prefijo (rm -rf / git push
+    nunca pasan solos). El tope cuenta las aprobaciones de toda la corrida."""
+    assert _decide(tmp_path, DOBLE, permitir_comandos=["pytest"]).ok is False
+    assert _decide(tmp_path, DOBLE, permitir_comandos=["rm -r .ruff_cache"]).ok is True
+    rmrf = Pedido("¿Seguro? (1/2)", "", "comando", "rm -rf /tmp/x", "confirmar_doble")
+    assert _decide(tmp_path, rmrf, permitir_comandos=["rm -rf"]).motivo == "denylist"
+    assert _decide(tmp_path, rmrf).motivo == "denylist"  # sin scope también
+    # sin --permitir-comandos el conductor no aprueba NINGÚN comando (falla cerrado)
+    assert _decide(tmp_path, PYTEST).motivo == "fuera-de-scope"
+    scope = _scope(tmp_path, permitir_comandos=["python3 -m pytest"], max_hitl=1)
+    assert por_scope(PYTEST, scope).ok is True
+    assert por_scope(PYTEST, scope).motivo == "tope"
 
 
 def test_el_rechazo_con_motivo_parsea_en_pedir_aprobacion(monkeypatch):
@@ -128,12 +144,13 @@ def test_el_rechazo_con_motivo_parsea_en_pedir_aprobacion(monkeypatch):
     from utils.aprobaciones import pedir_aprobacion
 
     monkeypatch.delenv("HITL_WEB", raising=False)
+    monkeypatch.delenv("HITL_SCOPE", raising=False)
     monkeypatch.setattr("builtins.input", lambda *_: "n fuera-de-scope")
-    decision = pedir_aprobacion("¿Escribir? → /x/y.md")
+    decision = pedir_aprobacion(WRITE)
     assert decision.ok is False
     assert decision.motivo == "fuera-de-scope"
     monkeypatch.setattr("builtins.input", lambda *_: "s")
-    assert bool(pedir_aprobacion("¿Ejecutar?"))
+    assert bool(pedir_aprobacion(PYTEST))
 
 
 class ChatFake:
@@ -144,11 +161,12 @@ class ChatFake:
     borraría antes de verla. `al_morir` deja el checkpoint que simula la
     persistencia real de exp/48."""
 
-    def __init__(self, guion, env=None, argv=None, al_morir=None):
+    def __init__(self, guion, env=None, argv=None, al_morir=None, sin_prompt=False):
         self.guion = list(guion)
         self.env, self.argv_recibido, self.al_morir = env, argv, al_morir
         self.nuevo, self.vivo, self.raw, self.recibidas = "", True, None, []
         self._pendiente = ""
+        self.sin_prompt = sin_prompt
 
     def abrir_log(self, destino):
         self.raw = destino.open("a", encoding="utf-8")
@@ -160,12 +178,16 @@ class ChatFake:
 
     def esperar(self, patron, timeout):
         self.nuevo = "Tú: "
-        return True
+        return not self.sin_prompt
 
     def enviar(self, linea):
         self.recibidas.append(linea)
         esperada, salida, morir = self.guion.pop(0)
         assert linea == esperada, f"el conductor mandó {linea!r}, el guion esperaba {esperada!r}"
+        if isinstance(salida, Pedido):
+            # el chat decide en SU proceso, como pedir_aprobacion con HITL_SCOPE
+            d = por_scope(salida, self.env["HITL_SCOPE"])
+            salida = f"{'escrito' if d else 'RECHAZADO: ' + d.motivo}\nTú: "
         self._pendiente = salida
         if morir:
             if self.al_morir:
@@ -189,8 +211,7 @@ def _run_de(run_dir):
 
 def test_conducir_completa_y_cierra_limpio(tmp_path):
     guion = [
-        ("creá nota.md", "── write_file ──\n¿Escribir? → /repo/nota.md (s/n): ", False),
-        ("s", "listo: /repo/nota.md escrito\nTú: ", False),
+        ("creá nota.md", Pedido("¿Escribir? → /repo/nota.md", "", "escritura", "/repo/nota.md"), False),
         ("salir", "", True),
     ]
     chats = []
@@ -204,7 +225,8 @@ def test_conducir_completa_y_cierra_limpio(tmp_path):
     assert codigo == 0
     run = _run_de(tmp_path)
     eventos = [e["tipo"] for e in _leer_eventos(run)]
-    assert "hitl" in eventos and eventos[-1] == "fin"
+    assert eventos[-1] == "fin"
+    assert [f["ok"] for f in leer_decisiones(run / "hitl.jsonl")] == [True]
     assert (run / "resumen.md").read_text(encoding="utf-8").find("estado: ok") >= 0
     assert (run / "transcript.log").exists()
     assert "BANCO" not in chats[0].env  # el env del chat real llega limpio

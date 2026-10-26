@@ -38,65 +38,6 @@ RE_TU = re.compile(r"Tú:\s*$")
 RE_DEEPSEEK = re.compile(r"DeepSeek: ?$")
 MAX_HITL_POR_TURNO = 6
 
-# Scope HITL (exp/11): el driver deja de aprobar a ciegas. Parsea el objetivo
-# del prompt y solo aprueba si cae DENTRO del alcance del escenario; la
-# denylist dura del conductor manda por encima de cualquier scope.
-# El sufijo parentizado es el de exp/98: `¿Aplicar? → ruta (2 hunks, +4/−2)
-# (s/n)`. Sin tolerarlo, decision_hitl caía a "no-parseable" (dentro=True) y
-# el driver aprobaba EDICIONES fuera de scope y de la denylist (hallazgo de
-# la spec de exp/99: los escenarios del banco no lo pisaban porque usan
-# write_file, que siempre matcheó).
-RE_HITL_ESCRITURA = re.compile(r"→ (\S+)(?: \([^)]*\))? \(s/n\)")
-RE_HITL_COMANDO = re.compile(r"¿Ejecutar\? \(s/n\)")
-DENYLIST_DURA = {
-    "rutas": (".env", ".git/", "memoria/"),
-    "comandos": ("git push", "rm -rf", "rm -fr"),
-}
-
-
-def decision_hitl(prompt, buffer_reciente, permitir=None, permitir_comandos=None):
-    """Decide si un prompt HITL cae dentro del alcance (función PURA).
-
-    Devuelve {tipo, objetivo, dentro, motivo}. `tipo` ∈ escritura/comando/
-    desconocido. Sin `permitir`/`permitir_comandos` (None) todo está
-    permitido SALVO la denylist dura: compatibilidad con los escenarios
-    viejos que no declaran scope.
-    """
-    objetivo = None
-    tipo = "desconocido"
-
-    m = RE_HITL_ESCRITURA.search(prompt)
-    if m:
-        tipo = "escritura"
-        objetivo = m.group(1)
-        if any(fragmento in objetivo for fragmento in DENYLIST_DURA["rutas"]):
-            return {"tipo": tipo, "objetivo": objetivo, "dentro": False, "motivo": "denylist"}
-        if permitir is not None and not any(objetivo.startswith(p) for p in permitir):
-            return {"tipo": tipo, "objetivo": objetivo, "dentro": False, "motivo": "fuera-de-scope"}
-        return {"tipo": tipo, "objetivo": objetivo, "dentro": True, "motivo": "ok"}
-    elif RE_HITL_COMANDO.search(prompt):
-        tipo = "comando"
-        lineas = [linea for linea in buffer_reciente.splitlines() if linea.strip()]
-        for linea in reversed(lineas):
-            limpia = linea.strip()
-            # el propio prompt HITL y su banner no son el comando (la
-            # ventana integrada incluye la línea "(s/n)" pendiente)
-            if "(s/n)" in limpia or limpia.startswith("── run_command") or limpia.startswith("↳ "):
-                continue
-            objetivo = limpia
-            break
-        if objetivo is not None:
-            if any(objetivo.startswith(c) for c in DENYLIST_DURA["comandos"]):
-                return {"tipo": tipo, "objetivo": objetivo, "dentro": False, "motivo": "denylist"}
-            if permitir_comandos is not None and not any(
-                    objetivo.startswith(p) for p in permitir_comandos):
-                return {"tipo": tipo, "objetivo": objetivo, "dentro": False, "motivo": "fuera-de-scope"}
-        return {"tipo": tipo, "objetivo": objetivo, "dentro": True, "motivo": "ok"}
-
-    # prompt nuevo o formato desconocido: dejamos seguir el flujo y que la
-    # política decida, pero queda registrado para revisar.
-    return {"tipo": "desconocido", "objetivo": None, "dentro": True, "motivo": "no-parseable"}
-
 # Los marcadores que el banco cuenta por turno: la señal medible del chat.
 MARCADORES = {
     "laya": r"\[laya\]",
@@ -116,6 +57,26 @@ MARCADORES = {
     "riesgo": r"\[riesgo\] observa:",
     "prefetch": r"\[pre-fetch\]",
 }
+
+
+def escribir_scope(ruta, rutas=None, comandos=None, maximo=12, eventos=None, aprobar=True):
+    """El scope HITL como archivo (HITL_SCOPE): el chat decide cada Pedido
+    contra él en SU proceso (utils.aprobaciones.por_scope) y deja la decisión
+    en `eventos`. Antes el driver releía la pantalla y reconstruía el pedido
+    con regex: el conductor aprobaba `git push` (auditoría 2026-10-26, S1/S2)."""
+    ruta = Path(ruta)
+    ruta.write_text(json.dumps({"rutas": rutas, "comandos": comandos, "max": maximo,
+                                "eventos": str(eventos) if eventos else None,
+                                "aprobar": aprobar}, ensure_ascii=False), encoding="utf-8")
+    return ruta
+
+
+def leer_decisiones(ruta):
+    """Las decisiones que dejó por_scope (una por pedido), o [] si no hubo."""
+    ruta = Path(ruta)
+    if not ruta.exists():
+        return []
+    return [json.loads(ln) for ln in ruta.read_text(encoding="utf-8").splitlines() if ln.strip()]
 
 
 def limpiar(texto):
@@ -251,6 +212,8 @@ def correr(escenario, dir_salida):
     env = dict(escenario.get("env") or {})
     env.setdefault("MEMORIA", "1" if escenario.get("memoria") else "0")
 
+    ruta_scope = escribir_scope(dir_salida / f"{escenario['id']}_{stamp}_scope.json", aprobar=False)
+    env["HITL_SCOPE"] = str(ruta_scope)
     chat = Chat(env_extra=env)
     chat.abrir_log(crudo)
     eventos = eventos_f.open("a", encoding="utf-8")
@@ -266,20 +229,19 @@ def correr(escenario, dir_salida):
         chat.matar()
         return 1
 
-    permitir = escenario.get("permitir")
-    permitir_comandos = escenario.get("permitir_comandos")
     resultados = []
     for i, turno in enumerate(escenario["turnos"], 1):
         tid = turno.get("id", f"t{i}")
-        politica = turno.get("hitl", "none")
         timeout = int(turno.get("timeout", 120))
-        tope_hitl = turno.get("max_hitl", MAX_HITL_POR_TURNO)
+        decisiones = dir_salida / f"{escenario['id']}_{stamp}_{tid}_hitl.jsonl"
+        escribir_scope(ruta_scope, escenario.get("permitir"), escenario.get("permitir_comandos"),
+                       turno.get("max_hitl", MAX_HITL_POR_TURNO), decisiones,
+                       aprobar=turno.get("hitl", "none") == "s")
         evento("turno-inicio", {"n": i, "id": tid})
         t0 = time.time()
 
         # la ventana de DETECCIÓN se trunca al enviar (fix del desfase del
-        # driver original); la de MEDICIÓN (ventana) acumula todo el turno
-        # para no perder marcadores al responder un HITL a mitad de turno.
+        # driver original); la de MEDICIÓN (ventana) acumula todo el turno.
         chat.nuevo = ""
         ventana = ""
         chat.enviar(turno["linea"])
@@ -290,10 +252,8 @@ def correr(escenario, dir_salida):
                 chat.ctrl_c()
             estado = "ok" if turno_finalizo(chat) or chat.esperar(RE_TU, 30) else "timeout"
         else:
-            estado = "corriendo"
+            estado = "timeout"
             inicio = time.time()
-            hitl_dados = 0
-            hitl_topes = 0
             while time.time() - inicio < timeout:
                 chat.leer()
                 if not chat.vivo:
@@ -301,37 +261,10 @@ def correr(escenario, dir_salida):
                     # "¡Chao!" distingue salida limpia de crash a mitad)
                     estado = "ok" if "¡Chao" in limpiar(ventana + chat.nuevo) else "proceso-muerto"
                     break
-                if hitl_pendiente(chat) and hitl_dados >= tope_hitl:
-                    # presupuesto agotado: rechazar y registrar, no colgar
-                    # (default seguro — el rechazo es feedback para el
-                    # modelo, que cierra el turno en prosa)
-                    time.sleep(0.5)
+                if hitl_pendiente(chat):
+                    # un (s/n) que no pasó por pedir_aprobacion: sin dato, no
                     chat.enviar("n")
-                    lineas_prompt = [ln for ln in limpiar(ventana + chat.nuevo).splitlines() if ln.strip()]
-                    evento("hitl-tope", {"n": i, "id": tid,
-                                         "prompt": (lineas_prompt[-1] if lineas_prompt else "")[:120]})
-                    hitl_topes += 1
-                    ventana += chat.nuevo
-                    chat.nuevo = ""
-                    continue
-                if hitl_pendiente(chat) and hitl_dados < tope_hitl:
-                    # el HITL ya no se aprueba a ciegas: se mira el objetivo
-                    ventana_completa = limpiar(ventana + chat.nuevo)
-                    lineas_con_texto = [ln for ln in ventana_completa.splitlines() if ln.strip()]
-                    ultima_linea = lineas_con_texto[-1] if lineas_con_texto else ""
-                    decision = decision_hitl(ultima_linea, ventana_completa,
-                                             permitir, permitir_comandos)
-                    if decision["dentro"]:
-                        respuesta = "s" if politica == "s" else "n"
-                    else:
-                        respuesta = "n"
-                        evento("hitl-fuera-de-alcance",
-                               {"objetivo": decision["objetivo"], "motivo": decision["motivo"],
-                                "turno": i})
-                    time.sleep(0.5)
-                    chat.enviar(respuesta)
-                    hitl_dados += 1
-                    evento("hitl", {"n": i, "id": tid, "respuesta": respuesta})
+                    evento("hitl-sin-dato", {"n": i, "id": tid})
                     ventana += chat.nuevo
                     chat.nuevo = ""
                     continue
@@ -339,11 +272,20 @@ def correr(escenario, dir_salida):
                     estado = "ok"
                     break
                 time.sleep(0.2)
-            else:
-                estado = "timeout"
-            hitl = hitl_dados
+        filas = leer_decisiones(decisiones)
+        for fila in filas:
+            evento("hitl", {"n": i, "id": tid, "respuesta": "s" if fila["ok"] else "n"})
+            if fila["motivo"] in ("fuera-de-scope", "denylist", "tipo-desconocido"):
+                evento("hitl-fuera-de-alcance", {"objetivo": fila["objetivo"],
+                                                 "motivo": fila["motivo"], "turno": i})
+        hitl = len(filas)
+        hitl_topes = sum(1 for f in filas if f["motivo"] == "tope")
         # el conteo de marcadores es la MEDIDA del turno
         marcadores = contar_marcadores(limpiar(ventana + chat.nuevo))
+        fallas = verificar_turno(turno.get("verificar"), limpiar(ventana + chat.nuevo)) if estado == "ok" else []
+        if fallas:
+            estado = "no-hecha"  # el prompt volvió pero la tarea no se cumplió
+            evento("no-hecha", {"n": i, "id": tid, "fallas": fallas})
         duracion = round(time.time() - t0)
         evento("turno-fin", {"n": i, "id": tid, "estado": estado, "seg": duracion,
                              "hitl": locals().get("hitl", 0),
@@ -359,9 +301,14 @@ def correr(escenario, dir_salida):
     eventos.close()
 
     ok = sum(1 for r in resultados if r["estado"] == "ok")
+    con_criterio = sum(1 for t in escenario["turnos"] if t.get("verificar"))
     with resumen.open("w", encoding="utf-8") as f:
         f.write(f"# Banco — {escenario['id']} — {datetime.now().isoformat()}\n\n")
-        f.write(f"{ok}/{len(escenario['turnos'])} turnos OK\n\n")
+        # "OK" en un turno con `verificar:` es TAREA HECHA; sin él, solo que el
+        # prompt volvió. El resumen dice cuántos turnos miden de verdad.
+        f.write(f"{ok}/{len(escenario['turnos'])} turnos OK "
+                f"({con_criterio} con criterio de tarea hecha) · "
+                f"HITL pedidos: {sum(r['hitl'] for r in resultados)}\n\n")
         f.write("| turno | estado | seg | hitl | marcadores |\n|---|---|---|---|---|\n")
         for r in resultados:
             marca = ", ".join(f"{k}×{v}" for k, v in sorted(r["marcadores"].items())) or "—"
@@ -403,6 +350,81 @@ def sustituir_placeholders(texto):
     return texto.replace("{RAIZ}", str(RAIZ)).replace("{HOME}", str(Path.home()))
 
 
+# Criterio de TAREA HECHA por turno (`verificar:`): sin él, "ok" solo decía
+# que el prompt `Tú:` volvió, y un turno que no hizo nada pasaba igual
+# (auditoría de H1: el modelo rehusó exp2-docs y el banco dio 2/2 OK). Cada
+# chequeo es determinista y corre al cerrar el turno, contra el disco y el
+# transcript del turno. Rutas relativas a la raíz del proyecto.
+#
+# `salida` es el chequeo de las tareas de LECTURA: el comando calcula la
+# respuesta correcta contra el repo VIVO (el YAML no guarda números que
+# envejezcan) y el modelo tiene que haberla dado como `RESPUESTA: <x>`.
+CHEQUEOS = ("existe", "no_existe", "contiene", "transcript", "comando", "salida")
+# Los que un turno vacío NO cumple: todo `verificar:` necesita uno. `no_existe`
+# y `comando: pytest` pasan sin que el modelo toque nada (así banco-1 y
+# banco-3 daban OK con fixes que ya estaban aplicados).
+CHEQUEOS_DE_TRABAJO = ("existe", "contiene", "transcript", "salida")
+
+
+def _respuesta_esperada(comando):
+    """La salida del comando (la respuesta correcta), o None si no corre."""
+    import subprocess
+
+    r = subprocess.run(comando, shell=True, cwd=RAIZ, capture_output=True, text=True, timeout=300)
+    salida = (r.stdout or "").strip()
+    return salida if r.returncode == 0 and salida else None
+
+
+def dio_la_respuesta(esperada, transcript):
+    """`RESPUESTA: <esperada>` en el transcript (tolera negrita y backticks)."""
+    patron = rf"(?i)RESPUESTA:\s*[*`]*{re.escape(esperada)}[*`]*(?![\w.])"
+    return re.search(patron, transcript) is not None
+
+
+def verificar_turno(chequeos, transcript):
+    """Los chequeos que FALLAN (lista vacía = tarea hecha). PURA salvo la
+    lectura del disco y `comando`, que corre con timeout en la raíz."""
+    import subprocess
+
+    fallas = []
+    for chequeo in chequeos or ():
+        (tipo, valor), = chequeo.items()
+        if tipo == "existe" and not (RAIZ / valor).exists():
+            fallas.append(f"no existe {valor}")
+        elif tipo == "no_existe" and (RAIZ / valor).exists():
+            fallas.append(f"existe {valor}")
+        elif tipo == "contiene":
+            ruta = RAIZ / valor["ruta"]
+            if not ruta.is_file() or valor["texto"] not in ruta.read_text(encoding="utf-8", errors="replace"):
+                fallas.append(f"{valor['ruta']} no contiene {valor['texto']!r}")
+        elif tipo == "transcript" and not re.search(valor, transcript):
+            fallas.append(f"el transcript no matchea {valor!r}")
+        elif tipo == "comando":
+            r = subprocess.run(valor, shell=True, cwd=RAIZ, capture_output=True, timeout=300)
+            if r.returncode:
+                fallas.append(f"`{valor}` salió {r.returncode}")
+        elif tipo == "salida":
+            if "RESPUESTA:" not in transcript.upper():
+                fallas.append("el modelo no dio `RESPUESTA:`")
+                continue
+            esperada = _respuesta_esperada(valor)
+            if esperada is None:
+                fallas.append(f"`{valor}` no produjo la respuesta esperada")
+            elif not dio_la_respuesta(esperada, transcript):
+                fallas.append(f"falta `RESPUESTA: {esperada}`")
+    return fallas
+
+
+def _validar_chequeos(ruta, turno):
+    chequeos = turno.get("verificar") or ()
+    for chequeo in chequeos:
+        if not (isinstance(chequeo, dict) and len(chequeo) == 1 and next(iter(chequeo)) in CHEQUEOS):
+            raise ValueError(f"verificar inválido en {ruta}: {chequeo!r} (uno de {CHEQUEOS})")
+    if chequeos and not any(next(iter(c)) in CHEQUEOS_DE_TRABAJO for c in chequeos):
+        raise ValueError(f"verificar en {ruta} turno {turno.get('id')!r} se cumple sin hacer nada: "
+                         f"sumá uno de {CHEQUEOS_DE_TRABAJO}")
+
+
 def cargar_escenario(ruta):
     esc = yaml.safe_load(sustituir_placeholders(Path(ruta).read_text(encoding="utf-8")))
     if not esc.get("id") or "turnos" not in esc:
@@ -416,6 +438,7 @@ def cargar_escenario(ruta):
         tope = turno.get("max_hitl", MAX_HITL_POR_TURNO)
         if not isinstance(tope, int) or isinstance(tope, bool) or tope < 1:
             raise ValueError(f"max_hitl inválido en {ruta}: {tope!r} (int >= 1)")
+        _validar_chequeos(ruta, turno)
     return esc
 
 

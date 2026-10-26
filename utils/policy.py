@@ -105,10 +105,15 @@ _NEGRA_DOBLE = (
 # Patrones de shell que impiden clasificar por prefijo: escriben, sustituyen
 # o ejecutan cosas que no vemos. Cualquier aparición ⇒ 'preguntar'.
 #   > < >>     redirección (escribe/lee de archivo)
-#   $(...)     sustitución de comando
+#   $VAR $(..) expansión de variables y sustitución de comando (aun entre "")
+#   * ? [ ~ {,} (fuera de comillas) glob, tilde y llaves: el argv real lo arma el shell
 #   `...`      backticks (sustitución de comando)
 #   xargs      construye y ejecuta comandos a partir de stdin
-_PELIGRO_SHELL = re.compile(r">|<|\$\(|`|\bxargs\b")
+_PELIGRO_SHELL = re.compile(r">|<|\$|`|\bxargs\b")
+# Expansiones que el shell hace FUERA de comillas: glob, tilde al inicio de
+# palabra y llaves. `find -name '*.py'` no expande; `cat d/*` sí.
+_EXPANSION = re.compile(r"[*?\[]|(?:^|[\s=:])~|\{[^}]*(?:,|\.\.)[^}]*\}")
+_COMILLAS = re.compile(r"'[^']*'|\"[^\"]*\"")
 
 # Separadores de composición que el shell ejecuta: &&, ||, |, &, ; y el
 # salto de línea. Basta que uno quede afuera para que un segmento entero
@@ -185,8 +190,8 @@ def _segmento_es_auto(segmento):
     # `2>&1 > f` queda como `> f`, `> f 2>&1` queda como `> f`, y
     # `2>/tmp/err` (destino distinto de /dev/null) también queda.
     segmento = _sin_dup_stderr(segmento)
-    # Redirección / sustitución / xargs: nunca auto, ni siquiera para echo.
-    if _PELIGRO_SHELL.search(segmento):
+    # Redirección / sustitución / expansión / xargs: nunca auto, ni para echo.
+    if opaco(segmento):
         return False
     if _tiene_flag_peligroso(tokens):
         return False
@@ -203,19 +208,27 @@ _BASES_MODULO = {
 
 def _tiene_flag_peligroso(tokens):
     """True si un comando de la whitelist trae un flag que escribe/ejecuta.
-    Compara el flag exacto y la forma pegada (--output=x, -ox)."""
+    Compara el flag exacto, `--flag=x` y los grupos cortos como los lee
+    getopt (`-ox`, `-uo/x`, `-qf`). `find` no agrupa: sus opciones son palabras."""
     if not tokens:
         return False
     base = _BASES_MODULO.get(tuple(tokens[:3]), tokens[0])
     flags = _FLAGS_PELIGROSOS.get(base, ())
+    cortos = {f[1] for f in flags if len(f) == 2}
     for tok in tokens[1:]:
-        for flag in flags:
-            if tok == flag or tok.startswith(flag + "="):
-                return True
-            # forma corta pegada: -ofile (solo flags de una letra)
-            if len(flag) == 2 and tok.startswith(flag) and not tok.startswith("--"):
-                return True
+        if any(tok == flag or tok.startswith(flag + "=") for flag in flags):
+            return True
+        if base != "find" and cortos & set(_grupo_corto(tok)):
+            return True
     return False
+
+
+def _grupo_corto(tok):
+    """Las letras de `-abc` como las lee getopt: `-uo/x` es -u -o (y /x es el
+    valor de -o). El primer carácter que no es letra cierra el grupo."""
+    if not tok.startswith("-") or tok.startswith("--"):
+        return ""
+    return re.match(r"[A-Za-z]*", tok[1:]).group()
 
 
 # Envoltorios que ejecutan el comando que les sigue: el riesgo es el del
@@ -316,6 +329,28 @@ def _segmento_nivel(segmento):
     return None
 
 
+IRREVERSIBLES = tuple(" ".join(p) for p in _NEGRA_DOBLE)
+
+
+def irreversible(comando):
+    """True si algún segmento es de la lista doble (git push, rm -rf), ya
+    normalizado: `sudo rm -rf`, `/bin/rm -fr`, `git -C . push` también."""
+    return any(_segmento_nivel(s) == CONFIRMAR_DOBLE for s in segmentos(comando))
+
+
+def segmentos(comando):
+    """Los segmentos que el shell ejecuta por separado (&&, ||, |, &, ;, salto
+    de línea). `2>&1` se quita antes: su `&` no separa nada."""
+    return [s.strip() for s in _SEPARADORES.split(_sin_dup_stderr(comando)) if s.strip()]
+
+
+def opaco(comando):
+    """True si el shell transforma el comando antes de correrlo (redirección,
+    expansión, glob, sustitución): lo que se ve no es el argv que se ejecuta."""
+    comando = _sin_dup_stderr(comando)
+    return bool(_PELIGRO_SHELL.search(comando) or _EXPANSION.search(_COMILLAS.sub("", comando)))
+
+
 def clasificar(comando):
     """Devuelve 'auto' | 'preguntar' | 'confirmar_doble' para `comando`.
 
@@ -327,16 +362,11 @@ def clasificar(comando):
     if not comando:
         return PREGUNTAR
 
-    # Partimos por &&, | y ; (los separadores de composición que importan:
-    # el shell ejecuta los tres, ver docstring).
-    # `2>&1` primero: su `&` no es un separador (sin esto el split lo
-    # partiría en "2>" y "1" y la redirección falsa degradaría todo).
-    segmentos = _SEPARADORES.split(_sin_dup_stderr(comando))
-
     # 1) La negra manda: si CUALQUIER segmento pide doble o preguntar, ese
     #    es el piso del compuesto (tomamos el nivel más alto encontrado).
     nivel = None
-    for seg in segmentos:
+    partes = segmentos(comando)
+    for seg in partes:
         impuesto = _segmento_nivel(seg)
         if impuesto == CONFIRMAR_DOBLE:
             return CONFIRMAR_DOBLE
@@ -345,7 +375,7 @@ def clasificar(comando):
 
     # 2) Whitelist: solo si TODOS los segmentos son auto el compuesto es auto.
     #    (si un segmento no-auto ya fijó `nivel`, igual devolvemos preguntar)
-    todos_auto = all(_segmento_es_auto(seg) for seg in segmentos)
+    todos_auto = all(_segmento_es_auto(seg) for seg in partes)
     if todos_auto and nivel is None:
         return AUTO
 
@@ -416,8 +446,7 @@ def explicar(comando):
     nivel = clasificar(comando)
     # En un compuesto se explica el segmento que fija el nivel, no el primero:
     # es lo que lee el humano al aprobar (`ls && rm -rf /` no es "lista").
-    segmentos = [x for x in _SEPARADORES.split(_sin_dup_stderr(comando)) if x.strip()]
-    peor = next((x for x in segmentos if clasificar(x) == nivel), comando)
+    peor = next((x for x in segmentos(comando) if clasificar(x) == nivel), comando)
     if nivel == AUTO:
         for prefijo, texto in _LECTURA:
             if _empieza_con(_tokens(peor), prefijo):

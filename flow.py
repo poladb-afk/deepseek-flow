@@ -8,6 +8,7 @@ from nodes import (
     GetQuestion,
     LayaRouter,
     PreFetch,
+    VerificarCitas,
 )
 
 
@@ -17,6 +18,9 @@ def create_agent_flow():
     step = AgentStep(max_retries=3, wait=5)
     tools = ExecuteTools()
     bye = ExitChat()
+    # la respuesta pasa por la verificación de citas antes de la próxima
+    # pregunta: un nodo propio (con retry), no un paso escondido en post
+    citas = VerificarCitas(max_retries=2, wait=2)
 
     from utils.call_llm import _setting
 
@@ -33,13 +37,14 @@ def create_agent_flow():
         router - "herramientas" >> step
         # DirectAnswer hereda el post de AgentStep: devuelve "answer" (nunca
         # "tool", va sin tools) — la arista correcta es esa, no la default.
-        directo - "answer" >> ask
+        directo - "answer" >> citas
         directo - "tool" >> tools
     else:
         ask - "continue" >> prefetch
         prefetch - "continue" >> step
 
-    step - "answer" >> ask  # respuesta entregada: siguiente pregunta
+    step - "answer" >> citas  # respuesta entregada: se verifican sus citas
+    citas >> ask              # y vuelve a la siguiente pregunta
     step - "tool" >> tools  # pidió herramientas: ejecutarlas y volver a pensar
     tools >> step
     ask - "exit" >> bye

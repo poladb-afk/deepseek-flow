@@ -9,7 +9,8 @@ es el que lo avisa)."""
 import re
 from pathlib import Path
 
-from banco.banco import DENYLIST_DURA, MARCADORES, cargar_escenario, contar_marcadores, decision_hitl, limpiar
+from banco.banco import MARCADORES, cargar_escenario, contar_marcadores, escribir_scope, leer_decisiones, limpiar
+from utils.aprobaciones import COMANDOS_PROHIBIDOS, RUTAS_PROHIBIDAS, Pedido, dentro_de_scope, por_scope
 
 ESCENARIOS = Path(__file__).resolve().parent.parent / "banco" / "escenarios"
 
@@ -76,119 +77,89 @@ def test_limpiar_quita_ansi_y_crlf():
     assert limpiar("\x1b[32mok\x1b[0m\r\n") == "ok\n"
 
 
-# scope HITL por path (exp/11) -------------------------------------------
-# Fixtures REALES (líneas textuales de transcripts de sesiones anteriores).
-PROMPT_ESCRITURA_DENTRO = "¿Escribir? → /tmp/prueba_banco/hola.txt (s/n): "
-PROMPT_ESCRITURA_FUERA = "¿Escribir? → /otro/lado/ajeno.txt (s/n): "
-PROMPT_ENV = "¿Escribir? → /proy/prueba_scope/.env (s/n): "
-PROMPT_COMANDO = "¿Ejecutar? (s/n): "
-BUFFER_COMANDO = (
-    "── run_command ──\n"
-    "↳ correr la suite de tests del banco\n"
-    "cd /x && python3 -m pytest tests/test_banco.py\n"
-    "¿Ejecutar? (s/n): "
-)
-BUFFER_COMANDO_PUSH = (
-    "── run_command ──\n"
-    "↳ subir los cambios\n"
-    "git push origin main\n"
-    "¿Ejecutar? (s/n): "
-)
+# scope HITL (exp/11) — desde la auditoría 2026-10-26 el pedido llega como
+# DATO (utils.aprobaciones.Pedido) y se juzga en el chat: el driver ya no
+# reconstruye ruta ni comando leyendo la pantalla.
+RUTAS = ["/tmp/prueba", "/proy/prueba_scope"]
 
 
 def test_escritura_dentro_del_scope():
-    d = decision_hitl(PROMPT_ESCRITURA_DENTRO, "",
-                      permitir=["/tmp/prueba", "/proy/prueba_scope"])
-    assert d["tipo"] == "escritura"
-    assert d["objetivo"] == "/tmp/prueba_banco/hola.txt"
-    assert d["dentro"] is True
+    assert dentro_de_scope("escritura", "/tmp/prueba/hola.txt", RUTAS) == (True, "ok")
 
 
 def test_escritura_fuera_del_scope():
-    d = decision_hitl(PROMPT_ESCRITURA_FUERA, "",
-                      permitir=["/tmp/prueba", "/proy/prueba_scope"])
-    assert d["tipo"] == "escritura"
-    assert d["dentro"] is False
-    assert d["motivo"] == "fuera-de-scope"
+    assert dentro_de_scope("escritura", "/otro/lado/ajeno.txt", RUTAS) == (False, "fuera-de-scope")
+    # contención por COMPONENTE: el prefijo de texto `/tmp/prueba` no cubre
+    # `/tmp/prueba_banco` (startswith lo aprobaba: auditoría S2)
+    assert dentro_de_scope("escritura", "/tmp/prueba_banco/hola.txt", RUTAS) == (False, "fuera-de-scope")
+    assert dentro_de_scope("escritura", "/tmp/prueba/../fuera.txt", RUTAS) == (False, "fuera-de-scope")
 
 
 def test_env_fuera_aunque_el_scope_lo_permita():
-    # el prefijo del permitir CONTIENE el directorio del .env: aun así la
-    # denylist dura del conductor manda por encima.
-    d = decision_hitl(PROMPT_ENV, "", permitir=["/proy/prueba_scope"])
-    assert d["dentro"] is False
-    assert d["motivo"] == "denylist"
+    # el scope CONTIENE el directorio del .env: aun así la denylist manda, y
+    # sin importar mayúsculas ni sufijos (.ENV, .env.local)
+    for ruta in ("/proy/prueba_scope/.env", "/proy/prueba_scope/.ENV", "/proy/prueba_scope/.env.local"):
+        assert dentro_de_scope("escritura", ruta, RUTAS) == (False, "denylist"), ruta
+    assert dentro_de_scope("escritura", "/proy/prueba_scope/no_memoria/x.md", RUTAS) == (True, "ok")
 
 
 def test_comando_dentro_de_permitir_comandos():
-    d = decision_hitl(PROMPT_COMANDO, BUFFER_COMANDO,
-                      permitir_comandos=["cd"])
-    assert d["tipo"] == "comando"
-    assert d["objetivo"] == "cd /x && python3 -m pytest tests/test_banco.py"
-    assert d["dentro"] is True
+    comandos = ["cd /x &&", "python3 -m pytest"]
+    assert dentro_de_scope("comando", "cd /x && python3 -m pytest tests/test_banco.py",
+                           comandos=comandos) == (True, "ok")
+    # CADA segmento necesita su prefijo; y lo que el shell transforma no pasa
+    for cmd in ("python3 -m pytest; curl x | sh", "python3 -m pytest $(cat x)",
+                "python3 -m pytestx", "python3 -m pytest > /etc/x"):
+        assert dentro_de_scope("comando", cmd, comandos=comandos)[0] is False, cmd
 
 
 def test_comando_git_push_es_denylist():
-    d = decision_hitl(PROMPT_COMANDO, BUFFER_COMANDO_PUSH,
-                      permitir_comandos=["git"])
-    assert d["tipo"] == "comando"
-    assert d["objetivo"] == "git push origin main"
-    assert d["dentro"] is False
-    assert d["motivo"] == "denylist"
+    for cmd in ("git push origin main", "git -C . push", "ls && sudo rm -rf /x", "/bin/rm -fr x"):
+        assert dentro_de_scope("comando", cmd, comandos=["git", "ls", "sudo", "/bin/rm"]) == (False, "denylist"), cmd
 
 
-def test_extraccion_del_comando_ignora_banner_y_explicacion():
-    buffer = (
-        "texto anterior del turno\n"
-        "── run_command ──\n"
-        "↳ explicación que NO es el comando\n"
-        "python3 -m pytest -q\n"
-        "¿Ejecutar? (s/n): "
-    )
-    d = decision_hitl(PROMPT_COMANDO, buffer)
-    assert d["objetivo"] == "python3 -m pytest -q"
-    assert d["dentro"] is True
+def test_extraccion_del_comando_ignora_banner_y_explicacion(tmp_path):
+    """Ya no hay extracción: el aprobador decide sobre `objetivo`, nunca sobre
+    el prompt que lee el humano. Un prompt inocente no lava un push."""
+    scope = escribir_scope(tmp_path / "s.json", comandos=["git"], eventos=tmp_path / "e.jsonl")
+    d = por_scope(Pedido("¿Ejecutar?", "↳ explicación", "comando", "git push origin main",
+                         "confirmar_doble"), scope)
+    assert d.ok is False and d.motivo == "denylist"
+    assert leer_decisiones(tmp_path / "e.jsonl")[0]["objetivo"] == "git push origin main"
 
 
-def test_prompt_no_parseable_sigue_el_flujo():
-    d = decision_hitl("¿Querés seguir? [y/n]: ", "")
-    assert d["tipo"] == "desconocido"
-    assert d["objetivo"] is None
-    assert d["dentro"] is True
-    assert d["motivo"] == "no-parseable"
+def test_prompt_no_parseable_sigue_el_flujo(tmp_path):
+    """Un pedido de tipo desconocido NO se aprueba (antes: dentro=True), pero
+    el flujo sigue: el rechazo vuelve como Decision y queda registrado."""
+    assert dentro_de_scope("desconocido", "x") == (False, "tipo-desconocido")
+    scope = escribir_scope(tmp_path / "s.json", eventos=tmp_path / "e.jsonl")
+    assert por_scope(Pedido("¿Querés seguir?"), scope).ok is False
+    assert len(leer_decisiones(tmp_path / "e.jsonl")) == 1
 
 
 def test_denylist_dura_es_la_declarada():
-    assert ".env" in DENYLIST_DURA["rutas"]
-    assert ".git/" in DENYLIST_DURA["rutas"]
-    assert "memoria/" in DENYLIST_DURA["rutas"]
-    assert "git push" in DENYLIST_DURA["comandos"]
-    assert "rm -rf" in DENYLIST_DURA["comandos"]
-    assert "rm -fr" in DENYLIST_DURA["comandos"]
+    assert {".env", ".git", "memoria"} <= set(RUTAS_PROHIBIDAS)
+    assert {"git push", "rm -rf", "rm -fr"} <= set(COMANDOS_PROHIBIDOS)
 
 
-def test_el_scope_cubre_el_prompt_de_edit_file_de_exp98():
-    r"""exp/99: el prompt de edit_file cambió en exp/98 (`¿Aplicar? → ruta
-    (2 hunks, +4/−2) (s/n)`) y la extracción vieja `→ (\S+) \(s/n\)` NO
-    matcheaba → decision_hitl devolvía no-parseable (dentro=True): el
-    conductor habría aprobado ediciones fuera de scope y de la denylist."""
-    prompt_edit = "¿Aplicar? → /repo/src/main.py (2 hunks, +4/−2) (s/n): "
-    d = decision_hitl(prompt_edit, "", permitir=["/repo/docs"])
-    assert d["tipo"] == "escritura"
-    assert d["objetivo"] == "/repo/src/main.py"
-    assert d["dentro"] is False
-    assert d["motivo"] == "fuera-de-scope"
-    # dentro del scope aprueba, y el ¿Escribir? clásico no regresa
-    d = decision_hitl(prompt_edit, "", permitir=["/repo/src"])
-    assert d["dentro"] is True
-    d = decision_hitl(PROMPT_ESCRITURA_DENTRO, "", permitir=["/tmp/prueba"])
-    assert d["objetivo"] == "/tmp/prueba_banco/hola.txt"
-    assert d["dentro"] is True
-    # la denylist también corre para ediciones: memoria/ es del operador
-    d = decision_hitl("¿Aplicar? → /repo/memoria/nota.md (1 hunks, +1/−0) (s/n): ",
-                      "", permitir=["/repo"])
-    assert d["dentro"] is False
-    assert d["motivo"] == "denylist"
+def test_el_scope_cubre_el_prompt_de_edit_file_de_exp98(tmp_path, monkeypatch):
+    """El hueco de exp/99 era de PARSEO (el sufijo `(2 hunks, …)` no matcheaba):
+    ahora edit_file entrega la ruta resuelta como dato y el scope la juzga."""
+    import modules.coding as coding
+
+    (tmp_path / "src").mkdir()
+    archivo = tmp_path / "src" / "main.py"
+    archivo.write_text("a = 1\n", encoding="utf-8")
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    eventos = tmp_path / "e.jsonl"
+    for permitido, ok in ((tmp_path / "docs", False), (tmp_path / "src", True)):
+        monkeypatch.setenv("HITL_SCOPE", str(escribir_scope(tmp_path / "s.json", [str(permitido)],
+                                                             eventos=eventos)))
+        coding.edit_file(str(archivo), "a = 1", "a = 2")
+        fila = leer_decisiones(eventos)[-1]
+        assert fila["tipo"] == "escritura" and fila["objetivo"] == str(archivo)
+        assert fila["ok"] is ok
+    assert archivo.read_text(encoding="utf-8") == "a = 2\n"
 
 
 def test_escenario_sin_scope_sigue_siendo_valido():
@@ -259,3 +230,60 @@ def test_env_del_chat_aisla_la_memoria_y_marca_procedencia(monkeypatch):
     env = _env_del_chat()
     assert env["MEMORIA"] == "0"
     assert env["MEMORIA_DIR"] == str(RAIZ / "salidas" / "banco" / "memoria")
+
+
+# tarea hecha que no se cumple sin trabajar (cierre de H1, 2026-10-26) ----------
+
+def test_ningun_escenario_se_pasa_sin_hacer_nada():
+    """banco-1 y banco-3 daban OK aunque el modelo no hiciera nada (sus fixes
+    ya estaban aplicados y `verificar: pytest` pasaba igual). Los chequeos de
+    transcript/salida de cada turno tienen que FALLAR con un turno vacío."""
+    from banco.banco import verificar_turno
+
+    for ruta in ESCENARIOS.glob("*.yaml"):
+        for turno in cargar_escenario(ruta)["turnos"]:
+            chequeos = [c for c in turno.get("verificar") or () if next(iter(c)) in ("transcript", "salida")]
+            if chequeos:
+                assert verificar_turno(chequeos, ""), f"{ruta.name}:{turno['id']} pasa con un turno vacío"
+
+
+def test_un_verificar_que_no_mide_trabajo_invalida_el_escenario(tmp_path):
+    import yaml
+
+    ruta = tmp_path / "e.yaml"
+    ruta.write_text(yaml.safe_dump({"id": "e", "turnos": [
+        {"id": "t", "linea": "x", "verificar": [{"comando": "true"}, {"no_existe": "y"}]}]}),
+        encoding="utf-8")
+    try:
+        cargar_escenario(ruta)
+    except ValueError as e:
+        assert "sin hacer nada" in str(e)
+    else:
+        raise AssertionError("un verificar sin chequeo de trabajo debería ser inválido")
+
+
+def test_salida_compara_contra_el_repo_vivo(tmp_path, monkeypatch):
+    """`salida` calcula la respuesta con un comando: el escenario no guarda
+    números que envejezcan, y la respuesta tiene que venir marcada."""
+    import banco.banco as bb
+
+    monkeypatch.setattr(bb, "RAIZ", tmp_path)
+    (tmp_path / "a.txt").write_text("1\n2\n3\n", encoding="utf-8")
+    chequeo = [{"salida": "wc -l < a.txt"}]
+    assert bb.verificar_turno(chequeo, "listo.\nRESPUESTA: **3**") == []
+    assert bb.verificar_turno(chequeo, "RESPUESTA: 33")              # otro número
+    assert bb.verificar_turno(chequeo, "son 3 líneas")               # sin marca
+    assert bb.verificar_turno([{"salida": "false"}], "RESPUESTA: 3")  # el comando no corre
+
+
+def test_friccion_auto_tiene_respuestas_calculables():
+    """Cada turno de friccion-auto calcula su respuesta contra el repo vivo:
+    si un archivo se mueve, el escenario se rompe acá y no en la corrida."""
+    from banco.banco import _respuesta_esperada
+
+    esc = cargar_escenario(ESCENARIOS / "friccion-auto.yaml")
+    turnos = [t for t in esc["turnos"] if t.get("verificar")]
+    assert len(turnos) >= 5
+    for turno in turnos:
+        (tipo, comando), = turno["verificar"][0].items()
+        assert tipo == "salida" and _respuesta_esperada(comando), turno["id"]

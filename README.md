@@ -13,7 +13,8 @@ disparan por regex, sin LLM.
 ```mermaid
 flowchart TD
     q[GetQuestion] -->|continue| s[AgentStep]
-    s -->|answer| q
+    s -->|answer| c[VerificarCitas]
+    c --> q
     s -->|tool| t[ExecuteTools]
     t --> s
     q -->|exit| x[ExitChat]

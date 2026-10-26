@@ -86,6 +86,21 @@ def _bookkeeping_y_memoria_en_tmp(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("THREADS_DIR", str(base / "threads"))  # resume fuera del repo
 
 
+@pytest.fixture(autouse=True)
+def _sin_el_aprobador_del_operador(monkeypatch):
+    """La suite no hereda el canal de aprobación de quien la corre.
+
+    Medido (cierre de H1, 2026-10-26): cuando el modelo corre `pytest` dentro
+    de un chat del banco o del conductor, el proceso hereda `HITL_SCOPE` y
+    `por_scope` contestaba los HITL que los tests esperaban de su `input()`
+    falso: 3 tests fallaban solo ahí, un `mkdir no_se_debe_crear` se APROBÓ
+    y quedó en la raíz, y el turno `correr-tests` de friccion-auto dio
+    `no-hecha` porque el modelo vio 24 passed en vez de 26. Los tests que
+    prueban el scope o el HITL web lo fijan ellos (monkeypatch: gana el último)."""
+    monkeypatch.delenv("HITL_SCOPE", raising=False)
+    monkeypatch.setenv("HITL_WEB", "0")
+
+
 def tc(nombre, args):
     """Tool call con la envoltura exacta que arma el modelo (OpenAI)."""
     return {"id": "call_x", "type": "function",

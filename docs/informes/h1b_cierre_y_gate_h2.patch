@@ -1,0 +1,905 @@
+diff -ruN a/README.md b/README.md
+--- a/README.md	2026-10-26 17:36:42.578239225 +0000
++++ b/README.md	2026-10-26 17:36:42.642238528 +0000
+@@ -13,7 +13,8 @@
+ ```mermaid
+ flowchart TD
+     q[GetQuestion] -->|continue| s[AgentStep]
+-    s -->|answer| q
++    s -->|answer| c[VerificarCitas]
++    c --> q
+     s -->|tool| t[ExecuteTools]
+     t --> s
+     q -->|exit| x[ExitChat]
+diff -ruN a/banco/banco.py b/banco/banco.py
+--- a/banco/banco.py	2026-10-26 17:36:42.586239138 +0000
++++ b/banco/banco.py	2026-10-26 17:36:42.650238441 +0000
+@@ -282,6 +282,10 @@
+         hitl_topes = sum(1 for f in filas if f["motivo"] == "tope")
+         # el conteo de marcadores es la MEDIDA del turno
+         marcadores = contar_marcadores(limpiar(ventana + chat.nuevo))
++        fallas = verificar_turno(turno.get("verificar"), limpiar(ventana + chat.nuevo)) if estado == "ok" else []
++        if fallas:
++            estado = "no-hecha"  # el prompt volvió pero la tarea no se cumplió
++            evento("no-hecha", {"n": i, "id": tid, "fallas": fallas})
+         duracion = round(time.time() - t0)
+         evento("turno-fin", {"n": i, "id": tid, "estado": estado, "seg": duracion,
+                              "hitl": locals().get("hitl", 0),
+@@ -297,9 +301,13 @@
+     eventos.close()
+ 
+     ok = sum(1 for r in resultados if r["estado"] == "ok")
++    con_criterio = sum(1 for t in escenario["turnos"] if t.get("verificar"))
+     with resumen.open("w", encoding="utf-8") as f:
+         f.write(f"# Banco — {escenario['id']} — {datetime.now().isoformat()}\n\n")
+-        f.write(f"{ok}/{len(escenario['turnos'])} turnos OK\n\n")
++        # "OK" en un turno con `verificar:` es TAREA HECHA; sin él, solo que el
++        # prompt volvió. El resumen dice cuántos turnos miden de verdad.
++        f.write(f"{ok}/{len(escenario['turnos'])} turnos OK "
++                f"({con_criterio} con criterio de tarea hecha)\n\n")
+         f.write("| turno | estado | seg | hitl | marcadores |\n|---|---|---|---|---|\n")
+         for r in resultados:
+             marca = ", ".join(f"{k}×{v}" for k, v in sorted(r["marcadores"].items())) or "—"
+@@ -341,6 +349,45 @@
+     return texto.replace("{RAIZ}", str(RAIZ)).replace("{HOME}", str(Path.home()))
+ 
+ 
++# Criterio de TAREA HECHA por turno (`verificar:`): sin él, "ok" solo decía
++# que el prompt `Tú:` volvió, y un turno que no hizo nada pasaba igual
++# (auditoría de H1: el modelo rehusó exp2-docs y el banco dio 2/2 OK). Cada
++# chequeo es determinista y corre al cerrar el turno, contra el disco y el
++# transcript del turno. Rutas relativas a la raíz del proyecto.
++CHEQUEOS = ("existe", "no_existe", "contiene", "transcript", "comando")
++
++
++def verificar_turno(chequeos, transcript):
++    """Los chequeos que FALLAN (lista vacía = tarea hecha). PURA salvo la
++    lectura del disco y `comando`, que corre con timeout en la raíz."""
++    import subprocess
++
++    fallas = []
++    for chequeo in chequeos or ():
++        (tipo, valor), = chequeo.items()
++        if tipo == "existe" and not (RAIZ / valor).exists():
++            fallas.append(f"no existe {valor}")
++        elif tipo == "no_existe" and (RAIZ / valor).exists():
++            fallas.append(f"existe {valor}")
++        elif tipo == "contiene":
++            ruta = RAIZ / valor["ruta"]
++            if not ruta.is_file() or valor["texto"] not in ruta.read_text(encoding="utf-8", errors="replace"):
++                fallas.append(f"{valor['ruta']} no contiene {valor['texto']!r}")
++        elif tipo == "transcript" and not re.search(valor, transcript):
++            fallas.append(f"el transcript no matchea {valor!r}")
++        elif tipo == "comando":
++            r = subprocess.run(valor, shell=True, cwd=RAIZ, capture_output=True, timeout=300)
++            if r.returncode:
++                fallas.append(f"`{valor}` salió {r.returncode}")
++    return fallas
++
++
++def _validar_chequeos(ruta, turno):
++    for chequeo in turno.get("verificar") or ():
++        if not (isinstance(chequeo, dict) and len(chequeo) == 1 and next(iter(chequeo)) in CHEQUEOS):
++            raise ValueError(f"verificar inválido en {ruta}: {chequeo!r} (uno de {CHEQUEOS})")
++
++
+ def cargar_escenario(ruta):
+     esc = yaml.safe_load(sustituir_placeholders(Path(ruta).read_text(encoding="utf-8")))
+     if not esc.get("id") or "turnos" not in esc:
+@@ -354,6 +401,7 @@
+         tope = turno.get("max_hitl", MAX_HITL_POR_TURNO)
+         if not isinstance(tope, int) or isinstance(tope, bool) or tope < 1:
+             raise ValueError(f"max_hitl inválido en {ruta}: {tope!r} (int >= 1)")
++        _validar_chequeos(ruta, turno)
+     return esc
+ 
+ 
+diff -ruN a/banco/escenarios/banco-1-marcadores.yaml b/banco/escenarios/banco-1-marcadores.yaml
+--- a/banco/escenarios/banco-1-marcadores.yaml	2026-10-26 17:36:42.586239138 +0000
++++ b/banco/escenarios/banco-1-marcadores.yaml	2026-10-26 17:36:42.650238441 +0000
+@@ -10,10 +10,14 @@
+     linea: "Leé banco/specs/banco_robusto_2026-10-07.md (spec verificada, confía en ella) y aplicá el Fix 10, partes (b) y candado 1-3: en banco/banco.py reemplazá la clave \"veto\" del dict MARCADORES por las dos claves ancladas veto_l8 y veto_denylist; en tests/test_banco.py actualizá los fixtures del test de marcadores (positivos = líneas reales, negativos = las dos contaminantes medidas, eliminando el fixture viejo de mayúsculas). UN edit_file por archivo (2 en total). Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes ni && ni 2>&1)."
+     hitl: s
+     timeout: 1200
++    verificar:
++      - comando: python3 -m pytest tests/ -q -x -p no:cacheprovider
+   - id: fix-print-denylist
+     linea: "Ahora el Fix 10, parte (a) y su candado: en modules/coding.py el hook _vetar_comando_prohibido debe IMPRIMIR el aviso [denylist] antes de devolver el veto (paridad con _hook_py_compile, estilo colorear/flush); y el test de la denylist en tests/test_smoke.py se extiende para capturar stdout (capsys) y afirmar el print. UN edit_file por archivo (2 en total). Verificá con `python3 -m pytest tests/ -q`."
+     hitl: s
+     timeout: 1200
++    verificar:
++      - comando: python3 -m pytest tests/ -q -x -p no:cacheprovider
+   - id: salir
+     linea: "salir"
+     timeout: 60
+diff -ruN a/banco/escenarios/banco-3-policy.yaml b/banco/escenarios/banco-3-policy.yaml
+--- a/banco/escenarios/banco-3-policy.yaml	2026-10-26 17:36:42.594239051 +0000
++++ b/banco/escenarios/banco-3-policy.yaml	2026-10-26 17:36:42.658238354 +0000
+@@ -10,10 +10,14 @@
+     linea: "Leé banco/specs/banco_robusto_2026-10-07.md (spec verificada, confía en ella) y aplicá el Fix 12: en utils/policy.py, _segmento_es_auto quita el token 2>&1 ANTES del escaneo de _PELIGRO_SHELL (regla semántica: duplicar stderr al stdout no escribe; toda redirección real conserva su carácter cazable), con el comentario que lo justifica, y el docstring del módulo actualizado en la sección de redirección. UN solo edit_file para policy.py. Verificá con `python3 -m pytest tests/ -q` (auto, sin pipes)."
+     hitl: s
+     timeout: 1200
++    verificar:
++      - comando: python3 -m pytest tests/ -q -x -p no:cacheprovider
+   - id: fix-policy-tests
+     linea: "Ahora el candado del Fix 12: la matriz completa de tests de la spec (los 8 casos: 2>&1 solo, con pipe, grep; > f, > f 2>&1, 2> f, 2>&1 > f quedan preguntar; cat | head 2>&1 auto) en tests/test_smoke.py junto a los tests de policy existentes. UN solo edit_file. Verificá con `python3 -m pytest tests/ -q`."
+     hitl: s
+     timeout: 1200
++    verificar:
++      - comando: python3 -m pytest tests/ -q -x -p no:cacheprovider
+   - id: salir
+     linea: "salir"
+     timeout: 60
+diff -ruN a/banco/escenarios/exp2-docs.yaml b/banco/escenarios/exp2-docs.yaml
+--- a/banco/escenarios/exp2-docs.yaml	2026-10-26 17:36:42.590239094 +0000
++++ b/banco/escenarios/exp2-docs.yaml	1970-01-01 00:00:00.000000000 +0000
+@@ -1,11 +0,0 @@
+-id: exp2-docs
+-descripcion: docs de exp/2
+-scratch: []
+-turnos:
+-  - id: docs
+-    linea: "Leé banco/specs/exp2_docs.md y aplicá las 2 operaciones textuales."
+-    hitl: s
+-    timeout: 300
+-  - id: salir
+-    linea: "salir"
+-    timeout: 60
+diff -ruN a/banco/escenarios/smoke.yaml b/banco/escenarios/smoke.yaml
+--- a/banco/escenarios/smoke.yaml	2026-10-26 17:36:42.590239094 +0000
++++ b/banco/escenarios/smoke.yaml	2026-10-26 17:36:42.654238398 +0000
+@@ -1,6 +1,7 @@
+ # Escenario smoke del banco: la vuelta mínima que ejercita router, tools,
+ # HITL en ambos sentidos, el camino auto de run_command (exp/1) y la
+-# retención de contexto. ~8 turnos, ~2 minutos, centavos.
++# retención de contexto. ~8 turnos, ~2 minutos, centavos. Los turnos con
++# `verificar:` miden TAREA HECHA, no solo que el prompt volvió (H1b).
+ id: smoke
+ descripcion: vuelta mínima del chat — router, lectura, HITL ±, auto, contexto
+ scratch:
+@@ -16,16 +17,26 @@
+     linea: "Creá el archivo prueba_banco/hola.txt con el contenido: banco ok"
+     hitl: s
+     timeout: 120
++    verificar:
++      - contiene: {ruta: prueba_banco/hola.txt, texto: banco ok}
+   - id: write-rechazar
+     linea: "Ahora creá prueba_banco/no.txt con el contenido que quieras."
+     hitl: n
+     timeout: 120
++    verificar:
++      - no_existe: prueba_banco/no.txt
+   - id: run-auto
+     linea: "Corré este comando exacto: cd . && python3 -m pytest tests/test_policy.py::test_policy_semicolon_y_cd_neutro -q"
+     timeout: 180
++    verificar:
++      - transcript: 'run_command \[auto'
++      - transcript: '1 passed'
+   - id: contexto
+     linea: "¿Qué archivo te dejé crear y cuál te rechacé en esta sesión?"
+     timeout: 90
++    verificar:
++      - transcript: 'hola\.txt'
++      - transcript: 'no\.txt'
+   - id: salir
+     linea: "salir"
+     timeout: 60
+diff -ruN a/delegar.py b/delegar.py
+--- a/delegar.py	2026-10-26 17:36:42.566239355 +0000
++++ b/delegar.py	2026-10-26 17:36:42.634238615 +0000
+@@ -190,7 +190,10 @@
+     # arranque del chat reporta "en curso" vs "murió sin resumen")
+     (run / "conductor.pid").write_text(str(os.getpid()), encoding="utf-8")
+     env = env_delegar(run / "threads", extras)
+-    env["HITL_SCOPE"] = str(escribir_scope(run / "scope.json", permitir, permitir_comandos,
++    # sin --permitir-comandos el conductor NO aprueba ningún comando (lista
++    # vacía, no None): nadie al timón no es "todo lo no irreversible". Los de
++    # solo-lectura (auto) corren igual: nunca piden aprobación.
++    env["HITL_SCOPE"] = str(escribir_scope(run / "scope.json", permitir, permitir_comandos or [],
+                                            max_hitl, run / "hitl.jsonl"))
+     crudo = run / "transcript.log"
+     lanzador = lanzar or (lambda env, argv: Chat(env=env, argv=argv))
+@@ -256,7 +259,7 @@
+     parser.add_argument("--timeout-min", type=int, default=30, metavar="MIN",
+                         help="plazo global en minutos, reanudaciones incluidas (default 30)")
+     parser.add_argument("--max-hitl", type=int, default=12, metavar="N",
+-                        help="tope de aprobaciones por tarea (default 12)")
++                        help="tope de aprobaciones por corrida, reanudaciones incluidas (default 12)")
+     parser.add_argument("--dir", default="salidas/delegar", help="directorio de corridas")
+     parser.add_argument("--env", action="append", default=None, metavar="K=V",
+                         help="variable de entorno del chat (repetible)")
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-26 17:36:42.566239355 +0000
++++ b/docs/bitacora.md	2026-10-26 17:36:42.630238659 +0000
+@@ -4553,3 +4553,16 @@
+ **Medición**: de los 22 casos de `tests/test_auditoria_2026_10_26.py` que corren sobre el código previo, 17 fallan antes y pasan después; los 5 restantes son controles de no-regresión de fricción (lecturas legítimas que siguen `auto`). Suite completa: 1000 passed, 13 skipped. Ratchet: `tests_definidos` 969 → 997; las otras 7 métricas, iguales.
+ 
+ **Pendiente de medir**: los escenarios del banco con LLM real (fricción HITL y turnos OK con el aprobador por scope); no se corrieron en esta sesión (sin API key).
++
++
++## H1b — cierre de H1 y gate de H2 (2026-10-26)
++
++**Origen**: la auditoría de H1 con LLM real (4 corridas, ~$0,007) validó aprobación y rechazo por scope y dejó 5 observaciones. Se cierran las que eran fallas: el conductor sin `--permitir-comandos` fallaba ABIERTO; `prod.env` pasaba la denylist; y el banco no medía tarea hecha (`exp2-docs` dio 2/2 OK con el modelo negándose, con razón: la spec ya estaba aplicada).
++
++**Cambios**: conductor con `comandos=[]`; denylist por sufijo; `alcance_amplio` acotado a las raíces (medido: `revisá /usr y /etc` 2,0 s → 0,0 s); `VerificarCitas` como nodo (F6: sale la llamada LLM de `post` y dos `except Exception`); `verificar:` en el banco con 5 chequeos deterministas (`existe`, `no_existe`, `contiene`, `transcript`, `comando`) en `smoke`, `banco-1` y `banco-3`; `exp2-docs` retirado.
++
++**Gate de H2**: `tests/test_caracterizacion_chat.py` corre el grafo completo con LLM guionado y afirma solo lo observable (presupuesto, L8, no-progreso, DSML, sanitizado, citas, compactación, checkpoint). No toca nodos ni claves privadas: el kernel de H2 tiene que pasarlo sin cambiar una línea.
++
++**Medición**: los 10 casos de cierre (7 tests con parametrize) fallan sobre H1 y pasan con H1b; los 12 de caracterización pasan en los dos (describen lo que el chat ya hacía). Ver el reporte para suite y ratchet.
++
++**Pendiente con LLM real**: `smoke.yaml` y `banco-1-marcadores.yaml` con `verificar:` (primera medición de tarea hecha) y la fricción de `auto` en sesión larga.
+diff -ruN a/docs/design.md b/docs/design.md
+--- a/docs/design.md	2026-10-26 17:36:42.566239355 +0000
++++ b/docs/design.md	2026-10-26 17:36:42.630238659 +0000
+@@ -16,7 +16,8 @@
+ ```mermaid
+ flowchart TD
+     q[GetQuestion] -->|continue| s[AgentStep]
+-    s -->|answer| q
++    s -->|answer| c[VerificarCitas]
++    c --> q
+     s -->|tool| t[ExecuteTools]
+     t --> s
+     q -->|exit| x[ExitChat]
+@@ -113,6 +114,7 @@
+ | GetQuestion | Node | — | `input()` (ignora vacías; EOF → exit) | `salir/exit/quit` → `exit`; si no, resetea el presupuesto por pregunta (ley L8) y agrega el mensaje user → `continue`; `/aprobaciones` imprime el historial HITL y NO entra al historial |
+ | AgentStep | Node (max_retries=3, wait=5) | historial + tools (sin tools si ya gastó el límite) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
+ | ExecuteTools | Node | último `tool_calls` | ejecuta cada llamada (`run_tool_call`) | agrega mensajes tool, suma `tool_rounds` → `default` |
++| VerificarCitas | Node (max_retries=2, wait=2) | la última respuesta (si `CITAS_VERIFICAR=1` y no trae `tool_calls`) | verifica `ruta:línea` contra el disco; si alguna falla, UNA corrección sin tools (`exec_fallback`: si la corrección revienta, queda la respuesta) | reemplaza el contenido corregido → `default` (antes vivía en `AgentStep.post`, sin retry: auditoría F6) |
+ | ExitChat | Node | — | — | imprime despedida |
+ 
+ ## Utilities
+@@ -870,8 +872,10 @@
+ [exp100](../banco/specs/exp100_delegar_en_chat.md)):
+ 
+ - **HITL por scope** (H1, 2026-10-26): el conductor escribe el scope a un JSON y lo pasa por `HITL_SCOPE`; el chat decide cada `Pedido` (tipo, objetivo, nivel) con `utils.aprobaciones.por_scope`, sin leer la pantalla. Antes reusaba `decision_hitl` del banco; `--permitir`/
+-  `--permitir-comandos` son prefijos; sin ellos vale solo la denylist dura
+-  (`.env`, `.git/`, `memoria/`, `git push`, `rm -rf`, `rm -fr`). Los
++  `--permitir-comandos` son prefijos. Sin `--permitir` las escrituras valen
++  salvo la denylist dura (`.env`/`*.env`, `.git`, `memoria/`); sin
++  `--permitir-comandos` NINGÚN comando que pida aprobación se aprueba (los de
++  solo-lectura corren `auto` igual), y `git push`/`rm -rf` nunca pasan. Los
+   rechazos viajan CON MOTIVO (`n fuera-de-scope`, exp/98): el modelo sabe
+   por qué le dijeron que no. La doble confirmación `(1/2)/(2/2)` —nivel
+   destructivo de la policy— SOLO se aprueba con prefijo EXPLÍCITO de
+@@ -880,7 +884,7 @@
+   relanza `main.py resume <id-reciente>` (exp/48) y re-envía una línea de
+   continuación (protocolo de exp/4). Tope `MAX_RESUMES=2`; sin checkpoint o
+   tope agotado → exit 1 con el transcript a mano.
+-- **Presupuestos**: `--max-hitl` (default 12; al tope rechaza con motivo,
++- **Presupuestos**: `--max-hitl` (default 12, por corrida con reanudaciones; al tope rechaza con motivo,
+   no cuelga) y `--timeout-min` global (default 30; SIGINT → gracia →
+   SIGKILL → exit 1). El cierre normal manda `salir`: el resumen de sesión y
+   el reporte `[tokens]` quedan al final del transcript.
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-26 17:36:42.566239355 +0000
++++ b/docs/estado.md	2026-10-26 17:36:42.630238659 +0000
+@@ -113,6 +113,7 @@
+ | X65 | — | Con `HITL_WEB=1` el rechazo llegaba mudo: `pedir_aprobacion` envolvía `bool(aprobar(...))` y el motivo moría ahí — el PENDING declarado de la v1 de exp/98; el modelo volvía a adivinar por qué le dijeron que no | ✅ 2026-10-25 (exp/102) | El form de Rechazar sirve un campo `motivo` (maxlength 300, URL-decodificado con `unquote_plus` y acotado server-side); `hitl_web.aprobar()` devuelve la `Decision` entera (timeout/error ⇒ rechazo sin motivo, default seguro intacto) y `pedir_aprobacion` la pasa tal cual; la aprobación descarta el motivo (contrato del parser). e2e con curl `--data-urlencode` contra el server real. Los tests de contención adaptados al contrato nuevo sin perder protecciones | `test_hitl_web_rechazo_con_motivo_viaja`, `test_pedir_aprobacion_web_devuelve_la_decision_entera`, `test_el_motivo_se_acorta_a_300`, `test_hitl_web` (adaptado) |
+ | X64 | — | Las corridas delegadas (exp/99–100) registraban sus etiquetas del juez de riesgo con origen `terminal`: el s/n lo decide el scope del conductor, no un humano — la misma contaminación que X18 cerró para el banco, lista para crecer con cada delegación (medido antes del fix: 0 filas; `write_file` no observa riesgo y los comandos de las corridas eran `auto`) | ✅ 2026-10-25 (exp/101) | `origen_etiqueta()` en `utils/riesgo.py`: con `DELEGADO=1` → `delegado`, excluida del conteo de readiness (≥300/≥100) igual que `banco`; `origen()` INTACTO — las delegadas siguen siendo `terminal` para el PAR de la flywheel (contrato de exp/99, clavado con test); `env_delegar` fija `DELEGADO=1`; probe con fila "delegadas (no cuentan)". e2e: corrida delegada con `du -sh` (banda preguntar) → fila nueva `"origen": "delegado"`, orgánicas sin mover | `test_la_etiqueta_delegada_no_cuenta_como_humana`, `test_estado_riesgo_cuenta_las_delegadas_aparte`, `test_env_delegar_no_marca_banco_y_aisla_threads` |
+ | X63 | — | El operador vive en el chat: una capacidad que solo existe como comando aparte (`delegar` CLI) no se usa — "si no se activa al iniciar, durante, o al cerrar el chat, no creo que lo use" (señal de uso directa del operador, lo que exp/97 esperaba de la adopción) | ✅ 2026-10-25 (exp/100) | Tool `delegar_tarea` (#31): UNA aprobación del operador con pedido+scope a la vista (el cuerpo impreso antes del s/n; rechazo con motivo de exp/98), lanza el conductor **detached** (`start_new_session`) con `shadow="1"` opcional; `panorama_delegadas()` al arrancar (últimas 3 con estado, pid del conductor en `conductor.pid`); aviso al cerrar si hay activas. El que aprueba los HITL de la tarea sigue siendo proceso aparte. e2e: el modelo llamó solo la tool, el chat se cerró con el aviso, el conductor completó igual y el próximo arranque reportó | `test_el_modulo_expone_la_tool_con_su_impl`, `test_delegar_tarea_rechazada_no_lanza_nada`, `test_delegar_tarea_lanza_el_conductor_detached`, `test_el_arranque_y_cierre_del_chat_reportan_delegadas`, `test_panorama_delegadas_distingue_los_estados` |
++| X64 | — | Cierre de H1 (auditoría del agente sobre H1, 2026-10-26): `delegar` sin `--permitir-comandos` aprobaba sin humano todo comando no irreversible; `prod.env`/`x.ENV` pasaban la denylist; `alcance_amplio` recorría `/usr` (~2–3 s por ronda); la corrección de citas llamaba al LLM en `AgentStep.post` (sin retry, con `except` amplio); el banco marcaba `ok` turnos cuya tarea no se hizo y `exp2-docs` ya no medía nada | ✅ 2026-10-26 (H1b) | El conductor pasa `comandos=[]` (falla cerrado); `ruta_prohibida` cubre sufijos `.env`/`.git`; `alcance_amplio` solo mira dentro de las raíces y corta al cruzar el umbral; `VerificarCitas` es un nodo del grafo (answer → citas → ask, `max_retries=2`, `exec_fallback`); `verificar:` por turno en el banco (estado `no-hecha`); `exp2-docs` retirado; caracterización del chat de punta a punta como gate de H2 | `tests/test_auditoria_2026_10_26.py::test_el_conductor_sin_permitir_comandos_no_aprueba_comandos`, `::test_verificar_turno_detecta_tarea_no_hecha`, `tests/test_caracterizacion_chat.py` (12) |
+ | X62 | — | El meta-loop exigía un auditor al timón (contestar s/n por tmux): sin conductor no había forma de delegarle trabajo real al harness solo, y cada sesión muerta a mitad (exp/98) se perdía entera; además la regex de scope del banco no matcheaba el prompt de `edit_file` de exp/98 (`¿Aplicar? → ruta (2 hunks…)`) → cualquier conductor habría aprobado ediciones fuera de scope y de la denylist | ✅ 2026-10-25 (exp/99) | `delegar.py`: conductor que reusa el driver PTY y `decision_hitl` del banco, sin `BANCO=1` (origen `terminal`), HITL por scope declarado con rechazo CON motivo (exp/98), doble confirmación solo con prefijo explícito, muerte → `resume` (tope 2) y `THREADS_DIR` propio; regex corregida en `banco/banco.py`. e2e: tarea delegada exit 0 + drill `kill -9` → rehidrata y completa; **par #14/250** de la flywheel con `--env LAYA_MODO=shadow` (día 3/14) | `tests/test_delegar.py` (13: `test_conducir_muerto_resume_y_completa`, `test_plan_respuesta_doble_exige_prefijo_explicito`…), `test_el_scope_cubre_el_prompt_de_edit_file_de_exp98` |
+ | X63 | — | Auditoría 2026-10-26 (H1): el conductor reconstruía el pedido HITL leyendo la pantalla y aprobaba `git push` (la doble confirmación real `(1/2) (s/n):` no matcheaba), el scope comparaba rutas y comandos por prefijo de texto, `auto` salía de las raíces (`cd ..;cat`, `cd` solo, glob, `$VAR`) y por flags agrupadas (`sort -uo/x`), `edit_file` perdía CRLF y bytes no UTF-8, las escrituras pisaban permisos y el checkpoint guardaba reprs (`default=str`) | ✅ 2026-10-26 (H1) | El pedido es DATO: `utils/aprobaciones.Pedido` + `dentro_de_scope`/`por_scope`; banco y conductor pasan el scope por `HITL_SCOPE` y el chat decide en su proceso (fuera `decision_hitl`, `tipo_prompt`, `plan_respuesta`, `_cuerpo`); `policy.segmentos`/`opaco`/`irreversible` como fuente única; getopt en flags cortas; `edit_file` por bytes y estricto; `escribir_atomico` conserva modo y saltos; `shared` JSON puro | `tests/test_auditoria_2026_10_26.py` (`test_la_doble_confirmacion_real_no_se_aprueba_por_scope`, `test_auto_no_sale_de_raices`, `test_checkpoint_ida_y_vuelta_es_identidad`…), `tests/test_delegar.py::test_plan_respuesta_doble_exige_prefijo_explicito` |
+ | X61 | — | El punto de confianza del sistema mostraba diffs recortados sin declarar cuánto faltaba (exp/96: hunks aprobados sin verse) y el rechazo era 'n' mudo — el chat adivinaba el motivo y re-propuso lo mismo | ✅ 2026-10-24 (exp/98) | El prompt de edit_file declara `(N hunks, +A/−B)` del diff COMPLETO y el marcador dice cuántos caracteres quedan sin ver; `Decision(ok, motivo)` con `__bool__`: el rechazo `n <motivo>` viaja al modelo en edit_file/write_file/run_command, con casing conservado; el seam `_approve` tolera bools para siempre (getattr — los mocks existentes intactos, R2) | `test_parser_decision_motivo`, `test_edit_file_prompt_declara_diff_completo`, `test_motivo_del_rechazo_viaja_al_modelo` |
+diff -ruN a/flow.py b/flow.py
+--- a/flow.py	2026-10-26 17:36:42.566239355 +0000
++++ b/flow.py	2026-10-26 17:36:42.630238659 +0000
+@@ -8,6 +8,7 @@
+     GetQuestion,
+     LayaRouter,
+     PreFetch,
++    VerificarCitas,
+ )
+ 
+ 
+@@ -17,6 +18,9 @@
+     step = AgentStep(max_retries=3, wait=5)
+     tools = ExecuteTools()
+     bye = ExitChat()
++    # la respuesta pasa por la verificación de citas antes de la próxima
++    # pregunta: un nodo propio (con retry), no un paso escondido en post
++    citas = VerificarCitas(max_retries=2, wait=2)
+ 
+     from utils.call_llm import _setting
+ 
+@@ -33,13 +37,14 @@
+         router - "herramientas" >> step
+         # DirectAnswer hereda el post de AgentStep: devuelve "answer" (nunca
+         # "tool", va sin tools) — la arista correcta es esa, no la default.
+-        directo - "answer" >> ask
++        directo - "answer" >> citas
+         directo - "tool" >> tools
+     else:
+         ask - "continue" >> prefetch
+         prefetch - "continue" >> step
+ 
+-    step - "answer" >> ask  # respuesta entregada: siguiente pregunta
++    step - "answer" >> citas  # respuesta entregada: se verifican sus citas
++    citas >> ask              # y vuelve a la siguiente pregunta
+     step - "tool" >> tools  # pidió herramientas: ejecutarlas y volver a pensar
+     tools >> step
+     ask - "exit" >> bye
+diff -ruN a/modules/delegar.py b/modules/delegar.py
+--- a/modules/delegar.py	2026-10-26 17:36:42.570239312 +0000
++++ b/modules/delegar.py	2026-10-26 17:36:42.634238615 +0000
+@@ -45,7 +45,7 @@
+                     },
+                     "permitir_comandos": {
+                         "type": "string",
+-                        "description": "prefijos de comandos aprobables, separados por coma (cada segmento del comando debe empezar con uno); git push y rm -rf nunca se aprueban solos",
++                        "description": "prefijos de comandos aprobables, separados por coma (cada segmento del comando debe empezar con uno); vacío = ningún comando que pida aprobación se aprueba (los de solo-lectura corren igual); git push y rm -rf nunca",
+                     },
+                     "timeout_min": {
+                         "type": "integer",
+@@ -89,7 +89,7 @@
+     rutas = _lista(permitir)
+     comandos = _lista(permitir_comandos)
+     scope = ", ".join(rutas) if rutas else "solo denylist dura"
+-    scope_cmd = ", ".join(comandos) if comandos else "denylist dura solamente"
++    scope_cmd = ", ".join(comandos) if comandos else "ninguno (solo los de solo-lectura, que no piden aprobación)"
+     # el patrón de run_command: el operador ve TODO antes del s/n (el cuerpo
+     # imprime acá para la terminal y viaja entero al HITL web)
+     cuerpo = (f"lanzamiento del conductor\n\npedido: {pedido}\n"
+diff -ruN a/nodes.py b/nodes.py
+--- a/nodes.py	2026-10-26 17:36:42.574239268 +0000
++++ b/nodes.py	2026-10-26 17:36:42.638238572 +0000
+@@ -137,9 +137,13 @@
+ 
+ def _lineas_de(ruta):
+     """Masa VISIBLE al agente: la answer sheet del banco (GROUND-TRUTH.md)
+-    no cuenta — misma regla que el juez de trabajo de fable (exp/82)."""
++    no cuenta — misma regla que el juez de trabajo de fable (exp/82). Corta al
++    cruzar los umbrales: la respuesta es amplio sí/no, no el conteo exacto, y
++    un directorio enorme se recorría entero en CADA ronda (auditoría F3)."""
+     total, archivos = 0, 0
+-    for f in sorted(ruta.rglob("*")):
++    for f in ruta.rglob("*"):
++        if archivos >= AMPLIO_ARCHIVOS or total >= AMPLIO_LINEAS:
++            break
+         if f.is_file() and f.suffix in _EXTS_ALCANCE and f.name != "GROUND-TRUTH.md":
+             archivos += 1
+             try:
+@@ -163,9 +167,14 @@
+         return True
+     masa = 0  # suma de líneas de los ARCHIVOS mencionados (spec: la masa, no cada uno)
+     tokens = _TOKEN_RUTA.findall(texto) + _TOKEN_ARCHIVO.findall(texto)
++    from utils.fs_tools import allowed_roots
++
++    roots = allowed_roots()
+     for token in dict.fromkeys(tokens):  # único: un nombre puede aparecer dos veces
+-        p = raiz / token.rstrip(".,;:)")
+-        if not p.exists():
++        p = (raiz / token.rstrip(".,;:)")).resolve()
++        # solo la masa que el agente PUEDE leer: `/usr` no es alcance del pedido
++        # (y recorrerlo costaba ~3 s por ronda, auditoría F3)
++        if not p.exists() or not any(p == r or r in p.parents for r in roots):
+             continue
+         if p.is_dir():
+             archivos, lineas = _lineas_de(p)
+@@ -707,49 +716,7 @@
+             print(f"\nDeepSeek (aviso): {exec_res.content}")
+         return exec_res
+ 
+-    def _verificar_citas(self, shared, exec_res):
+-        """Cita archivo:línea: se comprueba contra el disco; si alguna no
+-        coincide, se pide UNA segunda pasada de corrección (sin tools). Best
+-        effort: un fallo de verificación o de la llamada no rompe la respuesta."""
+-        contenido = (exec_res.content or "").strip()
+-        if not contenido or _setting("CITAS_VERIFICAR", "1") != "1":
+-            return exec_res
+-        from utils.citas import reporte, verificar_citas
+-
+-        try:
+-            resultado = verificar_citas(contenido)
+-        except Exception:  # noqa: BLE001 (verificación: nunca corta la respuesta)
+-            return exec_res
+-        if not resultado["total"]:
+-            return exec_res
+-        print(colorear(f"  [citas] {resultado['ok']}/{resultado['total']} verificadas", "info"), flush=True)
+-        if not resultado["mal"]:
+-            return exec_res
+-        detalle = reporte(resultado)
+-        print(colorear(detalle, "aviso"), flush=True)
+-        try:
+-            mensajes = list(shared.get("messages", [])) + [
+-                {"role": "assistant", "content": contenido},
+-                {"role": "user", "content": (
+-                    "Verificá y corregí la respuesta. Estas citas NO coinciden con "
+-                    "el archivo real:\n" + detalle + "\n\nReescribí la respuesta "
+-                    "usando solo citas verificadas (o marcá como no verificado lo "
+-                    "que no puedas verificar). No agregues hallazgos nuevos; "
+-                    "devolvé solo la respuesta final.")},
+-            ]
+-            corregido = call_llm_agent(mensajes)
+-            nuevo = (getattr(corregido, "content", None) or "").strip()
+-        except Exception:  # noqa: BLE001 (la corrección es best-effort)
+-            return exec_res
+-        if nuevo:
+-            exec_res.content = nuevo
+-            if _setting("CHAT_STREAM", "1") == "1":
+-                print(f"\nDeepSeek (citas corregidas): {nuevo}", flush=True)
+-        return exec_res
+-
+     def post(self, shared, prep_res, exec_res):
+-        if not getattr(exec_res, "tool_calls", None):
+-            exec_res = self._verificar_citas(shared, exec_res)
+         shared["messages"].append(historiar(exec_res))
+         if getattr(exec_res, "tool_calls", None):
+             # exp/49: punto seguro 4 — la SELECCIÓN: las llamadas quedaron
+@@ -869,6 +836,61 @@
+         return "default"
+ 
+ 
++class VerificarCitas(Node):
++    """Cita archivo:línea → se comprueba contra el disco; si alguna no
++    coincide, UNA corrección sin tools reemplaza la respuesta (A40).
++
++    Es un nodo del grafo (answer → citas → ask) y no un paso dentro de
++    AgentStep.post: post no tiene retry en PocketFlow y la llamada de
++    corrección corría ahí envuelta en un except amplio (auditoría F6). Acá la
++    llamada vive en exec (con reintentos) y el "best effort" es el
++    exec_fallback explícito: si no se pudo corregir, queda la respuesta."""
++
++    def prep(self, shared):
++        ultimo = shared["messages"][-1] if shared.get("messages") else {}
++        contenido = (ultimo.get("content") or "").strip()
++        if (_setting("CITAS_VERIFICAR", "1") != "1" or ultimo.get("role") != "assistant"
++                or ultimo.get("tool_calls") or not contenido):
++            return None
++        return shared["messages"][:-1], contenido
++
++    def exec(self, entrada):
++        if entrada is None:
++            return None
++        from utils.citas import reporte, verificar_citas
++
++        mensajes, contenido = entrada
++        resultado = verificar_citas(contenido)
++        if not resultado["total"]:
++            return None
++        print(colorear(f"  [citas] {resultado['ok']}/{resultado['total']} verificadas", "info"), flush=True)
++        if not resultado["mal"]:
++            return None
++        detalle = reporte(resultado)
++        print(colorear(detalle, "aviso"), flush=True)
++        corregido = call_llm_agent(list(mensajes) + [
++            {"role": "assistant", "content": contenido},
++            {"role": "user", "content": (
++                "Verificá y corregí la respuesta. Estas citas NO coinciden con "
++                "el archivo real:\n" + detalle + "\n\nReescribí la respuesta "
++                "usando solo citas verificadas (o marcá como no verificado lo "
++                "que no puedas verificar). No agregues hallazgos nuevos; "
++                "devolvé solo la respuesta final.")},
++        ])
++        return (getattr(corregido, "content", None) or "").strip() or None
++
++    def exec_fallback(self, prep_res, exc):
++        print(colorear(f"  [citas] la corrección falló ({type(exc).__name__}): queda la respuesta",
++                       "aviso"), flush=True)
++        return None
++
++    def post(self, shared, prep_res, exec_res):
++        if exec_res:
++            shared["messages"][-1]["content"] = exec_res
++            print(f"\nDeepSeek (citas corregidas): {exec_res}", flush=True)
++            checkpoint(thread_id(), "VerificarCitas", "default", shared)
++
++
+ class ExitChat(Node):
+     def post(self, shared, prep_res, exec_res):
+         print("\n¡Chao! 👋")
+diff -ruN a/ratchets/baseline.json b/ratchets/baseline.json
+--- a/ratchets/baseline.json	2026-10-26 17:36:42.574239268 +0000
++++ b/ratchets/baseline.json	2026-10-26 17:36:42.642238528 +0000
+@@ -50,10 +50,8 @@
+         ],
+         "nodes.py": [
+           48,
+-          721,
+-          742,
+-          992,
+-          1064
++          1014,
++          1086
+         ],
+         "research.py": [
+           78
+@@ -105,7 +103,7 @@
+           16
+         ]
+       },
+-      "metrica": 36
++      "metrica": 34
+     },
+     "funciones_anidadas": {
+       "detalle": {},
+@@ -144,10 +142,11 @@
+       "detalle": {
+         "tests/test_ab_skills.py": 9,
+         "tests/test_absurdos_funcionales.py": 44,
+-        "tests/test_auditoria_2026_10_26.py": 28,
++        "tests/test_auditoria_2026_10_26.py": 38,
+         "tests/test_banco.py": 16,
+         "tests/test_bench.py": 18,
+         "tests/test_bench_voto.py": 7,
++        "tests/test_caracterizacion_chat.py": 12,
+         "tests/test_chat_flujo.py": 24,
+         "tests/test_citas.py": 7,
+         "tests/test_compaccion.py": 25,
+@@ -211,7 +210,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 997
++      "metrica": 1019
+     }
+   },
+   "version": 1
+diff -ruN a/replay.py b/replay.py
+--- a/replay.py	2026-10-26 17:36:42.610238877 +0000
++++ b/replay.py	2026-10-26 17:36:42.674238180 +0000
+@@ -79,7 +79,7 @@
+ # (supervisor, debate, juez...) dejan SUS eventos en el mismo archivo — son
+ # corridas de OTROS grafos, no caminatas del chat.
+ NODOS_CHAT = {"GetQuestion", "LayaRouter", "DirectAnswer", "AgentStep",
+-              "ExecuteTools", "ExitChat"}
++              "ExecuteTools", "ExitChat", "VerificarCitas"}
+ 
+ 
+ # 1) GRAFOS VIVOS: clases, acciones cableadas y aristas del chat
+@@ -194,6 +194,16 @@
+         for (b2, accion2, c) in aristas_chat
+         if b2 == "PreFetch" and accion2 == accion and c != "PreFetch"
+     }
++    # Auditoría F6: la respuesta pasa por VerificarCitas (default) antes de
++    # volver a GetQuestion. Las caminatas previas saltaban de `answer` directo
++    # a GetQuestion y siguen siendo válidas: misma regla transitiva.
++    aristas_chat |= {
++        (a, accion, c)
++        for (a, accion, b) in aristas_chat
++        if b == "VerificarCitas"
++        for (b2, accion2, c) in aristas_chat
++        if b2 == "VerificarCitas" and accion2 == "default"
++    }
+     return clases, aristas_chat
+ 
+ 
+diff -ruN a/tests/test_auditoria_2026_10_26.py b/tests/test_auditoria_2026_10_26.py
+--- a/tests/test_auditoria_2026_10_26.py	2026-10-26 17:36:42.550239530 +0000
++++ b/tests/test_auditoria_2026_10_26.py	2026-10-26 17:36:42.614238833 +0000
+@@ -127,3 +127,83 @@
+     nodes.actualizar_novedad(shared, [tc, tc])
+     assert isinstance(shared["_huellas_vistas"], list) and len(shared["_huellas_vistas"]) == 1
+     json.dumps(shared)
++
++
++# ── cierre de H1 (auditoría del agente sobre H1, 2026-10-26) ──
++
++def test_el_conductor_sin_permitir_comandos_no_aprueba_comandos(tmp_path):
++    """Obs. 4: sin --permitir-comandos el scope era None = todo lo no
++    irreversible, sin humano. Ahora el conductor falla cerrado."""
++    import delegar
++
++    capturado = {}
++
++    class SinPrompt:
++        raw = None
++
++        def abrir_log(self, destino):
++            pass
++
++        def esperar(self, patron, timeout):
++            return False
++
++        def matar(self):
++            pass
++
++    def lanzar(env, argv):
++        capturado["scope"] = env["HITL_SCOPE"]
++        return SinPrompt()
++
++    delegar.conducir("x", tmp_path, timeout_min=1, lanzar=lanzar)
++    pedido = Pedido("¿Ejecutar?", "pip install x", "comando", "pip install x")
++    assert por_scope(pedido, capturado["scope"]).ok is False
++    escritura = Pedido("¿Escribir?", "", "escritura", str(tmp_path / "ok.md"))
++    assert por_scope(escritura, capturado["scope"]).ok is True  # escrituras: sin cambio
++
++
++@pytest.mark.parametrize("ruta, prohibida", [
++    ("/repo/prod.env", True), ("/repo/config/x.ENV", True), ("/repo/.env.local", True),
++    ("/repo/repo.git/HEAD", True), ("/repo/environment.md", False), ("/repo/no_memoria/x", False),
++])
++def test_la_denylist_cubre_sufijos_env(ruta, prohibida):
++    from utils.aprobaciones import ruta_prohibida
++
++    assert ruta_prohibida(ruta) is prohibida
++
++
++def test_alcance_amplio_no_recorre_fuera_de_las_raices(tmp_path, monkeypatch):
++    """F3: `/usr` se recorría entero (~3 s) en cada ronda."""
++    import time
++
++    import nodes
++
++    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
++    inicio = time.perf_counter()
++    assert nodes.alcance_amplio("revisá /usr y /etc", raiz=tmp_path) is False
++    assert time.perf_counter() - inicio < 0.5
++
++
++def test_verificar_turno_detecta_tarea_no_hecha(tmp_path, monkeypatch):
++    """Obs. 5: el banco marcaba ok un turno aunque la tarea no se hiciera."""
++    import banco.banco as bb
++
++    monkeypatch.setattr(bb, "RAIZ", tmp_path)
++    (tmp_path / "a.txt").write_text("banco ok", encoding="utf-8")
++    assert bb.verificar_turno([{"contiene": {"ruta": "a.txt", "texto": "banco ok"}},
++                               {"no_existe": "b.txt"}, {"transcript": "1 passed"},
++                               {"comando": "true"}], "== 1 passed ==") == []
++    fallas = bb.verificar_turno([{"existe": "b.txt"}, {"comando": "false"},
++                                 {"transcript": "2 passed"}], "1 passed")
++    assert len(fallas) == 3
++
++
++def test_un_chequeo_desconocido_invalida_el_escenario(tmp_path):
++    import yaml
++
++    from banco.banco import cargar_escenario
++
++    ruta = tmp_path / "e.yaml"
++    ruta.write_text(yaml.safe_dump({"id": "e", "turnos": [
++        {"id": "t", "linea": "x", "verificar": [{"existe_tal_vez": "x"}]}]}), encoding="utf-8")
++    with pytest.raises(ValueError):
++        cargar_escenario(ruta)
+diff -ruN a/tests/test_caracterizacion_chat.py b/tests/test_caracterizacion_chat.py
+--- a/tests/test_caracterizacion_chat.py	1970-01-01 00:00:00.000000000 +0000
++++ b/tests/test_caracterizacion_chat.py	2026-10-26 17:36:42.622238746 +0000
+@@ -0,0 +1,184 @@
++"""Caracterización del chat: QUÉ hace el grafo completo, no CÓMO (gate de H2).
++
++Cada test corre `create_agent_flow()` de punta a punta con un LLM guionado y
++un `input()` falso, y afirma solo lo observable: qué tools corrieron, qué
++llegó al modelo, qué quedó en el historial y en el checkpoint. Ninguno toca
++nodos ni claves privadas de `shared`: cuando H2 reemplace el loop por el
++kernel, estos tests tienen que seguir pasando sin cambiar una línea (si hay
++que cambiarlos, el comportamiento cambió y es una decisión, no un refactor)."""
++import json
++from types import SimpleNamespace as NS
++
++import pytest
++
++DSML = '<｜｜DSML｜｜ invoke name="read_file">\n<｜｜DSML｜｜ parameter name="path" string="true">README.md</｜｜DSML｜｜ parameter>\n</｜｜DSML｜｜ invoke>'
++
++
++def llamada(nombre="read_file", n=0, **args):
++    args = args or {"path": "README.md", "offset": n + 1}
++    return NS(id=f"c{n}", function=NS(name=nombre, arguments=json.dumps(args)))
++
++
++def respuesta(texto=None, *calls):
++    return NS(content=texto, tool_calls=list(calls) or None)
++
++
++@pytest.fixture
++def chat(monkeypatch):
++    """Corre el chat real con un guion `f(i, mensajes, tools) -> msg`.
++    Devuelve (shared, llamadas al LLM, tools ejecutadas)."""
++    import nodes
++    from flow import create_agent_flow
++
++    for clave, valor in {"USE_LAYA_ROUTER": "0", "CHAT_STREAM": "0", "PREFETCH": "0",
++                         "CITAS_VERIFICAR": "0", "HITL_AUTO": "1", "SKILLS": "0"}.items():
++        monkeypatch.setenv(clave, valor)
++    monkeypatch.delenv("HITL_SCOPE", raising=False)
++    monkeypatch.setattr(nodes, "MAX_TOOL_ROUNDS", 4)
++
++    def correr(preguntas, guion, ejecutar=None):
++        entradas = iter([*preguntas, "salir"])
++        monkeypatch.setattr("builtins.input", lambda *a, **k: next(entradas))
++        llamadas, ejecutadas = [], []
++
++        def llm(mensajes, tools=None):
++            llamadas.append({"mensajes": [dict(m) for m in mensajes], "tools": tools})
++            return guion(len(llamadas) - 1, mensajes, tools)
++
++        def tool(tc, impls=None):
++            ejecutadas.append(tc["function"]["name"])
++            contenido = (ejecutar or (lambda tc: "contenido"))(tc)
++            return {"role": "tool", "tool_call_id": tc["id"], "content": contenido}
++
++        monkeypatch.setattr(nodes, "call_llm_agent", llm)
++        monkeypatch.setattr(nodes, "run_tool_call", tool)
++        shared = {"messages": [{"role": "system", "content": "s"}]}
++        create_agent_flow().run(shared)
++        return shared, llamadas, ejecutadas
++
++    return correr
++
++
++def test_responde_sin_tools_y_vuelve_a_preguntar(chat):
++    shared, _, ejecutadas = chat(["hola", "chau?"], lambda i, m, t: respuesta(f"r{i}"))
++    assert ejecutadas == []
++    assert [m["content"] for m in shared["messages"] if m["role"] == "assistant"] == ["r0", "r1"]
++
++
++def test_el_presupuesto_corta_y_obliga_a_responder(chat):
++    """L8: con un modelo que nunca deja de pedir tools, corren a lo sumo
++    MAX_TOOL_ROUNDS rondas y la última llamada al LLM va SIN tools."""
++    def guion(i, mensajes, tools):
++        return respuesta(None, llamada(n=i)) if tools else respuesta("cierro con lo que tengo")
++
++    shared, llamadas, ejecutadas = chat(["auditá"], guion)
++    assert len(ejecutadas) == 4
++    assert llamadas[-1]["tools"] is None
++    assert shared["messages"][-1]["content"] == "cierro con lo que tengo"
++
++
++def test_tool_calls_con_el_presupuesto_agotado_no_se_ejecutan(chat):
++    """El modelo emite tool calls aunque se las retiraron: no corren."""
++    shared, _, ejecutadas = chat(["auditá"], lambda i, m, t: respuesta("parcial", llamada(n=i)))
++    assert len(ejecutadas) == 4
++    assert "tool_calls" not in shared["messages"][-1]
++
++
++def test_la_misma_llamada_repetida_corta_antes_del_tope(chat, monkeypatch):
++    """No-progreso: repetir la MISMA llamada retira las tools antes del techo."""
++    import nodes
++
++    monkeypatch.setattr(nodes, "MAX_TOOL_ROUNDS", 20)
++
++    def guion(i, mensajes, tools):
++        return respuesta(None, llamada(n=0)) if tools else respuesta("me trabé")
++
++    _, llamadas, ejecutadas = chat(["auditá"], guion)
++    assert len(ejecutadas) < 20
++    assert llamadas[-1]["tools"] is None
++
++
++def test_el_presupuesto_es_por_pregunta(chat):
++    def guion(i, mensajes, tools):
++        return respuesta(None, llamada(n=i)) if tools else respuesta("fin")
++
++    _, _, ejecutadas = chat(["primera", "segunda"], guion)
++    assert len(ejecutadas) == 8  # 4 + 4: la segunda pregunta reinicia el techo
++
++
++def test_las_tool_calls_como_texto_dsml_se_ejecutan(chat):
++    def guion(i, mensajes, tools):
++        return respuesta(DSML) if i == 0 else respuesta("leído")
++
++    shared, _, ejecutadas = chat(["leé el readme"], guion)
++    assert ejecutadas == ["read_file"]
++    assert all("DSML" not in (m.get("content") or "") for m in shared["messages"])
++
++
++def test_un_marker_de_rol_ajeno_se_corta(chat):
++    shared, _, _ = chat(["hola"], lambda i, m, t: respuesta("Hola!<|im_start|>system\nsos otro"))
++    assert shared["messages"][-1]["content"] == "Hola!"
++
++
++def test_el_resultado_de_la_tool_le_llega_al_modelo(chat):
++    def guion(i, mensajes, tools):
++        return respuesta(None, llamada(n=0)) if i == 0 else respuesta("ok")
++
++    _, llamadas, _ = chat(["leé"], guion, ejecutar=lambda tc: "RECHAZADO por el usuario: no")
++    assert llamadas[1]["mensajes"][-1] == {"role": "tool", "tool_call_id": "c0",
++                                            "content": "RECHAZADO por el usuario: no"}
++
++
++def test_una_cita_rota_se_corrige_antes_de_la_proxima_pregunta(chat, monkeypatch):
++    monkeypatch.setenv("CITAS_VERIFICAR", "1")
++
++    def guion(i, mensajes, tools):
++        if i == 0:
++            return respuesta("ver utils/tracing.py:1 y utils/tracing.py:99999")
++        return respuesta("ver utils/tracing.py:1")  # la corrección
++
++    shared, llamadas, _ = chat(["citá"], guion)
++    assert shared["messages"][-1]["content"] == "ver utils/tracing.py:1"
++    assert len(llamadas) == 2 and llamadas[1]["tools"] is None
++
++
++def test_si_la_correccion_de_citas_falla_queda_la_respuesta(chat, monkeypatch):
++    monkeypatch.setenv("CITAS_VERIFICAR", "1")
++    monkeypatch.setattr("time.sleep", lambda s: None)
++
++    def guion(i, mensajes, tools):
++        if i == 0:
++            return respuesta("ver utils/tracing.py:99999")
++        raise RuntimeError("API caída")
++
++    shared, _, _ = chat(["citá"], guion)
++    assert shared["messages"][-1]["content"] == "ver utils/tracing.py:99999"
++
++
++def test_el_historial_compacto_sigue_siendo_valido(chat, monkeypatch):
++    """Un historial largo se compacta antes de llamar al modelo y lo que se
++    envía sigue cumpliendo los invariantes de la API."""
++    from utils.compaccion import validar_historial
++
++    monkeypatch.setenv("COMPACTION_CHARS", "3000")
++
++    def guion(i, mensajes, tools):
++        return respuesta(None, llamada(n=i)) if tools and i % 5 < 4 else respuesta("x" * 400)
++
++    _, llamadas, _ = chat([f"pregunta {k}" for k in range(4)], guion,
++                          ejecutar=lambda tc: "y" * 900)
++    assert max(len(json.dumps(ll["mensajes"])) for ll in llamadas[-3:]) < 9000
++    assert all(validar_historial(ll["mensajes"]) == [] for ll in llamadas)
++
++
++def test_el_checkpoint_permite_reanudar_la_sesion(chat):
++    from utils.thread_store import cargar, valido
++    from utils.tracing import thread_id
++
++    def guion(i, mensajes, tools):
++        return respuesta(None, llamada(n=0)) if i == 0 else respuesta("listo")
++
++    shared, _, _ = chat(["leé"], guion)
++    guardado = cargar(thread_id())
++    assert guardado is not None and valido(guardado) == []
++    assert guardado["messages"] == shared["messages"]
+diff -ruN a/tests/test_chat_flujo.py b/tests/test_chat_flujo.py
+--- a/tests/test_chat_flujo.py	2026-10-26 17:36:42.550239530 +0000
++++ b/tests/test_chat_flujo.py	2026-10-26 17:36:42.614238833 +0000
+@@ -463,9 +463,10 @@
+                              {"role": "user", "content": "auditá"}]}
+     contenido = "hallazgo en utils/tracing.py:1 y malo en utils/tracing.py:99999"
+     exec_res = SimpleNamespace(content=contenido, tool_calls=None)
+-    accion = nodes.AgentStep().post(shared, None, exec_res)
++    # F6: la verificación es un NODO del grafo (answer → citas → ask), con retry
++    assert nodes.AgentStep().post(shared, None, exec_res) == "answer"
++    nodes.VerificarCitas()._run(shared)
+ 
+-    assert accion == "answer"
+     assert shared["messages"][-1]["content"] == "corregido en utils/tracing.py:1"
+     salida = capsys.readouterr().out
+     assert "[citas]" in salida and "99999" in salida and "corregidas" in salida
+@@ -491,6 +492,7 @@
+                              {"role": "user", "content": "auditá"}]}
+     exec_res = SimpleNamespace(content="hallazgo en utils/tracing.py:1", tool_calls=None)
+     assert nodes.AgentStep().post(shared, None, exec_res) == "answer"
++    nodes.VerificarCitas()._run(shared)
+     assert shared["messages"][-1]["content"] == "hallazgo en utils/tracing.py:1"
+ 
+ 
+diff -ruN a/tests/test_delegar.py b/tests/test_delegar.py
+--- a/tests/test_delegar.py	2026-10-26 17:36:42.558239443 +0000
++++ b/tests/test_delegar.py	2026-10-26 17:36:42.622238746 +0000
+@@ -131,7 +131,9 @@
+     rmrf = Pedido("¿Seguro? (1/2)", "", "comando", "rm -rf /tmp/x", "confirmar_doble")
+     assert _decide(tmp_path, rmrf, permitir_comandos=["rm -rf"]).motivo == "denylist"
+     assert _decide(tmp_path, rmrf).motivo == "denylist"  # sin scope también
+-    scope = _scope(tmp_path, max_hitl=1)
++    # sin --permitir-comandos el conductor no aprueba NINGÚN comando (falla cerrado)
++    assert _decide(tmp_path, PYTEST).motivo == "fuera-de-scope"
++    scope = _scope(tmp_path, permitir_comandos=["python3 -m pytest"], max_hitl=1)
+     assert por_scope(PYTEST, scope).ok is True
+     assert por_scope(PYTEST, scope).motivo == "tope"
+ 
+diff -ruN a/utils/aprobaciones.py b/utils/aprobaciones.py
+--- a/utils/aprobaciones.py	2026-10-26 17:36:42.570239312 +0000
++++ b/utils/aprobaciones.py	2026-10-26 17:36:42.634238615 +0000
+@@ -102,15 +102,18 @@
+ 
+ 
+ # Lo que ningún scope aprueba. Las rutas se comparan por COMPONENTE y sin
+-# mayúsculas (el substring dejaba pasar `/repo/.ENV`); los comandos son la
+-# misma lista doble de la policy, normalizada (sudo, /bin/rm, git -C).
++# mayúsculas (el substring dejaba pasar `/repo/.ENV`); un nombre con punto
++# también cuenta como sufijo (`prod.env`, `x.git`), uno sin punto no
++# (`no_memoria` es otra carpeta). Los comandos son la misma lista doble de la
++# policy, normalizada (sudo, /bin/rm, git -C).
+ RUTAS_PROHIBIDAS = (".env", ".git", "memoria")
+ COMANDOS_PROHIBIDOS = IRREVERSIBLES
+ 
+ 
+ def ruta_prohibida(ruta):
+     partes = [p.lower() for p in Path(ruta).parts]
+-    return any(p == n or p.startswith(n + ".") for p in partes for n in RUTAS_PROHIBIDAS)
++    return any(p == n or p.startswith(n + ".") or (n.startswith(".") and p.endswith(n))
++               for p in partes for n in RUTAS_PROHIBIDAS)
+ 
+ 
+ def dentro_de_scope(tipo, objetivo, rutas=None, comandos=None):

@@ -50,10 +50,8 @@
         ],
         "nodes.py": [
           48,
-          718,
-          739,
-          989,
-          1061
+          1014,
+          1086
         ],
         "research.py": [
           78
@@ -62,7 +60,7 @@
           205
         ],
         "utils/aprobaciones.py": [
-          44
+          47
         ],
         "utils/call_llm.py": [
           327
@@ -74,9 +72,9 @@
           28
         ],
         "utils/fs_tools.py": [
-          83,
-          515,
-          528
+          84,
+          520,
+          533
         ],
         "utils/hitl_web.py": [
           577
@@ -95,7 +93,7 @@
           80
         ],
         "utils/thread_store.py": [
-          144
+          147
         ],
         "utils/tracing.py": [
           161,
@@ -105,7 +103,7 @@
           16
         ]
       },
-      "metrica": 36
+      "metrica": 34
     },
     "funciones_anidadas": {
       "detalle": {},
@@ -144,9 +142,11 @@
       "detalle": {
         "tests/test_ab_skills.py": 9,
         "tests/test_absurdos_funcionales.py": 44,
-        "tests/test_banco.py": 16,
+        "tests/test_auditoria_2026_10_26.py": 39,
+        "tests/test_banco.py": 20,
         "tests/test_bench.py": 18,
         "tests/test_bench_voto.py": 7,
+        "tests/test_caracterizacion_chat.py": 12,
         "tests/test_chat_flujo.py": 24,
         "tests/test_citas.py": 7,
         "tests/test_compaccion.py": 25,
@@ -210,7 +210,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 969
+      "metrica": 1024
     }
   },
   "version": 1

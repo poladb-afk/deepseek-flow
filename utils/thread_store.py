@@ -56,9 +56,12 @@ def checkpoint(id_thread, nodo, accion, shared, ruta_dir=None):
             "shared": shared,
         }
         with open(destino, "a", encoding="utf-8") as f:
-            f.write(json.dumps(linea, ensure_ascii=False, default=str) + "\n")
-    except OSError:
-        pass
+            f.write(json.dumps(linea, ensure_ascii=False) + "\n")
+    except (OSError, TypeError, ValueError) as e:
+        # TypeError: algo del shared no es JSON. Con default=str se guardaba
+        # su repr ("{'ab'}", "<object …>") y el resume lo cargaba roto
+        # (auditoría 2026-10-26, F4): mejor un checkpoint menos que uno falso.
+        print(f"[thread] checkpoint omitido ({type(e).__name__}: {e})", flush=True)
 
 
 def cargar(id_thread, ruta_dir=None):

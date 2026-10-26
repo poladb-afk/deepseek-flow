@@ -79,7 +79,7 @@ NO_NODOS_TOLERADOS = {
 # (supervisor, debate, juez...) dejan SUS eventos en el mismo archivo — son
 # corridas de OTROS grafos, no caminatas del chat.
 NODOS_CHAT = {"GetQuestion", "LayaRouter", "DirectAnswer", "AgentStep",
-              "ExecuteTools", "ExitChat"}
+              "ExecuteTools", "ExitChat", "VerificarCitas"}
 
 
 # 1) GRAFOS VIVOS: clases, acciones cableadas y aristas del chat
@@ -193,6 +193,16 @@ def _grafos_vivos():
         if b == "PreFetch"
         for (b2, accion2, c) in aristas_chat
         if b2 == "PreFetch" and accion2 == accion and c != "PreFetch"
+    }
+    # Auditoría F6: la respuesta pasa por VerificarCitas (default) antes de
+    # volver a GetQuestion. Las caminatas previas saltaban de `answer` directo
+    # a GetQuestion y siguen siendo válidas: misma regla transitiva.
+    aristas_chat |= {
+        (a, accion, c)
+        for (a, accion, b) in aristas_chat
+        if b == "VerificarCitas"
+        for (b2, accion2, c) in aristas_chat
+        if b2 == "VerificarCitas" and accion2 == "default"
     }
     return clases, aristas_chat
 

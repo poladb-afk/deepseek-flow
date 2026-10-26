@@ -1,0 +1,1842 @@
+diff -ruN a/.env.example b/.env.example
+--- a/.env.example	2026-10-26 15:17:00.157445737 +0000
++++ b/.env.example	2026-10-26 15:17:02.437499335 +0000
+@@ -217,6 +217,13 @@
+ # Con 0, todo comando pregunta como siempre (compatibilidad).
+ # HITL_AUTO=1
+ 
++# Aprobador sin humano (banco y conductor de delegar): ruta a un JSON de scope
++# {rutas, comandos, max, eventos, aprobar}. Cada pedido HITL se decide contra
++# sus DATOS (ruta resuelta, comando por segmentos) en el propio chat y queda
++# en el JSONL de eventos; git push, rm -rf, .env, .git y memoria/ nunca pasan.
++# Lo escriben banco.py y delegar.py; a mano no hace falta.
++# HITL_SCOPE=
++
+ # Memoria entre sesiones: la biblioteca consultable en memoria/ (tools
+ # memory_search / memory_save). Con 1 (default) al salir el chat guarda un
+ # resumen automático en memoria/sesion_FECHA.md (bookkeeping, sin HITL);
+diff -ruN a/banco/banco.py b/banco/banco.py
+--- a/banco/banco.py	2026-10-26 15:17:00.157445737 +0000
++++ b/banco/banco.py	2026-10-26 15:17:02.433499241 +0000
+@@ -38,65 +38,6 @@
+ RE_DEEPSEEK = re.compile(r"DeepSeek: ?$")
+ MAX_HITL_POR_TURNO = 6
+ 
+-# Scope HITL (exp/11): el driver deja de aprobar a ciegas. Parsea el objetivo
+-# del prompt y solo aprueba si cae DENTRO del alcance del escenario; la
+-# denylist dura del conductor manda por encima de cualquier scope.
+-# El sufijo parentizado es el de exp/98: `¿Aplicar? → ruta (2 hunks, +4/−2)
+-# (s/n)`. Sin tolerarlo, decision_hitl caía a "no-parseable" (dentro=True) y
+-# el driver aprobaba EDICIONES fuera de scope y de la denylist (hallazgo de
+-# la spec de exp/99: los escenarios del banco no lo pisaban porque usan
+-# write_file, que siempre matcheó).
+-RE_HITL_ESCRITURA = re.compile(r"→ (\S+)(?: \([^)]*\))? \(s/n\)")
+-RE_HITL_COMANDO = re.compile(r"¿Ejecutar\? \(s/n\)")
+-DENYLIST_DURA = {
+-    "rutas": (".env", ".git/", "memoria/"),
+-    "comandos": ("git push", "rm -rf", "rm -fr"),
+-}
+-
+-
+-def decision_hitl(prompt, buffer_reciente, permitir=None, permitir_comandos=None):
+-    """Decide si un prompt HITL cae dentro del alcance (función PURA).
+-
+-    Devuelve {tipo, objetivo, dentro, motivo}. `tipo` ∈ escritura/comando/
+-    desconocido. Sin `permitir`/`permitir_comandos` (None) todo está
+-    permitido SALVO la denylist dura: compatibilidad con los escenarios
+-    viejos que no declaran scope.
+-    """
+-    objetivo = None
+-    tipo = "desconocido"
+-
+-    m = RE_HITL_ESCRITURA.search(prompt)
+-    if m:
+-        tipo = "escritura"
+-        objetivo = m.group(1)
+-        if any(fragmento in objetivo for fragmento in DENYLIST_DURA["rutas"]):
+-            return {"tipo": tipo, "objetivo": objetivo, "dentro": False, "motivo": "denylist"}
+-        if permitir is not None and not any(objetivo.startswith(p) for p in permitir):
+-            return {"tipo": tipo, "objetivo": objetivo, "dentro": False, "motivo": "fuera-de-scope"}
+-        return {"tipo": tipo, "objetivo": objetivo, "dentro": True, "motivo": "ok"}
+-    elif RE_HITL_COMANDO.search(prompt):
+-        tipo = "comando"
+-        lineas = [linea for linea in buffer_reciente.splitlines() if linea.strip()]
+-        for linea in reversed(lineas):
+-            limpia = linea.strip()
+-            # el propio prompt HITL y su banner no son el comando (la
+-            # ventana integrada incluye la línea "(s/n)" pendiente)
+-            if "(s/n)" in limpia or limpia.startswith("── run_command") or limpia.startswith("↳ "):
+-                continue
+-            objetivo = limpia
+-            break
+-        if objetivo is not None:
+-            if any(objetivo.startswith(c) for c in DENYLIST_DURA["comandos"]):
+-                return {"tipo": tipo, "objetivo": objetivo, "dentro": False, "motivo": "denylist"}
+-            if permitir_comandos is not None and not any(
+-                    objetivo.startswith(p) for p in permitir_comandos):
+-                return {"tipo": tipo, "objetivo": objetivo, "dentro": False, "motivo": "fuera-de-scope"}
+-        return {"tipo": tipo, "objetivo": objetivo, "dentro": True, "motivo": "ok"}
+-
+-    # prompt nuevo o formato desconocido: dejamos seguir el flujo y que la
+-    # política decida, pero queda registrado para revisar.
+-    return {"tipo": "desconocido", "objetivo": None, "dentro": True, "motivo": "no-parseable"}
+-
+ # Los marcadores que el banco cuenta por turno: la señal medible del chat.
+ MARCADORES = {
+     "laya": r"\[laya\]",
+@@ -118,6 +59,26 @@
+ }
+ 
+ 
++def escribir_scope(ruta, rutas=None, comandos=None, maximo=12, eventos=None, aprobar=True):
++    """El scope HITL como archivo (HITL_SCOPE): el chat decide cada Pedido
++    contra él en SU proceso (utils.aprobaciones.por_scope) y deja la decisión
++    en `eventos`. Antes el driver releía la pantalla y reconstruía el pedido
++    con regex: el conductor aprobaba `git push` (auditoría 2026-10-26, S1/S2)."""
++    ruta = Path(ruta)
++    ruta.write_text(json.dumps({"rutas": rutas, "comandos": comandos, "max": maximo,
++                                "eventos": str(eventos) if eventos else None,
++                                "aprobar": aprobar}, ensure_ascii=False), encoding="utf-8")
++    return ruta
++
++
++def leer_decisiones(ruta):
++    """Las decisiones que dejó por_scope (una por pedido), o [] si no hubo."""
++    ruta = Path(ruta)
++    if not ruta.exists():
++        return []
++    return [json.loads(ln) for ln in ruta.read_text(encoding="utf-8").splitlines() if ln.strip()]
++
++
+ def limpiar(texto):
+     return ANSI.sub("", texto.replace("\r\n", "\n").replace("\r", "\n"))
+ 
+@@ -251,6 +212,8 @@
+     env = dict(escenario.get("env") or {})
+     env.setdefault("MEMORIA", "1" if escenario.get("memoria") else "0")
+ 
++    ruta_scope = escribir_scope(dir_salida / f"{escenario['id']}_{stamp}_scope.json", aprobar=False)
++    env["HITL_SCOPE"] = str(ruta_scope)
+     chat = Chat(env_extra=env)
+     chat.abrir_log(crudo)
+     eventos = eventos_f.open("a", encoding="utf-8")
+@@ -266,20 +229,19 @@
+         chat.matar()
+         return 1
+ 
+-    permitir = escenario.get("permitir")
+-    permitir_comandos = escenario.get("permitir_comandos")
+     resultados = []
+     for i, turno in enumerate(escenario["turnos"], 1):
+         tid = turno.get("id", f"t{i}")
+-        politica = turno.get("hitl", "none")
+         timeout = int(turno.get("timeout", 120))
+-        tope_hitl = turno.get("max_hitl", MAX_HITL_POR_TURNO)
++        decisiones = dir_salida / f"{escenario['id']}_{stamp}_{tid}_hitl.jsonl"
++        escribir_scope(ruta_scope, escenario.get("permitir"), escenario.get("permitir_comandos"),
++                       turno.get("max_hitl", MAX_HITL_POR_TURNO), decisiones,
++                       aprobar=turno.get("hitl", "none") == "s")
+         evento("turno-inicio", {"n": i, "id": tid})
+         t0 = time.time()
+ 
+         # la ventana de DETECCIÓN se trunca al enviar (fix del desfase del
+-        # driver original); la de MEDICIÓN (ventana) acumula todo el turno
+-        # para no perder marcadores al responder un HITL a mitad de turno.
++        # driver original); la de MEDICIÓN (ventana) acumula todo el turno.
+         chat.nuevo = ""
+         ventana = ""
+         chat.enviar(turno["linea"])
+@@ -290,10 +252,8 @@
+                 chat.ctrl_c()
+             estado = "ok" if turno_finalizo(chat) or chat.esperar(RE_TU, 30) else "timeout"
+         else:
+-            estado = "corriendo"
++            estado = "timeout"
+             inicio = time.time()
+-            hitl_dados = 0
+-            hitl_topes = 0
+             while time.time() - inicio < timeout:
+                 chat.leer()
+                 if not chat.vivo:
+@@ -301,37 +261,10 @@
+                     # "¡Chao!" distingue salida limpia de crash a mitad)
+                     estado = "ok" if "¡Chao" in limpiar(ventana + chat.nuevo) else "proceso-muerto"
+                     break
+-                if hitl_pendiente(chat) and hitl_dados >= tope_hitl:
+-                    # presupuesto agotado: rechazar y registrar, no colgar
+-                    # (default seguro — el rechazo es feedback para el
+-                    # modelo, que cierra el turno en prosa)
+-                    time.sleep(0.5)
++                if hitl_pendiente(chat):
++                    # un (s/n) que no pasó por pedir_aprobacion: sin dato, no
+                     chat.enviar("n")
+-                    lineas_prompt = [ln for ln in limpiar(ventana + chat.nuevo).splitlines() if ln.strip()]
+-                    evento("hitl-tope", {"n": i, "id": tid,
+-                                         "prompt": (lineas_prompt[-1] if lineas_prompt else "")[:120]})
+-                    hitl_topes += 1
+-                    ventana += chat.nuevo
+-                    chat.nuevo = ""
+-                    continue
+-                if hitl_pendiente(chat) and hitl_dados < tope_hitl:
+-                    # el HITL ya no se aprueba a ciegas: se mira el objetivo
+-                    ventana_completa = limpiar(ventana + chat.nuevo)
+-                    lineas_con_texto = [ln for ln in ventana_completa.splitlines() if ln.strip()]
+-                    ultima_linea = lineas_con_texto[-1] if lineas_con_texto else ""
+-                    decision = decision_hitl(ultima_linea, ventana_completa,
+-                                             permitir, permitir_comandos)
+-                    if decision["dentro"]:
+-                        respuesta = "s" if politica == "s" else "n"
+-                    else:
+-                        respuesta = "n"
+-                        evento("hitl-fuera-de-alcance",
+-                               {"objetivo": decision["objetivo"], "motivo": decision["motivo"],
+-                                "turno": i})
+-                    time.sleep(0.5)
+-                    chat.enviar(respuesta)
+-                    hitl_dados += 1
+-                    evento("hitl", {"n": i, "id": tid, "respuesta": respuesta})
++                    evento("hitl-sin-dato", {"n": i, "id": tid})
+                     ventana += chat.nuevo
+                     chat.nuevo = ""
+                     continue
+@@ -339,9 +272,14 @@
+                     estado = "ok"
+                     break
+                 time.sleep(0.2)
+-            else:
+-                estado = "timeout"
+-            hitl = hitl_dados
++        filas = leer_decisiones(decisiones)
++        for fila in filas:
++            evento("hitl", {"n": i, "id": tid, "respuesta": "s" if fila["ok"] else "n"})
++            if fila["motivo"] in ("fuera-de-scope", "denylist", "tipo-desconocido"):
++                evento("hitl-fuera-de-alcance", {"objetivo": fila["objetivo"],
++                                                 "motivo": fila["motivo"], "turno": i})
++        hitl = len(filas)
++        hitl_topes = sum(1 for f in filas if f["motivo"] == "tope")
+         # el conteo de marcadores es la MEDIDA del turno
+         marcadores = contar_marcadores(limpiar(ventana + chat.nuevo))
+         duracion = round(time.time() - t0)
+diff -ruN a/delegar.py b/delegar.py
+--- a/delegar.py	2026-10-26 15:17:00.193446583 +0000
++++ b/delegar.py	2026-10-26 15:17:02.433499241 +0000
+@@ -21,10 +21,9 @@
+ from datetime import datetime
+ from pathlib import Path
+ 
+-from banco.banco import RAIZ, RE_TU, Chat, decision_hitl, limpiar
++from banco.banco import RAIZ, RE_TU, Chat, escribir_scope, leer_decisiones, limpiar
+ 
+ RE_SN = re.compile(r"\(s/n\):?\s*$")
+-RE_DOBLE = re.compile(r"\((?:1/2|2/2)\):?\s*$")
+ MAX_RESUMES = 2
+ LINEA_RESUME = ("La sesión se cortó a mitad del pedido. Retomá donde quedó y "
+                 "completalo; después respondé con el resultado.")
+@@ -129,97 +128,26 @@
+             and _pid_vivo(_leer_pid(d))]
+ 
+ 
+-def tipo_prompt(ultima_linea):
+-    """Qué prompt HITL está pendiente en la última línea: "sn", "doble" o None.
+-
+-    Los formatos son contrato del chat (test_banco/test_delegar los fijan con
+-    líneas reales). La doble confirmación es el nivel destructivo de la
+-    policy — el conductor la trata con su propia regla."""
+-    if RE_DOBLE.search(ultima_linea):
+-        return "doble"
+-    if RE_SN.search(ultima_linea):
+-        return "sn"
+-    return None
+-
+-
+-def plan_respuesta(ultima_linea, ventana, permitir, permitir_comandos):
+-    """La línea exacta a mandarle al prompt pendiente (función PURA).
+-
+-    El rechazo viaja CON MOTIVO (exp/98): `n fuera-de-scope` parsea en
+-    pedir_aprobacion como Decision(False, "fuera-de-scope") y llega al
+-    modelo — no tiene que adivinar por qué le dijeron que no."""
+-    if tipo_prompt(ultima_linea) == "doble":
+-        # La policy ya clasificó el comando como destructivo: SOLO un
+-        # prefijo EXPLÍCITO de --permitir-comandos lo autoriza. Sin modo
+-        # compat (permitir_comandos=None aprueba todo lo no-denylist en los
+-        # prompts comunes): acá el default es no. La ventana va SIN su
+-        # última línea: la extracción de decision_hitl saltea el prompt
+-        # "(s/n)" pendiente, pero no conoce "(1/2)" — sin recortarla, el
+-        # "comando" extraído sería el propio prompt.
+-        sin_prompt = "\n".join(ventana.splitlines()[:-1])
+-        d = decision_hitl("¿Ejecutar? (s/n)", sin_prompt)
+-        objetivo = d["objetivo"]
+-        if (objetivo and permitir_comandos and d["motivo"] != "denylist"
+-                and any(objetivo.startswith(p) for p in permitir_comandos)):
+-            return {"respuesta": "s", "tipo": "doble",
+-                    "objetivo": objetivo, "motivo": "ok"}
+-        motivo = "denylist" if d["motivo"] == "denylist" else "confirmacion-doble"
+-        return {"respuesta": f"n {motivo}", "tipo": "doble",
+-                "objetivo": objetivo, "motivo": motivo}
+-    d = decision_hitl(ultima_linea, ventana, permitir, permitir_comandos)
+-    if d["dentro"]:
+-        return {"respuesta": "s", **d}
+-    return {"respuesta": f"n {d['motivo']}", **d}
+-
+-
+-def _clasificar_evento(respuesta, motivo):
+-    if respuesta == "s":
+-        return "hitl"
+-    if motivo == "tope":
+-        return "hitl-tope"
+-    return "hitl-fuera"
+-
+-
+-def _turno(chat, permitir, permitir_comandos, max_hitl, deadline, evento):
+-    """Corre UN turno de la tarea: responde los HITL por scope hasta que el
+-    prompt `Tú:` vuelva (ok), el chat muera (muerto) o venza el plazo global.
+-
+-    Devuelve (estado, hitl, rechazos, ventana). La ventana acumula la salida
+-    del turno entero: la extracción del comando mira varias líneas atrás del
+-    prompt, no solo el último chunk."""
+-    ventana = ""
+-    hitl = 0
+-    rechazos = 0
++def _turno(chat, deadline, evento):
++    """Corre UN turno: espera el prompt `Tú:` (ok), la muerte del chat o el
++    plazo. Los HITL los decide el propio chat contra el scope (HITL_SCOPE);
++    si igual aparece un `(s/n)` —un prompt que no pasó por pedir_aprobacion—
++    se rechaza: el conductor no aprueba lo que no puede leer como dato."""
+     while time.time() < deadline:
+         chat.leer()
+         if not chat.vivo:
+-            return "muerto", hitl, rechazos, ventana + chat.nuevo
++            return "muerto"
+         lineas = [ln for ln in limpiar(chat.nuevo).splitlines() if ln.strip()]
+-        if not lineas:
+-            time.sleep(0.2)
+-            continue
+-        ultima = lineas[-1]
++        ultima = lineas[-1] if lineas else ""
+         if RE_TU.search(ultima):
+-            return "ok", hitl, rechazos, ventana + chat.nuevo
+-        if not tipo_prompt(ultima):
+-            time.sleep(0.2)
++            return "ok"
++        if RE_SN.search(ultima):
++            chat.enviar("n fuera-de-scope")
++            evento("hitl-sin-dato", {"prompt": ultima[:200]})
++            chat.nuevo = ""
+             continue
+-        if hitl >= max_hitl:
+-            plan = {"respuesta": "n tope-de-aprobaciones", "tipo": tipo_prompt(ultima),
+-                    "objetivo": None, "motivo": "tope"}
+-        else:
+-            plan = plan_respuesta(ultima, limpiar(ventana + chat.nuevo),
+-                                  permitir, permitir_comandos)
+-        time.sleep(0.5)
+-        chat.enviar(plan["respuesta"])
+-        hitl += 1
+-        rechazos += plan["respuesta"] != "s"
+-        evento(_clasificar_evento(plan["respuesta"], plan["motivo"]),
+-               {"respuesta": plan["respuesta"], "tipo": plan["tipo"],
+-                "objetivo": plan["objetivo"], "motivo": plan["motivo"]})
+-        ventana += chat.nuevo
+-        chat.nuevo = ""
+-    return "timeout", hitl, rechazos, ventana + chat.nuevo
++        time.sleep(0.2)
++    return "timeout"
+ 
+ 
+ def _esperar_muerte(chat, segundos=20):
+@@ -232,15 +160,17 @@
+     return not chat.vivo
+ 
+ 
+-def _escribir_resumen(run, pedido, estado, hitl, rechazos, resumes, segundos):
++def _escribir_resumen(run, pedido, estado, resumes, segundos):
++    filas = leer_decisiones(run / "hitl.jsonl")
++    rechazos = sum(1 for f in filas if not f["ok"])
+     texto = (
+         f"# Delegar — {run.name}\n\n"
+         f"- pedido: {pedido}\n"
+         f"- estado: {estado}\n"
+         f"- duración: {segundos} s\n"
+-        f"- HITL respondidos: {hitl} ({rechazos} rechazados con motivo)\n"
++        f"- HITL respondidos: {len(filas)} ({rechazos} rechazados con motivo)\n"
+         f"- reanudaciones: {resumes}\n\n"
+-        f"Transcript: `transcript.log` · eventos: `eventos.jsonl`\n"
++        f"Transcript: `transcript.log` · eventos: `eventos.jsonl` · decisiones: `hitl.jsonl`\n"
+     )
+     (run / "resumen.md").write_text(texto, encoding="utf-8")
+ 
+@@ -249,8 +179,10 @@
+              timeout_min=30, max_hitl=12, extras=None, lanzar=None):
+     """Delega el pedido y devuelve el exit code (0 = tarea completada).
+ 
+-    `lanzar` es inyectable para los tests (la máquina de estados sin PTY);
+-    en producción es el Chat real del banco."""
++    El scope viaja como archivo (HITL_SCOPE) y el chat decide cada pedido en
++    su proceso; el conductor solo conduce: arranque, muerte→resume y plazo.
++    `lanzar` es inyectable para los tests (sin PTY); en producción es el Chat
++    real del banco."""
+     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+     run = Path(dir_salida) / stamp
+     (run / "threads").mkdir(parents=True, exist_ok=True)
+@@ -258,10 +190,12 @@
+     # arranque del chat reporta "en curso" vs "murió sin resumen")
+     (run / "conductor.pid").write_text(str(os.getpid()), encoding="utf-8")
+     env = env_delegar(run / "threads", extras)
++    env["HITL_SCOPE"] = str(escribir_scope(run / "scope.json", permitir, permitir_comandos,
++                                           max_hitl, run / "hitl.jsonl"))
+     crudo = run / "transcript.log"
+     lanzador = lanzar or (lambda env, argv: Chat(env=env, argv=argv))
+     t0 = time.time()
+-    total_hitl = total_rechazos = resumes = 0
++    resumes = 0
+     with (run / "eventos.jsonl").open("a", encoding="utf-8") as eventos:
+ 
+         def evento(tipo, detalle=None):
+@@ -269,6 +203,12 @@
+                                       "detalle": detalle}, ensure_ascii=False) + "\n")
+             eventos.flush()
+ 
++        def fin(chat, estado, codigo, **detalle):
++            evento("fin", {"estado": estado, **detalle})
++            chat.matar()
++            _escribir_resumen(run, pedido, estado, resumes, round(time.time() - t0))
++            return codigo
++
+         evento("inicio", {"pedido": pedido[:200], "permitir": permitir,
+                           "permitir_comandos": permitir_comandos,
+                           "timeout_min": timeout_min, "max_hitl": max_hitl})
+@@ -279,40 +219,22 @@
+             chat = lanzador(env, argv)
+             chat.abrir_log(crudo)
+             if not chat.esperar(RE_TU, 120):
+-                evento("fin", {"estado": "sin-prompt"})
+-                chat.matar()
+-                _escribir_resumen(run, pedido, "sin-prompt", total_hitl,
+-                                  total_rechazos, resumes, round(time.time() - t0))
+-                return 1
++                return fin(chat, "sin-prompt", 1)
+             chat.nuevo = ""
+             chat.enviar(linea)
+-            estado, hitl, rechazos, _ = _turno(chat, permitir, permitir_comandos,
+-                                               max_hitl, deadline, evento)
+-            total_hitl += hitl
+-            total_rechazos += rechazos
++            estado = _turno(chat, deadline, evento)
+             if estado == "ok":
+                 chat.enviar("salir")
+                 _esperar_muerte(chat)
+-                evento("fin", {"estado": "ok"})
+-                chat.matar()
+-                _escribir_resumen(run, pedido, "ok", total_hitl, total_rechazos,
+-                                  resumes, round(time.time() - t0))
+-                return 0
+-            if estado != "muerto":  # timeout: interrupción limpia y fin
++                return fin(chat, "ok", 0)
++            if estado == "timeout":  # interrupción limpia y fin
+                 chat.ctrl_c()
+                 _esperar_muerte(chat, 15)
+-                evento("fin", {"estado": "timeout"})
+-                chat.matar()
+-                _escribir_resumen(run, pedido, "timeout", total_hitl,
+-                                  total_rechazos, resumes, round(time.time() - t0))
+-                return 1
++                return fin(chat, "timeout", 1)
+             chat.matar()
+             id_thread = thread_reciente(run / "threads")
+             if id_thread is None or resumes >= MAX_RESUMES:
+-                evento("fin", {"estado": "muerto-sin-resume", "id": id_thread})
+-                _escribir_resumen(run, pedido, "muerto-sin-resume", total_hitl,
+-                                  total_rechazos, resumes, round(time.time() - t0))
+-                return 1
++                return fin(chat, "muerto-sin-resume", 1, id=id_thread)
+             resumes += 1
+             evento("muerte", {"id": id_thread})
+             if chat.raw:
+@@ -330,7 +252,7 @@
+     parser.add_argument("--permitir", action="append", default=None, metavar="RUTA",
+                         help="prefijo de rutas aprobables para escrituras (repetible)")
+     parser.add_argument("--permitir-comandos", action="append", default=None, metavar="PREFIJO",
+-                        help="prefijo de comandos aprobables (repetible; también habilita dobles)")
++                        help="prefijo de comandos aprobables (repetible; cada segmento del comando necesita uno)")
+     parser.add_argument("--timeout-min", type=int, default=30, metavar="MIN",
+                         help="plazo global en minutos, reanudaciones incluidas (default 30)")
+     parser.add_argument("--max-hitl", type=int, default=12, metavar="N",
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-26 15:17:00.193446583 +0000
++++ b/docs/bitacora.md	2026-10-26 15:17:02.437499335 +0000
+@@ -4542,3 +4542,14 @@
+ Tests sin red (mocks de `requests.post` + `http.server` fake), diseño en
+ la sección "Vision/PDF y A2A" de design.md.
+ 
++
++
++## H1 — el pedido HITL como dato (2026-10-26)
++
++**Problema medido** (auditoría 2026-10-26): con `plan_respuesta` del conductor, `¿Seguro? (1/2) (s/n):` de `git push --force` → `s`; `/repo/docs_evil/x` con scope `/repo/docs` → `s`; `/repo/.ENV` → `s`; `pytest; curl x | sh` con prefijo `pytest` → `s`. En sandbox, `auto` leyó fuera de las raíces con `cd ..;cat`, `cat d/*` (symlink) y `echo $DEEPSEEK_API_KEY`, y `sort -uo/tmp/x` escribió fuera.
++
++**Cambio**: el pedido viaja como `Pedido` y el aprobador decide sobre sus campos; banco y conductor dejan de parsear prompts (`HITL_SCOPE`). Un `(s/n)` que no pasó por `pedir_aprobacion` se rechaza.
++
++**Medición**: de los 22 casos de `tests/test_auditoria_2026_10_26.py` que corren sobre el código previo, 17 fallan antes y pasan después; los 5 restantes son controles de no-regresión de fricción (lecturas legítimas que siguen `auto`). Suite completa: 1000 passed, 13 skipped. Ratchet: `tests_definidos` 969 → 997; las otras 7 métricas, iguales.
++
++**Pendiente de medir**: los escenarios del banco con LLM real (fricción HITL y turnos OK con el aprobador por scope); no se corrieron en esta sesión (sin API key).
+diff -ruN a/docs/design.md b/docs/design.md
+--- a/docs/design.md	2026-10-26 15:17:00.193446583 +0000
++++ b/docs/design.md	2026-10-26 15:17:02.437499335 +0000
+@@ -869,7 +869,7 @@
+ Leyes del conductor (spec [exp99](../banco/specs/exp99_delegar.md) y
+ [exp100](../banco/specs/exp100_delegar_en_chat.md)):
+ 
+-- **HITL por scope**: reusa `decision_hitl` del banco; `--permitir`/
++- **HITL por scope** (H1, 2026-10-26): el conductor escribe el scope a un JSON y lo pasa por `HITL_SCOPE`; el chat decide cada `Pedido` (tipo, objetivo, nivel) con `utils.aprobaciones.por_scope`, sin leer la pantalla. Antes reusaba `decision_hitl` del banco; `--permitir`/
+   `--permitir-comandos` son prefijos; sin ellos vale solo la denylist dura
+   (`.env`, `.git/`, `memoria/`, `git push`, `rm -rf`, `rm -fr`). Los
+   rechazos viajan CON MOTIVO (`n fuera-de-scope`, exp/98): el modelo sabe
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-26 15:17:00.193446583 +0000
++++ b/docs/estado.md	2026-10-26 15:17:02.437499335 +0000
+@@ -114,6 +114,7 @@
+ | X64 | — | Las corridas delegadas (exp/99–100) registraban sus etiquetas del juez de riesgo con origen `terminal`: el s/n lo decide el scope del conductor, no un humano — la misma contaminación que X18 cerró para el banco, lista para crecer con cada delegación (medido antes del fix: 0 filas; `write_file` no observa riesgo y los comandos de las corridas eran `auto`) | ✅ 2026-10-25 (exp/101) | `origen_etiqueta()` en `utils/riesgo.py`: con `DELEGADO=1` → `delegado`, excluida del conteo de readiness (≥300/≥100) igual que `banco`; `origen()` INTACTO — las delegadas siguen siendo `terminal` para el PAR de la flywheel (contrato de exp/99, clavado con test); `env_delegar` fija `DELEGADO=1`; probe con fila "delegadas (no cuentan)". e2e: corrida delegada con `du -sh` (banda preguntar) → fila nueva `"origen": "delegado"`, orgánicas sin mover | `test_la_etiqueta_delegada_no_cuenta_como_humana`, `test_estado_riesgo_cuenta_las_delegadas_aparte`, `test_env_delegar_no_marca_banco_y_aisla_threads` |
+ | X63 | — | El operador vive en el chat: una capacidad que solo existe como comando aparte (`delegar` CLI) no se usa — "si no se activa al iniciar, durante, o al cerrar el chat, no creo que lo use" (señal de uso directa del operador, lo que exp/97 esperaba de la adopción) | ✅ 2026-10-25 (exp/100) | Tool `delegar_tarea` (#31): UNA aprobación del operador con pedido+scope a la vista (el cuerpo impreso antes del s/n; rechazo con motivo de exp/98), lanza el conductor **detached** (`start_new_session`) con `shadow="1"` opcional; `panorama_delegadas()` al arrancar (últimas 3 con estado, pid del conductor en `conductor.pid`); aviso al cerrar si hay activas. El que aprueba los HITL de la tarea sigue siendo proceso aparte. e2e: el modelo llamó solo la tool, el chat se cerró con el aviso, el conductor completó igual y el próximo arranque reportó | `test_el_modulo_expone_la_tool_con_su_impl`, `test_delegar_tarea_rechazada_no_lanza_nada`, `test_delegar_tarea_lanza_el_conductor_detached`, `test_el_arranque_y_cierre_del_chat_reportan_delegadas`, `test_panorama_delegadas_distingue_los_estados` |
+ | X62 | — | El meta-loop exigía un auditor al timón (contestar s/n por tmux): sin conductor no había forma de delegarle trabajo real al harness solo, y cada sesión muerta a mitad (exp/98) se perdía entera; además la regex de scope del banco no matcheaba el prompt de `edit_file` de exp/98 (`¿Aplicar? → ruta (2 hunks…)`) → cualquier conductor habría aprobado ediciones fuera de scope y de la denylist | ✅ 2026-10-25 (exp/99) | `delegar.py`: conductor que reusa el driver PTY y `decision_hitl` del banco, sin `BANCO=1` (origen `terminal`), HITL por scope declarado con rechazo CON motivo (exp/98), doble confirmación solo con prefijo explícito, muerte → `resume` (tope 2) y `THREADS_DIR` propio; regex corregida en `banco/banco.py`. e2e: tarea delegada exit 0 + drill `kill -9` → rehidrata y completa; **par #14/250** de la flywheel con `--env LAYA_MODO=shadow` (día 3/14) | `tests/test_delegar.py` (13: `test_conducir_muerto_resume_y_completa`, `test_plan_respuesta_doble_exige_prefijo_explicito`…), `test_el_scope_cubre_el_prompt_de_edit_file_de_exp98` |
++| X63 | — | Auditoría 2026-10-26 (H1): el conductor reconstruía el pedido HITL leyendo la pantalla y aprobaba `git push` (la doble confirmación real `(1/2) (s/n):` no matcheaba), el scope comparaba rutas y comandos por prefijo de texto, `auto` salía de las raíces (`cd ..;cat`, `cd` solo, glob, `$VAR`) y por flags agrupadas (`sort -uo/x`), `edit_file` perdía CRLF y bytes no UTF-8, las escrituras pisaban permisos y el checkpoint guardaba reprs (`default=str`) | ✅ 2026-10-26 (H1) | El pedido es DATO: `utils/aprobaciones.Pedido` + `dentro_de_scope`/`por_scope`; banco y conductor pasan el scope por `HITL_SCOPE` y el chat decide en su proceso (fuera `decision_hitl`, `tipo_prompt`, `plan_respuesta`, `_cuerpo`); `policy.segmentos`/`opaco`/`irreversible` como fuente única; getopt en flags cortas; `edit_file` por bytes y estricto; `escribir_atomico` conserva modo y saltos; `shared` JSON puro | `tests/test_auditoria_2026_10_26.py` (`test_la_doble_confirmacion_real_no_se_aprueba_por_scope`, `test_auto_no_sale_de_raices`, `test_checkpoint_ida_y_vuelta_es_identidad`…), `tests/test_delegar.py::test_plan_respuesta_doble_exige_prefijo_explicito` |
+ | X61 | — | El punto de confianza del sistema mostraba diffs recortados sin declarar cuánto faltaba (exp/96: hunks aprobados sin verse) y el rechazo era 'n' mudo — el chat adivinaba el motivo y re-propuso lo mismo | ✅ 2026-10-24 (exp/98) | El prompt de edit_file declara `(N hunks, +A/−B)` del diff COMPLETO y el marcador dice cuántos caracteres quedan sin ver; `Decision(ok, motivo)` con `__bool__`: el rechazo `n <motivo>` viaja al modelo en edit_file/write_file/run_command, con casing conservado; el seam `_approve` tolera bools para siempre (getattr — los mocks existentes intactos, R2) | `test_parser_decision_motivo`, `test_edit_file_prompt_declara_diff_completo`, `test_motivo_del_rechazo_viaja_al_modelo` |
+ | X60 | — | La comparativa marcó la brecha: "no hay aislamiento de contexto por subagente, que es justamente lo que un subagente de solo lectura aporta" (Claude Code/OpenCode lo tienen) | ✅ 2026-10-24 (exp/97 — capacidad instalada, adopción sin medir) | `explorador.py`: mini-flow con contexto fresco por construcción (nada del padre viaja, el historial muere con la exploración), whitelist de sólo lectura (run_command y toda escritura NO EXISTEN para él — OWASP LLM06: el permiso es el mapa), presupuesto propio (MAX_PASOS_EXPLORADOR=3, declara lo usado), cableado bajo `EXPLORAR` (default 0) y sin anuncio en la última ronda del padre. A/B smoke: **cero adopciones en 3 corridas** — con MAX_PASOS=5 no hay contexto que aislar; re-medición cuando exista presión real (exp/93 la mide). Deudas pagadas en el camino: TWINS cazó el sitio LLM sin clasificar; ratchet cazó 2 helpers duplicados → `utils/historial.py` (X14) | `tests/test_explorador.py` (5), `test_el_arbol_real_no_tiene_gemelos` (sitio del explorador clasificado en el registro TWINS) |
+ | X59 | — | Mesa 6 dejaba pendiente la telemetría de convergencia; el research de SOTA recomendó `dried` como pieza más barata, sin saber si el supervisor gira en redondo alguna vez | ✅ 2026-10-24 (exp/96 — cerrado con medición: la señal no existe) | `seco(a,b)` pura (`utils/convergencia.py`) + telemetría por ronda en `Ejecutar.post` (tanda de hechos vs tanda anterior; la versión que comparaba acumulados se rechazó en HITL — el prefijo idéntico inflaba el ratio). Sonda: 4 tareas reales, 10 comparaciones, **cero secas** → el corte NO se activa (bifurcación pre-registrada, precedente exp/52-B). Lectura estructural: el supervisor planifica (tool distinta por paso), no refina; dried aplica a loops de refinamiento. Incidente registrado: el panel trunca diffs multi-hunk y el supervisor aprobó vistas parciales (removieron `catalogo` sin verse; revertido y reaplicado del log) — mejora pendiente del edit_file | `tests/test_convergencia.py` (10), `tests/test_supervisor_convergencia.py` (3) |
+diff -ruN a/modules/coding.py b/modules/coding.py
+--- a/modules/coding.py	2026-10-26 15:17:00.201446771 +0000
++++ b/modules/coding.py	2026-10-26 15:17:02.429499147 +0000
+@@ -28,12 +28,12 @@
+ import subprocess
+ from pathlib import Path
+ 
+-from utils.aprobaciones import pedir_aprobacion
++from utils.aprobaciones import Pedido, pedir_aprobacion
+ from utils.aprobaciones import registrar as registrar_aprobacion
+ from utils.call_llm import _setting
+ from utils.estado_sesion import ultimo_usuario
+-from utils.fs_tools import _resolve
+-from utils.policy import clasificar, explicar
++from utils.fs_tools import _resolve, escribir_atomico
++from utils.policy import clasificar, explicar, segmentos
+ from utils.riesgo import juzgar
+ from utils.riesgo import registrar as registrar_riesgo
+ from utils.terminal import colorear, highlight_diff, recortar_chars
+@@ -43,8 +43,6 @@
+ PREVIEW_LINES = 30
+ 
+ 
+-_cuerpo = [""]  # cuerpo del próximo pedido HITL web (lo lee _approve)
+-
+ # Patrones de comandos PROHIBIDOS sin excepción (denylist dura): no hay s/n
+ # que los apruebe. Corre como hook PRE (HOOKS_PRE["run_command"]), es decir
+ # ANTES de que el comando exista siquiera como propuesta: un hook post ya
+@@ -147,9 +145,9 @@
+ ]
+ 
+ 
+-def _approve(prompt):
++def _approve(pedido):
+     """Punto de parcheo de los tests: la lógica vive en utils/aprobaciones."""
+-    return pedir_aprobacion(prompt, _cuerpo[0])
++    return pedir_aprobacion(pedido)
+ 
+ 
+ NEUTROS_SHELL = {"", "&&", "||", "|", "&", ";", "\n", "\r"}
+@@ -162,7 +160,7 @@
+ 
+ def _resolver_token(tok, cwd_efectivo):
+     """Token → ruta resuelta (siguiendo symlinks) desde el cwd efectivo."""
+-    p = Path(tok).expanduser()
++    p = Path(tok)  # `~` no se expande: _fuera_de_raices ya lo trata como opaco
+     if not p.is_absolute():
+         p = cwd_efectivo / p
+     try:
+@@ -175,8 +173,8 @@
+     """True si el token (ruta, --flag=/ruta o $VAR) puede tocar fuera."""
+     if tok in NEUTROS_SHELL:
+         return False
+-    if tok.startswith("$"):
+-        return True  # $HOME, $VAR: el destino real no es visible
++    if tok.startswith(("$", "~")):
++        return True  # $HOME, $VAR, ~user: el destino real no es visible
+     if tok.startswith("-"):
+         if "=" not in tok:
+             return False
+@@ -186,17 +184,15 @@
+     return not _dentro_de_raices(_resolver_token(tok, cwd_efectivo), roots)
+ 
+ 
+-def _procesar_cd(tokens, i, cwd_efectivo, roots):
+-    """Consume `cd <dir>`: devuelve (índice siguiente, cwd nuevo, salió)."""
+-    j = i + 1
+-    if j >= len(tokens) or tokens[j].startswith("-"):
+-        return i + 1, cwd_efectivo, False
+-    resuelto = _resolver_token(tokens[j], cwd_efectivo)
++def _cd(destinos, cwd_efectivo, roots):
++    """El cwd tras `cd <destinos>`, o None si puede quedar fuera de las raíces.
++    `cd` solo va a $HOME y `cd -` al OLDPWD: ninguno es visible acá."""
++    if len(destinos) != 1 or destinos[0] == "-":
++        return None
++    resuelto = _resolver_token(destinos[0], cwd_efectivo)
+     if not _dentro_de_raices(resuelto, roots):
+-        return j + 1, cwd_efectivo, True
+-    if resuelto.is_dir():
+-        return j + 1, resuelto, False
+-    return j + 1, cwd_efectivo, False
++        return None
++    return resuelto if resuelto.is_dir() else cwd_efectivo
+ 
+ 
+ def _sale_de_raices(command):
+@@ -206,29 +202,27 @@
+     las raíces que resuelven afuera (`cat link` → auto leía /etc) y `cd sub`
+     cambiaba el cwd del subshell sin que el chequeo lo supiera. Ahora cada
+     token se resuelve como ruta (siguiendo symlinks) contra el cwd EFECTIVO
+-    del subshell, y `--flag=/ruta` también se resuelve. Conservador: ante la
+-    duda, True (preguntar)."""
++    del subshell, y `--flag=/ruta` también se resuelve. Los segmentos salen
++    del MISMO partidor que usa la policy: `cd ..;cat x` son dos comandos para
++    el shell y para este chequeo (auditoría 2026-10-26, S3). Ante la duda, True."""
+     import shlex
+ 
+     from utils.fs_tools import allowed_roots
+ 
+-    try:
+-        tokens = shlex.split(command)
+-    except ValueError:
+-        return True  # comillas desbalanceadas: no se puede verificar
+     roots = allowed_roots()
+     cwd_efectivo = Path.cwd()
+-    i = 0
+-    while i < len(tokens):
+-        tok = tokens[i]
+-        if tok == "cd":
+-            i, cwd_efectivo, fuera = _procesar_cd(tokens, i, cwd_efectivo, roots)
+-            if fuera:
++    for segmento in segmentos(command):
++        try:
++            tokens = shlex.split(segmento)
++        except ValueError:
++            return True  # comillas desbalanceadas: no se puede verificar
++        if tokens and tokens[0] == "cd":
++            cwd_efectivo = _cd(tokens[1:], cwd_efectivo, roots)
++            if cwd_efectivo is None:
+                 return True
+             continue
+-        if _fuera_de_raices(tok, cwd_efectivo, roots):
++        if any(_fuera_de_raices(tok, cwd_efectivo, roots) for tok in tokens):
+             return True
+-        i += 1
+     return False
+ 
+ 
+@@ -294,9 +288,8 @@
+         preguntas = (("¿Ejecutar?", RECHAZO),)
+     print(f"   ↳ {explicar(command)}")
+     print(command)
+-    _cuerpo[0] = command
+     for pregunta, motivo_rechazo in preguntas:
+-        decision = _approve(pregunta)
++        decision = _approve(Pedido(pregunta, command, "comando", command, nivel))
+         if decision:
+             continue
+         registrar_aprobacion("run_command", command, False, nivel)
+@@ -458,7 +451,13 @@
+     if old_string == new_string:
+         return "ERROR: old_string y new_string son idénticos — el edit no haría nada"
+ 
+-    texto = resolved.read_text(encoding="utf-8", errors="replace")
++    try:
++        # bytes → str sin traducir saltos (un CRLF sigue CRLF fuera del hunk
++        # aprobado) y estricto: con errors="replace" un byte Latin-1 volvía al
++        # disco como U+FFFD en silencio (auditoría 2026-10-26, F1)
++        texto = resolved.read_bytes().decode("utf-8")
++    except UnicodeDecodeError:
++        return f"ERROR: {resolved.name} no es UTF-8; edit_file no lo reescribe"
+     n = texto.count(old_string)
+     if n == 0:
+         return _error_no_aparece(resolved, texto, old_string)
+@@ -493,8 +492,8 @@
+             diff, SALIDA_MAX,
+             f"[... diff truncado: quedan {oculto} de {len(diff)} caracteres sin ver ...]")
+     print(highlight_diff(diff_mostrado))
+-    _cuerpo[0] = diff_mostrado
+-    decision = _approve(f"¿Aplicar? → {resolved} ({hunks} hunks, +{agrega}/−{borra})")
++    decision = _approve(Pedido(f"¿Aplicar? → {resolved} ({hunks} hunks, +{agrega}/−{borra})",
++                               diff_mostrado, "escritura", str(resolved)))
+     if not decision:
+         registrar_aprobacion("edit_file", f"{resolved}", False, "preguntar")
+         # getattr: el seam _approve también acepta bools (los mocks viejos)
+@@ -503,7 +502,7 @@
+     registrar_aprobacion("edit_file", f"{resolved}", True, "preguntar")
+ 
+     try:
+-        resolved.write_text(nuevo, encoding="utf-8")
++        escribir_atomico(resolved, nuevo)
+     except OSError as e:
+         return f"ERROR al escribir: {e.strerror}"
+     return f"Editado: {resolved} ({len(diff.splitlines())} líneas de diff)"
+diff -ruN a/modules/delegar.py b/modules/delegar.py
+--- a/modules/delegar.py	2026-10-26 15:17:00.201446771 +0000
++++ b/modules/delegar.py	2026-10-26 15:17:02.433499241 +0000
+@@ -12,7 +12,7 @@
+ import sys
+ from pathlib import Path
+ 
+-from utils.aprobaciones import pedir_aprobacion
++from utils.aprobaciones import Pedido, pedir_aprobacion
+ 
+ RAIZ = Path(__file__).resolve().parent.parent
+ 
+@@ -45,7 +45,7 @@
+                     },
+                     "permitir_comandos": {
+                         "type": "string",
+-                        "description": "prefijos de comandos aprobables, separados por coma; habilita también las dobles confirmaciones",
++                        "description": "prefijos de comandos aprobables, separados por coma (cada segmento del comando debe empezar con uno); git push y rm -rf nunca se aprueban solos",
+                     },
+                     "timeout_min": {
+                         "type": "integer",
+@@ -98,7 +98,8 @@
+               "El conductor contesta solo los HITL dentro de este scope "
+               "(proceso aparte); la tarea sigue aunque cierres el chat.")
+     print(f"\n── delegar_tarea ──\n{cuerpo}")
+-    decision = pedir_aprobacion(f"¿Delegar en background? (scope: {scope})", cuerpo)
++    decision = pedir_aprobacion(Pedido(f"¿Delegar en background? (scope: {scope})",
++                                       cuerpo, "delegar", pedido))
+     if not decision:
+         motivo = getattr(decision, "motivo", "")
+         detalle = f' Motivo del usuario: "{motivo}".' if motivo else ""
+diff -ruN a/modules/escritura.py b/modules/escritura.py
+--- a/modules/escritura.py	2026-10-26 15:17:00.205446865 +0000
++++ b/modules/escritura.py	2026-10-26 15:17:02.429499147 +0000
+@@ -6,7 +6,7 @@
+ no un error. Si el archivo existe, la vista previa es un diff unificado."""
+ import difflib
+ 
+-from utils.aprobaciones import pedir_aprobacion
++from utils.aprobaciones import Pedido, pedir_aprobacion
+ from utils.aprobaciones import registrar as registrar_aprobacion
+ from utils.fs_tools import _resolve, escribir_atomico
+ from utils.terminal import highlight_diff, recortar_lineas
+@@ -14,8 +14,6 @@
+ PREVIEW_LINES = 30
+ DIFF_LINES = 60
+ 
+-_cuerpo = [""]  # cuerpo del próximo pedido HITL web (lo lee _approve local)
+-
+ TOOLS = [
+     {
+         "type": "function",
+@@ -38,9 +36,9 @@
+ 
+ 
+ 
+-def _approve(prompt):
++def _approve(pedido):
+     """Punto de parcheo de los tests: la lógica vive en utils/aprobaciones."""
+-    return pedir_aprobacion(prompt, _cuerpo[0])
++    return pedir_aprobacion(pedido)
+ 
+ 
+ def write_file(path, content):
+@@ -72,9 +70,8 @@
+         print(f"(archivo nuevo, {len(content.splitlines())} líneas)")
+         cuerpo = recortar_lineas(content, PREVIEW_LINES, "[... contenido truncado ...]")
+     print(highlight_diff(cuerpo))
+-    _cuerpo[0] = cuerpo
+ 
+-    decision = _approve(f"¿Escribir? → {resolved}")
++    decision = _approve(Pedido(f"¿Escribir? → {resolved}", cuerpo, "escritura", str(resolved)))
+     if not decision:
+         registrar_aprobacion("write_file", f"{resolved}", False, "preguntar")
+         motivo = getattr(decision, "motivo", "") or "el archivo no se modificó"
+diff -ruN a/nodes.py b/nodes.py
+--- a/nodes.py	2026-10-26 15:17:00.205446865 +0000
++++ b/nodes.py	2026-10-26 15:17:02.433499241 +0000
+@@ -232,9 +232,9 @@
+     NINGUNA llamada nueva (p. ej. A, B, A, B) también cuenta como sin novedad.
+     Devuelve True si la ronda no estrenó ninguna llamada.
+     """
+-    vistas = shared.setdefault("_huellas_vistas", set())
+-    nuevas = [h for h in (huella_llamada(tc) for tc in tool_calls or []) if h not in vistas]
+-    vistas.update(nuevas)
++    vistas = shared.setdefault("_huellas_vistas", [])  # lista: el checkpoint es JSON
++    nuevas = [h for h in dict.fromkeys(huella_llamada(tc) for tc in tool_calls or []) if h not in vistas]
++    vistas.extend(nuevas)
+     if nuevas:
+         shared["_racha_sin_novedad"] = 0
+     else:
+@@ -609,9 +609,12 @@
+         if tools is not None and shared.get("_skill_activo"):
+             # exp/55: mientras el skill está activo se anuncia SOLO su subset
+             # (guía, no sandbox: el action space completo sigue existiendo).
+-            from utils.skills import filtrar_tools
++            # En shared viaja el ID (JSON): el objeto Skill se guardaba como su
++            # repr y un resume lo cargaba roto (auditoría 2026-10-26, F4).
++            from utils.skills import disponibles, filtrar_tools
+ 
+-            tools = filtrar_tools(tools, shared["_skill_activo"])
++            skill = next((h for h in disponibles() if h.id == shared["_skill_activo"]), None)
++            tools = filtrar_tools(tools, skill) if skill else tools
+         if tools is None and not shared.get("_aviso_cierre"):
+             shared["_aviso_cierre"] = True
+             # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
+@@ -1019,7 +1022,7 @@
+                 f"skill {skill.id}: disparo declarativo",
+                 None,
+             )
+-            shared["_skill_activo"] = skill
++            shared["_skill_activo"] = skill.id
+             shared["messages"].append({"role": "user", "content": mensaje(skill)})
+             print(colorear(f"  [skill] {skill.id} activo — {skill.descripcion}", "info"),
+                   flush=True)
+diff -ruN a/ratchets/baseline.json b/ratchets/baseline.json
+--- a/ratchets/baseline.json	2026-10-26 15:17:00.205446865 +0000
++++ b/ratchets/baseline.json	2026-10-26 15:17:04.277542589 +0000
+@@ -50,10 +50,10 @@
+         ],
+         "nodes.py": [
+           48,
+-          718,
+-          739,
+-          989,
+-          1061
++          721,
++          742,
++          992,
++          1064
+         ],
+         "research.py": [
+           78
+@@ -62,7 +62,7 @@
+           205
+         ],
+         "utils/aprobaciones.py": [
+-          44
++          47
+         ],
+         "utils/call_llm.py": [
+           327
+@@ -74,9 +74,9 @@
+           28
+         ],
+         "utils/fs_tools.py": [
+-          83,
+-          515,
+-          528
++          84,
++          520,
++          533
+         ],
+         "utils/hitl_web.py": [
+           577
+@@ -95,7 +95,7 @@
+           80
+         ],
+         "utils/thread_store.py": [
+-          144
++          147
+         ],
+         "utils/tracing.py": [
+           161,
+@@ -144,6 +144,7 @@
+       "detalle": {
+         "tests/test_ab_skills.py": 9,
+         "tests/test_absurdos_funcionales.py": 44,
++        "tests/test_auditoria_2026_10_26.py": 28,
+         "tests/test_banco.py": 16,
+         "tests/test_bench.py": 18,
+         "tests/test_bench_voto.py": 7,
+@@ -210,7 +211,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 969
++      "metrica": 997
+     }
+   },
+   "version": 1
+diff -ruN a/tests/test_absurdos_funcionales.py b/tests/test_absurdos_funcionales.py
+--- a/tests/test_absurdos_funcionales.py	2026-10-26 15:17:00.209446959 +0000
++++ b/tests/test_absurdos_funcionales.py	2026-10-26 15:17:02.437499335 +0000
+@@ -64,14 +64,17 @@
+ 
+ 
+ def test_auto_fuera_de_raices_sigue_preguntando(monkeypatch):
+-    """El hallazgo inicial 'cat ~/.ssh lee sin aprobación' era FALSO: clasificar
+-    da auto pero run_command lo sube a preguntar con _sale_de_raices. Se clava
+-    para que nadie quite esa segunda capa creyendo que sobra."""
++    """El hallazgo inicial 'cat ~/.ssh lee sin aprobación' era FALSO: run_command
++    lo sube a preguntar con _sale_de_raices. Desde la auditoría 2026-10-26 la
++    policy además marca `~` y `$` como opacos; las rutas absolutas siguen
++    dependiendo SOLO de la segunda capa, que es la que se clava acá."""
+     monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(RAIZ))
+-    for comando in ("cat ~/.ssh/id_rsa", "grep -r secreto ~", "find / -name '*.pem'",
+-                    "git diff --no-index /etc/passwd README.md", "cat $HOME/.bashrc"):
++    for comando in ("find / -name '*.pem'", "git diff --no-index /etc/passwd README.md"):
+         assert policy.clasificar(comando) == "auto"
+         assert coding._nivel(comando) == "preguntar", comando
++    for comando in ("cat ~/.ssh/id_rsa", "grep -r secreto ~", "cat $HOME/.bashrc"):
++        assert policy.clasificar(comando) == "preguntar", comando
++        assert coding._sale_de_raices(comando) is True, comando
+ 
+ 
+ def test_mayoria_empate_usa_el_desempate():
+diff -ruN a/tests/test_auditoria_2026_10_26.py b/tests/test_auditoria_2026_10_26.py
+--- a/tests/test_auditoria_2026_10_26.py	1970-01-01 00:00:00.000000000 +0000
++++ b/tests/test_auditoria_2026_10_26.py	2026-10-26 15:17:02.437499335 +0000
+@@ -0,0 +1,129 @@
++"""Regresiones de la auditoría 2026-10-26 (H1): cada test falla sobre el código
++previo y pasa con el fix. Los bypass son los MEDIDOS en la auditoría, no
++hipotéticos: cada uno leyó o escribió fuera de las raíces en un sandbox."""
++import json
++import os
++import stat
++
++import pytest
++
++import modules.coding as mc
++import modules.escritura as me
++from banco.banco import escribir_scope
++from utils.aprobaciones import Pedido, dentro_de_scope, por_scope
++from utils.policy import clasificar
++from utils.thread_store import cargar, checkpoint
++
++
++def test_la_doble_confirmacion_real_no_se_aprueba_por_scope(tmp_path):
++    """S1: el conductor leía `¿Seguro? (1/2) (s/n):` como un s/n simple y
++    aprobaba `git push --force` dos veces. Ahora decide sobre el comando."""
++    scope = escribir_scope(tmp_path / "s.json", eventos=tmp_path / "e.jsonl")
++    pedido = Pedido("¿Seguro? (1/2)", "git push --force origin main", "comando",
++                    "git push --force origin main", "confirmar_doble")
++    assert por_scope(pedido, scope).ok is False
++
++
++@pytest.mark.parametrize("tipo, objetivo, rutas, comandos", [
++    ("escritura", "/repo/docs_evil/x", ["/repo/docs"], None),        # prefijo de texto
++    ("escritura", "/repo/.ENV", ["/repo"], None),                    # mayúsculas
++    ("comando", "pytest; curl x | sh", None, ["pytest"]),            # compuesto
++    ("comando", "pytest $(curl x)", None, ["pytest"]),               # sustitución
++    ("desconocido", "", None, None),                                 # no parseable
++])
++def test_el_scope_falla_cerrado(tipo, objetivo, rutas, comandos):
++    assert dentro_de_scope(tipo, objetivo, rutas, comandos)[0] is False
++
++
++@pytest.mark.parametrize("comando", [
++    "sort -uo/tmp/fuera.txt in.txt",   # -o agrupado: escribió fuera del repo
++    "grep -rR x .",                    # -R agrupado: sigue symlinks
++    "tail -qf x",                      # -f agrupado: no termina
++    "ruff check -nw",                  # -w agrupado: watch
++])
++def test_flags_cortas_agrupadas_no_son_auto(comando):
++    assert clasificar(comando) != "auto"
++
++
++def test_find_no_agrupa_flags():
++    """find no usa getopt: `-name` no es -n -a -m -e."""
++    assert clasificar("find . -name x -type f") == "auto"
++
++
++@pytest.mark.parametrize("comando", [
++    "cd && cat .bashrc",          # cd sin destino = $HOME
++    "cd ..;cat secreto",          # ; pegado: shlex no lo partía
++    "cd ..&&cat secreto",
++    "cd - && ls",                 # OLDPWD
++    "cat d/*",                    # glob a un symlink externo
++    "echo x$DEEPSEEK_API_KEY",    # la API key al contexto del modelo
++])
++def test_auto_no_sale_de_raices(tmp_path, monkeypatch, comando):
++    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
++    monkeypatch.setenv("HITL_AUTO", "1")
++    monkeypatch.chdir(tmp_path)
++    assert mc._nivel(comando) != "auto"
++
++
++@pytest.mark.parametrize("comando", ["cat README.md", "cd sub && ls", "find . -name '*.py'",
++                                     "python3 -m pytest -q 2>&1 | tail -5"])
++def test_auto_dentro_de_raices_sigue_auto(tmp_path, monkeypatch, comando):
++    """El arreglo no suma fricción a las lecturas legítimas de siempre."""
++    (tmp_path / "sub").mkdir()
++    (tmp_path / "README.md").write_text("x", encoding="utf-8")
++    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
++    monkeypatch.setenv("HITL_AUTO", "1")
++    monkeypatch.chdir(tmp_path)
++    assert mc._nivel(comando) == "auto"
++
++
++def test_edit_file_preserva_crlf(tmp_path, monkeypatch):
++    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
++    monkeypatch.setattr(mc, "_approve", lambda p: True)
++    f = tmp_path / "a.txt"
++    f.write_bytes(b"uno\r\ndos\r\n")
++    mc.edit_file(str(f), "dos", "DOS")
++    assert f.read_bytes() == b"uno\r\nDOS\r\n"
++
++
++def test_edit_file_no_corrompe_bytes_no_utf8(tmp_path, monkeypatch):
++    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
++    monkeypatch.setattr(mc, "_approve", lambda p: True)
++    f = tmp_path / "l1.txt"
++    f.write_bytes(b"caf\xe9 ok\n")
++    assert mc.edit_file(str(f), "ok", "OK").startswith("ERROR")
++    assert f.read_bytes() == b"caf\xe9 ok\n"
++
++
++@pytest.mark.parametrize("modo", [0o700, 0o600, 0o755])
++def test_write_file_preserva_permisos(tmp_path, monkeypatch, modo):
++    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
++    monkeypatch.setattr(me, "_approve", lambda p: True)
++    f = tmp_path / "s.sh"
++    f.write_text("echo hi\n")
++    os.chmod(f, modo)
++    me.write_file(str(f), "echo bye\n")
++    assert stat.S_IMODE(f.stat().st_mode) == modo
++
++
++def test_checkpoint_ida_y_vuelta_es_identidad(tmp_path):
++    """F4 (experimento C): load(save(s)) == s. Con default=str un set volvía
++    como "{'ab'}" y el Skill como su repr; ahora el shared es JSON puro y lo
++    que no lo es se omite con aviso en vez de guardarse falso."""
++    shared = {"messages": [{"role": "system", "content": "s"}], "tool_rounds": 2,
++              "_huellas_vistas": ["ab", "cd"], "_skill_activo": "revision"}
++    checkpoint("t", "ExecuteTools", "default", shared, ruta_dir=tmp_path)
++    assert cargar("t", ruta_dir=tmp_path) == shared
++    checkpoint("t", "x", "y", {"messages": [], "malo": {1, 2}}, ruta_dir=tmp_path)
++    assert cargar("t", ruta_dir=tmp_path) == shared  # el falso no pisó al bueno
++    assert all(json.loads(ln) for ln in (tmp_path / "t.jsonl").read_text().splitlines())
++
++
++def test_actualizar_novedad_queda_json():
++    import nodes
++
++    shared = {}
++    tc = {"function": {"name": "read_file", "arguments": "{}"}}
++    nodes.actualizar_novedad(shared, [tc, tc])
++    assert isinstance(shared["_huellas_vistas"], list) and len(shared["_huellas_vistas"]) == 1
++    json.dumps(shared)
+diff -ruN a/tests/test_banco.py b/tests/test_banco.py
+--- a/tests/test_banco.py	2026-10-26 15:17:00.209446959 +0000
++++ b/tests/test_banco.py	2026-10-26 15:17:02.437499335 +0000
+@@ -9,7 +9,8 @@
+ import re
+ from pathlib import Path
+ 
+-from banco.banco import DENYLIST_DURA, MARCADORES, cargar_escenario, contar_marcadores, decision_hitl, limpiar
++from banco.banco import MARCADORES, cargar_escenario, contar_marcadores, escribir_scope, leer_decisiones, limpiar
++from utils.aprobaciones import COMANDOS_PROHIBIDOS, RUTAS_PROHIBIDAS, Pedido, dentro_de_scope, por_scope
+ 
+ ESCENARIOS = Path(__file__).resolve().parent.parent / "banco" / "escenarios"
+ 
+@@ -76,119 +77,89 @@
+     assert limpiar("\x1b[32mok\x1b[0m\r\n") == "ok\n"
+ 
+ 
+-# scope HITL por path (exp/11) -------------------------------------------
+-# Fixtures REALES (líneas textuales de transcripts de sesiones anteriores).
+-PROMPT_ESCRITURA_DENTRO = "¿Escribir? → /tmp/prueba_banco/hola.txt (s/n): "
+-PROMPT_ESCRITURA_FUERA = "¿Escribir? → /otro/lado/ajeno.txt (s/n): "
+-PROMPT_ENV = "¿Escribir? → /proy/prueba_scope/.env (s/n): "
+-PROMPT_COMANDO = "¿Ejecutar? (s/n): "
+-BUFFER_COMANDO = (
+-    "── run_command ──\n"
+-    "↳ correr la suite de tests del banco\n"
+-    "cd /x && python3 -m pytest tests/test_banco.py\n"
+-    "¿Ejecutar? (s/n): "
+-)
+-BUFFER_COMANDO_PUSH = (
+-    "── run_command ──\n"
+-    "↳ subir los cambios\n"
+-    "git push origin main\n"
+-    "¿Ejecutar? (s/n): "
+-)
++# scope HITL (exp/11) — desde la auditoría 2026-10-26 el pedido llega como
++# DATO (utils.aprobaciones.Pedido) y se juzga en el chat: el driver ya no
++# reconstruye ruta ni comando leyendo la pantalla.
++RUTAS = ["/tmp/prueba", "/proy/prueba_scope"]
+ 
+ 
+ def test_escritura_dentro_del_scope():
+-    d = decision_hitl(PROMPT_ESCRITURA_DENTRO, "",
+-                      permitir=["/tmp/prueba", "/proy/prueba_scope"])
+-    assert d["tipo"] == "escritura"
+-    assert d["objetivo"] == "/tmp/prueba_banco/hola.txt"
+-    assert d["dentro"] is True
++    assert dentro_de_scope("escritura", "/tmp/prueba/hola.txt", RUTAS) == (True, "ok")
+ 
+ 
+ def test_escritura_fuera_del_scope():
+-    d = decision_hitl(PROMPT_ESCRITURA_FUERA, "",
+-                      permitir=["/tmp/prueba", "/proy/prueba_scope"])
+-    assert d["tipo"] == "escritura"
+-    assert d["dentro"] is False
+-    assert d["motivo"] == "fuera-de-scope"
++    assert dentro_de_scope("escritura", "/otro/lado/ajeno.txt", RUTAS) == (False, "fuera-de-scope")
++    # contención por COMPONENTE: el prefijo de texto `/tmp/prueba` no cubre
++    # `/tmp/prueba_banco` (startswith lo aprobaba: auditoría S2)
++    assert dentro_de_scope("escritura", "/tmp/prueba_banco/hola.txt", RUTAS) == (False, "fuera-de-scope")
++    assert dentro_de_scope("escritura", "/tmp/prueba/../fuera.txt", RUTAS) == (False, "fuera-de-scope")
+ 
+ 
+ def test_env_fuera_aunque_el_scope_lo_permita():
+-    # el prefijo del permitir CONTIENE el directorio del .env: aun así la
+-    # denylist dura del conductor manda por encima.
+-    d = decision_hitl(PROMPT_ENV, "", permitir=["/proy/prueba_scope"])
+-    assert d["dentro"] is False
+-    assert d["motivo"] == "denylist"
++    # el scope CONTIENE el directorio del .env: aun así la denylist manda, y
++    # sin importar mayúsculas ni sufijos (.ENV, .env.local)
++    for ruta in ("/proy/prueba_scope/.env", "/proy/prueba_scope/.ENV", "/proy/prueba_scope/.env.local"):
++        assert dentro_de_scope("escritura", ruta, RUTAS) == (False, "denylist"), ruta
++    assert dentro_de_scope("escritura", "/proy/prueba_scope/no_memoria/x.md", RUTAS) == (True, "ok")
+ 
+ 
+ def test_comando_dentro_de_permitir_comandos():
+-    d = decision_hitl(PROMPT_COMANDO, BUFFER_COMANDO,
+-                      permitir_comandos=["cd"])
+-    assert d["tipo"] == "comando"
+-    assert d["objetivo"] == "cd /x && python3 -m pytest tests/test_banco.py"
+-    assert d["dentro"] is True
++    comandos = ["cd /x &&", "python3 -m pytest"]
++    assert dentro_de_scope("comando", "cd /x && python3 -m pytest tests/test_banco.py",
++                           comandos=comandos) == (True, "ok")
++    # CADA segmento necesita su prefijo; y lo que el shell transforma no pasa
++    for cmd in ("python3 -m pytest; curl x | sh", "python3 -m pytest $(cat x)",
++                "python3 -m pytestx", "python3 -m pytest > /etc/x"):
++        assert dentro_de_scope("comando", cmd, comandos=comandos)[0] is False, cmd
+ 
+ 
+ def test_comando_git_push_es_denylist():
+-    d = decision_hitl(PROMPT_COMANDO, BUFFER_COMANDO_PUSH,
+-                      permitir_comandos=["git"])
+-    assert d["tipo"] == "comando"
+-    assert d["objetivo"] == "git push origin main"
+-    assert d["dentro"] is False
+-    assert d["motivo"] == "denylist"
++    for cmd in ("git push origin main", "git -C . push", "ls && sudo rm -rf /x", "/bin/rm -fr x"):
++        assert dentro_de_scope("comando", cmd, comandos=["git", "ls", "sudo", "/bin/rm"]) == (False, "denylist"), cmd
+ 
+ 
+-def test_extraccion_del_comando_ignora_banner_y_explicacion():
+-    buffer = (
+-        "texto anterior del turno\n"
+-        "── run_command ──\n"
+-        "↳ explicación que NO es el comando\n"
+-        "python3 -m pytest -q\n"
+-        "¿Ejecutar? (s/n): "
+-    )
+-    d = decision_hitl(PROMPT_COMANDO, buffer)
+-    assert d["objetivo"] == "python3 -m pytest -q"
+-    assert d["dentro"] is True
++def test_extraccion_del_comando_ignora_banner_y_explicacion(tmp_path):
++    """Ya no hay extracción: el aprobador decide sobre `objetivo`, nunca sobre
++    el prompt que lee el humano. Un prompt inocente no lava un push."""
++    scope = escribir_scope(tmp_path / "s.json", comandos=["git"], eventos=tmp_path / "e.jsonl")
++    d = por_scope(Pedido("¿Ejecutar?", "↳ explicación", "comando", "git push origin main",
++                         "confirmar_doble"), scope)
++    assert d.ok is False and d.motivo == "denylist"
++    assert leer_decisiones(tmp_path / "e.jsonl")[0]["objetivo"] == "git push origin main"
++
++
++def test_prompt_no_parseable_sigue_el_flujo(tmp_path):
++    """Un pedido de tipo desconocido NO se aprueba (antes: dentro=True), pero
++    el flujo sigue: el rechazo vuelve como Decision y queda registrado."""
++    assert dentro_de_scope("desconocido", "x") == (False, "tipo-desconocido")
++    scope = escribir_scope(tmp_path / "s.json", eventos=tmp_path / "e.jsonl")
++    assert por_scope(Pedido("¿Querés seguir?"), scope).ok is False
++    assert len(leer_decisiones(tmp_path / "e.jsonl")) == 1
+ 
+ 
+-def test_prompt_no_parseable_sigue_el_flujo():
+-    d = decision_hitl("¿Querés seguir? [y/n]: ", "")
+-    assert d["tipo"] == "desconocido"
+-    assert d["objetivo"] is None
+-    assert d["dentro"] is True
+-    assert d["motivo"] == "no-parseable"
++def test_denylist_dura_es_la_declarada():
++    assert {".env", ".git", "memoria"} <= set(RUTAS_PROHIBIDAS)
++    assert {"git push", "rm -rf", "rm -fr"} <= set(COMANDOS_PROHIBIDOS)
+ 
+ 
+-def test_denylist_dura_es_la_declarada():
+-    assert ".env" in DENYLIST_DURA["rutas"]
+-    assert ".git/" in DENYLIST_DURA["rutas"]
+-    assert "memoria/" in DENYLIST_DURA["rutas"]
+-    assert "git push" in DENYLIST_DURA["comandos"]
+-    assert "rm -rf" in DENYLIST_DURA["comandos"]
+-    assert "rm -fr" in DENYLIST_DURA["comandos"]
+-
+-
+-def test_el_scope_cubre_el_prompt_de_edit_file_de_exp98():
+-    r"""exp/99: el prompt de edit_file cambió en exp/98 (`¿Aplicar? → ruta
+-    (2 hunks, +4/−2) (s/n)`) y la extracción vieja `→ (\S+) \(s/n\)` NO
+-    matcheaba → decision_hitl devolvía no-parseable (dentro=True): el
+-    conductor habría aprobado ediciones fuera de scope y de la denylist."""
+-    prompt_edit = "¿Aplicar? → /repo/src/main.py (2 hunks, +4/−2) (s/n): "
+-    d = decision_hitl(prompt_edit, "", permitir=["/repo/docs"])
+-    assert d["tipo"] == "escritura"
+-    assert d["objetivo"] == "/repo/src/main.py"
+-    assert d["dentro"] is False
+-    assert d["motivo"] == "fuera-de-scope"
+-    # dentro del scope aprueba, y el ¿Escribir? clásico no regresa
+-    d = decision_hitl(prompt_edit, "", permitir=["/repo/src"])
+-    assert d["dentro"] is True
+-    d = decision_hitl(PROMPT_ESCRITURA_DENTRO, "", permitir=["/tmp/prueba"])
+-    assert d["objetivo"] == "/tmp/prueba_banco/hola.txt"
+-    assert d["dentro"] is True
+-    # la denylist también corre para ediciones: memoria/ es del operador
+-    d = decision_hitl("¿Aplicar? → /repo/memoria/nota.md (1 hunks, +1/−0) (s/n): ",
+-                      "", permitir=["/repo"])
+-    assert d["dentro"] is False
+-    assert d["motivo"] == "denylist"
++def test_el_scope_cubre_el_prompt_de_edit_file_de_exp98(tmp_path, monkeypatch):
++    """El hueco de exp/99 era de PARSEO (el sufijo `(2 hunks, …)` no matcheaba):
++    ahora edit_file entrega la ruta resuelta como dato y el scope la juzga."""
++    import modules.coding as coding
++
++    (tmp_path / "src").mkdir()
++    archivo = tmp_path / "src" / "main.py"
++    archivo.write_text("a = 1\n", encoding="utf-8")
++    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
++    eventos = tmp_path / "e.jsonl"
++    for permitido, ok in ((tmp_path / "docs", False), (tmp_path / "src", True)):
++        monkeypatch.setenv("HITL_SCOPE", str(escribir_scope(tmp_path / "s.json", [str(permitido)],
++                                                             eventos=eventos)))
++        coding.edit_file(str(archivo), "a = 1", "a = 2")
++        fila = leer_decisiones(eventos)[-1]
++        assert fila["tipo"] == "escritura" and fila["objetivo"] == str(archivo)
++        assert fila["ok"] is ok
++    assert archivo.read_text(encoding="utf-8") == "a = 2\n"
+ 
+ 
+ def test_escenario_sin_scope_sigue_siendo_valido():
+diff -ruN a/tests/test_delegar.py b/tests/test_delegar.py
+--- a/tests/test_delegar.py	2026-10-26 15:17:00.209446959 +0000
++++ b/tests/test_delegar.py	2026-10-26 15:17:02.437499335 +0000
+@@ -10,32 +10,44 @@
+ import time
+ from pathlib import Path
+ 
++from banco.banco import leer_decisiones
+ from delegar import (
+     LINEA_RESUME,
+     conducir,
+     env_delegar,
+     panorama_delegadas,
+-    plan_respuesta,
+     thread_reciente,
+-    tipo_prompt,
+ )
++from utils.aprobaciones import Pedido, por_scope
+ 
+-# Fixtures REALES: las formas de prompt que el chat imprime de verdad
+-# (pedir_aprobacion les appendea " (s/n): "; la doble confirmación es (1/2)/(2/2)).
+-PROMPT_EDIT = "¿Aplicar? → /repo/src/main.py (2 hunks, +4/−2) (s/n): "
+-PROMPT_WRITE = "¿Escribir? → /repo/docs/nota.md (s/n): "
+-BUFFER_COMANDO = (
+-    "── run_command ──\n"
+-    "↳ correr la suite\n"
+-    "python3 -m pytest -q\n"
+-    "¿Ejecutar? (s/n): "
+-)
+-BUFFER_DOBLE = (
+-    "── run_command [¡doble confirmación!] ──\n"
+-    "↳ borrar los cachés viejos\n"
+-    "rm -r .ruff_cache\n"
+-    "¿Seguro? (1/2): "
+-)
++# Pedidos REALES, como DATO: lo que coding/escritura le pasan a pedir_aprobacion.
++# Desde la auditoría 2026-10-26 el conductor ya no lee prompts de la pantalla:
++# el chat decide cada Pedido contra el scope (HITL_SCOPE) en su propio proceso.
++EDIT = Pedido("¿Aplicar? → /repo/src/main.py (2 hunks, +4/−2)", "diff", "escritura", "/repo/src/main.py")
++WRITE = Pedido("¿Escribir? → /repo/docs/nota.md", "texto", "escritura", "/repo/docs/nota.md")
++PYTEST = Pedido("¿Ejecutar?", "python3 -m pytest -q", "comando", "python3 -m pytest -q")
++# la doble confirmación: lo que decide es el nivel y el comando del Pedido,
++# nunca el texto del prompt (el que el conductor no reconocía, S1)
++DOBLE = Pedido("¿Seguro? (1/2)", "rm -r .ruff_cache", "comando", "rm -r .ruff_cache", "confirmar_doble")
++
++
++def _scope(tmp_path, permitir=None, permitir_comandos=None, max_hitl=12):
++    """El scope EXACTO que escribe conducir(), sin lanzar ningún chat."""
++    capturado = {}
++
++    def lanzar(env, argv):
++        capturado["scope"] = env["HITL_SCOPE"]
++        return ChatFake([], env, argv, sin_prompt=True)
++
++    # carpeta propia por scope: el stamp de conducir() es por segundo
++    base = tmp_path / f"runs{len(list(tmp_path.glob('runs*')))}"
++    conducir("x", base, permitir=permitir, permitir_comandos=permitir_comandos,
++             max_hitl=max_hitl, timeout_min=1, lanzar=lanzar)
++    return capturado["scope"]
++
++
++def _decide(tmp_path, pedido, **scope):
++    return por_scope(pedido, _scope(tmp_path, **scope))
+ 
+ 
+ def test_env_delegar_no_marca_banco_y_aisla_threads(tmp_path, monkeypatch):
+@@ -70,56 +82,58 @@
+     assert thread_reciente(tmp_path / "vacio") is None
+ 
+ 
+-def test_tipo_prompt_distingue_sn_doble_y_nada():
+-    assert tipo_prompt(PROMPT_WRITE) == "sn"
+-    assert tipo_prompt("¿Ejecutar? (s/n): ") == "sn"
+-    assert tipo_prompt("¿Seguro? (1/2): ") == "doble"
+-    assert tipo_prompt("¿Confirmás de nuevo? (2/2): ") == "doble"
+-    assert tipo_prompt("Tú: ") is None
+-    assert tipo_prompt("   exit 0   ") is None
+-
+-
+-def test_plan_respuesta_escritura_por_scope():
+-    d = plan_respuesta(PROMPT_WRITE, "", permitir=["/repo/docs"], permitir_comandos=None)
+-    assert d["respuesta"] == "s"
+-    d = plan_respuesta(PROMPT_EDIT, "", permitir=["/repo/docs"], permitir_comandos=None)
+-    assert d["respuesta"] == "n fuera-de-scope"
+-    assert d["objetivo"] == "/repo/src/main.py"
+-
+-
+-def test_plan_respuesta_la_denylist_manda_sobre_el_scope():
+-    d = plan_respuesta("¿Escribir? → /repo/.env (s/n): ", "",
+-                       permitir=["/repo"], permitir_comandos=None)
+-    assert d["respuesta"] == "n denylist"
+-    d = plan_respuesta("¿Ejecutar? (s/n): ",
+-                       "── run_command ──\ngit push origin main\n¿Ejecutar? (s/n): ",
+-                       permitir=None, permitir_comandos=["git"])
+-    assert d["respuesta"] == "n denylist"
+-
+-
+-def test_plan_respuesta_comando_dentro_y_fuera():
+-    d = plan_respuesta("¿Ejecutar? (s/n): ", BUFFER_COMANDO,
+-                       permitir=None, permitir_comandos=["python3 -m pytest"])
+-    assert d["respuesta"] == "s"
+-    d = plan_respuesta("¿Ejecutar? (s/n): ", BUFFER_COMANDO,
+-                       permitir=None, permitir_comandos=["pip install"])
+-    assert d["respuesta"] == "n fuera-de-scope"
+-
+-
+-def test_plan_respuesta_doble_exige_prefijo_explicito():
+-    """La policy ya dijo destructivo: sin prefijo EXPLÍCITO de
+-    --permitir-comandos el conductor no aprueba (no hay modo compat)."""
+-    d = plan_respuesta("¿Seguro? (1/2): ", BUFFER_DOBLE,
+-                       permitir=None, permitir_comandos=None)
+-    assert d["respuesta"] == "n confirmacion-doble"
+-    d = plan_respuesta("¿Seguro? (1/2): ", BUFFER_DOBLE,
+-                       permitir=None, permitir_comandos=["rm -r .ruff_cache"])
+-    assert d["respuesta"] == "s"
+-    # y la denylist sigue mandando dentro de la doble
+-    d = plan_respuesta("¿Seguro? (1/2): ",
+-                       "── run_command ──\nrm -rf /tmp/x\n¿Seguro? (1/2): ",
+-                       permitir=None, permitir_comandos=["rm -rf"])
+-    assert d["respuesta"] == "n denylist"
++def test_tipo_prompt_distingue_sn_doble_y_nada(tmp_path):
++    """Ya no se clasifica el prompt: cualquier `(s/n)` que llegue a la pantalla
++    (uno que no pasó por pedir_aprobacion) se rechaza con motivo, sea simple o
++    doble. Antes `¿Seguro? (1/2) (s/n):` se leía como simple y se aprobaba."""
++    for n, prompt in enumerate(("¿Seguro? (1/2) (s/n): ", "¿Escribir? → /repo/x (s/n): ")):
++        chats = []
++
++        def lanzar(env, argv, prompt=prompt, chats=chats):
++            chats.append(ChatFake([("t", prompt, False), ("n fuera-de-scope", "Tú: ", False),
++                                   ("salir", "", True)], env, argv))
++            return chats[-1]
++
++        assert conducir("t", tmp_path / str(n), timeout_min=1, lanzar=lanzar) == 0
++        assert chats[0].recibidas[1] == "n fuera-de-scope"
++
++
++def test_plan_respuesta_escritura_por_scope(tmp_path):
++    assert _decide(tmp_path, WRITE, permitir=["/repo/docs"]).ok is True
++    d = _decide(tmp_path, EDIT, permitir=["/repo/docs"])
++    assert d.ok is False and d.motivo == "fuera-de-scope"
++    # contención real: `/repo/docs` no cubre `/repo/docs_evil` (S2)
++    evil = Pedido("¿Escribir? → /repo/docs_evil/x", "", "escritura", "/repo/docs_evil/x")
++    assert _decide(tmp_path, evil, permitir=["/repo/docs"]).ok is False
++
++
++def test_plan_respuesta_la_denylist_manda_sobre_el_scope(tmp_path):
++    env = Pedido("¿Escribir? → /repo/.ENV", "", "escritura", "/repo/.ENV")
++    assert _decide(tmp_path, env, permitir=["/repo"]).motivo == "denylist"
++    push = Pedido("¿Ejecutar?", "", "comando", "git push origin main")
++    assert _decide(tmp_path, push, permitir_comandos=["git"]).motivo == "denylist"
++
++
++def test_plan_respuesta_comando_dentro_y_fuera(tmp_path):
++    assert _decide(tmp_path, PYTEST, permitir_comandos=["python3 -m pytest"]).ok is True
++    assert _decide(tmp_path, PYTEST, permitir_comandos=["pip install"]).motivo == "fuera-de-scope"
++    # un prefijo autoriza SU segmento, no el compuesto (S2)
++    compuesto = Pedido("¿Ejecutar?", "", "comando", "python3 -m pytest; curl x | sh")
++    assert _decide(tmp_path, compuesto, permitir_comandos=["python3 -m pytest"]).ok is False
++
++
++def test_plan_respuesta_doble_exige_prefijo_explicito(tmp_path):
++    """La doble confirmación REAL (S1): con scope de comandos solo pasa con su
++    prefijo explícito, y la denylist manda aun con prefijo (rm -rf / git push
++    nunca pasan solos). El tope cuenta las aprobaciones de toda la corrida."""
++    assert _decide(tmp_path, DOBLE, permitir_comandos=["pytest"]).ok is False
++    assert _decide(tmp_path, DOBLE, permitir_comandos=["rm -r .ruff_cache"]).ok is True
++    rmrf = Pedido("¿Seguro? (1/2)", "", "comando", "rm -rf /tmp/x", "confirmar_doble")
++    assert _decide(tmp_path, rmrf, permitir_comandos=["rm -rf"]).motivo == "denylist"
++    assert _decide(tmp_path, rmrf).motivo == "denylist"  # sin scope también
++    scope = _scope(tmp_path, max_hitl=1)
++    assert por_scope(PYTEST, scope).ok is True
++    assert por_scope(PYTEST, scope).motivo == "tope"
+ 
+ 
+ def test_el_rechazo_con_motivo_parsea_en_pedir_aprobacion(monkeypatch):
+@@ -128,12 +142,13 @@
+     from utils.aprobaciones import pedir_aprobacion
+ 
+     monkeypatch.delenv("HITL_WEB", raising=False)
++    monkeypatch.delenv("HITL_SCOPE", raising=False)
+     monkeypatch.setattr("builtins.input", lambda *_: "n fuera-de-scope")
+-    decision = pedir_aprobacion("¿Escribir? → /x/y.md")
++    decision = pedir_aprobacion(WRITE)
+     assert decision.ok is False
+     assert decision.motivo == "fuera-de-scope"
+     monkeypatch.setattr("builtins.input", lambda *_: "s")
+-    assert bool(pedir_aprobacion("¿Ejecutar?"))
++    assert bool(pedir_aprobacion(PYTEST))
+ 
+ 
+ class ChatFake:
+@@ -144,11 +159,12 @@
+     borraría antes de verla. `al_morir` deja el checkpoint que simula la
+     persistencia real de exp/48."""
+ 
+-    def __init__(self, guion, env=None, argv=None, al_morir=None):
++    def __init__(self, guion, env=None, argv=None, al_morir=None, sin_prompt=False):
+         self.guion = list(guion)
+         self.env, self.argv_recibido, self.al_morir = env, argv, al_morir
+         self.nuevo, self.vivo, self.raw, self.recibidas = "", True, None, []
+         self._pendiente = ""
++        self.sin_prompt = sin_prompt
+ 
+     def abrir_log(self, destino):
+         self.raw = destino.open("a", encoding="utf-8")
+@@ -160,12 +176,16 @@
+ 
+     def esperar(self, patron, timeout):
+         self.nuevo = "Tú: "
+-        return True
++        return not self.sin_prompt
+ 
+     def enviar(self, linea):
+         self.recibidas.append(linea)
+         esperada, salida, morir = self.guion.pop(0)
+         assert linea == esperada, f"el conductor mandó {linea!r}, el guion esperaba {esperada!r}"
++        if isinstance(salida, Pedido):
++            # el chat decide en SU proceso, como pedir_aprobacion con HITL_SCOPE
++            d = por_scope(salida, self.env["HITL_SCOPE"])
++            salida = f"{'escrito' if d else 'RECHAZADO: ' + d.motivo}\nTú: "
+         self._pendiente = salida
+         if morir:
+             if self.al_morir:
+@@ -189,8 +209,7 @@
+ 
+ def test_conducir_completa_y_cierra_limpio(tmp_path):
+     guion = [
+-        ("creá nota.md", "── write_file ──\n¿Escribir? → /repo/nota.md (s/n): ", False),
+-        ("s", "listo: /repo/nota.md escrito\nTú: ", False),
++        ("creá nota.md", Pedido("¿Escribir? → /repo/nota.md", "", "escritura", "/repo/nota.md"), False),
+         ("salir", "", True),
+     ]
+     chats = []
+@@ -204,7 +223,8 @@
+     assert codigo == 0
+     run = _run_de(tmp_path)
+     eventos = [e["tipo"] for e in _leer_eventos(run)]
+-    assert "hitl" in eventos and eventos[-1] == "fin"
++    assert eventos[-1] == "fin"
++    assert [f["ok"] for f in leer_decisiones(run / "hitl.jsonl")] == [True]
+     assert (run / "resumen.md").read_text(encoding="utf-8").find("estado: ok") >= 0
+     assert (run / "transcript.log").exists()
+     assert "BANCO" not in chats[0].env  # el env del chat real llega limpio
+diff -ruN a/tests/test_hitl.py b/tests/test_hitl.py
+--- a/tests/test_hitl.py	2026-10-26 15:17:00.209446959 +0000
++++ b/tests/test_hitl.py	2026-10-26 15:17:02.437499335 +0000
+@@ -389,9 +389,14 @@
+ def test_parser_decision_motivo(monkeypatch):
+     """C1: el lector del HITL acepta 'n <motivo>' y la Decision sigue siendo
+     truthiness-compatible con el contrato bool de los callers."""
+-    from utils.aprobaciones import Decision, pedir_aprobacion
++    from utils.aprobaciones import Decision, Pedido
++    from utils.aprobaciones import pedir_aprobacion as _pedir
++
++    def pedir_aprobacion(prompt):
++        return _pedir(Pedido(prompt))
+ 
+     monkeypatch.delenv("HITL_WEB", raising=False)
++    monkeypatch.delenv("HITL_SCOPE", raising=False)
+ 
+     def responde(*partes):
+         monkeypatch.setattr("builtins.input", lambda *a, **k: " ".join(partes))
+@@ -455,8 +460,9 @@
+ 
+     assert r.startswith("RECHAZADO")
+     assert len(prompts) == 1
+-    assert "(6 hunks, +6/−6)" in prompts[0], prompts[0]
+-    cuerpo = coding._cuerpo[0]
++    assert "(6 hunks, +6/−6)" in prompts[0].prompt, prompts[0]
++    assert prompts[0].tipo == "escritura" and prompts[0].objetivo == str(archivo)
++    cuerpo = prompts[0].cuerpo
+     assert "diff truncado:" in cuerpo
+     assert "caracteres sin ver" in cuerpo
+     oculto = int(cuerpo.split("quedan ")[1].split(" de")[0])
+@@ -585,11 +591,12 @@
+     navegador TAL CUAL (antes la envolvía en bool() y el motivo moría ahí —
+     el PENDING declarado de la v1 de exp/98)."""
+     import utils.hitl_web as hitl
+-    from utils.aprobaciones import Decision, pedir_aprobacion
++    from utils.aprobaciones import Decision, Pedido, pedir_aprobacion
+ 
+     monkeypatch.setenv("HITL_WEB", "1")
++    monkeypatch.delenv("HITL_SCOPE", raising=False)
+     monkeypatch.setattr(hitl, "aprobar",
+                         lambda prompt, cuerpo="": Decision(False, "fuera de scope"))
+-    decision = pedir_aprobacion("¿Escribir? → /repo/z.py")
++    decision = pedir_aprobacion(Pedido("¿Escribir? → /repo/z.py"))
+     assert decision.ok is False
+     assert decision.motivo == "fuera de scope"
+diff -ruN a/tests/test_skills.py b/tests/test_skills.py
+--- a/tests/test_skills.py	2026-10-26 15:17:00.213447053 +0000
++++ b/tests/test_skills.py	2026-10-26 15:17:02.437499335 +0000
+@@ -73,7 +73,7 @@
+     router = nodes.LayaRouter()
+     estado = {"pregunta": "Revisá el código de utils/formato.py y decime si hay problemas."}
+     assert router.post(shared, estado, "herramientas") == "herramientas"
+-    assert shared["_skill_activo"].id == "revision"
++    assert shared["_skill_activo"] == "revision"  # el ID: el shared es JSON (F4)
+     assert shared["messages"][-1]["role"] == "user"
+     assert shared["messages"][-1]["content"].startswith(PREFIJO_SKILL)
+     linea = json.loads(archivo.read_text(encoding="utf-8").strip())
+@@ -102,7 +102,7 @@
+ 
+     revision = next(h for h in disponibles() if h.id == "revision")
+     shared = {"messages": [{"role": "user", "content": "revisá el código"}],
+-              "_skill_activo": revision}
++              "_skill_activo": revision.id}
+     _, tools = nodes.AgentStep().prep(shared)
+     assert {tool["function"]["name"] for tool in tools} == set(revision.tools)
+     _, todos = nodes.AgentStep().prep({"messages": [{"role": "user", "content": "hola"}]})
+diff -ruN a/utils/aprobaciones.py b/utils/aprobaciones.py
+--- a/utils/aprobaciones.py	2026-10-26 15:17:00.217447148 +0000
++++ b/utils/aprobaciones.py	2026-10-26 15:17:02.425499053 +0000
+@@ -14,9 +14,12 @@
+ Contrato: solo registra; nunca decide, nunca pide input, nunca rompe. Si algo
+ falla al registrar, se ignora (es UX, no contención)."""
+ 
++import json
++import time
++from pathlib import Path
+ from typing import NamedTuple
+ 
+-from utils.policy import PREGUNTAR
++from utils.policy import IRREVERSIBLES, PREGUNTAR, irreversible, opaco, segmentos
+ 
+ _MAX = 200  # tope del buffer circular: una sesión larga no crece sin techo
+ _eventos = []  # lista de dicts: {tipo, resumen, nivel, decision}
+@@ -85,22 +88,107 @@
+         return self.ok
+ 
+ 
+-def pedir_aprobacion(prompt, cuerpo=""):
+-    """El s/n del HITL: por navegador con HITL_WEB=1, si no por terminal.
+-
+-    Unificada acá (PR 3 del plan de orden): modules/coding.py y
+-    modules/escritura.py tenían el MISMO cuerpo copiado. cuerpo es el contexto
+-    que viaja al HITL web. Devuelve una Decision (el bool sigue valiendo).
+-    `n <motivo>` viaja como motivo; s/si/y ignoran el resto. Nunca lanza:
+-    EOF o Ctrl+C es RECHAZO sin motivo. El HITL web devuelve SU Decision
+-    (exp/102: el rechazo del navegador también puede traer motivo)."""
++class Pedido(NamedTuple):
++    """Lo que se pide aprobar, como DATO. Quien aprueba decide sobre los
++    campos, no releyendo el prompt: el conductor de exp/99 lo reconstruía de
++    la pantalla y aprobaba `git push` sin ver la doble confirmación (auditoría
++    2026-10-26, S1). `prompt` y `cuerpo` son para el humano."""
++
++    prompt: str
++    cuerpo: str = ""
++    tipo: str = ""       # escritura | comando | delegar
++    objetivo: str = ""   # ruta resuelta o comando completo
++    nivel: str = PREGUNTAR
++
++
++# Lo que ningún scope aprueba. Las rutas se comparan por COMPONENTE y sin
++# mayúsculas (el substring dejaba pasar `/repo/.ENV`); los comandos son la
++# misma lista doble de la policy, normalizada (sudo, /bin/rm, git -C).
++RUTAS_PROHIBIDAS = (".env", ".git", "memoria")
++COMANDOS_PROHIBIDOS = IRREVERSIBLES
++
++
++def ruta_prohibida(ruta):
++    partes = [p.lower() for p in Path(ruta).parts]
++    return any(p == n or p.startswith(n + ".") for p in partes for n in RUTAS_PROHIBIDAS)
++
++
++def dentro_de_scope(tipo, objetivo, rutas=None, comandos=None):
++    """(dentro, motivo) de un pedido contra un scope. PURA.
++
++    `None` = sin restricción salvo las prohibiciones. Las rutas se comparan
++    por contención real (`/repo/docs` no cubre `/repo/docs_evil`); un comando
++    entra solo si CADA segmento empieza con un prefijo permitido y el shell no
++    lo transforma (`pytest; curl x | sh` no es `pytest`). Un tipo que no es
++    escritura ni comando no se aprueba: lo que no se sabe leer, no pasa."""
++    if tipo == "escritura":
++        if ruta_prohibida(objetivo):
++            return False, "denylist"
++        destino = Path(objetivo).resolve()
++        if rutas is not None and not any(destino.is_relative_to(Path(r).resolve()) for r in rutas):
++            return False, "fuera-de-scope"
++        return True, "ok"
++    if tipo != "comando":
++        return False, "tipo-desconocido"
++    if irreversible(objetivo):
++        return False, "denylist"
++    if comandos is None:
++        return True, "ok"
++    # "cd {RAIZ} &&" de un escenario es el prefijo de UN segmento: `cd {RAIZ}`
++    prefijos = [segmentos(p)[0].split() for p in comandos if segmentos(p)]
++    cubierto = all(any(s.split()[:len(p)] == p for p in prefijos) for s in segmentos(objetivo))
++    if opaco(objetivo) or not cubierto:
++        return False, "fuera-de-scope"
++    return True, "ok"
++
++
++def por_scope(pedido, ruta_scope):
++    """El aprobador sin humano (banco, conductor): decide por los DATOS del
++    pedido contra el scope del archivo y deja cada decisión en su JSONL. El
++    archivo se relee en cada pedido: el driver cambia la política por turno
++    reescribiéndolo. El tope se cuenta en el JSONL, así sobrevive a un resume."""
++    ruta_scope = Path(ruta_scope)
++    scope = json.loads(ruta_scope.read_text(encoding="utf-8"))
++    eventos = Path(scope.get("eventos") or ruta_scope.with_suffix(".jsonl"))
++    previas = len(eventos.read_text(encoding="utf-8").splitlines()) if eventos.exists() else 0
++    if not scope.get("aprobar", True):
++        ok, motivo = False, "el-escenario-rechaza"
++    elif previas >= int(scope.get("max", 12)):
++        ok, motivo = False, "tope"
++    else:
++        ok, motivo = dentro_de_scope(pedido.tipo, pedido.objetivo,
++                                     scope.get("rutas"), scope.get("comandos"))
++    eventos.parent.mkdir(parents=True, exist_ok=True)
++    with eventos.open("a", encoding="utf-8") as f:
++        f.write(json.dumps({"ts": round(time.time(), 3), "tipo": pedido.tipo,
++                            "objetivo": pedido.objetivo[:300], "nivel": pedido.nivel,
++                            "ok": ok, "motivo": motivo}, ensure_ascii=False) + "\n")
++    # misma forma que la terminal (el transcript y el marcador hitl_prompt la
++    # cuentan), con la respuesta ya puesta: no queda un (s/n) pendiente
++    print(f"{pedido.prompt} (s/n): {'s' if ok else 'n ' + motivo} [scope]", flush=True)
++    return Decision(ok, "" if ok else motivo)
++
++
++def pedir_aprobacion(pedido):
++    """La Decision de un Pedido: contra el scope con HITL_SCOPE (banco y
++    conductor), por navegador con HITL_WEB=1, si no por terminal.
++
++    En la terminal `n <motivo>` viaja como motivo; s/si/y ignoran el resto.
++    Nunca lanza: EOF, Ctrl+C o un HITL_SCOPE ilegible son RECHAZO. El HITL
++    web devuelve SU Decision (exp/102: también puede traer motivo)."""
+     from utils import hitl_web
+     from utils.call_llm import _setting
+ 
++    scope = _setting("HITL_SCOPE", "")
++    if scope:
++        try:
++            return por_scope(pedido, scope)
++        except (OSError, ValueError, TypeError):
++            return Decision(False, "scope-invalido")
+     if _setting("HITL_WEB", "0") == "1":
+-        return hitl_web.aprobar(prompt, cuerpo)
++        return hitl_web.aprobar(pedido.prompt, pedido.cuerpo)
+     try:
+-        answer = input(f"{prompt} (s/n): ").strip()
++        answer = input(f"{pedido.prompt} (s/n): ").strip()
+     except (EOFError, KeyboardInterrupt):
+         print()
+         return Decision(False)
+diff -ruN a/utils/fs_tools.py b/utils/fs_tools.py
+--- a/utils/fs_tools.py	2026-10-26 15:17:00.217447148 +0000
++++ b/utils/fs_tools.py	2026-10-26 15:17:02.425499053 +0000
+@@ -10,6 +10,7 @@
+ import fnmatch
+ import json
+ import os
++import stat
+ import subprocess
+ import tempfile
+ from pathlib import Path
+@@ -163,10 +164,14 @@
+         prefix=destino.name + ".", suffix=".tmp", dir=destino.parent,
+     )
+     tmp = Path(tmp_nombre)
++    # el reemplazo conserva el modo del archivo que pisa (un 0o644 fijo le
++    # sacaba el +x a un .sh y dejaba legible un 0o600) y no traduce saltos de
++    # línea (auditoría 2026-10-26, F1/F2)
++    modo = stat.S_IMODE(destino.stat().st_mode) if destino.exists() else 0o644
+     try:
+-        with os.fdopen(fd, "w", encoding="utf-8") as f:
++        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+             f.write(texto)
+-        os.chmod(tmp, 0o644)
++        os.chmod(tmp, modo)
+         os.replace(tmp, destino)
+     except OSError:
+         with contextlib.suppress(OSError):
+diff -ruN a/utils/policy.py b/utils/policy.py
+--- a/utils/policy.py	2026-10-26 15:17:00.217447148 +0000
++++ b/utils/policy.py	2026-10-26 15:17:02.425499053 +0000
+@@ -105,10 +105,15 @@
+ # Patrones de shell que impiden clasificar por prefijo: escriben, sustituyen
+ # o ejecutan cosas que no vemos. Cualquier aparición ⇒ 'preguntar'.
+ #   > < >>     redirección (escribe/lee de archivo)
+-#   $(...)     sustitución de comando
++#   $VAR $(..) expansión de variables y sustitución de comando (aun entre "")
++#   * ? [ ~ {,} (fuera de comillas) glob, tilde y llaves: el argv real lo arma el shell
+ #   `...`      backticks (sustitución de comando)
+ #   xargs      construye y ejecuta comandos a partir de stdin
+-_PELIGRO_SHELL = re.compile(r">|<|\$\(|`|\bxargs\b")
++_PELIGRO_SHELL = re.compile(r">|<|\$|`|\bxargs\b")
++# Expansiones que el shell hace FUERA de comillas: glob, tilde al inicio de
++# palabra y llaves. `find -name '*.py'` no expande; `cat d/*` sí.
++_EXPANSION = re.compile(r"[*?\[]|(?:^|[\s=:])~|\{[^}]*(?:,|\.\.)[^}]*\}")
++_COMILLAS = re.compile(r"'[^']*'|\"[^\"]*\"")
+ 
+ # Separadores de composición que el shell ejecuta: &&, ||, |, &, ; y el
+ # salto de línea. Basta que uno quede afuera para que un segmento entero
+@@ -185,8 +190,8 @@
+     # `2>&1 > f` queda como `> f`, `> f 2>&1` queda como `> f`, y
+     # `2>/tmp/err` (destino distinto de /dev/null) también queda.
+     segmento = _sin_dup_stderr(segmento)
+-    # Redirección / sustitución / xargs: nunca auto, ni siquiera para echo.
+-    if _PELIGRO_SHELL.search(segmento):
++    # Redirección / sustitución / expansión / xargs: nunca auto, ni para echo.
++    if opaco(segmento):
+         return False
+     if _tiene_flag_peligroso(tokens):
+         return False
+@@ -203,21 +208,29 @@
+ 
+ def _tiene_flag_peligroso(tokens):
+     """True si un comando de la whitelist trae un flag que escribe/ejecuta.
+-    Compara el flag exacto y la forma pegada (--output=x, -ox)."""
++    Compara el flag exacto, `--flag=x` y los grupos cortos como los lee
++    getopt (`-ox`, `-uo/x`, `-qf`). `find` no agrupa: sus opciones son palabras."""
+     if not tokens:
+         return False
+     base = _BASES_MODULO.get(tuple(tokens[:3]), tokens[0])
+     flags = _FLAGS_PELIGROSOS.get(base, ())
++    cortos = {f[1] for f in flags if len(f) == 2}
+     for tok in tokens[1:]:
+-        for flag in flags:
+-            if tok == flag or tok.startswith(flag + "="):
+-                return True
+-            # forma corta pegada: -ofile (solo flags de una letra)
+-            if len(flag) == 2 and tok.startswith(flag) and not tok.startswith("--"):
+-                return True
++        if any(tok == flag or tok.startswith(flag + "=") for flag in flags):
++            return True
++        if base != "find" and cortos & set(_grupo_corto(tok)):
++            return True
+     return False
+ 
+ 
++def _grupo_corto(tok):
++    """Las letras de `-abc` como las lee getopt: `-uo/x` es -u -o (y /x es el
++    valor de -o). El primer carácter que no es letra cierra el grupo."""
++    if not tok.startswith("-") or tok.startswith("--"):
++        return ""
++    return re.match(r"[A-Za-z]*", tok[1:]).group()
++
++
+ # Envoltorios que ejecutan el comando que les sigue: el riesgo es el del
+ # comando. Sus opciones (y los valores de esas opciones) no son el comando:
+ # `sudo -u root rm -rf x` sigue siendo un rm -rf recursivo y forzado.
+@@ -316,6 +329,28 @@
+     return None
+ 
+ 
++IRREVERSIBLES = tuple(" ".join(p) for p in _NEGRA_DOBLE)
++
++
++def irreversible(comando):
++    """True si algún segmento es de la lista doble (git push, rm -rf), ya
++    normalizado: `sudo rm -rf`, `/bin/rm -fr`, `git -C . push` también."""
++    return any(_segmento_nivel(s) == CONFIRMAR_DOBLE for s in segmentos(comando))
++
++
++def segmentos(comando):
++    """Los segmentos que el shell ejecuta por separado (&&, ||, |, &, ;, salto
++    de línea). `2>&1` se quita antes: su `&` no separa nada."""
++    return [s.strip() for s in _SEPARADORES.split(_sin_dup_stderr(comando)) if s.strip()]
++
++
++def opaco(comando):
++    """True si el shell transforma el comando antes de correrlo (redirección,
++    expansión, glob, sustitución): lo que se ve no es el argv que se ejecuta."""
++    comando = _sin_dup_stderr(comando)
++    return bool(_PELIGRO_SHELL.search(comando) or _EXPANSION.search(_COMILLAS.sub("", comando)))
++
++
+ def clasificar(comando):
+     """Devuelve 'auto' | 'preguntar' | 'confirmar_doble' para `comando`.
+ 
+@@ -327,16 +362,11 @@
+     if not comando:
+         return PREGUNTAR
+ 
+-    # Partimos por &&, | y ; (los separadores de composición que importan:
+-    # el shell ejecuta los tres, ver docstring).
+-    # `2>&1` primero: su `&` no es un separador (sin esto el split lo
+-    # partiría en "2>" y "1" y la redirección falsa degradaría todo).
+-    segmentos = _SEPARADORES.split(_sin_dup_stderr(comando))
+-
+     # 1) La negra manda: si CUALQUIER segmento pide doble o preguntar, ese
+     #    es el piso del compuesto (tomamos el nivel más alto encontrado).
+     nivel = None
+-    for seg in segmentos:
++    partes = segmentos(comando)
++    for seg in partes:
+         impuesto = _segmento_nivel(seg)
+         if impuesto == CONFIRMAR_DOBLE:
+             return CONFIRMAR_DOBLE
+@@ -345,7 +375,7 @@
+ 
+     # 2) Whitelist: solo si TODOS los segmentos son auto el compuesto es auto.
+     #    (si un segmento no-auto ya fijó `nivel`, igual devolvemos preguntar)
+-    todos_auto = all(_segmento_es_auto(seg) for seg in segmentos)
++    todos_auto = all(_segmento_es_auto(seg) for seg in partes)
+     if todos_auto and nivel is None:
+         return AUTO
+ 
+@@ -416,8 +446,7 @@
+     nivel = clasificar(comando)
+     # En un compuesto se explica el segmento que fija el nivel, no el primero:
+     # es lo que lee el humano al aprobar (`ls && rm -rf /` no es "lista").
+-    segmentos = [x for x in _SEPARADORES.split(_sin_dup_stderr(comando)) if x.strip()]
+-    peor = next((x for x in segmentos if clasificar(x) == nivel), comando)
++    peor = next((x for x in segmentos(comando) if clasificar(x) == nivel), comando)
+     if nivel == AUTO:
+         for prefijo, texto in _LECTURA:
+             if _empieza_con(_tokens(peor), prefijo):
+diff -ruN a/utils/thread_store.py b/utils/thread_store.py
+--- a/utils/thread_store.py	2026-10-26 15:17:00.217447148 +0000
++++ b/utils/thread_store.py	2026-10-26 15:17:02.433499241 +0000
+@@ -56,9 +56,12 @@
+             "shared": shared,
+         }
+         with open(destino, "a", encoding="utf-8") as f:
+-            f.write(json.dumps(linea, ensure_ascii=False, default=str) + "\n")
+-    except OSError:
+-        pass
++            f.write(json.dumps(linea, ensure_ascii=False) + "\n")
++    except (OSError, TypeError, ValueError) as e:
++        # TypeError: algo del shared no es JSON. Con default=str se guardaba
++        # su repr ("{'ab'}", "<object …>") y el resume lo cargaba roto
++        # (auditoría 2026-10-26, F4): mejor un checkpoint menos que uno falso.
++        print(f"[thread] checkpoint omitido ({type(e).__name__}: {e})", flush=True)
+ 
+ 
+ def cargar(id_thread, ruta_dir=None):

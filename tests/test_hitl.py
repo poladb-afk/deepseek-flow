@@ -389,9 +389,14 @@ def test_aprobaciones_emite_evento_hitl_sin_contenido(monkeypatch):
 def test_parser_decision_motivo(monkeypatch):
     """C1: el lector del HITL acepta 'n <motivo>' y la Decision sigue siendo
     truthiness-compatible con el contrato bool de los callers."""
-    from utils.aprobaciones import Decision, pedir_aprobacion
+    from utils.aprobaciones import Decision, Pedido
+    from utils.aprobaciones import pedir_aprobacion as _pedir
+
+    def pedir_aprobacion(prompt):
+        return _pedir(Pedido(prompt))
 
     monkeypatch.delenv("HITL_WEB", raising=False)
+    monkeypatch.delenv("HITL_SCOPE", raising=False)
 
     def responde(*partes):
         monkeypatch.setattr("builtins.input", lambda *a, **k: " ".join(partes))
@@ -455,8 +460,9 @@ def test_edit_file_prompt_declara_diff_completo(tmp_path, monkeypatch):
 
     assert r.startswith("RECHAZADO")
     assert len(prompts) == 1
-    assert "(6 hunks, +6/−6)" in prompts[0], prompts[0]
-    cuerpo = coding._cuerpo[0]
+    assert "(6 hunks, +6/−6)" in prompts[0].prompt, prompts[0]
+    assert prompts[0].tipo == "escritura" and prompts[0].objetivo == str(archivo)
+    cuerpo = prompts[0].cuerpo
     assert "diff truncado:" in cuerpo
     assert "caracteres sin ver" in cuerpo
     oculto = int(cuerpo.split("quedan ")[1].split(" de")[0])
@@ -585,11 +591,12 @@ def test_pedir_aprobacion_web_devuelve_la_decision_entera(monkeypatch):
     navegador TAL CUAL (antes la envolvía en bool() y el motivo moría ahí —
     el PENDING declarado de la v1 de exp/98)."""
     import utils.hitl_web as hitl
-    from utils.aprobaciones import Decision, pedir_aprobacion
+    from utils.aprobaciones import Decision, Pedido, pedir_aprobacion
 
     monkeypatch.setenv("HITL_WEB", "1")
+    monkeypatch.delenv("HITL_SCOPE", raising=False)
     monkeypatch.setattr(hitl, "aprobar",
                         lambda prompt, cuerpo="": Decision(False, "fuera de scope"))
-    decision = pedir_aprobacion("¿Escribir? → /repo/z.py")
+    decision = pedir_aprobacion(Pedido("¿Escribir? → /repo/z.py"))
     assert decision.ok is False
     assert decision.motivo == "fuera de scope"

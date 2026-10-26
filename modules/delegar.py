@@ -12,7 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from utils.aprobaciones import pedir_aprobacion
+from utils.aprobaciones import Pedido, pedir_aprobacion
 
 RAIZ = Path(__file__).resolve().parent.parent
 
@@ -45,7 +45,7 @@ TOOLS = [
                     },
                     "permitir_comandos": {
                         "type": "string",
-                        "description": "prefijos de comandos aprobables, separados por coma; habilita también las dobles confirmaciones",
+                        "description": "prefijos de comandos aprobables, separados por coma (cada segmento del comando debe empezar con uno); vacío = ningún comando que pida aprobación se aprueba (los de solo-lectura corren igual); git push y rm -rf nunca",
                     },
                     "timeout_min": {
                         "type": "integer",
@@ -89,7 +89,7 @@ def delegar_tarea(pedido, permitir=None, permitir_comandos=None,
     rutas = _lista(permitir)
     comandos = _lista(permitir_comandos)
     scope = ", ".join(rutas) if rutas else "solo denylist dura"
-    scope_cmd = ", ".join(comandos) if comandos else "denylist dura solamente"
+    scope_cmd = ", ".join(comandos) if comandos else "ninguno (solo los de solo-lectura, que no piden aprobación)"
     # el patrón de run_command: el operador ve TODO antes del s/n (el cuerpo
     # imprime acá para la terminal y viaja entero al HITL web)
     cuerpo = (f"lanzamiento del conductor\n\npedido: {pedido}\n"
@@ -98,7 +98,8 @@ def delegar_tarea(pedido, permitir=None, permitir_comandos=None,
               "El conductor contesta solo los HITL dentro de este scope "
               "(proceso aparte); la tarea sigue aunque cierres el chat.")
     print(f"\n── delegar_tarea ──\n{cuerpo}")
-    decision = pedir_aprobacion(f"¿Delegar en background? (scope: {scope})", cuerpo)
+    decision = pedir_aprobacion(Pedido(f"¿Delegar en background? (scope: {scope})",
+                                       cuerpo, "delegar", pedido))
     if not decision:
         motivo = getattr(decision, "motivo", "")
         detalle = f' Motivo del usuario: "{motivo}".' if motivo else ""

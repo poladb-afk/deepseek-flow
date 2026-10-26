@@ -64,14 +64,17 @@ def test_explicar_nombra_el_segmento_que_fija_el_nivel(comando, esperado):
 
 
 def test_auto_fuera_de_raices_sigue_preguntando(monkeypatch):
-    """El hallazgo inicial 'cat ~/.ssh lee sin aprobación' era FALSO: clasificar
-    da auto pero run_command lo sube a preguntar con _sale_de_raices. Se clava
-    para que nadie quite esa segunda capa creyendo que sobra."""
+    """El hallazgo inicial 'cat ~/.ssh lee sin aprobación' era FALSO: run_command
+    lo sube a preguntar con _sale_de_raices. Desde la auditoría 2026-10-26 la
+    policy además marca `~` y `$` como opacos; las rutas absolutas siguen
+    dependiendo SOLO de la segunda capa, que es la que se clava acá."""
     monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(RAIZ))
-    for comando in ("cat ~/.ssh/id_rsa", "grep -r secreto ~", "find / -name '*.pem'",
-                    "git diff --no-index /etc/passwd README.md", "cat $HOME/.bashrc"):
+    for comando in ("find / -name '*.pem'", "git diff --no-index /etc/passwd README.md"):
         assert policy.clasificar(comando) == "auto"
         assert coding._nivel(comando) == "preguntar", comando
+    for comando in ("cat ~/.ssh/id_rsa", "grep -r secreto ~", "cat $HOME/.bashrc"):
+        assert policy.clasificar(comando) == "preguntar", comando
+        assert coding._sale_de_raices(comando) is True, comando
 
 
 def test_mayoria_empate_usa_el_desempate():

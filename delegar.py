@@ -21,10 +21,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from banco.banco import RAIZ, RE_TU, Chat, decision_hitl, limpiar
+from banco.banco import RAIZ, RE_TU, Chat, escribir_scope, leer_decisiones, limpiar
 
 RE_SN = re.compile(r"\(s/n\):?\s*$")
-RE_DOBLE = re.compile(r"\((?:1/2|2/2)\):?\s*$")
 MAX_RESUMES = 2
 LINEA_RESUME = ("La sesión se cortó a mitad del pedido. Retomá donde quedó y "
                 "completalo; después respondé con el resultado.")
@@ -129,97 +128,26 @@ def corridas_activas(dir_salidas=None):
             and _pid_vivo(_leer_pid(d))]
 
 
-def tipo_prompt(ultima_linea):
-    """Qué prompt HITL está pendiente en la última línea: "sn", "doble" o None.
-
-    Los formatos son contrato del chat (test_banco/test_delegar los fijan con
-    líneas reales). La doble confirmación es el nivel destructivo de la
-    policy — el conductor la trata con su propia regla."""
-    if RE_DOBLE.search(ultima_linea):
-        return "doble"
-    if RE_SN.search(ultima_linea):
-        return "sn"
-    return None
-
-
-def plan_respuesta(ultima_linea, ventana, permitir, permitir_comandos):
-    """La línea exacta a mandarle al prompt pendiente (función PURA).
-
-    El rechazo viaja CON MOTIVO (exp/98): `n fuera-de-scope` parsea en
-    pedir_aprobacion como Decision(False, "fuera-de-scope") y llega al
-    modelo — no tiene que adivinar por qué le dijeron que no."""
-    if tipo_prompt(ultima_linea) == "doble":
-        # La policy ya clasificó el comando como destructivo: SOLO un
-        # prefijo EXPLÍCITO de --permitir-comandos lo autoriza. Sin modo
-        # compat (permitir_comandos=None aprueba todo lo no-denylist en los
-        # prompts comunes): acá el default es no. La ventana va SIN su
-        # última línea: la extracción de decision_hitl saltea el prompt
-        # "(s/n)" pendiente, pero no conoce "(1/2)" — sin recortarla, el
-        # "comando" extraído sería el propio prompt.
-        sin_prompt = "\n".join(ventana.splitlines()[:-1])
-        d = decision_hitl("¿Ejecutar? (s/n)", sin_prompt)
-        objetivo = d["objetivo"]
-        if (objetivo and permitir_comandos and d["motivo"] != "denylist"
-                and any(objetivo.startswith(p) for p in permitir_comandos)):
-            return {"respuesta": "s", "tipo": "doble",
-                    "objetivo": objetivo, "motivo": "ok"}
-        motivo = "denylist" if d["motivo"] == "denylist" else "confirmacion-doble"
-        return {"respuesta": f"n {motivo}", "tipo": "doble",
-                "objetivo": objetivo, "motivo": motivo}
-    d = decision_hitl(ultima_linea, ventana, permitir, permitir_comandos)
-    if d["dentro"]:
-        return {"respuesta": "s", **d}
-    return {"respuesta": f"n {d['motivo']}", **d}
-
-
-def _clasificar_evento(respuesta, motivo):
-    if respuesta == "s":
-        return "hitl"
-    if motivo == "tope":
-        return "hitl-tope"
-    return "hitl-fuera"
-
-
-def _turno(chat, permitir, permitir_comandos, max_hitl, deadline, evento):
-    """Corre UN turno de la tarea: responde los HITL por scope hasta que el
-    prompt `Tú:` vuelva (ok), el chat muera (muerto) o venza el plazo global.
-
-    Devuelve (estado, hitl, rechazos, ventana). La ventana acumula la salida
-    del turno entero: la extracción del comando mira varias líneas atrás del
-    prompt, no solo el último chunk."""
-    ventana = ""
-    hitl = 0
-    rechazos = 0
+def _turno(chat, deadline, evento):
+    """Corre UN turno: espera el prompt `Tú:` (ok), la muerte del chat o el
+    plazo. Los HITL los decide el propio chat contra el scope (HITL_SCOPE);
+    si igual aparece un `(s/n)` —un prompt que no pasó por pedir_aprobacion—
+    se rechaza: el conductor no aprueba lo que no puede leer como dato."""
     while time.time() < deadline:
         chat.leer()
         if not chat.vivo:
-            return "muerto", hitl, rechazos, ventana + chat.nuevo
+            return "muerto"
         lineas = [ln for ln in limpiar(chat.nuevo).splitlines() if ln.strip()]
-        if not lineas:
-            time.sleep(0.2)
-            continue
-        ultima = lineas[-1]
+        ultima = lineas[-1] if lineas else ""
         if RE_TU.search(ultima):
-            return "ok", hitl, rechazos, ventana + chat.nuevo
-        if not tipo_prompt(ultima):
-            time.sleep(0.2)
+            return "ok"
+        if RE_SN.search(ultima):
+            chat.enviar("n fuera-de-scope")
+            evento("hitl-sin-dato", {"prompt": ultima[:200]})
+            chat.nuevo = ""
             continue
-        if hitl >= max_hitl:
-            plan = {"respuesta": "n tope-de-aprobaciones", "tipo": tipo_prompt(ultima),
-                    "objetivo": None, "motivo": "tope"}
-        else:
-            plan = plan_respuesta(ultima, limpiar(ventana + chat.nuevo),
-                                  permitir, permitir_comandos)
-        time.sleep(0.5)
-        chat.enviar(plan["respuesta"])
-        hitl += 1
-        rechazos += plan["respuesta"] != "s"
-        evento(_clasificar_evento(plan["respuesta"], plan["motivo"]),
-               {"respuesta": plan["respuesta"], "tipo": plan["tipo"],
-                "objetivo": plan["objetivo"], "motivo": plan["motivo"]})
-        ventana += chat.nuevo
-        chat.nuevo = ""
-    return "timeout", hitl, rechazos, ventana + chat.nuevo
+        time.sleep(0.2)
+    return "timeout"
 
 
 def _esperar_muerte(chat, segundos=20):
@@ -232,15 +160,17 @@ def _esperar_muerte(chat, segundos=20):
     return not chat.vivo
 
 
-def _escribir_resumen(run, pedido, estado, hitl, rechazos, resumes, segundos):
+def _escribir_resumen(run, pedido, estado, resumes, segundos):
+    filas = leer_decisiones(run / "hitl.jsonl")
+    rechazos = sum(1 for f in filas if not f["ok"])
     texto = (
         f"# Delegar — {run.name}\n\n"
         f"- pedido: {pedido}\n"
         f"- estado: {estado}\n"
         f"- duración: {segundos} s\n"
-        f"- HITL respondidos: {hitl} ({rechazos} rechazados con motivo)\n"
+        f"- HITL respondidos: {len(filas)} ({rechazos} rechazados con motivo)\n"
         f"- reanudaciones: {resumes}\n\n"
-        f"Transcript: `transcript.log` · eventos: `eventos.jsonl`\n"
+        f"Transcript: `transcript.log` · eventos: `eventos.jsonl` · decisiones: `hitl.jsonl`\n"
     )
     (run / "resumen.md").write_text(texto, encoding="utf-8")
 
@@ -249,8 +179,10 @@ def conducir(pedido, dir_salida, permitir=None, permitir_comandos=None,
              timeout_min=30, max_hitl=12, extras=None, lanzar=None):
     """Delega el pedido y devuelve el exit code (0 = tarea completada).
 
-    `lanzar` es inyectable para los tests (la máquina de estados sin PTY);
-    en producción es el Chat real del banco."""
+    El scope viaja como archivo (HITL_SCOPE) y el chat decide cada pedido en
+    su proceso; el conductor solo conduce: arranque, muerte→resume y plazo.
+    `lanzar` es inyectable para los tests (sin PTY); en producción es el Chat
+    real del banco."""
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     run = Path(dir_salida) / stamp
     (run / "threads").mkdir(parents=True, exist_ok=True)
@@ -258,16 +190,27 @@ def conducir(pedido, dir_salida, permitir=None, permitir_comandos=None,
     # arranque del chat reporta "en curso" vs "murió sin resumen")
     (run / "conductor.pid").write_text(str(os.getpid()), encoding="utf-8")
     env = env_delegar(run / "threads", extras)
+    # sin --permitir-comandos el conductor NO aprueba ningún comando (lista
+    # vacía, no None): nadie al timón no es "todo lo no irreversible". Los de
+    # solo-lectura (auto) corren igual: nunca piden aprobación.
+    env["HITL_SCOPE"] = str(escribir_scope(run / "scope.json", permitir, permitir_comandos or [],
+                                           max_hitl, run / "hitl.jsonl"))
     crudo = run / "transcript.log"
     lanzador = lanzar or (lambda env, argv: Chat(env=env, argv=argv))
     t0 = time.time()
-    total_hitl = total_rechazos = resumes = 0
+    resumes = 0
     with (run / "eventos.jsonl").open("a", encoding="utf-8") as eventos:
 
         def evento(tipo, detalle=None):
             eventos.write(json.dumps({"ts": round(time.time(), 3), "tipo": tipo,
                                       "detalle": detalle}, ensure_ascii=False) + "\n")
             eventos.flush()
+
+        def fin(chat, estado, codigo, **detalle):
+            evento("fin", {"estado": estado, **detalle})
+            chat.matar()
+            _escribir_resumen(run, pedido, estado, resumes, round(time.time() - t0))
+            return codigo
 
         evento("inicio", {"pedido": pedido[:200], "permitir": permitir,
                           "permitir_comandos": permitir_comandos,
@@ -279,40 +222,22 @@ def conducir(pedido, dir_salida, permitir=None, permitir_comandos=None,
             chat = lanzador(env, argv)
             chat.abrir_log(crudo)
             if not chat.esperar(RE_TU, 120):
-                evento("fin", {"estado": "sin-prompt"})
-                chat.matar()
-                _escribir_resumen(run, pedido, "sin-prompt", total_hitl,
-                                  total_rechazos, resumes, round(time.time() - t0))
-                return 1
+                return fin(chat, "sin-prompt", 1)
             chat.nuevo = ""
             chat.enviar(linea)
-            estado, hitl, rechazos, _ = _turno(chat, permitir, permitir_comandos,
-                                               max_hitl, deadline, evento)
-            total_hitl += hitl
-            total_rechazos += rechazos
+            estado = _turno(chat, deadline, evento)
             if estado == "ok":
                 chat.enviar("salir")
                 _esperar_muerte(chat)
-                evento("fin", {"estado": "ok"})
-                chat.matar()
-                _escribir_resumen(run, pedido, "ok", total_hitl, total_rechazos,
-                                  resumes, round(time.time() - t0))
-                return 0
-            if estado != "muerto":  # timeout: interrupción limpia y fin
+                return fin(chat, "ok", 0)
+            if estado == "timeout":  # interrupción limpia y fin
                 chat.ctrl_c()
                 _esperar_muerte(chat, 15)
-                evento("fin", {"estado": "timeout"})
-                chat.matar()
-                _escribir_resumen(run, pedido, "timeout", total_hitl,
-                                  total_rechazos, resumes, round(time.time() - t0))
-                return 1
+                return fin(chat, "timeout", 1)
             chat.matar()
             id_thread = thread_reciente(run / "threads")
             if id_thread is None or resumes >= MAX_RESUMES:
-                evento("fin", {"estado": "muerto-sin-resume", "id": id_thread})
-                _escribir_resumen(run, pedido, "muerto-sin-resume", total_hitl,
-                                  total_rechazos, resumes, round(time.time() - t0))
-                return 1
+                return fin(chat, "muerto-sin-resume", 1, id=id_thread)
             resumes += 1
             evento("muerte", {"id": id_thread})
             if chat.raw:
@@ -330,11 +255,11 @@ def main(argv=None):
     parser.add_argument("--permitir", action="append", default=None, metavar="RUTA",
                         help="prefijo de rutas aprobables para escrituras (repetible)")
     parser.add_argument("--permitir-comandos", action="append", default=None, metavar="PREFIJO",
-                        help="prefijo de comandos aprobables (repetible; también habilita dobles)")
+                        help="prefijo de comandos aprobables (repetible; cada segmento del comando necesita uno)")
     parser.add_argument("--timeout-min", type=int, default=30, metavar="MIN",
                         help="plazo global en minutos, reanudaciones incluidas (default 30)")
     parser.add_argument("--max-hitl", type=int, default=12, metavar="N",
-                        help="tope de aprobaciones por tarea (default 12)")
+                        help="tope de aprobaciones por corrida, reanudaciones incluidas (default 12)")
     parser.add_argument("--dir", default="salidas/delegar", help="directorio de corridas")
     parser.add_argument("--env", action="append", default=None, metavar="K=V",
                         help="variable de entorno del chat (repetible)")

@@ -28,12 +28,12 @@ import re as _re
 import subprocess
 from pathlib import Path
 
-from utils.aprobaciones import pedir_aprobacion
+from utils.aprobaciones import Pedido, pedir_aprobacion
 from utils.aprobaciones import registrar as registrar_aprobacion
 from utils.call_llm import _setting
 from utils.estado_sesion import ultimo_usuario
-from utils.fs_tools import _resolve
-from utils.policy import clasificar, explicar
+from utils.fs_tools import _resolve, escribir_atomico
+from utils.policy import clasificar, explicar, segmentos
 from utils.riesgo import juzgar
 from utils.riesgo import registrar as registrar_riesgo
 from utils.terminal import colorear, highlight_diff, recortar_chars
@@ -42,8 +42,6 @@ TIMEOUT_S = 120
 SALIDA_MAX = 4000  # chars: el resultado entra al historial y al costo
 PREVIEW_LINES = 30
 
-
-_cuerpo = [""]  # cuerpo del próximo pedido HITL web (lo lee _approve)
 
 # Patrones de comandos PROHIBIDOS sin excepción (denylist dura): no hay s/n
 # que los apruebe. Corre como hook PRE (HOOKS_PRE["run_command"]), es decir
@@ -147,9 +145,9 @@ TOOLS = [
 ]
 
 
-def _approve(prompt):
+def _approve(pedido):
     """Punto de parcheo de los tests: la lógica vive en utils/aprobaciones."""
-    return pedir_aprobacion(prompt, _cuerpo[0])
+    return pedir_aprobacion(pedido)
 
 
 NEUTROS_SHELL = {"", "&&", "||", "|", "&", ";", "\n", "\r"}
@@ -162,7 +160,7 @@ def _dentro_de_raices(destino, roots):
 
 def _resolver_token(tok, cwd_efectivo):
     """Token → ruta resuelta (siguiendo symlinks) desde el cwd efectivo."""
-    p = Path(tok).expanduser()
+    p = Path(tok)  # `~` no se expande: _fuera_de_raices ya lo trata como opaco
     if not p.is_absolute():
         p = cwd_efectivo / p
     try:
@@ -175,8 +173,8 @@ def _fuera_de_raices(tok, cwd_efectivo, roots):
     """True si el token (ruta, --flag=/ruta o $VAR) puede tocar fuera."""
     if tok in NEUTROS_SHELL:
         return False
-    if tok.startswith("$"):
-        return True  # $HOME, $VAR: el destino real no es visible
+    if tok.startswith(("$", "~")):
+        return True  # $HOME, $VAR, ~user: el destino real no es visible
     if tok.startswith("-"):
         if "=" not in tok:
             return False
@@ -186,17 +184,15 @@ def _fuera_de_raices(tok, cwd_efectivo, roots):
     return not _dentro_de_raices(_resolver_token(tok, cwd_efectivo), roots)
 
 
-def _procesar_cd(tokens, i, cwd_efectivo, roots):
-    """Consume `cd <dir>`: devuelve (índice siguiente, cwd nuevo, salió)."""
-    j = i + 1
-    if j >= len(tokens) or tokens[j].startswith("-"):
-        return i + 1, cwd_efectivo, False
-    resuelto = _resolver_token(tokens[j], cwd_efectivo)
+def _cd(destinos, cwd_efectivo, roots):
+    """El cwd tras `cd <destinos>`, o None si puede quedar fuera de las raíces.
+    `cd` solo va a $HOME y `cd -` al OLDPWD: ninguno es visible acá."""
+    if len(destinos) != 1 or destinos[0] == "-":
+        return None
+    resuelto = _resolver_token(destinos[0], cwd_efectivo)
     if not _dentro_de_raices(resuelto, roots):
-        return j + 1, cwd_efectivo, True
-    if resuelto.is_dir():
-        return j + 1, resuelto, False
-    return j + 1, cwd_efectivo, False
+        return None
+    return resuelto if resuelto.is_dir() else cwd_efectivo
 
 
 def _sale_de_raices(command):
@@ -206,29 +202,27 @@ def _sale_de_raices(command):
     las raíces que resuelven afuera (`cat link` → auto leía /etc) y `cd sub`
     cambiaba el cwd del subshell sin que el chequeo lo supiera. Ahora cada
     token se resuelve como ruta (siguiendo symlinks) contra el cwd EFECTIVO
-    del subshell, y `--flag=/ruta` también se resuelve. Conservador: ante la
-    duda, True (preguntar)."""
+    del subshell, y `--flag=/ruta` también se resuelve. Los segmentos salen
+    del MISMO partidor que usa la policy: `cd ..;cat x` son dos comandos para
+    el shell y para este chequeo (auditoría 2026-10-26, S3). Ante la duda, True."""
     import shlex
 
     from utils.fs_tools import allowed_roots
 
-    try:
-        tokens = shlex.split(command)
-    except ValueError:
-        return True  # comillas desbalanceadas: no se puede verificar
     roots = allowed_roots()
     cwd_efectivo = Path.cwd()
-    i = 0
-    while i < len(tokens):
-        tok = tokens[i]
-        if tok == "cd":
-            i, cwd_efectivo, fuera = _procesar_cd(tokens, i, cwd_efectivo, roots)
-            if fuera:
+    for segmento in segmentos(command):
+        try:
+            tokens = shlex.split(segmento)
+        except ValueError:
+            return True  # comillas desbalanceadas: no se puede verificar
+        if tokens and tokens[0] == "cd":
+            cwd_efectivo = _cd(tokens[1:], cwd_efectivo, roots)
+            if cwd_efectivo is None:
                 return True
             continue
-        if _fuera_de_raices(tok, cwd_efectivo, roots):
+        if any(_fuera_de_raices(tok, cwd_efectivo, roots) for tok in tokens):
             return True
-        i += 1
     return False
 
 
@@ -294,9 +288,8 @@ def _aprobar(command, nivel, juicios):
         preguntas = (("¿Ejecutar?", RECHAZO),)
     print(f"   ↳ {explicar(command)}")
     print(command)
-    _cuerpo[0] = command
     for pregunta, motivo_rechazo in preguntas:
-        decision = _approve(pregunta)
+        decision = _approve(Pedido(pregunta, command, "comando", command, nivel))
         if decision:
             continue
         registrar_aprobacion("run_command", command, False, nivel)
@@ -458,7 +451,13 @@ def edit_file(path, old_string, new_string):
     if old_string == new_string:
         return "ERROR: old_string y new_string son idénticos — el edit no haría nada"
 
-    texto = resolved.read_text(encoding="utf-8", errors="replace")
+    try:
+        # bytes → str sin traducir saltos (un CRLF sigue CRLF fuera del hunk
+        # aprobado) y estricto: con errors="replace" un byte Latin-1 volvía al
+        # disco como U+FFFD en silencio (auditoría 2026-10-26, F1)
+        texto = resolved.read_bytes().decode("utf-8")
+    except UnicodeDecodeError:
+        return f"ERROR: {resolved.name} no es UTF-8; edit_file no lo reescribe"
     n = texto.count(old_string)
     if n == 0:
         return _error_no_aparece(resolved, texto, old_string)
@@ -493,8 +492,8 @@ def edit_file(path, old_string, new_string):
             diff, SALIDA_MAX,
             f"[... diff truncado: quedan {oculto} de {len(diff)} caracteres sin ver ...]")
     print(highlight_diff(diff_mostrado))
-    _cuerpo[0] = diff_mostrado
-    decision = _approve(f"¿Aplicar? → {resolved} ({hunks} hunks, +{agrega}/−{borra})")
+    decision = _approve(Pedido(f"¿Aplicar? → {resolved} ({hunks} hunks, +{agrega}/−{borra})",
+                               diff_mostrado, "escritura", str(resolved)))
     if not decision:
         registrar_aprobacion("edit_file", f"{resolved}", False, "preguntar")
         # getattr: el seam _approve también acepta bools (los mocks viejos)
@@ -503,7 +502,7 @@ def edit_file(path, old_string, new_string):
     registrar_aprobacion("edit_file", f"{resolved}", True, "preguntar")
 
     try:
-        resolved.write_text(nuevo, encoding="utf-8")
+        escribir_atomico(resolved, nuevo)
     except OSError as e:
         return f"ERROR al escribir: {e.strerror}"
     return f"Editado: {resolved} ({len(diff.splitlines())} líneas de diff)"
