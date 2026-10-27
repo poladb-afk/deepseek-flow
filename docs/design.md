@@ -458,8 +458,7 @@ contadores se actualizan DESPUÉS, con el estado de ley en el shared (no en
 globals) y un lock porque las lecturas corren en paralelo. `Auditar` arma la
 sección "Pasos" y la telemetría de rondas secas desde el registro de
 llamadas. El saldo (`Ledger(MAX_PASOS)`) es UNO para el árbol: con
-`EXPLORAR=1` la exploración gasta del mismo saldo, y el kernel no ofrece
-`explorar` si no queda saldo para ella y su loop (≥ 2). Probado contra v2 con
+`EXPLORAR=1` la exploración gastaba del mismo saldo (el explorador se borró en H3-B, X79: 0 llamadas en 24 corridas). Probado contra v2 con
 el mismo LLM guionado en 5 casos (cierre, lecturas, tope, veto por fallos,
 caché): mismas llamadas, mismos pasos, mismos vetos.
 
@@ -928,7 +927,7 @@ como una `Tool` que otro loop puede llamar. Leyes por construcción:
   sanitizado viven en [utils/proveedor.py](../utils/proveedor.py), que usan
   el chat y el kernel (antes estaban solo en `nodes.py`).
 
-Instancias: `explorador.py` (PR 1) y `supervisor.py` (PR 2). El chat NO es
+Instancias: `supervisor.py` (PR 2); `explorador.py` (PR 1) se borró en H3-B por medición (X79). `agente()` queda como primitiva sin uso en producción: es la pieza que un experimento futuro de sub-agentes reusaría. El chat NO es
 una instancia (H2 PR 4b, X77): `AgentStep`/`ExecuteTools` son "el loop con
 políticas" —compactación, presupuesto adaptativo, no-progreso, novedad,
 aviso de cierre, skills, checkpoints— y el kernel es "el loop mínimo para

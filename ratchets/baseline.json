@@ -163,7 +163,6 @@
         "tests/test_estado_turno.py": 6,
         "tests/test_estilo_humano.py": 9,
         "tests/test_evals.py": 15,
-        "tests/test_explorador.py": 6,
         "tests/test_fable.py": 29,
         "tests/test_fable_dominios.py": 6,
         "tests/test_fable_judge.py": 66,
@@ -199,7 +198,7 @@
         "tests/test_smoke.py": 5,
         "tests/test_sonda_laya.py": 4,
         "tests/test_streaming.py": 11,
-        "tests/test_supervisor_convergencia.py": 6,
+        "tests/test_supervisor_convergencia.py": 4,
         "tests/test_tablero.py": 2,
         "tests/test_thread_store.py": 26,
         "tests/test_tokens_runs.py": 4,
@@ -213,7 +212,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1055
+      "metrica": 1047
     }
   },
   "version": 1

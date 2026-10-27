@@ -333,12 +333,6 @@ def _correr_supervisor(tarea):
     return Path(informe).read_text(encoding="utf-8")
 
 
-def contar_exploraciones(informe):
-    """Cuántas veces corrió `explorar` en una corrida, leído de la sección
-    "Pasos" del informe (una línea por llamada). Es la prueba de que la pieza
-    CORRIÓ: un brazo con EXPLORAR=1 y 0 exploraciones no midió el explorador."""
-    return len(re.findall(r"^- \d+ explorar\(", informe or "", re.M))
-
 
 def _celda(id_tarea, via, texto, seg, llamadas):
     """Arma la fila de una celda ya ejecutada: gradúa con código puro (o la
@@ -350,7 +344,6 @@ def _celda(id_tarea, via, texto, seg, llamadas):
         "ok": ok,
         "seg": round(seg, 2),
         "llamadas": llamadas,
-        "exploraciones": contar_exploraciones(texto) if via == "supervisor" else 0,
         "motivo": None if ok is not None else "tarea saltada: verificación indeterminada (archivo ausente)",
         "error": False,
         "respuesta": texto,
@@ -445,7 +438,6 @@ def agregar(filas):
             por_via[via] = {
                 "calidad": _tasa(sub),
                 "llamadas": sum(f["llamadas"] for f in sub),
-                "exploraciones": sum(f.get("exploraciones", 0) for f in sub),
                 "seg": round(sum(f["seg"] for f in sub), 2),
                 "tope_llamadas": max(f["llamadas"] for f in sub),
                 "n": len(sub),
@@ -546,19 +538,17 @@ def informe_markdown(bench, comparacion, sha, fecha):
         m = por_via[via]
         L.append(f"- **{via}**: calidad {pct(m['calidad'])} · "
                  f"{m['llamadas']} llamadas remotas · {m['seg']:.1f}s "
-                 f"(tope por tarea {m['tope_llamadas']})"
-                 + (f" · `explorar` corrió {m.get('exploraciones', 0)} veces" if via == "supervisor" else ""))
+                 f"(tope por tarea {m['tope_llamadas']})")
     L.append("")
     L.append(f"**Veredicto:** {bench['veredicto']}")
     L.append("")
     L.append("## Detalle por tarea y vía")
     L.append("")
-    L.append("| tarea | vía | ok | llamadas | seg | explorar |")
-    L.append("|-------|-----|----|----------|-----|----------|")
+    L.append("| tarea | vía | ok | llamadas | seg |")
+    L.append("|-------|-----|----|----------|-----|")
     for f in bench["filas"]:
         ok = _fmt_ok(f["ok"])
-        L.append(f"| {f['id']} | {f['via']} | {ok} | {f['llamadas']} | {f['seg']:.2f} "
-                 f"| {f.get('exploraciones', 0)} |")
+        L.append(f"| {f['id']} | {f['via']} | {ok} | {f['llamadas']} | {f['seg']:.2f} |")
     L.append("")
     v = comparacion["veredicto"]
     icono = {"OK": "✅", "REGRESIÓN": "🔴", "PRIMERA CORRIDA": "🆕"}.get(v, "•")

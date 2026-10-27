@@ -4636,3 +4636,12 @@ la sección "Vision/PDF y A2A" de design.md.
 ## H3-B — pre-registro del swarm de exploradores (2026-10-26)
 
 Criterio fijado ANTES de correr (`banco/specs/h3b_swarm.md`): el supervisor con `EXPLORAR=1` gana solo si `explorar` corre en cada escenario y la calidad media sube, y sube más que el costo en tokens. Si no gana, el explorador se borra (el kernel se queda). Runner `banco/probes/h3b_swarm.py`; verificado en seco con LLM falso (scope, informe, puntaje y conteo de exploraciones). Pendiente: la corrida con LLM real.
+
+
+## H3-B — resultado: el explorador no paga y se borra (2026-10-26)
+
+**Corrida** (operador, LLM real, 24 corridas, ~29 min): chat 1,33 de calidad media con 149.611 tokens; supervisor+`EXPLORAR=1` 0,50 con 64.345 tokens. `explorar` corrió 0 veces en los 12 runs del supervisor, también en s17. Calidad por Mtoken 8,91 vs 7,77. Las tres condiciones de `banco/specs/h3b_swarm.md` ❌.
+
+**Decisión atada al resultado**: borrado `explorador.py`, la tool, `EXPLORAR`/`MAX_PASOS_EXPLORADOR` y sus 7 tests. Sin reemplazo: el comportamiento borrado no existe más, así que sus tests no tienen qué probar. El ratchet marca `tests_definidos` 1055 → 1047: es el borrado deliberado de una pieza por medición, y lo acepta el operador con `ratchet.py --actualizar` (R2/R6).
+
+**Lo que no se borra**: el kernel (el supervisor corre sobre `loop()`) y `agente()` con sus tests en `test_kernel.py`, como primitiva. **Señales**: el supervisor ganó s17 3/3 sin delegar (contexto fresco por tarea, a escala); colapsa en s18–s20 (0/9) con 5 rondas. El costo del chat escala con el fixture (130–277 K tokens en s19/s20).

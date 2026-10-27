@@ -88,53 +88,11 @@ def test_supervisor_tanda_vacia_es_seca(tmp_path):
 
 # H2 PR 2 — el supervisor sobre el kernel ----------------------------------
 
-def test_supervisor_y_explorador_comparten_el_saldo(tmp_path, monkeypatch):
-    """Un saldo para todo el árbol: la exploración gasta del MISMO Ledger que
-    el supervisor (antes tenía 3 rondas propias por fuera de las 5)."""
-    import explorador as ex
-
-    monkeypatch.setattr(sup, "_TODAS", sup._TODAS + [ex.TOOL_EXPLORAR])
-    monkeypatch.setattr("utils.fs_tools.read_file", lambda **k: "contenido")
-
-    def guion(n, messages, tools):
-        sistema = messages[0]["content"]
-        if "sub-agente de INVESTIGACIÓN" in sistema:          # el explorador
-            if messages[-1]["role"] == "tool":
-                return MsgFake(content="hallazgo en a.py:3")
-            return MsgFake(tool_calls=[tc_fake("read_file", '{"path": "a.py"}', 90 + n)])
-        if any(m["role"] == "tool" for m in messages):         # el supervisor ya exploró
-            return MsgFake(content="cerrado")
-        return MsgFake(tool_calls=[tc_fake("explorar", '{"pregunta": "¿dónde está X?"}')])
-
-    shared = correr_supervisor(sup, tmp_path, monkeypatch, guion)
-    assert shared["rondas"] == 2                              # 1 del supervisor + 1 del explorador
-    assert shared["ctx"].ledger.rondas == sup.MAX_PASOS - 2
-    assert [p for p, _ in shared["ctx"].traza] == [1, 0]      # el hijo leyó, el padre exploró
-    informe = (tmp_path / "sup.md").read_text(encoding="utf-8")
-    assert "explorar(pregunta=¿dónde está X?) -> hallazgo en a.py:3" in informe
-
-
 def test_las_lecturas_del_supervisor_corren_en_paralelo_y_las_escrituras_no(monkeypatch):
-    """El efecto lo decide el catálogo: las del CORE (y explorar) leen; el
+    """El efecto lo decide el catálogo: las del CORE leen; el
     resto —run_command, write_file, tools de módulos— va en orden."""
     shared = sup.semilla("tarea", "salidas/x.md", llm=lambda m, t: None)
     efecto = {t.nombre: t.efecto for t in shared["tools"]}
     assert {efecto[n] for n in ("list_files", "read_file", "search_files")} == {"lectura"}
     assert {efecto[n] for n in ("run_command", "write_file", "edit_file")} == {"escritura"}
     assert "run_supervisor" not in efecto                      # L1: anti-recursión
-
-
-def test_bench_cuenta_las_exploraciones_del_informe():
-    """El gate del PR 2 prueba que la pieza CORRIÓ: el bench cuenta las líneas
-    `explorar(` de la sección Pasos."""
-    import sys
-
-    from conftest import RAIZ
-
-    sys.path.insert(0, str(RAIZ / "banco"))
-    import bench_supervisor as bs
-
-    informe = ("# Supervisor — t\n\n## Pasos (la auditoría de la corrida)\n\n"
-               "- 1 explorar(pregunta=x) -> a\n- 2 read_file(path=b) -> c\n- 3 explorar(pregunta=y) -> d\n")
-    assert bs.contar_exploraciones(informe) == 2
-    assert bs.contar_exploraciones("sin pasos") == 0

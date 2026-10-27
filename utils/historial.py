@@ -1,5 +1,5 @@
 """El mensaje del asistente en forma canónica del historial (X14: una sola
-copiia de lo que supervisor y explorador hacían igual): solo
+copia de lo que el chat, el supervisor y el kernel hacían igual): solo
 role/content/tool_calls — el reasoning_content del modo thinking no viaja."""
 
 

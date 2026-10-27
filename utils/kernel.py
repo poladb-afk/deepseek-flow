@@ -179,8 +179,8 @@ def agente(nombre, descripcion, system, tools, parametro="pedido"):
     el agente corre su loop con contexto fresco y el MISMO ledger, y devuelve
     su respuesta como texto. Más allá de `max_profundidad`, se niega.
 
-    `system` es el texto o una función `pedido -> texto` (el explorador arma
-    el suyo con la pregunta). Argumentos ilegibles vuelven como ERROR al
+    `system` es el texto o una función `pedido -> texto` (un sub-agente que
+    arma el suyo con el pedido). Argumentos ilegibles vuelven como ERROR al
     modelo, como cualquier tool: no cortan el loop del padre."""
     import json
 

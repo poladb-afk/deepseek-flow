@@ -1,5 +1,9 @@
 """H3-B — ¿el explorador paga cuando el contexto pesa? (pre-registro: banco/specs/h3b_swarm.md)
 
+RESUELTO (X79): no ganó y el explorador se borró. Se conserva como registro
+reproducible; re-correrlo hoy compara el chat con el supervisor SIN
+sub-agente (el setting EXPLORAR ya no existe).
+
 Dos brazos sobre las auditorías amplias de fable (s17–s20): el chat de
 siempre y el supervisor con `EXPLORAR=1`. Mide calidad (`bench_fable.puntuar`),
 costo (tokens) y adopción (llamadas a `explorar`), y aplica el criterio

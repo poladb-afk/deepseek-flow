@@ -20,10 +20,13 @@ chat (0 llamadas en las 4 corridas). La medición del explorador pasa al PR 2.
 (explorador, supervisor); el chat conserva su loop con políticas y comparte
 con el kernel la normalización, el historial y el despacho.
 
-**Ahora — H3-B** (X78), pre-registrado en `banco/specs/h3b_swarm.md`:
-`python3 banco/probes/h3b_swarm.py` (4 escenarios × 3 seeds × 2 brazos).
-Si el explorador no gana, se borra. Después: G (router sin palabras clave),
-F (prompt), y E/H si sobra tiempo.
+**H3-B resuelto** (X79): el explorador no ganó (0 llamadas en 24
+corridas; calidad 0,50 vs 1,33) y se borró. Dato que queda: en s17 (20
+módulos) el supervisor ganó 3/3 sin delegar.
+
+**Ahora — H3-G**: router de Laya sin reglas de palabras clave
+(`regla_temporal`, `regla_imperativo`, disparo de skills por regex), contra
+la flywheel de routing. Después F (prompt) y E/H si sobra tiempo.
 
 **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
 "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`
@@ -33,7 +36,7 @@ Laya como nodo, también en el PR 4. Un PR por loop, del más chico al más gran
 
 | PR | Reemplaza | Gate propio |
 |---|---|---|
-| 1 ✅ | `explorador.py` | deterministas + `explorar()` en vivo (el de fable no podía ejercitarlo: ver X72) |
+| 1 ✅ (retirado en H3-B, X79) | `explorador.py` | deterministas + `explorar()` en vivo (el de fable no podía ejercitarlo: ver X72) |
 | 2 ✅ código | `supervisor.py` (comparte el `Ledger` con el explorador) | `bench_supervisor` igual o mejor y ≤ llamadas, con `EXPLORAR=0` y `EXPLORAR=1`; con `=1`, `explorar` llamado al menos una vez (si no, el brazo no midió nada) |
 | 3 ✅ revisado | `juez`, `research` | no aplica: pipelines con el reintento como arista, no loops de tools (X74) |
 | 4a ✅ | el chat: estado por pregunta en `shared["turno"]` y estado de sesión en el checkpoint (F5, X75) | caracterización idéntica + sesión guionada idéntica |

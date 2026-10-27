@@ -114,21 +114,21 @@ def test_un_agente_es_una_tool_con_contexto_fresco_y_el_mismo_saldo():
     """El fractal: el sub-agente ve SOLO su system y el pedido, gasta del
     mismo ledger que el padre y su respuesta vuelve como resultado de la tool."""
     def llm(mensajes, tools=None):
-        if mensajes[0]["content"] == "explorador":
+        if mensajes[0]["content"] == "subagente":
             if mensajes[-1]["role"] == "tool":
                 return msg("hallazgo en a.py:3")
             return msg(None, llamada("leer", len(mensajes)))
         if mensajes[-1]["role"] == "tool":
             return msg("síntesis: " + mensajes[-1]["content"])
-        return msg(None, llamada("explorar", 0, pedido="buscá X"))
+        return msg(None, llamada("sub", 0, pedido="buscá X"))
 
-    hijo = agente("explorar", "explora", "explorador", [tool("leer")])
+    hijo = agente("sub", "explora", "subagente", [tool("leer")])
     ledger = Ledger(5)
     ctx = Ctx(llm, ledger)
     respuesta, mensajes = correr("raíz", "auditá", [hijo], ctx, wait=0)
     assert respuesta == "síntesis: hallazgo en a.py:3"
     assert ledger.rondas == 3                      # 1 del padre + 1 del hijo
-    assert ctx.traza == [(1, "leer"), (0, "explorar")]
+    assert ctx.traza == [(1, "leer"), (0, "sub")]
     assert hijo.efecto == "lectura"
 
 
@@ -139,13 +139,13 @@ def test_la_profundidad_esta_acotada():
         llamados.append(mensajes[0]["content"])
         if mensajes[-1]["role"] == "tool":
             return msg("visto: " + mensajes[-1]["content"])
-        return msg(None, llamada("explorar", 0, pedido="más"))
+        return msg(None, llamada("sub", 0, pedido="más"))
 
-    hijo = agente("explorar", "explora", "explorador", [])
-    nieto = agente("explorar", "explora", "explorador", [hijo])
+    hijo = agente("sub", "explora", "subagente", [])
+    nieto = agente("sub", "explora", "subagente", [hijo])
     respuesta, _ = correr("raíz", "q", [nieto], Ctx(llm, Ledger(9), max_profundidad=1), wait=0)
     assert "profundidad máxima" in respuesta
-    assert llamados.count("explorador") == 2       # el hijo corrió; el nieto se negó
+    assert llamados.count("subagente") == 2       # el hijo corrió; el nieto se negó
 
 
 def test_dsml_se_vuelve_tool_call_y_un_marker_de_rol_se_corta():
@@ -176,7 +176,7 @@ def test_las_tools_del_core_pasan_por_run_tool_call(tmp_path, monkeypatch):
 
 
 def test_un_agente_sin_system_no_se_puede_crear():
-    """Auditoría de PR 1: TOOL_EXPLORAR se armaba con system vacío; llamado
+    """Auditoría de PR 1: la tool del explorador se armaba con system vacío; llamado
     por el kernel, el sub-agente habría corrido sin sus instrucciones."""
     import pytest
 
@@ -193,23 +193,23 @@ def test_el_system_del_agente_puede_depender_del_pedido():
             return msg("visto")
         if mensajes[-1]["role"] == "tool":
             return msg("fin")
-        return msg(None, llamada("explorar", 0, pedido="¿dónde?"))
+        return msg(None, llamada("sub", 0, pedido="¿dónde?"))
 
-    hijo = agente("explorar", "d", lambda p: f"sub: {p}", [])
+    hijo = agente("sub", "d", lambda p: f"sub: {p}", [])
     correr("raíz", "q", [hijo], Ctx(llm, Ledger(3)), wait=0)
     assert "sub: ¿dónde?" in vistos
 
 
 def test_argumentos_ilegibles_vuelven_como_error_y_el_loop_sigue():
     """Auditoría de PR 1: un JSON malformado del modelo tiraba el loop del padre."""
-    hijo = agente("explorar", "d", "sub", [])
-    roto = NS(id="x", function=NS(name="explorar", arguments="{no es json"))
-    vacio = NS(id="y", function=NS(name="explorar", arguments="{}"))
+    hijo = agente("sub", "d", "sub", [])
+    roto = NS(id="x", function=NS(name="sub", arguments="{no es json"))
+    vacio = NS(id="y", function=NS(name="sub", arguments="{}"))
     llm, _ = guion(msg(None, roto, vacio), msg("seguí igual"))
     respuesta, mensajes = correr("raíz", "q", [hijo], Ctx(llm, Ledger(3)), wait=0)
     assert respuesta == "seguí igual"
     errores = [m["content"] for m in mensajes if m["role"] == "tool"]
-    assert errores[0].startswith("ERROR: argumentos") and errores[1].startswith("ERROR: explorar necesita")
+    assert errores[0].startswith("ERROR: argumentos") and errores[1].startswith("ERROR: sub necesita")
     assert validar_historial(mensajes) == []
 
 

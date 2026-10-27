@@ -37,9 +37,6 @@ REGISTRO = {
     "fable_judge.py": (4, "d",
                        "diff + fuentes + candidatas_verificacion (exp/84): el "
                        "código junta todos los hechos"),
-    "explorador.py": (1, "e",
-                      "ejecutor con tools de sólo lectura (exp/97): el "
-                      "system+código fijan la whitelist; devuelve resumen"),
     "informe.py": (1, "c", "síntesis map-reduce sobre resultados estructurados"),
     "juez.py": (3, "d",
                 "el Judge recibe citas LEÍDAS del disco + inventario real de "
