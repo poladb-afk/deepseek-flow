@@ -4631,3 +4631,8 @@ la sección "Vision/PDF y A2A" de design.md.
 **Cambio**: `utils/proveedor.normalizar` es la única (X76). `AgentStep` 183 → 125 líneas y 7 → 3 métodos; `nodes.py` 1076 → 1016; `kernel.py` 230 → 210. 7/7 casos iguales; caracterización idéntica; suite verde.
 
 **Decisión** (X77): el loop del chat no se pasa al kernel. Lo que queda son sus políticas, cada una con su experimento; las dos vías para meterlas (hooks dentro del kernel o nodos alrededor que exigen exponer los internos) reparten la misma complejidad sin cerrar bugs ni duplicación. **H2 cerrado**: kernel en producción (explorador, supervisor), pedido HITL como dato, caja por pregunta, sesión que sobrevive a resume, una normalización. Sigue H3.
+
+
+## H3-B — pre-registro del swarm de exploradores (2026-10-26)
+
+Criterio fijado ANTES de correr (`banco/specs/h3b_swarm.md`): el supervisor con `EXPLORAR=1` gana solo si `explorar` corre en cada escenario y la calidad media sube, y sube más que el costo en tokens. Si no gana, el explorador se borra (el kernel se queda). Runner `banco/probes/h3b_swarm.py`; verificado en seco con LLM falso (scope, informe, puntaje y conteo de exploraciones). Pendiente: la corrida con LLM real.

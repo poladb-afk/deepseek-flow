@@ -20,10 +20,10 @@ chat (0 llamadas en las 4 corridas). La medición del explorador pasa al PR 2.
 (explorador, supervisor); el chat conserva su loop con políticas y comparte
 con el kernel la normalización, el historial y el despacho.
 
-**Ahora — H3.** El primero es B (swarm de exploradores en auditorías
-amplias): es el único experimento donde el kernel aporta lo que el chat no
-tiene (contexto fresco y lecturas en paralelo), y el que mide si la
-adopción cero del explorador (X73) se sostiene donde el contexto pesa.
+**Ahora — H3-B** (X78), pre-registrado en `banco/specs/h3b_swarm.md`:
+`python3 banco/probes/h3b_swarm.py` (4 escenarios × 3 seeds × 2 brazos).
+Si el explorador no gana, se borra. Después: G (router sin palabras clave),
+F (prompt), y E/H si sobra tiempo.
 
 **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
 "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`

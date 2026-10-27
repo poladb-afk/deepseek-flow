@@ -172,6 +172,7 @@
         "tests/test_forma_larga.py": 5,
         "tests/test_fs_tools.py": 16,
         "tests/test_grafos_sin_calles_muertas.py": 4,
+        "tests/test_h3b_swarm.py": 6,
         "tests/test_hitl.py": 23,
         "tests/test_inventario.py": 3,
         "tests/test_kernel.py": 15,
@@ -212,7 +213,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1049
+      "metrica": 1055
     }
   },
   "version": 1

@@ -915,7 +915,10 @@ def _eventos_de(directorio):
     return eventos
 
 
-def correr_uno(exp, escenario, brazo, seed, forzar=False):
+def correr_uno(exp, escenario, brazo, seed, forzar=False, salir=False):
+    """Una corrida del chat. `salir=True` agrega el turno "salir": el chat
+    cierra limpio e imprime su línea `[tokens] sesión` (H3-B la necesita para
+    medir costo; los benches de siempre no la piden y quedan iguales)."""
     existentes = cargar_resultados(exp)
     clave = (brazo, seed, escenario)
     if not forzar and any((r["brazo"], r["seed"], r["escenario"]) == clave for r in existentes):
@@ -948,7 +951,7 @@ def correr_uno(exp, escenario, brazo, seed, forzar=False):
                 "timeout": timeout,
                 "max_hitl": 20,
             }
-        ],
+        ] + ([{"id": "salir", "linea": "salir", "timeout": 60}] if salir else []),
     }
     carpeta = run.parent
     yaml_corrida = carpeta / f"{escenario}.yaml"
@@ -995,6 +998,7 @@ def correr_uno(exp, escenario, brazo, seed, forzar=False):
         "error": error,
         "reporte_ruta": str(reporte_ruta.relative_to(RAIZ)),
         "evidencia": ev,
+        "log": log,
     }
 
 
@@ -1031,6 +1035,7 @@ def main(argv=None):
                 if resultado is None:
                     print(f"[bench] ya corrido: {brazo} s{seed} {escenario}")
                     continue
+                resultado.pop("log", None)
                 guardar_resultado(args.exp, resultado)
                 artefactos = sum(resultado["lineas_artefacto"].values())
                 print(
