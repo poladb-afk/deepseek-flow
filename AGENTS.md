@@ -37,7 +37,7 @@ nombra el gate que la hace cumplir.
 | R3 | Los docs no pueden mentir: tool count, CLI, settings, paths y tests citados tienen que existir. | `tests/test_docs_sin_deriva.py`, `tests/test_deriva_reglas.py` |
 | R4 | Todo hallazgo ✅ del tablero cita el test que lo cubre, y ese test existe de verdad. | `tests/test_deriva_reglas.py` |
 | R5 | Los helpers privados no se bifurcan: si `_foo` ya existe en otro archivo, extraelo a `utils/` en vez de copiarlo. | `ratchet.py` (helpers duplicados) |
-| R6 | El baseline del ratchet solo se mueve hacia la mejora; editarlo a mano es bypass. | `ratchet.py` (guardia con `HUMAN_RATCHET_BYPASS_KEY`) |
+| R6 | El baseline del ratchet solo se mueve hacia la mejora; editarlo a mano es bypass. Aceptar un empeoramiento exige la CLAVE del operador (su sha256 commiteado), no una bandera. | `ratchet.py`, `test_una_bandera_cualquiera_no_es_la_clave` |
 | R7 | La seguridad no se relaja: HITL, contención de paths y política de comandos se tocan con tests de bypass. | `tests/test_policy_bypass.py`, `tests/test_policy.py` |
 | R8 | Los contratos congelados (dispatch, voto, prefiltro) no cambian sin regenerar su sha1 y justificarlo. | `tests/test_contratos.py` |
 | R9 | El código se escribe para humanos: mínimo que funciona, sin defensas/abstracciones/docstrings no pedidos, sin banners decorativos; los `except` amplios no crecen y la complejidad/anidación del harness tampoco (ratchet). | `tests/test_estilo_humano.py`, `ratchet.py` |
@@ -105,8 +105,8 @@ son los que este repo ya conoce y no acepta:
 - Marcar `skip`/`xfail` sin el marker que declara el recurso que falta.
 - Comentar etapas de `calidad.sh` o del workflow de CI para pasar.
 - `--no-verify` / `git commit -n` cuando haya hooks.
-- Exportar `HUMAN_RATCHET_BYPASS_KEY` o correr `--actualizar` por tu cuenta:
-  es decisión del operador humano, no del agente.
+- Exportar `HUMAN_RATCHET_BYPASS_KEY`, correr `--actualizar` o `--sembrar-clave`,
+  aunque el operador haya aprobado el cambio: pedile que lo corra él.
 - Bajar `MAX_TOOL_ROUNDS` o endurecer/relajar `HITL_AUTO` como "fix" de un
   test: la seguridad y el presupuesto son contrato de producto.
 

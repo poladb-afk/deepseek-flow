@@ -46,14 +46,25 @@ Las dos métricas, una por clase de ratchet:
 
 Guardia anti-bypass (el "Ratchet C" del original): el baseline solo puede
 moverse en la dirección que mejora. Si el archivo versionado empeoró respecto
-de HEAD —o HEAD respecto de HEAD~1, o sea un bypass ya commiteado— y no está
-`HUMAN_RATCHET_BYPASS_KEY` exportada, es bypass y falla. Sin esta guardia el
-ratchet sería decorativo: el primer agente que lo vea editaría el JSON.
+de HEAD —o HEAD respecto de HEAD~1, o sea un bypass ya commiteado— y no hay
+CLAVE DEL OPERADOR válida, es bypass y falla. Sin esta guardia el ratchet
+sería decorativo: el primer agente que lo vea editaría el JSON.
+
+La clave es un SECRETO, no una bandera: `HUMAN_RATCHET_BYPASS_KEY` tiene que
+coincidir con el sha256 commiteado en `ratchets/clave_operador.sha256`, leído
+de la HISTORIA (HEAD y HEAD~1), no del disco. Medido (2026-10-26): con la
+guardia vieja bastaba `HUMAN_RATCHET_BYPASS_KEY=1`, y un agente la exportó
+"porque el operador ya había aprobado" aunque AGENTS.md lo prohibía. La regla
+en prosa no alcanzó; la estructura sí: el agente no tiene el texto de la
+clave, y cambiar el hash es un commit visible que, si llega junto con el
+empeoramiento, exige la clave VIEJA. El operador la siembra una vez con
+`python3 ratchet.py --sembrar-clave` (la lee de la terminal, no la guarda).
 
 Uso:
     python3 ratchet.py                  # el gate (exit 0/1); auto-mejora el baseline
     python3 ratchet.py --no-escribir    # diagnóstico: compara y NO toca el baseline
-    python3 ratchet.py --actualizar     # HUMANO: acepta un empeoramiento deliberado
+    python3 ratchet.py --actualizar     # HUMANO (con la clave): acepta un empeoramiento deliberado
+    python3 ratchet.py --sembrar-clave  # HUMANO: escribe el sha256 de su clave (commitealo)
     python3 ratchet.py --sin-guardia    # diagnóstico: saltea la guardia git
 
 No tiene dependencias ni toca la red: es la palanca 3 de `calidad.sh` y de CI.
@@ -74,6 +85,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent
 BASELINE = RAIZ / "ratchets" / "baseline.json"
 CLAVE_BYPASS = "HUMAN_RATCHET_BYPASS_KEY"
+HASH_CLAVE = RAIZ / "ratchets" / "clave_operador.sha256"
 
 # Alcance: el harness que se entrega. `tests/` queda afuera (es el instrumento
 # que mide) y `banco/` también (material de auditoría): duplicados ahí no son
@@ -616,24 +628,67 @@ def guardar_baseline(datos: dict, ruta: Path) -> None:
 
 # guardia anti-bypass
 
+def _texto_de_git(raiz: Path, ref: str, ruta: Path) -> str | None:
+    """El archivo tal como estaba en `ref`, o None (sin git, sin archivo)."""
+    try:
+        relativa = ruta.resolve().relative_to(raiz.resolve()).as_posix()
+        r = subprocess.run(["git", "-C", str(raiz), "show", f"{ref}:{relativa}"],
+                           capture_output=True, text=True, timeout=10)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    return r.stdout if r.returncode == 0 else None
+
+
+def sha256(texto: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(texto.encode("utf-8")).hexdigest()
+
+
+def clave_valida(raiz: Path, clave: str | None, ruta_hash: Path | None = None) -> tuple[bool, str]:
+    """(válida, motivo). La clave vale si su sha256 coincide con TODOS los
+    hashes commiteados en HEAD y HEAD~1 (de la historia, no del disco):
+    editar el archivo en el working tree no sirve, y un commit que cambia el
+    hash junto con un empeoramiento exige la clave anterior. Sin hash
+    commiteado no hay bypass posible (falla cerrado)."""
+    ruta_hash = ruta_hash or raiz / "ratchets" / "clave_operador.sha256"
+    if not (clave or "").strip():
+        return False, f"sin {CLAVE_BYPASS}"
+    hashes = {h.strip() for h in (_texto_de_git(raiz, ref, ruta_hash) for ref in ("HEAD", "HEAD~1")) if h}
+    if not hashes:
+        return False, ("no hay clave del operador commiteada (ratchets/clave_operador.sha256): "
+                       "el operador la siembra con `python3 ratchet.py --sembrar-clave`")
+    if any(sha256(clave.strip()) != h for h in hashes):
+        return False, f"{CLAVE_BYPASS} no coincide con la clave del operador"
+    return True, "clave del operador"
+
+
+def sembrar_clave(ruta_hash: Path = HASH_CLAVE, salida=print, leer=None) -> int:
+    """Pide la clave por la TERMINAL (getpass) y escribe solo su sha256."""
+    import getpass
+
+    leer = leer or getpass.getpass
+    try:
+        clave = leer("Clave del operador (no se guarda; solo su sha256): ").strip()
+        repetida = leer("Repetila: ").strip()
+    except (EOFError, KeyboardInterrupt, OSError):
+        salida("[ratchet] sin terminal: la clave se siembra a mano, no desde un agente")
+        return 1
+    if not clave or clave != repetida or len(clave) < 12:
+        salida("[ratchet] la clave tiene que coincidir y tener al menos 12 caracteres")
+        return 1
+    ruta_hash.parent.mkdir(parents=True, exist_ok=True)
+    ruta_hash.write_text(sha256(clave) + "\n", encoding="utf-8")
+    salida(f"[ratchet] hash sembrado en {ruta_hash.name}: commitealo (cambiarlo después es un commit visible)")
+    return 0
+
+
 def _baseline_de_git(raiz: Path, ref: str, ruta: Path) -> dict | None:
     """El baseline tal como estaba en `ref` (HEAD, HEAD~1). Best-effort: sin
     git, sin el archivo o con el ref fuera del clon (CI shallow), None."""
+    texto = _texto_de_git(raiz, ref, ruta)
     try:
-        relativa = ruta.resolve().relative_to(raiz.resolve()).as_posix()
-    except ValueError:
-        return None
-    try:
-        crudo = subprocess.run(
-            ["git", "-C", str(raiz), "show", f"{ref}:{relativa}"],
-            capture_output=True, text=True, timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if crudo.returncode != 0:
-        return None
-    try:
-        datos = json.loads(crudo.stdout)
+        datos = json.loads(texto) if texto is not None else None
     except json.JSONDecodeError:
         return None
     return datos if isinstance(datos, dict) else None
@@ -664,10 +719,7 @@ def hallazgos_bypass(en_disco: dict | None, en_head: dict | None, en_anterior: d
 
 
 def guardia_bypass(raiz: Path, ruta: Path, salida=print) -> bool:
-    """True si hay que BLOQUEAR (bypass detectado sin clave humana)."""
-    if os.environ.get(CLAVE_BYPASS, "").strip():
-        salida(f"[ratchet] bypass humano declarado ({CLAVE_BYPASS} en el entorno): la guardia no bloquea")
-        return False
+    """True si hay que BLOQUEAR (bypass detectado sin clave del operador)."""
     hallazgos = hallazgos_bypass(
         cargar_baseline(ruta),
         _baseline_de_git(raiz, "HEAD", ruta),
@@ -675,11 +727,15 @@ def guardia_bypass(raiz: Path, ruta: Path, salida=print) -> bool:
     )
     if not hallazgos:
         return False
-    salida("[ratchet] BYPASS: el baseline empeoró respecto de la historia.")
+    valida, motivo = clave_valida(raiz, os.environ.get(CLAVE_BYPASS))
+    if valida:
+        salida("[ratchet] bypass del operador (clave verificada): la guardia no bloquea")
+        return False
+    salida(f"[ratchet] BYPASS: el baseline empeoró respecto de la historia ({motivo}).")
     for linea in hallazgos:
         salida(f"    {linea}")
-    salida(f"  Un agente no edita el baseline. Si el empeoramiento es deliberado, el operador "
-           f"exporta {CLAVE_BYPASS} (y lo revierte) y corre --actualizar.")
+    salida(f"  Un agente no edita el baseline ni exporta {CLAVE_BYPASS}. Si el empeoramiento "
+           "es deliberado, lo acepta el operador con SU clave (y --actualizar).")
     return True
 
 
@@ -770,6 +826,11 @@ def correr(
 
     empeoro, mejoro = _evaluar(actuales, previo, salida)
 
+    if empeoro and actualizar:
+        valida, motivo = clave_valida(raiz, os.environ.get(CLAVE_BYPASS))
+        if not valida:
+            salida(f"[ratchet] ROJO: --actualizar acepta un empeoramiento solo con la clave del operador ({motivo}).")
+            return 1
     if empeoro and not actualizar:
         salida("[ratchet] ROJO: una métrica empeoró. Reusá/extraé en vez de duplicar y no borres tests; "
                "correr --actualizar es una decisión del operador, no del agente.")
@@ -802,8 +863,12 @@ def main(argv: list[str] | None = None) -> int:
                         help="compara pero NO reescribe el baseline (diagnóstico)")
     parser.add_argument("--sin-guardia", action="store_true", help="saltea la guardia anti-bypass (diagnóstico)")
     parser.add_argument("--actualizar", action="store_true",
-                        help=f"HUMANO: acepta un empeoramiento deliberado (requiere {CLAVE_BYPASS} si la guardia lo frena)")
+                        help=f"HUMANO: acepta un empeoramiento deliberado (requiere {CLAVE_BYPASS} = la clave del operador)")
+    parser.add_argument("--sembrar-clave", action="store_true",
+                        help="HUMANO: escribe ratchets/clave_operador.sha256 con el sha256 de su clave")
     args = parser.parse_args(argv)
+    if args.sembrar_clave:
+        return sembrar_clave()
     return correr(
         raiz=args.raiz.resolve(),
         ruta_baseline=args.baseline.resolve(),

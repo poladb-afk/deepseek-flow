@@ -255,9 +255,13 @@ def test_ratchet_empeora_y_frena(tmp_path, archivo, contenido, extra_archivo,
     assert any(fragmento in m for m in mensajes)
 
 
-def test_actualizar_acepta_el_empeoramiento(tmp_path):
-    """--actualizar es la llave humana: acepta la baja y deja el baseline nuevo."""
+@pytest.mark.git
+@requiere_git
+def test_actualizar_acepta_el_empeoramiento(tmp_path, monkeypatch):
+    """--actualizar con la clave del operador acepta la baja y deja el baseline nuevo."""
     raiz = _arbol(tmp_path)
+    _repo_con_baseline(raiz, 0, clave="la-clave-del-operador")
+    monkeypatch.setenv(ratchet.CLAVE_BYPASS, "la-clave-del-operador")
     _escribir(raiz, "tests/test_a.py", "def test_uno():\n    pass\n\ndef test_dos():\n    pass\n")
     assert ratchet.correr(raiz=raiz, ruta_baseline=_baseline(raiz), guardia=False) == 0
     _escribir(raiz, "tests/test_a.py", "def test_uno():\n    pass\n")
@@ -321,17 +325,20 @@ def test_mejora_del_baseline_no_es_bypass():
     assert ratchet.hallazgos_bypass(en_disco, en_head, None) == []
 
 
-def _repo_con_baseline(tmp_path, metrica):
-    """Un repo git mínimo con el baseline commiteado: la guardia lee HEAD."""
+def _repo_con_baseline(tmp_path, metrica, clave=None):
+    """Un repo git mínimo con el baseline commiteado: la guardia lee HEAD.
+    Con `clave`, también el hash del operador (`ratchets/clave_operador.sha256`)."""
     baseline = tmp_path / "ratchets" / "baseline.json"
     ratchet.guardar_baseline({"version": 1, "ratchets": {
         "helpers_duplicados": {"metrica": metrica},
         "tests_definidos": {"metrica": 1},
     }}, baseline)
+    if clave:
+        (tmp_path / "ratchets" / "clave_operador.sha256").write_text(ratchet.sha256(clave) + "\n")
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "test@test"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "test"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "add", "ratchets/baseline.json"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "ratchets/"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "baseline"], check=True)
     return baseline
 
@@ -355,14 +362,97 @@ def test_guardia_bypass_bloquea_el_baseline_editado_a_mano(tmp_path, monkeypatch
 @pytest.mark.git
 @requiere_git
 def test_guardia_bypass_cede_ante_la_clave_humana(tmp_path, monkeypatch):
-    """El operador humano puede declarar el bypass; queda impreso en el gate."""
-    monkeypatch.setenv(ratchet.CLAVE_BYPASS, "operador-2026-10-19")
-    baseline = _repo_con_baseline(tmp_path, 2)
+    """El operador humano puede declarar el bypass con SU clave (la que
+    coincide con el hash commiteado); queda impreso en el gate y la clave no."""
+    clave = "operador-2026-10-19"
+    baseline = _repo_con_baseline(tmp_path, 2, clave=clave)
+    monkeypatch.setenv(ratchet.CLAVE_BYPASS, clave)
     ratchet.guardar_baseline({"version": 1, "ratchets": {
         "helpers_duplicados": {"metrica": 5},
         "tests_definidos": {"metrica": 1},
     }}, baseline)
     mensajes = []
     assert ratchet.guardia_bypass(tmp_path, baseline, salida=mensajes.append) is False
-    assert any("bypass humano declarado" in m for m in mensajes)
-    assert not any("operador-2026-10-19" in m for m in mensajes), "la clave NO se imprime"
+    assert any("clave verificada" in m for m in mensajes)
+    assert not any(clave in m for m in mensajes), "la clave NO se imprime"
+
+
+@pytest.mark.git
+@requiere_git
+@pytest.mark.parametrize("valor", ["1", "operador", "x" * 40])
+def test_una_bandera_cualquiera_no_es_la_clave(tmp_path, monkeypatch, valor):
+    """Medido (2026-10-26): con la guardia vieja, `HUMAN_RATCHET_BYPASS_KEY=1`
+    alcanzaba y un agente la exportó. Ahora el valor tiene que ser la clave."""
+    baseline = _repo_con_baseline(tmp_path, 2, clave="la-clave-real-del-operador")
+    monkeypatch.setenv(ratchet.CLAVE_BYPASS, valor)
+    ratchet.guardar_baseline({"version": 1, "ratchets": {
+        "helpers_duplicados": {"metrica": 5}, "tests_definidos": {"metrica": 1}}}, baseline)
+    mensajes = []
+    assert ratchet.guardia_bypass(tmp_path, baseline, salida=mensajes.append) is True
+    assert any("no coincide" in m for m in mensajes)
+
+
+@pytest.mark.git
+@requiere_git
+def test_sin_hash_commiteado_no_hay_bypass_posible(tmp_path, monkeypatch):
+    """Falla cerrado: si el operador nunca sembró la clave, nadie la tiene."""
+    baseline = _repo_con_baseline(tmp_path, 2)
+    monkeypatch.setenv(ratchet.CLAVE_BYPASS, "cualquier-cosa-larga")
+    ratchet.guardar_baseline({"version": 1, "ratchets": {
+        "helpers_duplicados": {"metrica": 5}, "tests_definidos": {"metrica": 1}}}, baseline)
+    mensajes = []
+    assert ratchet.guardia_bypass(tmp_path, baseline, salida=mensajes.append) is True
+    assert any("--sembrar-clave" in m for m in mensajes)
+
+
+@pytest.mark.git
+@requiere_git
+def test_el_hash_del_disco_no_vale_solo_el_commiteado(tmp_path, monkeypatch):
+    """Un agente que reescribe el hash en el working tree con SU clave no pasa:
+    la guardia lee el hash de la historia."""
+    baseline = _repo_con_baseline(tmp_path, 2, clave="la-clave-real-del-operador")
+    (tmp_path / "ratchets" / "clave_operador.sha256").write_text(ratchet.sha256("la-del-agente"))
+    monkeypatch.setenv(ratchet.CLAVE_BYPASS, "la-del-agente")
+    ratchet.guardar_baseline({"version": 1, "ratchets": {
+        "helpers_duplicados": {"metrica": 5}, "tests_definidos": {"metrica": 1}}}, baseline)
+    assert ratchet.guardia_bypass(tmp_path, baseline, salida=lambda m: None) is True
+
+
+@pytest.mark.git
+@requiere_git
+def test_cambiar_el_hash_junto_con_el_empeoramiento_exige_la_clave_vieja(tmp_path, monkeypatch):
+    """El hash nuevo commiteado en HEAD no alcanza: HEAD~1 tiene el anterior y
+    la clave tiene que coincidir con los dos."""
+    baseline = _repo_con_baseline(tmp_path, 2, clave="la-clave-real-del-operador")
+    hash_ruta = tmp_path / "ratchets" / "clave_operador.sha256"
+    hash_ruta.write_text(ratchet.sha256("la-del-agente"))
+    ratchet.guardar_baseline({"version": 1, "ratchets": {
+        "helpers_duplicados": {"metrica": 5}, "tests_definidos": {"metrica": 1}}}, baseline)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qam", "nueva clave + baseline"], check=True)
+    monkeypatch.setenv(ratchet.CLAVE_BYPASS, "la-del-agente")
+    assert ratchet.guardia_bypass(tmp_path, baseline, salida=lambda m: None) is True
+    monkeypatch.setenv(ratchet.CLAVE_BYPASS, "la-clave-real-del-operador")
+    assert ratchet.clave_valida(tmp_path, "la-clave-real-del-operador")[0] is False  # tampoco: no coincide con HEAD
+
+
+def test_actualizar_sin_clave_no_acepta_el_empeoramiento(tmp_path, monkeypatch):
+    """--actualizar solo ya no alcanza: el empeoramiento pide la clave."""
+    raiz = _arbol(tmp_path)
+    monkeypatch.setenv(ratchet.CLAVE_BYPASS, "1")  # una bandera, no la clave
+    _escribir(raiz, "tests/test_a.py", "def test_uno():\n    pass\n\ndef test_dos():\n    pass\n")
+    assert ratchet.correr(raiz=raiz, ruta_baseline=_baseline(raiz), guardia=False) == 0
+    _escribir(raiz, "tests/test_a.py", "def test_uno():\n    pass\n")  # menos tests: empeora
+    mensajes = []
+    assert ratchet.correr(raiz=raiz, ruta_baseline=_baseline(raiz), guardia=False,
+                          actualizar=True, salida=mensajes.append) == 1
+    assert any("clave del operador" in m for m in mensajes)
+
+
+def test_sembrar_clave_escribe_solo_el_hash(tmp_path):
+    ruta = tmp_path / "clave.sha256"
+    respuestas = iter(["una-clave-de-operador", "una-clave-de-operador"])
+    assert ratchet.sembrar_clave(ruta, salida=lambda m: None, leer=lambda _p: next(respuestas)) == 0
+    assert ruta.read_text().strip() == ratchet.sha256("una-clave-de-operador")
+    assert "una-clave" not in ruta.read_text()
+    corta = iter(["corta", "corta"])
+    assert ratchet.sembrar_clave(ruta, salida=lambda m: None, leer=lambda _p: next(corta)) == 1

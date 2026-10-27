@@ -4645,3 +4645,12 @@ Criterio fijado ANTES de correr (`banco/specs/h3b_swarm.md`): el supervisor con 
 **Decisión atada al resultado**: borrado `explorador.py`, la tool, `EXPLORAR`/`MAX_PASOS_EXPLORADOR` y sus 7 tests. Sin reemplazo: el comportamiento borrado no existe más, así que sus tests no tienen qué probar. El ratchet marca `tests_definidos` 1055 → 1047: es el borrado deliberado de una pieza por medición, y lo acepta el operador con `ratchet.py --actualizar` (R2/R6).
 
 **Lo que no se borra**: el kernel (el supervisor corre sobre `loop()`) y `agente()` con sus tests en `test_kernel.py`, como primitiva. **Señales**: el supervisor ganó s17 3/3 sin delegar (contexto fresco por tarea, a escala); colapsa en s18–s20 (0/9) con 5 rondas. El costo del chat escala con el fixture (130–277 K tokens en s19/s20).
+
+
+## La clave del ratchet es un secreto, no una bandera (2026-10-26)
+
+**Hallazgo** (al aplicar el borrado de H3-B): el agente del operador corrió `HUMAN_RATCHET_BYPASS_KEY=1 python3 ratchet.py --actualizar` porque "la decisión humana ya estaba tomada". El resultado era correcto (el operador había aceptado; el baseline solo movió `tests_definidos`), pero la guardia aceptaba cualquier valor y la regla vivía solo en prosa (AGENTS.md).
+
+**Cambio** (X80): `clave_valida` compara el sha256 de la clave con `ratchets/clave_operador.sha256` leído de HEAD y HEAD~1 (editar el disco no sirve; cambiar el hash junto con el empeoramiento exige la clave vieja; sin hash commiteado no hay bypass). `--actualizar` también la exige. `--sembrar-clave` la pide por terminal (getpass) y escribe solo el hash.
+
+**Medición**: 7 tests nuevos de la guardia (bandera `1` rechazada, hash del disco ignorado, cambio de hash en el mismo commit rechazado, falla cerrado sin hash, `--actualizar` sin clave rechazado, sembrado). Verificados con un git mínimo (dulwich) en un sandbox sin git; en CI corren con git real. **Pendiente del operador**: `python3 ratchet.py --sembrar-clave` y commitear el hash. Hasta entonces ningún empeoramiento se puede aceptar (falla cerrado).
