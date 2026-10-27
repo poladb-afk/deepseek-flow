@@ -4711,3 +4711,34 @@ después de X72 (el explorador en un flujo que no lo podía llamar).
 las reglas, c01/c02 dependen del voto" (dependen de Laya), y el test del
 borrado que simulaba un voto que dice herramientas en esos casos (probaba un
 supuesto falso; se fue con el revert).
+
+## F — pre-registro: sacar del prompt lo que la estructura reemplazó (2026-10-27)
+
+**Pregunta** (X84): el prompt del chat tiene directivas en prosa que hoy
+tienen una pieza estructural al lado. Si la estructura ya hace el trabajo, la
+prosa es contexto pagado en cada request.
+
+**Primero, dónde decide cada pieza** (la lección de X82, aplicada antes del
+diseño y no después):
+
+- **Citas** → `VerificarCitas` decide cuando la respuesta trae citas
+  archivo:línea. Ventana: las auditorías s15–s20 de fable, que se puntúan por
+  cita. Prueba de que corrió: la línea `[citas] N/M verificadas` con M ≥ 1.
+- **Alcance** → la estructura que acota es el tope de rondas; `alcance_amplio`
+  lo SUBE a 16. Ojo: no hace lo mismo que la prosa (la prosa pide contención,
+  la estructura da más rondas), así que la medida que decide es el costo.
+  Ventana: lo que `alcance_amplio` clasifica amplio. Verificado contra los
+  fixtures: s17–s20 sí, s15/s16 no (lo clava un test). Prueba de que corrió:
+  `⚙ ronda k/16` en el log.
+- **cat/grep/find** queda fuera: no hay estructura (la policy los deja en
+  `auto`) y cambiar la policy es R7.
+
+**Diseño**: base (prompt de producción) contra `PROMPT_CITAS=0` en s15–s20 y
+`PROMPT_ALCANCE=0` en s17–s20, 3 seeds, 48 corridas. Los toggles nuevos dejan
+el prompt de producción byte-idéntico (lo verifica un test: un cambio de bytes
+rompería el KV-cache y el A/B). **Criterio**: cobertura (la estructura decidió
+en ≥2 de 3 seeds por escenario), calidad ≥ base, citas inválidas finales
+≤ base y tokens ≤ 1,10 × base. Si cualquiera falla, la directiva se queda; en
+los dos casos el toggle se borra después.
+
+**Estado**: sin correr. Necesita LLM real (corre el operador).

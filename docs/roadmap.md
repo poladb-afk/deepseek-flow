@@ -30,7 +30,11 @@ borrado: el voto solo, con el checkpoint real, sin falsos directos y con el
 grupo directo 6/6 (`python3 banco/probes/bench_voto.py`). Hoy falla en
 c01/c02: el trabajo pendiente es el voto (`router_voto`), no las reglas.
 
-**Ahora — F** (prompt). Después E/H si sobra tiempo.
+**Ahora — F** (pre-registrado, X84, `banco/specs/f_prompt.md`): ¿las
+directivas de citas y de alcance aportan algo que `VerificarCitas` y el tope
+amplio no den? 48 corridas de fable (s15–s20), cada directiva medida solo
+donde su estructura decide. Corre el operador: `python3 banco/probes/f_prompt.py`.
+Después E/H si sobra tiempo.
 
 **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
 "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`
