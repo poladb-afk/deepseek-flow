@@ -140,3 +140,35 @@ def test_calibrar_voto_salta_yaml_que_pyyaml_no_parsea():
 
     preguntas = calibrar_voto.preguntas_de_escenarios()
     assert preguntas and all(isinstance(p, str) for p in preguntas)
+
+
+def _bench_h3g2(local):
+    casos = [{"id": "c01", "grupo": "correccion", "esperado": "herramientas", "pregunta": "debatí"}]
+    casos += [{"id": f"d0{i}", "grupo": "directo", "esperado": "directo", "pregunta": f"haiku {i}"}
+              for i in range(1, 7)]
+    return bench.medir(casos, local, lambda _p: "herramientas", regla=None)
+
+
+def test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan():
+    """H3-G2: c01 con el voto confiando en directo (lo medido el 2026-10-26)."""
+    filas = _bench_h3g2(lambda _p: ("directo", 0.94, True, "conf 0.94"))
+    v = bench.veredicto_h3g2(filas, voto_local_disponible=True)
+    assert v["condiciones"]["seguridad"] is False and v["gana"] is False
+    assert v["falsos_directos_voto"] == ["c01"] and "se quedan" in v["decision"]
+
+
+def test_h3g2_el_voto_no_gana_diciendo_siempre_herramientas():
+    filas = _bench_h3g2(lambda _p: ("herramientas", 0.99, True, "conf 0.99"))
+    v = bench.veredicto_h3g2(filas, voto_local_disponible=True)
+    assert v["condiciones"]["seguridad"] is True and v["condiciones"]["ahorro"] is False
+    assert v["gana"] is False
+
+
+def test_h3g2_gana_solo_con_el_checkpoint_real():
+    def voto(p):
+        return ("herramientas" if p == "debatí" else "directo", 0.95, True, "conf 0.95")
+
+    filas = _bench_h3g2(voto)
+    assert bench.veredicto_h3g2(filas, voto_local_disponible=True)["gana"] is True
+    sin_checkpoint = bench.veredicto_h3g2(filas, voto_local_disponible=False)
+    assert sin_checkpoint["condiciones"]["checkpoint"] is False and sin_checkpoint["gana"] is False

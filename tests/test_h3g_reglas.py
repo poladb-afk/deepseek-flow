@@ -102,3 +102,15 @@ def test_el_resumen_nombra_los_casos_salvados():
                           router=lambda p: "directo", voto=lambda p: ("directo", True))]
     texto = h.resumen(filas)
     assert "banco/specs/h3g_reglas.md" in texto and "último mundial" in texto and "NO GANA" in texto
+
+
+def test_la_cobertura_efectiva_cuenta_donde_la_regla_decide():
+    """X82: 25 disparos con Laya ya en herramientas son cobertura 25 para el
+    criterio viejo y 0 efectiva; el resumen lo dice al lado del veredicto."""
+    h = _h3g()
+    filas = [h.medir_caso(_caso(f"leé el archivo {i}.py", "herramientas"),
+                          router=lambda p: "herramientas", voto=lambda p: (None, False)) for i in range(25)]
+    assert h.veredicto(filas)["gana"] is True  # el criterio viejo, intacto
+    assert h.cobertura_efectiva(filas) == 0
+    texto = h.resumen(filas)
+    assert "cobertura efectiva" in texto and "no autoriza el borrado" in texto

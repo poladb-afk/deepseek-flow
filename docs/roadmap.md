@@ -24,14 +24,13 @@ con el kernel la normalización, el historial y el despacho.
 corridas; calidad 0,50 vs 1,33) y se borró. Dato que queda: en s17 (20
 módulos) el supervisor ganó 3/3 sin delegar.
 
-**Ahora — H3-G** (pre-registrado, X81, `banco/specs/h3g_reglas.md`):
-¿el voto 2-de-2 ya cubre lo que cubren `regla_temporal` y
-`regla_imperativo_capacidad`? Pareado, con la política real (Laya + voto),
-sobre 103 casos etiquetados (18 humanos + 85 del árbitro); la flywheel no
-sirve porque no guarda la pregunta. Gana el borrado solo con cero falsos
-directos nuevos. Las skills por regex son otro experimento. Corre el
-operador: `python3 banco/probes/h3g_reglas.py`. Después F (prompt) y E/H si
-sobra tiempo.
+**H3-G inválido** (X82): 78 disparos, 0 donde la regla decide; las reglas
+se quedan. **H3-G2** (X83, `banco/specs/h3g2_voto_solo.md`) es el gate del
+borrado: el voto solo, con el checkpoint real, sin falsos directos y con el
+grupo directo 6/6 (`python3 banco/probes/bench_voto.py`). Hoy falla en
+c01/c02: el trabajo pendiente es el voto (`router_voto`), no las reglas.
+
+**Ahora — F** (prompt). Después E/H si sobra tiempo.
 
 **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
 "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`

@@ -51,6 +51,9 @@ nombra el gate que la hace cumplir.
 - **Evidencia antes que opinión**: si cambiás comportamiento, medí (bench,
   banco, trazas) y dejá la medición en la bitácora. El informe no reemplaza
   al test; el test no reemplaza la medición.
+- **Medí la pieza donde decide**: el gate prueba que la pieza corrió (X72), y
+  un experimento sobre una capa de seguridad cuenta su cobertura donde ESA
+  capa cambia la ruta, no donde dispara (X82: 78 disparos, 0 decisiones).
 - **Dependencias**: el repo es deliberadamente mínimo (stdlib salvo lo
   justificado en `requirements.txt`). Una dependencia nueva necesita motivo
   medido, no comodidad.

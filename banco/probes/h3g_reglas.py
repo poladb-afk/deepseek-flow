@@ -8,6 +8,10 @@ pre-registrado se aplica con una función pura, sin retoques.
 Uso:
     python3 banco/probes/h3g_reglas.py            # necesita Laya (LAYA_MODEL) y DeepSeek para el árbitro
     python3 banco/probes/h3g_reglas.py --resumen  # rehace el resumen con lo ya medido
+
+INVÁLIDO POR DISEÑO (X82): corrido, dio "gana" con cobertura efectiva 0. Una
+regla solo cambia la ruta si dispara Y Laya propuso directo; el criterio
+contaba disparos. Se conserva como registro; la pregunta se mide en H3-G2.
 """
 import argparse
 import dataclasses
@@ -106,6 +110,14 @@ def veredicto(filas):
             else "faltan datos: no hay veredicto"}
 
 
+def cobertura_efectiva(filas):
+    """Casos donde la regla podía DECIDIR: dispara y Laya propuso directo
+    (X82). La `cobertura` del criterio contaba disparos, incluidos los casos
+    que Laya ya mandaba a herramientas, donde la regla no tenía nada que
+    salvar. Se reporta al lado; el criterio pre-registrado no se toca."""
+    return sum(1 for f in filas if f["regla"] and f["propuesta"] == "directo")
+
+
 def resumen(filas):
     v = veredicto(filas)
     L = ["# H3-G — ¿el router necesita reglas de palabras clave?", "",
@@ -118,6 +130,12 @@ def resumen(filas):
         L.append(f"| {nombre} | {m['falso_directo']} | {m['falso_herramientas']} | {m['arbitro']} |")
     L += [""] + [f"- {c}: {'✅' if ok else '❌'}" for c, ok in v["condiciones"].items()]
     L += ["", f"**Veredicto:** {'GANA' if v['gana'] else 'NO GANA'} → {v['decision']}", ""]
+    efectiva = cobertura_efectiva(filas)
+    L += [f"**Corrección X82:** cobertura efectiva (regla dispara y Laya propuso directo) = {efectiva}. "
+          + ("Las reglas nunca estuvieron en posición de decidir: el veredicto de arriba no las "
+             "ejercitó y no autoriza el borrado. El criterio válido es H3-G2 "
+             "(banco/specs/h3g2_voto_solo.md)." if efectiva < COBERTURA_MIN else
+             "Alcanza el mínimo pre-registrado."), ""]
     if v["salvados"]:
         L += ["## Casos que las reglas salvan (falso directo sin ellas)", ""]
         L += [f"- [{f['fuente']}] ({f['regla']}) {f['pregunta'][:140]}" for f in v["salvados"]]

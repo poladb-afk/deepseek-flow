@@ -1,0 +1,332 @@
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/AGENTS.md b/deepseek-flow-main/AGENTS.md
+--- a/AGENTS.md	2026-10-27 10:51:58.585483496 +0000
++++ b/AGENTS.md	2026-10-27 10:53:49.616355422 +0000
+@@ -51,6 +51,9 @@
+ - **Evidencia antes que opinión**: si cambiás comportamiento, medí (bench,
+   banco, trazas) y dejá la medición en la bitácora. El informe no reemplaza
+   al test; el test no reemplaza la medición.
++- **Medí la pieza donde decide**: el gate prueba que la pieza corrió (X72), y
++  un experimento sobre una capa de seguridad cuenta su cobertura donde ESA
++  capa cambia la ruta, no donde dispara (X82: 78 disparos, 0 decisiones).
+ - **Dependencias**: el repo es deliberadamente mínimo (stdlib salvo lo
+   justificado en `requirements.txt`). Una dependencia nueva necesita motivo
+   medido, no comodidad.
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/banco/probes/bench_voto.py b/deepseek-flow-main/banco/probes/bench_voto.py
+--- a/banco/probes/bench_voto.py	2026-10-27 10:51:58.561482875 +0000
++++ b/banco/probes/bench_voto.py	2026-10-27 10:53:49.612355319 +0000
+@@ -154,6 +154,30 @@
+     }
+ 
+ 
++DIRECTOS_MIN_H3G2 = 6  # exp/53: el voto acertó 6/6 en el grupo directo
++
++
++def veredicto_h3g2(filas, voto_local_disponible):
++    """El criterio de banco/specs/h3g2_voto_solo.md, sin retoques. PURA.
++
++    Mide al voto donde DECIDE: cada fila del bench es el caso "Laya propuso
++    directo" (la cascada corre siempre), así que la capa voto es la única red.
++    Las reglas se pueden borrar si (1) corrió el checkpoint real, (2) el voto
++    no da NINGÚN falso directo y (3) no lo logra diciendo siempre herramientas
++    (el grupo directo sigue como en exp/53)."""
++    directos = [f for f in filas if f["grupo"] == "directo"]
++    condiciones = {
++        "checkpoint": bool(voto_local_disponible),
++        "seguridad": not any(f["falso_directo_voto"] for f in filas),
++        "ahorro": sum(1 for f in directos if f["acierto_voto"]) >= DIRECTOS_MIN_H3G2,
++    }
++    gana = bool(filas) and all(condiciones.values())
++    return {"condiciones": condiciones, "gana": gana,
++            "falsos_directos_voto": [f["id"] for f in filas if f["falso_directo_voto"]],
++            "decision": "el voto solo alcanza: se pueden borrar las reglas (aplicar h3g_borrar_reglas.patch)"
++            if gana else "las reglas se quedan"}
++
++
+ def _voto_local_real():
+     """El voto local de producción (checkpoint LAYA_MODEL_VOTO), o None."""
+     import nodes
+@@ -225,17 +249,23 @@
+     parser.add_argument("--casos", default=str(CASOS), help="dataset JSONL de casos")
+     parser.add_argument("--sin-reglas", action="store_true",
+                         help="mide solo la capa voto (sin reglas duras del router)")
++    parser.add_argument("--sin-voto-local", action="store_true",
++                        help="todo lo arbitra DeepSeek (H3-G2 no da veredicto así)")
+     parser.add_argument("--salida", default=None, help="JSON de resultados")
+     args = parser.parse_args(argv)
+     casos = cargar_casos(args.casos)
+-    voto_local = _voto_local_real()
++    voto_local = None if args.sin_voto_local else _voto_local_real()
++    checkpoint = voto_local is not None
+     if voto_local is None:
+         print("[bench] LAYA_MODEL_VOTO no disponible: todo lo arbitra DeepSeek")
+         voto_local = lambda _p: None  # noqa: E731
+     filas = medir(casos, voto_local, _arbitro_real(),
+                   regla=None if args.sin_reglas else regla_dura)
+     metricas = resumen(filas)
++    h3g2 = veredicto_h3g2(filas, checkpoint)
+     print(informe_texto(filas, metricas))
++    print(f"  H3-G2 (voto solo, banco/specs/h3g2_voto_solo.md): {'GANA' if h3g2['gana'] else 'NO GANA'} "
++          f"{h3g2['condiciones']} → {h3g2['decision']}")
+     destino = Path(args.salida or (RAIZ / "salidas" / "evals" /
+                                    f"bench_voto_{datetime.now():%Y%m%d}.json"))
+     destino.parent.mkdir(parents=True, exist_ok=True)
+@@ -244,6 +274,7 @@
+         "dataset": str(Path(args.casos).relative_to(RAIZ)),
+         "reglas": not args.sin_reglas,
+         "metricas": metricas,
++        "h3g2": h3g2,
+         "filas": filas,
+     }, ensure_ascii=False, indent=1), encoding="utf-8")
+     print(f"artefacto: {destino.relative_to(RAIZ)}")
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/banco/probes/h3g_reglas.py b/deepseek-flow-main/banco/probes/h3g_reglas.py
+--- a/banco/probes/h3g_reglas.py	2026-10-27 10:51:58.589483599 +0000
++++ b/banco/probes/h3g_reglas.py	2026-10-27 10:53:49.616355422 +0000
+@@ -8,6 +8,10 @@
+ Uso:
+     python3 banco/probes/h3g_reglas.py            # necesita Laya (LAYA_MODEL) y DeepSeek para el árbitro
+     python3 banco/probes/h3g_reglas.py --resumen  # rehace el resumen con lo ya medido
++
++INVÁLIDO POR DISEÑO (X82): corrido, dio "gana" con cobertura efectiva 0. Una
++regla solo cambia la ruta si dispara Y Laya propuso directo; el criterio
++contaba disparos. Se conserva como registro; la pregunta se mide en H3-G2.
+ """
+ import argparse
+ import dataclasses
+@@ -106,6 +110,14 @@
+             else "faltan datos: no hay veredicto"}
+ 
+ 
++def cobertura_efectiva(filas):
++    """Casos donde la regla podía DECIDIR: dispara y Laya propuso directo
++    (X82). La `cobertura` del criterio contaba disparos, incluidos los casos
++    que Laya ya mandaba a herramientas, donde la regla no tenía nada que
++    salvar. Se reporta al lado; el criterio pre-registrado no se toca."""
++    return sum(1 for f in filas if f["regla"] and f["propuesta"] == "directo")
++
++
+ def resumen(filas):
+     v = veredicto(filas)
+     L = ["# H3-G — ¿el router necesita reglas de palabras clave?", "",
+@@ -118,6 +130,12 @@
+         L.append(f"| {nombre} | {m['falso_directo']} | {m['falso_herramientas']} | {m['arbitro']} |")
+     L += [""] + [f"- {c}: {'✅' if ok else '❌'}" for c, ok in v["condiciones"].items()]
+     L += ["", f"**Veredicto:** {'GANA' if v['gana'] else 'NO GANA'} → {v['decision']}", ""]
++    efectiva = cobertura_efectiva(filas)
++    L += [f"**Corrección X82:** cobertura efectiva (regla dispara y Laya propuso directo) = {efectiva}. "
++          + ("Las reglas nunca estuvieron en posición de decidir: el veredicto de arriba no las "
++             "ejercitó y no autoriza el borrado. El criterio válido es H3-G2 "
++             "(banco/specs/h3g2_voto_solo.md)." if efectiva < COBERTURA_MIN else
++             "Alcanza el mínimo pre-registrado."), ""]
+     if v["salvados"]:
+         L += ["## Casos que las reglas salvan (falso directo sin ellas)", ""]
+         L += [f"- [{f['fuente']}] ({f['regla']}) {f['pregunta'][:140]}" for f in v["salvados"]]
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/banco/specs/h3g2_voto_solo.md b/deepseek-flow-main/banco/specs/h3g2_voto_solo.md
+--- a/banco/specs/h3g2_voto_solo.md	1970-01-01 00:00:00.000000000 +0000
++++ b/banco/specs/h3g2_voto_solo.md	2026-10-27 10:53:49.616355422 +0000
+@@ -0,0 +1,50 @@
++# H3-G2 — ¿el voto solo cubre lo que cubren las reglas? (pre-registro)
++
++Fijado el 2026-10-26, ANTES de correr, tras invalidar H3-G (X82). El criterio
++vive en `banco/probes/bench_voto.py::veredicto_h3g2` y no se retoca.
++
++## Por qué H3-G no servía
++
++Una regla de palabras clave solo cambia la ruta si dispara **y** Laya
++propuso directo. H3-G contó disparos (78) y no esa ventana: la cobertura
++efectiva fue **0** (los 3 directos propuestos eran casos sin regla). El
++"0 falsos directos sin reglas" era cierto y vacío. Medido aparte, el voto
++confía en directo en c01 (0,94) y c02 (0,76): hoy esos casos los salva Laya
++sola, no el voto.
++
++## Pregunta
++
++Si Laya propone directo en un caso que necesita herramientas, ¿el voto lo
++frena sin las reglas? Esa es la ventana donde las reglas deciden, y se mide
++directo: `bench_voto.py` corre la cascada del voto en cada caso como si Laya
++hubiera propuesto directo (la capa voto, sin reglas).
++
++## Datos
++
++`banco/voto_casos.jsonl` (18 casos con etiqueta humana: 8 corrección,
++6 directo, 4 herramientas). Si se agregan casos, valen: el criterio es por
++caso, no por cantidad.
++
++## Criterio
++
++**El voto solo alcanza** (y las reglas se pueden borrar) si se cumplen las tres:
++
++1. **checkpoint**: corrió el voto local real (`LAYA_MODEL_VOTO`); con todo
++   arbitrado por DeepSeek no hay veredicto;
++2. **seguridad**: **0 falsos directos** de la capa voto en todo caso con
++   esperado herramientas (corrección y herramientas);
++3. **ahorro**: el grupo directo sigue en 6/6 (exp/53). Un voto que dice
++   siempre herramientas no gana: eso apaga el router.
++
++## Decisión atada al resultado
++
++- Gana → se aplica `docs/informes/h3g_borrar_reglas.patch` (aparcado), con
++  el test del voto ahora cierto, y el operador acepta la baja del ratchet
++  con su clave.
++- No gana → las reglas se quedan. El trabajo es el voto (entrenamiento o
++  umbral de `router_voto` en c01/c02), no las reglas.
++
++## Cómo se corre
++
++`python3 banco/probes/bench_voto.py` (la línea `H3-G2` del informe y la clave
++`h3g2` del artefacto). Correrlo después de cada cambio del checkpoint del voto.
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/banco/specs/h3g_reglas.md b/deepseek-flow-main/banco/specs/h3g_reglas.md
+--- a/banco/specs/h3g_reglas.md	2026-10-27 10:51:58.589483599 +0000
++++ b/banco/specs/h3g_reglas.md	2026-10-27 10:53:49.616355422 +0000
+@@ -66,3 +66,13 @@
+ - No gana → las reglas se quedan, y el resumen nombra los casos que salvan
+   (su justificación queda medida, no supuesta).
+ - Las skills por regex son OTRO experimento: acá no se tocan.
++
++## Corrección posterior (X82, 2026-10-26) — experimento inválido por diseño
++
++Esta sección se agregó DESPUÉS de correr; lo de arriba queda como se fijó.
++El resultado fue "gana" con cobertura 78, pero la **cobertura efectiva**
++(regla dispara y Laya propuso directo) fue **0**: las reglas nunca estuvieron
++en posición de decidir. La condición 1 contaba disparos y no la ventana donde
++la regla cambia la ruta; la 2 suponía que el voto cubría c01/c02, y medido
++aparte el voto confía en directo ahí. El veredicto no autoriza el borrado:
++las reglas se quedan y la pregunta pasa a H3-G2 (`banco/specs/h3g2_voto_solo.md`).
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/docs/bitacora.md b/deepseek-flow-main/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-27 10:51:58.589483599 +0000
++++ b/docs/bitacora.md	2026-10-27 10:53:49.616355422 +0000
+@@ -4676,3 +4676,38 @@
+ quedan fuera (otro experimento).
+ 
+ **Estado**: sin correr. Necesita Laya (no está en el sandbox del agente).
++
++## H3-G — resultado: inválido por diseño; las reglas se quedan (2026-10-26)
++
++**Corrida** (operador, Laya local, 103 casos): "gana" según el criterio
++(78 disparos ≥ 20; 0 falsos directos con y sin reglas). **Al verificar el
++borrado** antes de commitearlo, `bench_voto.py` con el voto real dio falsos
++directos en c01 (conf 0,94) y c02 (0,76). La condición de freno se cumplió y
++el borrado se revirtió.
++
++**Por qué no hay contradicción**: en la corrida de H3-G, Laya propuso
++herramientas en c01 y c02, así que el voto ni se consultó. El desglose del
++JSONL: regla dispara 78; **regla dispara y Laya propuso directo: 0**; directos
++propuestos 3 (todos sin regla, los 3 confirmados por el voto). Las reglas
++nunca estuvieron en posición de decidir. El error es del diseño: la cobertura
++contaba disparos, no la ventana donde la regla cambia la ruta, y la seguridad
++suponía que el voto respaldaba a Laya ahí. No lo hace.
++
++**Decisión** (X82): las reglas se quedan (R7). No es mover el arco: la
++evidencia nueva invalida la premisa y la decisión va al lado conservador. El
++criterio viejo no se retoca; el resumen de `h3g_reglas.py` reporta la
++cobertura efectiva al lado. El patch de borrado queda aparcado.
++
++**H3-G2** (X83, pre-registrado): la misma pregunta medida donde las reglas
++deciden. `bench_voto.py` corre el voto en cada caso como si Laya hubiera
++propuesto directo; las reglas se borran si, con el checkpoint real, el voto da
++0 falsos directos y mantiene el grupo directo en 6/6. Hoy no gana (c01, c02):
++el trabajo es el voto, no las reglas.
++
++**Lección** (AGENTS.md): medí la pieza donde decide. Es la segunda vez
++después de X72 (el explorador en un flujo que no lo podía llamar).
++
++**Dos afirmaciones mías que eran falsas**, para que no queden sueltas: "sin
++las reglas, c01/c02 dependen del voto" (dependen de Laya), y el test del
++borrado que simulaba un voto que dice herramientas en esos casos (probaba un
++supuesto falso; se fue con el revert).
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/docs/estado.md b/deepseek-flow-main/docs/estado.md
+--- a/docs/estado.md	2026-10-27 10:51:58.589483599 +0000
++++ b/docs/estado.md	2026-10-27 10:53:49.616355422 +0000
+@@ -127,7 +127,9 @@
+ | X78 | — | H3-B: la adopción cero del explorador (X73) se midió en tareas de un solo objetivo; faltaba medirlo donde su ventaja (contexto fresco) existe | 🧪 2026-10-26 (pre-registrado, sin correr) | `banco/specs/h3b_swarm.md` (criterio fijado antes de correr: adopción en CADA escenario, calidad mayor y calidad/token mayor que el chat; si no gana, el explorador se borra) y `banco/probes/h3b_swarm.py` (chat vs supervisor+`EXPLORAR=1` en fable s17–s20, mismo scope HITL); `bench_fable.correr_uno(salir=True)` para leer `[tokens]` del chat | `tests/test_h3b_swarm.py` (6: `test_gana_solo_si_adopta_en_todos_y_la_calidad_sube_mas_que_el_costo`, `test_sin_adopcion_en_un_escenario_no_gana_aunque_la_calidad_suba`…) |
+ | X79 | — | H3-B corrido con LLM real (operador, 24 corridas: fable s17–s20 × 3 seeds × chat vs supervisor+`EXPLORAR=1`): `explorar` corrió **0 veces en las 12 corridas del supervisor**, incluida s17 (20 módulos, el caso de contexto pesado); calidad media 0,50 vs 1,33 del chat; calidad por Mtoken 7,77 vs 8,91. Las 3 condiciones pre-registradas ❌ | ✅ 2026-10-26 (decisión pre-registrada) | Borrados `explorador.py`, la tool `explorar`, el setting `EXPLORAR`/`MAX_PASOS_EXPLORADOR` y sus 7 tests (los 5 del archivo de tests del explorador + 2 de `test_supervisor_convergencia.py`); el kernel y `agente()` se quedan (el supervisor usa el loop; `agente()` es la primitiva para un experimento futuro). Retira lo que X60 instaló. Señal registrada: en s17 el supervisor ganó 3/3 seeds SIN delegar — el contexto fresco por tarea ayuda a escala; queda como dato para H3 | `tests/test_h3b_swarm.py::test_sin_adopcion_en_un_escenario_no_gana_aunque_la_calidad_suba`, `tests/test_kernel.py::test_un_agente_es_una_tool_con_contexto_fresco_y_el_mismo_saldo` |
+ | X80 | — | La guardia del ratchet aceptaba cualquier valor de `HUMAN_RATCHET_BYPASS_KEY` (bastaba con que existiera) y un agente la exportó para aceptar el borrado de H3-B argumentando que el operador ya había aprobado — AGENTS.md lo prohibía en prosa y no alcanzó | ✅ 2026-10-26 (decisión del operador) | La clave es un secreto: `ratchet.clave_valida` compara su sha256 con `ratchets/clave_operador.sha256` leído de la HISTORIA (HEAD y HEAD~1, no del disco), falla cerrado sin hash commiteado, y `--actualizar` también la exige; `--sembrar-clave` la pide por terminal y guarda solo el hash. AGENTS.md: el agente no la corre ni con aprobación | `tests/test_ratchet.py::test_una_bandera_cualquiera_no_es_la_clave`, `::test_el_hash_del_disco_no_vale_solo_el_commiteado`, `::test_cambiar_el_hash_junto_con_el_empeoramiento_exige_la_clave_vieja`, `::test_actualizar_sin_clave_no_acepta_el_empeoramiento` |
+-| X81 | — | H3-G: `regla_temporal` y `regla_imperativo_capacidad` son reglas de palabras clave que deciden antes del modelo; se agregaron antes del voto 2-de-2 y nadie midió si el voto ya las cubre | 🧪 2026-10-26 (pre-registrado, sin correr) | `banco/specs/h3g_reglas.md` + `banco/probes/h3g_reglas.py`: pareado (una consulta a Laya + voto por caso, dos brazos), 103 casos con etiqueta; borrado solo si cobertura ≥20 y falso directo sin reglas == con reglas. Necesita Laya: corre el operador |
++| X81 | — | H3-G: `regla_temporal` y `regla_imperativo_capacidad` son reglas de palabras clave que deciden antes del modelo; se agregaron antes del voto 2-de-2 y nadie midió si el voto ya las cubre | ❌ 2026-10-26 (corrido; inválido por diseño, X82) | `banco/specs/h3g_reglas.md` + `banco/probes/h3g_reglas.py`: pareado (una consulta a Laya + voto por caso, dos brazos), 103 casos con etiqueta; borrado solo si cobertura ≥20 y falso directo sin reglas == con reglas. Necesita Laya: corre el operador |
++| X82 | — | H3-G dio "gana" (78 disparos, 0 falsos directos en los dos brazos) pero era **inválido por diseño**: cobertura efectiva (regla dispara y Laya propuso directo) = **0**; los 3 directos propuestos eran casos sin regla. Al verificar el borrado, `bench_voto.py` mostró al voto confiando en directo en c01 (0,94) y c02 (0,76): esos casos los salva Laya sola, no el voto | ✅ 2026-10-26 (decisión del operador) | Las reglas se quedan (R7). `h3g_reglas.cobertura_efectiva` se reporta al lado del veredicto viejo, que no se retoca; el borrado queda aparcado detrás de H3-G2 (X83); lección en AGENTS.md ("medí la pieza donde decide") | `tests/test_h3g_reglas.py::test_la_cobertura_efectiva_cuenta_donde_la_regla_decide` |
++| X83 | — | H3-G2: la pregunta de H3-G medida donde las reglas deciden (Laya propuso directo): ¿el voto solo frena los falsos directos? | 🧪 2026-10-26 (pre-registrado; hoy NO gana: c01/c02) | `banco/specs/h3g2_voto_solo.md`; criterio en `bench_voto.veredicto_h3g2`: checkpoint real, 0 falsos directos del voto, directo 6/6. Gana → se aplica el borrado aparcado | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
+ | X62 | — | El meta-loop exigía un auditor al timón (contestar s/n por tmux): sin conductor no había forma de delegarle trabajo real al harness solo, y cada sesión muerta a mitad (exp/98) se perdía entera; además la regex de scope del banco no matcheaba el prompt de `edit_file` de exp/98 (`¿Aplicar? → ruta (2 hunks…)`) → cualquier conductor habría aprobado ediciones fuera de scope y de la denylist | ✅ 2026-10-25 (exp/99) | `delegar.py`: conductor que reusa el driver PTY y `decision_hitl` del banco, sin `BANCO=1` (origen `terminal`), HITL por scope declarado con rechazo CON motivo (exp/98), doble confirmación solo con prefijo explícito, muerte → `resume` (tope 2) y `THREADS_DIR` propio; regex corregida en `banco/banco.py`. e2e: tarea delegada exit 0 + drill `kill -9` → rehidrata y completa; **par #14/250** de la flywheel con `--env LAYA_MODO=shadow` (día 3/14) | `tests/test_delegar.py` (13: `test_conducir_muerto_resume_y_completa`, `test_plan_respuesta_doble_exige_prefijo_explicito`…), `test_el_scope_cubre_el_prompt_de_edit_file_de_exp98` |
+ | X66 | — | Auditoría 2026-10-26 (H1): el conductor reconstruía el pedido HITL leyendo la pantalla y aprobaba `git push` (la doble confirmación real `(1/2) (s/n):` no matcheaba), el scope comparaba rutas y comandos por prefijo de texto, `auto` salía de las raíces (`cd ..;cat`, `cd` solo, glob, `$VAR`) y por flags agrupadas (`sort -uo/x`), `edit_file` perdía CRLF y bytes no UTF-8, las escrituras pisaban permisos y el checkpoint guardaba reprs (`default=str`) | ✅ 2026-10-26 (H1) | El pedido es DATO: `utils/aprobaciones.Pedido` + `dentro_de_scope`/`por_scope`; banco y conductor pasan el scope por `HITL_SCOPE` y el chat decide en su proceso (fuera `decision_hitl`, `tipo_prompt`, `plan_respuesta`, `_cuerpo`); `policy.segmentos`/`opaco`/`irreversible` como fuente única; getopt en flags cortas; `edit_file` por bytes y estricto; `escribir_atomico` conserva modo y saltos; `shared` JSON puro | `tests/test_auditoria_2026_10_26.py` (`test_la_doble_confirmacion_real_no_se_aprueba_por_scope`, `test_auto_no_sale_de_raices`, `test_checkpoint_ida_y_vuelta_es_identidad`…), `tests/test_delegar.py::test_plan_respuesta_doble_exige_prefijo_explicito` |
+ | X61 | — | El punto de confianza del sistema mostraba diffs recortados sin declarar cuánto faltaba (exp/96: hunks aprobados sin verse) y el rechazo era 'n' mudo — el chat adivinaba el motivo y re-propuso lo mismo | ✅ 2026-10-24 (exp/98) | El prompt de edit_file declara `(N hunks, +A/−B)` del diff COMPLETO y el marcador dice cuántos caracteres quedan sin ver; `Decision(ok, motivo)` con `__bool__`: el rechazo `n <motivo>` viaja al modelo en edit_file/write_file/run_command, con casing conservado; el seam `_approve` tolera bools para siempre (getattr — los mocks existentes intactos, R2) | `test_parser_decision_motivo`, `test_edit_file_prompt_declara_diff_completo`, `test_motivo_del_rechazo_viaja_al_modelo` |
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/docs/roadmap.md b/deepseek-flow-main/docs/roadmap.md
+--- a/docs/roadmap.md	2026-10-27 10:51:58.589483599 +0000
++++ b/docs/roadmap.md	2026-10-27 10:53:49.616355422 +0000
+@@ -24,14 +24,13 @@
+ corridas; calidad 0,50 vs 1,33) y se borró. Dato que queda: en s17 (20
+ módulos) el supervisor ganó 3/3 sin delegar.
+ 
+-**Ahora — H3-G** (pre-registrado, X81, `banco/specs/h3g_reglas.md`):
+-¿el voto 2-de-2 ya cubre lo que cubren `regla_temporal` y
+-`regla_imperativo_capacidad`? Pareado, con la política real (Laya + voto),
+-sobre 103 casos etiquetados (18 humanos + 85 del árbitro); la flywheel no
+-sirve porque no guarda la pregunta. Gana el borrado solo con cero falsos
+-directos nuevos. Las skills por regex son otro experimento. Corre el
+-operador: `python3 banco/probes/h3g_reglas.py`. Después F (prompt) y E/H si
+-sobra tiempo.
++**H3-G inválido** (X82): 78 disparos, 0 donde la regla decide; las reglas
++se quedan. **H3-G2** (X83, `banco/specs/h3g2_voto_solo.md`) es el gate del
++borrado: el voto solo, con el checkpoint real, sin falsos directos y con el
++grupo directo 6/6 (`python3 banco/probes/bench_voto.py`). Hoy falla en
++c01/c02: el trabajo pendiente es el voto (`router_voto`), no las reglas.
++
++**Ahora — F** (prompt). Después E/H si sobra tiempo.
+ 
+ **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
+ "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/tests/test_bench_voto.py b/deepseek-flow-main/tests/test_bench_voto.py
+--- a/tests/test_bench_voto.py	2026-10-27 10:51:58.513481633 +0000
++++ b/tests/test_bench_voto.py	2026-10-27 10:53:49.616355422 +0000
+@@ -140,3 +140,35 @@
+ 
+     preguntas = calibrar_voto.preguntas_de_escenarios()
+     assert preguntas and all(isinstance(p, str) for p in preguntas)
++
++
++def _bench_h3g2(local):
++    casos = [{"id": "c01", "grupo": "correccion", "esperado": "herramientas", "pregunta": "debatí"}]
++    casos += [{"id": f"d0{i}", "grupo": "directo", "esperado": "directo", "pregunta": f"haiku {i}"}
++              for i in range(1, 7)]
++    return bench.medir(casos, local, lambda _p: "herramientas", regla=None)
++
++
++def test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan():
++    """H3-G2: c01 con el voto confiando en directo (lo medido el 2026-10-26)."""
++    filas = _bench_h3g2(lambda _p: ("directo", 0.94, True, "conf 0.94"))
++    v = bench.veredicto_h3g2(filas, voto_local_disponible=True)
++    assert v["condiciones"]["seguridad"] is False and v["gana"] is False
++    assert v["falsos_directos_voto"] == ["c01"] and "se quedan" in v["decision"]
++
++
++def test_h3g2_el_voto_no_gana_diciendo_siempre_herramientas():
++    filas = _bench_h3g2(lambda _p: ("herramientas", 0.99, True, "conf 0.99"))
++    v = bench.veredicto_h3g2(filas, voto_local_disponible=True)
++    assert v["condiciones"]["seguridad"] is True and v["condiciones"]["ahorro"] is False
++    assert v["gana"] is False
++
++
++def test_h3g2_gana_solo_con_el_checkpoint_real():
++    def voto(p):
++        return ("herramientas" if p == "debatí" else "directo", 0.95, True, "conf 0.95")
++
++    filas = _bench_h3g2(voto)
++    assert bench.veredicto_h3g2(filas, voto_local_disponible=True)["gana"] is True
++    sin_checkpoint = bench.veredicto_h3g2(filas, voto_local_disponible=False)
++    assert sin_checkpoint["condiciones"]["checkpoint"] is False and sin_checkpoint["gana"] is False
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/tests/test_h3g_reglas.py b/deepseek-flow-main/tests/test_h3g_reglas.py
+--- a/tests/test_h3g_reglas.py	2026-10-27 10:51:58.589483599 +0000
++++ b/tests/test_h3g_reglas.py	2026-10-27 10:53:49.616355422 +0000
+@@ -98,3 +98,15 @@
+                           router=lambda p: "directo", voto=lambda p: ("directo", True))]
+     texto = h.resumen(filas)
+     assert "banco/specs/h3g_reglas.md" in texto and "último mundial" in texto and "NO GANA" in texto
++
++
++def test_la_cobertura_efectiva_cuenta_donde_la_regla_decide():
++    """X82: 25 disparos con Laya ya en herramientas son cobertura 25 para el
++    criterio viejo y 0 efectiva; el resumen lo dice al lado del veredicto."""
++    h = _h3g()
++    filas = [h.medir_caso(_caso(f"leé el archivo {i}.py", "herramientas"),
++                          router=lambda p: "herramientas", voto=lambda p: (None, False)) for i in range(25)]
++    assert h.veredicto(filas)["gana"] is True  # el criterio viejo, intacto
++    assert h.cobertura_efectiva(filas) == 0
++    texto = h.resumen(filas)
++    assert "cobertura efectiva" in texto and "no autoriza el borrado" in texto

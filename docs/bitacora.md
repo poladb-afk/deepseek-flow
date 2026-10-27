@@ -4676,3 +4676,38 @@ cobertura ≥20 y falso directo sin reglas == con reglas. Las skills por regex
 quedan fuera (otro experimento).
 
 **Estado**: sin correr. Necesita Laya (no está en el sandbox del agente).
+
+## H3-G — resultado: inválido por diseño; las reglas se quedan (2026-10-26)
+
+**Corrida** (operador, Laya local, 103 casos): "gana" según el criterio
+(78 disparos ≥ 20; 0 falsos directos con y sin reglas). **Al verificar el
+borrado** antes de commitearlo, `bench_voto.py` con el voto real dio falsos
+directos en c01 (conf 0,94) y c02 (0,76). La condición de freno se cumplió y
+el borrado se revirtió.
+
+**Por qué no hay contradicción**: en la corrida de H3-G, Laya propuso
+herramientas en c01 y c02, así que el voto ni se consultó. El desglose del
+JSONL: regla dispara 78; **regla dispara y Laya propuso directo: 0**; directos
+propuestos 3 (todos sin regla, los 3 confirmados por el voto). Las reglas
+nunca estuvieron en posición de decidir. El error es del diseño: la cobertura
+contaba disparos, no la ventana donde la regla cambia la ruta, y la seguridad
+suponía que el voto respaldaba a Laya ahí. No lo hace.
+
+**Decisión** (X82): las reglas se quedan (R7). No es mover el arco: la
+evidencia nueva invalida la premisa y la decisión va al lado conservador. El
+criterio viejo no se retoca; el resumen de `h3g_reglas.py` reporta la
+cobertura efectiva al lado. El patch de borrado queda aparcado.
+
+**H3-G2** (X83, pre-registrado): la misma pregunta medida donde las reglas
+deciden. `bench_voto.py` corre el voto en cada caso como si Laya hubiera
+propuesto directo; las reglas se borran si, con el checkpoint real, el voto da
+0 falsos directos y mantiene el grupo directo en 6/6. Hoy no gana (c01, c02):
+el trabajo es el voto, no las reglas.
+
+**Lección** (AGENTS.md): medí la pieza donde decide. Es la segunda vez
+después de X72 (el explorador en un flujo que no lo podía llamar).
+
+**Dos afirmaciones mías que eran falsas**, para que no queden sueltas: "sin
+las reglas, c01/c02 dependen del voto" (dependen de Laya), y el test del
+borrado que simulaba un voto que dice herramientas en esos casos (probaba un
+supuesto falso; se fue con el revert).

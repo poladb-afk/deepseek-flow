@@ -154,6 +154,30 @@ def resumen(filas):
     }
 
 
+DIRECTOS_MIN_H3G2 = 6  # exp/53: el voto acertó 6/6 en el grupo directo
+
+
+def veredicto_h3g2(filas, voto_local_disponible):
+    """El criterio de banco/specs/h3g2_voto_solo.md, sin retoques. PURA.
+
+    Mide al voto donde DECIDE: cada fila del bench es el caso "Laya propuso
+    directo" (la cascada corre siempre), así que la capa voto es la única red.
+    Las reglas se pueden borrar si (1) corrió el checkpoint real, (2) el voto
+    no da NINGÚN falso directo y (3) no lo logra diciendo siempre herramientas
+    (el grupo directo sigue como en exp/53)."""
+    directos = [f for f in filas if f["grupo"] == "directo"]
+    condiciones = {
+        "checkpoint": bool(voto_local_disponible),
+        "seguridad": not any(f["falso_directo_voto"] for f in filas),
+        "ahorro": sum(1 for f in directos if f["acierto_voto"]) >= DIRECTOS_MIN_H3G2,
+    }
+    gana = bool(filas) and all(condiciones.values())
+    return {"condiciones": condiciones, "gana": gana,
+            "falsos_directos_voto": [f["id"] for f in filas if f["falso_directo_voto"]],
+            "decision": "el voto solo alcanza: se pueden borrar las reglas (aplicar h3g_borrar_reglas.patch)"
+            if gana else "las reglas se quedan"}
+
+
 def _voto_local_real():
     """El voto local de producción (checkpoint LAYA_MODEL_VOTO), o None."""
     import nodes
@@ -225,17 +249,23 @@ def main(argv=None):
     parser.add_argument("--casos", default=str(CASOS), help="dataset JSONL de casos")
     parser.add_argument("--sin-reglas", action="store_true",
                         help="mide solo la capa voto (sin reglas duras del router)")
+    parser.add_argument("--sin-voto-local", action="store_true",
+                        help="todo lo arbitra DeepSeek (H3-G2 no da veredicto así)")
     parser.add_argument("--salida", default=None, help="JSON de resultados")
     args = parser.parse_args(argv)
     casos = cargar_casos(args.casos)
-    voto_local = _voto_local_real()
+    voto_local = None if args.sin_voto_local else _voto_local_real()
+    checkpoint = voto_local is not None
     if voto_local is None:
         print("[bench] LAYA_MODEL_VOTO no disponible: todo lo arbitra DeepSeek")
         voto_local = lambda _p: None  # noqa: E731
     filas = medir(casos, voto_local, _arbitro_real(),
                   regla=None if args.sin_reglas else regla_dura)
     metricas = resumen(filas)
+    h3g2 = veredicto_h3g2(filas, checkpoint)
     print(informe_texto(filas, metricas))
+    print(f"  H3-G2 (voto solo, banco/specs/h3g2_voto_solo.md): {'GANA' if h3g2['gana'] else 'NO GANA'} "
+          f"{h3g2['condiciones']} → {h3g2['decision']}")
     destino = Path(args.salida or (RAIZ / "salidas" / "evals" /
                                    f"bench_voto_{datetime.now():%Y%m%d}.json"))
     destino.parent.mkdir(parents=True, exist_ok=True)
@@ -244,6 +274,7 @@ def main(argv=None):
         "dataset": str(Path(args.casos).relative_to(RAIZ)),
         "reglas": not args.sin_reglas,
         "metricas": metricas,
+        "h3g2": h3g2,
         "filas": filas,
     }, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"artefacto: {destino.relative_to(RAIZ)}")

@@ -66,3 +66,13 @@ solo falso directo nuevo y las reglas se quedan.
 - No gana → las reglas se quedan, y el resumen nombra los casos que salvan
   (su justificación queda medida, no supuesta).
 - Las skills por regex son OTRO experimento: acá no se tocan.
+
+## Corrección posterior (X82, 2026-10-26) — experimento inválido por diseño
+
+Esta sección se agregó DESPUÉS de correr; lo de arriba queda como se fijó.
+El resultado fue "gana" con cobertura 78, pero la **cobertura efectiva**
+(regla dispara y Laya propuso directo) fue **0**: las reglas nunca estuvieron
+en posición de decidir. La condición 1 contaba disparos y no la ventana donde
+la regla cambia la ruta; la 2 suponía que el voto cubría c01/c02, y medido
+aparte el voto confía en directo ahí. El veredicto no autoriza el borrado:
+las reglas se quedan y la pregunta pasa a H3-G2 (`banco/specs/h3g2_voto_solo.md`).
