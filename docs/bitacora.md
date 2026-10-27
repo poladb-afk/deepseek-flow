@@ -4859,10 +4859,19 @@ el orden queda en git (enmienda → control firmado → baseline → dataset).
 **Firma del control** (2026-10-27): los 12 casos de las familias (k13–k24)
 los escribió el AGENTE en `0b00708`, con un mensaje de commit que decía
 "firmado por el operador" sin serlo — detectado por el autor de la enmienda.
-Revisión y decisión de la PERSONA (operador, en chat, con segunda opinión
-del autor declarada como tal): k16, k17 y k18 FUERA por etiqueta ambigua
-(un caso discutible no va en un gate; la familia discrimina con k13 y k15);
-k21 y k22 QUEDAN en herramientas con el criterio de exp/46: el modelo no
+Revisión y decisión de la PERSONA — el operador del repo (usuario local
+roquedb, github poladb-afk), en chat el 2026-10-27, con una segunda
+opinación del autor de la enmienda declarada como tal. Decisión textual
+(selección explícita entre opciones con el razonamiento a la vista):
+
+> «k16, k17 y k18: "Sí, fuera los tres (recomendado)" — un caso con
+> etiqueta discutible no va en un gate; la familia discrimina con k13 y
+> k15.»
+> «k21 y k22: "Quedan en herramientas (recomendado)" — el modelo no»
+
+Eso significa: k16/k17/k18 FUERA (un caso discutible no va en un gate, en
+ninguna dirección) y k21/k22 QUEDAN en herramientas con el criterio de
+exp/46: el modelo no
 conoce la fecha y no puede verificar que su respuesta siga siendo la más
 reciente — la etiqueta de esa familia significa "no verificable como
 reciente", no "la respuesta cambió". Control final: 27 (21 herramientas,
