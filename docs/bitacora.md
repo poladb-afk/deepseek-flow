@@ -4913,3 +4913,45 @@ TEXTOS siguen congelados (sha 2947b449 verificado tras los relabels).
 Balance final: 132 herramientas / 168 directo; deliberación-lado-
 herramientas: 72 (68 imperativos + 6 corteses rechazados por la regla del
 «¿» y recuperados por el criterio).
+
+**Paso 5 del orden corregido — r2 recuperado y combinado** (2026-10-27):
+bmo no está accesible de ningún lado (el autor trabaja en un sandbox aislado
+sin internet; localmente no existe), pero los datos de r2 viven en Kaggle:
+dataset privado `roquedb/flow-router-voto`. Lo descargó la PERSONA con su
+sesión de kaggle.com (la CLI no puede: token OAuth vencido y el dataset es
+privado) — notebook `router-voto.ipynb` primero, después el zip del dataset.
+Evidencia en `docs/informes/flow-router-voto/` (LEEME, task yaml, contexts,
+test held-out de 30, `data/router_voto_verified.jsonl`) y en
+`docs/informes/router-voto.ipynb` (el kernel T4 que entrenó r2: layaft
+0.1.2 sobre `bmo-laya-base`, 558 casos → 446/55/57, test 27/30). Registro
+honesto: el LEEME dice «288 verificados» (quedó de la v1 del dataset); el
+archivo es la versión de 558 con la que se entrenó el checkpoint — casa con
+el `results.json` del checkpoint y con el notebook.
+
+Contrato verificado: el `questions.confirma_herramientas` del yaml del
+paquete coincide BYTE A BYTE con `PREGUNTA_VOTO` de producción
+(instructions y criteria; sha1 `df1d1ade…`, el congelado de
+`test_pregunta_voto_congelada_sha1`). El reentreno no cambia la pregunta.
+
+Combinado — `banco/probes/voto_combinar.py` (la puerta revisable del paso;
+reglas de la auditoría del autor, fijadas antes de correr):
+
+- r2 entra byte a byte: **558 casos, 0 fugas** contra bench + control (el
+  riesgo declarado de c01/c02 por ser de la misma semana no se materializó;
+  ningún caso salió, el umbral quedó 0,6);
+- los 300 congelados entran convertidos al formato bmo (`fields.pregunta` =
+  texto intacto; etiqueta final = `relabel` si la hay, si no `veredicto_juez`;
+  context = `default_context` del yaml, el marco neutro con el que se
+  juzgaron; model = deepseek-flash, el mismo que anota r2);
+- anti-fuga sobre el COMBINADO: **0 fugas**;
+- congelado adentro verificado ANTES y DESPUÉS: 300 textos,
+  sha `2947b4490fc49d542df88166c11e7e82ee9195c54cb25516faba1a67b8cbccfa`;
+- `salidas/evals/voto_entrenamiento.jsonl`: **858 filas** (558 r2 + 300),
+  388 herramientas / 470 directo;
+- sha256 del archivo de entrenamiento (quedó fuera de git por diseño, esta
+  bitácora lo fija): `4037fe4f246a71ea7c223bf854d20e711e684e5843d152165be64b71989e93aa`.
+
+Paso 6 (declarado): fine-tune del lado de Kaggle con la receta del notebook
+(layaft sobre `bmo-laya-base`, el dataset de arriba como `data=`), y el gate
+con las seis condiciones:
+`LAYA_MODEL_VOTO=<nuevo> python3 banco/probes/bench_voto.py --entrenamiento salidas/evals/voto_entrenamiento.jsonl`.

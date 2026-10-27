@@ -1,0 +1,80 @@
+name: router_voto
+fields:
+  pregunta:
+    single_line: true
+    min_words: 2
+state:
+  pregunta: '{pregunta}'
+questions:
+  confirma_herramientas:
+    type: choice
+    instructions: Second opinion before answering directly — does this request truly require running tools (reading or searching files, web, or executing a capability) — action imperatives almost always do — or is it answerable from knowledge alone?
+    options:
+      herramientas:
+        criteria: needs local files, web data, or running a capability; imperatives of action included
+        signals: 'the request asks the agent to RUN work (debate, research, generate,
+          measure, audit, analyze, compare), or the answer depends on this machine''s
+          files, on data newer than training, or on exact computation'
+      directo:
+        criteria: pure knowledge, conversation or creativity; nothing to run or look up
+        signals: encyclopedic knowledge, explanations, opinions, chat, creative
+          writing; even polite imperatives that no tool would serve better
+generation:
+  text_field: pregunta
+  contexts: contexts_router.txt
+  prompt: 'Write {n} distinct cases. Context: {context}
+
+
+    Each case is one user message to a terminal AI assistant (single line,
+    Spanish or English, like real chat traffic). These cases train a SECOND
+    OPINION check that double-checks a first router, so they must concentrate
+    on the boundary where a first router would guess wrong.
+
+
+    A careful reader must reach these answers from the message alone:
+
+
+    {answers}
+
+
+    Rules:
+
+    - HEAVILY favor the confusion classes: action imperatives that read
+    conversational ("debatí si X", "investigá el estado de Y", "generá el
+    informe", "medí el dataset", "podés auditar A vs B?", "could you research
+    Z") — they are tools even without please/thanks; and knowledge questions
+    dressed as commands ("explicá los closures", "contame un chiste",
+    "escribime un haiku sobre el mar", "draft a short email") — they are
+    direct because no tool serves them better.
+
+    - Current facts (news, prices, scores, versions, weather, anything
+    "latest") are tools, never direct.
+
+    - Messages about this machine''s files, folders or the project at hand
+    are tools; generic questions that only NAME a file or library are direct.
+
+    - Exact computation asked for is tools; conceptual math explanations are
+    direct.
+
+    - Include trampas: imperative-sounding but pure chat, and chat-sounding
+    but requiring a capability; bare and polite variants; Spanish voseo and
+    English.
+
+    - MIND THE DIRECTION OF THE TRAP: an imperative verb alone does NOT make
+    it tools. "explicá los closures", "contá un chiste", "escribime un
+    haiku", "redactá una nota corta", "explicame X con un ejemplo" are
+    DIRECT — no tool serves them better. It is herramientas only when the
+    verb demands WORK OVER DATA or a CAPABILITY with inputs and outputs
+    (debate a question in rounds, research a topic on the web, generate
+    THE report from these files, measure THE dataset, audit folder A vs
+    B). When unsure, the message is not defensible: rewrite it sharper.
+
+    - Vary length, register and language. Keep each message under 800
+    characters. Never state the answer or use "tools"/"direct" in it.
+
+    - Fields of each case: {fields}.{choices}
+
+    - Situations different from these, which already exist: {seen}.'
+  default_context: a terminal chat where an AI assistant can read local files, search the web and run pipelines
+data:
+  test: router_voto_test.jsonl

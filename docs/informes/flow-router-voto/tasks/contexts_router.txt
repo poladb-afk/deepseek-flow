@@ -1,0 +1,12 @@
+a terminal chat over a Python repo; the assistant can list, read and search files
+a user exploring folders of traces and reports (.jsonl, .md) left by AI pipelines
+a chat about cooking, travel plans and everyday life
+a user asking about today's news, football scores and market prices
+a developer maintaining a small server: logs, configs, failing services
+a user drafting emails, summaries and short texts with the assistant
+a chat mixing small math favors: bills, tips, unit conversions, percentages
+a late-night conversation about history, philosophy and books
+an analyst asking about counts and distributions inside local data files
+a learner asking how languages and frameworks work (syntax, idioms, patterns)
+a user asking about the weather now, the agenda this week, the traffic today
+a writer brainstorming titles, names and story ideas with the assistant
