@@ -1,0 +1,18 @@
+{"id": "k01", "grupo": "correccion", "esperado": "herramientas", "pregunta": "compará utils/policy.py y modules/coding.py en cómo tratan los flags agrupados y decime si difieren"}
+{"id": "k02", "grupo": "correccion", "esperado": "herramientas", "pregunta": "auditá el manejo de errores de utils/historial.py y señalá algo mejorable con cita"}
+{"id": "k03", "grupo": "correccion", "esperado": "herramientas", "pregunta": "probá si el ratchet detecta helpers duplicados en tests/ y contame qué encuentra"}
+{"id": "k04", "grupo": "correccion", "esperado": "herramientas", "pregunta": "medí cuántas líneas tiene hoy docs/bitacora.md y decime el número exacto"}
+{"id": "k05", "grupo": "correccion", "esperado": "herramientas", "pregunta": "revisá qué tests cubren el resume de threads y pasame la lista"}
+{"id": "k06", "grupo": "correccion", "esperado": "herramientas", "pregunta": "listá los módulos que definen tools del chat y decime cuántos hay"}
+{"id": "k07", "grupo": "correccion", "esperado": "herramientas", "pregunta": "¿qué cambió en este repo en los últimos tres días? resumilo"}
+{"id": "k08", "grupo": "correccion", "esperado": "herramientas", "pregunta": "¿cuál es el precio actual del dólar oficial en Argentina?"}
+{"id": "k09", "grupo": "correccion", "esperado": "herramientas", "pregunta": "¿qué noticias importantes salieron esta semana sobre modelos de lenguaje locales?"}
+{"id": "k10", "grupo": "correccion", "esperado": "herramientas", "pregunta": "¿cuál es la última versión estable publicada de Python hasta hoy?"}
+{"id": "k11", "grupo": "correccion", "esperado": "herramientas", "pregunta": "¿qué temperatura va a hacer mañana en Buenos Aires?"}
+{"id": "k12", "grupo": "correccion", "esperado": "herramientas", "pregunta": "clasificá los escenarios del banco según midan tarea hecha o solo fin de turno"}
+{"id": "t01", "grupo": "directo", "esperado": "directo", "pregunta": "explicame qué es la recursión con una analogía, sin código"}
+{"id": "t02", "grupo": "directo", "esperado": "directo", "pregunta": "¿qué es una condición de carrera en programación? definila en dos frases"}
+{"id": "t03", "grupo": "directo", "esperado": "directo", "pregunta": "¿quién escribió Cien años de soledad?"}
+{"id": "t04", "grupo": "directo", "esperado": "directo", "pregunta": "definí qué es un endpoint idempotente"}
+{"id": "t05", "grupo": "directo", "esperado": "directo", "pregunta": "explicá la diferencia entre HTTP GET y POST"}
+{"id": "t06", "grupo": "directo", "esperado": "directo", "pregunta": "pasame tres ideas de nombres para una variable que guarda un conteo"}
