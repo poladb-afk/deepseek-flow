@@ -1,0 +1,13 @@
+{
+ "control_sha256": "39ea30cba28a9db59a67e56b8283487ebdda113ec3a8b229fdec2f67bc09333e",
+ "checkpoint": ".modelos/router_voto",
+ "n": 30,
+ "falsos_directos": [
+  "k13",
+  "k15",
+  "k19",
+  "k21",
+  "k22"
+ ],
+ "trampas_mal": []
+}
