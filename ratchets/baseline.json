@@ -4,6 +4,14 @@
       "detalle": [],
       "metrica": 0
     },
+    "core_importa_modulos": {
+      "detalle": {
+        "main.py:catalogo_memoria": 1,
+        "main.py:resumen_de_sesion": 1,
+        "nodes.py:_respaldar_zona_fria": 1
+      },
+      "metrica": 3
+    },
     "cuerpos_duplicados": {
       "detalle": {},
       "metrica": 0
@@ -138,6 +146,413 @@
       },
       "metrica": 10
     },
+    "imports_perezosos": {
+      "detalle": {
+        "bench_juez.py:correr": 1,
+        "evals.py:correr_bench": 4,
+        "fable_judge.py:_ejecutar_por_policy": 1,
+        "flow.py:create_agent_flow": 1,
+        "heartbeat.py:correr": 2,
+        "heartbeat.py:guardar_estado": 1,
+        "heartbeat.py:main": 1,
+        "juez.py:_inventario_tools": 1,
+        "main.py:_preguntas_reales": 3,
+        "main.py:_reporte_tokens": 2,
+        "main.py:aviso_delegadas_al_cerrar": 1,
+        "main.py:catalogo_memoria": 2,
+        "main.py:estado_delegadas": 1,
+        "main.py:main": 1,
+        "main.py:resumen_de_sesion": 3,
+        "main.py:system_prompt": 1,
+        "mcp_server.py:envolver": 3,
+        "mcp_server.py:main": 1,
+        "modules/auditoria.py:run_auditoria": 1,
+        "modules/coding.py:_registrar_hooks": 1,
+        "modules/coding.py:_sale_de_raices": 2,
+        "modules/coding.py:_vetar_comando_prohibido": 1,
+        "modules/effective_n.py:run_effective_n": 1,
+        "modules/fable.py:verificar_trabajo": 1,
+        "modules/humano.py:request_human_input": 1,
+        "modules/memoria.py:_prefiltrar": 1,
+        "modules/memoria.py:guardar_resumen_sesion": 1,
+        "modules/rag.py:_prefiltrar": 2,
+        "modules/supervisor.py:run_supervisor": 2,
+        "modules/vision.py:ver_pdf": 1,
+        "nodes.py:AgentStep": 3,
+        "nodes.py:GetQuestion": 4,
+        "nodes.py:LayaRouter": 6,
+        "nodes.py:PreFetch": 3,
+        "nodes.py:VerificarCitas": 1,
+        "nodes.py:_ahora": 1,
+        "nodes.py:_recortar_si_sigue_sobre_el_tope": 1,
+        "nodes.py:_respaldar_zona_fria": 2,
+        "nodes.py:alcance_amplio": 1,
+        "nodes.py:registrar_pregunta": 1,
+        "nodes.py:voto_confirmacion_router": 4,
+        "rag.py:EmbedChunks": 1,
+        "rag.py:buscar": 1,
+        "rag.py:indexar": 1,
+        "ratchet.py:sembrar_clave": 1,
+        "ratchet.py:sha256": 1,
+        "replay.py:_grafo_debate": 1,
+        "replay.py:_grafo_rag": 1,
+        "replay.py:_grafos_vivos": 3,
+        "replay.py:_herramientas_vivas": 1,
+        "replay.py:replay_runs": 1,
+        "resume.py:main": 1,
+        "resume.py:migrar": 1,
+        "sonda_laya.py:correr": 1,
+        "sonda_laya.py:ece": 1,
+        "sonda_router.py:correr": 1,
+        "sonda_router.py:main": 2,
+        "sonda_supervisor.py:correr": 3,
+        "sonda_supervisor.py:main": 3,
+        "supervisor.py:system_prompt": 1,
+        "utils/aprobaciones.py:pedir_aprobacion": 2,
+        "utils/aprobaciones.py:registrar": 1,
+        "utils/call_llm.py:_contabilizar": 1,
+        "utils/contexto.py:_puntuar": 1,
+        "utils/embeddings.py:get_modelo": 1,
+        "utils/estado_sesion.py:capturar": 1,
+        "utils/estado_sesion.py:restaurar": 1,
+        "utils/hitl_web.py:_Handler": 4,
+        "utils/kernel.py:agente": 1,
+        "utils/laya.py:_cargar_checkpoint": 1,
+        "utils/laya_routing.py:_umbral": 1,
+        "utils/laya_routing.py:config_router": 2,
+        "utils/laya_routing.py:config_voto": 2,
+        "utils/laya_routing.py:decide_voto": 1,
+        "utils/laya_routing.py:registrar_decision": 2,
+        "utils/laya_routing.py:registrar_resultado": 1,
+        "utils/laya_routing.py:version_laya": 1,
+        "utils/mcp_client.py:_listar": 2,
+        "utils/mcp_client.py:_llamar": 2,
+        "utils/prefetch.py:decidir": 1,
+        "utils/riesgo.py:juzgar": 1,
+        "utils/skills.py:cargar_skills": 1,
+        "utils/thread_store.py:checkpoint": 1,
+        "utils/thread_store.py:valido": 1,
+        "utils/tracing.py:activar": 1,
+        "utils/webchat.py:_max_sesiones": 1,
+        "utils/webchat.py:_ttl": 1,
+        "utils/webchat.py:habilitado": 1,
+        "utils/websearch.py:search_web": 1,
+        "visor.py:vigilar": 1
+      },
+      "metrica": 137
+    },
+    "nodos_largos": {
+      "detalle": {
+        "effective_n.py:EffectiveNMulti": 66,
+        "effective_n.py:HashFile": 65,
+        "effective_n.py:WriteReport": 140,
+        "fable_judge.py:CazarFraudes": 41,
+        "fable_judge.py:RecolectarClaims": 60,
+        "informe.py:WriteReport": 55,
+        "juez.py:Judge": 144,
+        "juez_lote.py:CorrerJuez": 51,
+        "juez_lote.py:JuezLoteFlow": 108,
+        "nodes.py:AgentStep": 125,
+        "nodes.py:ExecuteTools": 59,
+        "nodes.py:GetQuestion": 56,
+        "nodes.py:LayaRouter": 153,
+        "nodes.py:VerificarCitas": 53,
+        "research.py:Synthesizer": 60
+      },
+      "metrica": 15
+    },
+    "producto_conoce_lab": {
+      "detalle": {
+        "delegar.py:<módulo>": 1,
+        "delegar.py:env_delegar": 2,
+        "fable_judge.py:_es_ground_truth": 1,
+        "nodes.py:PERFILES_PRESUPUESTO": 1,
+        "nodes.py:_lineas_de": 1,
+        "utils/fable_dominios.py:DOMINIOS_DIR": 1,
+        "utils/riesgo.py:origen": 2,
+        "utils/riesgo.py:origen_etiqueta": 1
+      },
+      "metrica": 10
+    },
+    "settings_leidos": {
+      "detalle": {
+        "A2A_AGENTS": [
+          "modules/a2a.py"
+        ],
+        "AGENT_ALLOWED_DIRS": [
+          "utils/fs_tools.py"
+        ],
+        "BANCO": [
+          "utils/riesgo.py"
+        ],
+        "BMO_TASKS_DIR": [
+          "utils/rutas.py"
+        ],
+        "CHAT_STREAM": [
+          "nodes.py"
+        ],
+        "CHAT_STREAM_INTERRUPT": [
+          "utils/call_llm.py"
+        ],
+        "CITAS_VERIFICAR": [
+          "nodes.py"
+        ],
+        "COLOR": [
+          "utils/terminal.py"
+        ],
+        "COMPACTION_CHARS": [
+          "nodes.py"
+        ],
+        "CORTE_NOVEDAD": [
+          "nodes.py"
+        ],
+        "CORTE_NOVEDAD_MIN": [
+          "nodes.py"
+        ],
+        "DB_PATH": [
+          "modules/db.py"
+        ],
+        "DEEPSEEK_API_KEY": [
+          "utils/call_llm.py"
+        ],
+        "DELEGADO": [
+          "utils/riesgo.py"
+        ],
+        "HITL_AUTO": [
+          "modules/coding.py"
+        ],
+        "HITL_SCOPE": [
+          "utils/aprobaciones.py"
+        ],
+        "HITL_WEB": [
+          "utils/aprobaciones.py",
+          "utils/riesgo.py"
+        ],
+        "HITL_WEB_PORT": [
+          "utils/hitl_web.py"
+        ],
+        "HITL_WEB_TIMEOUT": [
+          "utils/hitl_web.py"
+        ],
+        "HUMANO_RESPUESTA": [
+          "modules/humano.py"
+        ],
+        "INFORME_CARPETA": [
+          "informe.py"
+        ],
+        "JUEZ_LOTE_CONCURRENCIA": [
+          "juez_lote.py"
+        ],
+        "LAYA_ALPHA": [
+          "utils/laya_routing.py"
+        ],
+        "LAYA_ALPHA_VOTO": [
+          "utils/laya_routing.py"
+        ],
+        "LAYA_BATCH_SIZE": [
+          "utils/laya.py"
+        ],
+        "LAYA_CALIBRACION_ROUTER": [
+          "utils/laya_routing.py"
+        ],
+        "LAYA_CALIBRACION_VOTO": [
+          "utils/laya_routing.py"
+        ],
+        "LAYA_ERROR_COOLDOWN": [
+          "utils/laya.py"
+        ],
+        "LAYA_LOG_ARCHIVO": [
+          "utils/laya_routing.py"
+        ],
+        "LAYA_LOG_DECISIONES": [
+          "nodes.py",
+          "utils/laya_routing.py"
+        ],
+        "LAYA_LOG_PREGUNTA": [
+          "utils/laya_routing.py"
+        ],
+        "LAYA_MAX_EN_PROCESO": [
+          "utils/laya.py"
+        ],
+        "LAYA_MODEL": [
+          "utils/laya.py"
+        ],
+        "LAYA_MODEL_PREFILTRO": [
+          "modules/memoria.py"
+        ],
+        "LAYA_MODEL_RIESGO": [
+          "utils/riesgo.py"
+        ],
+        "LAYA_MODEL_SUPERVISOR": [
+          "sonda_supervisor.py"
+        ],
+        "LAYA_MODEL_VOTO": [
+          "nodes.py"
+        ],
+        "LAYA_MODO": [
+          "utils/laya_routing.py"
+        ],
+        "LAYA_UNSURE_HIGH": [
+          "utils/laya.py",
+          "utils/laya_routing.py"
+        ],
+        "LAYA_UNSURE_HIGH_SUPERVISOR": [
+          "sonda_supervisor.py"
+        ],
+        "LAYA_UNSURE_HIGH_VOTO": [
+          "utils/laya_routing.py"
+        ],
+        "LAYA_UNSURE_LOW": [
+          "utils/laya.py"
+        ],
+        "LEER_BMO_ENV": [
+          "utils/call_llm.py"
+        ],
+        "LLM_API_KEY": [
+          "utils/call_llm.py"
+        ],
+        "LLM_BASE_URL": [
+          "modules/vision.py",
+          "utils/call_llm.py"
+        ],
+        "LLM_MODEL": [
+          "modules/vision.py",
+          "utils/call_llm.py"
+        ],
+        "MAPA_CONCURRENCIA": [
+          "informe.py"
+        ],
+        "MAX_TOOL_ROUNDS": [
+          "utils/fs_tools.py"
+        ],
+        "MAX_TOOL_ROUNDS_AMPLIO": [
+          "nodes.py"
+        ],
+        "MAX_TOOL_ROUNDS_APLICACION": [
+          "nodes.py"
+        ],
+        "MAX_TOOL_ROUNDS_BANCO": [
+          "nodes.py"
+        ],
+        "MAX_TOOL_ROUNDS_CONSULTA": [
+          "nodes.py"
+        ],
+        "MCP_EXPOSE": [
+          "mcp_server.py"
+        ],
+        "MCP_SERVERS": [
+          "utils/mcp_client.py"
+        ],
+        "MEMORIA": [
+          "main.py",
+          "nodes.py"
+        ],
+        "MEMORIA_DIR": [
+          "modules/memoria.py"
+        ],
+        "MEMORIA_PREFILTRO": [
+          "modules/memoria.py"
+        ],
+        "MEMORIA_PREFILTRO_N": [
+          "modules/memoria.py"
+        ],
+        "NO_COLOR": [
+          "utils/terminal.py"
+        ],
+        "PRECIO_TOKENS": [
+          "main.py"
+        ],
+        "PREFETCH": [
+          "utils/prefetch.py"
+        ],
+        "PREFETCH_MAX_ARCHIVOS": [
+          "utils/prefetch.py"
+        ],
+        "PREFETCH_MAX_LINEAS": [
+          "utils/prefetch.py"
+        ],
+        "PREGUNTAS_ARCHIVO": [
+          "nodes.py"
+        ],
+        "PREGUNTAS_LOG": [
+          "nodes.py"
+        ],
+        "PROMPT_AUDITORIA": [
+          "main.py"
+        ],
+        "PROMPT_FABLE": [
+          "main.py"
+        ],
+        "PROMPT_FORMA": [
+          "main.py"
+        ],
+        "RAG_PREFILTRO": [
+          "modules/rag.py"
+        ],
+        "RAG_PREFILTRO_N": [
+          "modules/rag.py"
+        ],
+        "READ_MAX_CHARS": [
+          "utils/fs_tools.py"
+        ],
+        "RIESGO_ARCHIVO": [
+          "utils/riesgo.py"
+        ],
+        "RIESGO_LOG": [
+          "utils/riesgo.py"
+        ],
+        "SEARCH_PROVIDER": [
+          "utils/websearch.py"
+        ],
+        "SKILLS": [
+          "nodes.py"
+        ],
+        "SONDA_LAYA_CKPT": [
+          "sonda_laya.py"
+        ],
+        "THREADS_DIR": [
+          "utils/thread_store.py"
+        ],
+        "THREAD_PERSIST": [
+          "utils/thread_store.py"
+        ],
+        "TRACE": [
+          "utils/tracing.py"
+        ],
+        "UMBRAL_SIN_PROGRESO": [
+          "nodes.py"
+        ],
+        "USE_LAYA_ROUTER": [
+          "flow.py",
+          "replay.py"
+        ],
+        "USE_VOTACION": [
+          "nodes.py"
+        ],
+        "WEBCHAT": [
+          "utils/webchat.py"
+        ],
+        "WEBCHAT_MAX_SESIONES": [
+          "utils/webchat.py"
+        ],
+        "WEBCHAT_TTL": [
+          "utils/webchat.py"
+        ],
+        "WEBHOOK_LOG": [
+          "utils/hitl_web.py"
+        ],
+        "WEBHOOK_MAX_BYTES": [
+          "utils/hitl_web.py"
+        ],
+        "WEBHOOK_MAX_POR_MINUTO": [
+          "utils/hitl_web.py"
+        ],
+        "WEBHOOK_TOKEN": [
+          "utils/hitl_web.py"
+        ]
+      },
+      "metrica": 89
+    },
     "tests_definidos": {
       "detalle": {
         "tests/test_ab_skills.py": 9,
@@ -171,6 +586,7 @@
         "tests/test_flujos.py": 34,
         "tests/test_forma_larga.py": 5,
         "tests/test_fs_tools.py": 16,
+        "tests/test_grafo_readme.py": 1,
         "tests/test_grafos_sin_calles_muertas.py": 4,
         "tests/test_h3b_swarm.py": 6,
         "tests/test_h3g_reglas.py": 8,
@@ -193,6 +609,7 @@
         "tests/test_probe_verdict.py": 1,
         "tests/test_producto_router.py": 3,
         "tests/test_ratchet.py": 35,
+        "tests/test_ratchet_elegancia.py": 15,
         "tests/test_replay.py": 16,
         "tests/test_riesgo.py": 19,
         "tests/test_rondas.py": 5,
@@ -217,7 +634,29 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1093
+      "metrica": 1109
+    },
+    "texto_de_prompt": {
+      "detalle": {
+        "DIRECTIVA_AUDITORIA": 735,
+        "DIRECTIVA_FABLE": 1208,
+        "DIRECTIVA_FORMA": 279,
+        "system_prompt": 526
+      },
+      "metrica": 2748
+    },
+    "vocabulario_hardcodeado": {
+      "detalle": {
+        "juez.py:TOOL_CONTEXTO_RE": 1,
+        "nodes.py:GetQuestion": 1,
+        "nodes.py:_PALABRAS_AMPLIAS": 1,
+        "utils/aprobaciones.py:YES": 1,
+        "utils/laya_routing.py:RE_TEMPORAL": 1,
+        "utils/laya_routing.py:_IMPERATIVOS_CAPACIDAD": 1,
+        "utils/laya_routing.py:_RELLENOS": 1,
+        "utils/laya_routing.py:_RE_OBJETO_CAPACIDAD": 1
+      },
+      "metrica": 8
     }
   },
   "version": 1

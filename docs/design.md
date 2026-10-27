@@ -1048,6 +1048,9 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   `--actualizar` es decisión del operador: exige `HUMAN_RATCHET_BYPASS_KEY`
   igual a SU clave, verificada contra el sha256 commiteado en
   `ratchets/clave_operador.sha256` (leído de HEAD y HEAD~1, no del disco).
+  Desde X91 suma siete métricas de elegancia (CORE→módulos, producto→banco,
+  vocabulario, settings, imports perezosos, nodos largos, texto del prompt):
+  definición, baseline y plan en [elegancia.md](elegancia.md).
   Antes alcanzaba con que la variable existiera y un agente la exportó (X80). **Long Method quedó medido y NO gateado** (exp/66): el
   harness tiene 2/657 funciones >100 líneas vs 3/244 de `requests`, así que el
   largo no discrimina y una métrica sería ruido; la sonda queda en

@@ -16,7 +16,8 @@ Leé, en este orden, lo que aplique:
 1. `docs/estado.md` — el tablero vivo: un hallazgo por fila (A/H/R/X) con
    estado, evidencia y el test que lo cubre. **Empezá por acá.**
 2. `docs/design.md` — lo que es verdad hoy: grafos, contratos de `shared`,
-   leyes/límites y el diseño de cada pieza.
+   leyes/límites y el diseño de cada pieza. La forma que se persigue está en
+   `docs/elegancia.md` (definición, ratchets y plan del refactor).
 3. `docs/bitacora.md` — cómo se llegó acá: cada experimento con su medición.
    Si tu cambio contradice una medición, decilo explícitamente.
 4. `docs/roadmap.md` — qué falta y en qué orden.
@@ -41,6 +42,7 @@ nombra el gate que la hace cumplir.
 | R7 | La seguridad no se relaja: HITL, contención de paths y política de comandos se tocan con tests de bypass. | `tests/test_policy_bypass.py`, `tests/test_policy.py` |
 | R8 | Los contratos congelados (dispatch, voto, prefiltro) no cambian sin regenerar su sha1 y justificarlo. | `tests/test_contratos.py` |
 | R9 | El código se escribe para humanos: mínimo que funciona, sin defensas/abstracciones/docstrings no pedidos, sin banners decorativos; los `except` amplios no crecen y la complejidad/anidación del harness tampoco (ratchet). | `tests/test_estilo_humano.py`, `ratchet.py` |
+| R10 | Elegancia: un arreglo borra un caso, no lo agrega. Sin vocabulario hardcodeado, sin el CORE importando módulos, sin el producto leyendo el banco, sin settings ni prompt que crezcan (definición en `docs/elegancia.md`). | `ratchet.py`, `tests/test_ratchet_elegancia.py` |
 
 ## Cómo trabajar (reglas blandas, todavía sin gate)
 

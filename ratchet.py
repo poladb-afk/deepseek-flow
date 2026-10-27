@@ -13,7 +13,8 @@ Por qué existe acá: las reglas blandas del repo (no bifurcar helpers, no
 perder tests) vivían solo en prosa. El contrato para agentes está en
 `AGENTS.md`; este archivo es el gate de las dos que se pueden contar.
 
-Las dos métricas, una por clase de ratchet:
+Las métricas, una por clase de ratchet (las siete de elegancia, de X91, se
+describen en `docs/elegancia.md`):
 
 - `helpers_duplicados` (**menor mejor**, ratchet de DEUDA): funciones privadas
   `_foo` de nivel superior que aparecen en 2+ archivos del harness. Un agente
@@ -486,6 +487,202 @@ def _metrica_excepts(raiz: Path) -> tuple[int, dict[str, list[int]]]:
     return sum(len(lineas) for lineas in detalle.values()), detalle
 
 
+# elegancia (fase 0 del refactor, docs/elegancia.md): lo que el refactor tiene
+# que bajar, congelado antes de tocar nada. Las claves de detalle son el ÁMBITO
+# de nivel superior (función, clase o constante), no la línea: las líneas se
+# mueven con cualquier edición y los nombres no.
+
+CORE = ("nodes.py", "flow.py", "main.py")  # más utils/: lo que no es un módulo
+LABORATORIO = {"banco", "BANCO", "DELEGADO"}
+LECTORES_SETTINGS = (
+    r'_(?:setting|entero|real|umbral)\(\s*["\']([A-Z][A-Z0-9_]+)["\']',
+    r'environ(?:\.get)?\(\s*["\']([A-Z][A-Z0-9_]+)["\']',
+    r'environ\[\s*["\']([A-Z][A-Z0-9_]+)',
+    r'setting(?:_modelo)?\s*=\s*["\']([A-Z][A-Z0-9_]+)["\']',
+    r'(?:disponible|agente)\(\s*["\']([A-Z][A-Z0-9_]+)["\']',
+)
+METODOS_DE_NODO = {"prep", "exec", "post", "exec_fallback", "prep_async", "exec_async", "post_async"}
+MAX_LINEAS_NODO = 40
+MIN_VOCABULARIO = 5
+_TILDE = re.compile(r"[áéíóúñ]")
+_PALABRA = re.compile(r"[a-záéíóúñü ]+")
+
+
+def _arboles(raiz: Path):
+    for ruta in archivos_del_harness(raiz):
+        try:
+            yield ruta, ast.parse(ruta.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            continue
+
+
+def _nombre_de(sentencia) -> str:
+    if isinstance(sentencia, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return sentencia.name
+    objetivos = getattr(sentencia, "targets", None) or [getattr(sentencia, "target", None)]
+    nombres = [o.id for o in objetivos if isinstance(o, ast.Name)]
+    return nombres[0] if nombres else "<módulo>"
+
+
+def _contar_por_ambito(raiz: Path, arboles, es_hallazgo) -> dict[str, int]:
+    """{"archivo:ámbito": hallazgos}. `es_hallazgo(nodo, en_def)` recibe si el
+    nodo vive dentro de una función o clase de nivel superior."""
+    detalle: dict[str, int] = {}
+    for ruta, arbol in arboles:
+        for sentencia in arbol.body:
+            en_def = isinstance(sentencia, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            cuenta = sum(1 for nodo in ast.walk(sentencia) if es_hallazgo(nodo, en_def))
+            if cuenta:
+                clave = f"{_relativa(ruta, raiz)}:{_nombre_de(sentencia)}"
+                detalle[clave] = detalle.get(clave, 0) + cuenta
+    return dict(sorted(detalle.items()))
+
+
+def _importa_modulos(nodo, _en_def) -> bool:
+    """`from modules.x import ...`: el CORE nombrando una capacidad concreta.
+    `from modules import discover` es el registro y no cuenta."""
+    if isinstance(nodo, ast.ImportFrom):
+        return nodo.level == 0 and (nodo.module or "").startswith("modules.")
+    return isinstance(nodo, ast.Import) and any(a.name.startswith("modules.") for a in nodo.names)
+
+
+def escanear_core_importa_modulos(raiz: Path) -> dict[str, int]:
+    """Imports de módulos concretos desde el CORE: con uno solo, borrar el
+    archivo del módulo rompe el chat (la promesa "quitar = borrarlo")."""
+    del_core = ((ruta, arbol) for ruta, arbol in _arboles(raiz)
+                if _relativa(ruta, raiz) in CORE or _relativa(ruta, raiz).startswith("utils/"))
+    return _contar_por_ambito(raiz, del_core, _importa_modulos)
+
+
+def _toca_laboratorio(nodo, _en_def) -> bool:
+    """Import de `banco` o un literal CORTO (un nombre, no prosa) del
+    laboratorio: el producto decidiendo según si lo están midiendo."""
+    if isinstance(nodo, ast.ImportFrom):
+        return (nodo.module or "").split(".")[0] == "banco"
+    if isinstance(nodo, ast.Import):
+        return any(a.name.split(".")[0] == "banco" for a in nodo.names)
+    if isinstance(nodo, ast.keyword):
+        return nodo.arg in LABORATORIO
+    if isinstance(nodo, ast.Constant) and isinstance(nodo.value, str) and len(nodo.value) <= 40:
+        return nodo.value in LABORATORIO or "GROUND-TRUTH" in nodo.value.upper()
+    return False
+
+
+def escanear_producto_conoce_lab(raiz: Path) -> dict[str, int]:
+    """El ratchet es el instrumento y nombra al laboratorio para buscarlo: no cuenta."""
+    producto = ((ruta, arbol) for ruta, arbol in _arboles(raiz) if ruta.name != "ratchet.py")
+    return _contar_por_ambito(raiz, producto, _toca_laboratorio)
+
+
+def _es_lista_de_palabras(nodo) -> bool:
+    elementos = getattr(nodo, "elts", [])
+    textos = [e.value for e in elementos if isinstance(e, ast.Constant) and isinstance(e.value, str)]
+    if len(textos) < MIN_VOCABULARIO or len(textos) != len(elementos):
+        return False
+    return all(_PALABRA.fullmatch(t) for t in textos) and any(_TILDE.search(t) for t in textos)
+
+
+def _es_regex_de_palabras(nodo) -> bool:
+    funcion = nodo.func
+    if not (isinstance(funcion, ast.Attribute) and isinstance(funcion.value, ast.Name)
+            and funcion.value.id in ("re", "_re") and nodo.args):
+        return False
+    patron = nodo.args[0]
+    if not (isinstance(patron, ast.Constant) and isinstance(patron.value, str)):
+        return False
+    banderas = ast.unparse(nodo.args[1:] + [k.value for k in nodo.keywords])
+    sin_caso = "(?i)" in patron.value or "IGNORECASE" in banderas or re.search(r"\bre\.I\b", banderas)
+    return bool(sin_caso) and patron.value.count("|") >= MIN_VOCABULARIO - 1 and bool(_TILDE.search(patron.value))
+
+
+def _es_vocabulario(nodo, _en_def) -> bool:
+    """Una colección de ≥5 palabras en español, o una regex sin distinción de
+    mayúsculas con ≥5 alternativas y alguna tilde: decidir por palabras
+    sueltas en vez de por un mecanismo general (el hardcodeo prohibido)."""
+    if isinstance(nodo, (ast.Set, ast.List, ast.Tuple)):
+        return _es_lista_de_palabras(nodo)
+    return isinstance(nodo, ast.Call) and _es_regex_de_palabras(nodo)
+
+
+def escanear_vocabulario(raiz: Path) -> dict[str, int]:
+    return _contar_por_ambito(raiz, _arboles(raiz), _es_vocabulario)
+
+
+def _es_import_perezoso(nodo, en_def) -> bool:
+    return en_def and isinstance(nodo, (ast.Import, ast.ImportFrom))
+
+
+def escanear_imports_perezosos(raiz: Path) -> dict[str, int]:
+    """Imports dentro de funciones: casi siempre un ciclo esquivado o una
+    dependencia que el diseño no hizo explícita."""
+    return _contar_por_ambito(raiz, _arboles(raiz), _es_import_perezoso)
+
+
+def escanear_settings(raiz: Path) -> dict[str, list[str]]:
+    """{SETTING: [archivos que lo leen]}. Cada setting es una rama que alguien
+    tiene que entender; los brazos de A/B cerrados se borran con su rama."""
+    detalle: dict[str, set[str]] = {}
+    for ruta in archivos_del_harness(raiz):
+        texto = ruta.read_text(encoding="utf-8")
+        for patron in LECTORES_SETTINGS:
+            for nombre in re.findall(patron, texto):
+                detalle.setdefault(nombre, set()).add(_relativa(ruta, raiz))
+    return {nombre: sorted(archivos) for nombre, archivos in sorted(detalle.items())}
+
+
+def escanear_nodos_largos(raiz: Path, maximo: int = MAX_LINEAS_NODO) -> dict[str, int]:
+    """Nodos (clases con prep/exec/post) de más de `maximo` líneas: un nodo
+    que hace varias cosas esconde aristas que el grafo debería mostrar."""
+    detalle = {}
+    for ruta, arbol in _arboles(raiz):
+        for nodo in ast.walk(arbol):
+            if not isinstance(nodo, ast.ClassDef):
+                continue
+            metodos = {m.name for m in nodo.body if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef))}
+            lineas = nodo.end_lineno - nodo.lineno + 1
+            if metodos & METODOS_DE_NODO and lineas > maximo:
+                detalle[f"{_relativa(ruta, raiz)}:{nodo.name}"] = lineas
+    return dict(sorted(detalle.items()))
+
+
+def escanear_texto_de_prompt(raiz: Path) -> dict[str, int]:
+    """Caracteres literales que pueden entrar al system prompt del chat: el
+    f-string de `main.system_prompt` y cada `DIRECTIVA_*`. Es AST y no la
+    llamada real porque el prompt incluye el CWD y las raíces (cambia por
+    máquina); acá se mide solo el texto que escribió una persona."""
+    ruta = raiz / "main.py"
+    if not ruta.is_file():
+        return {}
+    detalle = {}
+    for sentencia in ast.parse(ruta.read_text(encoding="utf-8")).body:
+        nombre = _nombre_de(sentencia)
+        if nombre.startswith("DIRECTIVA_") and isinstance(sentencia.value, ast.Constant):
+            detalle[nombre] = len(sentencia.value.value)
+        elif nombre == "system_prompt":
+            retornos = [n.value for n in ast.walk(sentencia) if isinstance(n, ast.Return)]
+            partes = [p for r in retornos if isinstance(r, ast.JoinedStr) for p in r.values]
+            detalle[nombre] = sum(len(p.value) for p in partes if isinstance(p, ast.Constant))
+    return dict(sorted(detalle.items()))
+
+
+ELEGANCIA = ("core_importa_modulos", "producto_conoce_lab", "vocabulario_hardcodeado",
+             "settings_leidos", "imports_perezosos", "nodos_largos", "texto_de_prompt")
+
+
+def _metrica_suma(escanear):
+    def calcular(raiz: Path) -> tuple[int, dict]:
+        detalle = escanear(raiz)
+        return sum(detalle.values()), detalle
+    return calcular
+
+
+def _metrica_cantidad(escanear):
+    def calcular(raiz: Path) -> tuple[int, dict]:
+        detalle = escanear(raiz)
+        return len(detalle), detalle
+    return calcular
+
+
 # direccion: `menor_mejor` = deuda (baja = mejora); `mayor_mejor` = cobertura
 # (sube = mejora). Cada métrica declara su dirección y su descripción: el
 # resultado se imprime loud y sin `--quiet` a propósito.
@@ -531,6 +728,46 @@ METRICAS: dict[str, dict] = {
         "direccion": "menor_mejor",
         "descripcion": "handlers `except:` / `except Exception` (el smell #1 del código de IA)",
         "calcular": _metrica_excepts,
+    },
+    "core_importa_modulos": {
+        "direccion": "menor_mejor",
+        "conjunto": True,
+        "descripcion": "imports de modules.<x> desde el CORE (borrar un módulo rompe el chat)",
+        "calcular": _metrica_suma(escanear_core_importa_modulos),
+    },
+    "producto_conoce_lab": {
+        "direccion": "menor_mejor",
+        "conjunto": True,
+        "descripcion": "el producto nombra al laboratorio (banco, BANCO, DELEGADO, GROUND-TRUTH)",
+        "calcular": _metrica_suma(escanear_producto_conoce_lab),
+    },
+    "vocabulario_hardcodeado": {
+        "direccion": "menor_mejor",
+        "conjunto": True,
+        "descripcion": "listas de palabras / regex de vocabulario que deciden por keywords",
+        "calcular": _metrica_suma(escanear_vocabulario),
+    },
+    "settings_leidos": {
+        "direccion": "menor_mejor",
+        "conjunto": True,
+        "descripcion": "settings distintos que lee el harness (cada uno es una rama)",
+        "calcular": _metrica_cantidad(escanear_settings),
+    },
+    "imports_perezosos": {
+        "direccion": "menor_mejor",
+        "descripcion": "imports dentro de funciones (ciclos esquivados, dependencias ocultas)",
+        "calcular": _metrica_suma(escanear_imports_perezosos),
+    },
+    "nodos_largos": {
+        "direccion": "menor_mejor",
+        "conjunto": True,
+        "descripcion": f"nodos de más de {MAX_LINEAS_NODO} líneas (aristas escondidas en prep/post)",
+        "calcular": _metrica_cantidad(escanear_nodos_largos),
+    },
+    "texto_de_prompt": {
+        "direccion": "menor_mejor",
+        "descripcion": "chars literales del system prompt + directivas (el prompt no arregla conductas)",
+        "calcular": _metrica_suma(escanear_texto_de_prompt),
     },
 }
 
@@ -582,12 +819,22 @@ def _diag_tests(actual: dict, previo: dict) -> list[str]:
     return lineas
 
 
+def _diag_crecio(actual: dict, previo: dict) -> list[str]:
+    """Las claves que crecieron (conteo o lista de archivos)."""
+    def tamano(valor):
+        return len(valor) if isinstance(valor, list) else (valor or 0)
+
+    return [f"    {clave}: {tamano(previo.get(clave))} → {tamano(valor)}"
+            for clave, valor in actual.items() if tamano(valor) > tamano(previo.get(clave))]
+
+
 _DIAGNOSTICOS = {
     "helpers_duplicados": _diag_helpers,
     "codigo_muerto_privado": _diag_muertas,
     "cuerpos_duplicados": _diag_cuerpos,
     "cuerpos_test_duplicados": _diag_cuerpos,
     "excepts_amplios": _diag_excepts,
+    **dict.fromkeys(ELEGANCIA, _diag_crecio),
 }
 
 

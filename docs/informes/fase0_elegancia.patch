@@ -1,0 +1,1229 @@
+diff -ruN a/AGENTS.md b/AGENTS.md
+--- a/AGENTS.md	2026-10-27 22:04:42.595876665 +0000
++++ b/AGENTS.md	2026-10-27 22:03:21.117160803 +0000
+@@ -16,7 +16,8 @@
+ 1. `docs/estado.md` — el tablero vivo: un hallazgo por fila (A/H/R/X) con
+    estado, evidencia y el test que lo cubre. **Empezá por acá.**
+ 2. `docs/design.md` — lo que es verdad hoy: grafos, contratos de `shared`,
+-   leyes/límites y el diseño de cada pieza.
++   leyes/límites y el diseño de cada pieza. La forma que se persigue está en
++   `docs/elegancia.md` (definición, ratchets y plan del refactor).
+ 3. `docs/bitacora.md` — cómo se llegó acá: cada experimento con su medición.
+    Si tu cambio contradice una medición, decilo explícitamente.
+ 4. `docs/roadmap.md` — qué falta y en qué orden.
+@@ -41,6 +42,7 @@
+ | R7 | La seguridad no se relaja: HITL, contención de paths y política de comandos se tocan con tests de bypass. | `tests/test_policy_bypass.py`, `tests/test_policy.py` |
+ | R8 | Los contratos congelados (dispatch, voto, prefiltro) no cambian sin regenerar su sha1 y justificarlo. | `tests/test_contratos.py` |
+ | R9 | El código se escribe para humanos: mínimo que funciona, sin defensas/abstracciones/docstrings no pedidos, sin banners decorativos; los `except` amplios no crecen y la complejidad/anidación del harness tampoco (ratchet). | `tests/test_estilo_humano.py`, `ratchet.py` |
++| R10 | Elegancia: un arreglo borra un caso, no lo agrega. Sin vocabulario hardcodeado, sin el CORE importando módulos, sin el producto leyendo el banco, sin settings ni prompt que crezcan (definición en `docs/elegancia.md`). | `ratchet.py`, `tests/test_ratchet_elegancia.py` |
+ 
+ ## Cómo trabajar (reglas blandas, todavía sin gate)
+ 
+diff -ruN a/README.md b/README.md
+--- a/README.md	2026-10-27 22:04:42.595876665 +0000
++++ b/README.md	2026-10-27 22:01:12.136843277 +0000
+@@ -10,14 +10,20 @@
+ (condición + prompt + subset de tools) empaquetan modos de trabajo y se
+ disparan por regex, sin LLM.
+ 
++<!-- generado: python3 main.py grafo chat (tests/test_grafo_readme.py lo compara) -->
+ ```mermaid
+ flowchart TD
+-    q[GetQuestion] -->|continue| s[AgentStep]
+-    s -->|answer| c[VerificarCitas]
+-    c --> q
+-    s -->|tool| t[ExecuteTools]
+-    t --> s
+-    q -->|exit| x[ExitChat]
++    GetQuestion_0 -->|continue| PreFetch_1
++    PreFetch_1 -->|continue| LayaRouter_2
++    LayaRouter_2 -->|directo| DirectAnswer_3
++    DirectAnswer_3 -->|answer| VerificarCitas_4
++    VerificarCitas_4 -->|default| GetQuestion_0
++    DirectAnswer_3 -->|tool| ExecuteTools_5
++    ExecuteTools_5 -->|default| AgentStep_6
++    AgentStep_6 -->|answer| VerificarCitas_4
++    AgentStep_6 -->|tool| ExecuteTools_5
++    LayaRouter_2 -->|herramientas| AgentStep_6
++    GetQuestion_0 -->|exit| ExitChat_7
+ ```
+ 
+ ## Filosofía
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-27 22:04:42.647878384 +0000
++++ b/docs/bitacora.md	2026-10-27 22:03:21.121160938 +0000
+@@ -5041,3 +5041,47 @@
+ `salidas/evals/producto_router.jsonl` + resumen `producto_router-resumen.md`.
+ Corrido por el agente tras aplicar el patch del autor; suite 1106 verde,
+ calidad verde.
++
++---
++
++## Fase 0 del refactor de elegancia — la deuda de diseño, contada (2026-10-27, X91)
++
++La auditoría de refactor contrastó el harness con PocketFlow, 12-Factor Agents,
++Anthropic (*Building effective agents*, *Effective context engineering*,
++*Harness design for long-running apps*), Manus (*Context engineering*), Agent
++Skills, mini-swe-agent y SWE-agent (ACI). Dos decisiones obligan a parchear:
++el `directo` del router quita las tools (de ahí las reglas temporales, los
++imperativos y el voto) y el thinking va apagado en toda ronda con tools (la API
++pide devolver `reasoning_content`, no apagarlo). La definición de elegancia y
++el plan por fases quedaron en `docs/elegancia.md`.
++
++La fase 0 no cambia conducta: congela lo que el refactor tiene que bajar.
++Siete métricas nuevas en `ratchet.py`, todas `menor_mejor` y por ámbito de
++nivel superior (función/clase/constante, no línea: sobrevive a las ediciones):
++
++| Ratchet | Baseline | Qué cuenta |
++|---|---|---|
++| `core_importa_modulos` | 3 | `from modules.x` en `nodes`/`flow`/`main`/`utils` (`main.catalogo_memoria`, `main.resumen_de_sesion`, `nodes._respaldar_zona_fria`) |
++| `producto_conoce_lab` | 10 | import de `banco` o literales `banco`/`BANCO`/`DELEGADO`/`GROUND-TRUTH` (`delegar`, `riesgo.origen*`, `nodes._lineas_de`, `PERFILES_PRESUPUESTO`, `fable_dominios`, `fable_judge`) |
++| `vocabulario_hardcodeado` | 8 | colecciones de ≥5 palabras en español o regex `(?i)` con ≥5 alternativas y tilde (`_IMPERATIVOS_CAPACIDAD`, `RE_TEMPORAL`, `_PALABRAS_AMPLIAS`, `_RELLENOS`, `_RE_OBJETO_CAPACIDAD`, la lista de "seguí" de `GetQuestion`, `juez.TOOL_CONTEXTO_RE`, el sí/no del HITL) |
++| `settings_leidos` | 89 | settings distintos (mismos lectores que `test_docs_sin_deriva.py`); de conjunto: cambiar uno por otro también es rojo |
++| `imports_perezosos` | 137 | imports dentro de funciones/clases |
++| `nodos_largos` | 15 | clases con `prep`/`exec`/`post` de más de 40 líneas (`LayaRouter` 153, `juez.Judge` 144, `effective_n.WriteReport` 140, `AgentStep` 125…) |
++| `texto_de_prompt` | 2748 | chars literales del f-string de `main.system_prompt` (526) más las tres `DIRECTIVA_*` (279 + 1208 + 735) |
++
++Límites declarados de los detectores: el de vocabulario no ve listas en inglés
++sin tilde ni regex sin `(?i)` (se eligió así para no contar tablas técnicas
++como `_ENVOLTORIOS` de la política); el de laboratorio solo mira literales de
++≤40 chars (la prosa que menciona el banco no cuenta) y excluye al propio
++`ratchet.py`. El inventario de los 89 settings con su veredicto (41 contrato ·
++26 revisar · 22 borrar) vive en `docs/elegancia.md` y
++`test_todo_setting_tiene_veredicto_en_el_inventario` impide que entre uno sin
++decidir.
++
++El diagrama del README pasa a ser el que exporta `utils.viz.mermaid`
++(`test_el_diagrama_del_readme_es_el_grafo_del_chat`): el dibujado mostraba
++GetQuestion → AgentStep y el real pasa por PreFetch y LayaRouter.
++
++`AGENTS.md` gana R10 (elegancia, con su gate). La regla blanda "parche mínimo"
++se levanta para las fases 1–5 del refactor, igual que para H2 (X71): cada fase
++tiene su gate de salida en `docs/elegancia.md`.
+diff -ruN a/docs/design.md b/docs/design.md
+--- a/docs/design.md	2026-10-27 22:04:42.647878384 +0000
++++ b/docs/design.md	2026-10-27 22:03:21.121160938 +0000
+@@ -1048,6 +1048,9 @@
+   `--actualizar` es decisión del operador: exige `HUMAN_RATCHET_BYPASS_KEY`
+   igual a SU clave, verificada contra el sha256 commiteado en
+   `ratchets/clave_operador.sha256` (leído de HEAD y HEAD~1, no del disco).
++  Desde X91 suma siete métricas de elegancia (CORE→módulos, producto→banco,
++  vocabulario, settings, imports perezosos, nodos largos, texto del prompt):
++  definición, baseline y plan en [elegancia.md](elegancia.md).
+   Antes alcanzaba con que la variable existiera y un agente la exportó (X80). **Long Method quedó medido y NO gateado** (exp/66): el
+   harness tiene 2/657 funciones >100 líneas vs 3/244 de `requests`, así que el
+   largo no discrimina y una métrica sería ruido; la sonda queda en
+diff -ruN a/docs/elegancia.md b/docs/elegancia.md
+--- a/docs/elegancia.md	1970-01-01 00:00:00.000000000 +0000
++++ b/docs/elegancia.md	2026-10-27 22:02:43.975908385 +0000
+@@ -0,0 +1,172 @@
++# Elegancia — la definición que gobierna el refactor
++
++Este documento es el contrato de forma del harness. Cada propiedad tiene una
++prueba que se puede correr; las que ya se pueden contar tienen un ratchet
++(`ratchet.py`) y no pueden empeorar. El refactor (fases 1–5, abajo) consiste en
++bajar esos números **borrando**, no agregando.
++
++> **Regla madre: un arreglo es elegante si borra un caso en vez de agregarlo.**
++> Si el fix suma una palabra a una lista, una regex o una frase al prompt, no
++> fue a la raíz.
++
++## Elegancia funcional
++
++El comportamiento sale de pocos mecanismos generales, cada decisión la toma
++quien tiene la información para tomarla, y el grafo muestra todo el control.
++
++| # | Propiedad | Prueba | Gate |
++|---|---|---|---|
++| F1 | **Generalidad**: ningún mecanismo conoce casos particulares | ¿Si cambio idioma, redacción o dominio del pedido, la decisión sigue andando? | `vocabulario_hardcodeado` |
++| F2 | **Decisión en su lugar**: lo exacto lo cuenta el código, lo semántico lo juzga un modelo, lo irreversible lo decide un humano | ¿Hay una regex juzgando significado? | `vocabulario_hardcodeado` |
++| F3 | **El grafo dice la verdad**: el control vive en las aristas | ¿Se explica un turno leyendo `python3 main.py grafo`? | `nodos_largos`, `test_el_diagrama_del_readme_es_el_grafo_del_chat` |
++| F4 | **Fractal**: una primitiva a toda escala (chat = sub-agente = supervisor) | ¿Una política nueva llega gratis a los sub-agentes? | fase 2 (un solo loop) |
++| F5 | **Dependencias hacia adentro**: los módulos dependen del CORE; el CORE no los conoce | ¿Borrar cualquier archivo de `modules/` deja el chat andando? | `core_importa_modulos` |
++| F6 | **Errores reversibles**: el smart-if decide perillas cuyo error se autocorrige, nunca le quita capacidades al agente | ¿Si Laya se equivoca, el siguiente paso lo corrige solo? | fase 3 (`producto_router.py`) |
++| F7 | **Producto ≠ laboratorio**: el producto no sabe que existe el banco | ¿Aparecen `banco`, `BANCO`, `DELEGADO` o `GROUND-TRUTH` en producción? | `producto_conoce_lab` |
++
++## Elegancia de código
++
++Cada concepto vive en un solo lugar, con el menor código que lo expresa,
++funciones puras en el centro y efectos en los bordes.
++
++| # | Propiedad | Prueba | Gate |
++|---|---|---|---|
++| C1 | **Un concepto, un lugar** | ¿Dos loops, dos cierres, tres presupuestos? | `helpers_duplicados`, `cuerpos_duplicados` |
++| C2 | **Núcleo puro, efectos en el borde** | ¿La decisión se testea sin I/O ni mocks? | review |
++| C3 | **Configuración mínima**: cada setting es contrato del operador, no un A/B abierto | ¿Cuántos settings son brazos de experimentos cerrados? | `settings_leidos` |
++| C4 | **Imports honestos**: sin imports perezosos que esquiven ciclos | ¿Cuántos `import` viven dentro de funciones? | `imports_perezosos` |
++| C5 | **El código dice el porqué actual**; la historia va a la bitácora | ¿El comentario sigue siendo verdad sin su `exp/N`? | review |
++| C6 | **Tamaño ∝ responsabilidad**: un nodo, una cosa (≤ 40 líneas) | ¿Algún nodo hace varias? | `nodos_largos` |
++| C7 | **El prompt describe el formato, no corrige conductas** | ¿Una frase del prompt tapa algo que una tool o un gate debería hacer? | `texto_de_prompt` |
++
++## Fuentes
++
++PocketFlow (grafo + shared store, sin módulos de proveedor); 12-Factor Agents
++(factores 8 y 10); Anthropic, *Building effective agents* (simple y componible)
++y *Effective context engineering* (prompts a la altitud correcta, sin if-else
++rígido; tools mínimas; compaction); Manus, *Context engineering* (no agregar ni
++quitar tools en caliente); Agent Skills (divulgación progresiva por
++descripción); la bitter lesson aplicada a harnesses (las capas que tapan
++debilidades del modelo envejecen); mini-swe-agent (~100 líneas de clase de
++agente); SWE-agent (el linter en la edición como guardrail medido). Detalle y
++citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91).
++
++## Línea de base (fase 0, 2026-10-27)
++
++| Ratchet | Baseline | Meta del refactor |
++|---|---|---|
++| `core_importa_modulos` | 3 | 0 (fase 1) |
++| `producto_conoce_lab` | 10 | 0 (fase 1) |
++| `vocabulario_hardcodeado` | 8 | ≤ 2 (fases 3–4; quedan los sí/no del HITL) |
++| `settings_leidos` | 89 | ≤ 45 (fases 1–5, ver inventario) |
++| `imports_perezosos` | 137 | ≤ 40 |
++| `nodos_largos` | 15 | ≤ 3 |
++| `texto_de_prompt` | 2748 chars | ≤ 800 |
++
++## Plan
++
++| Fase | Cambio | ¿Cambia conducta? | Gate de salida |
++|---|---|---|---|
++| 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
++| 1 | Hooks de ciclo de vida en los módulos (S4); el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
++| 2 | El chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
++| 3 | `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
++| 4 | Se borran reglas, voto, `alcance_amplio`, perfiles y directivas (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
++| 5 | Política de comandos como datos (S10); skills por descripción; Laya 0.4.x | Mínimo | `test_policy_bypass.py` idéntico |
++
++## Inventario de settings (89: 41 contrato · 26 revisar · 22 borrar)
++
++`contrato` = decisión del operador que se queda; `revisar` = se decide en la
++fase indicada; `borrar` = se va con su rama en esa fase.
++
++| Setting | Veredicto | Fase | Motivo | Lo lee |
++|---|---|---|---|---|
++| `BANCO` | borrar | 1 | S5: el producto no sabe si lo miden | `utils/riesgo.py` |
++| `BMO_TASKS_DIR` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/rutas.py` |
++| `DELEGADO` | borrar | 1 | S5: el producto no sabe si lo miden | `utils/riesgo.py` |
++| `LEER_BMO_ENV` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/call_llm.py` |
++| `LAYA_ALPHA_VOTO` | borrar | 3 | S2: el voto existe para tapar el directo sin tools | `utils/laya_routing.py` |
++| `LAYA_CALIBRACION_VOTO` | borrar | 3 | S2: el voto existe para tapar el directo sin tools | `utils/laya_routing.py` |
++| `LAYA_MODEL_VOTO` | borrar | 3 | S2: el voto existe para tapar el directo sin tools | `nodes.py` |
++| `LAYA_MODO` | borrar | 3 | S2: el router deja de quitar tools | `utils/laya_routing.py` |
++| `LAYA_UNSURE_HIGH` | borrar | 3 | S2: el router deja de quitar tools | `utils/laya.py`, `utils/laya_routing.py` |
++| `LAYA_UNSURE_HIGH_VOTO` | borrar | 3 | S2: el voto existe para tapar el directo sin tools | `utils/laya_routing.py` |
++| `LAYA_UNSURE_LOW` | borrar | 3 | S2: el router deja de quitar tools | `utils/laya.py` |
++| `USE_LAYA_ROUTER` | borrar | 3 | S2: el router deja de quitar tools | `flow.py`, `replay.py` |
++| `USE_VOTACION` | borrar | 3 | S2: el voto existe para tapar el directo sin tools | `nodes.py` |
++| `CORTE_NOVEDAD` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
++| `CORTE_NOVEDAD_MIN` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
++| `MAX_TOOL_ROUNDS_AMPLIO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
++| `MAX_TOOL_ROUNDS_APLICACION` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
++| `MAX_TOOL_ROUNDS_BANCO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
++| `MAX_TOOL_ROUNDS_CONSULTA` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
++| `PROMPT_AUDITORIA` | borrar | 4 | S7/S8: brazos de A/B cerrados → skills | `main.py` |
++| `PROMPT_FABLE` | borrar | 4 | S7/S8: brazos de A/B cerrados → skills | `main.py` |
++| `UMBRAL_SIN_PROGRESO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
++| `HITL_SCOPE` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `utils/aprobaciones.py` |
++| `HUMANO_RESPUESTA` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `modules/humano.py` |
++| `LAYA_MODEL_SUPERVISOR` | revisar | 1 | sondas: van a banco/, no al producto | `sonda_supervisor.py` |
++| `LAYA_UNSURE_HIGH_SUPERVISOR` | revisar | 1 | sondas: van a banco/, no al producto | `sonda_supervisor.py` |
++| `SONDA_LAYA_CKPT` | revisar | 1 | sondas: van a banco/, no al producto | `sonda_laya.py` |
++| `CHAT_STREAM_INTERRUPT` | revisar | 2 | S9: citas e interrupción siempre activas | `utils/call_llm.py` |
++| `CITAS_VERIFICAR` | revisar | 2 | S9: citas e interrupción siempre activas | `nodes.py` |
++| `PREFETCH` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
++| `PREFETCH_MAX_ARCHIVOS` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
++| `PREFETCH_MAX_LINEAS` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
++| `LAYA_ALPHA` | revisar | 3 | S1/S2: la calibración conformal se queda si Laya elige el modo | `utils/laya_routing.py` |
++| `LAYA_CALIBRACION_ROUTER` | revisar | 3 | S1/S2: la calibración conformal se queda si Laya elige el modo | `utils/laya_routing.py` |
++| `LAYA_MODEL_RIESGO` | revisar | 3 | S1: el juez de riesgo observa sin decidir: decidir o borrar | `utils/riesgo.py` |
++| `PROMPT_FORMA` | revisar | 4 | S8: se queda solo si un A/B del modelo actual lo sostiene | `main.py` |
++| `SKILLS` | revisar | 4 | S7: skills por descripción; el apagador global quizá sobra | `nodes.py` |
++| `INFORME_CARPETA` | revisar | 5 | concurrencia: una constante del kernel | `informe.py` |
++| `JUEZ_LOTE_CONCURRENCIA` | revisar | 5 | concurrencia: una constante del kernel | `juez_lote.py` |
++| `LAYA_BATCH_SIZE` | revisar | 5 | tunables internos de Laya: constantes | `utils/laya.py` |
++| `LAYA_ERROR_COOLDOWN` | revisar | 5 | tunables internos de Laya: constantes | `utils/laya.py` |
++| `LAYA_MAX_EN_PROCESO` | revisar | 5 | tunables internos de Laya: constantes | `utils/laya.py` |
++| `LAYA_MODEL_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
++| `MAPA_CONCURRENCIA` | revisar | 5 | concurrencia: una constante del kernel | `informe.py` |
++| `MEMORIA_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
++| `MEMORIA_PREFILTRO_N` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
++| `RAG_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/rag.py` |
++| `RAG_PREFILTRO_N` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/rag.py` |
++| `COMPACTION_CHARS` | contrato | 2 | tamaño de contexto | `nodes.py` |
++| `MAX_TOOL_ROUNDS` | contrato | 2 | el techo duro del Ledger (único presupuesto) | `utils/fs_tools.py` |
++| `READ_MAX_CHARS` | contrato | 2 | tamaño de contexto | `utils/fs_tools.py` |
++| `LAYA_MODEL` | contrato | 3 | el checkpoint del smart-if | `utils/laya.py` |
++| `A2A_AGENTS` | contrato | — | superficies opcionales (web, MCP, A2A, búsqueda) | `modules/a2a.py` |
++| `AGENT_ALLOWED_DIRS` | contrato | — | credenciales y proveedor | `utils/fs_tools.py` |
++| `CHAT_STREAM` | contrato | — | presentación y costos | `nodes.py` |
++| `COLOR` | contrato | — | presentación y costos | `utils/terminal.py` |
++| `DB_PATH` | contrato | — | presentación y costos | `modules/db.py` |
++| `DEEPSEEK_API_KEY` | contrato | — | credenciales y proveedor | `utils/call_llm.py` |
++| `HITL_AUTO` | contrato | — | seguridad y HITL: decisión del operador | `modules/coding.py` |
++| `HITL_WEB` | contrato | — | seguridad y HITL: decisión del operador | `utils/aprobaciones.py`, `utils/riesgo.py` |
++| `HITL_WEB_PORT` | contrato | — | seguridad y HITL: decisión del operador | `utils/hitl_web.py` |
++| `HITL_WEB_TIMEOUT` | contrato | — | seguridad y HITL: decisión del operador | `utils/hitl_web.py` |
++| `LAYA_LOG_ARCHIVO` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `utils/laya_routing.py` |
++| `LAYA_LOG_DECISIONES` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `nodes.py`, `utils/laya_routing.py` |
++| `LAYA_LOG_PREGUNTA` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `utils/laya_routing.py` |
++| `LLM_API_KEY` | contrato | — | credenciales y proveedor | `utils/call_llm.py` |
++| `LLM_BASE_URL` | contrato | — | credenciales y proveedor | `modules/vision.py`, `utils/call_llm.py` |
++| `LLM_MODEL` | contrato | — | credenciales y proveedor | `modules/vision.py`, `utils/call_llm.py` |
++| `MCP_EXPOSE` | contrato | — | superficies opcionales (web, MCP, A2A, búsqueda) | `mcp_server.py` |
++| `MCP_SERVERS` | contrato | — | superficies opcionales (web, MCP, A2A, búsqueda) | `utils/mcp_client.py` |
++| `MEMORIA` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `main.py`, `nodes.py` |
++| `MEMORIA_DIR` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `modules/memoria.py` |
++| `NO_COLOR` | contrato | — | presentación y costos | `utils/terminal.py` |
++| `PRECIO_TOKENS` | contrato | — | presentación y costos | `main.py` |
++| `PREGUNTAS_ARCHIVO` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `nodes.py` |
++| `PREGUNTAS_LOG` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `nodes.py` |
++| `RIESGO_ARCHIVO` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `utils/riesgo.py` |
++| `RIESGO_LOG` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `utils/riesgo.py` |
++| `SEARCH_PROVIDER` | contrato | — | superficies opcionales (web, MCP, A2A, búsqueda) | `utils/websearch.py` |
++| `THREADS_DIR` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `utils/thread_store.py` |
++| `THREAD_PERSIST` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `utils/thread_store.py` |
++| `TRACE` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `utils/tracing.py` |
++| `WEBCHAT` | contrato | — | superficies opcionales (web, MCP, A2A, búsqueda) | `utils/webchat.py` |
++| `WEBCHAT_MAX_SESIONES` | contrato | — | superficies opcionales (web, MCP, A2A, búsqueda) | `utils/webchat.py` |
++| `WEBCHAT_TTL` | contrato | — | superficies opcionales (web, MCP, A2A, búsqueda) | `utils/webchat.py` |
++| `WEBHOOK_LOG` | contrato | — | seguridad y HITL: decisión del operador | `utils/hitl_web.py` |
++| `WEBHOOK_MAX_BYTES` | contrato | — | seguridad y HITL: decisión del operador | `utils/hitl_web.py` |
++| `WEBHOOK_MAX_POR_MINUTO` | contrato | — | seguridad y HITL: decisión del operador | `utils/hitl_web.py` |
++| `WEBHOOK_TOKEN` | contrato | — | seguridad y HITL: decisión del operador | `utils/hitl_web.py` |
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-27 22:04:42.647878384 +0000
++++ b/docs/estado.md	2026-10-27 22:03:21.121160938 +0000
+@@ -136,6 +136,7 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
++| X91 | — | La auditoría de refactor (2026-10-27) encontró deuda de diseño que ningún gate contaba: el CORE importa `modules.memoria`, el producto lee `BANCO`/`DELEGADO`/`GROUND-TRUTH`, vocabulario hardcodeado en el router y el presupuesto, 89 settings, 137 imports perezosos, 15 nodos de más de 40 líneas y el diagrama del README desactualizado | ✅ 2026-10-27 (fase 0) | siete ratchets nuevos en `ratchet.py` (baseline 3 · 10 · 8 · 89 · 137 · 15 · 2748) y el diagrama del README generado del grafo; la definición y el plan en [elegancia.md](elegancia.md). La deuda NO se pagó: quedó congelada para las fases 1–5 | `test_ratchet_elegancia.py`, `test_grafo_readme.py` |
+ | X90 | — | k13 ("discutí…") y k15 ("argumentá…") son falsos directos del voto que NINGUNA regla cubre: en producción dependen solo de lo que proponga el router de Laya. Nadie midió la política completa sobre esos casos | ✅ 2026-10-27 (corrido: 0 falsos directos, no hay agujero — el router frenó los 8 de la ventana, k13 y k15 incluidos) | `banco/probes/producto_router.py`: skills → reglas → router → voto, en enforce, sobre bench + control; ventana declarada antes (esperado herramientas sin skill ni regla, hoy incluye k13/k15). 0 falsos directos → no hay agujero; más de 0 → hallazgo con ids y capa. No se agregan verbos a la lista | `tests/test_producto_router.py::test_la_ventana_existe_y_contiene_k13_y_k15` |
+ | X62 | — | El meta-loop exigía un auditor al timón (contestar s/n por tmux): sin conductor no había forma de delegarle trabajo real al harness solo, y cada sesión muerta a mitad (exp/98) se perdía entera; además la regex de scope del banco no matcheaba el prompt de `edit_file` de exp/98 (`¿Aplicar? → ruta (2 hunks…)`) → cualquier conductor habría aprobado ediciones fuera de scope y de la denylist | ✅ 2026-10-25 (exp/99) | `delegar.py`: conductor que reusa el driver PTY y `decision_hitl` del banco, sin `BANCO=1` (origen `terminal`), HITL por scope declarado con rechazo CON motivo (exp/98), doble confirmación solo con prefijo explícito, muerte → `resume` (tope 2) y `THREADS_DIR` propio; regex corregida en `banco/banco.py`. e2e: tarea delegada exit 0 + drill `kill -9` → rehidrata y completa; **par #14/250** de la flywheel con `--env LAYA_MODO=shadow` (día 3/14) | `tests/test_delegar.py` (13: `test_conducir_muerto_resume_y_completa`, `test_plan_respuesta_doble_exige_prefijo_explicito`…), `test_el_scope_cubre_el_prompt_de_edit_file_de_exp98` |
+ | X66 | — | Auditoría 2026-10-26 (H1): el conductor reconstruía el pedido HITL leyendo la pantalla y aprobaba `git push` (la doble confirmación real `(1/2) (s/n):` no matcheaba), el scope comparaba rutas y comandos por prefijo de texto, `auto` salía de las raíces (`cd ..;cat`, `cd` solo, glob, `$VAR`) y por flags agrupadas (`sort -uo/x`), `edit_file` perdía CRLF y bytes no UTF-8, las escrituras pisaban permisos y el checkpoint guardaba reprs (`default=str`) | ✅ 2026-10-26 (H1) | El pedido es DATO: `utils/aprobaciones.Pedido` + `dentro_de_scope`/`por_scope`; banco y conductor pasan el scope por `HITL_SCOPE` y el chat decide en su proceso (fuera `decision_hitl`, `tipo_prompt`, `plan_respuesta`, `_cuerpo`); `policy.segmentos`/`opaco`/`irreversible` como fuente única; getopt en flags cortas; `edit_file` por bytes y estricto; `escribir_atomico` conserva modo y saltos; `shared` JSON puro | `tests/test_auditoria_2026_10_26.py` (`test_la_doble_confirmacion_real_no_se_aprueba_por_scope`, `test_auto_no_sale_de_raices`, `test_checkpoint_ida_y_vuelta_es_identidad`…), `tests/test_delegar.py::test_plan_respuesta_doble_exige_prefijo_explicito` |
+diff -ruN a/docs/roadmap.md b/docs/roadmap.md
+--- a/docs/roadmap.md	2026-10-27 22:04:42.663878913 +0000
++++ b/docs/roadmap.md	2026-10-27 22:03:21.125161073 +0000
+@@ -2,6 +2,13 @@
+ 
+ # Próximos pasos (roadmap)
+ 
++## Refactor de elegancia (auditoría 2026-10-27) — fases 1–5
++
++Fase 0 cerrada (X91): la deuda quedó contada en siete ratchets. Siguen las
++fases 1–5 de [elegancia.md](elegancia.md), cada una con su gate de salida.
++Próxima: **fase 1** (hooks de ciclo de vida en los módulos; el producto deja
++de leer el banco), sin cambio de conducta.
++
+ ## Refactor del harness (auditoría 2026-10-26) — la secuencia vigente
+ 
+ Cada etapa tiene un gate medible y ninguna empieza hasta que la anterior lo
+diff -ruN a/ratchet.py b/ratchet.py
+--- a/ratchet.py	2026-10-27 22:04:42.671879178 +0000
++++ b/ratchet.py	2026-10-27 22:03:21.125161073 +0000
+@@ -13,7 +13,8 @@
+ perder tests) vivían solo en prosa. El contrato para agentes está en
+ `AGENTS.md`; este archivo es el gate de las dos que se pueden contar.
+ 
+-Las dos métricas, una por clase de ratchet:
++Las métricas, una por clase de ratchet (las siete de elegancia, de X91, se
++describen en `docs/elegancia.md`):
+ 
+ - `helpers_duplicados` (**menor mejor**, ratchet de DEUDA): funciones privadas
+   `_foo` de nivel superior que aparecen en 2+ archivos del harness. Un agente
+@@ -486,6 +487,202 @@
+     return sum(len(lineas) for lineas in detalle.values()), detalle
+ 
+ 
++# elegancia (fase 0 del refactor, docs/elegancia.md): lo que el refactor tiene
++# que bajar, congelado antes de tocar nada. Las claves de detalle son el ÁMBITO
++# de nivel superior (función, clase o constante), no la línea: las líneas se
++# mueven con cualquier edición y los nombres no.
++
++CORE = ("nodes.py", "flow.py", "main.py")  # más utils/: lo que no es un módulo
++LABORATORIO = {"banco", "BANCO", "DELEGADO"}
++LECTORES_SETTINGS = (
++    r'_(?:setting|entero|real|umbral)\(\s*["\']([A-Z][A-Z0-9_]+)["\']',
++    r'environ(?:\.get)?\(\s*["\']([A-Z][A-Z0-9_]+)["\']',
++    r'environ\[\s*["\']([A-Z][A-Z0-9_]+)',
++    r'setting(?:_modelo)?\s*=\s*["\']([A-Z][A-Z0-9_]+)["\']',
++    r'(?:disponible|agente)\(\s*["\']([A-Z][A-Z0-9_]+)["\']',
++)
++METODOS_DE_NODO = {"prep", "exec", "post", "exec_fallback", "prep_async", "exec_async", "post_async"}
++MAX_LINEAS_NODO = 40
++MIN_VOCABULARIO = 5
++_TILDE = re.compile(r"[áéíóúñ]")
++_PALABRA = re.compile(r"[a-záéíóúñü ]+")
++
++
++def _arboles(raiz: Path):
++    for ruta in archivos_del_harness(raiz):
++        try:
++            yield ruta, ast.parse(ruta.read_text(encoding="utf-8"))
++        except (OSError, SyntaxError):
++            continue
++
++
++def _nombre_de(sentencia) -> str:
++    if isinstance(sentencia, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
++        return sentencia.name
++    objetivos = getattr(sentencia, "targets", None) or [getattr(sentencia, "target", None)]
++    nombres = [o.id for o in objetivos if isinstance(o, ast.Name)]
++    return nombres[0] if nombres else "<módulo>"
++
++
++def _contar_por_ambito(raiz: Path, arboles, es_hallazgo) -> dict[str, int]:
++    """{"archivo:ámbito": hallazgos}. `es_hallazgo(nodo, en_def)` recibe si el
++    nodo vive dentro de una función o clase de nivel superior."""
++    detalle: dict[str, int] = {}
++    for ruta, arbol in arboles:
++        for sentencia in arbol.body:
++            en_def = isinstance(sentencia, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
++            cuenta = sum(1 for nodo in ast.walk(sentencia) if es_hallazgo(nodo, en_def))
++            if cuenta:
++                clave = f"{_relativa(ruta, raiz)}:{_nombre_de(sentencia)}"
++                detalle[clave] = detalle.get(clave, 0) + cuenta
++    return dict(sorted(detalle.items()))
++
++
++def _importa_modulos(nodo, _en_def) -> bool:
++    """`from modules.x import ...`: el CORE nombrando una capacidad concreta.
++    `from modules import discover` es el registro y no cuenta."""
++    if isinstance(nodo, ast.ImportFrom):
++        return nodo.level == 0 and (nodo.module or "").startswith("modules.")
++    return isinstance(nodo, ast.Import) and any(a.name.startswith("modules.") for a in nodo.names)
++
++
++def escanear_core_importa_modulos(raiz: Path) -> dict[str, int]:
++    """Imports de módulos concretos desde el CORE: con uno solo, borrar el
++    archivo del módulo rompe el chat (la promesa "quitar = borrarlo")."""
++    del_core = ((ruta, arbol) for ruta, arbol in _arboles(raiz)
++                if _relativa(ruta, raiz) in CORE or _relativa(ruta, raiz).startswith("utils/"))
++    return _contar_por_ambito(raiz, del_core, _importa_modulos)
++
++
++def _toca_laboratorio(nodo, _en_def) -> bool:
++    """Import de `banco` o un literal CORTO (un nombre, no prosa) del
++    laboratorio: el producto decidiendo según si lo están midiendo."""
++    if isinstance(nodo, ast.ImportFrom):
++        return (nodo.module or "").split(".")[0] == "banco"
++    if isinstance(nodo, ast.Import):
++        return any(a.name.split(".")[0] == "banco" for a in nodo.names)
++    if isinstance(nodo, ast.keyword):
++        return nodo.arg in LABORATORIO
++    if isinstance(nodo, ast.Constant) and isinstance(nodo.value, str) and len(nodo.value) <= 40:
++        return nodo.value in LABORATORIO or "GROUND-TRUTH" in nodo.value.upper()
++    return False
++
++
++def escanear_producto_conoce_lab(raiz: Path) -> dict[str, int]:
++    """El ratchet es el instrumento y nombra al laboratorio para buscarlo: no cuenta."""
++    producto = ((ruta, arbol) for ruta, arbol in _arboles(raiz) if ruta.name != "ratchet.py")
++    return _contar_por_ambito(raiz, producto, _toca_laboratorio)
++
++
++def _es_lista_de_palabras(nodo) -> bool:
++    elementos = getattr(nodo, "elts", [])
++    textos = [e.value for e in elementos if isinstance(e, ast.Constant) and isinstance(e.value, str)]
++    if len(textos) < MIN_VOCABULARIO or len(textos) != len(elementos):
++        return False
++    return all(_PALABRA.fullmatch(t) for t in textos) and any(_TILDE.search(t) for t in textos)
++
++
++def _es_regex_de_palabras(nodo) -> bool:
++    funcion = nodo.func
++    if not (isinstance(funcion, ast.Attribute) and isinstance(funcion.value, ast.Name)
++            and funcion.value.id in ("re", "_re") and nodo.args):
++        return False
++    patron = nodo.args[0]
++    if not (isinstance(patron, ast.Constant) and isinstance(patron.value, str)):
++        return False
++    banderas = ast.unparse(nodo.args[1:] + [k.value for k in nodo.keywords])
++    sin_caso = "(?i)" in patron.value or "IGNORECASE" in banderas or re.search(r"\bre\.I\b", banderas)
++    return bool(sin_caso) and patron.value.count("|") >= MIN_VOCABULARIO - 1 and bool(_TILDE.search(patron.value))
++
++
++def _es_vocabulario(nodo, _en_def) -> bool:
++    """Una colección de ≥5 palabras en español, o una regex sin distinción de
++    mayúsculas con ≥5 alternativas y alguna tilde: decidir por palabras
++    sueltas en vez de por un mecanismo general (el hardcodeo prohibido)."""
++    if isinstance(nodo, (ast.Set, ast.List, ast.Tuple)):
++        return _es_lista_de_palabras(nodo)
++    return isinstance(nodo, ast.Call) and _es_regex_de_palabras(nodo)
++
++
++def escanear_vocabulario(raiz: Path) -> dict[str, int]:
++    return _contar_por_ambito(raiz, _arboles(raiz), _es_vocabulario)
++
++
++def _es_import_perezoso(nodo, en_def) -> bool:
++    return en_def and isinstance(nodo, (ast.Import, ast.ImportFrom))
++
++
++def escanear_imports_perezosos(raiz: Path) -> dict[str, int]:
++    """Imports dentro de funciones: casi siempre un ciclo esquivado o una
++    dependencia que el diseño no hizo explícita."""
++    return _contar_por_ambito(raiz, _arboles(raiz), _es_import_perezoso)
++
++
++def escanear_settings(raiz: Path) -> dict[str, list[str]]:
++    """{SETTING: [archivos que lo leen]}. Cada setting es una rama que alguien
++    tiene que entender; los brazos de A/B cerrados se borran con su rama."""
++    detalle: dict[str, set[str]] = {}
++    for ruta in archivos_del_harness(raiz):
++        texto = ruta.read_text(encoding="utf-8")
++        for patron in LECTORES_SETTINGS:
++            for nombre in re.findall(patron, texto):
++                detalle.setdefault(nombre, set()).add(_relativa(ruta, raiz))
++    return {nombre: sorted(archivos) for nombre, archivos in sorted(detalle.items())}
++
++
++def escanear_nodos_largos(raiz: Path, maximo: int = MAX_LINEAS_NODO) -> dict[str, int]:
++    """Nodos (clases con prep/exec/post) de más de `maximo` líneas: un nodo
++    que hace varias cosas esconde aristas que el grafo debería mostrar."""
++    detalle = {}
++    for ruta, arbol in _arboles(raiz):
++        for nodo in ast.walk(arbol):
++            if not isinstance(nodo, ast.ClassDef):
++                continue
++            metodos = {m.name for m in nodo.body if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef))}
++            lineas = nodo.end_lineno - nodo.lineno + 1
++            if metodos & METODOS_DE_NODO and lineas > maximo:
++                detalle[f"{_relativa(ruta, raiz)}:{nodo.name}"] = lineas
++    return dict(sorted(detalle.items()))
++
++
++def escanear_texto_de_prompt(raiz: Path) -> dict[str, int]:
++    """Caracteres literales que pueden entrar al system prompt del chat: el
++    f-string de `main.system_prompt` y cada `DIRECTIVA_*`. Es AST y no la
++    llamada real porque el prompt incluye el CWD y las raíces (cambia por
++    máquina); acá se mide solo el texto que escribió una persona."""
++    ruta = raiz / "main.py"
++    if not ruta.is_file():
++        return {}
++    detalle = {}
++    for sentencia in ast.parse(ruta.read_text(encoding="utf-8")).body:
++        nombre = _nombre_de(sentencia)
++        if nombre.startswith("DIRECTIVA_") and isinstance(sentencia.value, ast.Constant):
++            detalle[nombre] = len(sentencia.value.value)
++        elif nombre == "system_prompt":
++            retornos = [n.value for n in ast.walk(sentencia) if isinstance(n, ast.Return)]
++            partes = [p for r in retornos if isinstance(r, ast.JoinedStr) for p in r.values]
++            detalle[nombre] = sum(len(p.value) for p in partes if isinstance(p, ast.Constant))
++    return dict(sorted(detalle.items()))
++
++
++ELEGANCIA = ("core_importa_modulos", "producto_conoce_lab", "vocabulario_hardcodeado",
++             "settings_leidos", "imports_perezosos", "nodos_largos", "texto_de_prompt")
++
++
++def _metrica_suma(escanear):
++    def calcular(raiz: Path) -> tuple[int, dict]:
++        detalle = escanear(raiz)
++        return sum(detalle.values()), detalle
++    return calcular
++
++
++def _metrica_cantidad(escanear):
++    def calcular(raiz: Path) -> tuple[int, dict]:
++        detalle = escanear(raiz)
++        return len(detalle), detalle
++    return calcular
++
++
+ # direccion: `menor_mejor` = deuda (baja = mejora); `mayor_mejor` = cobertura
+ # (sube = mejora). Cada métrica declara su dirección y su descripción: el
+ # resultado se imprime loud y sin `--quiet` a propósito.
+@@ -532,6 +729,46 @@
+         "descripcion": "handlers `except:` / `except Exception` (el smell #1 del código de IA)",
+         "calcular": _metrica_excepts,
+     },
++    "core_importa_modulos": {
++        "direccion": "menor_mejor",
++        "conjunto": True,
++        "descripcion": "imports de modules.<x> desde el CORE (borrar un módulo rompe el chat)",
++        "calcular": _metrica_suma(escanear_core_importa_modulos),
++    },
++    "producto_conoce_lab": {
++        "direccion": "menor_mejor",
++        "conjunto": True,
++        "descripcion": "el producto nombra al laboratorio (banco, BANCO, DELEGADO, GROUND-TRUTH)",
++        "calcular": _metrica_suma(escanear_producto_conoce_lab),
++    },
++    "vocabulario_hardcodeado": {
++        "direccion": "menor_mejor",
++        "conjunto": True,
++        "descripcion": "listas de palabras / regex de vocabulario que deciden por keywords",
++        "calcular": _metrica_suma(escanear_vocabulario),
++    },
++    "settings_leidos": {
++        "direccion": "menor_mejor",
++        "conjunto": True,
++        "descripcion": "settings distintos que lee el harness (cada uno es una rama)",
++        "calcular": _metrica_cantidad(escanear_settings),
++    },
++    "imports_perezosos": {
++        "direccion": "menor_mejor",
++        "descripcion": "imports dentro de funciones (ciclos esquivados, dependencias ocultas)",
++        "calcular": _metrica_suma(escanear_imports_perezosos),
++    },
++    "nodos_largos": {
++        "direccion": "menor_mejor",
++        "conjunto": True,
++        "descripcion": f"nodos de más de {MAX_LINEAS_NODO} líneas (aristas escondidas en prep/post)",
++        "calcular": _metrica_cantidad(escanear_nodos_largos),
++    },
++    "texto_de_prompt": {
++        "direccion": "menor_mejor",
++        "descripcion": "chars literales del system prompt + directivas (el prompt no arregla conductas)",
++        "calcular": _metrica_suma(escanear_texto_de_prompt),
++    },
+ }
+ 
+ 
+@@ -582,12 +819,22 @@
+     return lineas
+ 
+ 
++def _diag_crecio(actual: dict, previo: dict) -> list[str]:
++    """Las claves que crecieron (conteo o lista de archivos)."""
++    def tamano(valor):
++        return len(valor) if isinstance(valor, list) else (valor or 0)
++
++    return [f"    {clave}: {tamano(previo.get(clave))} → {tamano(valor)}"
++            for clave, valor in actual.items() if tamano(valor) > tamano(previo.get(clave))]
++
++
+ _DIAGNOSTICOS = {
+     "helpers_duplicados": _diag_helpers,
+     "codigo_muerto_privado": _diag_muertas,
+     "cuerpos_duplicados": _diag_cuerpos,
+     "cuerpos_test_duplicados": _diag_cuerpos,
+     "excepts_amplios": _diag_excepts,
++    **dict.fromkeys(ELEGANCIA, _diag_crecio),
+ }
+ 
+ 
+diff -ruN a/ratchets/baseline.json b/ratchets/baseline.json
+--- a/ratchets/baseline.json	2026-10-27 22:04:42.671879178 +0000
++++ b/ratchets/baseline.json	2026-10-27 22:03:34.389608356 +0000
+@@ -4,6 +4,14 @@
+       "detalle": [],
+       "metrica": 0
+     },
++    "core_importa_modulos": {
++      "detalle": {
++        "main.py:catalogo_memoria": 1,
++        "main.py:resumen_de_sesion": 1,
++        "nodes.py:_respaldar_zona_fria": 1
++      },
++      "metrica": 3
++    },
+     "cuerpos_duplicados": {
+       "detalle": {},
+       "metrica": 0
+@@ -138,6 +146,413 @@
+       },
+       "metrica": 10
+     },
++    "imports_perezosos": {
++      "detalle": {
++        "bench_juez.py:correr": 1,
++        "evals.py:correr_bench": 4,
++        "fable_judge.py:_ejecutar_por_policy": 1,
++        "flow.py:create_agent_flow": 1,
++        "heartbeat.py:correr": 2,
++        "heartbeat.py:guardar_estado": 1,
++        "heartbeat.py:main": 1,
++        "juez.py:_inventario_tools": 1,
++        "main.py:_preguntas_reales": 3,
++        "main.py:_reporte_tokens": 2,
++        "main.py:aviso_delegadas_al_cerrar": 1,
++        "main.py:catalogo_memoria": 2,
++        "main.py:estado_delegadas": 1,
++        "main.py:main": 1,
++        "main.py:resumen_de_sesion": 3,
++        "main.py:system_prompt": 1,
++        "mcp_server.py:envolver": 3,
++        "mcp_server.py:main": 1,
++        "modules/auditoria.py:run_auditoria": 1,
++        "modules/coding.py:_registrar_hooks": 1,
++        "modules/coding.py:_sale_de_raices": 2,
++        "modules/coding.py:_vetar_comando_prohibido": 1,
++        "modules/effective_n.py:run_effective_n": 1,
++        "modules/fable.py:verificar_trabajo": 1,
++        "modules/humano.py:request_human_input": 1,
++        "modules/memoria.py:_prefiltrar": 1,
++        "modules/memoria.py:guardar_resumen_sesion": 1,
++        "modules/rag.py:_prefiltrar": 2,
++        "modules/supervisor.py:run_supervisor": 2,
++        "modules/vision.py:ver_pdf": 1,
++        "nodes.py:AgentStep": 3,
++        "nodes.py:GetQuestion": 4,
++        "nodes.py:LayaRouter": 6,
++        "nodes.py:PreFetch": 3,
++        "nodes.py:VerificarCitas": 1,
++        "nodes.py:_ahora": 1,
++        "nodes.py:_recortar_si_sigue_sobre_el_tope": 1,
++        "nodes.py:_respaldar_zona_fria": 2,
++        "nodes.py:alcance_amplio": 1,
++        "nodes.py:registrar_pregunta": 1,
++        "nodes.py:voto_confirmacion_router": 4,
++        "rag.py:EmbedChunks": 1,
++        "rag.py:buscar": 1,
++        "rag.py:indexar": 1,
++        "ratchet.py:sembrar_clave": 1,
++        "ratchet.py:sha256": 1,
++        "replay.py:_grafo_debate": 1,
++        "replay.py:_grafo_rag": 1,
++        "replay.py:_grafos_vivos": 3,
++        "replay.py:_herramientas_vivas": 1,
++        "replay.py:replay_runs": 1,
++        "resume.py:main": 1,
++        "resume.py:migrar": 1,
++        "sonda_laya.py:correr": 1,
++        "sonda_laya.py:ece": 1,
++        "sonda_router.py:correr": 1,
++        "sonda_router.py:main": 2,
++        "sonda_supervisor.py:correr": 3,
++        "sonda_supervisor.py:main": 3,
++        "supervisor.py:system_prompt": 1,
++        "utils/aprobaciones.py:pedir_aprobacion": 2,
++        "utils/aprobaciones.py:registrar": 1,
++        "utils/call_llm.py:_contabilizar": 1,
++        "utils/contexto.py:_puntuar": 1,
++        "utils/embeddings.py:get_modelo": 1,
++        "utils/estado_sesion.py:capturar": 1,
++        "utils/estado_sesion.py:restaurar": 1,
++        "utils/hitl_web.py:_Handler": 4,
++        "utils/kernel.py:agente": 1,
++        "utils/laya.py:_cargar_checkpoint": 1,
++        "utils/laya_routing.py:_umbral": 1,
++        "utils/laya_routing.py:config_router": 2,
++        "utils/laya_routing.py:config_voto": 2,
++        "utils/laya_routing.py:decide_voto": 1,
++        "utils/laya_routing.py:registrar_decision": 2,
++        "utils/laya_routing.py:registrar_resultado": 1,
++        "utils/laya_routing.py:version_laya": 1,
++        "utils/mcp_client.py:_listar": 2,
++        "utils/mcp_client.py:_llamar": 2,
++        "utils/prefetch.py:decidir": 1,
++        "utils/riesgo.py:juzgar": 1,
++        "utils/skills.py:cargar_skills": 1,
++        "utils/thread_store.py:checkpoint": 1,
++        "utils/thread_store.py:valido": 1,
++        "utils/tracing.py:activar": 1,
++        "utils/webchat.py:_max_sesiones": 1,
++        "utils/webchat.py:_ttl": 1,
++        "utils/webchat.py:habilitado": 1,
++        "utils/websearch.py:search_web": 1,
++        "visor.py:vigilar": 1
++      },
++      "metrica": 137
++    },
++    "nodos_largos": {
++      "detalle": {
++        "effective_n.py:EffectiveNMulti": 66,
++        "effective_n.py:HashFile": 65,
++        "effective_n.py:WriteReport": 140,
++        "fable_judge.py:CazarFraudes": 41,
++        "fable_judge.py:RecolectarClaims": 60,
++        "informe.py:WriteReport": 55,
++        "juez.py:Judge": 144,
++        "juez_lote.py:CorrerJuez": 51,
++        "juez_lote.py:JuezLoteFlow": 108,
++        "nodes.py:AgentStep": 125,
++        "nodes.py:ExecuteTools": 59,
++        "nodes.py:GetQuestion": 56,
++        "nodes.py:LayaRouter": 153,
++        "nodes.py:VerificarCitas": 53,
++        "research.py:Synthesizer": 60
++      },
++      "metrica": 15
++    },
++    "producto_conoce_lab": {
++      "detalle": {
++        "delegar.py:<módulo>": 1,
++        "delegar.py:env_delegar": 2,
++        "fable_judge.py:_es_ground_truth": 1,
++        "nodes.py:PERFILES_PRESUPUESTO": 1,
++        "nodes.py:_lineas_de": 1,
++        "utils/fable_dominios.py:DOMINIOS_DIR": 1,
++        "utils/riesgo.py:origen": 2,
++        "utils/riesgo.py:origen_etiqueta": 1
++      },
++      "metrica": 10
++    },
++    "settings_leidos": {
++      "detalle": {
++        "A2A_AGENTS": [
++          "modules/a2a.py"
++        ],
++        "AGENT_ALLOWED_DIRS": [
++          "utils/fs_tools.py"
++        ],
++        "BANCO": [
++          "utils/riesgo.py"
++        ],
++        "BMO_TASKS_DIR": [
++          "utils/rutas.py"
++        ],
++        "CHAT_STREAM": [
++          "nodes.py"
++        ],
++        "CHAT_STREAM_INTERRUPT": [
++          "utils/call_llm.py"
++        ],
++        "CITAS_VERIFICAR": [
++          "nodes.py"
++        ],
++        "COLOR": [
++          "utils/terminal.py"
++        ],
++        "COMPACTION_CHARS": [
++          "nodes.py"
++        ],
++        "CORTE_NOVEDAD": [
++          "nodes.py"
++        ],
++        "CORTE_NOVEDAD_MIN": [
++          "nodes.py"
++        ],
++        "DB_PATH": [
++          "modules/db.py"
++        ],
++        "DEEPSEEK_API_KEY": [
++          "utils/call_llm.py"
++        ],
++        "DELEGADO": [
++          "utils/riesgo.py"
++        ],
++        "HITL_AUTO": [
++          "modules/coding.py"
++        ],
++        "HITL_SCOPE": [
++          "utils/aprobaciones.py"
++        ],
++        "HITL_WEB": [
++          "utils/aprobaciones.py",
++          "utils/riesgo.py"
++        ],
++        "HITL_WEB_PORT": [
++          "utils/hitl_web.py"
++        ],
++        "HITL_WEB_TIMEOUT": [
++          "utils/hitl_web.py"
++        ],
++        "HUMANO_RESPUESTA": [
++          "modules/humano.py"
++        ],
++        "INFORME_CARPETA": [
++          "informe.py"
++        ],
++        "JUEZ_LOTE_CONCURRENCIA": [
++          "juez_lote.py"
++        ],
++        "LAYA_ALPHA": [
++          "utils/laya_routing.py"
++        ],
++        "LAYA_ALPHA_VOTO": [
++          "utils/laya_routing.py"
++        ],
++        "LAYA_BATCH_SIZE": [
++          "utils/laya.py"
++        ],
++        "LAYA_CALIBRACION_ROUTER": [
++          "utils/laya_routing.py"
++        ],
++        "LAYA_CALIBRACION_VOTO": [
++          "utils/laya_routing.py"
++        ],
++        "LAYA_ERROR_COOLDOWN": [
++          "utils/laya.py"
++        ],
++        "LAYA_LOG_ARCHIVO": [
++          "utils/laya_routing.py"
++        ],
++        "LAYA_LOG_DECISIONES": [
++          "nodes.py",
++          "utils/laya_routing.py"
++        ],
++        "LAYA_LOG_PREGUNTA": [
++          "utils/laya_routing.py"
++        ],
++        "LAYA_MAX_EN_PROCESO": [
++          "utils/laya.py"
++        ],
++        "LAYA_MODEL": [
++          "utils/laya.py"
++        ],
++        "LAYA_MODEL_PREFILTRO": [
++          "modules/memoria.py"
++        ],
++        "LAYA_MODEL_RIESGO": [
++          "utils/riesgo.py"
++        ],
++        "LAYA_MODEL_SUPERVISOR": [
++          "sonda_supervisor.py"
++        ],
++        "LAYA_MODEL_VOTO": [
++          "nodes.py"
++        ],
++        "LAYA_MODO": [
++          "utils/laya_routing.py"
++        ],
++        "LAYA_UNSURE_HIGH": [
++          "utils/laya.py",
++          "utils/laya_routing.py"
++        ],
++        "LAYA_UNSURE_HIGH_SUPERVISOR": [
++          "sonda_supervisor.py"
++        ],
++        "LAYA_UNSURE_HIGH_VOTO": [
++          "utils/laya_routing.py"
++        ],
++        "LAYA_UNSURE_LOW": [
++          "utils/laya.py"
++        ],
++        "LEER_BMO_ENV": [
++          "utils/call_llm.py"
++        ],
++        "LLM_API_KEY": [
++          "utils/call_llm.py"
++        ],
++        "LLM_BASE_URL": [
++          "modules/vision.py",
++          "utils/call_llm.py"
++        ],
++        "LLM_MODEL": [
++          "modules/vision.py",
++          "utils/call_llm.py"
++        ],
++        "MAPA_CONCURRENCIA": [
++          "informe.py"
++        ],
++        "MAX_TOOL_ROUNDS": [
++          "utils/fs_tools.py"
++        ],
++        "MAX_TOOL_ROUNDS_AMPLIO": [
++          "nodes.py"
++        ],
++        "MAX_TOOL_ROUNDS_APLICACION": [
++          "nodes.py"
++        ],
++        "MAX_TOOL_ROUNDS_BANCO": [
++          "nodes.py"
++        ],
++        "MAX_TOOL_ROUNDS_CONSULTA": [
++          "nodes.py"
++        ],
++        "MCP_EXPOSE": [
++          "mcp_server.py"
++        ],
++        "MCP_SERVERS": [
++          "utils/mcp_client.py"
++        ],
++        "MEMORIA": [
++          "main.py",
++          "nodes.py"
++        ],
++        "MEMORIA_DIR": [
++          "modules/memoria.py"
++        ],
++        "MEMORIA_PREFILTRO": [
++          "modules/memoria.py"
++        ],
++        "MEMORIA_PREFILTRO_N": [
++          "modules/memoria.py"
++        ],
++        "NO_COLOR": [
++          "utils/terminal.py"
++        ],
++        "PRECIO_TOKENS": [
++          "main.py"
++        ],
++        "PREFETCH": [
++          "utils/prefetch.py"
++        ],
++        "PREFETCH_MAX_ARCHIVOS": [
++          "utils/prefetch.py"
++        ],
++        "PREFETCH_MAX_LINEAS": [
++          "utils/prefetch.py"
++        ],
++        "PREGUNTAS_ARCHIVO": [
++          "nodes.py"
++        ],
++        "PREGUNTAS_LOG": [
++          "nodes.py"
++        ],
++        "PROMPT_AUDITORIA": [
++          "main.py"
++        ],
++        "PROMPT_FABLE": [
++          "main.py"
++        ],
++        "PROMPT_FORMA": [
++          "main.py"
++        ],
++        "RAG_PREFILTRO": [
++          "modules/rag.py"
++        ],
++        "RAG_PREFILTRO_N": [
++          "modules/rag.py"
++        ],
++        "READ_MAX_CHARS": [
++          "utils/fs_tools.py"
++        ],
++        "RIESGO_ARCHIVO": [
++          "utils/riesgo.py"
++        ],
++        "RIESGO_LOG": [
++          "utils/riesgo.py"
++        ],
++        "SEARCH_PROVIDER": [
++          "utils/websearch.py"
++        ],
++        "SKILLS": [
++          "nodes.py"
++        ],
++        "SONDA_LAYA_CKPT": [
++          "sonda_laya.py"
++        ],
++        "THREADS_DIR": [
++          "utils/thread_store.py"
++        ],
++        "THREAD_PERSIST": [
++          "utils/thread_store.py"
++        ],
++        "TRACE": [
++          "utils/tracing.py"
++        ],
++        "UMBRAL_SIN_PROGRESO": [
++          "nodes.py"
++        ],
++        "USE_LAYA_ROUTER": [
++          "flow.py",
++          "replay.py"
++        ],
++        "USE_VOTACION": [
++          "nodes.py"
++        ],
++        "WEBCHAT": [
++          "utils/webchat.py"
++        ],
++        "WEBCHAT_MAX_SESIONES": [
++          "utils/webchat.py"
++        ],
++        "WEBCHAT_TTL": [
++          "utils/webchat.py"
++        ],
++        "WEBHOOK_LOG": [
++          "utils/hitl_web.py"
++        ],
++        "WEBHOOK_MAX_BYTES": [
++          "utils/hitl_web.py"
++        ],
++        "WEBHOOK_MAX_POR_MINUTO": [
++          "utils/hitl_web.py"
++        ],
++        "WEBHOOK_TOKEN": [
++          "utils/hitl_web.py"
++        ]
++      },
++      "metrica": 89
++    },
+     "tests_definidos": {
+       "detalle": {
+         "tests/test_ab_skills.py": 9,
+@@ -171,6 +586,7 @@
+         "tests/test_flujos.py": 34,
+         "tests/test_forma_larga.py": 5,
+         "tests/test_fs_tools.py": 16,
++        "tests/test_grafo_readme.py": 1,
+         "tests/test_grafos_sin_calles_muertas.py": 4,
+         "tests/test_h3b_swarm.py": 6,
+         "tests/test_h3g_reglas.py": 8,
+@@ -193,6 +609,7 @@
+         "tests/test_probe_verdict.py": 1,
+         "tests/test_producto_router.py": 3,
+         "tests/test_ratchet.py": 35,
++        "tests/test_ratchet_elegancia.py": 15,
+         "tests/test_replay.py": 16,
+         "tests/test_riesgo.py": 19,
+         "tests/test_rondas.py": 5,
+@@ -217,7 +634,29 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 1093
++      "metrica": 1109
++    },
++    "texto_de_prompt": {
++      "detalle": {
++        "DIRECTIVA_AUDITORIA": 735,
++        "DIRECTIVA_FABLE": 1208,
++        "DIRECTIVA_FORMA": 279,
++        "system_prompt": 526
++      },
++      "metrica": 2748
++    },
++    "vocabulario_hardcodeado": {
++      "detalle": {
++        "juez.py:TOOL_CONTEXTO_RE": 1,
++        "nodes.py:GetQuestion": 1,
++        "nodes.py:_PALABRAS_AMPLIAS": 1,
++        "utils/aprobaciones.py:YES": 1,
++        "utils/laya_routing.py:RE_TEMPORAL": 1,
++        "utils/laya_routing.py:_IMPERATIVOS_CAPACIDAD": 1,
++        "utils/laya_routing.py:_RELLENOS": 1,
++        "utils/laya_routing.py:_RE_OBJETO_CAPACIDAD": 1
++      },
++      "metrica": 8
+     }
+   },
+   "version": 1
+diff -ruN a/tests/test_grafo_readme.py b/tests/test_grafo_readme.py
+--- a/tests/test_grafo_readme.py	1970-01-01 00:00:00.000000000 +0000
++++ b/tests/test_grafo_readme.py	2026-10-27 22:01:12.136843277 +0000
+@@ -0,0 +1,21 @@
++"""El diagrama del README es el grafo que ejecuta el framework, no uno dibujado.
++
++Medido en la auditoría del 2026-10-27: el README mostraba
++GetQuestion → AgentStep mientras el chat real pasa por PreFetch y LayaRouter.
++`utils.viz.mermaid` ya camina los sucesores; acá se exige que el README diga
++lo mismo (regenerarlo: `python3 main.py grafo chat`)."""
++import re
++
++from conftest import RAIZ
++
++
++def test_el_diagrama_del_readme_es_el_grafo_del_chat(monkeypatch):
++    monkeypatch.setenv("USE_LAYA_ROUTER", "1")  # el default de producción
++    from flow import create_agent_flow
++    from utils.viz import mermaid
++
++    readme = (RAIZ / "README.md").read_text(encoding="utf-8")
++    bloque = re.search(r"```mermaid\n(.*?)\n```", readme, re.S)
++    assert bloque, "el README perdió el diagrama del chat"
++    assert bloque.group(1) == mermaid(create_agent_flow()), (
++        "el diagrama del README no es el grafo real: regeneralo con `python3 main.py grafo chat`")
+diff -ruN a/tests/test_ratchet_elegancia.py b/tests/test_ratchet_elegancia.py
+--- a/tests/test_ratchet_elegancia.py	1970-01-01 00:00:00.000000000 +0000
++++ b/tests/test_ratchet_elegancia.py	2026-10-27 22:03:21.117160803 +0000
+@@ -0,0 +1,116 @@
++"""Ratchets de elegancia (fase 0 del refactor, `docs/elegancia.md`).
++
++Siete métricas que el refactor tiene que bajar y que hoy ningún gate miraba.
++Estos tests fijan qué cuenta cada detector (y qué NO, para que el falso
++positivo no empuje a "arreglar" lo que está bien).
++"""
++import re
++
++import pytest
++
++import ratchet
++
++
++def _escribir(raiz, relativa, texto):
++    ruta = raiz / relativa
++    ruta.parent.mkdir(parents=True, exist_ok=True)
++    ruta.write_text(texto, encoding="utf-8")
++
++
++def test_core_que_importa_un_modulo_concreto_cuenta_y_el_registro_no(tmp_path):
++    _escribir(tmp_path, "nodes.py",
++              "from modules import discover\n\n"
++              "def f():\n    from modules.memoria import guardar\n    return guardar\n")
++    _escribir(tmp_path, "modules/coding.py", "from modules.memoria import x\n")
++    assert ratchet.escanear_core_importa_modulos(tmp_path) == {"nodes.py:f": 1}
++
++
++def test_producto_que_nombra_al_laboratorio_cuenta(tmp_path):
++    _escribir(tmp_path, "utils/riesgo.py",
++              "def origen(s):\n    return 'banco' if s('BANCO') == '1' else 'terminal'\n")
++    _escribir(tmp_path, "delegar.py", "from banco.banco import Chat\n")
++    _escribir(tmp_path, "nodes.py", "SALTEAR = 'GROUND-TRUTH.md'\n")
++    assert ratchet.escanear_producto_conoce_lab(tmp_path) == {
++        "delegar.py:<módulo>": 1, "nodes.py:SALTEAR": 1, "utils/riesgo.py:origen": 2}
++
++
++def test_la_prosa_que_menciona_el_banco_no_cuenta(tmp_path):
++    _escribir(tmp_path, "nodes.py",
++              'def f():\n    """El banco mide esto; el producto no lo lee."""\n    return 1\n')
++    assert ratchet.escanear_producto_conoce_lab(tmp_path) == {}
++
++
++@pytest.mark.parametrize(("codigo", "cuenta"), [
++    ("VERBOS = frozenset({'debatí', 'corré', 'leé', 'listá', 'mostrá'})\n", 1),
++    ("import re\nR = re.compile(r'(?i)\\b(hoy|ahora|último|reciente|novedad)\\b')\n", 1),
++    # sin tilde ni (?i): una tabla de tokens técnicos, no vocabulario del usuario
++    ("ENVOLTORIOS = {'sudo', 'env', 'nice', 'nohup', 'time'}\n", 0),
++    # pocas palabras: un sí/no no es una lista que decide por keywords
++    ("SI = {'sí', 'si', 'y'}\n", 0),
++    ("import re\nR = re.compile(r'[\\w./-]+\\.py')\n", 0),
++])
++def test_vocabulario_hardcodeado(tmp_path, codigo, cuenta):
++    _escribir(tmp_path, "utils/x.py", codigo)
++    assert sum(ratchet.escanear_vocabulario(tmp_path).values()) == cuenta
++
++
++def test_imports_perezosos_cuentan_solo_dentro_de_funciones(tmp_path):
++    _escribir(tmp_path, "nodes.py",
++              "import json\n\nclass N:\n    def prep(self):\n        import re\n        return re\n\n"
++              "def g():\n    from pathlib import Path\n    import os\n    return Path, os\n")
++    assert ratchet.escanear_imports_perezosos(tmp_path) == {"nodes.py:N": 1, "nodes.py:g": 2}
++
++
++def test_settings_leidos_por_nombre_con_sus_lectores(tmp_path):
++    _escribir(tmp_path, "nodes.py", "a = _setting('CHAT_STREAM', '1')\nb = _entero(\"MAX_TOOL_ROUNDS\", 8)\n")
++    _escribir(tmp_path, "utils/x.py", "c = os.environ.get('CHAT_STREAM')\n")
++    assert ratchet.escanear_settings(tmp_path) == {
++        "CHAT_STREAM": ["nodes.py", "utils/x.py"], "MAX_TOOL_ROUNDS": ["nodes.py"]}
++
++
++def test_nodo_largo_es_una_clase_con_prep_exec_post(tmp_path):
++    relleno = "".join(f"        x{i} = {i}\n" for i in range(45))
++    _escribir(tmp_path, "nodes.py",
++              f"class Largo:\n    def prep(self, s):\n{relleno}        return s\n\n"
++              f"class Datos:\n    def otro(self):\n{relleno}        return 1\n")
++    assert list(ratchet.escanear_nodos_largos(tmp_path)) == ["nodes.py:Largo"]
++
++
++def test_texto_de_prompt_mide_lo_literal_y_no_lo_interpolado(tmp_path):
++    _escribir(tmp_path, "main.py",
++              'DIRECTIVA_X = "abcde"\n\n'
++              'def system_prompt():\n    cwd = "/una/ruta/larguisima"\n    return f"Hola {cwd} chau"\n')
++    assert ratchet.escanear_texto_de_prompt(tmp_path) == {"DIRECTIVA_X": 5, "system_prompt": 10}
++
++
++def test_un_setting_nuevo_pone_rojo_aunque_otro_se_borre(tmp_path):
++    """Las métricas de conjunto comparan identidad: cambiar un setting por
++    otro no es mejora, es la misma deuda con otro nombre."""
++    (tmp_path / "ratchets").mkdir()
++    baseline = tmp_path / "ratchets" / "baseline.json"
++    _escribir(tmp_path, "nodes.py", "a = _setting('VIEJO', '1')\n")
++    assert ratchet.correr(raiz=tmp_path, ruta_baseline=baseline, guardia=False, salida=lambda _: None) == 0
++    _escribir(tmp_path, "nodes.py", "a = _setting('NUEVO', '1')\n")
++    lineas = []
++    assert ratchet.correr(raiz=tmp_path, ruta_baseline=baseline, guardia=False, salida=lineas.append) == 1
++    assert any("settings_leidos" in linea and "EMPEORÓ" in linea for linea in lineas)
++    assert any("NUEVO" in linea for linea in lineas)
++
++
++def test_las_metricas_de_elegancia_estan_en_el_baseline_versionado():
++    """Sembradas en la fase 0: sin baseline, el ratchet las siembra en
++    silencio y una regresión del mismo commit pasaría."""
++    datos = ratchet.cargar_baseline(ratchet.BASELINE)
++    faltan = [m for m in ratchet.ELEGANCIA if m not in (datos or {}).get("ratchets", {})]
++    assert not faltan, f"métricas de elegancia sin baseline: {faltan}"
++
++
++def test_todo_setting_tiene_veredicto_en_el_inventario():
++    """El inventario de `docs/elegancia.md` decide qué setting se queda: uno
++    nuevo sin fila sería configuración que nadie decidió."""
++    from conftest import RAIZ
++
++    doc = (RAIZ / "docs" / "elegancia.md").read_text(encoding="utf-8")
++    con_fila = set(re.findall(r"^\| `([A-Z][A-Z0-9_]+)` \| (?:contrato|revisar|borrar) \|", doc, re.M))
++    faltan = sorted(set(ratchet.escanear_settings(RAIZ)) - con_fila)
++    assert not faltan, f"settings sin veredicto en docs/elegancia.md: {faltan}"

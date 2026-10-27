@@ -5041,3 +5041,47 @@ manda a tools) queda como hallazgo de costo, no de seguridad. Artefacto:
 `salidas/evals/producto_router.jsonl` + resumen `producto_router-resumen.md`.
 Corrido por el agente tras aplicar el patch del autor; suite 1106 verde,
 calidad verde.
+
+---
+
+## Fase 0 del refactor de elegancia — la deuda de diseño, contada (2026-10-27, X91)
+
+La auditoría de refactor contrastó el harness con PocketFlow, 12-Factor Agents,
+Anthropic (*Building effective agents*, *Effective context engineering*,
+*Harness design for long-running apps*), Manus (*Context engineering*), Agent
+Skills, mini-swe-agent y SWE-agent (ACI). Dos decisiones obligan a parchear:
+el `directo` del router quita las tools (de ahí las reglas temporales, los
+imperativos y el voto) y el thinking va apagado en toda ronda con tools (la API
+pide devolver `reasoning_content`, no apagarlo). La definición de elegancia y
+el plan por fases quedaron en `docs/elegancia.md`.
+
+La fase 0 no cambia conducta: congela lo que el refactor tiene que bajar.
+Siete métricas nuevas en `ratchet.py`, todas `menor_mejor` y por ámbito de
+nivel superior (función/clase/constante, no línea: sobrevive a las ediciones):
+
+| Ratchet | Baseline | Qué cuenta |
+|---|---|---|
+| `core_importa_modulos` | 3 | `from modules.x` en `nodes`/`flow`/`main`/`utils` (`main.catalogo_memoria`, `main.resumen_de_sesion`, `nodes._respaldar_zona_fria`) |
+| `producto_conoce_lab` | 10 | import de `banco` o literales `banco`/`BANCO`/`DELEGADO`/`GROUND-TRUTH` (`delegar`, `riesgo.origen*`, `nodes._lineas_de`, `PERFILES_PRESUPUESTO`, `fable_dominios`, `fable_judge`) |
+| `vocabulario_hardcodeado` | 8 | colecciones de ≥5 palabras en español o regex `(?i)` con ≥5 alternativas y tilde (`_IMPERATIVOS_CAPACIDAD`, `RE_TEMPORAL`, `_PALABRAS_AMPLIAS`, `_RELLENOS`, `_RE_OBJETO_CAPACIDAD`, la lista de "seguí" de `GetQuestion`, `juez.TOOL_CONTEXTO_RE`, el sí/no del HITL) |
+| `settings_leidos` | 89 | settings distintos (mismos lectores que `test_docs_sin_deriva.py`); de conjunto: cambiar uno por otro también es rojo |
+| `imports_perezosos` | 137 | imports dentro de funciones/clases |
+| `nodos_largos` | 15 | clases con `prep`/`exec`/`post` de más de 40 líneas (`LayaRouter` 153, `juez.Judge` 144, `effective_n.WriteReport` 140, `AgentStep` 125…) |
+| `texto_de_prompt` | 2748 | chars literales del f-string de `main.system_prompt` (526) más las tres `DIRECTIVA_*` (279 + 1208 + 735) |
+
+Límites declarados de los detectores: el de vocabulario no ve listas en inglés
+sin tilde ni regex sin `(?i)` (se eligió así para no contar tablas técnicas
+como `_ENVOLTORIOS` de la política); el de laboratorio solo mira literales de
+≤40 chars (la prosa que menciona el banco no cuenta) y excluye al propio
+`ratchet.py`. El inventario de los 89 settings con su veredicto (41 contrato ·
+26 revisar · 22 borrar) vive en `docs/elegancia.md` y
+`test_todo_setting_tiene_veredicto_en_el_inventario` impide que entre uno sin
+decidir.
+
+El diagrama del README pasa a ser el que exporta `utils.viz.mermaid`
+(`test_el_diagrama_del_readme_es_el_grafo_del_chat`): el dibujado mostraba
+GetQuestion → AgentStep y el real pasa por PreFetch y LayaRouter.
+
+`AGENTS.md` gana R10 (elegancia, con su gate). La regla blanda "parche mínimo"
+se levanta para las fases 1–5 del refactor, igual que para H2 (X71): cada fase
+tiene su gate de salida en `docs/elegancia.md`.

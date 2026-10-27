@@ -10,14 +10,20 @@ lectura, y cada capacidad nueva que se agrega es un archivo que se deja en
 (condición + prompt + subset de tools) empaquetan modos de trabajo y se
 disparan por regex, sin LLM.
 
+<!-- generado: python3 main.py grafo chat (tests/test_grafo_readme.py lo compara) -->
 ```mermaid
 flowchart TD
-    q[GetQuestion] -->|continue| s[AgentStep]
-    s -->|answer| c[VerificarCitas]
-    c --> q
-    s -->|tool| t[ExecuteTools]
-    t --> s
-    q -->|exit| x[ExitChat]
+    GetQuestion_0 -->|continue| PreFetch_1
+    PreFetch_1 -->|continue| LayaRouter_2
+    LayaRouter_2 -->|directo| DirectAnswer_3
+    DirectAnswer_3 -->|answer| VerificarCitas_4
+    VerificarCitas_4 -->|default| GetQuestion_0
+    DirectAnswer_3 -->|tool| ExecuteTools_5
+    ExecuteTools_5 -->|default| AgentStep_6
+    AgentStep_6 -->|answer| VerificarCitas_4
+    AgentStep_6 -->|tool| ExecuteTools_5
+    LayaRouter_2 -->|herramientas| AgentStep_6
+    GetQuestion_0 -->|exit| ExitChat_7
 ```
 
 ## Filosofía

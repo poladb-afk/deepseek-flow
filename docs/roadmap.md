@@ -2,6 +2,13 @@
 
 # Próximos pasos (roadmap)
 
+## Refactor de elegancia (auditoría 2026-10-27) — fases 1–5
+
+Fase 0 cerrada (X91): la deuda quedó contada en siete ratchets. Siguen las
+fases 1–5 de [elegancia.md](elegancia.md), cada una con su gate de salida.
+Próxima: **fase 1** (hooks de ciclo de vida en los módulos; el producto deja
+de leer el banco), sin cambio de conducta.
+
 ## Refactor del harness (auditoría 2026-10-26) — la secuencia vigente
 
 Cada etapa tiene un gate medible y ninguna empieza hasta que la anterior lo
