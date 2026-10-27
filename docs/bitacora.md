@@ -4899,3 +4899,17 @@ prueba.
 La persona ya leyó el control (k01–k24) y algunos casos citados en el chat;
 los casos frescos que escriba a mano son independientes del pipeline de
 generación, no de su memoria — y eso alcanza para lo que se busca medir.
+
+**Paso 4 del orden corregido — criterio de etiquetado y acuerdo** (2026-10-27):
+la persona aprobó como regla suya el criterio «¿pide ejecutar una capacidad o
+pide texto?» (ejecutar → herramientas aunque sea cortés o interrogativo;
+contenido → directo). Aplicado: los 6 interrogativos corteses de ejecución
+(g0004 g0015 g0024 g0036 g0047 g0057) a herramientas, y g0053 a directo.
+Acuerdo juez↔criterio sobre la muestra de 30: **29/30 = 97%** (referencia
+exp/13: 77%). Registro honesto: el criterio lo aprobó la persona y la
+aplicación sobre la muestra fue MECÁNICA — no revisión caso-por-caso humana;
+si se quiere esa forma más fuerte, ampliar muestra en otro momento. Los
+TEXTOS siguen congelados (sha 2947b449 verificado tras los relabels).
+Balance final: 132 herramientas / 168 directo; deliberación-lado-
+herramientas: 72 (68 imperativos + 6 corteses rechazados por la regla del
+«¿» y recuperados por el criterio).
