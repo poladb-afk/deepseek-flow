@@ -37,6 +37,7 @@ sys.path.insert(0, str(RAIZ))  # los imports del harness (nodes, utils) viven en
 from utils.laya_routing import regla_imperativo_capacidad, regla_temporal  # noqa: E402
 
 CASOS = RAIZ / "banco" / "voto_casos.jsonl"
+CONTROL = RAIZ / "banco" / "voto_control.jsonl"
 GRUPOS = ("correccion", "directo", "herramientas")
 ESPERADOS = ("herramientas", "directo")
 
@@ -178,6 +179,36 @@ def veredicto_h3g2(filas, voto_local_disponible):
             if gana else "las reglas se quedan"}
 
 
+CONTROL_HERRAMIENTAS_MIN = 10  # imperativos + recencia, escritos antes de entrenar
+CONTROL_DIRECTOS_MIN = 4       # trampas inversas nuevas ("escribime un haiku")
+
+
+def veredicto_reentreno(filas, filas_control, n_fugas, voto_local_disponible):
+    """El criterio de banco/specs/voto_reentreno.md, sin retoques. PURA.
+
+    Un checkpoint nuevo de router_voto se promueve si pasa H3-G2 en el bench
+    Y lo mismo fuera de muestra (el control), con el entrenamiento limpio de
+    fugas. `n_fugas=None` = no se corrió el anti-fuga: no hay veredicto."""
+    h3g2 = veredicto_h3g2(filas, voto_local_disponible)
+    herramientas = [f for f in filas_control if f["esperado"] == "herramientas"]
+    directos = [f for f in filas_control if f["esperado"] == "directo"]
+    tamano = len(herramientas) >= CONTROL_HERRAMIENTAS_MIN and len(directos) >= CONTROL_DIRECTOS_MIN
+    condiciones = {
+        "h3g2": h3g2["gana"],
+        "control_tamano": tamano,
+        "control_seguridad": tamano and not any(f["falso_directo_voto"] for f in filas_control),
+        "control_ahorro": tamano and all(f["acierto_voto"] for f in directos),
+        "antifuga": n_fugas == 0,
+    }
+    completo = n_fugas is not None
+    gana = completo and all(condiciones.values())
+    return {"condiciones": condiciones, "completo": completo, "gana": gana,
+            "falsos_directos_control": [f["id"] for f in filas_control if f["falso_directo_voto"]],
+            "decision": ("se promueve el checkpoint y H3-G2 queda ganado (aplicar el borrado aparcado)"
+                         if gana else "no se promueve: el checkpoint de producción sigue igual")
+            if completo else "falta correr el anti-fuga sobre el entrenamiento (--entrenamiento)"}
+
+
 def _voto_local_real():
     """El voto local de producción (checkpoint LAYA_MODEL_VOTO), o None."""
     import nodes
@@ -251,6 +282,9 @@ def main(argv=None):
                         help="mide solo la capa voto (sin reglas duras del router)")
     parser.add_argument("--sin-voto-local", action="store_true",
                         help="todo lo arbitra DeepSeek (H3-G2 no da veredicto así)")
+    parser.add_argument("--control", default=str(CONTROL), help="casos fuera de muestra")
+    parser.add_argument("--entrenamiento", default=None,
+                        help="JSONL con el que se entrenó el checkpoint (anti-fuga del reentreno)")
     parser.add_argument("--salida", default=None, help="JSON de resultados")
     args = parser.parse_args(argv)
     casos = cargar_casos(args.casos)
@@ -266,6 +300,16 @@ def main(argv=None):
     print(informe_texto(filas, metricas))
     print(f"  H3-G2 (voto solo, banco/specs/h3g2_voto_solo.md): {'GANA' if h3g2['gana'] else 'NO GANA'} "
           f"{h3g2['condiciones']} → {h3g2['decision']}")
+    reentreno = None
+    control = cargar_casos(args.control) if Path(args.control).is_file() else []
+    if control or args.entrenamiento:
+        from voto_antifuga import fugas, leer, protegidos
+
+        filas_control = medir(control, voto_local, _arbitro_real(), regla=None)
+        n_fugas = len(fugas(leer(args.entrenamiento), protegidos())) if args.entrenamiento else None
+        reentreno = veredicto_reentreno(filas, filas_control, n_fugas, checkpoint)
+        print(f"  reentreno (banco/specs/voto_reentreno.md): {'GANA' if reentreno['gana'] else 'NO GANA'} "
+              f"{reentreno['condiciones']} → {reentreno['decision']}")
     destino = Path(args.salida or (RAIZ / "salidas" / "evals" /
                                    f"bench_voto_{datetime.now():%Y%m%d}.json"))
     destino.parent.mkdir(parents=True, exist_ok=True)
@@ -275,6 +319,7 @@ def main(argv=None):
         "reglas": not args.sin_reglas,
         "metricas": metricas,
         "h3g2": h3g2,
+        "reentreno": reentreno,
         "filas": filas,
     }, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"artefacto: {destino.relative_to(RAIZ)}")

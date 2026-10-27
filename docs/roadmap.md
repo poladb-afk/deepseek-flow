@@ -38,9 +38,13 @@ calidad 1,22 → 1,06 aunque VerificarCitas corrija después).
 nada en producción construye agentes como tools (el supervisor usa `loop` y
 `semilla`, no `agente`). Vuelve si aparece una agent-tool en producción.
 
-**Ahora**: queda E (sandbox, opcional y sin diseño). Fuera de la secuencia,
-el trabajo con más valor es el voto en c01/c02 (`router_voto`), que es lo que
-destraba H3-G2.
+**Ahora — reentreno del voto** (pre-registrado, X87,
+`banco/specs/voto_reentreno.md`): es lo que destraba H3-G2. Orden fijo:
+(1) el operador escribe y commitea `banco/voto_control.jsonl` (≥10 imperativos
+y recencia + ≥4 trampas inversas) ANTES de generar datos; (2) dataset y
+fine-tune en bmo/Laya, con `voto_antifuga.py` en 0 fugas; (3)
+`bench_voto.py --entrenamiento …` con el checkpoint nuevo. De H3 queda E
+(sandbox, opcional y sin diseño).
 
 **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
 "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`

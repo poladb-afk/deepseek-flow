@@ -4802,3 +4802,31 @@ original de G, que reemplazaron X82/X83 (ahora es una tabla con el resultado
 de cada letra); la cola numerada estaba fuera de orden (14 y 16 al final).
 Se reordenó sin renumerar, porque otras partes del doc citan "ítem 15" e
 "ítem 20".
+
+## Reentreno del voto — pre-registro (2026-10-27)
+
+**Pregunta** (X87): ¿un `router_voto` reentrenado con imperativos de
+capacidad y recencia frena c01 y c02 sin volverse un voto que dice siempre
+herramientas?
+
+**El riesgo que se diseña primero**: el gate (H3-G2) usa los 18 casos de
+`voto_casos.jsonl`, que son conocidos. Si alguno entra al entrenamiento,
+aunque sea reescrito, el bench da 0 falsos directos por memoria. Es la familia
+de X82 en otra forma: el gate mediría algo distinto de lo que dice medir. Ya
+pasó una vez: en router_voto r2 el test entrenó dentro de los verificados
+(lo corrigió exp/13 con el primer filtro anti-fuga).
+
+**Tres defensas fijadas antes de los datos**: (1) anti-fuga determinista
+contra bench y control, que atrapa copias, tildes y reórdenes (Jaccard ≥ 0,6
+sobre la bolsa de palabras); una paráfrasis con otras palabras pasa, y por
+eso existe (2): un control fuera de muestra con etiqueta humana, escrito y
+commiteado antes de generar el dataset (la historia de git prueba el orden);
+(3) el ahorro, medido en el directo del bench y en trampas inversas nuevas.
+
+**Criterio**: se promueve si gana H3-G2 en el bench, el control (≥10 + ≥4)
+no tiene falsos directos, las trampas salen bien y el anti-fuga da 0. Sin el
+anti-fuga corrido, no hay veredicto.
+
+**Estado**: el control está vacío y lo escribe el operador. El dataset y el
+fine-tune pasan por bmo/Laya, fuera de este repo; el contrato `PREGUNTA_VOTO`
+sigue congelado.
