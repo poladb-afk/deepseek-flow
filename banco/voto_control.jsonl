@@ -25,3 +25,9 @@
 {"id": "k22", "grupo": "correccion", "esperado": "herramientas", "pregunta": "¿quién ganó las últimas elecciones presidenciales de Francia?"}
 {"id": "k23", "grupo": "correccion", "esperado": "herramientas", "pregunta": "¿cuál fue la última película en ganar el Oscar a mejor película?"}
 {"id": "k24", "grupo": "correccion", "esperado": "herramientas", "pregunta": "¿quién ganó el último Gran Premio de Fórmula 1?"}
+{"id": "f01", "grupo": "correccion", "esperado": "herramientas", "pregunta": "Ejecuta la asamblea, 3 rondas"}
+{"id": "f02", "grupo": "correccion", "esperado": "herramientas", "pregunta": "Usa el foro, 2 rondas"}
+{"id": "f03", "grupo": "correccion", "esperado": "herramientas", "pregunta": "Usa el agora de agentes, rondas a tu antojo"}
+{"id": "f04", "grupo": "correccion", "esperado": "herramientas", "pregunta": "Quein salio electo en las ultimas presidenciales de Argentina?"}
+{"id": "f05", "grupo": "correccion", "esperado": "herramientas", "pregunta": "¿Quien ganó la ultima edicion de competencia local argentina de futbol?"}
+{"id": "f06", "grupo": "correccion", "esperado": "herramientas", "pregunta": "Quien ganó el ultimo nobel de ciencias?"}
