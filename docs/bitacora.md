@@ -4654,3 +4654,25 @@ Criterio fijado ANTES de correr (`banco/specs/h3b_swarm.md`): el supervisor con 
 **Cambio** (X80): `clave_valida` compara el sha256 de la clave con `ratchets/clave_operador.sha256` leído de HEAD y HEAD~1 (editar el disco no sirve; cambiar el hash junto con el empeoramiento exige la clave vieja; sin hash commiteado no hay bypass). `--actualizar` también la exige. `--sembrar-clave` la pide por terminal (getpass) y escribe solo el hash.
 
 **Medición**: 7 tests nuevos de la guardia (bandera `1` rechazada, hash del disco ignorado, cambio de hash en el mismo commit rechazado, falla cerrado sin hash, `--actualizar` sin clave rechazado, sembrado). Verificados con un git mínimo (dulwich) en un sandbox sin git; en CI corren con git real. **Pendiente del operador**: `python3 ratchet.py --sembrar-clave` y commitear el hash. Hasta entonces ningún empeoramiento se puede aceptar (falla cerrado).
+
+## H3-G — pre-registro: ¿el router necesita reglas de palabras clave? (2026-10-26)
+
+**Pregunta** (X81): las reglas `regla_temporal` (exp/46) y
+`regla_imperativo_capacidad` (exp/54) mandan a herramientas antes del modelo.
+Se agregaron para cerrar falsos directos medidos, antes del voto 2-de-2. Lo que
+falta saber es si el voto ya los cubre.
+
+**Corrección del plan**: el roadmap proponía medir contra la flywheel, pero la
+flywheel no guarda el texto de la pregunta (`LAYA_LOG_PREGUNTA=0` por
+privacidad, y las 177 filas ambientales no tienen `pregunta`), así que sobre
+ella no se pueden re-evaluar las reglas. Se usan los 103 casos con texto y
+etiqueta: 18 humanos (`voto_casos.jsonl`) y 85 del árbitro (sesgo de banco
+declarado). Las reglas disparan en 78 de ellos.
+
+**Diseño**: pareado. Una consulta a Laya + voto por caso, y los dos brazos se
+arman con los mismos resultados (`politica` pura; un test verifica que
+coincide con `LayaRouter` en enforce). **Criterio**: el borrado gana solo si
+cobertura ≥20 y falso directo sin reglas == con reglas. Las skills por regex
+quedan fuera (otro experimento).
+
+**Estado**: sin correr. Necesita Laya (no está en el sandbox del agente).

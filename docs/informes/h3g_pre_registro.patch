@@ -1,0 +1,470 @@
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' a/deepseek-flow-main/banco/probes/h3g_reglas.py b/deepseek-flow-main/banco/probes/h3g_reglas.py
+--- a/deepseek-flow-main/banco/probes/h3g_reglas.py	1970-01-01 00:00:00.000000000 +0000
++++ b/deepseek-flow-main/banco/probes/h3g_reglas.py	2026-10-27 09:54:44.650111576 +0000
+@@ -0,0 +1,183 @@
++"""H3-G — ¿el router necesita reglas de palabras clave? (pre-registro: banco/specs/h3g_reglas.md)
++
++Diseño pareado: por cada caso se consulta UNA vez el router de Laya y, si
++propone directo, el voto de confirmación; con esos mismos resultados se arman
++el brazo CON reglas (producción) y el brazo SIN reglas. El criterio
++pre-registrado se aplica con una función pura, sin retoques.
++
++Uso:
++    python3 banco/probes/h3g_reglas.py            # necesita Laya (LAYA_MODEL) y DeepSeek para el árbitro
++    python3 banco/probes/h3g_reglas.py --resumen  # rehace el resumen con lo ya medido
++"""
++import argparse
++import dataclasses
++import json
++import sys
++from pathlib import Path
++
++RAIZ = Path(__file__).resolve().parents[2]
++sys.path.insert(0, str(RAIZ))
++
++from utils.laya_routing import regla_imperativo_capacidad, regla_temporal  # noqa: E402
++
++CASOS_HUMANOS = RAIZ / "banco" / "voto_casos.jsonl"
++CASOS_ARBITRO = RAIZ / "banco" / "calibracion_router_2026-10-08.jsonl"
++SALIDA = RAIZ / "salidas" / "evals" / "h3g_reglas.jsonl"
++COBERTURA_MIN = 20
++
++
++def regla(pregunta):
++    """La regla dura de producción (misma fuente que LayaRouter.exec)."""
++    if regla_temporal(pregunta):
++        return "temporal"
++    if regla_imperativo_capacidad(pregunta):
++        return "imperativo"
++    return ""
++
++
++def politica(regla_disparada, propuesta, voto, con_reglas):
++    """La ruta final de LayaRouter en enforce. PURA. Orden de producción:
++    regla → herramientas; si no, la propuesta del router; un directo necesita
++    que el voto confirme (2-de-2)."""
++    if con_reglas and regla_disparada:
++        return "herramientas"
++    if propuesta != "directo":
++        return "herramientas"
++    return "directo" if voto == "directo" else "herramientas"
++
++
++def _normal(texto):
++    return " ".join(str(texto).lower().split())
++
++
++def cargar_casos(humanos=CASOS_HUMANOS, arbitro=CASOS_ARBITRO):
++    """Los casos etiquetados, sin repetidos (la etiqueta humana gana)."""
++    casos = {}
++    for ruta, fuente, clave in ((arbitro, "arbitro", "etiqueta"), (humanos, "humana", "esperado")):
++        if not Path(ruta).is_file():
++            continue
++        for linea in Path(ruta).read_text(encoding="utf-8").splitlines():
++            if not linea.strip():
++                continue
++            fila = json.loads(linea)
++            if fila.get("pregunta") and fila.get(clave) in ("directo", "herramientas"):
++                casos[_normal(fila["pregunta"])] = {"pregunta": fila["pregunta"], "esperado": fila[clave],
++                                                    "fuente": fuente, "id": fila.get("id", "")}
++    return list(casos.values())
++
++
++def medir_caso(caso, router, voto):
++    """Consulta router y voto UNA vez y arma los dos brazos. `router(p)` ->
++    propuesta; `voto(p)` -> (veredicto, llamo_al_arbitro). El voto solo corre
++    si el router propone directo (como en producción)."""
++    p = caso["pregunta"]
++    disparo = regla(p)
++    propuesta = router(p)
++    veredicto, arbitro = voto(p) if propuesta == "directo" else (None, False)
++    fila = {**caso, "regla": disparo, "propuesta": propuesta, "voto": veredicto}
++    for brazo, con in (("con", True), ("sin", False)):
++        final = politica(disparo, propuesta, veredicto, con)
++        fila[f"final_{brazo}"] = final
++        # el árbitro solo se paga en el brazo donde el voto efectivamente corre
++        fila[f"arbitro_{brazo}"] = bool(arbitro) and not (con and disparo)
++    return fila
++
++
++def veredicto(filas):
++    """El criterio de banco/specs/h3g_reglas.md, sin retoques. PURA."""
++    def cuenta(brazo, esperado, final):
++        return sum(1 for f in filas if f["esperado"] == esperado and f[f"final_{brazo}"] == final)
++
++    medidas = {brazo: {"falso_directo": cuenta(brazo, "herramientas", "directo"),
++                       "falso_herramientas": cuenta(brazo, "directo", "herramientas"),
++                       "arbitro": sum(1 for f in filas if f[f"arbitro_{brazo}"])}
++               for brazo in ("con", "sin")}
++    cobertura = sum(1 for f in filas if f["regla"])
++    salvados = [f for f in filas if f["esperado"] == "herramientas"
++                and f["final_con"] == "herramientas" and f["final_sin"] == "directo"]
++    condiciones = {"cobertura": cobertura >= COBERTURA_MIN,
++                   "seguridad": medidas["sin"]["falso_directo"] == medidas["con"]["falso_directo"]}
++    completo = bool(filas)
++    gana = completo and all(condiciones.values())
++    return {"n": len(filas), "medidas": medidas, "cobertura": cobertura, "salvados": salvados,
++            "condiciones": condiciones, "gana": gana,
++            "decision": ("sin reglas gana: se borran regla_temporal y regla_imperativo_capacidad" if gana else
++                         "las reglas se quedan (salvan casos o no se ejercitaron)") if completo
++            else "faltan datos: no hay veredicto"}
++
++
++def resumen(filas):
++    v = veredicto(filas)
++    L = ["# H3-G — ¿el router necesita reglas de palabras clave?", "",
++         "Criterio pre-registrado: banco/specs/h3g_reglas.md.", "",
++         f"Casos: {v['n']} ({sum(1 for f in filas if f['fuente'] == 'humana')} con etiqueta humana) · "
++         f"las reglas disparan en {v['cobertura']}.", "",
++         "| brazo | falso directo | falso herramientas | llamadas al árbitro |", "|---|---|---|---|"]
++    for brazo, nombre in (("con", "con reglas (hoy)"), ("sin", "sin reglas")):
++        m = v["medidas"][brazo]
++        L.append(f"| {nombre} | {m['falso_directo']} | {m['falso_herramientas']} | {m['arbitro']} |")
++    L += [""] + [f"- {c}: {'✅' if ok else '❌'}" for c, ok in v["condiciones"].items()]
++    L += ["", f"**Veredicto:** {'GANA' if v['gana'] else 'NO GANA'} → {v['decision']}", ""]
++    if v["salvados"]:
++        L += ["## Casos que las reglas salvan (falso directo sin ellas)", ""]
++        L += [f"- [{f['fuente']}] ({f['regla']}) {f['pregunta'][:140]}" for f in v["salvados"]]
++    return "\n".join(L) + "\n"
++
++
++def _router_y_voto():
++    """Los componentes REALES de producción, en modo enforce."""
++    import nodes
++    from utils import call_llm
++    from utils.laya import disponible, preguntar_detalle
++    from utils.laya_routing import config_router, decide
++
++    if not disponible():
++        raise SystemExit("ERROR: Laya no está disponible (LAYA_MODEL): sin router no hay experimento")
++    config = dataclasses.replace(config_router(), modo="enforce")
++
++    def router(pregunta):
++        detalle = preguntar_detalle({"pregunta": pregunta[:1000]}, nodes.PREGUNTA_ROUTER)
++        return decide(detalle.get("necesita_herramientas"), config)[0]
++
++    def voto(pregunta):
++        original, llamadas = call_llm.call_llm, []
++
++        def contado(*a, **k):
++            llamadas.append(1)
++            return original(*a, **k)
++
++        call_llm.call_llm = contado
++        try:
++            return nodes.voto_confirmacion_router(pregunta), bool(llamadas)
++        finally:
++            call_llm.call_llm = original
++
++    return router, voto
++
++
++def main(argv=None):
++    parser = argparse.ArgumentParser(prog="h3g_reglas", description="H3-G: router con y sin reglas de palabras clave")
++    parser.add_argument("--resumen", action="store_true", help="solo rehace el resumen")
++    args = parser.parse_args(argv)
++    if not args.resumen:
++        router, voto = _router_y_voto()
++        SALIDA.parent.mkdir(parents=True, exist_ok=True)
++        filas = []
++        for k, caso in enumerate(cargar_casos(), 1):
++            fila = medir_caso(caso, router, voto)
++            filas.append(fila)
++            print(f"[h3g] {k} {fila['fuente']:7s} esperado={fila['esperado']:12s} regla={fila['regla'] or '-':10s} "
++                  f"con={fila['final_con']:12s} sin={fila['final_sin']}", flush=True)
++        SALIDA.write_text("".join(json.dumps(f, ensure_ascii=False) + "\n" for f in filas), encoding="utf-8")
++    filas = [json.loads(ln) for ln in SALIDA.read_text(encoding="utf-8").splitlines() if ln.strip()] \
++        if SALIDA.is_file() else []
++    texto = resumen(filas)
++    destino = SALIDA.with_name("h3g_reglas-resumen.md")
++    destino.write_text(texto, encoding="utf-8")
++    print(texto)
++    print(f"[h3g] resumen → {destino}")
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' a/deepseek-flow-main/banco/specs/h3g_reglas.md b/deepseek-flow-main/banco/specs/h3g_reglas.md
+--- a/deepseek-flow-main/banco/specs/h3g_reglas.md	1970-01-01 00:00:00.000000000 +0000
++++ b/deepseek-flow-main/banco/specs/h3g_reglas.md	2026-10-27 09:54:44.650111576 +0000
+@@ -0,0 +1,68 @@
++# H3-G — ¿el router necesita reglas de palabras clave? (pre-registro)
++
++Fijado el 2026-10-26, ANTES de correr nada. El script
++(`banco/probes/h3g_reglas.py`) no lo retoca.
++
++## Pregunta
++
++`utils/laya_routing.py` tiene dos reglas que deciden ANTES del modelo y
++mandan a herramientas: `regla_temporal` (exp/46: `RE_TEMPORAL`, palabras
++como "último", "hoy", "2026") y `regla_imperativo_capacidad` (exp/54: una
++lista de ~40 imperativos como "leé", "corré", "buscá"). Son hardcodeos por
++palabra clave. Se agregaron para cerrar falsos-directo medidos (exp/53 c01,
++c02), pero DESPUÉS se agregó el voto de confirmación 2-de-2: si el router
++propone "directo", un segundo voto tiene que confirmar. La pregunta es si el
++voto ya cubre lo que cubrían las reglas.
++
++## Datos (declarados)
++
++- `banco/voto_casos.jsonl`: 18 casos con etiqueta HUMANA (`esperado`).
++- `banco/calibracion_router_2026-10-08.jsonl`: 85 preguntas reales del banco
++  con etiqueta del ÁRBITRO DeepSeek (sesgo declarado: tareas de banco, casi
++  todas "herramientas"). Si una pregunta está en los dos, gana la humana.
++- La flywheel (`calibracion_ambiental_*`) NO sirve acá: no guarda el texto de
++  la pregunta (`LAYA_LOG_PREGUNTA=0` por privacidad), así que las reglas no se
++  pueden re-evaluar sobre ella. Límite declarado.
++
++## Diseño (pareado)
++
++Por cada caso se consulta UNA vez la política real de producción: el router
++de Laya (`preguntar_detalle` + `decide`, modo enforce, la calibración del
++`.env`) y, si propone directo, el voto (`voto_confirmacion_router`). Con esos
++mismos resultados se arman los dos brazos:
++
++- **con reglas** (hoy): regla → herramientas; si no, router + voto.
++- **sin reglas**: router + voto, siempre.
++
++Los brazos difieren SOLO en las reglas. Requiere Laya disponible; sin ella no
++hay veredicto.
++
++## Medidas
++
++- **falso directo**: esperado herramientas, final directo (el error caro: se
++  responde sin leer lo que había que leer);
++- **falso herramientas**: esperado directo, final herramientas (costo);
++- llamadas al árbitro DeepSeek;
++- cobertura: en cuántos casos dispara alguna regla.
++
++## Criterio
++
++**Sin reglas gana** (y las reglas se borran) si se cumplen las dos:
++
++1. **cobertura**: las reglas disparan en al menos 20 casos (si no, el
++   experimento no las ejercitó);
++2. **seguridad**: falso directo sin reglas == falso directo con reglas (las
++   reglas no salvaron NINGÚN caso: el voto ya los cubre).
++
++La carga de la prueba está en el borrado (R7: la seguridad no se relaja): un
++solo falso directo nuevo y las reglas se quedan.
++
++## Decisión atada al resultado
++
++- Gana → se borran `regla_temporal`, `RE_TEMPORAL`,
++  `regla_imperativo_capacidad`, `_IMPERATIVOS_CAPACIDAD` y sus ramas en
++  `LayaRouter`; sus tests se reemplazan por los casos que las motivaron
++  corridos contra router + voto.
++- No gana → las reglas se quedan, y el resumen nombra los casos que salvan
++  (su justificación queda medida, no supuesta).
++- Las skills por regex son OTRO experimento: acá no se tocan.
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' a/deepseek-flow-main/docs/bitacora.md b/deepseek-flow-main/docs/bitacora.md
+--- a/deepseek-flow-main/docs/bitacora.md	2026-10-27 09:48:26.050406251 +0000
++++ b/deepseek-flow-main/docs/bitacora.md	2026-10-27 09:55:21.314857784 +0000
+@@ -4654,3 +4654,25 @@
+ **Cambio** (X80): `clave_valida` compara el sha256 de la clave con `ratchets/clave_operador.sha256` leído de HEAD y HEAD~1 (editar el disco no sirve; cambiar el hash junto con el empeoramiento exige la clave vieja; sin hash commiteado no hay bypass). `--actualizar` también la exige. `--sembrar-clave` la pide por terminal (getpass) y escribe solo el hash.
+ 
+ **Medición**: 7 tests nuevos de la guardia (bandera `1` rechazada, hash del disco ignorado, cambio de hash en el mismo commit rechazado, falla cerrado sin hash, `--actualizar` sin clave rechazado, sembrado). Verificados con un git mínimo (dulwich) en un sandbox sin git; en CI corren con git real. **Pendiente del operador**: `python3 ratchet.py --sembrar-clave` y commitear el hash. Hasta entonces ningún empeoramiento se puede aceptar (falla cerrado).
++
++## H3-G — pre-registro: ¿el router necesita reglas de palabras clave? (2026-10-26)
++
++**Pregunta** (X81): las reglas `regla_temporal` (exp/46) y
++`regla_imperativo_capacidad` (exp/54) mandan a herramientas antes del modelo.
++Se agregaron para cerrar falsos directos medidos, antes del voto 2-de-2. Lo que
++falta saber es si el voto ya los cubre.
++
++**Corrección del plan**: el roadmap proponía medir contra la flywheel, pero la
++flywheel no guarda el texto de la pregunta (`LAYA_LOG_PREGUNTA=0` por
++privacidad, y las 177 filas ambientales no tienen `pregunta`), así que sobre
++ella no se pueden re-evaluar las reglas. Se usan los 103 casos con texto y
++etiqueta: 18 humanos (`voto_casos.jsonl`) y 85 del árbitro (sesgo de banco
++declarado). Las reglas disparan en 78 de ellos.
++
++**Diseño**: pareado. Una consulta a Laya + voto por caso, y los dos brazos se
++arman con los mismos resultados (`politica` pura; un test verifica que
++coincide con `LayaRouter` en enforce). **Criterio**: el borrado gana solo si
++cobertura ≥20 y falso directo sin reglas == con reglas. Las skills por regex
++quedan fuera (otro experimento).
++
++**Estado**: sin correr. Necesita Laya (no está en el sandbox del agente).
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' a/deepseek-flow-main/docs/estado.md b/deepseek-flow-main/docs/estado.md
+--- a/deepseek-flow-main/docs/estado.md	2026-10-27 09:48:26.050406251 +0000
++++ b/deepseek-flow-main/docs/estado.md	2026-10-27 09:55:21.310857702 +0000
+@@ -127,6 +127,7 @@
+ | X78 | — | H3-B: la adopción cero del explorador (X73) se midió en tareas de un solo objetivo; faltaba medirlo donde su ventaja (contexto fresco) existe | 🧪 2026-10-26 (pre-registrado, sin correr) | `banco/specs/h3b_swarm.md` (criterio fijado antes de correr: adopción en CADA escenario, calidad mayor y calidad/token mayor que el chat; si no gana, el explorador se borra) y `banco/probes/h3b_swarm.py` (chat vs supervisor+`EXPLORAR=1` en fable s17–s20, mismo scope HITL); `bench_fable.correr_uno(salir=True)` para leer `[tokens]` del chat | `tests/test_h3b_swarm.py` (6: `test_gana_solo_si_adopta_en_todos_y_la_calidad_sube_mas_que_el_costo`, `test_sin_adopcion_en_un_escenario_no_gana_aunque_la_calidad_suba`…) |
+ | X79 | — | H3-B corrido con LLM real (operador, 24 corridas: fable s17–s20 × 3 seeds × chat vs supervisor+`EXPLORAR=1`): `explorar` corrió **0 veces en las 12 corridas del supervisor**, incluida s17 (20 módulos, el caso de contexto pesado); calidad media 0,50 vs 1,33 del chat; calidad por Mtoken 7,77 vs 8,91. Las 3 condiciones pre-registradas ❌ | ✅ 2026-10-26 (decisión pre-registrada) | Borrados `explorador.py`, la tool `explorar`, el setting `EXPLORAR`/`MAX_PASOS_EXPLORADOR` y sus 7 tests (los 5 del archivo de tests del explorador + 2 de `test_supervisor_convergencia.py`); el kernel y `agente()` se quedan (el supervisor usa el loop; `agente()` es la primitiva para un experimento futuro). Retira lo que X60 instaló. Señal registrada: en s17 el supervisor ganó 3/3 seeds SIN delegar — el contexto fresco por tarea ayuda a escala; queda como dato para H3 | `tests/test_h3b_swarm.py::test_sin_adopcion_en_un_escenario_no_gana_aunque_la_calidad_suba`, `tests/test_kernel.py::test_un_agente_es_una_tool_con_contexto_fresco_y_el_mismo_saldo` |
+ | X80 | — | La guardia del ratchet aceptaba cualquier valor de `HUMAN_RATCHET_BYPASS_KEY` (bastaba con que existiera) y un agente la exportó para aceptar el borrado de H3-B argumentando que el operador ya había aprobado — AGENTS.md lo prohibía en prosa y no alcanzó | ✅ 2026-10-26 (decisión del operador) | La clave es un secreto: `ratchet.clave_valida` compara su sha256 con `ratchets/clave_operador.sha256` leído de la HISTORIA (HEAD y HEAD~1, no del disco), falla cerrado sin hash commiteado, y `--actualizar` también la exige; `--sembrar-clave` la pide por terminal y guarda solo el hash. AGENTS.md: el agente no la corre ni con aprobación | `tests/test_ratchet.py::test_una_bandera_cualquiera_no_es_la_clave`, `::test_el_hash_del_disco_no_vale_solo_el_commiteado`, `::test_cambiar_el_hash_junto_con_el_empeoramiento_exige_la_clave_vieja`, `::test_actualizar_sin_clave_no_acepta_el_empeoramiento` |
++| X81 | — | H3-G: `regla_temporal` y `regla_imperativo_capacidad` son reglas de palabras clave que deciden antes del modelo; se agregaron antes del voto 2-de-2 y nadie midió si el voto ya las cubre | 🧪 2026-10-26 (pre-registrado, sin correr) | `banco/specs/h3g_reglas.md` + `banco/probes/h3g_reglas.py`: pareado (una consulta a Laya + voto por caso, dos brazos), 103 casos con etiqueta; borrado solo si cobertura ≥20 y falso directo sin reglas == con reglas. Necesita Laya: corre el operador |
+ | X62 | — | El meta-loop exigía un auditor al timón (contestar s/n por tmux): sin conductor no había forma de delegarle trabajo real al harness solo, y cada sesión muerta a mitad (exp/98) se perdía entera; además la regex de scope del banco no matcheaba el prompt de `edit_file` de exp/98 (`¿Aplicar? → ruta (2 hunks…)`) → cualquier conductor habría aprobado ediciones fuera de scope y de la denylist | ✅ 2026-10-25 (exp/99) | `delegar.py`: conductor que reusa el driver PTY y `decision_hitl` del banco, sin `BANCO=1` (origen `terminal`), HITL por scope declarado con rechazo CON motivo (exp/98), doble confirmación solo con prefijo explícito, muerte → `resume` (tope 2) y `THREADS_DIR` propio; regex corregida en `banco/banco.py`. e2e: tarea delegada exit 0 + drill `kill -9` → rehidrata y completa; **par #14/250** de la flywheel con `--env LAYA_MODO=shadow` (día 3/14) | `tests/test_delegar.py` (13: `test_conducir_muerto_resume_y_completa`, `test_plan_respuesta_doble_exige_prefijo_explicito`…), `test_el_scope_cubre_el_prompt_de_edit_file_de_exp98` |
+ | X66 | — | Auditoría 2026-10-26 (H1): el conductor reconstruía el pedido HITL leyendo la pantalla y aprobaba `git push` (la doble confirmación real `(1/2) (s/n):` no matcheaba), el scope comparaba rutas y comandos por prefijo de texto, `auto` salía de las raíces (`cd ..;cat`, `cd` solo, glob, `$VAR`) y por flags agrupadas (`sort -uo/x`), `edit_file` perdía CRLF y bytes no UTF-8, las escrituras pisaban permisos y el checkpoint guardaba reprs (`default=str`) | ✅ 2026-10-26 (H1) | El pedido es DATO: `utils/aprobaciones.Pedido` + `dentro_de_scope`/`por_scope`; banco y conductor pasan el scope por `HITL_SCOPE` y el chat decide en su proceso (fuera `decision_hitl`, `tipo_prompt`, `plan_respuesta`, `_cuerpo`); `policy.segmentos`/`opaco`/`irreversible` como fuente única; getopt en flags cortas; `edit_file` por bytes y estricto; `escribir_atomico` conserva modo y saltos; `shared` JSON puro | `tests/test_auditoria_2026_10_26.py` (`test_la_doble_confirmacion_real_no_se_aprueba_por_scope`, `test_auto_no_sale_de_raices`, `test_checkpoint_ida_y_vuelta_es_identidad`…), `tests/test_delegar.py::test_plan_respuesta_doble_exige_prefijo_explicito` |
+ | X61 | — | El punto de confianza del sistema mostraba diffs recortados sin declarar cuánto faltaba (exp/96: hunks aprobados sin verse) y el rechazo era 'n' mudo — el chat adivinaba el motivo y re-propuso lo mismo | ✅ 2026-10-24 (exp/98) | El prompt de edit_file declara `(N hunks, +A/−B)` del diff COMPLETO y el marcador dice cuántos caracteres quedan sin ver; `Decision(ok, motivo)` con `__bool__`: el rechazo `n <motivo>` viaja al modelo en edit_file/write_file/run_command, con casing conservado; el seam `_approve` tolera bools para siempre (getattr — los mocks existentes intactos, R2) | `test_parser_decision_motivo`, `test_edit_file_prompt_declara_diff_completo`, `test_motivo_del_rechazo_viaja_al_modelo` |
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' a/deepseek-flow-main/docs/roadmap.md b/deepseek-flow-main/docs/roadmap.md
+--- a/deepseek-flow-main/docs/roadmap.md	2026-10-27 09:48:26.046406169 +0000
++++ b/deepseek-flow-main/docs/roadmap.md	2026-10-27 09:55:21.310857702 +0000
+@@ -24,9 +24,14 @@
+ corridas; calidad 0,50 vs 1,33) y se borró. Dato que queda: en s17 (20
+ módulos) el supervisor ganó 3/3 sin delegar.
+ 
+-**Ahora — H3-G**: router de Laya sin reglas de palabras clave
+-(`regla_temporal`, `regla_imperativo`, disparo de skills por regex), contra
+-la flywheel de routing. Después F (prompt) y E/H si sobra tiempo.
++**Ahora — H3-G** (pre-registrado, X81, `banco/specs/h3g_reglas.md`):
++¿el voto 2-de-2 ya cubre lo que cubren `regla_temporal` y
++`regla_imperativo_capacidad`? Pareado, con la política real (Laya + voto),
++sobre 103 casos etiquetados (18 humanos + 85 del árbitro); la flywheel no
++sirve porque no guarda la pregunta. Gana el borrado solo con cero falsos
++directos nuevos. Las skills por regex son otro experimento. Corre el
++operador: `python3 banco/probes/h3g_reglas.py`. Después F (prompt) y E/H si
++sobra tiempo.
+ 
+ **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
+ "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' a/deepseek-flow-main/ratchets/baseline.json b/deepseek-flow-main/ratchets/baseline.json
+--- a/deepseek-flow-main/ratchets/baseline.json	2026-10-27 09:48:26.042406088 +0000
++++ b/deepseek-flow-main/ratchets/baseline.json	2026-10-27 09:56:16.979990690 +0000
+@@ -163,7 +163,6 @@
+         "tests/test_estado_turno.py": 6,
+         "tests/test_estilo_humano.py": 9,
+         "tests/test_evals.py": 15,
+-        "tests/test_explorador.py": 6,
+         "tests/test_fable.py": 29,
+         "tests/test_fable_dominios.py": 6,
+         "tests/test_fable_judge.py": 66,
+@@ -173,6 +172,7 @@
+         "tests/test_fs_tools.py": 16,
+         "tests/test_grafos_sin_calles_muertas.py": 4,
+         "tests/test_h3b_swarm.py": 6,
++        "tests/test_h3g_reglas.py": 7,
+         "tests/test_hitl.py": 23,
+         "tests/test_inventario.py": 3,
+         "tests/test_kernel.py": 15,
+@@ -190,7 +190,7 @@
+         "tests/test_policy_bypass.py": 35,
+         "tests/test_prefetch.py": 11,
+         "tests/test_probe_verdict.py": 1,
+-        "tests/test_ratchet.py": 27,
++        "tests/test_ratchet.py": 35,
+         "tests/test_replay.py": 16,
+         "tests/test_riesgo.py": 19,
+         "tests/test_rondas.py": 5,
+@@ -199,7 +199,7 @@
+         "tests/test_smoke.py": 5,
+         "tests/test_sonda_laya.py": 4,
+         "tests/test_streaming.py": 11,
+-        "tests/test_supervisor_convergencia.py": 6,
++        "tests/test_supervisor_convergencia.py": 4,
+         "tests/test_tablero.py": 2,
+         "tests/test_thread_store.py": 26,
+         "tests/test_tokens_runs.py": 4,
+@@ -213,7 +213,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 1055
++      "metrica": 1062
+     }
+   },
+   "version": 1
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' a/deepseek-flow-main/tests/test_h3g_reglas.py b/deepseek-flow-main/tests/test_h3g_reglas.py
+--- a/deepseek-flow-main/tests/test_h3g_reglas.py	1970-01-01 00:00:00.000000000 +0000
++++ b/deepseek-flow-main/tests/test_h3g_reglas.py	2026-10-27 09:54:44.650111576 +0000
+@@ -0,0 +1,100 @@
++"""H3-G: el runner mide la política de producción y aplica el criterio
++pre-registrado (banco/specs/h3g_reglas.md) sin LLM ni Laya."""
++import importlib.util
++
++from conftest import RAIZ
++
++
++def _h3g():
++    spec = importlib.util.spec_from_file_location("h3g_reglas", RAIZ / "banco" / "probes" / "h3g_reglas.py")
++    modulo = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(modulo)
++    return modulo
++
++
++def _caso(pregunta, esperado, fuente="humana"):
++    return {"pregunta": pregunta, "esperado": esperado, "fuente": fuente, "id": ""}
++
++
++def test_la_politica_del_experimento_es_la_del_router(monkeypatch):
++    """El experimento mide PRODUCCIÓN: la misma pregunta con el mismo Laya y
++    el mismo voto da la misma ruta en LayaRouter (enforce) y en `politica`."""
++    import nodes
++    from utils import laya
++
++    h = _h3g()
++    monkeypatch.setenv("LAYA_MODO", "enforce")
++    monkeypatch.setenv("SKILLS", "0")
++    monkeypatch.setenv("LAYA_CALIBRACION_ROUTER", "")
++    monkeypatch.setattr(laya, "disponible", lambda *a, **k: True)
++    directo = {"choice": "directo", "probabilities": {"directo": 0.97, "herramientas": 0.03}}
++    monkeypatch.setattr(laya, "preguntar_detalle", lambda *a, **k: {"necesita_herramientas": directo})
++    casos = ("¿quién ganó el último mundial?", "leé README.md y resumilo", "¿qué es un closure?")
++    for voto in ("directo", "herramientas"):
++        monkeypatch.setattr(nodes, "voto_confirmacion_router", lambda p, voto=voto: voto)
++        for pregunta in casos:
++            router = nodes.LayaRouter()
++            ruta = router.post({"messages": []}, {"pregunta": pregunta}, router.exec({"pregunta": pregunta}))
++            assert ruta == h.politica(h.regla(pregunta), "directo", voto, con_reglas=True), (pregunta, voto)
++
++
++def test_los_brazos_difieren_solo_en_las_reglas():
++    h = _h3g()
++    fila = h.medir_caso(_caso("¿quién ganó el último mundial?", "herramientas"),
++                        router=lambda p: "directo", voto=lambda p: ("directo", True))
++    assert fila["regla"] == "temporal"
++    assert fila["final_con"] == "herramientas" and fila["final_sin"] == "directo"
++    assert fila["arbitro_con"] is False and fila["arbitro_sin"] is True
++    sin_regla = h.medir_caso(_caso("¿qué es un closure?", "directo"),
++                             router=lambda p: "directo", voto=lambda p: ("directo", False))
++    assert sin_regla["final_con"] == sin_regla["final_sin"] == "directo"
++
++
++def test_un_solo_falso_directo_nuevo_y_las_reglas_se_quedan():
++    """La carga de la prueba está en el borrado (R7)."""
++    h = _h3g()
++    filas = [h.medir_caso(_caso(f"leé el archivo {i}.py", "herramientas"),
++                          router=lambda p: "herramientas", voto=lambda p: (None, False)) for i in range(25)]
++    filas.append(h.medir_caso(_caso("¿quién ganó el último mundial?", "herramientas"),
++                              router=lambda p: "directo", voto=lambda p: ("directo", True)))
++    v = h.veredicto(filas)
++    assert v["condiciones"]["cobertura"] and not v["condiciones"]["seguridad"] and not v["gana"]
++    assert [f["regla"] for f in v["salvados"]] == ["temporal"]
++    assert "se quedan" in v["decision"]
++
++
++def test_si_el_voto_cubre_todo_las_reglas_se_borran():
++    h = _h3g()
++    filas = [h.medir_caso(_caso(f"leé el archivo {i}.py", "herramientas"),
++                          router=lambda p: "directo", voto=lambda p: ("herramientas", True)) for i in range(25)]
++    v = h.veredicto(filas)
++    assert v["cobertura"] == 25 and v["gana"] is True and "se borran" in v["decision"]
++
++
++def test_sin_cobertura_no_hay_borrado():
++    """Si las reglas casi no disparan, el experimento no las ejercitó."""
++    h = _h3g()
++    filas = [h.medir_caso(_caso("¿qué es un closure?", "directo"),
++                          router=lambda p: "directo", voto=lambda p: ("directo", False)) for _ in range(30)]
++    v = h.veredicto(filas)
++    assert v["cobertura"] == 0 and v["condiciones"]["cobertura"] is False and v["gana"] is False
++
++
++def test_los_casos_del_repo_cargan_sin_repetidos_y_la_etiqueta_humana_gana(tmp_path):
++    h = _h3g()
++    casos = h.cargar_casos()
++    assert len(casos) >= 90 and len({h._normal(c["pregunta"]) for c in casos}) == len(casos)
++    assert sum(1 for c in casos if h.regla(c["pregunta"])) >= h.COBERTURA_MIN
++    humana, arbitro = tmp_path / "h.jsonl", tmp_path / "a.jsonl"
++    humana.write_text('{"pregunta": "Hola", "esperado": "directo"}\n', encoding="utf-8")
++    arbitro.write_text('{"pregunta": "hola ", "etiqueta": "herramientas"}\n', encoding="utf-8")
++    (unico,) = h.cargar_casos(humana, arbitro)
++    assert unico["esperado"] == "directo" and unico["fuente"] == "humana"
++
++
++def test_el_resumen_nombra_los_casos_salvados():
++    h = _h3g()
++    filas = [h.medir_caso(_caso("¿quién ganó el último mundial?", "herramientas"),
++                          router=lambda p: "directo", voto=lambda p: ("directo", True))]
++    texto = h.resumen(filas)
++    assert "banco/specs/h3g_reglas.md" in texto and "último mundial" in texto and "NO GANA" in texto

@@ -24,9 +24,14 @@ con el kernel la normalización, el historial y el despacho.
 corridas; calidad 0,50 vs 1,33) y se borró. Dato que queda: en s17 (20
 módulos) el supervisor ganó 3/3 sin delegar.
 
-**Ahora — H3-G**: router de Laya sin reglas de palabras clave
-(`regla_temporal`, `regla_imperativo`, disparo de skills por regex), contra
-la flywheel de routing. Después F (prompt) y E/H si sobra tiempo.
+**Ahora — H3-G** (pre-registrado, X81, `banco/specs/h3g_reglas.md`):
+¿el voto 2-de-2 ya cubre lo que cubren `regla_temporal` y
+`regla_imperativo_capacidad`? Pareado, con la política real (Laya + voto),
+sobre 103 casos etiquetados (18 humanos + 85 del árbitro); la flywheel no
+sirve porque no guarda la pregunta. Gana el borrado solo con cero falsos
+directos nuevos. Las skills por regex son otro experimento. Corre el
+operador: `python3 banco/probes/h3g_reglas.py`. Después F (prompt) y E/H si
+sobra tiempo.
 
 **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
 "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`

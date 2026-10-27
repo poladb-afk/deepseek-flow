@@ -172,6 +172,7 @@
         "tests/test_fs_tools.py": 16,
         "tests/test_grafos_sin_calles_muertas.py": 4,
         "tests/test_h3b_swarm.py": 6,
+        "tests/test_h3g_reglas.py": 7,
         "tests/test_hitl.py": 23,
         "tests/test_inventario.py": 3,
         "tests/test_kernel.py": 15,
@@ -189,7 +190,7 @@
         "tests/test_policy_bypass.py": 35,
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
-        "tests/test_ratchet.py": 27,
+        "tests/test_ratchet.py": 35,
         "tests/test_replay.py": 16,
         "tests/test_riesgo.py": 19,
         "tests/test_rondas.py": 5,
@@ -212,7 +213,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1047
+      "metrica": 1062
     }
   },
   "version": 1
