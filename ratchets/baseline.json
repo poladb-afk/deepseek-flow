@@ -210,12 +210,13 @@
         "tests/test_veredicto_router.py": 9,
         "tests/test_visor.py": 4,
         "tests/test_viz.py": 5,
+        "tests/test_voto_dataset_gen.py": 4,
         "tests/test_voto_reentreno.py": 11,
         "tests/test_voto_router.py": 8,
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1086
+      "metrica": 1090
     }
   },
   "version": 1
