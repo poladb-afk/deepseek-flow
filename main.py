@@ -65,20 +65,6 @@ DIRECTIVA_AUDITORIA = (
 )
 
 
-# Las dos directivas que F (H3) pone a prueba: cada una tiene una estructura
-# que podría reemplazarla (VerificarCitas, X67; el tope amplio de exp/86).
-# PROMPT_CITAS=0 / PROMPT_ALCANCE=0 las quitan para el A/B (default 1).
-DIRECTIVA_CITAS = (
-    "Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; "
-    "si no la verificaste, decila como no verificada. Citá siempre como "
-    'ruta/archivo.py:línea (ruta relativa al repo, sin "líneas ~X").'
-)
-DIRECTIVA_ALCANCE = (
-    "Si el pedido es una auditoría o análisis amplio del repo, acotá el alcance y "
-    "respondé con hallazgos y límites; no intentes leer todo."
-)
-
-
 def system_prompt(
     incluir_forma: bool | None = None,
     incluir_fable: bool | None = None,
@@ -90,14 +76,16 @@ def system_prompt(
     chat real vía banco; default 1). PROMPT_FABLE=1 agrega la directiva de
     exp/72 (brazo prosa del A/B; default 0: producción sin cambios).
     PROMPT_AUDITORIA=1 agrega el checklist de auditoría de seguridad de exp/78
-    (default 0). PROMPT_CITAS=0 y PROMPT_ALCANCE=0 quitan las directivas que
-    mide F (default 1: el prompt de producción queda byte-idéntico)."""
+    (default 0)."""
     # REGLA de estabilidad: el prefijo debe ser byte-estable durante la
     # sesión para no romper el KV-cache (DeepSeek Harness lo midió: una
     # sección dinámica recalcularía ~99% del contexto por turno). Nada
     # variable —fecha, hora, contadores— entra jamás acá. La memoria entre
     # sesiones NO se inyecta: es una biblioteca que el agente consulta por
     # tools cuando el pedido lo justifica.
+    # F (X85): sin "acotá el alcance" (el tope de rondas ya lo gobierna; medido
+    # sin pérdida de calidad). La directiva de citas se quedó: sin ella la
+    # calidad bajó aunque VerificarCitas corrija después.
     from utils.call_llm import _setting
 
     if incluir_forma is None:
@@ -106,8 +94,6 @@ def system_prompt(
         incluir_fable = _setting("PROMPT_FABLE", "0") != "0"
     if incluir_auditoria is None:
         incluir_auditoria = _setting("PROMPT_AUDITORIA", "0") != "0"
-    alcance = f"\n\n{DIRECTIVA_ALCANCE}" if _setting("PROMPT_ALCANCE", "1") != "0" else ""
-    citas = f"\n\n{DIRECTIVA_CITAS}" if _setting("PROMPT_CITAS", "1") != "0" else ""
     roots = "\n".join(f"- {r}" for r in allowed_roots())
     # el CWD del proceso: sin esto, "¿en qué carpeta estamos?" se responde
     # adivinando la raíz permitida (medido en producción)
@@ -122,7 +108,9 @@ Trabajás en {cwd} y sus subdirectorios.
 Alcance máximo de las tools de archivos:
 {roots}
 
-Respondé en el idioma de cada pedido (español o inglés).{alcance}{citas}
+Respondé en el idioma de cada pedido (español o inglés).
+
+Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la verificaste, decila como no verificada. Citá siempre como ruta/archivo.py:línea (ruta relativa al repo, sin "líneas ~X").
 
 Para leer, listar o buscar archivos usá read_file, list_files o search_files; no uses cat, grep ni find por run_command.{forma}{fable}{auditoria}"""
 

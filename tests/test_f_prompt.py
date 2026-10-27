@@ -1,6 +1,5 @@
-"""F: las directivas medibles se apagan por setting sin tocar el prompt de
-producción, y el runner aplica el criterio pre-registrado (banco/specs/f_prompt.md)
-sin LLM."""
+"""F (resuelto, X85): el prompt aplica la decisión y el runner conserva el
+criterio pre-registrado (banco/specs/f_prompt.md), sin LLM."""
 import importlib.util
 
 from conftest import RAIZ
@@ -13,35 +12,16 @@ def _f():
     return modulo
 
 
-def test_las_directivas_de_f_se_apagan_por_separado(monkeypatch):
+def test_el_prompt_aplica_la_decision_de_f(monkeypatch):
+    """X85: la directiva de alcance se fue (ganó sin ella), la de citas se
+    quedó (sin ella bajó la calidad) y ninguna depende ya de un setting."""
     import main
 
-    monkeypatch.delenv("PROMPT_CITAS", raising=False)
-    monkeypatch.delenv("PROMPT_ALCANCE", raising=False)
-    produccion = main.system_prompt()
-    assert main.DIRECTIVA_CITAS in produccion and main.DIRECTIVA_ALCANCE in produccion
-    monkeypatch.setenv("PROMPT_CITAS", "0")
-    sin_citas = main.system_prompt()
-    assert main.DIRECTIVA_CITAS not in sin_citas and main.DIRECTIVA_ALCANCE in sin_citas
-    monkeypatch.setenv("PROMPT_CITAS", "1")
-    monkeypatch.setenv("PROMPT_ALCANCE", "0")
-    sin_alcance = main.system_prompt()
-    assert main.DIRECTIVA_ALCANCE not in sin_alcance and main.DIRECTIVA_CITAS in sin_alcance
-    assert "cat, grep ni find" in sin_alcance  # la de herramientas no es de F
-
-
-def test_el_prompt_de_produccion_no_cambio_de_texto(monkeypatch):
-    """Los toggles extraen las dos directivas a constantes; con default 1 el
-    texto es el de antes (un cambio de bytes rompe el KV-cache y el A/B)."""
-    import main
-
-    monkeypatch.delenv("PROMPT_CITAS", raising=False)
-    monkeypatch.delenv("PROMPT_ALCANCE", raising=False)
+    for nombre in ("PROMPT_CITAS", "PROMPT_ALCANCE"):
+        monkeypatch.setenv(nombre, "0")  # perillas borradas: no cambian nada
     texto = main.system_prompt(incluir_forma=False)
     esperado = (
         "Respondé en el idioma de cada pedido (español o inglés).\n\n"
-        "Si el pedido es una auditoría o análisis amplio del repo, acotá el alcance y respondé con "
-        "hallazgos y límites; no intentes leer todo.\n\n"
         "Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la "
         "verificaste, decila como no verificada. Citá siempre como ruta/archivo.py:línea (ruta relativa "
         'al repo, sin "líneas ~X").\n\n'
@@ -49,6 +29,16 @@ def test_el_prompt_de_produccion_no_cambio_de_texto(monkeypatch):
         "grep ni find por run_command."
     )
     assert texto.endswith(esperado)
+    assert "acotá el alcance" not in texto
+    assert not hasattr(main, "DIRECTIVA_ALCANCE") and not hasattr(main, "DIRECTIVA_CITAS")
+
+
+def test_el_runner_resuelto_no_vuelve_a_correr():
+    import pytest
+
+    f = _f()
+    with pytest.raises(SystemExit, match="X85"):
+        f.main([])
 
 
 def test_los_amplios_de_f_son_los_que_alcance_amplio_clasifica(monkeypatch):

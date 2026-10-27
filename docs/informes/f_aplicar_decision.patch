@@ -1,0 +1,330 @@
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/.env.example b/deepseek-flow-main/.env.example
+--- a/.env.example	2026-10-27 12:26:57.514616137 +0000
++++ b/.env.example	2026-10-27 12:28:07.463803892 +0000
+@@ -31,12 +31,6 @@
+ # de buscar controles por AUSENCIA (flags que faltan, envoltorios, normalización).
+ # 0 = apagada (default, producción sin cambios).
+ # PROMPT_AUDITORIA=0
+-# Directivas que mide F (H3, banco/specs/f_prompt.md): 1 = en el prompt
+-# (default, producción); 0 = se quitan para el A/B. CITAS pide verificar y
+-# formatear archivo:línea (lo cubre VerificarCitas); ALCANCE pide acotar las
+-# auditorías amplias (lo acota el tope de rondas, exp/86).
+-# PROMPT_CITAS=1
+-# PROMPT_ALCANCE=1
+ # Respuesta canned para request_human_input en corridas headless (banco):
+ # simula un usuario offline y evita que el pedido al humano bloquee el turno.
+ # Vacío (default) = pregunta real por terminal.
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/banco/probes/bench_fable.py b/deepseek-flow-main/banco/probes/bench_fable.py
+--- a/banco/probes/bench_fable.py	2026-10-27 12:26:57.514616137 +0000
++++ b/banco/probes/bench_fable.py	2026-10-27 12:30:18.590246405 +0000
+@@ -915,11 +915,10 @@
+     return eventos
+ 
+ 
+-def correr_uno(exp, escenario, brazo, seed, forzar=False, salir=False, env=None):
++def correr_uno(exp, escenario, brazo, seed, forzar=False, salir=False):
+     """Una corrida del chat. `salir=True` agrega el turno "salir": el chat
+     cierra limpio e imprime su línea `[tokens] sesión` (H3-B la necesita para
+-    medir costo; los benches de siempre no la piden y quedan iguales). `env`
+-    reemplaza el entorno del brazo (F define los suyos sin tocar ENV_POR_BRAZO)."""
++    medir costo; los benches de siempre no la piden y quedan iguales)."""
+     existentes = cargar_resultados(exp)
+     clave = (brazo, seed, escenario)
+     if not forzar and any((r["brazo"], r["seed"], r["escenario"]) == clave for r in existentes):
+@@ -940,7 +939,7 @@
+             "MAX_TOOL_ROUNDS": "8",
+             "HUMANO_RESPUESTA": RESPUESTA_HUMANO_OFFLINE,
+             "PATH": _python_shim(),
+-            **(ENV_POR_BRAZO[brazo] if env is None else env),
++            **ENV_POR_BRAZO[brazo],
+         },
+         "permitir": [str(run)],
+         "permitir_comandos": [f"cd {rel}", f"cd {run}", f"python3 {rel}", f"python3 {run}"],
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/banco/probes/f_prompt.py b/deepseek-flow-main/banco/probes/f_prompt.py
+--- a/banco/probes/f_prompt.py	2026-10-27 12:26:57.514616137 +0000
++++ b/banco/probes/f_prompt.py	2026-10-27 12:28:39.440395578 +0000
+@@ -6,9 +6,12 @@
+ que la estructura corrió (X82: medí la pieza donde decide).
+ 
+ Uso:
+-    python3 banco/probes/f_prompt.py                         # 48 corridas (~4 h)
+-    python3 banco/probes/f_prompt.py --brazos base,sin_citas --seeds 1
+     python3 banco/probes/f_prompt.py --resumen
++
++RESUELTO (X85): CITAS no ganó (se queda), ALCANCE ganó (se borró). Los
++toggles PROMPT_CITAS/PROMPT_ALCANCE se borraron, así que correr de nuevo
++mediría tres brazos idénticos: el runner solo rehace el resumen. `BRAZOS`
++queda como registro del entorno de cada brazo en la corrida.
+ """
+ import argparse
+ import json
+@@ -21,7 +24,6 @@
+ sys.path.insert(0, str(RAIZ / "banco" / "probes"))
+ 
+ import bench_fable as bf  # noqa: E402
+-from h3b_swarm import tokens_del_log  # noqa: E402
+ 
+ EXP = "f-prompt"
+ CITAS = ("s15-python-bug-hunt", "s16-hard-bug-hunt", "s17-scale-audit",
+@@ -48,17 +50,6 @@
+             "correcciones": len(RE_CORREGIDAS.findall(log or ""))}
+ 
+ 
+-def correr(brazo, escenario, seed):
+-    env, _ = BRAZOS[brazo]
+-    r = bf.correr_uno(EXP, escenario, brazo, seed, forzar=True, salir=True, env=env)
+-    log = r.pop("log")
+-    uso = tokens_del_log(log)
+-    return {"brazo": brazo, "escenario": escenario, "seed": seed,
+-            "calidad": r["correct_action"], "citas_invalidas": r["checks"].get("citas_invalidas"),
+-            "tokens": uso[1] if uso else None, "rondas": r["rondas"], **evidencia(log),
+-            "seg": r["seg"], "error": r["error"] or (None if uso else "sin línea [tokens]")}
+-
+-
+ def _media(valores):
+     valores = [v for v in valores if v is not None]
+     return sum(valores) / len(valores) if valores else None
+@@ -130,29 +121,12 @@
+     return [json.loads(ln) for ln in ruta.read_text(encoding="utf-8").splitlines() if ln.strip()] if ruta.is_file() else []
+ 
+ 
+-def guardar(fila):
+-    ruta = _ruta()
+-    ruta.parent.mkdir(parents=True, exist_ok=True)
+-    clave = (fila["brazo"], fila["escenario"], fila["seed"])
+-    filas = [r for r in cargar() if (r["brazo"], r["escenario"], r["seed"]) != clave] + [fila]
+-    ruta.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in filas), encoding="utf-8")
+-
+-
+ def main(argv=None):
+     parser = argparse.ArgumentParser(prog="f_prompt", description="F: directivas del prompt vs su estructura")
+-    parser.add_argument("--seeds", default="1,2,3")
+-    parser.add_argument("--brazos", default=",".join(BRAZOS))
+     parser.add_argument("--resumen", action="store_true", help="solo escribe el resumen de lo ya corrido")
+     args = parser.parse_args(argv)
+     if not args.resumen:
+-        for seed in (int(s) for s in args.seeds.split(",") if s.strip()):
+-            for brazo in (b.strip() for b in args.brazos.split(",") if b.strip()):
+-                for escenario in BRAZOS[brazo][1]:
+-                    fila = correr(brazo, escenario, seed)
+-                    guardar(fila)
+-                    print(f"[f] {brazo} s{seed} {escenario}: calidad={fila['calidad']} tokens={fila['tokens']} "
+-                          f"citas={fila['citas_vistas']} tope16={fila['tope_amplio']} err={fila['error'] or '-'}",
+-                          flush=True)
++        raise SystemExit("F está resuelto (X85) y sus toggles se borraron: re-correr no mide nada. Usá --resumen.")
+     texto = resumen(cargar())
+     destino = bf.SALIDAS / "resultados" / f"{EXP}-resumen.md"
+     destino.parent.mkdir(parents=True, exist_ok=True)
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/docs/bitacora.md b/deepseek-flow-main/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-27 12:26:57.518616192 +0000
++++ b/docs/bitacora.md	2026-10-27 12:30:18.594246483 +0000
+@@ -4742,3 +4742,41 @@
+ los dos casos el toggle se borra después.
+ 
+ **Estado**: sin correr. Necesita LLM real (corre el operador).
++
++## F — resultado: alcance se va, citas se queda (2026-10-27)
++
++**Corrida** (operador, 48/48, 0 errores, ~35 min; números verificados contra
++el JSONL crudo):
++
++| directiva | brazo | calidad | citas inválidas | tokens |
++|---|---|---|---|---|
++| citas (s15–s20) | base | 1,22 | 3 | 96,5K |
++| | sin_citas | 1,06 | 1 | 70,4K |
++| alcance (s17–s20) | base | 0,92 | 3 | 129,2K |
++| | sin_alcance | 1,25 | 0 | 123,4K |
++
++La cobertura se cumplió en las dos: VerificarCitas vio citas en 3/3 seeds de
++los 6 escenarios (y corrigió 3 veces), y el tope 16 corrió en 3/3 seeds de
++los 4 amplios. Esta vez la pieza decidió donde se la midió.
++
++**Citas: NO GANA** (calidad ❌; citas ✅, costo ✅). VerificarCitas corrige
++DESPUÉS de escribir; la directiva cambia cómo se escribe desde el principio.
++La estructura no la reemplaza: la complementa. Sin la directiva bajan los
++tokens (−27%) y las citas inválidas, pero también la calidad.
++
++**Alcance: GANA** (las cuatro ✅). La prosa pedía contención en las
++auditorías amplias, justo donde la estructura ya da 16 rondas y retira las
++tools en la última. Sin la prosa, mejor calidad y menos tokens.
++
++**Límite**: n = 3 seeds por escenario. Las diferencias de calidad (−0,16 y
+++0,33 sobre una escala 0–2) van en la dirección del criterio, pero con este
++n no separan ruido de efecto con confianza; el criterio pre-registrado decide
++igual y queda dicho.
++
++**Decisión** (X85, la pre-registrada): se borra la directiva de alcance; la
++de citas vuelve al texto del prompt; se borran los dos toggles. El prompt de
++producción pierde una oración (cambia sus bytes una vez: el KV-cache se
++recalienta en la primera llamada después del deploy, no por turno).
++`f_prompt.py` queda solo con `--resumen`, porque sin los toggles una
++corrida nueva compararía tres brazos idénticos; por eso también se va el
++`env=` que F le había agregado a `bench_fable.correr_uno` (sin usuario).
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/docs/estado.md b/deepseek-flow-main/docs/estado.md
+--- a/docs/estado.md	2026-10-27 12:26:57.518616192 +0000
++++ b/docs/estado.md	2026-10-27 12:29:16.177075344 +0000
+@@ -130,7 +130,8 @@
+ | X81 | — | H3-G: `regla_temporal` y `regla_imperativo_capacidad` son reglas de palabras clave que deciden antes del modelo; se agregaron antes del voto 2-de-2 y nadie midió si el voto ya las cubre | ❌ 2026-10-26 (corrido; inválido por diseño, X82) | `banco/specs/h3g_reglas.md` + `banco/probes/h3g_reglas.py`: pareado (una consulta a Laya + voto por caso, dos brazos), 103 casos con etiqueta; borrado solo si cobertura ≥20 y falso directo sin reglas == con reglas. Necesita Laya: corre el operador |
+ | X82 | — | H3-G dio "gana" (78 disparos, 0 falsos directos en los dos brazos) pero era **inválido por diseño**: cobertura efectiva (regla dispara y Laya propuso directo) = **0**; los 3 directos propuestos eran casos sin regla. Al verificar el borrado, `bench_voto.py` mostró al voto confiando en directo en c01 (0,94) y c02 (0,76): esos casos los salva Laya sola, no el voto | ✅ 2026-10-26 (decisión del operador) | Las reglas se quedan (R7). `h3g_reglas.cobertura_efectiva` se reporta al lado del veredicto viejo, que no se retoca; el borrado queda aparcado detrás de H3-G2 (X83); lección en AGENTS.md ("medí la pieza donde decide") | `tests/test_h3g_reglas.py::test_la_cobertura_efectiva_cuenta_donde_la_regla_decide` |
+ | X83 | — | H3-G2: la pregunta de H3-G medida donde las reglas deciden (Laya propuso directo): ¿el voto solo frena los falsos directos? | 🧪 2026-10-26 (pre-registrado; hoy NO gana: c01/c02) | `banco/specs/h3g2_voto_solo.md`; criterio en `bench_voto.veredicto_h3g2`: checkpoint real, 0 falsos directos del voto, directo 6/6. Gana → se aplica el borrado aparcado | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
+-| X84 | — | F (H3): el prompt del chat tiene dos directivas con una estructura que podría reemplazarlas: la de citas (`VerificarCitas`, X67) y la de alcance (el tope amplio de exp/86). Nadie midió si la prosa todavía aporta | 🧪 2026-10-27 (pre-registrado, sin correr) | `banco/specs/f_prompt.md` + `banco/probes/f_prompt.py`: 3 brazos (base, `PROMPT_CITAS=0` en s15–s20, `PROMPT_ALCANCE=0` en s17–s20) × 3 seeds = 48 corridas; cada directiva se borra si la estructura decidió en ≥2/3 seeds por escenario, calidad ≥ base, citas inválidas ≤ base y tokens ≤ 1,10 × base. La de cat/grep/find queda fuera (sin estructura que la reemplace) | `tests/test_f_prompt.py::test_sin_cobertura_la_directiva_se_queda_aunque_todo_lo_demas_gane`, `::test_el_prompt_de_produccion_no_cambio_de_texto` |
++| X84 | — | F (H3): el prompt del chat tiene dos directivas con una estructura que podría reemplazarlas: la de citas (`VerificarCitas`, X67) y la de alcance (el tope amplio de exp/86). Nadie midió si la prosa todavía aporta | ✅ 2026-10-27 (corrido, X85) | `banco/specs/f_prompt.md` + `banco/probes/f_prompt.py`: 3 brazos (base, `PROMPT_CITAS=0` en s15–s20, `PROMPT_ALCANCE=0` en s17–s20) × 3 seeds = 48 corridas; cada directiva se borra si la estructura decidió en ≥2/3 seeds por escenario, calidad ≥ base, citas inválidas ≤ base y tokens ≤ 1,10 × base. La de cat/grep/find queda fuera (sin estructura que la reemplace) | `tests/test_f_prompt.py::test_sin_cobertura_la_directiva_se_queda_aunque_todo_lo_demas_gane` |
++| X85 | — | F corrido por el operador (48/48 corridas, 0 errores). **CITAS** (s15–s20): sin la directiva, calidad 1,22 → 1,06, citas inválidas 3 → 1, tokens 96,5K → 70,4K; cobertura ✅ (VerificarCitas vio citas en 3/3 seeds de los 6 escenarios y corrigió 3 veces) → **NO GANA** por calidad. **ALCANCE** (s17–s20): sin la directiva, calidad 0,92 → 1,25, citas inválidas 3 → 0, tokens 129,2K → 123,4K; cobertura ✅ (tope 16 en 3/3 seeds de los 4) → **GANA** | ✅ 2026-10-27 (decisión pre-registrada) | Borrada la directiva de alcance; la de citas vuelve al texto del prompt; se borran los dos toggles (`PROMPT_CITAS`, `PROMPT_ALCANCE`). `f_prompt.py` queda solo con `--resumen` | `tests/test_f_prompt.py::test_el_prompt_aplica_la_decision_de_f`, `::test_el_runner_resuelto_no_vuelve_a_correr` |
+ | X62 | — | El meta-loop exigía un auditor al timón (contestar s/n por tmux): sin conductor no había forma de delegarle trabajo real al harness solo, y cada sesión muerta a mitad (exp/98) se perdía entera; además la regex de scope del banco no matcheaba el prompt de `edit_file` de exp/98 (`¿Aplicar? → ruta (2 hunks…)`) → cualquier conductor habría aprobado ediciones fuera de scope y de la denylist | ✅ 2026-10-25 (exp/99) | `delegar.py`: conductor que reusa el driver PTY y `decision_hitl` del banco, sin `BANCO=1` (origen `terminal`), HITL por scope declarado con rechazo CON motivo (exp/98), doble confirmación solo con prefijo explícito, muerte → `resume` (tope 2) y `THREADS_DIR` propio; regex corregida en `banco/banco.py`. e2e: tarea delegada exit 0 + drill `kill -9` → rehidrata y completa; **par #14/250** de la flywheel con `--env LAYA_MODO=shadow` (día 3/14) | `tests/test_delegar.py` (13: `test_conducir_muerto_resume_y_completa`, `test_plan_respuesta_doble_exige_prefijo_explicito`…), `test_el_scope_cubre_el_prompt_de_edit_file_de_exp98` |
+ | X66 | — | Auditoría 2026-10-26 (H1): el conductor reconstruía el pedido HITL leyendo la pantalla y aprobaba `git push` (la doble confirmación real `(1/2) (s/n):` no matcheaba), el scope comparaba rutas y comandos por prefijo de texto, `auto` salía de las raíces (`cd ..;cat`, `cd` solo, glob, `$VAR`) y por flags agrupadas (`sort -uo/x`), `edit_file` perdía CRLF y bytes no UTF-8, las escrituras pisaban permisos y el checkpoint guardaba reprs (`default=str`) | ✅ 2026-10-26 (H1) | El pedido es DATO: `utils/aprobaciones.Pedido` + `dentro_de_scope`/`por_scope`; banco y conductor pasan el scope por `HITL_SCOPE` y el chat decide en su proceso (fuera `decision_hitl`, `tipo_prompt`, `plan_respuesta`, `_cuerpo`); `policy.segmentos`/`opaco`/`irreversible` como fuente única; getopt en flags cortas; `edit_file` por bytes y estricto; `escribir_atomico` conserva modo y saltos; `shared` JSON puro | `tests/test_auditoria_2026_10_26.py` (`test_la_doble_confirmacion_real_no_se_aprueba_por_scope`, `test_auto_no_sale_de_raices`, `test_checkpoint_ida_y_vuelta_es_identidad`…), `tests/test_delegar.py::test_plan_respuesta_doble_exige_prefijo_explicito` |
+ | X61 | — | El punto de confianza del sistema mostraba diffs recortados sin declarar cuánto faltaba (exp/96: hunks aprobados sin verse) y el rechazo era 'n' mudo — el chat adivinaba el motivo y re-propuso lo mismo | ✅ 2026-10-24 (exp/98) | El prompt de edit_file declara `(N hunks, +A/−B)` del diff COMPLETO y el marcador dice cuántos caracteres quedan sin ver; `Decision(ok, motivo)` con `__bool__`: el rechazo `n <motivo>` viaja al modelo en edit_file/write_file/run_command, con casing conservado; el seam `_approve` tolera bools para siempre (getattr — los mocks existentes intactos, R2) | `test_parser_decision_motivo`, `test_edit_file_prompt_declara_diff_completo`, `test_motivo_del_rechazo_viaja_al_modelo` |
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/docs/roadmap.md b/deepseek-flow-main/docs/roadmap.md
+--- a/docs/roadmap.md	2026-10-27 12:26:57.518616192 +0000
++++ b/docs/roadmap.md	2026-10-27 12:29:16.177075344 +0000
+@@ -30,11 +30,13 @@
+ grupo directo 6/6 (`python3 banco/probes/bench_voto.py`). Hoy falla en
+ c01/c02: el trabajo pendiente es el voto (`router_voto`), no las reglas.
+ 
+-**Ahora — F** (pre-registrado, X84, `banco/specs/f_prompt.md`): ¿las
+-directivas de citas y de alcance aportan algo que `VerificarCitas` y el tope
+-amplio no den? 48 corridas de fable (s15–s20), cada directiva medida solo
+-donde su estructura decide. Corre el operador: `python3 banco/probes/f_prompt.py`.
+-Después E/H si sobra tiempo.
++**F resuelto** (X85): la directiva de alcance se borró (sin ella, calidad
++0,92 → 1,25 en s17–s20 con menos tokens); la de citas se quedó (sin ella,
++calidad 1,22 → 1,06 aunque VerificarCitas corrija después).
++
++**Ahora — E/H** (sin diseño todavía): E sandbox en vez de whitelist
++(opcional), H `max_depth` 1 vs 2. En paralelo, fuera de la secuencia: el voto
++en c01/c02 (`router_voto`), que es lo que destraba H3-G2.
+ 
+ **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
+ "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/main.py b/deepseek-flow-main/main.py
+--- a/main.py	2026-10-27 12:26:57.518616192 +0000
++++ b/main.py	2026-10-27 12:28:07.463803892 +0000
+@@ -65,20 +65,6 @@
+ )
+ 
+ 
+-# Las dos directivas que F (H3) pone a prueba: cada una tiene una estructura
+-# que podría reemplazarla (VerificarCitas, X67; el tope amplio de exp/86).
+-# PROMPT_CITAS=0 / PROMPT_ALCANCE=0 las quitan para el A/B (default 1).
+-DIRECTIVA_CITAS = (
+-    "Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; "
+-    "si no la verificaste, decila como no verificada. Citá siempre como "
+-    'ruta/archivo.py:línea (ruta relativa al repo, sin "líneas ~X").'
+-)
+-DIRECTIVA_ALCANCE = (
+-    "Si el pedido es una auditoría o análisis amplio del repo, acotá el alcance y "
+-    "respondé con hallazgos y límites; no intentes leer todo."
+-)
+-
+-
+ def system_prompt(
+     incluir_forma: bool | None = None,
+     incluir_fable: bool | None = None,
+@@ -90,14 +76,16 @@
+     chat real vía banco; default 1). PROMPT_FABLE=1 agrega la directiva de
+     exp/72 (brazo prosa del A/B; default 0: producción sin cambios).
+     PROMPT_AUDITORIA=1 agrega el checklist de auditoría de seguridad de exp/78
+-    (default 0). PROMPT_CITAS=0 y PROMPT_ALCANCE=0 quitan las directivas que
+-    mide F (default 1: el prompt de producción queda byte-idéntico)."""
++    (default 0)."""
+     # REGLA de estabilidad: el prefijo debe ser byte-estable durante la
+     # sesión para no romper el KV-cache (DeepSeek Harness lo midió: una
+     # sección dinámica recalcularía ~99% del contexto por turno). Nada
+     # variable —fecha, hora, contadores— entra jamás acá. La memoria entre
+     # sesiones NO se inyecta: es una biblioteca que el agente consulta por
+     # tools cuando el pedido lo justifica.
++    # F (X85): sin "acotá el alcance" (el tope de rondas ya lo gobierna; medido
++    # sin pérdida de calidad). La directiva de citas se quedó: sin ella la
++    # calidad bajó aunque VerificarCitas corrija después.
+     from utils.call_llm import _setting
+ 
+     if incluir_forma is None:
+@@ -106,8 +94,6 @@
+         incluir_fable = _setting("PROMPT_FABLE", "0") != "0"
+     if incluir_auditoria is None:
+         incluir_auditoria = _setting("PROMPT_AUDITORIA", "0") != "0"
+-    alcance = f"\n\n{DIRECTIVA_ALCANCE}" if _setting("PROMPT_ALCANCE", "1") != "0" else ""
+-    citas = f"\n\n{DIRECTIVA_CITAS}" if _setting("PROMPT_CITAS", "1") != "0" else ""
+     roots = "\n".join(f"- {r}" for r in allowed_roots())
+     # el CWD del proceso: sin esto, "¿en qué carpeta estamos?" se responde
+     # adivinando la raíz permitida (medido en producción)
+@@ -122,7 +108,9 @@
+ Alcance máximo de las tools de archivos:
+ {roots}
+ 
+-Respondé en el idioma de cada pedido (español o inglés).{alcance}{citas}
++Respondé en el idioma de cada pedido (español o inglés).
++
++Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la verificaste, decila como no verificada. Citá siempre como ruta/archivo.py:línea (ruta relativa al repo, sin "líneas ~X").
+ 
+ Para leer, listar o buscar archivos usá read_file, list_files o search_files; no uses cat, grep ni find por run_command.{forma}{fable}{auditoria}"""
+ 
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json a/deepseek-flow-main/tests/test_f_prompt.py b/deepseek-flow-main/tests/test_f_prompt.py
+--- a/tests/test_f_prompt.py	2026-10-27 12:26:57.518616192 +0000
++++ b/tests/test_f_prompt.py	2026-10-27 12:28:39.440395578 +0000
+@@ -1,6 +1,5 @@
+-"""F: las directivas medibles se apagan por setting sin tocar el prompt de
+-producción, y el runner aplica el criterio pre-registrado (banco/specs/f_prompt.md)
+-sin LLM."""
++"""F (resuelto, X85): el prompt aplica la decisión y el runner conserva el
++criterio pre-registrado (banco/specs/f_prompt.md), sin LLM."""
+ import importlib.util
+ 
+ from conftest import RAIZ
+@@ -13,35 +12,16 @@
+     return modulo
+ 
+ 
+-def test_las_directivas_de_f_se_apagan_por_separado(monkeypatch):
++def test_el_prompt_aplica_la_decision_de_f(monkeypatch):
++    """X85: la directiva de alcance se fue (ganó sin ella), la de citas se
++    quedó (sin ella bajó la calidad) y ninguna depende ya de un setting."""
+     import main
+ 
+-    monkeypatch.delenv("PROMPT_CITAS", raising=False)
+-    monkeypatch.delenv("PROMPT_ALCANCE", raising=False)
+-    produccion = main.system_prompt()
+-    assert main.DIRECTIVA_CITAS in produccion and main.DIRECTIVA_ALCANCE in produccion
+-    monkeypatch.setenv("PROMPT_CITAS", "0")
+-    sin_citas = main.system_prompt()
+-    assert main.DIRECTIVA_CITAS not in sin_citas and main.DIRECTIVA_ALCANCE in sin_citas
+-    monkeypatch.setenv("PROMPT_CITAS", "1")
+-    monkeypatch.setenv("PROMPT_ALCANCE", "0")
+-    sin_alcance = main.system_prompt()
+-    assert main.DIRECTIVA_ALCANCE not in sin_alcance and main.DIRECTIVA_CITAS in sin_alcance
+-    assert "cat, grep ni find" in sin_alcance  # la de herramientas no es de F
+-
+-
+-def test_el_prompt_de_produccion_no_cambio_de_texto(monkeypatch):
+-    """Los toggles extraen las dos directivas a constantes; con default 1 el
+-    texto es el de antes (un cambio de bytes rompe el KV-cache y el A/B)."""
+-    import main
+-
+-    monkeypatch.delenv("PROMPT_CITAS", raising=False)
+-    monkeypatch.delenv("PROMPT_ALCANCE", raising=False)
++    for nombre in ("PROMPT_CITAS", "PROMPT_ALCANCE"):
++        monkeypatch.setenv(nombre, "0")  # perillas borradas: no cambian nada
+     texto = main.system_prompt(incluir_forma=False)
+     esperado = (
+         "Respondé en el idioma de cada pedido (español o inglés).\n\n"
+-        "Si el pedido es una auditoría o análisis amplio del repo, acotá el alcance y respondé con "
+-        "hallazgos y límites; no intentes leer todo.\n\n"
+         "Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la "
+         "verificaste, decila como no verificada. Citá siempre como ruta/archivo.py:línea (ruta relativa "
+         'al repo, sin "líneas ~X").\n\n'
+@@ -49,6 +29,16 @@
+         "grep ni find por run_command."
+     )
+     assert texto.endswith(esperado)
++    assert "acotá el alcance" not in texto
++    assert not hasattr(main, "DIRECTIVA_ALCANCE") and not hasattr(main, "DIRECTIVA_CITAS")
++
++
++def test_el_runner_resuelto_no_vuelve_a_correr():
++    import pytest
++
++    f = _f()
++    with pytest.raises(SystemExit, match="X85"):
++        f.main([])
+ 
+ 
+ def test_los_amplios_de_f_son_los_que_alcance_amplio_clasifica(monkeypatch):

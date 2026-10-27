@@ -915,11 +915,10 @@ def _eventos_de(directorio):
     return eventos
 
 
-def correr_uno(exp, escenario, brazo, seed, forzar=False, salir=False, env=None):
+def correr_uno(exp, escenario, brazo, seed, forzar=False, salir=False):
     """Una corrida del chat. `salir=True` agrega el turno "salir": el chat
     cierra limpio e imprime su línea `[tokens] sesión` (H3-B la necesita para
-    medir costo; los benches de siempre no la piden y quedan iguales). `env`
-    reemplaza el entorno del brazo (F define los suyos sin tocar ENV_POR_BRAZO)."""
+    medir costo; los benches de siempre no la piden y quedan iguales)."""
     existentes = cargar_resultados(exp)
     clave = (brazo, seed, escenario)
     if not forzar and any((r["brazo"], r["seed"], r["escenario"]) == clave for r in existentes):
@@ -940,7 +939,7 @@ def correr_uno(exp, escenario, brazo, seed, forzar=False, salir=False, env=None)
             "MAX_TOOL_ROUNDS": "8",
             "HUMANO_RESPUESTA": RESPUESTA_HUMANO_OFFLINE,
             "PATH": _python_shim(),
-            **(ENV_POR_BRAZO[brazo] if env is None else env),
+            **ENV_POR_BRAZO[brazo],
         },
         "permitir": [str(run)],
         "permitir_comandos": [f"cd {rel}", f"cd {run}", f"python3 {rel}", f"python3 {run}"],

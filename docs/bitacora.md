@@ -4742,3 +4742,41 @@ en ≥2 de 3 seeds por escenario), calidad ≥ base, citas inválidas finales
 los dos casos el toggle se borra después.
 
 **Estado**: sin correr. Necesita LLM real (corre el operador).
+
+## F — resultado: alcance se va, citas se queda (2026-10-27)
+
+**Corrida** (operador, 48/48, 0 errores, ~35 min; números verificados contra
+el JSONL crudo):
+
+| directiva | brazo | calidad | citas inválidas | tokens |
+|---|---|---|---|---|
+| citas (s15–s20) | base | 1,22 | 3 | 96,5K |
+| | sin_citas | 1,06 | 1 | 70,4K |
+| alcance (s17–s20) | base | 0,92 | 3 | 129,2K |
+| | sin_alcance | 1,25 | 0 | 123,4K |
+
+La cobertura se cumplió en las dos: VerificarCitas vio citas en 3/3 seeds de
+los 6 escenarios (y corrigió 3 veces), y el tope 16 corrió en 3/3 seeds de
+los 4 amplios. Esta vez la pieza decidió donde se la midió.
+
+**Citas: NO GANA** (calidad ❌; citas ✅, costo ✅). VerificarCitas corrige
+DESPUÉS de escribir; la directiva cambia cómo se escribe desde el principio.
+La estructura no la reemplaza: la complementa. Sin la directiva bajan los
+tokens (−27%) y las citas inválidas, pero también la calidad.
+
+**Alcance: GANA** (las cuatro ✅). La prosa pedía contención en las
+auditorías amplias, justo donde la estructura ya da 16 rondas y retira las
+tools en la última. Sin la prosa, mejor calidad y menos tokens.
+
+**Límite**: n = 3 seeds por escenario. Las diferencias de calidad (−0,16 y
++0,33 sobre una escala 0–2) van en la dirección del criterio, pero con este
+n no separan ruido de efecto con confianza; el criterio pre-registrado decide
+igual y queda dicho.
+
+**Decisión** (X85, la pre-registrada): se borra la directiva de alcance; la
+de citas vuelve al texto del prompt; se borran los dos toggles. El prompt de
+producción pierde una oración (cambia sus bytes una vez: el KV-cache se
+recalienta en la primera llamada después del deploy, no por turno).
+`f_prompt.py` queda solo con `--resumen`, porque sin los toggles una
+corrida nueva compararía tres brazos idénticos; por eso también se va el
+`env=` que F le había agregado a `bench_fable.correr_uno` (sin usuario).

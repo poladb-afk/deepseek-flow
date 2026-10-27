@@ -6,9 +6,12 @@ compara con base solo donde su estructura decide, y el criterio exige probar
 que la estructura corrió (X82: medí la pieza donde decide).
 
 Uso:
-    python3 banco/probes/f_prompt.py                         # 48 corridas (~4 h)
-    python3 banco/probes/f_prompt.py --brazos base,sin_citas --seeds 1
     python3 banco/probes/f_prompt.py --resumen
+
+RESUELTO (X85): CITAS no ganó (se queda), ALCANCE ganó (se borró). Los
+toggles PROMPT_CITAS/PROMPT_ALCANCE se borraron, así que correr de nuevo
+mediría tres brazos idénticos: el runner solo rehace el resumen. `BRAZOS`
+queda como registro del entorno de cada brazo en la corrida.
 """
 import argparse
 import json
@@ -21,7 +24,6 @@ sys.path.insert(0, str(RAIZ))
 sys.path.insert(0, str(RAIZ / "banco" / "probes"))
 
 import bench_fable as bf  # noqa: E402
-from h3b_swarm import tokens_del_log  # noqa: E402
 
 EXP = "f-prompt"
 CITAS = ("s15-python-bug-hunt", "s16-hard-bug-hunt", "s17-scale-audit",
@@ -46,17 +48,6 @@ def evidencia(log):
     return {"citas_vistas": bool(RE_CITAS.search(log or "")),
             "tope_amplio": bool(RE_AMPLIO.search(log or "")),
             "correcciones": len(RE_CORREGIDAS.findall(log or ""))}
-
-
-def correr(brazo, escenario, seed):
-    env, _ = BRAZOS[brazo]
-    r = bf.correr_uno(EXP, escenario, brazo, seed, forzar=True, salir=True, env=env)
-    log = r.pop("log")
-    uso = tokens_del_log(log)
-    return {"brazo": brazo, "escenario": escenario, "seed": seed,
-            "calidad": r["correct_action"], "citas_invalidas": r["checks"].get("citas_invalidas"),
-            "tokens": uso[1] if uso else None, "rondas": r["rondas"], **evidencia(log),
-            "seg": r["seg"], "error": r["error"] or (None if uso else "sin línea [tokens]")}
 
 
 def _media(valores):
@@ -130,29 +121,12 @@ def cargar():
     return [json.loads(ln) for ln in ruta.read_text(encoding="utf-8").splitlines() if ln.strip()] if ruta.is_file() else []
 
 
-def guardar(fila):
-    ruta = _ruta()
-    ruta.parent.mkdir(parents=True, exist_ok=True)
-    clave = (fila["brazo"], fila["escenario"], fila["seed"])
-    filas = [r for r in cargar() if (r["brazo"], r["escenario"], r["seed"]) != clave] + [fila]
-    ruta.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in filas), encoding="utf-8")
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="f_prompt", description="F: directivas del prompt vs su estructura")
-    parser.add_argument("--seeds", default="1,2,3")
-    parser.add_argument("--brazos", default=",".join(BRAZOS))
     parser.add_argument("--resumen", action="store_true", help="solo escribe el resumen de lo ya corrido")
     args = parser.parse_args(argv)
     if not args.resumen:
-        for seed in (int(s) for s in args.seeds.split(",") if s.strip()):
-            for brazo in (b.strip() for b in args.brazos.split(",") if b.strip()):
-                for escenario in BRAZOS[brazo][1]:
-                    fila = correr(brazo, escenario, seed)
-                    guardar(fila)
-                    print(f"[f] {brazo} s{seed} {escenario}: calidad={fila['calidad']} tokens={fila['tokens']} "
-                          f"citas={fila['citas_vistas']} tope16={fila['tope_amplio']} err={fila['error'] or '-'}",
-                          flush=True)
+        raise SystemExit("F está resuelto (X85) y sus toggles se borraron: re-correr no mide nada. Usá --resumen.")
     texto = resumen(cargar())
     destino = bf.SALIDAS / "resultados" / f"{EXP}-resumen.md"
     destino.parent.mkdir(parents=True, exist_ok=True)
