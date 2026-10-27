@@ -63,6 +63,17 @@ FAMILIAS = {
             "cerrada como «¿quién ganó el mundial de 1986?» (edición pasada "
             "o fecha explícita; respuesta estable de conocimiento)."
         ),
+        # mecánica de sub-formas: pedidas juntas, el generador ancla en la
+        # primera y no produce la otra (medido: 0 históricas en dos tandas)
+        "formas": {
+            "opinion": ("Forma OPINIÓN de una sola vuelta: pedidos de opinión, "
+                        "recomendación o comparación que se responden con juicio "
+                        "propio, una sola vez."),
+            "historica": ("Forma HISTÓRICA CERRADA: preguntas con año o edición "
+                          "EXPLÍCITA en la pregunta (¿quién ganó / fue / sucedió ... "
+                          "en 19XX o edición tal?), respuesta estable de conocimiento: "
+                          "deporte, elecciones, premios, guerras, ciencia, hitos."),
+        },
     },
 }
 
@@ -74,11 +85,16 @@ TOPICOS = (
 )
 
 
-def generar_lote(familia, n, evitar=()):
+def generar_lote(familia, n, evitar=(), forma=None):
     """Un lote de candidatos de la familia: SOLO el pedido de familias + \
-    mecánica de diversidad. Sin ejemplos, sin vocabulario del control."""
+    mecánica de diversidad. Sin ejemplos, sin vocabulario del control. `forma` \
+    elige una sub-forma declarada de la familia (mecánica: pedidas juntas, el \
+    modelo ancla en la primera y no produce la otra)."""
+    base = FAMILIAS[familia]["pedido"]
+    if forma:
+        base = base + "\n\n" + FAMILIAS[familia]["formas"][forma]
     pedido = (
-        f"{FAMILIAS[familia]['pedido']}\n\n"
+        f"{base}\n\n"
         f"Generá {n} preguntas en español, una por línea, numeradas. "
         f"Temas y dominios variados ({TOPICOS}); verbos y estructuras "
         "diversos, sin repetir plantillas. Autocontenidas, una sola línea "
@@ -120,12 +136,12 @@ def siguiente_id(filas):
     return max((int(f["id"][1:]) for f in filas if f["id"][1:].isdigit()), default=0) + 1
 
 
-def generar(familia, n):
+def generar(familia, n, forma=None):
     filas = cargar()
     existentes = [palabras(f["pregunta"]) for f in filas]
     arrancan = {f["pregunta"].split()[0].lower() for f in filas}
     nuevos, n_id = [], siguiente_id(filas)
-    for pregunta in generar_lote(familia, n * 2, arrancan):
+    for pregunta in generar_lote(familia, n * 2, arrancan, forma):
         bolsa = palabras(pregunta)
         if any(jaccard(bolsa, e) >= 0.8 for e in existentes + [palabras(x["pregunta"]) for x in nuevos]):
             continue
@@ -181,6 +197,8 @@ def main(argv=None):
     parser.add_argument("--por-familia", type=int, default=None, help="genera N por familia (juzga cada caso)")
     parser.add_argument("--mas", type=int, default=None, help="top-up: N más de --familia")
     parser.add_argument("--familia", choices=sorted(FAMILIAS), default=None)
+    parser.add_argument("--forma", choices=("opinion", "historica"), default=None,
+                        help="sub-forma de la familia contraejemplo")
     parser.add_argument("--muestra", type=int, default=None, help="imprime N casos para relabel manual")
     parser.add_argument("--relabel", default=None, help="archivo 'id etiqueta' con tus correcciones")
     args = parser.parse_args(argv)
@@ -191,7 +209,7 @@ def main(argv=None):
     if args.mas:
         if not args.familia:
             parser.error("--mas exige --familia")
-        nuevos = generar(args.familia, args.mas)
+        nuevos = generar(args.familia, args.mas, args.forma)
         print(f"[gen] {args.familia}: {len(nuevos)} nuevos")
     if args.muestra:
         muestra(args.muestra)
