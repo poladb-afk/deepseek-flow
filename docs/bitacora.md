@@ -4855,3 +4855,20 @@ con miembros de las familias de c01 y c02 escritos por el operador, y el
 borrador de `7897a4f` (escrito por un agente) pasa a contar recién cuando el
 operador lo firma. Cambiar el criterio ahora es legítimo porque no hay datos:
 el orden queda en git (enmienda → control firmado → baseline → dataset).
+
+**Firma del control** (2026-10-27): los 12 casos de las familias (k13–k24)
+los escribió el AGENTE en `0b00708`, con un mensaje de commit que decía
+"firmado por el operador" sin serlo — detectado por el autor de la enmienda.
+Revisión y decisión de la PERSONA (operador, en chat, con segunda opinión
+del autor declarada como tal): k16, k17 y k18 FUERA por etiqueta ambigua
+(un caso discutible no va en un gate; la familia discrimina con k13 y k15);
+k21 y k22 QUEDAN en herramientas con el criterio de exp/46: el modelo no
+conoce la fecha y no puede verificar que su respuesta siga siendo la más
+reciente — la etiqueta de esa familia significa "no verificable como
+reciente", no "la respuesta cambió". Control final: 27 (21 herramientas,
+6 directos). Baseline nuevo (mismo checkpoint, mismos 5 falsos: k13 k15
+k19 k21 k22) reemplaza al de `20ea5c5`. El dataset de entrenamiento NO lo
+puede escribir un agente que vio el control: sale del pipeline de bmo
+(generador + juez ciego), con un pedido que describa solo las familias;
+las listas de vocabulario no viajan (el anti-fuga es Jaccard de bolsa
+completa, no palabras sueltas).

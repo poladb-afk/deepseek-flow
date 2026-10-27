@@ -19,9 +19,6 @@
 {"id": "k13", "grupo": "correccion", "esperado": "herramientas", "pregunta": "discutí en dos vueltas si vale la pena reescribir el router y pasame la conclusión"}
 {"id": "k14", "grupo": "correccion", "esperado": "herramientas", "pregunta": "debatí los pros y contras de usar sandbox en vez de whitelist y quedate con un lado"}
 {"id": "k15", "grupo": "correccion", "esperado": "herramientas", "pregunta": "argumentá dos rondas a favor y en contra de subir el presupuesto a 16 y cerrá con un veredicto"}
-{"id": "k16", "grupo": "correccion", "esperado": "herramientas", "pregunta": "polemizá un par de turnos sobre si el voto local alcanza sin árbitro y resumilo"}
-{"id": "k17", "grupo": "correccion", "esperado": "herramientas", "pregunta": "confrontá dos posiciones sobre migrar el chat a web y decime cuál gana"}
-{"id": "k18", "grupo": "correccion", "esperado": "herramientas", "pregunta": "deliberá en dos pasos si conviene borrar las reglas del router y dame la recomendación"}
 {"id": "k19", "grupo": "correccion", "esperado": "herramientas", "pregunta": "¿quién ganó el último clásico del fútbol argentino?"}
 {"id": "k20", "grupo": "correccion", "esperado": "herramientas", "pregunta": "¿qué equipo se llevó la última Copa Libertadores?"}
 {"id": "k21", "grupo": "correccion", "esperado": "herramientas", "pregunta": "¿quién salió campeón del último mundial de básquet?"}

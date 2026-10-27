@@ -1,7 +1,7 @@
 {
- "control_sha256": "39ea30cba28a9db59a67e56b8283487ebdda113ec3a8b229fdec2f67bc09333e",
+ "control_sha256": "81c87bc66cf00fe42432f6020e057ecb1e425bee4f04c24211036f3803440b7b",
  "checkpoint": ".modelos/router_voto",
- "n": 30,
+ "n": 27,
  "falsos_directos": [
   "k13",
   "k15",
