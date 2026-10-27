@@ -4881,3 +4881,21 @@ puede escribir un agente que vio el control: sale del pipeline de bmo
 (generador + juez ciego), con un pedido que describa solo las familias;
 las listas de vocabulario no viajan (el anti-fuga es Jaccard de bolsa
 completa, no palabras sueltas).
+
+**Congelado del dataset de reentreno** (2026-10-27, paso 1 del orden corregido):
+los TEXTOS quedan congelados antes de que exista el control fresco — desde
+acá no se agrega ni reescribe ninguna pregunta; solo pueden cambiar
+etiquetas (relabel de la persona). El entrenamiento no puede contener
+paráfrasis de casos que todavía no se escribieron, y la historia de git lo
+prueba.
+
+- 300 casos (deliberación 125 [68 imperativos], ganador 60, contraejemplo 115)
+- sha256 de los TEXTOS (id|pregunta, ordenados — invariante a relabels):
+  `2947b4490fc49d542df88166c11e7e82ee9195c54cb25516faba1a67b8cbccfa`
+- sha256 del archivo completo en este momento (snapshot):
+  `472f7327ec24ddf01c186867454809c3a2cef371e7e55e21c9d0e1e019318cb2`
+- anti-fuga sobre el archivo congelado: 0 fugas (270→300 casos)
+
+La persona ya leyó el control (k01–k24) y algunos casos citados en el chat;
+los casos frescos que escriba a mano son independientes del pipeline de
+generación, no de su memoria — y eso alcanza para lo que se busca medir.
