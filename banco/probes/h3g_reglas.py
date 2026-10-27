@@ -142,7 +142,7 @@ def resumen(filas):
     return "\n".join(L) + "\n"
 
 
-def _router_y_voto():
+def router_y_voto():
     """Los componentes REALES de producción, en modo enforce."""
     import nodes
     from utils import call_llm
@@ -178,7 +178,7 @@ def main(argv=None):
     parser.add_argument("--resumen", action="store_true", help="solo rehace el resumen")
     args = parser.parse_args(argv)
     if not args.resumen:
-        router, voto = _router_y_voto()
+        router, voto = router_y_voto()
         SALIDA.parent.mkdir(parents=True, exist_ok=True)
         filas = []
         for k, caso in enumerate(cargar_casos(), 1):

@@ -51,9 +51,10 @@ Sin el anti-fuga corrido (`--entrenamiento`), no hay veredicto.
 
 ## Decisión atada al resultado
 
-- Gana → el checkpoint pasa a producción y se aplica el borrado aparcado de
-  las reglas (`docs/informes/h3g_borrar_reglas.patch`, con sus bloques de
-  docs regenerados); el operador acepta la baja del ratchet con su clave.
+- Gana → el checkpoint pasaba a producción y se aplicaba el borrado de las
+  reglas (un patch aparcado, con sus bloques de docs regenerados); el
+  operador aceptaba la baja del ratchet con su clave. Corrido con r3: **no
+  ganó** (X89), y el patch aparcado se borró al cerrar H3-G2.
 - No gana → el checkpoint de producción no cambia y las reglas se quedan. El
   bench dice qué falló (c01/c02, el control o el ahorro).
 

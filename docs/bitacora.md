@@ -4989,3 +4989,55 @@ consistentes: la familia recencia (c02, k21, k22, f04: «último X») y dos
 deliberación (k13, k15) siguen cayendo en directo — el reentreno con el
 combinado movió la aguja (c01, cuatro casos del control, held-out 28/30)
 pero no a cero. La regla temporal de producción sigue cubriendo c02.
+
+## H3-G2 cerrado: las reglas quedan como cobertura permanente (2026-10-27)
+
+**Decisión del operador** (X89), sobre el veredicto NO GANA de r3: se cierra
+H3-G2 y no se hace otra vuelta de datos.
+
+**Por qué no otra vuelta**: el reentreno sí generalizó donde podía. r3
+recuperó c01 y tres de los frescos f01–f06 (f01, f02, f06), que se
+escribieron después de congelar el dataset y no pudieron estar en el
+entrenamiento. Pero la familia de recencia (c02, k21, k22, f04: "último X")
+no se movió con 858 casos y volumen dirigido. Ya no es una hipótesis: es el
+límite de familia que exp/46 declaró ("la recencia no la juzga Laya: sin
+fechas"). El prompt no lleva la fecha por diseño (KV-cache), así que el
+modelo no puede saber qué es lo último. La regla temporal no es un parche por
+palabra clave: es la estructura que cubre ese punto ciego. El 28/30 contra
+27/30 del held-out es ruido con n = 30 y no se usa como argumento.
+
+**Qué queda**: las reglas temporal e imperativo, permanentes. Se borra
+`docs/informes/h3g_borrar_reglas.patch` (sigue en la historia de git) y las
+specs que lo citaban dicen que H3-G2 cerró sin ganar. r3 queda en
+`.modelos/router_voto_r3/` sin promover: el pre-registro dice que no, y
+promoverlo por sus méritos sería otra decisión con su criterio, que además
+exigiría recalibrar `LAYA_CALIBRACION_VOTO` (medida sobre r2).
+
+**Hallazgo nuevo** (X90): cruzando los falsos directos del voto r2 con lo
+que cubren las reglas, sin Laya: k19, k21, k22, f04 y f06 los cubre la
+temporal; f01 y f02 la de imperativos; **k13 ("discutí…") y k15
+("argumentá…") no los cubre nada**. En producción dependen solo de lo que
+proponga el router de Laya. No se agregan "discutí" y "argumentá" a la
+lista: eso persigue palabras de a una y el próximo verbo vuelve a pasar. Se
+mide primero la política completa (`banco/probes/producto_router.py`, ventana
+declarada antes de correr). También quedan fuera de las reglas k11
+("mañana") y algunos imperativos ("compará", "auditá"), que hoy el voto
+resuelve bien: no son agujeros, pero muestran el límite de las listas.
+
+**Limpieza**: el token de Kaggle que usó el agente para empujar el notebook
+se revoca en vez de esperar a que venza.
+
+**X90 corrido — la política completa no tiene agujeros hoy** (2026-10-27):
+`producto_router.py` sobre los 51 casos etiquetados (bench 18 + control 33),
+componentes reales en enforce (skills → reglas → router de Laya → voto 2-de-2,
+con el checkpoint r2 de producción). Ventana declarada antes de correr:
+8 casos esperado=herramientas sin skill ni regla (h03, k01–k03, k11, k12,
+k13, k15). Resultado: **el router propuso herramientas en los 8** — k13 y
+k15, los falsos directos del voto que ninguna regla cubre, los frenó el
+ROUTER sin llegar al voto. 0 falsos directos de producción en los 51.
+Veredicto atado: no hay agujero. El costo del otro lado (7 falsos
+herramientas: d04–d06, t01, t03, t04, t06 — trampas inversas que el router
+manda a tools) queda como hallazgo de costo, no de seguridad. Artefacto:
+`salidas/evals/producto_router.jsonl` + resumen `producto_router-resumen.md`.
+Corrido por el agente tras aplicar el patch del autor; suite 1106 verde,
+calidad verde.

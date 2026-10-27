@@ -25,7 +25,7 @@ corridas; calidad 0,50 vs 1,33) y se borró. Dato que queda: en s17 (20
 módulos) el supervisor ganó 3/3 sin delegar.
 
 **H3-G inválido** (X82): 78 disparos, 0 donde la regla decide; las reglas
-se quedan. **H3-G2** (X83, `banco/specs/h3g2_voto_solo.md`) es el gate del
+se quedan. **H3-G2** (X83, `banco/specs/h3g2_voto_solo.md`; cerrado sin ganar en X89) era el gate del
 borrado: el voto solo, con el checkpoint real, sin falsos directos y con el
 grupo directo 6/6 (`python3 banco/probes/bench_voto.py`). Hoy falla en
 c01/c02: el trabajo pendiente es el voto (`router_voto`), no las reglas.
@@ -38,15 +38,15 @@ calidad 1,22 → 1,06 aunque VerificarCitas corrija después).
 nada en producción construye agentes como tools (el supervisor usa `loop` y
 `semilla`, no `agente`). Vuelve si aparece una agent-tool en producción.
 
-**Ahora — reentreno del voto** (pre-registrado, X87; enmendado, X88;
-`banco/specs/voto_reentreno.md`): es lo que destraba H3-G2. Orden fijo:
-(1) el operador revisa y amplía `banco/voto_control.jsonl` con las familias
-de c01/c02 y lo firma en un commit; (2) `bench_voto.py --registrar-baseline`
-con el voto de producción: tiene que fallar al menos un caso del control (si
-no, el control no discrimina y se vuelve al paso 1); (3) dataset y fine-tune
-en bmo/Laya, con `voto_antifuga.py` en 0 fugas; (4) `bench_voto.py
---entrenamiento …` con el checkpoint nuevo. De H3 queda E (sandbox,
-opcional y sin diseño).
+**Reentreno del voto cerrado** (X87–X89): r3 no ganó (c02 y la familia de
+recencia no se movieron con 858 casos: el límite de exp/46); H3-G2 se cierra
+y las reglas quedan como cobertura permanente.
+
+**Ahora — el producto completo sobre el control** (X90): k13 y k15 son
+falsos directos del voto que ninguna regla cubre. Medir la política entera
+(skills → reglas → router → voto) sobre bench + control:
+`python3 banco/probes/producto_router.py` (necesita Laya). De H3 queda E
+(sandbox, opcional y sin diseño).
 
 **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
 "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`
@@ -71,7 +71,7 @@ lo que gana; los criterios vigentes están en cada spec):
 | | Qué | Resultado |
 |---|---|---|
 | B | swarm de exploradores en auditorías amplias | ❌ se borró el explorador (X79) |
-| G | router de Laya sin reglas de palabras clave | inválido (X82); el gate es H3-G2 (X83), hoy no gana |
+| G | router de Laya sin reglas de palabras clave | inválido (X82); H3-G2 cerrado sin ganar (X89): las reglas son cobertura permanente |
 | F | sacar del prompt lo que la estructura reemplazó | alcance se borró, citas se quedó (X85) |
 | H | `max_profundidad` 1 vs 2 | sin objeto (X86): ningún agente delega en producción |
 | E | sandbox en vez de whitelist | opcional, sin diseño |

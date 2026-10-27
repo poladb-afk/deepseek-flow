@@ -38,9 +38,9 @@ caso, no por cantidad.
 
 ## Decisión atada al resultado
 
-- Gana → se aplica `docs/informes/h3g_borrar_reglas.patch` (aparcado), con
-  el test del voto ahora cierto, y el operador acepta la baja del ratchet
-  con su clave.
+- Gana → se aplicaba el borrado de las reglas (un patch aparcado), con el
+  test del voto ahora cierto, y el operador aceptaba la baja del ratchet con
+  su clave. **Cerrado sin ganar** (X89, 2026-10-27): el patch se borró.
 - No gana → las reglas se quedan. El trabajo es el voto (entrenamiento o
   umbral de `router_voto` en c01/c02), no las reglas.
 
@@ -48,3 +48,12 @@ caso, no por cantidad.
 
 `python3 banco/probes/bench_voto.py` (la línea `H3-G2` del informe y la clave
 `h3g2` del artefacto). Correrlo después de cada cambio del checkpoint del voto.
+
+## Cierre (X89, 2026-10-27)
+
+No ganó con r2 (c01, c02) ni con r3, el reentreno pre-registrado (c02 sigue
+en directo, y el control tiene 5 falsos directos). La familia de recencia
+("último X") no se movió con 858 casos de entrenamiento: es el límite de
+familia que exp/46 había declarado (sin fechas en el prompt, el modelo no
+puede saber qué es lo último). **Las reglas pasan a ser cobertura permanente**
+por decisión del operador; el criterio de arriba queda como registro.

@@ -177,7 +177,7 @@ def veredicto_h3g2(filas, voto_local_disponible):
     gana = bool(filas) and all(condiciones.values())
     return {"condiciones": condiciones, "gana": gana,
             "falsos_directos_voto": [f["id"] for f in filas if f["falso_directo_voto"]],
-            "decision": "el voto solo alcanza: se pueden borrar las reglas (aplicar h3g_borrar_reglas.patch)"
+            "decision": "el voto solo alcanza: se podrían borrar las reglas (H3-G2 cerrado sin ganar, X89)"
             if gana else "las reglas se quedan"}
 
 
@@ -229,7 +229,7 @@ def veredicto_reentreno(filas, filas_control, n_fugas, voto_local_disponible,
     completo = n_fugas is not None and baseline is not None
     gana = completo and all(condiciones.values())
     if completo:
-        decision = ("se promueve el checkpoint y H3-G2 queda ganado (aplicar el borrado aparcado)"
+        decision = ("se promueve el checkpoint y H3-G2 queda ganado (H3-G2 está cerrado: reabrirlo, X89)"
                     if gana else "no se promueve: el checkpoint de producción sigue igual")
     elif baseline is None:
         decision = "falta el baseline del control (--registrar-baseline con el voto de producción, ANTES de entrenar)"
