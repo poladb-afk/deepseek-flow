@@ -4780,3 +4780,25 @@ recalienta en la primera llamada después del deploy, no por turno).
 `f_prompt.py` queda solo con `--resumen`, porque sin los toggles una
 corrida nueva compararía tres brazos idénticos; por eso también se va el
 `env=` que F le había agregado a `bench_fable.correr_uno` (sin usuario).
+
+## H — sin objeto: no hay agente que delegue (2026-10-27)
+
+**Pregunta** (H3-H): ¿`max_profundidad` 1 o 2? **Antes de diseñar**, dónde
+decide la pieza: el límite de profundidad solo actúa cuando un agente llama a
+otro agente. Verificado en el código (operador): nada en producción construye
+agentes como tools. `supervisor.py` usa `loop` y `semilla` del kernel; el
+único agente-tool era el explorador, borrado en H3-B (X79). Todo corre a
+profundidad 0.
+
+**Decisión** (X86): H queda sin objeto, sin experimento. Es la primera vez que
+la lección X82 se aplica antes de pre-registrar y no después de correr: el
+experimento habría tenido cobertura efectiva 0 por construcción. `agente()`
+se queda como primitiva del kernel (decisión de H3-B); H vuelve si aparece
+una agent-tool en producción.
+
+**De paso, tres arreglos del roadmap**: la entrada exp/13 estaba partida (su
+final había quedado debajo de exp/19); la línea de H3 tenía el criterio
+original de G, que reemplazaron X82/X83 (ahora es una tabla con el resultado
+de cada letra); la cola numerada estaba fuera de orden (14 y 16 al final).
+Se reordenó sin renumerar, porque otras partes del doc citan "ítem 15" e
+"ítem 20".

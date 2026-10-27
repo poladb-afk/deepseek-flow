@@ -34,9 +34,13 @@ c01/c02: el trabajo pendiente es el voto (`router_voto`), no las reglas.
 0,92 → 1,25 en s17–s20 con menos tokens); la de citas se quedó (sin ella,
 calidad 1,22 → 1,06 aunque VerificarCitas corrija después).
 
-**Ahora — E/H** (sin diseño todavía): E sandbox en vez de whitelist
-(opcional), H `max_depth` 1 vs 2. En paralelo, fuera de la secuencia: el voto
-en c01/c02 (`router_voto`), que es lo que destraba H3-G2.
+**H sin objeto** (X86): `max_profundidad` 1 vs 2 no se puede medir porque
+nada en producción construye agentes como tools (el supervisor usa `loop` y
+`semilla`, no `agente`). Vuelve si aparece una agent-tool en producción.
+
+**Ahora**: queda E (sandbox, opcional y sin diseño). Fuera de la secuencia,
+el trabajo con más valor es el voto en c01/c02 (`router_voto`), que es lo que
+destraba H3-G2.
 
 **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
 "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`
@@ -56,11 +60,15 @@ Gate común: `tests/test_caracterizacion_chat.py` pasa sin cambiar una línea,
 `./calidad.sh` verde, ratchet sin empeorar; el viejo se reemplaza (sin `_v2`).
 
 **H3 — que la evidencia decida** (con el kernel en producción; se queda solo
-lo que gana): B swarm de exploradores en auditorías amplias (calidad sube más
-que el costo); G router de Laya sin reglas de palabras clave (tareas hechas
-iguales, costo ≤ +10%); F sacar del prompt lo que la estructura reemplazó
-(`DIRECTIVA_FORMA` se queda: exp/51); E sandbox en vez de whitelist
-(opcional); H `max_depth` 1 vs 2.
+lo que gana; los criterios vigentes están en cada spec):
+
+| | Qué | Resultado |
+|---|---|---|
+| B | swarm de exploradores en auditorías amplias | ❌ se borró el explorador (X79) |
+| G | router de Laya sin reglas de palabras clave | inválido (X82); el gate es H3-G2 (X83), hoy no gana |
+| F | sacar del prompt lo que la estructura reemplazó | alcance se borró, citas se quedó (X85) |
+| H | `max_profundidad` 1 vs 2 | sin objeto (X86): ningún agente delega en producción |
+| E | sandbox en vez de whitelist | opcional, sin diseño |
 
 **Regla para el banco**: todo escenario nuevo trae `verificar:` con un
 chequeo que falle si el modelo no hace nada (lo exige `cargar_escenario`).
@@ -85,7 +93,8 @@ Cada ítem indica qué pieza lo apoya y qué falta.
   del humano es la etiqueta. Primeros datos: el checkpoint base es débil →
   fine-tune cuando el log acumule (siguiente de esta línea).
 
-**Cola priorizada:**
+**Cola priorizada** (en orden de número; el 17 no existe —nunca hubo tal ítem, verificado en la historia del archivo— y los números no se
+reasignan porque otras partes del doc los citan):
 1. ~~**exp/48** — persistencia/resume de corridas~~ **✅ hecho (2026-10-14)**:
    `utils/thread_store.py` + 3 puntos seguros + `main.py resume <id>`;
    E2E con kill -9 y continuidad verificados (design.md). Los otros flows
@@ -166,12 +175,30 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     edit_file con HITL por scope) + sonda `banco/probes/forma_chat.py`. n=2
     por brazo: SLOC 133,5 → 32 (−76%), docstrings 1,00 → 0,33, `try`
     −83%, sesiones ~15% más rápidas. 4/4 sesiones OK. Límite: n=2.
+14. ~~**Repetir exp/51 chat con más n**~~ **✅ (2026-10-19)**: flash n=5 por
+    brazo (SLOC 115 → 25, −78%; sesiones 32,3 → 25,7 s) y deepseek-chat n=3
+    (179 → 21, −88%; 33,6 → 24,6 s), 16/16 sesiones OK. El efecto del
+    one-shot se sostiene (y crece) en el bucle real. exp/51 queda cerrado;
+    la cola vuelve a exp/45 (veredicto del router, pre-registrado).
 15. ~~**Pre-registrar el criterio de ROI del router**~~ **✅ pre-registrado
     (2026-10-19)**: `banco/probes/veredicto_router.py` computa ROI y aplica
     la regla nueva SOLO en la próxima revisión (no retroactiva): ahorro
     efectivo <5% con precisión de directos ≥99% → apagar; si no, mantener y
     re-elegir alpha. Preview con los datos de hoy: **APAGAR** (1,6% de
     ahorro), pero la decisión de exp/45 queda como está.
+16. **Revisión de ROI del router (condición pre-registrada)**: cuando haya
+    **≥250 pares y ≥14 días** (**14/250 y 3/14** al 2026-10-25 — el par #14
+    fue el primero sin auditor al timón, exp/99), correr
+    `python3 banco/probes/etiquetar_ambiental.py && python3 banco/probes/veredicto_router.py`
+    y aplicar la regla de ROI. El banco no cuenta: las decisiones llevan
+    `origen` y el join solo acepta `web`/`terminal` (el log previo a exp/71b,
+    que no tiene el campo, también queda afuera: 80 de sus 152 pares eran del
+    banco); vigilar falsos directo del enforce.
+    **Acumulación:** ventanas de uso con la política en shadow (en enforce el
+    par no se etiqueta, exp/43) — desde exp/100 la palanca es delegar desde
+    el chat con `delegar_tarea` y `shadow="1"` — y, hasta la revisión, NO
+    correr `etiquetar_ambiental` con la salida default (pisa el artefacto
+    que usa `.env`); progreso con `python3 banco/probes/estado_flywheel.py`.
 18. ~~**Paydown de test slop**: 12 ocurrencias (6 pares) de tests copiados en
     `test_db`, `test_policy` (×2), `test_replay`, `test_smoke` y
     `test_ratchet`~~ **✅ (2026-10-19)**: los 6 pares pasaron a
@@ -202,28 +229,10 @@ Cada ítem indica qué pieza lo apoya y qué falta.
     (recall anclado 7,67/8); C1 ❌ la skill no suma detección (7,00/8,
     −0,67 vs control); C4 ✅ ruido 0,41× (−59%). La skill queda como
     reductor de ruido, no detector (detalle en bitácora exp/56b).
-16. **Revisión de ROI del router (condición pre-registrada)**: cuando haya
-    **≥250 pares y ≥14 días** (**14/250 y 3/14** al 2026-10-25 — el par #14
-    fue el primero sin auditor al timón, exp/99), correr
-    `python3 banco/probes/etiquetar_ambiental.py && python3 banco/probes/veredicto_router.py`
-    y aplicar la regla de ROI. El banco no cuenta: las decisiones llevan
-    `origen` y el join solo acepta `web`/`terminal` (el log previo a exp/71b,
-    que no tiene el campo, también queda afuera: 80 de sus 152 pares eran del
-    banco); vigilar falsos directo del enforce.
-    **Acumulación:** ventanas de uso con la política en shadow (en enforce el
-    par no se etiqueta, exp/43) — desde exp/100 la palanca es delegar desde
-    el chat con `delegar_tarea` y `shadow="1"` — y, hasta la revisión, NO
-    correr `etiquetar_ambiental` con la salida default (pisa el artefacto
-    que usa `.env`); progreso con `python3 banco/probes/estado_flywheel.py`.
 22. **Diff paginado a pedido en el HITL web** (follow-up de exp/98, la otra
     mitad de la cola chica junto al ya-cerrado motivo de exp/102): el panel
     muestra los hunks que caben; falta poder VER los que quedaron fuera.
     Media sesión, necesita diseño de UX propio (paginación del `<pre>`).
-14. ~~**Repetir exp/51 chat con más n**~~ **✅ (2026-10-19)**: flash n=5 por
-    brazo (SLOC 115 → 25, −78%; sesiones 32,3 → 25,7 s) y deepseek-chat n=3
-    (179 → 21, −88%; 33,6 → 24,6 s), 16/16 sesiones OK. El efecto del
-    one-shot se sostiene (y crece) en el bucle real. exp/51 queda cerrado;
-    la cola vuelve a exp/45 (veredicto del router, pre-registrado).
 
 **Descartado hoy por evidencia:** Choose a escala (~2.400 casos — el bench
 lo volvió innecesario), round de "hechos actuales" (regla dura lo cierra),
@@ -458,6 +467,8 @@ mide: marcadores por turno en conversación real contra DeepSeek.
 - **exp/13 ✅ mergeada** — router_prefiltro entrenado e integrado:
   530 casos (anti-fuga aplicado), test 54%→79% ECE 0.33→0.09, banda
   confiable no vacía. A/B del pre-filtro: poda 18→2 (89%) por consulta,
+  menos churn de búsqueda, costo de ranking local. El claim "~80%" de la
+  wild queda reemplazado por la medición propia. Sección en design.md.
 - **exp/14 ✅ mergeada** — ranking del pre-filtro en lote (predict_batch):
   3.2× en el camino real (377 ms/bloque warm vs 1211 secuencial),
   decisiones idénticas. Mitiga el único costo medido del prefiltro.
@@ -474,5 +485,3 @@ mide: marcadores por turno en conversación real contra DeepSeek.
   tandas: 9/16 → 16/16). 6 hallazgos (1 alto: descripción de ver_pdf
   mentía el mecanismo; 1 medio: default de salida de run_auditoria),
   confirmados y corregidos.
-  menos churn de búsqueda, costo de ranking local. El claim "~80%" de la
-  wild queda reemplazado por la medición propia. Sección en design.md.
