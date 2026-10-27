@@ -47,6 +47,19 @@ FAMILIAS = {
             "Familia DELIBERACIÓN EN VARIAS RONDAS: pedidos que piden debatir "
             "o contraponer posiciones en N rondas y cerrar con un veredicto."
         ),
+        # la persona decidió (2026-10-27) que la forma INTERROGATIVA es directo
+        # (pide el texto de los argumentos); el lado herramientas es la forma
+        # IMPERATIVA que comisiona el debate — la de c01. Sub-formas separadas
+        # por el mismo anclaje medido en contraejemplo.
+        "formas": {
+            "imperativa": ("Forma IMPERATIVA: el pedido COMISIONA el debate en "
+                           " rondas (debatí / discutí / argumentá / confrontá en N "
+                           "rondas... y cerrá con veredicto) — ordena ejecutarlo, "
+                           "no pregunta por su contenido."),
+            "interrogativa": ("Forma INTERROGATIVA: la pregunta pide el CONTENIDO "
+                              "por escrito (¿qué argumentos opondrías...?, ¿qué "
+                              "posición tomarías...?) — se responde redactando."),
+        },
     },
     "ganador": {
         "intencion": "herramientas",
@@ -197,8 +210,8 @@ def main(argv=None):
     parser.add_argument("--por-familia", type=int, default=None, help="genera N por familia (juzga cada caso)")
     parser.add_argument("--mas", type=int, default=None, help="top-up: N más de --familia")
     parser.add_argument("--familia", choices=sorted(FAMILIAS), default=None)
-    parser.add_argument("--forma", choices=("opinion", "historica"), default=None,
-                        help="sub-forma de la familia contraejemplo")
+    parser.add_argument("--forma", default=None,
+                        help="sub-forma declarada de la familia (imperativa|interrogativa|opinion|historica)")
     parser.add_argument("--muestra", type=int, default=None, help="imprime N casos para relabel manual")
     parser.add_argument("--relabel", default=None, help="archivo 'id etiqueta' con tus correcciones")
     args = parser.parse_args(argv)
