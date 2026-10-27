@@ -4955,3 +4955,37 @@ Paso 6 (declarado): fine-tune del lado de Kaggle con la receta del notebook
 (layaft sobre `bmo-laya-base`, el dataset de arriba como `data=`), y el gate
 con las seis condiciones:
 `LAYA_MODEL_VOTO=<nuevo> python3 banco/probes/bench_voto.py --entrenamiento salidas/evals/voto_entrenamiento.jsonl`.
+
+**Paso 6 — reentreno r3 corrido y NO GANA; la producción no cambia** (2026-10-27):
+la persona subió `voto_entrenamiento.jsonl` como nueva versión del dataset
+`flow-router-voto` (verificado del lado de Kaggle: sha `4037fe4f…` exacto) e
+importó el notebook `router-voto-r3`. Su primera versión murió a los 27 s
+(`Training needs a CUDA GPU`: el Save & Run All salió sin GPU pese a la
+sesión interactiva con T4). La persona generó un token nuevo de API (refrescó
+`~/.kaggle/credentials.json`) y el agente re-empujó la versión 2 por CLI con
+`enable_gpu` explícito en los metadatos — entrenó completo (T4x2, layaft
+sobre `bmo-laya-base`, 858 casos → 686/85/87, 4 épocas, ECE de validación
+0,028). Held-out de 30 jamás entrenado: base 19/30 → **r3 28/30** (r2:
+27/30). Checkpoint en `.modelos/router_voto_r3/` (candidato; el `.env`
+sigue apuntando a r2). Evidencia: `docs/informes/flow-router-voto/r3/`.
+
+Gate (`bench_voto.py --entrenamiento`, artefacto
+`salidas/evals/bench_voto_20261027.json`), las seis condiciones:
+
+- h3g2: **NO** — el voto solo sigue con un falso directo: `c02` («¿quién
+  ganó el último mundial…?» 0,62). `c01` SÍ quedó herramientas (0,56; en r2
+  era directo 0,94).
+- control_tamano: sí (21 herramientas / 6 directos).
+- control_seguridad: **NO** — falsos directos del voto en el control:
+  `k13 k15 k21 k22 f04` (el baseline de r2 tenía 9: k13 k15 k19 k21 k22
+  f01 f02 f04 f06; r3 recuperó k19 f01 f02 f06, exige 0).
+- control_ahorro: sí (trampas inversas 6/6).
+- antifuga: sí (858 filas, 0 fugas contra bench + control, umbral 0,6).
+- control_discrimina: sí (baseline válido para este control).
+
+**Veredicto atado (pre-registro): NO GANA → el checkpoint de producción
+sigue siendo r2 y las reglas del router se quedan.** El patrón del fallo es
+consistentes: la familia recencia (c02, k21, k22, f04: «último X») y dos
+deliberación (k13, k15) siguen cayendo en directo — el reentreno con el
+combinado movió la aguja (c01, cuatro casos del control, held-out 28/30)
+pero no a cero. La regla temporal de producción sigue cubriendo c02.

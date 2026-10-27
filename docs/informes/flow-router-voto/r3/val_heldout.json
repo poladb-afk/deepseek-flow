@@ -1,0 +1,379 @@
+{
+ "model": "runs/router_voto-1k",
+ "fingerprint": "ef9df445b0ef",
+ "summary": {
+  "questions": {
+   "confirma_herramientas": {
+    "correct": 28,
+    "total": 30,
+    "ece": 0.08
+   }
+  },
+  "all_correct": 28,
+  "total": 30,
+  "p50_latency_ms": 28.3,
+  "p95_latency_ms": 32.4
+ },
+ "rows": [
+  {
+   "id": "23e65d126a7c",
+   "title": "debatí si en este proyecto de Django conviene usar Class-Bas",
+   "latency_ms": 384.2,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "herramientas",
+     "expected": "herramientas",
+     "confidence": 90.9
+    }
+   }
+  },
+  {
+   "id": "bcf2c1c018d6",
+   "title": "¿podés contar cuántos eventos de reintento hay en los .jsonl",
+   "latency_ms": 32.4,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "herramientas",
+     "expected": "herramientas",
+     "confidence": 96.3
+    }
+   }
+  },
+  {
+   "id": "bce52a63bd84",
+   "title": "che, ¿me averiguás si salió alguna antología nueva de cuento",
+   "latency_ms": 28.7,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "herramientas",
+     "expected": "herramientas",
+     "confidence": 88.8
+    }
+   }
+  },
+  {
+   "id": "7c1a06886989",
+   "title": "che, medí el dataset de ventas y decime el promedio de ticke",
+   "latency_ms": 29.7,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "herramientas",
+     "expected": "herramientas",
+     "confidence": 91.1
+    }
+   }
+  },
+  {
+   "id": "8dcf5274792a",
+   "title": "che, explicame cómo se distribuyen los montos de las factura",
+   "latency_ms": 28.5,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "herramientas",
+     "expected": "herramientas",
+     "confidence": 78.6
+    }
+   }
+  },
+  {
+   "id": "1481c98530c1",
+   "title": "¿podés abrir la carpeta personajes/ y contarme cuántos nombr",
+   "latency_ms": 28.3,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "herramientas",
+     "expected": "herramientas",
+     "confidence": 99.4
+    }
+   }
+  },
+  {
+   "id": "6a235841b231",
+   "title": "che, ¿podés revisar mi carpeta src y decirme si estoy usando",
+   "latency_ms": 29.0,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "herramientas",
+     "expected": "herramientas",
+     "confidence": 92.4
+    }
+   }
+  },
+  {
+   "id": "c163959fca58",
+   "title": "che, ¿vos qué opinás de lo que están diciendo en las noticia",
+   "latency_ms": 30.5,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "directo",
+     "expected": "herramientas",
+     "confidence": 76.3
+    }
+   }
+  },
+  {
+   "id": "5df5bd1a7e6c",
+   "title": "hey, could you check my notes folder for anything I wrote ab",
+   "latency_ms": 30.2,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "herramientas",
+     "expected": "herramientas",
+     "confidence": 99.9
+    }
+   }
+  },
+  {
+   "id": "e0b93e1b705a",
+   "title": "could you research whether the latest langchain release brok",
+   "latency_ms": 28.6,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "herramientas",
+     "expected": "herramientas",
+     "confidence": 92.8
+    }
+   }
+  },
+  {
+   "id": "90b308329c74",
+   "title": "hey, any chance the disk is filling up on this box? the serv",
+   "latency_ms": 29.3,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "herramientas",
+     "expected": "herramientas",
+     "confidence": 97.3
+    }
+   }
+  },
+  {
+   "id": "b409d8fe84c2",
+   "title": "Hey, what's the latest travel advisory for Mexico?",
+   "latency_ms": 28.1,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "herramientas",
+     "expected": "herramientas",
+     "confidence": 98.8
+    }
+   }
+  },
+  {
+   "id": "c18e1ac138be",
+   "title": "Could you research the best time of year to visit Kyoto for ",
+   "latency_ms": 27.5,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "herramientas",
+     "expected": "herramientas",
+     "confidence": 68.2
+    }
+   }
+  },
+  {
+   "id": "6436ffcda6e8",
+   "title": "che, ¿me tirás la distribución de montos de las transaccione",
+   "latency_ms": 29.8,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "herramientas",
+     "expected": "herramientas",
+     "confidence": 94.5
+    }
+   }
+  },
+  {
+   "id": "27ee1b678629",
+   "title": "podés revisar en mi carpeta filosofia/ el archivo con las no",
+   "latency_ms": 27.5,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "herramientas",
+     "expected": "herramientas",
+     "confidence": 99.5
+    }
+   }
+  },
+  {
+   "id": "10c2210c779f",
+   "title": "write a short guide on how to calculate counts and percentag",
+   "latency_ms": 28.6,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "directo",
+     "expected": "directo",
+     "confidence": 99.1
+    }
+   }
+  },
+  {
+   "id": "b3584abb0113",
+   "title": "che, explicame la diferencia entre el dólar blue y el dólar ",
+   "latency_ms": 28.3,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "directo",
+     "expected": "directo",
+     "confidence": 98.0
+    }
+   }
+  },
+  {
+   "id": "2bb5f9e7f528",
+   "title": "draft a short paragraph for the README about why writing tes",
+   "latency_ms": 27.9,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "directo",
+     "expected": "directo",
+     "confidence": 74.1
+    }
+   }
+  },
+  {
+   "id": "f64af110c2cb",
+   "title": "Che, explicame bien cómo se hace un roux para una salsa blan",
+   "latency_ms": 27.8,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "directo",
+     "expected": "directo",
+     "confidence": 92.6
+    }
+   }
+  },
+  {
+   "id": "47ddac5eacfd",
+   "title": "escribime un haiku sobre la biblioteca de Alejandría quemánd",
+   "latency_ms": 27.4,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "directo",
+     "expected": "directo",
+     "confidence": 94.1
+    }
+   }
+  },
+  {
+   "id": "601b48e89041",
+   "title": "could you explain how to convert miles to kilometers using a",
+   "latency_ms": 27.2,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "directo",
+     "expected": "directo",
+     "confidence": 98.3
+    }
+   }
+  },
+  {
+   "id": "6eceee4f88d5",
+   "title": "che, explicame con manzanitas cómo se convierte una receta d",
+   "latency_ms": 27.8,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "directo",
+     "expected": "directo",
+     "confidence": 83.7
+    }
+   }
+  },
+  {
+   "id": "7c33621c92eb",
+   "title": "che, contame un chiste sobre un analista que confunde la med",
+   "latency_ms": 27.0,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "directo",
+     "expected": "directo",
+     "confidence": 92.4
+    }
+   }
+  },
+  {
+   "id": "c5320a05fe63",
+   "title": "could you draft a short philosophical dialogue between Socra",
+   "latency_ms": 26.8,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "directo",
+     "expected": "directo",
+     "confidence": 95.9
+    }
+   }
+  },
+  {
+   "id": "2c3abf72cdab",
+   "title": "¿podrías redactar un breve informe sobre los beneficios de l",
+   "latency_ms": 28.2,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "directo",
+     "expected": "directo",
+     "confidence": 99.0
+    }
+   }
+  },
+  {
+   "id": "3130723479cc",
+   "title": "che, contame qué son los decoradores en Python y para qué si",
+   "latency_ms": 28.4,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "directo",
+     "expected": "directo",
+     "confidence": 97.0
+    }
+   }
+  },
+  {
+   "id": "62668b79981b",
+   "title": "Debate whether my short story should end with a twist or a q",
+   "latency_ms": 27.8,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "directo",
+     "expected": "directo",
+     "confidence": 91.7
+    }
+   }
+  },
+  {
+   "id": "e6012aafe998",
+   "title": "Write a short paragraph explaining why the sky is blue.",
+   "latency_ms": 28.9,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "directo",
+     "expected": "directo",
+     "confidence": 99.2
+    }
+   }
+  },
+  {
+   "id": "c587e8909f96",
+   "title": "write me a haiku about a freshly made paella",
+   "latency_ms": 28.1,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "directo",
+     "expected": "directo",
+     "confidence": 96.0
+    }
+   }
+  },
+  {
+   "id": "e0deff4a7f2d",
+   "title": "che, debatí en dos rondas si es mejor usar una API REST o Gr",
+   "latency_ms": 28.0,
+   "answers": {
+    "confirma_herramientas": {
+     "predicted": "herramientas",
+     "expected": "directo",
+     "confidence": 57.9
+    }
+   }
+  }
+ ]
+}
