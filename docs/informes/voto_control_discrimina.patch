@@ -1,0 +1,332 @@
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json -x voto_control.jsonl a/deepseek-flow-main/banco/probes/bench_voto.py b/deepseek-flow-main/banco/probes/bench_voto.py
+--- a/banco/probes/bench_voto.py	2026-10-27 13:18:20.700397150 +0000
++++ b/banco/probes/bench_voto.py	2026-10-27 13:19:24.488579581 +0000
+@@ -24,6 +24,7 @@
+     python3 banco/probes/bench_voto.py [--casos ruta] [--sin-reglas]
+ """
+ import argparse
++import hashlib
+ import json
+ import statistics
+ import sys
+@@ -38,6 +39,7 @@
+ 
+ CASOS = RAIZ / "banco" / "voto_casos.jsonl"
+ CONTROL = RAIZ / "banco" / "voto_control.jsonl"
++CONTROL_BASELINE = RAIZ / "banco" / "voto_control_baseline.json"
+ GRUPOS = ("correccion", "directo", "herramientas")
+ ESPERADOS = ("herramientas", "directo")
+ 
+@@ -183,12 +185,34 @@
+ CONTROL_DIRECTOS_MIN = 4       # trampas inversas nuevas ("escribime un haiku")
+ 
+ 
+-def veredicto_reentreno(filas, filas_control, n_fugas, voto_local_disponible):
++def huella(ruta):
++    """sha256 del archivo: ata el baseline a ESTE control, byte a byte."""
++    return hashlib.sha256(Path(ruta).read_bytes()).hexdigest()
++
++
++def baseline_control(filas_control, huella_control, checkpoint):
++    """Lo que el voto de PRODUCCIÓN falla en el control, registrado antes de
++    entrenar (enmienda del 2026-10-27). PURA."""
++    return {
++        "control_sha256": huella_control,
++        "checkpoint": checkpoint,
++        "n": len(filas_control),
++        "falsos_directos": [f["id"] for f in filas_control if f["falso_directo_voto"]],
++        "trampas_mal": [f["id"] for f in filas_control
++                        if f["esperado"] == "directo" and not f["acierto_voto"]],
++    }
++
++
++def veredicto_reentreno(filas, filas_control, n_fugas, voto_local_disponible,
++                        baseline=None, huella_control=None):
+     """El criterio de banco/specs/voto_reentreno.md, sin retoques. PURA.
+ 
+     Un checkpoint nuevo de router_voto se promueve si pasa H3-G2 en el bench
+     Y lo mismo fuera de muestra (el control), con el entrenamiento limpio de
+-    fugas. `n_fugas=None` = no se corrió el anti-fuga: no hay veredicto."""
++    fugas, y si el control DISCRIMINA: el voto de producción, medido antes de
++    entrenar sobre este mismo control (misma huella), daba al menos un falso
++    directo. Un control que el voto viejo ya pasaba no distingue aprender de
++    memorizar. Sin anti-fuga o sin baseline, no hay veredicto."""
+     h3g2 = veredicto_h3g2(filas, voto_local_disponible)
+     herramientas = [f for f in filas_control if f["esperado"] == "herramientas"]
+     directos = [f for f in filas_control if f["esperado"] == "directo"]
+@@ -199,14 +223,26 @@
+         "control_seguridad": tamano and not any(f["falso_directo_voto"] for f in filas_control),
+         "control_ahorro": tamano and all(f["acierto_voto"] for f in directos),
+         "antifuga": n_fugas == 0,
++        "control_discrimina": baseline is not None and baseline.get("control_sha256") == huella_control
++        and len(baseline.get("falsos_directos") or []) >= 1,
+     }
+-    completo = n_fugas is not None
++    completo = n_fugas is not None and baseline is not None
+     gana = completo and all(condiciones.values())
++    if completo:
++        decision = ("se promueve el checkpoint y H3-G2 queda ganado (aplicar el borrado aparcado)"
++                    if gana else "no se promueve: el checkpoint de producción sigue igual")
++    elif baseline is None:
++        decision = "falta el baseline del control (--registrar-baseline con el voto de producción, ANTES de entrenar)"
++    else:
++        decision = "falta correr el anti-fuga sobre el entrenamiento (--entrenamiento)"
+     return {"condiciones": condiciones, "completo": completo, "gana": gana,
+             "falsos_directos_control": [f["id"] for f in filas_control if f["falso_directo_voto"]],
+-            "decision": ("se promueve el checkpoint y H3-G2 queda ganado (aplicar el borrado aparcado)"
+-                         if gana else "no se promueve: el checkpoint de producción sigue igual")
+-            if completo else "falta correr el anti-fuga sobre el entrenamiento (--entrenamiento)"}
++            "decision": decision}
++
++
++def leer_baseline(ruta=CONTROL_BASELINE):
++    ruta = Path(ruta)
++    return json.loads(ruta.read_text(encoding="utf-8")) if ruta.is_file() else None
+ 
+ 
+ def _voto_local_real():
+@@ -285,6 +321,8 @@
+     parser.add_argument("--control", default=str(CONTROL), help="casos fuera de muestra")
+     parser.add_argument("--entrenamiento", default=None,
+                         help="JSONL con el que se entrenó el checkpoint (anti-fuga del reentreno)")
++    parser.add_argument("--registrar-baseline", action="store_true",
++                        help="registra lo que el voto de PRODUCCIÓN falla en el control (antes de entrenar)")
+     parser.add_argument("--salida", default=None, help="JSON de resultados")
+     args = parser.parse_args(argv)
+     casos = cargar_casos(args.casos)
+@@ -302,12 +340,27 @@
+           f"{h3g2['condiciones']} → {h3g2['decision']}")
+     reentreno = None
+     control = cargar_casos(args.control) if Path(args.control).is_file() else []
++    if args.registrar_baseline:
++        if not checkpoint or not control:
++            raise SystemExit("ERROR: el baseline necesita el checkpoint de producción (LAYA_MODEL_VOTO) y el control")
++        from utils.call_llm import _setting
++
++        filas_control = medir(control, voto_local, _arbitro_real(), regla=None)
++        base = baseline_control(filas_control, huella(args.control), _setting("LAYA_MODEL_VOTO", ""))
++        CONTROL_BASELINE.write_text(json.dumps(base, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
++        print(f"[bench] baseline del control → {CONTROL_BASELINE.relative_to(RAIZ)}: "
++              f"falsos directos {base['falsos_directos']}, trampas mal {base['trampas_mal']}")
++        if not base["falsos_directos"]:
++            print("[bench] ⚠ el control NO discrimina: el voto de producción no falla ninguno. "
++                  "Ampliá las familias de c01/c02 antes de entrenar (banco/specs/voto_reentreno.md).")
++        return 0
+     if control or args.entrenamiento:
+         from voto_antifuga import fugas, leer, protegidos
+ 
+         filas_control = medir(control, voto_local, _arbitro_real(), regla=None)
+         n_fugas = len(fugas(leer(args.entrenamiento), protegidos())) if args.entrenamiento else None
+-        reentreno = veredicto_reentreno(filas, filas_control, n_fugas, checkpoint)
++        reentreno = veredicto_reentreno(filas, filas_control, n_fugas, checkpoint,
++                                        leer_baseline(), huella(args.control) if control else None)
+         print(f"  reentreno (banco/specs/voto_reentreno.md): {'GANA' if reentreno['gana'] else 'NO GANA'} "
+               f"{reentreno['condiciones']} → {reentreno['decision']}")
+     destino = Path(args.salida or (RAIZ / "salidas" / "evals" /
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json -x voto_control.jsonl a/deepseek-flow-main/banco/specs/voto_reentreno.md b/deepseek-flow-main/banco/specs/voto_reentreno.md
+--- a/banco/specs/voto_reentreno.md	2026-10-27 13:18:20.700397150 +0000
++++ b/banco/specs/voto_reentreno.md	2026-10-27 13:19:57.120672907 +0000
+@@ -71,3 +71,38 @@
+ 
+ La línea `reentreno` del informe y la clave `reentreno` del artefacto llevan
+ el veredicto.
++
++## Enmienda (2026-10-27, antes de cualquier dato de entrenamiento)
++
++Esta sección se agregó después de fijar lo de arriba y ANTES de generar datos;
++lo de arriba no se toca.
++
++**Qué la motivó**: el smoke de integración (el operador corrió `bench_voto.py`
++con el control lleno y el checkpoint de producción) mostró que el voto actual
++pasa el control entero: 0 falsos directos y las 6 trampas bien. Un control
++así no distingue aprender de memorizar. Un checkpoint que memorice c01/c02
++gana H3-G2, pasa el control porque ya lo pasaba y da 0 fugas si el
++entrenamiento trae paráfrasis con otras palabras. Se habría promovido.
++
++**Sexta condición, `control_discrimina`**: el voto de PRODUCCIÓN, medido sobre
++este mismo control antes de entrenar, tiene que dar al menos un falso
++directo. Se registra con
++
++    python3 banco/probes/bench_voto.py --registrar-baseline
++
++que escribe `banco/voto_control_baseline.json` con la huella sha256 del
++control y los ids que el voto de producción falla. El baseline vale solo para
++el control que midió: si el control cambia, hay que volver a medir. Sin
++baseline no hay veredicto.
++
++**Qué cambia para el control**: además de los casos actuales, unos 6 de la
++familia de c01 (deliberar o debatir en varias rondas, con otros verbos y
++otras formas) y unos 6 de la familia de c02 (quién ganó el último X, campeón
++actual de Y, resultado más reciente de Z), escritos por el operador. Otros
++miembros de esas familias pueden ir al entrenamiento; los del control, nunca.
++
++**Etiqueta humana**: el control de `7897a4f` lo escribió el agente del
++operador. Vale como borrador; cuenta como control el commit en que el
++operador lo revisa, lo amplía y lo firma (`voto: control revisado y
++etiquetado por el operador`). El orden que se exige es: control firmado →
++baseline → dataset.
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json -x voto_control.jsonl a/deepseek-flow-main/docs/bitacora.md b/deepseek-flow-main/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-27 13:18:20.700397150 +0000
++++ b/docs/bitacora.md	2026-10-27 13:19:57.124672918 +0000
+@@ -4830,3 +4830,28 @@
+ **Estado**: el control está vacío y lo escribe el operador. El dataset y el
+ fine-tune pasan por bmo/Laya, fuera de este repo; el contrato `PREGUNTA_VOTO`
+ sigue congelado.
++
++## Reentreno del voto — enmienda: el control tiene que discriminar (2026-10-27)
++
++**Qué pasó**: al aplicar X87 el archivo vacío del control no llegó (un
++`diff -N` de un archivo nuevo vacío no genera hunk, así que el patch nunca lo
++creaba; el agente que armó el patch solo lo verificó con `--dry-run`, no
++aplicándolo en una copia limpia y corriendo la suite). Un test quedó rojo, y
++el commit pasó igual porque la cadena del operador validaba con `grep` sobre
++la salida y no con el exit code. Se corrigió escribiendo el control
++(`7897a4f`): 12 herramientas y 6 trampas, con otros verbos y otras recencias.
++
++**El hallazgo**: con el checkpoint de producción, el voto pasa ese control
++entero (0 falsos directos, 6/6 trampas). La debilidad es más angosta que
++"imperativos" o "recencia": son los fraseos de c01 y c02. Un control que el
++voto viejo ya pasa no puede separar aprender de memorizar: un checkpoint que
++memorice c01/c02 habría ganado las cinco condiciones de X87.
++
++**Enmienda** (X88, antes de cualquier dato, declarada en la spec): sexta
++condición `control_discrimina`. El voto de producción tiene que fallar al
++menos un caso del control, registrado antes de entrenar
++(`--registrar-baseline`, atado al sha256 del control). El control se amplía
++con miembros de las familias de c01 y c02 escritos por el operador, y el
++borrador de `7897a4f` (escrito por un agente) pasa a contar recién cuando el
++operador lo firma. Cambiar el criterio ahora es legítimo porque no hay datos:
++el orden queda en git (enmienda → control firmado → baseline → dataset).
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json -x voto_control.jsonl a/deepseek-flow-main/docs/estado.md b/deepseek-flow-main/docs/estado.md
+--- a/docs/estado.md	2026-10-27 13:18:20.700397150 +0000
++++ b/docs/estado.md	2026-10-27 13:19:57.120672907 +0000
+@@ -134,6 +134,7 @@
+ | X85 | — | F corrido por el operador (48/48 corridas, 0 errores). **CITAS** (s15–s20): sin la directiva, calidad 1,22 → 1,06, citas inválidas 3 → 1, tokens 96,5K → 70,4K; cobertura ✅ (VerificarCitas vio citas en 3/3 seeds de los 6 escenarios y corrigió 3 veces) → **NO GANA** por calidad. **ALCANCE** (s17–s20): sin la directiva, calidad 0,92 → 1,25, citas inválidas 3 → 0, tokens 129,2K → 123,4K; cobertura ✅ (tope 16 en 3/3 seeds de los 4) → **GANA** | ✅ 2026-10-27 (decisión pre-registrada) | Borrada la directiva de alcance; la de citas vuelve al texto del prompt; se borran los dos toggles (`PROMPT_CITAS`, `PROMPT_ALCANCE`). `f_prompt.py` queda solo con `--resumen` | `tests/test_f_prompt.py::test_el_prompt_aplica_la_decision_de_f`, `::test_el_runner_resuelto_no_vuelve_a_correr` |
+ | X86 | — | H3-H (`max_profundidad` 1 vs 2) tenía cobertura efectiva 0 desde el diseño: ninguna pieza de producción construye agentes como tools (`supervisor.py` importa `Ctx`, `Ledger`, `Tool`, `loop` y `semilla` del kernel, no `agente`), así que todo corre a profundidad 0 y no hay delegación cuya profundidad medir | ✅ 2026-10-27 (decisión del operador) | Marcado sin objeto antes de pre-registrar (lección X82 aplicada al diseño). `agente()` queda como primitiva del kernel (H3-B) con su límite de profundidad cubierto; H vuelve si aparece una agent-tool en producción | `tests/test_kernel.py::test_la_profundidad_esta_acotada` |
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | 🧪 2026-10-27 (pre-registrado; falta el control del operador) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
++| X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | 🧪 2026-10-27 (enmienda antes de cualquier dato) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X62 | — | El meta-loop exigía un auditor al timón (contestar s/n por tmux): sin conductor no había forma de delegarle trabajo real al harness solo, y cada sesión muerta a mitad (exp/98) se perdía entera; además la regex de scope del banco no matcheaba el prompt de `edit_file` de exp/98 (`¿Aplicar? → ruta (2 hunks…)`) → cualquier conductor habría aprobado ediciones fuera de scope y de la denylist | ✅ 2026-10-25 (exp/99) | `delegar.py`: conductor que reusa el driver PTY y `decision_hitl` del banco, sin `BANCO=1` (origen `terminal`), HITL por scope declarado con rechazo CON motivo (exp/98), doble confirmación solo con prefijo explícito, muerte → `resume` (tope 2) y `THREADS_DIR` propio; regex corregida en `banco/banco.py`. e2e: tarea delegada exit 0 + drill `kill -9` → rehidrata y completa; **par #14/250** de la flywheel con `--env LAYA_MODO=shadow` (día 3/14) | `tests/test_delegar.py` (13: `test_conducir_muerto_resume_y_completa`, `test_plan_respuesta_doble_exige_prefijo_explicito`…), `test_el_scope_cubre_el_prompt_de_edit_file_de_exp98` |
+ | X66 | — | Auditoría 2026-10-26 (H1): el conductor reconstruía el pedido HITL leyendo la pantalla y aprobaba `git push` (la doble confirmación real `(1/2) (s/n):` no matcheaba), el scope comparaba rutas y comandos por prefijo de texto, `auto` salía de las raíces (`cd ..;cat`, `cd` solo, glob, `$VAR`) y por flags agrupadas (`sort -uo/x`), `edit_file` perdía CRLF y bytes no UTF-8, las escrituras pisaban permisos y el checkpoint guardaba reprs (`default=str`) | ✅ 2026-10-26 (H1) | El pedido es DATO: `utils/aprobaciones.Pedido` + `dentro_de_scope`/`por_scope`; banco y conductor pasan el scope por `HITL_SCOPE` y el chat decide en su proceso (fuera `decision_hitl`, `tipo_prompt`, `plan_respuesta`, `_cuerpo`); `policy.segmentos`/`opaco`/`irreversible` como fuente única; getopt en flags cortas; `edit_file` por bytes y estricto; `escribir_atomico` conserva modo y saltos; `shared` JSON puro | `tests/test_auditoria_2026_10_26.py` (`test_la_doble_confirmacion_real_no_se_aprueba_por_scope`, `test_auto_no_sale_de_raices`, `test_checkpoint_ida_y_vuelta_es_identidad`…), `tests/test_delegar.py::test_plan_respuesta_doble_exige_prefijo_explicito` |
+ | X61 | — | El punto de confianza del sistema mostraba diffs recortados sin declarar cuánto faltaba (exp/96: hunks aprobados sin verse) y el rechazo era 'n' mudo — el chat adivinaba el motivo y re-propuso lo mismo | ✅ 2026-10-24 (exp/98) | El prompt de edit_file declara `(N hunks, +A/−B)` del diff COMPLETO y el marcador dice cuántos caracteres quedan sin ver; `Decision(ok, motivo)` con `__bool__`: el rechazo `n <motivo>` viaja al modelo en edit_file/write_file/run_command, con casing conservado; el seam `_approve` tolera bools para siempre (getattr — los mocks existentes intactos, R2) | `test_parser_decision_motivo`, `test_edit_file_prompt_declara_diff_completo`, `test_motivo_del_rechazo_viaja_al_modelo` |
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json -x voto_control.jsonl a/deepseek-flow-main/docs/roadmap.md b/deepseek-flow-main/docs/roadmap.md
+--- a/docs/roadmap.md	2026-10-27 13:18:20.704397161 +0000
++++ b/docs/roadmap.md	2026-10-27 13:19:57.120672907 +0000
+@@ -38,13 +38,15 @@
+ nada en producción construye agentes como tools (el supervisor usa `loop` y
+ `semilla`, no `agente`). Vuelve si aparece una agent-tool en producción.
+ 
+-**Ahora — reentreno del voto** (pre-registrado, X87,
++**Ahora — reentreno del voto** (pre-registrado, X87; enmendado, X88;
+ `banco/specs/voto_reentreno.md`): es lo que destraba H3-G2. Orden fijo:
+-(1) el operador escribe y commitea `banco/voto_control.jsonl` (≥10 imperativos
+-y recencia + ≥4 trampas inversas) ANTES de generar datos; (2) dataset y
+-fine-tune en bmo/Laya, con `voto_antifuga.py` en 0 fugas; (3)
+-`bench_voto.py --entrenamiento …` con el checkpoint nuevo. De H3 queda E
+-(sandbox, opcional y sin diseño).
++(1) el operador revisa y amplía `banco/voto_control.jsonl` con las familias
++de c01/c02 y lo firma en un commit; (2) `bench_voto.py --registrar-baseline`
++con el voto de producción: tiene que fallar al menos un caso del control (si
++no, el control no discrimina y se vuelve al paso 1); (3) dataset y fine-tune
++en bmo/Laya, con `voto_antifuga.py` en 0 fugas; (4) `bench_voto.py
++--entrenamiento …` con el checkpoint nuevo. De H3 queda E (sandbox,
++opcional y sin diseño).
+ 
+ **H2 — la pieza única (kernel fractal: agente = Flow = Node = Tool).**
+ "Parche mínimo" levantado para H2 (X71). El kernel vive en `utils/kernel.py`
+diff -ruN -x __pycache__ -x .ruff_cache -x salidas -x '*.pyc' -x .pytest_cache -x baseline.json -x voto_control.jsonl a/deepseek-flow-main/tests/test_voto_reentreno.py b/deepseek-flow-main/tests/test_voto_reentreno.py
+--- a/tests/test_voto_reentreno.py	2026-10-27 13:18:20.700397150 +0000
++++ b/tests/test_voto_reentreno.py	2026-10-27 13:19:24.488579581 +0000
+@@ -58,12 +58,31 @@
+     return ("directo" if p[0] in "dt" else "herramientas", 0.95, True, "conf 0.95")
+ 
+ 
++HUELLA = "h" * 64
++
++
++def _baseline_que_discrimina():
++    """El voto de producción fallaba k0 (falso directo), medido antes de entrenar."""
++    def voto_viejo(p):
++        return ("directo" if p[0] in "dt" or p == "k0" else "herramientas", 0.94, True, "conf 0.94")
++
++    _bench, control = _bench_y_control(voto_viejo)
++    return bench.baseline_control(control, HUELLA, ".modelos/router_voto")
++
++
++def _veredicto(filas, control, n_fugas=0, baseline="discrimina", huella=HUELLA):
++    if baseline == "discrimina":
++        baseline = _baseline_que_discrimina()
++    return bench.veredicto_reentreno(filas, control, n_fugas=n_fugas, voto_local_disponible=True,
++                                     baseline=baseline, huella_control=huella)
++
++
+ def test_reentreno_gana_solo_con_bench_control_y_antifuga():
+     filas, control = _bench_y_control(_voto_bueno)
+-    v = bench.veredicto_reentreno(filas, control, n_fugas=0, voto_local_disponible=True)
++    v = _veredicto(filas, control)
+     assert v["gana"] is True and "se promueve" in v["decision"]
+-    assert bench.veredicto_reentreno(filas, control, n_fugas=1, voto_local_disponible=True)["gana"] is False
+-    sin_antifuga = bench.veredicto_reentreno(filas, control, n_fugas=None, voto_local_disponible=True)
++    assert _veredicto(filas, control, n_fugas=1)["gana"] is False
++    sin_antifuga = _veredicto(filas, control, n_fugas=None)
+     assert sin_antifuga["completo"] is False and "anti-fuga" in sin_antifuga["decision"]
+ 
+ 
+@@ -73,19 +92,55 @@
+         return ("directo" if p[0] in "dt" or p == "k3" else "herramientas", 0.95, True, "conf 0.95")
+ 
+     filas, control = _bench_y_control(voto)
+-    v = bench.veredicto_reentreno(filas, control, n_fugas=0, voto_local_disponible=True)
++    v = _veredicto(filas, control)
+     assert v["condiciones"]["h3g2"] and not v["condiciones"]["control_seguridad"] and not v["gana"]
+     assert v["falsos_directos_control"] == ["k3"]
+ 
+ 
+ def test_un_voto_que_dice_siempre_herramientas_no_se_promueve():
+     filas, control = _bench_y_control(lambda _p: ("herramientas", 0.99, True, "conf 0.99"))
+-    v = bench.veredicto_reentreno(filas, control, n_fugas=0, voto_local_disponible=True)
++    v = _veredicto(filas, control)
+     assert v["condiciones"]["control_seguridad"] and not v["condiciones"]["control_ahorro"]
+     assert v["gana"] is False
+ 
+ 
+ def test_un_control_chico_no_da_veredicto_favorable():
+     filas, control = _bench_y_control(_voto_bueno, n_herr=9)
+-    v = bench.veredicto_reentreno(filas, control, n_fugas=0, voto_local_disponible=True)
++    v = _veredicto(filas, control)
+     assert v["condiciones"]["control_tamano"] is False and v["gana"] is False
++
++
++def test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve():
++    """Enmienda 2026-10-27: el smoke mostró que el voto de producción pasaba
++    el control entero. Con ese control, un checkpoint que memorice c01/c02
++    gana todo lo demás; control_discrimina lo frena."""
++    filas, control = _bench_y_control(_voto_bueno)
++    _b, control_viejo = _bench_y_control(_voto_bueno)
++    no_discrimina = bench.baseline_control(control_viejo, HUELLA, ".modelos/router_voto")
++    assert no_discrimina["falsos_directos"] == []
++    v = _veredicto(filas, control, baseline=no_discrimina)
++    resto = {k: ok for k, ok in v["condiciones"].items() if k != "control_discrimina"}
++    assert all(resto.values()) and v["condiciones"]["control_discrimina"] is False and v["gana"] is False
++
++
++def test_el_baseline_vale_solo_para_el_control_que_midio():
++    """Si el control cambia después del baseline (otra huella), no discrimina
++    nada: hay que volver a medir con el voto de producción."""
++    filas, control = _bench_y_control(_voto_bueno)
++    assert _veredicto(filas, control, huella="otra" * 16)["condiciones"]["control_discrimina"] is False
++
++
++def test_sin_baseline_no_hay_veredicto():
++    filas, control = _bench_y_control(_voto_bueno)
++    v = _veredicto(filas, control, baseline=None)
++    assert v["completo"] is False and v["gana"] is False and "--registrar-baseline" in v["decision"]
++
++
++def test_el_baseline_registra_falsos_directos_y_trampas(tmp_path):
++    def voto(p):
++        return ("directo" if p[0] in "d" or p in ("k0", "k1") else "herramientas", 0.9, True, "conf 0.9")
++
++    _b, control = _bench_y_control(voto)
++    base = bench.baseline_control(control, bench.huella(bench.CASOS), "ckpt")
++    assert base["falsos_directos"] == ["k0", "k1"] and base["trampas_mal"] == ["t0", "t1", "t2", "t3"]
++    assert base["n"] == 14 and len(base["control_sha256"]) == 64

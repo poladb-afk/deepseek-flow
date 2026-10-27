@@ -71,3 +71,38 @@ reentreno no puede cambiar la pregunta.
 
 La línea `reentreno` del informe y la clave `reentreno` del artefacto llevan
 el veredicto.
+
+## Enmienda (2026-10-27, antes de cualquier dato de entrenamiento)
+
+Esta sección se agregó después de fijar lo de arriba y ANTES de generar datos;
+lo de arriba no se toca.
+
+**Qué la motivó**: el smoke de integración (el operador corrió `bench_voto.py`
+con el control lleno y el checkpoint de producción) mostró que el voto actual
+pasa el control entero: 0 falsos directos y las 6 trampas bien. Un control
+así no distingue aprender de memorizar. Un checkpoint que memorice c01/c02
+gana H3-G2, pasa el control porque ya lo pasaba y da 0 fugas si el
+entrenamiento trae paráfrasis con otras palabras. Se habría promovido.
+
+**Sexta condición, `control_discrimina`**: el voto de PRODUCCIÓN, medido sobre
+este mismo control antes de entrenar, tiene que dar al menos un falso
+directo. Se registra con
+
+    python3 banco/probes/bench_voto.py --registrar-baseline
+
+que escribe `banco/voto_control_baseline.json` con la huella sha256 del
+control y los ids que el voto de producción falla. El baseline vale solo para
+el control que midió: si el control cambia, hay que volver a medir. Sin
+baseline no hay veredicto.
+
+**Qué cambia para el control**: además de los casos actuales, unos 6 de la
+familia de c01 (deliberar o debatir en varias rondas, con otros verbos y
+otras formas) y unos 6 de la familia de c02 (quién ganó el último X, campeón
+actual de Y, resultado más reciente de Z), escritos por el operador. Otros
+miembros de esas familias pueden ir al entrenamiento; los del control, nunca.
+
+**Etiqueta humana**: el control de `7897a4f` lo escribió el agente del
+operador. Vale como borrador; cuenta como control el commit en que el
+operador lo revisa, lo amplía y lo firma (`voto: control revisado y
+etiquetado por el operador`). El orden que se exige es: control firmado →
+baseline → dataset.

@@ -4830,3 +4830,28 @@ anti-fuga corrido, no hay veredicto.
 **Estado**: el control está vacío y lo escribe el operador. El dataset y el
 fine-tune pasan por bmo/Laya, fuera de este repo; el contrato `PREGUNTA_VOTO`
 sigue congelado.
+
+## Reentreno del voto — enmienda: el control tiene que discriminar (2026-10-27)
+
+**Qué pasó**: al aplicar X87 el archivo vacío del control no llegó (un
+`diff -N` de un archivo nuevo vacío no genera hunk, así que el patch nunca lo
+creaba; el agente que armó el patch solo lo verificó con `--dry-run`, no
+aplicándolo en una copia limpia y corriendo la suite). Un test quedó rojo, y
+el commit pasó igual porque la cadena del operador validaba con `grep` sobre
+la salida y no con el exit code. Se corrigió escribiendo el control
+(`7897a4f`): 12 herramientas y 6 trampas, con otros verbos y otras recencias.
+
+**El hallazgo**: con el checkpoint de producción, el voto pasa ese control
+entero (0 falsos directos, 6/6 trampas). La debilidad es más angosta que
+"imperativos" o "recencia": son los fraseos de c01 y c02. Un control que el
+voto viejo ya pasa no puede separar aprender de memorizar: un checkpoint que
+memorice c01/c02 habría ganado las cinco condiciones de X87.
+
+**Enmienda** (X88, antes de cualquier dato, declarada en la spec): sexta
+condición `control_discrimina`. El voto de producción tiene que fallar al
+menos un caso del control, registrado antes de entrenar
+(`--registrar-baseline`, atado al sha256 del control). El control se amplía
+con miembros de las familias de c01 y c02 escritos por el operador, y el
+borrador de `7897a4f` (escrito por un agente) pasa a contar recién cuando el
+operador lo firma. Cambiar el criterio ahora es legítimo porque no hay datos:
+el orden queda en git (enmienda → control firmado → baseline → dataset).

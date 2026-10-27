@@ -24,6 +24,7 @@ bench es reproducible. Uso:
     python3 banco/probes/bench_voto.py [--casos ruta] [--sin-reglas]
 """
 import argparse
+import hashlib
 import json
 import statistics
 import sys
@@ -38,6 +39,7 @@ from utils.laya_routing import regla_imperativo_capacidad, regla_temporal  # noq
 
 CASOS = RAIZ / "banco" / "voto_casos.jsonl"
 CONTROL = RAIZ / "banco" / "voto_control.jsonl"
+CONTROL_BASELINE = RAIZ / "banco" / "voto_control_baseline.json"
 GRUPOS = ("correccion", "directo", "herramientas")
 ESPERADOS = ("herramientas", "directo")
 
@@ -183,12 +185,34 @@ CONTROL_HERRAMIENTAS_MIN = 10  # imperativos + recencia, escritos antes de entre
 CONTROL_DIRECTOS_MIN = 4       # trampas inversas nuevas ("escribime un haiku")
 
 
-def veredicto_reentreno(filas, filas_control, n_fugas, voto_local_disponible):
+def huella(ruta):
+    """sha256 del archivo: ata el baseline a ESTE control, byte a byte."""
+    return hashlib.sha256(Path(ruta).read_bytes()).hexdigest()
+
+
+def baseline_control(filas_control, huella_control, checkpoint):
+    """Lo que el voto de PRODUCCIÓN falla en el control, registrado antes de
+    entrenar (enmienda del 2026-10-27). PURA."""
+    return {
+        "control_sha256": huella_control,
+        "checkpoint": checkpoint,
+        "n": len(filas_control),
+        "falsos_directos": [f["id"] for f in filas_control if f["falso_directo_voto"]],
+        "trampas_mal": [f["id"] for f in filas_control
+                        if f["esperado"] == "directo" and not f["acierto_voto"]],
+    }
+
+
+def veredicto_reentreno(filas, filas_control, n_fugas, voto_local_disponible,
+                        baseline=None, huella_control=None):
     """El criterio de banco/specs/voto_reentreno.md, sin retoques. PURA.
 
     Un checkpoint nuevo de router_voto se promueve si pasa H3-G2 en el bench
     Y lo mismo fuera de muestra (el control), con el entrenamiento limpio de
-    fugas. `n_fugas=None` = no se corrió el anti-fuga: no hay veredicto."""
+    fugas, y si el control DISCRIMINA: el voto de producción, medido antes de
+    entrenar sobre este mismo control (misma huella), daba al menos un falso
+    directo. Un control que el voto viejo ya pasaba no distingue aprender de
+    memorizar. Sin anti-fuga o sin baseline, no hay veredicto."""
     h3g2 = veredicto_h3g2(filas, voto_local_disponible)
     herramientas = [f for f in filas_control if f["esperado"] == "herramientas"]
     directos = [f for f in filas_control if f["esperado"] == "directo"]
@@ -199,14 +223,26 @@ def veredicto_reentreno(filas, filas_control, n_fugas, voto_local_disponible):
         "control_seguridad": tamano and not any(f["falso_directo_voto"] for f in filas_control),
         "control_ahorro": tamano and all(f["acierto_voto"] for f in directos),
         "antifuga": n_fugas == 0,
+        "control_discrimina": baseline is not None and baseline.get("control_sha256") == huella_control
+        and len(baseline.get("falsos_directos") or []) >= 1,
     }
-    completo = n_fugas is not None
+    completo = n_fugas is not None and baseline is not None
     gana = completo and all(condiciones.values())
+    if completo:
+        decision = ("se promueve el checkpoint y H3-G2 queda ganado (aplicar el borrado aparcado)"
+                    if gana else "no se promueve: el checkpoint de producción sigue igual")
+    elif baseline is None:
+        decision = "falta el baseline del control (--registrar-baseline con el voto de producción, ANTES de entrenar)"
+    else:
+        decision = "falta correr el anti-fuga sobre el entrenamiento (--entrenamiento)"
     return {"condiciones": condiciones, "completo": completo, "gana": gana,
             "falsos_directos_control": [f["id"] for f in filas_control if f["falso_directo_voto"]],
-            "decision": ("se promueve el checkpoint y H3-G2 queda ganado (aplicar el borrado aparcado)"
-                         if gana else "no se promueve: el checkpoint de producción sigue igual")
-            if completo else "falta correr el anti-fuga sobre el entrenamiento (--entrenamiento)"}
+            "decision": decision}
+
+
+def leer_baseline(ruta=CONTROL_BASELINE):
+    ruta = Path(ruta)
+    return json.loads(ruta.read_text(encoding="utf-8")) if ruta.is_file() else None
 
 
 def _voto_local_real():
@@ -285,6 +321,8 @@ def main(argv=None):
     parser.add_argument("--control", default=str(CONTROL), help="casos fuera de muestra")
     parser.add_argument("--entrenamiento", default=None,
                         help="JSONL con el que se entrenó el checkpoint (anti-fuga del reentreno)")
+    parser.add_argument("--registrar-baseline", action="store_true",
+                        help="registra lo que el voto de PRODUCCIÓN falla en el control (antes de entrenar)")
     parser.add_argument("--salida", default=None, help="JSON de resultados")
     args = parser.parse_args(argv)
     casos = cargar_casos(args.casos)
@@ -302,12 +340,27 @@ def main(argv=None):
           f"{h3g2['condiciones']} → {h3g2['decision']}")
     reentreno = None
     control = cargar_casos(args.control) if Path(args.control).is_file() else []
+    if args.registrar_baseline:
+        if not checkpoint or not control:
+            raise SystemExit("ERROR: el baseline necesita el checkpoint de producción (LAYA_MODEL_VOTO) y el control")
+        from utils.call_llm import _setting
+
+        filas_control = medir(control, voto_local, _arbitro_real(), regla=None)
+        base = baseline_control(filas_control, huella(args.control), _setting("LAYA_MODEL_VOTO", ""))
+        CONTROL_BASELINE.write_text(json.dumps(base, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        print(f"[bench] baseline del control → {CONTROL_BASELINE.relative_to(RAIZ)}: "
+              f"falsos directos {base['falsos_directos']}, trampas mal {base['trampas_mal']}")
+        if not base["falsos_directos"]:
+            print("[bench] ⚠ el control NO discrimina: el voto de producción no falla ninguno. "
+                  "Ampliá las familias de c01/c02 antes de entrenar (banco/specs/voto_reentreno.md).")
+        return 0
     if control or args.entrenamiento:
         from voto_antifuga import fugas, leer, protegidos
 
         filas_control = medir(control, voto_local, _arbitro_real(), regla=None)
         n_fugas = len(fugas(leer(args.entrenamiento), protegidos())) if args.entrenamiento else None
-        reentreno = veredicto_reentreno(filas, filas_control, n_fugas, checkpoint)
+        reentreno = veredicto_reentreno(filas, filas_control, n_fugas, checkpoint,
+                                        leer_baseline(), huella(args.control) if control else None)
         print(f"  reentreno (banco/specs/voto_reentreno.md): {'GANA' if reentreno['gana'] else 'NO GANA'} "
               f"{reentreno['condiciones']} → {reentreno['decision']}")
     destino = Path(args.salida or (RAIZ / "salidas" / "evals" /

@@ -58,12 +58,31 @@ def _voto_bueno(p):
     return ("directo" if p[0] in "dt" else "herramientas", 0.95, True, "conf 0.95")
 
 
+HUELLA = "h" * 64
+
+
+def _baseline_que_discrimina():
+    """El voto de producción fallaba k0 (falso directo), medido antes de entrenar."""
+    def voto_viejo(p):
+        return ("directo" if p[0] in "dt" or p == "k0" else "herramientas", 0.94, True, "conf 0.94")
+
+    _bench, control = _bench_y_control(voto_viejo)
+    return bench.baseline_control(control, HUELLA, ".modelos/router_voto")
+
+
+def _veredicto(filas, control, n_fugas=0, baseline="discrimina", huella=HUELLA):
+    if baseline == "discrimina":
+        baseline = _baseline_que_discrimina()
+    return bench.veredicto_reentreno(filas, control, n_fugas=n_fugas, voto_local_disponible=True,
+                                     baseline=baseline, huella_control=huella)
+
+
 def test_reentreno_gana_solo_con_bench_control_y_antifuga():
     filas, control = _bench_y_control(_voto_bueno)
-    v = bench.veredicto_reentreno(filas, control, n_fugas=0, voto_local_disponible=True)
+    v = _veredicto(filas, control)
     assert v["gana"] is True and "se promueve" in v["decision"]
-    assert bench.veredicto_reentreno(filas, control, n_fugas=1, voto_local_disponible=True)["gana"] is False
-    sin_antifuga = bench.veredicto_reentreno(filas, control, n_fugas=None, voto_local_disponible=True)
+    assert _veredicto(filas, control, n_fugas=1)["gana"] is False
+    sin_antifuga = _veredicto(filas, control, n_fugas=None)
     assert sin_antifuga["completo"] is False and "anti-fuga" in sin_antifuga["decision"]
 
 
@@ -73,19 +92,55 @@ def test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra():
         return ("directo" if p[0] in "dt" or p == "k3" else "herramientas", 0.95, True, "conf 0.95")
 
     filas, control = _bench_y_control(voto)
-    v = bench.veredicto_reentreno(filas, control, n_fugas=0, voto_local_disponible=True)
+    v = _veredicto(filas, control)
     assert v["condiciones"]["h3g2"] and not v["condiciones"]["control_seguridad"] and not v["gana"]
     assert v["falsos_directos_control"] == ["k3"]
 
 
 def test_un_voto_que_dice_siempre_herramientas_no_se_promueve():
     filas, control = _bench_y_control(lambda _p: ("herramientas", 0.99, True, "conf 0.99"))
-    v = bench.veredicto_reentreno(filas, control, n_fugas=0, voto_local_disponible=True)
+    v = _veredicto(filas, control)
     assert v["condiciones"]["control_seguridad"] and not v["condiciones"]["control_ahorro"]
     assert v["gana"] is False
 
 
 def test_un_control_chico_no_da_veredicto_favorable():
     filas, control = _bench_y_control(_voto_bueno, n_herr=9)
-    v = bench.veredicto_reentreno(filas, control, n_fugas=0, voto_local_disponible=True)
+    v = _veredicto(filas, control)
     assert v["condiciones"]["control_tamano"] is False and v["gana"] is False
+
+
+def test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve():
+    """Enmienda 2026-10-27: el smoke mostró que el voto de producción pasaba
+    el control entero. Con ese control, un checkpoint que memorice c01/c02
+    gana todo lo demás; control_discrimina lo frena."""
+    filas, control = _bench_y_control(_voto_bueno)
+    _b, control_viejo = _bench_y_control(_voto_bueno)
+    no_discrimina = bench.baseline_control(control_viejo, HUELLA, ".modelos/router_voto")
+    assert no_discrimina["falsos_directos"] == []
+    v = _veredicto(filas, control, baseline=no_discrimina)
+    resto = {k: ok for k, ok in v["condiciones"].items() if k != "control_discrimina"}
+    assert all(resto.values()) and v["condiciones"]["control_discrimina"] is False and v["gana"] is False
+
+
+def test_el_baseline_vale_solo_para_el_control_que_midio():
+    """Si el control cambia después del baseline (otra huella), no discrimina
+    nada: hay que volver a medir con el voto de producción."""
+    filas, control = _bench_y_control(_voto_bueno)
+    assert _veredicto(filas, control, huella="otra" * 16)["condiciones"]["control_discrimina"] is False
+
+
+def test_sin_baseline_no_hay_veredicto():
+    filas, control = _bench_y_control(_voto_bueno)
+    v = _veredicto(filas, control, baseline=None)
+    assert v["completo"] is False and v["gana"] is False and "--registrar-baseline" in v["decision"]
+
+
+def test_el_baseline_registra_falsos_directos_y_trampas(tmp_path):
+    def voto(p):
+        return ("directo" if p[0] in "d" or p in ("k0", "k1") else "herramientas", 0.9, True, "conf 0.9")
+
+    _b, control = _bench_y_control(voto)
+    base = bench.baseline_control(control, bench.huella(bench.CASOS), "ckpt")
+    assert base["falsos_directos"] == ["k0", "k1"] and base["trampas_mal"] == ["t0", "t1", "t2", "t3"]
+    assert base["n"] == 14 and len(base["control_sha256"]) == 64
