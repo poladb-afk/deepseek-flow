@@ -5357,3 +5357,15 @@ candados. `./calidad.sh` verde, 1117 passed.
 sobrestiman (c) y A′. Recién con este parche aplicado tiene sentido
 `python3 main.py replay --actualizar-baseline`: antes, el baseline nuevo
 congelaría los falsos positivos.
+
+**La línea de base de 2d pasa a 5 seeds en s17/s18** (2026-10-28): a
+pedido del autor (el criterio pre-registrado de la 2d comparará sumas por
+escenario sobre 5 seeds; con 3, una sola corrida decidía s17). Seeds 4–5
+corridas sobre `012b92f` en worktree efímero (mismo método, `.env` temporal
+borrado con él), 4/4 sin errores. Base final: **16 corridas** — s17 suma 5
+(0,2,1,1,1), s18 suma 4 (1,1,1,0,1), s19 6 (3 seeds), s20 6 (3 seeds);
+tokens por corrida: mediana 91.204, máximo 266.615; crea archivos 1 (s17-s1).
+Dato que justificó las 5 seeds por sí solo: s18 parecía estable (1,1,1) y la
+seed 4 dio **0** — con 3 seeds se la creía determinista. Trazas nuevas en
+`.runs/` (ahora 634), resultados completos en
+`salidas/fable/resultados/fase2d-linea-base.jsonl`.
