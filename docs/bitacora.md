@@ -5246,3 +5246,28 @@ de evals viejos sobrestimaban las violaciones (c).
 `./calidad.sh` verde, 1111 passed; `tests_definidos` 1113 → 1115.
 `nodos_largos` sigue en 15: `AgentStep` (92) y `ExecuteTools` (60) bajan en
 2b-2.
+
+**Los tres pendientes de 2d, del lado del operador** (2026-10-28):
+1. **Replay con trazas reales** (pedido del autor: que `Contexto` no rompa
+   caminatas viejas): nivel B **0 violaciones** sobre 615 trazas. El banner
+   "REGRESIÓN" del informe compara contra el baseline del 2026-10-13 (214
+   trazas): los +2194 desconocidos son historia acumulada (eventos llm/usage,
+   HITL, nodos de supervisor viejos y de los propios escenarios de fable),
+   no efecto de 2b-1. Refrescar el baseline queda a decisión del operador.
+2. **`tool_choice="none"` con el proveedor real**: honrado — y el modelo
+   contesta «no tengo ninguna tool», o sea que DeepSeek lo implementa
+   OCULTANDO las tools al modelo. Control con `auto` pidió `list_files`.
+   `salidas/evals/tool_choice_none_prueba.json`.
+3. **Línea de base s17–s20 sobre `012b92f`** (worktree efímero con .env
+   temporal, borrado al terminar): 12/12 corridas del brazo A, 0 errores.
+   Calidad (correct_action 0–2): s17 1,00 · s18 1,00 · s19 2,00 · s20 2,00
+   (**media 1,50**). Costo: 112 llamadas, 1.412.256 prompt + 72.664
+   completion (**~123,7K tokens por corrida**; p50 de prompt por llamada
+   12.904, max 21.652). Evidencia: `salidas/fable/resultados/fase2d-linea-base*`
+   y las 12 trazas (con usage) copiadas a `.runs/`;
+   `salidas/evals/fase2d-linea-base-tokens.txt`.
+
+Decisiones del operador para 2b-2 (selección explícita con las
+recomendaciones a la vista): **nodo `Cierre`** (se borra el flag
+`aviso_cierre`) y se llama **`Cierre`**, unificación con el `Cerrar` del
+kernel en 2b-3.
