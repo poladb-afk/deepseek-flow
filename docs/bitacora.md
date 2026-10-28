@@ -5409,3 +5409,21 @@ ningún escenario baja; USD ≤ 1,5×; sin ganancia de calidad no entra).
 el esquema a una NOTA en el resultado de la tool fuera del subset — fiel a
 "guía, no sandbox" (`utils/skills.py`, `design.md`); un `ERROR:` lo habría
 vuelto una frontera sin decidirlo.
+
+**La base de 2d con instrumento, medida** (2026-10-28, decisión del
+operador opción b): 16 corridas sobre `012b92f`+X98 (worktree efímero,
+mismo método), 0 errores. Calidad: s17 1,1,1,2,2 (suma 7) · s18 1,1,1,1,2
+(6) · s19 2,2,0 (4) · s20 2,2,2 (6). **Pisos (el menor de las dos bases)**:
+s17 ≥ 4, s18 ≥ 3, s19 ≥ 4, s20 ≥ 5. La réplica volvió a mover seeds: s19-s3
+dio 0 acá y 2 en la base anterior — el ruido entre réplicas es mayor que el
+intra-base, y los pisos lo absorben.
+
+**Caché por llamador (el número que espera el pre-registro de 2d)**:
+AgentStep 141 llamadas, 84% del prompt en hit. Última llamada de cada
+corrida (el cierre viejo): **69% con hit** (11/16 con ≥50%) — desglosado:
+los cierres que re-envían el mismo historial pegan 86–99%; dan 0% los que
+cierra `VerificarCitas` (3/16: prompt propio, sin caché) y los que cierran
+tras una compacción (2/16: el prefijo cambió). Margen para la 2d: 69% →
+condición de "sirve" (≥80% Y +20 pp ⇒ ≥89% efectivo). Evidencia:
+`salidas/fable/resultados/fase2d-base-x98*`, desglose en
+`salidas/evals/fase2d-base-x98-tokens.txt`, 16 trazas con caché en `.runs/`.
