@@ -189,26 +189,17 @@ def test_dsml_con_presupuesto_agotado_no_rearma_lo_retirado():
     assert nuevo == MENSAJE_DSML_AGOTADO and "seguí" in nuevo and avisar is True
 
 def test_presupuesto_perfiles_por_operacion_y_precedencia(monkeypatch):
-    """exp/13 (opción C): el techo de rondas es adaptativo por operación.
-    Precedencia: override explícito > perfil declarado > MAX_TOOL_ROUNDS.
-    El default se lee EN RUNTIME del global del módulo (no congelado en
-    import): patch('nodes.MAX_TOOL_ROUNDS') debe ganarle al default."""
+    """Precedencia del techo: override explícito > MAX_TOOL_ROUNDS, leído EN
+    RUNTIME del global del módulo. Los perfiles por `operacion` (exp/13) se
+    borraron en X93: ningún invocador los declaraba; una `operacion` que
+    llegue en shared ya no cambia nada."""
     import nodes
 
-    # sin operación ni override → default del módulo
     assert nodes.presupuesto({}) == nodes.MAX_TOOL_ROUNDS
-    # perfil declarado, sin override
-    assert nodes.presupuesto({"operacion": "consulta"}) == nodes.PERFILES_PRESUPUESTO["consulta"]
-    assert nodes.presupuesto({"operacion": "banco"}) == nodes.PERFILES_PRESUPUESTO["banco"]
-    assert nodes.presupuesto({"operacion": "aplicacion"}) == nodes.PERFILES_PRESUPUESTO["aplicacion"]
-    # operación desconocida → default
-    assert nodes.presupuesto({"operacion": "otra"}) == nodes.MAX_TOOL_ROUNDS
-    # override explícito gana sobre el perfil
-    assert nodes.presupuesto({"operacion": "consulta", "max_tool_rounds": 99}) == 99
-    # patch del default: presupuesto() lee el global VIVO, no lo congeló en import
+    assert nodes.presupuesto({"operacion": "aplicacion"}) == nodes.MAX_TOOL_ROUNDS
+    assert nodes.presupuesto({"max_tool_rounds": 99}) == 99
     monkeypatch.setattr(nodes, "MAX_TOOL_ROUNDS", 42)
     assert nodes.presupuesto({}) == 42
-    assert nodes.presupuesto({"operacion": "consulta"}) == nodes.PERFILES_PRESUPUESTO["consulta"]
 
 def test_alcance_amplio_por_palabras_directorio_y_masa(tmp_path):
     """exp/86: la regla es determinista (los datos exactos los cuenta el
@@ -245,10 +236,8 @@ def test_presupuesto_amplio_sube_el_tope_sin_tocar_la_precedencia():
     import nodes
 
     assert nodes.presupuesto({"_objetivo": "audit todo el repo"}) == nodes.MAX_TOOL_ROUNDS_AMPLIO
-    # override y perfil siguen ganando
+    # el override sigue ganando
     assert nodes.presupuesto({"_objetivo": "todo el repo", "max_tool_rounds": 3}) == 3
-    assert nodes.presupuesto({"_objetivo": "todo el repo", "operacion": "banco"}) == \
-        nodes.PERFILES_PRESUPUESTO["banco"]
     # pregunta acotada: default de siempre
     assert nodes.presupuesto({"_objetivo": "qué hace esta línea?"}) == nodes.MAX_TOOL_ROUNDS
     # el tope amplio nunca BAJA del default si alguien lo configuró más alto

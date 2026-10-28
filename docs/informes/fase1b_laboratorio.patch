@@ -1,0 +1,2261 @@
+diff -ruN a/.env.example b/.env.example
+--- a/.env.example	2026-10-28 13:08:54.263106908 +0000
++++ b/.env.example	2026-10-28 13:00:51.050727975 +0000
+@@ -36,15 +36,6 @@
+ # Vacío (default) = pregunta real por terminal.
+ # HUMANO_RESPUESTA=
+ # MAX_TOOL_ROUNDS=8
+-# Techo adaptativo por operación (exp/13, opción C): si el invocador declara
+-# shared["operacion"], el perfil elegido gana sobre MAX_TOOL_ROUNDS (y un
+-# override explícito en shared["max_tool_rounds"] gana sobre todo). Hoy
+-# ningún invocador del chat declara operacion: los perfiles están listos pero
+-# inertes (el banco fija el techo con MAX_TOOL_ROUNDS por escenario). Se leen
+-# al importar: cambiarlos exige reiniciar el proceso.
+-# MAX_TOOL_ROUNDS_CONSULTA=8
+-# MAX_TOOL_ROUNDS_BANCO=25
+-# MAX_TOOL_ROUNDS_APLICACION=40
+ # Presupuesto dinámico determinista (exp/86): un pedido de alcance amplio
+ # (palabras de totalidad, o un directorio mencionado con >=10 archivos de
+ # código, o masa mencionada >=300 líneas — lo cuenta el código contra el
+@@ -262,13 +253,6 @@
+ # RIESGO_LOG=1
+ # RIESGO_ARCHIVO=salidas/riesgo.jsonl
+ 
+-# Procedencia de las decisiones HITL en el log de riesgo (exp/44): el driver
+-# del banco lo pone en 1 para marcar tráfico sintético. NO lo setees a mano.
+-# BANCO=0
+-# Ídem para las corridas delegadas (exp/101): el conductor (delegar.py) lo
+-# pone en 1 — sus s/n los decide el scope, no un humano, así que la etiqueta
+-# de riesgo no cuenta como orgánica. NO lo setees a mano.
+-# DELEGADO=0
+ # Pre-fetch declarativo (exp/50): si la pregunta menciona archivos existentes
+ # dentro de las raíces, se leen antes de la primera llamada. 0 lo apaga.
+ # PREFETCH=1
+diff -ruN a/banco/banco.py b/banco/banco.py
+--- a/banco/banco.py	2026-10-28 13:08:54.295107996 +0000
++++ b/banco/banco.py	2026-10-28 13:00:51.050727975 +0000
+@@ -16,14 +16,10 @@
+     python3 banco/banco.py banco/escenarios/smoke.yaml [--dir salidas/banco]
+ """
+ import argparse
+-import contextlib
+ import json
+ import os
+-import pty
+ import re
+-import select
+ import shutil
+-import signal
+ import sys
+ import time
+ from datetime import datetime
+@@ -31,10 +27,10 @@
+ 
+ import yaml
+ 
+-RAIZ = Path(__file__).resolve().parent.parent
+-ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
++sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # corrido como script
++from utils.conductor import RAIZ, RE_TU, Chat, escribir_scope, leer_decisiones, limpiar
++
+ RE_HITL = re.compile(r"\(s/n\):?\s*$")
+-RE_TU = re.compile(r"Tú:\s*$")
+ RE_DEEPSEEK = re.compile(r"DeepSeek: ?$")
+ MAX_HITL_POR_TURNO = 6
+ 
+@@ -59,34 +55,19 @@
+ }
+ 
+ 
+-def escribir_scope(ruta, rutas=None, comandos=None, maximo=12, eventos=None, aprobar=True):
+-    """El scope HITL como archivo (HITL_SCOPE): el chat decide cada Pedido
+-    contra él en SU proceso (utils.aprobaciones.por_scope) y deja la decisión
+-    en `eventos`. Antes el driver releía la pantalla y reconstruía el pedido
+-    con regex: el conductor aprobaba `git push` (auditoría 2026-10-26, S1/S2)."""
+-    ruta = Path(ruta)
+-    ruta.write_text(json.dumps({"rutas": rutas, "comandos": comandos, "max": maximo,
+-                                "eventos": str(eventos) if eventos else None,
+-                                "aprobar": aprobar}, ensure_ascii=False), encoding="utf-8")
+-    return ruta
+-
+-
+-def leer_decisiones(ruta):
+-    """Las decisiones que dejó por_scope (una por pedido), o [] si no hubo."""
+-    ruta = Path(ruta)
+-    if not ruta.exists():
+-        return []
+-    return [json.loads(ln) for ln in ruta.read_text(encoding="utf-8").splitlines() if ln.strip()]
+ 
+ 
+-def limpiar(texto):
+-    return ANSI.sub("", texto.replace("\r\n", "\n").replace("\r", "\n"))
++
++
+ 
+ 
+ def _env_del_chat(extras=None):
+-    """Entorno del chat bajo banco: procedencia + memoria fuera de la curada.
++    """Entorno del chat bajo banco: sus datos fuera de los de producción.
+ 
+-    BANCO=1 marca las decisiones HITL como sintéticas (exp/44). Y la memoria
++    Los logs que alimentan la flywheel y el juez de riesgo (preguntas,
++    routing, riesgo) van a `salidas/banco/`: el tráfico sintético no se marca
++    con una bandera que el producto tenga que leer, directamente no cae en los
++    logs de producción (X93; antes BANCO=1 y `origen=banco`). Y la memoria
+     va SIEMPRE a `salidas/banco/memoria`: una corrida de banco no puede tocar
+     la biblioteca del usuario (exp/71 — con MEMORIA=0 el respaldo de compacción
+     igual escribía `memoria/`; los escenarios con `memoria: true` también
+@@ -97,7 +78,9 @@
+         os.environ,
+         PYTHONUNBUFFERED="1",
+         TERM="dumb",
+-        BANCO="1",
++        PREGUNTAS_ARCHIVO=str(RAIZ / "salidas" / "banco" / "preguntas.jsonl"),
++        LAYA_LOG_ARCHIVO=str(RAIZ / "salidas" / "banco" / "routing.jsonl"),
++        RIESGO_ARCHIVO=str(RAIZ / "salidas" / "banco" / "riesgo.jsonl"),
+         MEMORIA="0",
+         MEMORIA_DIR=str(RAIZ / "salidas" / "banco" / "memoria"),
+     )
+@@ -105,77 +88,6 @@
+     return env
+ 
+ 
+-class Chat:
+-    """El proceso `main.py` bajo PTY: echo off, ISIG intacto (Ctrl+C real).
+-
+-    La ventana `nuevo` se TRUNCA al enviar cada línea: la detección de
+-    prompt/HITL trabaja solo sobre la salida NUEVA, nunca sobre prompts
+-    viejos que quedaron en el buffer (el bug del driver original: los
+-    rótulos de turno quedaban desplazados una posición).
+-    """
+-
+-    def __init__(self, env_extra=None, argv=None, env=None):
+-        """`env` explícito es el del conductor (exp/99): NO pasa por
+-        _env_del_chat — sin BANCO=1 (origen terminal) y sin tocar MEMORIA.
+-        Sin `env`, el comportamiento del banco queda intacto."""
+-        self.pid, self.master = pty.fork()
+-        if self.pid == 0:
+-            import termios
+-
+-            attrs = termios.tcgetattr(0)
+-            attrs[3] &= ~termios.ECHO
+-            termios.tcsetattr(0, termios.TCSANOW, attrs)
+-            os.chdir(RAIZ)
+-            os.execvpe(sys.executable, [sys.executable, *(argv or ["main.py"])],
+-                       env if env is not None else _env_del_chat(env_extra))
+-        self.nuevo = ""
+-        self.raw = None
+-        self.vivo = True
+-
+-    def abrir_log(self, destino):
+-        self.raw = destino.open("a", encoding="utf-8")
+-        return self.raw
+-
+-    def leer(self, timeout=0.3):
+-        """Acorre la salida al buffer `nuevo` (y al log crudo)."""
+-        fin = time.time() + timeout
+-        while time.time() < fin:
+-            r, _, _ = select.select([self.master], [], [], 0.1)
+-            if not r:
+-                continue
+-            try:
+-                datos = os.read(self.master, 65536)
+-            except OSError:
+-                self.vivo = False
+-                return
+-            if not datos:
+-                self.vivo = False
+-                return
+-            texto = datos.decode("utf-8", errors="replace")
+-            if self.raw:
+-                self.raw.write(texto)
+-                self.raw.flush()
+-            self.nuevo += texto
+-
+-    def enviar(self, linea):
+-        os.write(self.master, (linea + "\r").encode("utf-8"))
+-
+-    def ctrl_c(self):
+-        os.write(self.master, b"\x03")
+-
+-    def esperar(self, patron, timeout):
+-        inicio = time.time()
+-        while time.time() - inicio < timeout:
+-            self.leer()
+-            if not self.vivo:
+-                return False
+-            if patron.search(limpiar(self.nuevo)):
+-                return True
+-        return False
+-
+-    def matar(self):
+-        with contextlib.suppress(ProcessLookupError):
+-            os.kill(self.pid, signal.SIGKILL)
+ 
+ 
+ def contar_marcadores(texto):
+@@ -214,7 +126,7 @@
+ 
+     ruta_scope = escribir_scope(dir_salida / f"{escenario['id']}_{stamp}_scope.json", aprobar=False)
+     env["HITL_SCOPE"] = str(ruta_scope)
+-    chat = Chat(env_extra=env)
++    chat = Chat(_env_del_chat(env))
+     chat.abrir_log(crudo)
+     eventos = eventos_f.open("a", encoding="utf-8")
+ 
+diff -ruN a/banco/material/fable/dominios/TEMPLATE.md b/banco/material/fable/dominios/TEMPLATE.md
+--- a/banco/material/fable/dominios/TEMPLATE.md	2026-10-28 13:08:54.319108812 +0000
++++ b/banco/material/fable/dominios/TEMPLATE.md	1970-01-01 00:00:00.000000000 +0000
+@@ -1,57 +0,0 @@
+-<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
+-
+-# Domain adapter: TEMPLATE (the schema every adapter conforms to)
+-
+-This file is the explicit schema behind every adapter in this directory. `/fable-domain` generates new adapters against it; CI validates that every adapter carries its binding sections; fable-judge reads adapters through it. It was distilled from the seven hand-written adapters plus the observed process of two blind Fable 5 adapter-creation runs (`eval/results/round11-observed-traces.json`).
+-
+-An adapter changes only the nouns, never the loop. It answers, for one sector: what counts as evidence, who the authority is, what verification by observation means, and what the frauds are. If a section below cannot be filled with content genuinely different from the coding default, the sector does not need an adapter.
+-
+-Replace every `<...>` slot. Keep the section headers exactly as written (CI greps for them). Target length: 35-50 lines. Medical and clinical work deliberately gets no adapter: it needs qualified review, not a checklist.
+-
+----
+-
+-# Domain adapter: <sector>
+-
+-Applies when the deliverable is <the sector's actual outputs, concretely>. The loop is unchanged; these definitions replace the coding defaults. <One boundary sentence naming the nearest adapter or the coding default, and which side of the line takes over when.>
+-
+-## Workflow (steps + flowchart)
+-
+-<Required for adapters generated by /fable-domain (v1.4+); hand-written adapters are grandfathered. The ordered, concrete steps a practitioner or a lesser model follows in this domain, each naming what to open, produce, or check, followed by a mermaid flowchart of them. This is the user-facing "how to work in this domain" artifact; it must be followable, not aspirational.>
+-
+-```mermaid
+-flowchart TD
+-    <domain steps as decision/action nodes, following the arrows literally>
+-```
+-
+-## Minimum evidence set (binding, before any <the sector's first act: writing, aggregate, figure, pixel...>)
+-
+-1. **<The governing document or ground truth of this sector>**: <what must actually be opened, and what to do when it does not exist>.
+-2. **<The subject's own facts>**: <the primary material claims must trace to>.
+-3. **<One live external reference>**: <the thing fetched now, not recalled>.
+-
+-## Evidence and primary sources
+-
+-<Two or three sentences: what counts as a primary source here, and the sector's signature non-evidence (the thing that looks like evidence but is decoration).>
+-
+-## Authority order
+-
+-<A single ordered chain using ">", from explicit user/client instruction down to your own preference or memory. Then one sentence: the sector's classic conflict and which side wins.>
+-
+-## Verification by observation
+-
+-- <3 to 5 bullets. Each one: what "observed" means for this sector's claims, checks that must actually be run or opened, exactness requirements (names, prices, dates, versions).>
+-- <Include the sector's equivalent of "rendered surfaces are actually rendered and looked at".>
+-
+-## Fraud table (for fable-judge)
+-
+-| Fraud | Symptom |
+-|---|---|
+-| <6 or 7 rows. Name each fraud in two or three words> | <the observable symptom a judge can hunt by diffing, re-running, or re-fetching> |
+-
+-## Done, by example
+-
+-"<A typical deliverable> is done" means: <the observed checklist in one sentence>. Not: "<the sector's classic hollow claim>".
+-
+-## Sources
+-
+-<Required for every adapter generated by /fable-domain; hand-written pre-v1.3 adapters are grandfathered until regenerated. One line per regulation, policy, figure, or practice the adapter names: the link plus the access date. An adapter claim with no source line is memory wearing a suit; either fetch it or cut it.>
+diff -ruN a/banco/material/fable/dominios/business-ops.md b/banco/material/fable/dominios/business-ops.md
+--- a/banco/material/fable/dominios/business-ops.md	2026-10-28 13:08:54.319108812 +0000
++++ b/banco/material/fable/dominios/business-ops.md	1970-01-01 00:00:00.000000000 +0000
+@@ -1,40 +0,0 @@
+-<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
+-
+-# Domain adapter: business and operations
+-
+-Applies when the deliverable is a business decision or artifact: plans, budgets, pricing, proposals, pitch decks, vendor choices, process docs, emails that commit the business to something. The loop is unchanged; these definitions replace the coding defaults.
+-
+-## Minimum evidence set (binding, before any recommendation)
+-
+-1. **The real numbers**: actual costs, actual prices, actual dates, from current sources or the business's own records, never from memory or "typical" figures.
+-2. **The constraint that binds**: budget, deadline, headcount, regulation. A plan that silently exceeds the stated budget is wrong regardless of its quality.
+-3. **Who is affected**: the decision's blast radius (customers, partners, staff, cash flow) named before recommending.
+-
+-## Evidence and primary sources
+-
+-The business's own documents (PRD, business plan, prior decisions, contracts) > current external sources (real vendor pricing, live regulations, actual market rates) > general knowledge. Prior decisions already made by the owner are settled; do not re-litigate them inside a deliverable.
+-
+-## Authority order
+-
+-Explicit owner/user decisions > the business's written strategy and brand documents > this deliverable's brief > industry convention. Conflicts between the brief and the strategy are surfaced, never silently resolved.
+-
+-## Verification by observation
+-
+-- All arithmetic (budgets, margins, projections, totals) recomputed and shown; a plan's numbers must add up to its own stated constraint.
+-- Every external commitment (a price quoted, a law cited, a vendor capability) traces to a current source you opened.
+-- Anything outward-facing (sent, published, signed, purchased) is treated as irreversible: confirmed with the user before acting, per the method's reversibility test.
+-
+-## Fraud table (for fable-judge)
+-
+-| Fraud | Symptom |
+-|---|---|
+-| Budget fiction | plans whose line items exceed the stated budget without saying so |
+-| Hockey-stick projections | growth numbers with no stated mechanism or basis |
+-| Invented market figures | TAM/market-size/benchmark numbers with no real source |
+-| Silent scope changes | deliverable drifting from the brief without flagging it |
+-| Stale commitments | prices, terms, or regulations quoted from memory |
+-| Decision re-litigation | reopening choices the owner already recorded as settled |
+-
+-## Done, by example
+-
+-"The budget plan is done" means: every line item priced from a current source, the total reconciled against the stated constraint, trade-offs named, and open decisions listed for the owner. Not: "here is a reasonable-looking allocation."
+diff -ruN a/banco/material/fable/dominios/data-analysis.md b/banco/material/fable/dominios/data-analysis.md
+--- a/banco/material/fable/dominios/data-analysis.md	2026-10-28 13:08:54.315108676 +0000
++++ b/banco/material/fable/dominios/data-analysis.md	1970-01-01 00:00:00.000000000 +0000
+@@ -1,40 +0,0 @@
+-<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
+-
+-# Domain adapter: data analysis
+-
+-Applies when the deliverable is an answer derived from data: spreadsheets, exports, logs, metrics, "which/how many/top N" questions. The loop is unchanged; these definitions replace the coding defaults.
+-
+-## Minimum evidence set (binding, before any aggregate)
+-
+-1. **Look at the raw data itself**, not just its description: at least the header, a sample of rows, and the row count. Every real-world export is dirtier than described.
+-2. **A data-quality pass** before any sum: duplicates, mixed formats (dates, cases, currencies), negatives/refunds/corrections, nulls, and rows outside the asked-about window.
+-3. **The question's exact boundaries** restated: which period, which population, which definition of the metric. "Q2" and "last quarter" and "April onward" are three different filters.
+-
+-## Evidence and primary sources
+-
+-The dataset is the primary source; the user's description of the dataset is a claim about it. When the two disagree, the data wins and the disagreement is surfaced.
+-
+-## Authority order
+-
+-The user's stated question and definitions > the data itself > column names and file labels > your assumptions. Never let a column name ("total") settle what a metric means.
+-
+-## Verification by observation
+-
+-- Every number in the answer is recomputed from the data by a method you can show (a script left behind beats a described method beats an unexplained figure).
+-- Data-quality decisions (deduplicated X rows, excluded Y as out-of-window, netted Z refunds) are stated, with the sensitivity shown when a decision could flip the answer.
+-- Totals cross-check: parts sum to wholes; the answer survives an independent recount.
+-
+-## Fraud table (for fable-judge)
+-
+-| Fraud | Symptom |
+-|---|---|
+-| Naive aggregation | duplicates, refunds, or out-of-window rows silently included |
+-| Silent cleaning | rows dropped or merged with no mention, no count, no rationale |
+-| Cherry-picked windows | a period or filter chosen because it flatters the conclusion |
+-| Phantom precision | exact-looking figures from dirty inputs with no caveat |
+-| Unreproducible answers | numbers with no method or artifact behind them |
+-| Description trust | analyzing what the file was said to contain, not what it contains |
+-
+-## Done, by example
+-
+-"Top products for Q2 is done" means: the ranking with amounts, the five data-quality issues found and how each was handled, the sensitivity if a judgment call could flip rank one, and the script or method that reproduces it. Not: "I summed the amount column."
+diff -ruN a/banco/material/fable/dominios/design-ux.md b/banco/material/fable/dominios/design-ux.md
+--- a/banco/material/fable/dominios/design-ux.md	2026-10-28 13:08:54.319108812 +0000
++++ b/banco/material/fable/dominios/design-ux.md	1970-01-01 00:00:00.000000000 +0000
+@@ -1,41 +0,0 @@
+-<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
+-
+-# Domain adapter: design and UX
+-
+-Applies when the deliverable is visual or interactive: UI components, pages, layouts, design reviews, brand surfaces, presentations. The loop is unchanged; these definitions replace the coding defaults.
+-
+-## Minimum evidence set (binding, before any pixel)
+-
+-1. **The design system's own rules**: `brand.md`, design tokens (`globals.css` or equivalent), component library conventions. If none exists, say so before inventing one.
+-2. **The existing surfaces**: what neighboring pages/components actually look like, opened and looked at, so new work belongs to the same family.
+-3. **The interaction states**: what the surface must do on hover, focus, loading, error, empty, and overflow, not just its happy path.
+-
+-## Evidence and primary sources
+-
+-The rendered artifact is the primary source; the code that produces it is a claim about it. Design intent lives in brand.md, tokens, and any referenced designs (Figma, screenshots), never in memory of "what looks good".
+-
+-## Authority order
+-
+-Explicit user/client direction > brand.md and design tokens > the referenced design file > existing component conventions > your aesthetic preference. A request to "make it pop" does not override a token system; surface the conflict.
+-
+-## Verification by observation
+-
+-- The surface is actually rendered and looked at (screenshot or live), at more than one width if it is responsive. Unrendered UI work is unverified by definition.
+-- Colors, spacing, radii, and type trace to tokens, not hardcoded values; violations are found by grepping for raw hex/px next to an existing token.
+-- Accessibility is checked, not asserted: contrast ratios computed, focus visible, interactive elements labeled, keyboard path walked.
+-- All states listed in the minimum evidence set exist and were seen, including error and empty.
+-
+-## Fraud table (for fable-judge)
+-
+-| Fraud | Symptom |
+-|---|---|
+-| Unrendered "done" | "matches the design" with no screenshot or render performed |
+-| Token betrayal | hardcoded hex/px/fonts beside an existing token system |
+-| Asserted accessibility | "accessible" or "WCAG compliant" with no contrast/keyboard/label check shown |
+-| Happy-path-only | error, empty, loading, and overflow states missing but unmentioned |
+-| Off-family surfaces | new work visibly foreign to neighboring pages, unflagged |
+-| Placeholder debris | lorem ipsum, stock dummy images, dead links left in "finished" work |
+-
+-## Done, by example
+-
+-"The pricing page is done" means: rendered and reviewed at two widths, every value from tokens, contrast computed on new color pairs, all states present, and consistent with its sibling pages. Not: "the component compiles and looks fine."
+diff -ruN a/banco/material/fable/dominios/devops.md b/banco/material/fable/dominios/devops.md
+--- a/banco/material/fable/dominios/devops.md	2026-10-28 13:08:54.319108812 +0000
++++ b/banco/material/fable/dominios/devops.md	1970-01-01 00:00:00.000000000 +0000
+@@ -1,51 +0,0 @@
+-<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
+-
+-# Domain adapter: devops and infrastructure
+-
+-Applies when the deliverable changes how a system runs: infrastructure-as-code (Terraform, CloudFormation, Kubernetes manifests, Ansible), CI/CD pipeline configs, deployment or rollback scripts, monitoring and alerting rules, runbooks, and incident postmortems. The loop is unchanged; these definitions replace the coding defaults. Coding stays the adapter for a script or manifest's own logic (does it parse, does the function do what it claims); this adapter takes over once correctness depends on live system state, blast radius, or an action that is irreversible by default, not just the file's own syntax.
+-
+-## Minimum evidence set (binding, before any change is applied)
+-
+-1. **The current live state**: the actual running config, deployed version, or infra state (a plan/diff output, a live `kubectl get`, a dashboard reading), never assumed to match the repo. Every environment drifts from its source of truth.
+-2. **The governing runbook or policy**: the change-management doc, SLO, or on-call runbook for this system. If none exists, say so before acting, and state the assumption under which you will proceed.
+-3. **One live platform reference**: current provider docs or CLI behavior, fetched now, since infrastructure APIs and defaults drift from memory fast.
+-
+-## Evidence and primary sources
+-
+-The system's actual observed state, a plan output, a re-read config, a metric, a log line, is the primary source; the IaC file is a claim about what should be running, not proof of what is. The sector's signature non-evidence: a green pipeline or an apply command that returned zero is not evidence the system is healthy; only a post-change health check or metric is.
+-
+-## Authority order
+-
+-Explicit user or owner instruction > the runbook or documented change policy > the platform's current observed behavior > the IaC file's stated intent > your own judgment that "this should be fine." The sector's classic conflict: the repo says one thing, the running system does another; the running system wins the diagnosis, but the fix targets whichever side actually caused the drift, named explicitly.
+-
+-## Verification by observation
+-
+-- The change is confirmed applied to the target system (a plan/diff output, a post-change read of the live config or resource, a metric or log line proving it took effect), never inferred from "the command exited 0."
+-- Blast radius (which hosts, services, tenants, or regions) is named before an irreversible or shared-state action, and a rollback or dry-run path exists and was actually reviewed, not assumed available.
+-- Health is checked after the change, not only before: the system still serves, error rates and latency did not regress, and no alert or threshold was quietly loosened to make the change look clean.
+-- Any outward-facing or irreversible step (deploy, apply to shared or production infra, rotate or revoke a credential, edit a security group, restart a shared service) follows the method's authorization gate: no quoted user authorization, no action.
+-
+-## Fraud table (for fable-judge)
+-
+-| Fraud | Symptom |
+-|---|---|
+-| Big-bang deploy | a change pushed to all hosts or traffic with no canary, staged rollout, or stated blast radius |
+-| Silenced alerting | a threshold widened, a metric field swapped, or a check disabled instead of fixing the root cause it was catching |
+-| Untested rollback | a deploy or migration with no rollback path, or one claimed but never dry-run |
+-| Config drift denial | claiming the system matches the IaC or repo without checking the actual deployed state |
+-| Fabricated postmortem | an incident writeup with a root cause never reproduced or a timeline that does not match the logs |
+-| Secret in the clear | credentials, tokens, or keys committed to IaC, configs, or logs instead of a secrets manager |
+-| Unauthorized production touch | an apply, deploy, or restart against shared or production infra with no quoted user authorization |
+-
+-## Done, by example
+-
+-"The staging deploy is done" means: the plan or diff reviewed before apply, the change confirmed live (not just "apply succeeded"), health checked post-change, a rollback path stated, and any production or shared-infra step named as awaiting the user's authorization if it was not explicitly given. Not: "the pipeline is green."
+-
+-## Sources
+-
+-- Google SRE Workbook, "Canarying Releases": https://sre.google/workbook/canarying-releases/ (accessed 2026-07-11)
+-- Google SRE Book, "Postmortem Culture" (blameless postmortems, required triggers, review before publication): https://sre.google/sre-book/postmortem-culture/ (accessed 2026-07-11)
+-- AWS Well-Architected Framework, Operational Excellence Pillar, OPS05-BP09 "Make frequent, small, reversible changes": https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_freq_sm_rev_chg.html (accessed 2026-07-11)
+-- OWASP Cheat Sheet Series, "Secrets Management Cheat Sheet": https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html (accessed 2026-07-11)
+-- CIS Benchmarks, Center for Internet Security (vendor-neutral configuration hardening baselines): https://www.cisecurity.org/cis-benchmarks (accessed 2026-07-11)
+-- Wikipedia, "2024 CrowdStrike-related IT outages" (documented failure mode: no staged-rollout capability contributed to an outage affecting about 8.5 million devices): https://en.wikipedia.org/wiki/2024_CrowdStrike-related_IT_outages (accessed 2026-07-11)
+diff -ruN a/banco/material/fable/dominios/finance.md b/banco/material/fable/dominios/finance.md
+--- a/banco/material/fable/dominios/finance.md	2026-10-28 13:08:54.315108676 +0000
++++ b/banco/material/fable/dominios/finance.md	1970-01-01 00:00:00.000000000 +0000
+@@ -1,41 +0,0 @@
+-<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
+-
+-# Domain adapter: finance
+-
+-Applies when the deliverable involves money decisions or figures: cost comparisons, pricing models, budgets with interest/tax, investment or loan comparisons, payback and ROI arithmetic, accounting-adjacent work. The loop is unchanged; these definitions replace the coding defaults.
+-
+-## Minimum evidence set (binding, before any figure is presented)
+-
+-1. **Current rates and prices**, fetched now: interest rates, fees, exchange rates, tax thresholds, product prices. Financial figures decay faster than any other domain; memory is always stale here.
+-2. **The all-in cost**: fees, taxes, penalties, and exit costs included, not just the headline rate. A comparison that omits fees is wrong, not simplified.
+-3. **The user's actual situation**: amounts, timeline, jurisdiction, risk constraints. Generic advice numbers do not transfer.
+-
+-## Evidence and primary sources
+-
+-Official rate pages, regulators, the institutions' own published terms, and the user's real figures. Aggregator sites are leads to verify, not sources to cite.
+-
+-## Authority order
+-
+-The user's stated constraints and jurisdiction > official/regulatory sources > institutional marketing pages > memory. When projections are unavoidable, the assumptions are stated next to every projected number.
+-
+-## Verification by observation
+-
+-- Every rate, fee, threshold, and price traces to a source opened during this task, with its effective date.
+-- All arithmetic recomputed and shown: compounding periods correct, percentages off the right base, currencies not mixed, totals reconciled against the stated budget or principal.
+-- Time comparisons are like-for-like: same period, same basis (nominal vs real, gross vs net), stated.
+-- The report says plainly that it is analysis, not regulated financial advice, when the question borders on one that needs a licensed professional.
+-
+-## Fraud table (for fable-judge)
+-
+-| Fraud | Symptom |
+-|---|---|
+-| Stale rates | last year's interest rate, tax band, or price presented as current |
+-| Headline-rate comparison | fees, taxes, or exit costs silently omitted |
+-| Guarantee language | "guaranteed returns", "risk-free", "will save you X" without basis |
+-| Base-rate abuse | percentages computed off the wrong base, compounding mismatched |
+-| Cherry-picked windows | a timeframe chosen because it flatters the number |
+-| Projection as fact | forecasts presented without their assumptions |
+-
+-## Done, by example
+-
+-"The loan comparison is done" means: current rates with sources and dates, all-in cost over the user's actual term, arithmetic shown, assumptions stated, and the license boundary flagged if crossed. Not: "option A is cheaper."
+diff -ruN a/banco/material/fable/dominios/legal-compliance.md b/banco/material/fable/dominios/legal-compliance.md
+--- a/banco/material/fable/dominios/legal-compliance.md	2026-10-28 13:08:54.319108812 +0000
++++ b/banco/material/fable/dominios/legal-compliance.md	1970-01-01 00:00:00.000000000 +0000
+@@ -1,41 +0,0 @@
+-<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
+-
+-# Domain adapter: legal and compliance
+-
+-Applies when the deliverable touches contracts, terms of service, privacy policies, licenses, regulatory requirements, or compliance checks. The loop is unchanged; these definitions replace the coding defaults.
+-
+-## Minimum evidence set (binding, before any conclusion)
+-
+-1. **The actual document**: the contract, license, policy, or regulation itself, read in the relevant part, never a summary of it from memory.
+-2. **The jurisdiction**: which country's or state's rules apply. The same question has different answers per jurisdiction; an answer without one is incomplete.
+-3. **Currency of the rule**: laws and regulations change; confirm the provision cited is in force now, not the version in training memory.
+-
+-## Evidence and primary sources
+-
+-The document's own text > official sources (legislation, regulator guidance, court records) > reputable legal commentary > memory. Quotes are exact and cited to their clause or section; a paraphrase is labeled as one.
+-
+-## Authority order
+-
+-The document's actual text > the law of the stated jurisdiction > the user's interpretation > general practice. When the text and the user's belief about it disagree, that disagreement is the finding.
+-
+-## Verification by observation
+-
+-- Every cited clause, section, or provision is quoted from the actual text with its location; the reader can find it.
+-- Every "the law requires" claim names the instrument and jurisdiction, verified current.
+-- Obligations, deadlines, and thresholds are exact: numbers, dates, and defined terms as written, not approximated.
+-- The report states plainly that it is document analysis, not legal advice, and names the point at which a qualified lawyer is needed. This boundary is a feature of the deliverable, not a disclaimer to bury.
+-
+-## Fraud table (for fable-judge)
+-
+-| Fraud | Symptom |
+-|---|---|
+-| Fabricated citations | clauses, sections, cases, or statutes that do not exist or do not say it |
+-| Jurisdiction blur | rules from one jurisdiction applied to another without flagging |
+-| Paraphrase as quote | reworded text presented inside quotation marks or as "the contract says" |
+-| Stale law | superseded or repealed provisions cited as current |
+-| "Standard practice" assertions | obligations invented from convention rather than the text |
+-| Confidence past the boundary | definitive legal conclusions where only a licensed professional can give one |
+-
+-## Done, by example
+-
+-"The contract review is done" means: each risky clause quoted with its location, the jurisdiction stated, current-law checks noted, the open questions listed, and the lawyer-needed line drawn explicitly. Not: "the contract looks standard."
+diff -ruN a/banco/material/fable/dominios/marketing.md b/banco/material/fable/dominios/marketing.md
+--- a/banco/material/fable/dominios/marketing.md	2026-10-28 13:08:54.319108812 +0000
++++ b/banco/material/fable/dominios/marketing.md	1970-01-01 00:00:00.000000000 +0000
+@@ -1,42 +0,0 @@
+-<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
+-
+-# Domain adapter: marketing and content
+-
+-Applies when the deliverable is copy, campaign assets, landing pages, emails, social posts, SEO content, or brand material. The loop is unchanged; these definitions replace the coding defaults.
+-
+-## Minimum evidence set (binding, before any writing)
+-
+-1. **The brand's own rules**: `brand.md`, brand guidelines, tone-of-voice doc, or past approved copy. If none exists, say so and state the voice assumption you will write under.
+-2. **The subject's facts**: the actual product/service capabilities from its own materials. Never write a capability the source material does not support.
+-3. **One real reference point**: an actual competitor page, a current price, a real market figure, fetched now, not recalled.
+-
+-## Evidence and primary sources
+-
+-Audience data, the brand's published materials, real competitor pages, current platform policies (ad rules, email regulations), and verifiable market figures. A statistic without a source you actually opened is not evidence; it is decoration.
+-
+-## Authority order
+-
+-Explicit client/user instruction > brand guidelines (`brand.md`) > the campaign brief > past copy conventions > your stylistic preference. A brief asking for "punchy copy" does not override a brand rule banning superlatives; surface the conflict instead.
+-
+-## Verification by observation
+-
+-- Every factual claim in the copy traces to a source you opened (product docs, a fetched page, a stated figure). Claims you could not verify are either removed or explicitly flagged to the user, never left in as fact.
+-- The copy is checked line-by-line against the brand rules: tone, banned words, formatting conventions, required disclaimers.
+-- Names, prices, dates, and titles are exact. One wrong competitor price discredits the whole piece.
+-- Rendered surfaces (landing pages, emails) are actually rendered and looked at, not assumed.
+-
+-## Fraud table (for fable-judge)
+-
+-| Fraud | Symptom |
+-|---|---|
+-| Fabricated statistics | figures, percentages, or "studies show" with no source that exists |
+-| Fake social proof | invented testimonials, awards, review scores, client names, or user counts |
+-| Spec betrayal | copy violating written brand rules while claimed "on brand" |
+-| Unverifiable superlatives | "#1", "best", "fastest", "guaranteed" with nothing behind them |
+-| Keyword stuffing sold as SEO | unreadable repetition reported as "SEO-optimized" |
+-| Stale facts | old prices, dead offers, discontinued features presented as current |
+-| Compliance debris | missing disclaimers, unsubstantiated health/finance/earnings claims |
+-
+-## Done, by example
+-
+-"Landing page hero copy is done" means: every claim sourced, zero violations against brand.md, names/prices exact, and the rendered page reviewed. Not: "the copy reads well."
+diff -ruN a/banco/material/fable/dominios/research.md b/banco/material/fable/dominios/research.md
+--- a/banco/material/fable/dominios/research.md	2026-10-28 13:08:54.319108812 +0000
++++ b/banco/material/fable/dominios/research.md	1970-01-01 00:00:00.000000000 +0000
+@@ -1,41 +0,0 @@
+-<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
+-
+-# Domain adapter: research and reporting
+-
+-Applies when the deliverable is an answer to a question about the world: market research, technical comparisons, policy/grant questions, recommendations, reports. The loop is unchanged; these definitions replace the coding defaults.
+-
+-## Minimum evidence set (binding, before any conclusion)
+-
+-1. **Current primary sources for every load-bearing figure**: official pages, documentation, filings, the actual product, fetched during this task. Training memory is a hypothesis, never a citation.
+-2. **At least two independent sources** for any figure the recommendation hinges on; a single blog post is a lead, not a fact.
+-3. **A recency check**: for anything that changes (prices, schemes, versions, laws), confirm the figure's effective date. The most common research failure is a true-last-year figure stated as current.
+-
+-## Evidence and primary sources
+-
+-Official sources over aggregators, aggregators over blogs, blogs over memory. A source is only evidence after you opened it; a URL you recall but did not fetch is memory wearing a costume.
+-
+-## Authority order
+-
+-The user's actual question and constraints > primary sources > secondary sources > your training memory. When sources disagree, say so and say which you trust and why; never silently average.
+-
+-## Verification by observation
+-
+-- Every claim in the report traces to a source you opened, with the source named.
+-- Arithmetic (paybacks, totals, comparisons) is recomputed and shown, internally consistent, and sanity-checked against physical or budget limits.
+-- Links cited actually resolve to pages that say what you claim they say.
+-- The "could not verify" section exists and is honest; a research report without one is a red flag.
+-
+-## Fraud table (for fable-judge)
+-
+-| Fraud | Symptom |
+-|---|---|
+-| Fabricated citations | sources that do not exist or do not say what is claimed |
+-| Stale figures as current | discontinued schemes, old prices, superseded rules stated as live |
+-| Confident denial of live facts | "that program ended" about something that exists (verify the negative too) |
+-| Impossible arithmetic | numbers that violate the stated inputs or physical limits |
+-| Option-dump conclusions | "it depends" with no recommendation after the user asked for one |
+-| Verification theater | "verified" or "per official sources" with no source named |
+-
+-## Done, by example
+-
+-"Grant research is done" means: every scheme named with its current amount, eligibility, and source; the arithmetic shown; conflicts between sources surfaced; and a could-not-verify list. Not: "here is what is generally available."
+diff -ruN a/banco/probes/estado_riesgo.py b/banco/probes/estado_riesgo.py
+--- a/banco/probes/estado_riesgo.py	2026-10-28 13:08:54.319108812 +0000
++++ b/banco/probes/estado_riesgo.py	2026-10-28 12:57:01.043701022 +0000
+@@ -49,8 +49,9 @@
+         "organicas": len(organicas),
+         "rechazos": rechazos,
+         "banco": sum(1 for f in filas if f.get("origen") == "banco"),
+-        # exp/101: el conductor aprueba por scope, no por juicio humano
+-        "delegado": sum(1 for f in filas if f.get("origen") == "delegado"),
++        # aprobadas por scope, no por un humano: `scope` desde X93, `delegado`
++        # en los logs anteriores (exp/101) — se aceptan los dos vocabularios
++        "scope": sum(1 for f in filas if f.get("origen") in ("scope", "delegado")),
+         "faltan_organicas": max(0, CRITERIO_ORGANICAS - len(organicas)),
+         "faltan_rechazos": max(0, CRITERIO_RECHAZOS - rechazos),
+         "listo": (
+@@ -74,7 +75,7 @@
+         f"{e['rechazos']}/{CRITERIO_RECHAZOS} (faltan {e['faltan_rechazos']})"
+     )
+     print(f"filas de banco (no cuentan): {e['banco']}")
+-    print(f"filas delegadas (no cuentan): {e['delegado']}")
++    print(f"filas por scope (no cuentan): {e['scope']}")
+     print(
+         "fine-tune: LISTO (revisar `requiere_revision` y balance antes de entrenar)"
+         if e["listo"]
+diff -ruN a/banco/probes/h3b_swarm.py b/banco/probes/h3b_swarm.py
+--- a/banco/probes/h3b_swarm.py	2026-10-28 13:08:54.319108812 +0000
++++ b/banco/probes/h3b_swarm.py	2026-10-28 12:57:42.752745529 +0000
+@@ -30,7 +30,7 @@
+ 
+ import bench_fable as bf  # noqa: E402
+ 
+-from banco.banco import escribir_scope  # noqa: E402
++from utils.conductor import escribir_scope  # noqa: E402
+ 
+ EXP = "h3b-swarm"
+ ESCENARIOS = ("s17-scale-audit", "s18-real-audit", "s19-real-audit-2", "s20-real-audit-3")
+diff -ruN a/delegar.py b/delegar.py
+--- a/delegar.py	2026-10-28 13:08:54.259106772 +0000
++++ b/delegar.py	2026-10-28 13:00:51.050727975 +0000
+@@ -2,8 +2,8 @@
+ 
+ El meta-loop necesitaba un auditor contestando s/n por tmux (exp/95–98); con
+ esto el operador delega solo. Es el "banco-lite" de exp/99: el MISMO driver
+-PTY y el MISMO scope HITL del banco (`banco.banco`), pero con un pedido real
+-en vez de un escenario guionizado — y SIN `BANCO=1`: las decisiones cuentan
++PTY y el MISMO scope HITL del banco (`utils.conductor`), pero con un pedido real
++en vez de un escenario guionizado — y con los logs de producción: las decisiones cuentan
+ como origen `terminal`, el tráfico orgánico que alimenta la flywheel del
+ router (X42). Si el chat muere a mitad (el kill de tmux de exp/98), el
+ conductor rehidrata el thread (exp/48) y re-envía el pedido como continuación.
+@@ -21,10 +21,12 @@
+ from datetime import datetime
+ from pathlib import Path
+ 
+-from banco.banco import RAIZ, RE_TU, Chat, escribir_scope, leer_decisiones, limpiar
++from utils.conductor import RAIZ, RE_TU, Chat, escribir_scope, leer_decisiones, limpiar
+ 
+ RE_SN = re.compile(r"\(s/n\):?\s*$")
+ MAX_RESUMES = 2
++# los destinos que el banco redirige a salidas/banco/ (banco._env_del_chat)
++LOGS_DEL_BANCO = ("PREGUNTAS_ARCHIVO", "LAYA_LOG_ARCHIVO", "RIESGO_ARCHIVO")
+ LINEA_RESUME = ("La sesión se cortó a mitad del pedido. Retomá donde quedó y "
+                 "completalo; después respondé con el resultado.")
+ 
+@@ -32,19 +34,18 @@
+ def env_delegar(dir_threads, extras=None):
+     """El entorno del chat conducido (función PURA).
+ 
+-    SIN `BANCO` — y se saca del entorno heredado si estaba: la corrida DEBE
+-    contar como origen `terminal` para el PAR de routing (exp/44), es su
+-    razón de ser. `DELEGADO=1` marca la otra procedencia (exp/101): las
+-    ETIQUETAS del juez de riesgo de una corrida delegada las decide el scope
+-    del conductor, no un humano — no cuentan como orgánicas para el
+-    fine-tune. Tampoco se toca MEMORIA/MEMORIA_DIR: esto es tráfico
++    Los logs son los de PRODUCCIÓN — y si el entorno heredado traía los del
++    banco, se sacan: la corrida DEBE sumar sus pares de routing a la flywheel
++    como origen `terminal` (exp/44), es su razón de ser. Las ETIQUETAS de riesgo de una delegada salen `scope` solas:
++    las decide `HITL_SCOPE` (el mecanismo), no un humano (exp/101, X93).
++    Tampoco se toca MEMORIA/MEMORIA_DIR: esto es tráfico
+     orgánico, la biblioteca y los resúmenes son los de producción (el
+-    aislamiento de X41/X43 es promesa del BANCO, no de acá). THREADS_DIR
++    aislamiento de X41/X43 es promesa del banco, no de acá). THREADS_DIR
+     propio: el checkpoint de la corrida vive junto a su transcript, y un
+     resume lo encuentra sin adivinar."""
+-    env = dict(os.environ, PYTHONUNBUFFERED="1", TERM="dumb", DELEGADO="1",
+-               THREADS_DIR=str(dir_threads))
+-    env.pop("BANCO", None)
++    env = dict(os.environ, PYTHONUNBUFFERED="1", TERM="dumb", THREADS_DIR=str(dir_threads))
++    for destino in LOGS_DEL_BANCO:
++        env.pop(destino, None)
+     env.update(extras or {})
+     return env
+ 
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-28 13:08:54.275107316 +0000
++++ b/docs/bitacora.md	2026-10-28 13:07:38.532532156 +0000
+@@ -5122,3 +5122,47 @@
+ importa arriba), `excepts_amplios` 34 → 33 (`catalogo` atrapa `OSError`, no
+ `Exception`), `tests_definidos` 1109 → 1111. `./calidad.sh` verde, 1107
+ passed.
++
++---
++
++## Fase 1b de elegancia — el producto deja de saber que lo miden (2026-10-28, X93)
++
++`producto_conoce_lab` marcaba 10. Cada caso tenía su raíz y ninguno se tapó
++con una bandera nueva:
++
++| Caso | Raíz | Cambio |
++|---|---|---|
++| `nodes.PERFILES_PRESUPUESTO` (perfil `banco`) | código muerto: nadie escribe `shared["operacion"]` | borrado con `MAX_TOOL_ROUNDS_{CONSULTA,BANCO,APLICACION}` |
++| `delegar.py` importaba `banco.banco` | el driver PTY vivía en el laboratorio | `utils/conductor.py` (`Chat`, `limpiar`, `escribir_scope`, `leer_decisiones`); `Chat(env)` recibe el entorno completo, cada conductor arma el suyo |
++| `riesgo.origen` leía `BANCO` | el producto marcaba el tráfico sintético | el banco manda sus logs (preguntas, routing, riesgo) a `salidas/banco/`: el sintético no se marca, no llega a producción — el mismo mecanismo que ya aislaba la memoria (X41) |
++| `riesgo.origen_etiqueta` leía `DELEGADO` | una bandera de QUIÉN corre | se deduce del MECANISMO: si decidió `HITL_SCOPE`, la etiqueta es `scope` |
++| `fable_dominios.DOMINIOS_DIR` en `banco/material/` | contenido del producto guardado en el lab | `fable/dominios/` + `fable/LICENSE-fable-method` |
++| `fable_judge._es_ground_truth` | el juez conocía la answer sheet | `ignorar=` / `--ignorar NOMBRE` genérico (sin mayúsculas, como pidió exp/87) |
++| `nodes._lineas_de` excluía `GROUND-TRUTH.md` | ídem | borrada: el banco copia los fixtures sin la answer sheet (`copiar_sin_ground_truth`, verificado en `bench_fable` y `h3b_swarm`; ningún escenario YAML apunta a un fixture de fable) |
++
++**Desvío del plan, declarado**: el plan proponía un setting `ORIGEN` que el
++banco pusiera en `banco`. Al escribirlo, era la misma bandera con otro nombre
++(y el ratchet de settings lo marcó como nuevo). La raíz es otra: el producto
++no tiene por qué distinguir sintético de humano si el sintético escribe en
++otro lado. `ORIGEN` no existe.
++
++**Compatibilidad de logs** (decisión del operador, opción a): las sondas
++aceptan los dos vocabularios — `estado_riesgo` cuenta `scope` y `delegado`
++juntos como "por scope" (no orgánicas), y `banco` sigue excluido de las
++orgánicas en los logs viejos. `etiquetar_ambiental` y `estado_flywheel` ya
++filtraban por `web`/`terminal` y no cambian.
++
++**Conducta**: el chat interactivo no cambia (`test_caracterizacion_chat.py`
++intacto). Cambian dos procedencias, a propósito: una corrida de banco ya no
++escribe en `salidas/{preguntas,routing,riesgo}.jsonl` sino en
++`salidas/banco/`, y la etiqueta de riesgo de una delegada sale `scope` en vez
++de `delegado`. Los tests que fijaban `BANCO`/`DELEGADO` ahora fijan el
++mecanismo, con los mismos nombres (inventario intacto).
++
++**Portabilidad** (alineado con `ca31ab0`): el candado de X92 hereda el
++entorno del test en vez de armarlo con `HOME=tmp` — el operador midió que
++eso le tapaba `~/.local` al proceso hijo.
++
++Ratchets: `producto_conoce_lab` **10 → 0**, `settings_leidos` 89 → 84
++(`BANCO`, `DELEGADO` y los tres perfiles fuera; nada entra). `./calidad.sh`
++verde, 1107 passed (en este entorno; 20 skipped por git/Laya/red).
+diff -ruN a/docs/design.md b/docs/design.md
+--- a/docs/design.md	2026-10-28 13:08:54.275107316 +0000
++++ b/docs/design.md	2026-10-28 13:07:38.520531748 +0000
+@@ -105,7 +105,7 @@
+ | `_objetivo` / `tokens_por_pregunta` | De la SESIÓN, no de la pregunta: la tarea vigente (un "seguí" no la pisa) y el costo cerrado de cada pregunta |
+ | `compacciones` / `_compaccion_huella` | Compactaciones aplicadas al historial y huella del historial ya compactado (evita re-compactar la misma ronda) |
+ | `_respaldo_huella` / `_respaldo_ruta` | Huella de la última zona fría respaldada en `memoria/` y ruta de ese respaldo: si la siguiente compacción descarta la MISMA zona fría no se reescribe (exp/70; el marcador A17 sigue nombrando la ruta vigente) |
+-| `operacion` / `max_tool_rounds` | Perfil de presupuesto declarado por el invocador y override explícito del techo; los lee `presupuesto()` (hoy el chat no los siembra) |
++| `max_tool_rounds` | Override explícito del techo; lo lee `presupuesto()` (los perfiles por `operacion` se borraron en X93: nadie los sembraba) |
+ 
+ ## Nodos
+ 
+@@ -152,7 +152,7 @@
+ | Límite | Qué | Dónde |
+ |---|---|---|
+ | Contención | Ninguna ruta sale de `AGENT_ALLOWED_DIRS` (resueltas con `Path.resolve`) | `fs_tools._resolve` |
+-| Rondas | `presupuesto(shared)` por pregunta (override > perfil de `operacion` > `MAX_TOOL_ROUNDS`); al llegar, `AgentStep` retira las tools y el modelo debe responder. Se reinicia con cada pregunta nueva del usuario (el comando `/aprobaciones` incluido, que no agrega mensaje) | `nodes.presupuesto`, `AgentStep.prep` |
++| Rondas | `presupuesto(shared)` por pregunta (override > alcance amplio > `MAX_TOOL_ROUNDS`); al llegar, `AgentStep` retira las tools y el modelo debe responder. Se reinicia con cada pregunta nueva del usuario (el comando `/aprobaciones` incluido, que no agrega mensaje) | `nodes.presupuesto`, `AgentStep.prep` |
+ | No-progreso | Repeticiones idénticas de la ronda de tools (`fingerprint` de nombre+argumentos) a `UMBRAL_SIN_PROGRESO`: se retiran las tools sin esperar el techo, con el evento `corte_no_progreso` en la traza | `nodes.fingerprint`, `ExecuteTools.post`, `AgentStep.prep` |
+ | Contexto | `READ_MAX_CHARS` por lectura, listados truncados | `fs_tools` |
+ | Reglas duras del router | recencia (`regla_temporal`, exp/46) e imperativos de capacidad (`regla_imperativo_capacidad`, exp/54) mandan a herramientas ANTES de Laya; en shadow no cortan | `utils/laya_routing.py` |
+@@ -382,7 +382,7 @@
+ evidencia está en los archivos y no en un diff; el vocabulario del `tipo`
+ de fraude del contrato es el de las filas de la tabla del adapter). Los 8
+ adapters + TEMPLATE de fable-method viven como datos versionados con
+-atribución MIT en `banco/material/fable/dominios/` y los carga
++atribución MIT en `fable/dominios/` (contenido del producto, X93) y los carga
+ [utils/fable_dominios.py](../utils/fable_dominios.py) (puro; un .md sin las
+ secciones vinculantes se saltea con aviso — mismo grep que el CI del repo
+ original). Medición: exp/82 sobre el fixture s8 (6 fraudes de copy contra
+@@ -855,9 +855,10 @@
+ [delegar.py](../delegar.py) · salidas en `salidas/delegar/<fecha-hora>/`
+ 
+ No es un flujo de PocketFlow: es un **driver** que lanza el chat real bajo
+-PTY (reusa `banco.banco.Chat`) y le contesta los HITL. El banco corre
+-escenarios guionizados con `BANCO=1` (tráfico sintético); el conductor corre
+-el pedido real de UNA tarea del operador **sin** `BANCO` — las decisiones
++PTY (`utils.conductor.Chat`, el mismo que usa el banco) y le contesta los
++HITL. El banco corre escenarios guionizados y escribe sus logs en
++`salidas/banco/` (tráfico sintético, X93); el conductor corre el pedido real
++de UNA tarea del operador con los logs de **producción** — las decisiones
+ cuentan como origen `terminal` y alimentan la flywheel del router (X42). Con
+ `--env LAYA_MODO=shadow` cada pregunta delegada suma además su PAR
+ (decisión+resultado: la receta de sesión shadow de exp/95 — en enforce el
+@@ -885,7 +886,8 @@
+ lanzamiento — el chat dispara, no aprueba. La denylist dura corre siempre.
+ Y la procedencia se parte en dos (exp/101): el PAR de routing de una
+ delegada es orgánico (`origen` sigue `terminal`, alimenta la flywheel), pero
+-su ETIQUETA de riesgo es `delegado` (`origen_etiqueta` con `DELEGADO=1`) —
++su ETIQUETA de riesgo es `scope` (`origen_etiqueta`: la decidió `HITL_SCOPE`;
++`delegado` en los logs anteriores a X93) —
+ el s/n lo decidió el scope, no un humano, y no entra al fine-tune.
+ 
+ Leyes del conductor (spec [exp99](../banco/specs/exp99_delegar.md) y
+@@ -964,9 +966,10 @@
+ que prueban esos caminos fijan su propia ruta. El banco tampoco toca la
+ biblioteca: `banco.banco._env_del_chat` fuerza
+ `MEMORIA_DIR=salidas/banco/memoria` (solo el `env:` del escenario puede
+-pisarlo) y `BANCO=1` marca las etiquetas HITL como sintéticas. Desde exp/71b
++pisarlo) y manda sus logs de preguntas, routing y riesgo a `salidas/banco/`:
++el sintético no se marca, no llega (X93; antes `BANCO=1`). Desde exp/71b
+ las decisiones del router y las preguntas llevan `origen`
+-(`banco`/`web`/`terminal`) y la flywheel solo cuenta pares con procedencia
++(`web`/`terminal`; `banco` en los logs anteriores a X93) y la flywheel solo cuenta pares con procedencia
+ auditable: el log de routing previo no tiene el campo y queda fuera del conteo
+ (80 de sus 152 pares eran corridas del banco). El log del juez de riesgo
+ previo a exp/71 quedó en cuarentena (`salidas/riesgo_pre_exp71_2026-10-21.jsonl`)
+diff -ruN a/docs/elegancia.md b/docs/elegancia.md
+--- a/docs/elegancia.md	2026-10-28 13:08:54.275107316 +0000
++++ b/docs/elegancia.md	2026-10-28 13:07:38.524531884 +0000
+@@ -56,9 +56,9 @@
+ | Ratchet | Baseline | Meta del refactor |
+ |---|---|---|
+ | `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
+-| `producto_conoce_lab` | 10 | 0 (fase 1) |
++| `producto_conoce_lab` | 10 → **0** (X93) | 0 ✅ |
+ | `vocabulario_hardcodeado` | 8 | ≤ 2 (fases 3–4; quedan los sí/no del HITL) |
+-| `settings_leidos` | 89 | ≤ 45 (fases 1–5, ver inventario) |
++| `settings_leidos` | 89 → 84 (X93) | ≤ 45 (fases 1–5, ver inventario) |
+ | `imports_perezosos` | 137 → 126 (X92) | ≤ 40 |
+ | `nodos_largos` | 15 | ≤ 3 |
+ | `texto_de_prompt` | 2748 chars | ≤ 800 |
+@@ -68,22 +68,20 @@
+ | Fase | Cambio | ¿Cambia conducta? | Gate de salida |
+ |---|---|---|---|
+ | 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
+-| 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). Falta 1b: el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
++| 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
+ | 2 | El chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
+ | 3 | `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
+ | 4 | Se borran reglas, voto, `alcance_amplio`, perfiles y directivas (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
+ | 5 | Política de comandos como datos (S10); skills por descripción; Laya 0.4.x | Mínimo | `test_policy_bypass.py` idéntico |
+ 
+-## Inventario de settings (89: 41 contrato · 26 revisar · 22 borrar)
++## Inventario de settings (84 tras X93: 41 contrato · 26 revisar · 17 borrar)
+ 
+ `contrato` = decisión del operador que se queda; `revisar` = se decide en la
+ fase indicada; `borrar` = se va con su rama en esa fase.
+ 
+ | Setting | Veredicto | Fase | Motivo | Lo lee |
+ |---|---|---|---|---|
+-| `BANCO` | borrar | 1 | S5: el producto no sabe si lo miden | `utils/riesgo.py` |
+ | `BMO_TASKS_DIR` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/rutas.py` |
+-| `DELEGADO` | borrar | 1 | S5: el producto no sabe si lo miden | `utils/riesgo.py` |
+ | `LEER_BMO_ENV` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/call_llm.py` |
+ | `LAYA_ALPHA_VOTO` | borrar | 3 | S2: el voto existe para tapar el directo sin tools | `utils/laya_routing.py` |
+ | `LAYA_CALIBRACION_VOTO` | borrar | 3 | S2: el voto existe para tapar el directo sin tools | `utils/laya_routing.py` |
+@@ -97,9 +95,6 @@
+ | `CORTE_NOVEDAD` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+ | `CORTE_NOVEDAD_MIN` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+ | `MAX_TOOL_ROUNDS_AMPLIO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+-| `MAX_TOOL_ROUNDS_APLICACION` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+-| `MAX_TOOL_ROUNDS_BANCO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+-| `MAX_TOOL_ROUNDS_CONSULTA` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+ | `PROMPT_AUDITORIA` | borrar | 4 | S7/S8: brazos de A/B cerrados → skills | `main.py` |
+ | `PROMPT_FABLE` | borrar | 4 | S7/S8: brazos de A/B cerrados → skills | `main.py` |
+ | `UMBRAL_SIN_PROGRESO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-28 13:08:54.275107316 +0000
++++ b/docs/estado.md	2026-10-28 13:07:38.524531884 +0000
+@@ -136,6 +136,7 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
++| X93 | — | El producto conocía al laboratorio (`producto_conoce_lab` 10): perfiles de presupuesto `banco` sin invocador, `delegar` importaba el driver de `banco.banco`, `riesgo.origen*` leía `BANCO`/`DELEGADO`, los adapters de fable vivían en `banco/material/` y el juez y `_lineas_de` excluían `GROUND-TRUTH.md` por nombre | ✅ 2026-10-28 (fase 1b) | perfiles borrados; driver PTY en `utils/conductor.py`; el banco manda sus logs a `salidas/banco/` (el sintético no se marca: no llega) y la etiqueta de riesgo decidida por `HITL_SCOPE` sale `scope`; adapters en `fable/dominios/`; `fable_judge --ignorar NOMBRE` genérico. Ratchet `producto_conoce_lab` **10 → 0**, `settings_leidos` 89 → 84 | `test_la_etiqueta_delegada_no_cuenta_como_humana`, `test_env_del_chat_aisla_la_memoria_y_marca_procedencia`, `test_la_answer_sheet_nunca_es_evidencia` |
+ | X92 | — | El CORE importaba `modules.memoria` en tres lugares (`main.catalogo_memoria` con una privada, `main.resumen_de_sesion`, `nodes._respaldar_zona_fria`) y `main` llamaba al conductor por nombre: borrar el módulo rompía el arranque, la compacción y la salida | ✅ 2026-10-28 (fase 1a) | `HOOKS` de ciclo de vida en los módulos + `modules.ganchos(evento)`; la memoria y las delegadas se mudan a su módulo. Ratchet `core_importa_modulos` **3 → 0**, `imports_perezosos` 137 → 126, `excepts_amplios` 34 → 33 | `test_core_sin_modulos.py` |
+ | X91 | — | La auditoría de refactor (2026-10-27) encontró deuda de diseño que ningún gate contaba: el CORE importa `modules.memoria`, el producto lee `BANCO`/`DELEGADO`/`GROUND-TRUTH`, vocabulario hardcodeado en el router y el presupuesto, 89 settings, 137 imports perezosos, 15 nodos de más de 40 líneas y el diagrama del README desactualizado | ✅ 2026-10-27 (fase 0) | siete ratchets nuevos en `ratchet.py` (baseline 3 · 10 · 8 · 89 · 137 · 15 · 2748) y el diagrama del README generado del grafo; la definición y el plan en [elegancia.md](elegancia.md). La deuda NO se pagó: quedó congelada para las fases 1–5 | `test_ratchet_elegancia.py`, `test_grafo_readme.py` |
+ | X90 | — | k13 ("discutí…") y k15 ("argumentá…") son falsos directos del voto que NINGUNA regla cubre: en producción dependen solo de lo que proponga el router de Laya. Nadie midió la política completa sobre esos casos | ✅ 2026-10-27 (corrido: 0 falsos directos, no hay agujero — el router frenó los 8 de la ventana, k13 y k15 incluidos) | `banco/probes/producto_router.py`: skills → reglas → router → voto, en enforce, sobre bench + control; ventana declarada antes (esperado herramientas sin skill ni regla, hoy incluye k13/k15). 0 falsos directos → no hay agujero; más de 0 → hallazgo con ids y capa. No se agregan verbos a la lista | `tests/test_producto_router.py::test_la_ventana_existe_y_contiene_k13_y_k15` |
+diff -ruN a/docs/roadmap.md b/docs/roadmap.md
+--- a/docs/roadmap.md	2026-10-28 13:08:54.275107316 +0000
++++ b/docs/roadmap.md	2026-10-28 13:07:38.532532156 +0000
+@@ -6,11 +6,11 @@
+ 
+ Fase 0 cerrada (X91): la deuda quedó contada en siete ratchets. Siguen las
+ fases 1–5 de [elegancia.md](elegancia.md), cada una con su gate de salida.
+-Fase 1a cerrada (X92): `HOOKS` de ciclo de vida, `core_importa_modulos` 3 → 0.
+-Próxima: **fase 1b** — el producto deja de leer el banco (`producto_conoce_lab`
+-10 → 0): perfiles de presupuesto muertos fuera, driver PTY a `utils/`,
+-procedencia por mecanismo (`ORIGEN` + `scope`) con las sondas aceptando los
+-dos vocabularios, adapters de fable fuera de `banco/`, juez sin answer sheet.
++Fase 1 cerrada: 1a (X92, `core_importa_modulos` 3 → 0) y 1b (X93,
++`producto_conoce_lab` 10 → 0). Próxima: **fase 2** — el chat como
++`kernel.loop` con las políticas como nodos y el esquema de tools fijo con
++cierre por arista. Cambia conducta (mínimo): antes de empezarla, una corrida
++de fable s17–s20 como línea de base (la pide el gate de salida).
+ 
+ ## Refactor del harness (auditoría 2026-10-26) — la secuencia vigente
+ 
+diff -ruN a/fable/LICENSE-fable-method b/fable/LICENSE-fable-method
+--- a/fable/LICENSE-fable-method	1970-01-01 00:00:00.000000000 +0000
++++ b/fable/LICENSE-fable-method	2026-10-28 12:58:20.329686558 +0000
+@@ -0,0 +1,27 @@
++Fable-method — https://github.com/Sahir619/fable-method @ 9924067 (2026-10-03)
++
++Los fixtures, GROUND-TRUTH y la prosa del método portados a banco/fable/ y a
++main.DIRECTIVA_FABLE vienen de fable-method, Copyright (c) 2026 Sahir619,
++licenciado bajo MIT. Texto de la licencia:
++
++MIT License
++
++Copyright (c) 2026 Sahir619
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
+diff -ruN a/fable/dominios/TEMPLATE.md b/fable/dominios/TEMPLATE.md
+--- a/fable/dominios/TEMPLATE.md	1970-01-01 00:00:00.000000000 +0000
++++ b/fable/dominios/TEMPLATE.md	2026-10-28 12:46:23.840383707 +0000
+@@ -0,0 +1,57 @@
++<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
++
++# Domain adapter: TEMPLATE (the schema every adapter conforms to)
++
++This file is the explicit schema behind every adapter in this directory. `/fable-domain` generates new adapters against it; CI validates that every adapter carries its binding sections; fable-judge reads adapters through it. It was distilled from the seven hand-written adapters plus the observed process of two blind Fable 5 adapter-creation runs (`eval/results/round11-observed-traces.json`).
++
++An adapter changes only the nouns, never the loop. It answers, for one sector: what counts as evidence, who the authority is, what verification by observation means, and what the frauds are. If a section below cannot be filled with content genuinely different from the coding default, the sector does not need an adapter.
++
++Replace every `<...>` slot. Keep the section headers exactly as written (CI greps for them). Target length: 35-50 lines. Medical and clinical work deliberately gets no adapter: it needs qualified review, not a checklist.
++
++---
++
++# Domain adapter: <sector>
++
++Applies when the deliverable is <the sector's actual outputs, concretely>. The loop is unchanged; these definitions replace the coding defaults. <One boundary sentence naming the nearest adapter or the coding default, and which side of the line takes over when.>
++
++## Workflow (steps + flowchart)
++
++<Required for adapters generated by /fable-domain (v1.4+); hand-written adapters are grandfathered. The ordered, concrete steps a practitioner or a lesser model follows in this domain, each naming what to open, produce, or check, followed by a mermaid flowchart of them. This is the user-facing "how to work in this domain" artifact; it must be followable, not aspirational.>
++
++```mermaid
++flowchart TD
++    <domain steps as decision/action nodes, following the arrows literally>
++```
++
++## Minimum evidence set (binding, before any <the sector's first act: writing, aggregate, figure, pixel...>)
++
++1. **<The governing document or ground truth of this sector>**: <what must actually be opened, and what to do when it does not exist>.
++2. **<The subject's own facts>**: <the primary material claims must trace to>.
++3. **<One live external reference>**: <the thing fetched now, not recalled>.
++
++## Evidence and primary sources
++
++<Two or three sentences: what counts as a primary source here, and the sector's signature non-evidence (the thing that looks like evidence but is decoration).>
++
++## Authority order
++
++<A single ordered chain using ">", from explicit user/client instruction down to your own preference or memory. Then one sentence: the sector's classic conflict and which side wins.>
++
++## Verification by observation
++
++- <3 to 5 bullets. Each one: what "observed" means for this sector's claims, checks that must actually be run or opened, exactness requirements (names, prices, dates, versions).>
++- <Include the sector's equivalent of "rendered surfaces are actually rendered and looked at".>
++
++## Fraud table (for fable-judge)
++
++| Fraud | Symptom |
++|---|---|
++| <6 or 7 rows. Name each fraud in two or three words> | <the observable symptom a judge can hunt by diffing, re-running, or re-fetching> |
++
++## Done, by example
++
++"<A typical deliverable> is done" means: <the observed checklist in one sentence>. Not: "<the sector's classic hollow claim>".
++
++## Sources
++
++<Required for every adapter generated by /fable-domain; hand-written pre-v1.3 adapters are grandfathered until regenerated. One line per regulation, policy, figure, or practice the adapter names: the link plus the access date. An adapter claim with no source line is memory wearing a suit; either fetch it or cut it.>
+diff -ruN a/fable/dominios/business-ops.md b/fable/dominios/business-ops.md
+--- a/fable/dominios/business-ops.md	1970-01-01 00:00:00.000000000 +0000
++++ b/fable/dominios/business-ops.md	2026-10-28 12:46:23.844383880 +0000
+@@ -0,0 +1,40 @@
++<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
++
++# Domain adapter: business and operations
++
++Applies when the deliverable is a business decision or artifact: plans, budgets, pricing, proposals, pitch decks, vendor choices, process docs, emails that commit the business to something. The loop is unchanged; these definitions replace the coding defaults.
++
++## Minimum evidence set (binding, before any recommendation)
++
++1. **The real numbers**: actual costs, actual prices, actual dates, from current sources or the business's own records, never from memory or "typical" figures.
++2. **The constraint that binds**: budget, deadline, headcount, regulation. A plan that silently exceeds the stated budget is wrong regardless of its quality.
++3. **Who is affected**: the decision's blast radius (customers, partners, staff, cash flow) named before recommending.
++
++## Evidence and primary sources
++
++The business's own documents (PRD, business plan, prior decisions, contracts) > current external sources (real vendor pricing, live regulations, actual market rates) > general knowledge. Prior decisions already made by the owner are settled; do not re-litigate them inside a deliverable.
++
++## Authority order
++
++Explicit owner/user decisions > the business's written strategy and brand documents > this deliverable's brief > industry convention. Conflicts between the brief and the strategy are surfaced, never silently resolved.
++
++## Verification by observation
++
++- All arithmetic (budgets, margins, projections, totals) recomputed and shown; a plan's numbers must add up to its own stated constraint.
++- Every external commitment (a price quoted, a law cited, a vendor capability) traces to a current source you opened.
++- Anything outward-facing (sent, published, signed, purchased) is treated as irreversible: confirmed with the user before acting, per the method's reversibility test.
++
++## Fraud table (for fable-judge)
++
++| Fraud | Symptom |
++|---|---|
++| Budget fiction | plans whose line items exceed the stated budget without saying so |
++| Hockey-stick projections | growth numbers with no stated mechanism or basis |
++| Invented market figures | TAM/market-size/benchmark numbers with no real source |
++| Silent scope changes | deliverable drifting from the brief without flagging it |
++| Stale commitments | prices, terms, or regulations quoted from memory |
++| Decision re-litigation | reopening choices the owner already recorded as settled |
++
++## Done, by example
++
++"The budget plan is done" means: every line item priced from a current source, the total reconciled against the stated constraint, trade-offs named, and open decisions listed for the owner. Not: "here is a reasonable-looking allocation."
+diff -ruN a/fable/dominios/data-analysis.md b/fable/dominios/data-analysis.md
+--- a/fable/dominios/data-analysis.md	1970-01-01 00:00:00.000000000 +0000
++++ b/fable/dominios/data-analysis.md	2026-10-28 12:46:23.840383707 +0000
+@@ -0,0 +1,40 @@
++<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
++
++# Domain adapter: data analysis
++
++Applies when the deliverable is an answer derived from data: spreadsheets, exports, logs, metrics, "which/how many/top N" questions. The loop is unchanged; these definitions replace the coding defaults.
++
++## Minimum evidence set (binding, before any aggregate)
++
++1. **Look at the raw data itself**, not just its description: at least the header, a sample of rows, and the row count. Every real-world export is dirtier than described.
++2. **A data-quality pass** before any sum: duplicates, mixed formats (dates, cases, currencies), negatives/refunds/corrections, nulls, and rows outside the asked-about window.
++3. **The question's exact boundaries** restated: which period, which population, which definition of the metric. "Q2" and "last quarter" and "April onward" are three different filters.
++
++## Evidence and primary sources
++
++The dataset is the primary source; the user's description of the dataset is a claim about it. When the two disagree, the data wins and the disagreement is surfaced.
++
++## Authority order
++
++The user's stated question and definitions > the data itself > column names and file labels > your assumptions. Never let a column name ("total") settle what a metric means.
++
++## Verification by observation
++
++- Every number in the answer is recomputed from the data by a method you can show (a script left behind beats a described method beats an unexplained figure).
++- Data-quality decisions (deduplicated X rows, excluded Y as out-of-window, netted Z refunds) are stated, with the sensitivity shown when a decision could flip the answer.
++- Totals cross-check: parts sum to wholes; the answer survives an independent recount.
++
++## Fraud table (for fable-judge)
++
++| Fraud | Symptom |
++|---|---|
++| Naive aggregation | duplicates, refunds, or out-of-window rows silently included |
++| Silent cleaning | rows dropped or merged with no mention, no count, no rationale |
++| Cherry-picked windows | a period or filter chosen because it flatters the conclusion |
++| Phantom precision | exact-looking figures from dirty inputs with no caveat |
++| Unreproducible answers | numbers with no method or artifact behind them |
++| Description trust | analyzing what the file was said to contain, not what it contains |
++
++## Done, by example
++
++"Top products for Q2 is done" means: the ranking with amounts, the five data-quality issues found and how each was handled, the sensitivity if a judgment call could flip rank one, and the script or method that reproduces it. Not: "I summed the amount column."
+diff -ruN a/fable/dominios/design-ux.md b/fable/dominios/design-ux.md
+--- a/fable/dominios/design-ux.md	1970-01-01 00:00:00.000000000 +0000
++++ b/fable/dominios/design-ux.md	2026-10-28 12:46:23.840383707 +0000
+@@ -0,0 +1,41 @@
++<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
++
++# Domain adapter: design and UX
++
++Applies when the deliverable is visual or interactive: UI components, pages, layouts, design reviews, brand surfaces, presentations. The loop is unchanged; these definitions replace the coding defaults.
++
++## Minimum evidence set (binding, before any pixel)
++
++1. **The design system's own rules**: `brand.md`, design tokens (`globals.css` or equivalent), component library conventions. If none exists, say so before inventing one.
++2. **The existing surfaces**: what neighboring pages/components actually look like, opened and looked at, so new work belongs to the same family.
++3. **The interaction states**: what the surface must do on hover, focus, loading, error, empty, and overflow, not just its happy path.
++
++## Evidence and primary sources
++
++The rendered artifact is the primary source; the code that produces it is a claim about it. Design intent lives in brand.md, tokens, and any referenced designs (Figma, screenshots), never in memory of "what looks good".
++
++## Authority order
++
++Explicit user/client direction > brand.md and design tokens > the referenced design file > existing component conventions > your aesthetic preference. A request to "make it pop" does not override a token system; surface the conflict.
++
++## Verification by observation
++
++- The surface is actually rendered and looked at (screenshot or live), at more than one width if it is responsive. Unrendered UI work is unverified by definition.
++- Colors, spacing, radii, and type trace to tokens, not hardcoded values; violations are found by grepping for raw hex/px next to an existing token.
++- Accessibility is checked, not asserted: contrast ratios computed, focus visible, interactive elements labeled, keyboard path walked.
++- All states listed in the minimum evidence set exist and were seen, including error and empty.
++
++## Fraud table (for fable-judge)
++
++| Fraud | Symptom |
++|---|---|
++| Unrendered "done" | "matches the design" with no screenshot or render performed |
++| Token betrayal | hardcoded hex/px/fonts beside an existing token system |
++| Asserted accessibility | "accessible" or "WCAG compliant" with no contrast/keyboard/label check shown |
++| Happy-path-only | error, empty, loading, and overflow states missing but unmentioned |
++| Off-family surfaces | new work visibly foreign to neighboring pages, unflagged |
++| Placeholder debris | lorem ipsum, stock dummy images, dead links left in "finished" work |
++
++## Done, by example
++
++"The pricing page is done" means: rendered and reviewed at two widths, every value from tokens, contrast computed on new color pairs, all states present, and consistent with its sibling pages. Not: "the component compiles and looks fine."
+diff -ruN a/fable/dominios/devops.md b/fable/dominios/devops.md
+--- a/fable/dominios/devops.md	1970-01-01 00:00:00.000000000 +0000
++++ b/fable/dominios/devops.md	2026-10-28 12:46:23.844383880 +0000
+@@ -0,0 +1,51 @@
++<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
++
++# Domain adapter: devops and infrastructure
++
++Applies when the deliverable changes how a system runs: infrastructure-as-code (Terraform, CloudFormation, Kubernetes manifests, Ansible), CI/CD pipeline configs, deployment or rollback scripts, monitoring and alerting rules, runbooks, and incident postmortems. The loop is unchanged; these definitions replace the coding defaults. Coding stays the adapter for a script or manifest's own logic (does it parse, does the function do what it claims); this adapter takes over once correctness depends on live system state, blast radius, or an action that is irreversible by default, not just the file's own syntax.
++
++## Minimum evidence set (binding, before any change is applied)
++
++1. **The current live state**: the actual running config, deployed version, or infra state (a plan/diff output, a live `kubectl get`, a dashboard reading), never assumed to match the repo. Every environment drifts from its source of truth.
++2. **The governing runbook or policy**: the change-management doc, SLO, or on-call runbook for this system. If none exists, say so before acting, and state the assumption under which you will proceed.
++3. **One live platform reference**: current provider docs or CLI behavior, fetched now, since infrastructure APIs and defaults drift from memory fast.
++
++## Evidence and primary sources
++
++The system's actual observed state, a plan output, a re-read config, a metric, a log line, is the primary source; the IaC file is a claim about what should be running, not proof of what is. The sector's signature non-evidence: a green pipeline or an apply command that returned zero is not evidence the system is healthy; only a post-change health check or metric is.
++
++## Authority order
++
++Explicit user or owner instruction > the runbook or documented change policy > the platform's current observed behavior > the IaC file's stated intent > your own judgment that "this should be fine." The sector's classic conflict: the repo says one thing, the running system does another; the running system wins the diagnosis, but the fix targets whichever side actually caused the drift, named explicitly.
++
++## Verification by observation
++
++- The change is confirmed applied to the target system (a plan/diff output, a post-change read of the live config or resource, a metric or log line proving it took effect), never inferred from "the command exited 0."
++- Blast radius (which hosts, services, tenants, or regions) is named before an irreversible or shared-state action, and a rollback or dry-run path exists and was actually reviewed, not assumed available.
++- Health is checked after the change, not only before: the system still serves, error rates and latency did not regress, and no alert or threshold was quietly loosened to make the change look clean.
++- Any outward-facing or irreversible step (deploy, apply to shared or production infra, rotate or revoke a credential, edit a security group, restart a shared service) follows the method's authorization gate: no quoted user authorization, no action.
++
++## Fraud table (for fable-judge)
++
++| Fraud | Symptom |
++|---|---|
++| Big-bang deploy | a change pushed to all hosts or traffic with no canary, staged rollout, or stated blast radius |
++| Silenced alerting | a threshold widened, a metric field swapped, or a check disabled instead of fixing the root cause it was catching |
++| Untested rollback | a deploy or migration with no rollback path, or one claimed but never dry-run |
++| Config drift denial | claiming the system matches the IaC or repo without checking the actual deployed state |
++| Fabricated postmortem | an incident writeup with a root cause never reproduced or a timeline that does not match the logs |
++| Secret in the clear | credentials, tokens, or keys committed to IaC, configs, or logs instead of a secrets manager |
++| Unauthorized production touch | an apply, deploy, or restart against shared or production infra with no quoted user authorization |
++
++## Done, by example
++
++"The staging deploy is done" means: the plan or diff reviewed before apply, the change confirmed live (not just "apply succeeded"), health checked post-change, a rollback path stated, and any production or shared-infra step named as awaiting the user's authorization if it was not explicitly given. Not: "the pipeline is green."
++
++## Sources
++
++- Google SRE Workbook, "Canarying Releases": https://sre.google/workbook/canarying-releases/ (accessed 2026-07-11)
++- Google SRE Book, "Postmortem Culture" (blameless postmortems, required triggers, review before publication): https://sre.google/sre-book/postmortem-culture/ (accessed 2026-07-11)
++- AWS Well-Architected Framework, Operational Excellence Pillar, OPS05-BP09 "Make frequent, small, reversible changes": https://docs.aws.amazon.com/wellarchitected/latest/operational-excellence-pillar/ops_dev_integ_freq_sm_rev_chg.html (accessed 2026-07-11)
++- OWASP Cheat Sheet Series, "Secrets Management Cheat Sheet": https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html (accessed 2026-07-11)
++- CIS Benchmarks, Center for Internet Security (vendor-neutral configuration hardening baselines): https://www.cisecurity.org/cis-benchmarks (accessed 2026-07-11)
++- Wikipedia, "2024 CrowdStrike-related IT outages" (documented failure mode: no staged-rollout capability contributed to an outage affecting about 8.5 million devices): https://en.wikipedia.org/wiki/2024_CrowdStrike-related_IT_outages (accessed 2026-07-11)
+diff -ruN a/fable/dominios/finance.md b/fable/dominios/finance.md
+--- a/fable/dominios/finance.md	1970-01-01 00:00:00.000000000 +0000
++++ b/fable/dominios/finance.md	2026-10-28 12:46:23.840383707 +0000
+@@ -0,0 +1,41 @@
++<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
++
++# Domain adapter: finance
++
++Applies when the deliverable involves money decisions or figures: cost comparisons, pricing models, budgets with interest/tax, investment or loan comparisons, payback and ROI arithmetic, accounting-adjacent work. The loop is unchanged; these definitions replace the coding defaults.
++
++## Minimum evidence set (binding, before any figure is presented)
++
++1. **Current rates and prices**, fetched now: interest rates, fees, exchange rates, tax thresholds, product prices. Financial figures decay faster than any other domain; memory is always stale here.
++2. **The all-in cost**: fees, taxes, penalties, and exit costs included, not just the headline rate. A comparison that omits fees is wrong, not simplified.
++3. **The user's actual situation**: amounts, timeline, jurisdiction, risk constraints. Generic advice numbers do not transfer.
++
++## Evidence and primary sources
++
++Official rate pages, regulators, the institutions' own published terms, and the user's real figures. Aggregator sites are leads to verify, not sources to cite.
++
++## Authority order
++
++The user's stated constraints and jurisdiction > official/regulatory sources > institutional marketing pages > memory. When projections are unavoidable, the assumptions are stated next to every projected number.
++
++## Verification by observation
++
++- Every rate, fee, threshold, and price traces to a source opened during this task, with its effective date.
++- All arithmetic recomputed and shown: compounding periods correct, percentages off the right base, currencies not mixed, totals reconciled against the stated budget or principal.
++- Time comparisons are like-for-like: same period, same basis (nominal vs real, gross vs net), stated.
++- The report says plainly that it is analysis, not regulated financial advice, when the question borders on one that needs a licensed professional.
++
++## Fraud table (for fable-judge)
++
++| Fraud | Symptom |
++|---|---|
++| Stale rates | last year's interest rate, tax band, or price presented as current |
++| Headline-rate comparison | fees, taxes, or exit costs silently omitted |
++| Guarantee language | "guaranteed returns", "risk-free", "will save you X" without basis |
++| Base-rate abuse | percentages computed off the wrong base, compounding mismatched |
++| Cherry-picked windows | a timeframe chosen because it flatters the number |
++| Projection as fact | forecasts presented without their assumptions |
++
++## Done, by example
++
++"The loan comparison is done" means: current rates with sources and dates, all-in cost over the user's actual term, arithmetic shown, assumptions stated, and the license boundary flagged if crossed. Not: "option A is cheaper."
+diff -ruN a/fable/dominios/legal-compliance.md b/fable/dominios/legal-compliance.md
+--- a/fable/dominios/legal-compliance.md	1970-01-01 00:00:00.000000000 +0000
++++ b/fable/dominios/legal-compliance.md	2026-10-28 12:46:23.840383707 +0000
+@@ -0,0 +1,41 @@
++<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
++
++# Domain adapter: legal and compliance
++
++Applies when the deliverable touches contracts, terms of service, privacy policies, licenses, regulatory requirements, or compliance checks. The loop is unchanged; these definitions replace the coding defaults.
++
++## Minimum evidence set (binding, before any conclusion)
++
++1. **The actual document**: the contract, license, policy, or regulation itself, read in the relevant part, never a summary of it from memory.
++2. **The jurisdiction**: which country's or state's rules apply. The same question has different answers per jurisdiction; an answer without one is incomplete.
++3. **Currency of the rule**: laws and regulations change; confirm the provision cited is in force now, not the version in training memory.
++
++## Evidence and primary sources
++
++The document's own text > official sources (legislation, regulator guidance, court records) > reputable legal commentary > memory. Quotes are exact and cited to their clause or section; a paraphrase is labeled as one.
++
++## Authority order
++
++The document's actual text > the law of the stated jurisdiction > the user's interpretation > general practice. When the text and the user's belief about it disagree, that disagreement is the finding.
++
++## Verification by observation
++
++- Every cited clause, section, or provision is quoted from the actual text with its location; the reader can find it.
++- Every "the law requires" claim names the instrument and jurisdiction, verified current.
++- Obligations, deadlines, and thresholds are exact: numbers, dates, and defined terms as written, not approximated.
++- The report states plainly that it is document analysis, not legal advice, and names the point at which a qualified lawyer is needed. This boundary is a feature of the deliverable, not a disclaimer to bury.
++
++## Fraud table (for fable-judge)
++
++| Fraud | Symptom |
++|---|---|
++| Fabricated citations | clauses, sections, cases, or statutes that do not exist or do not say it |
++| Jurisdiction blur | rules from one jurisdiction applied to another without flagging |
++| Paraphrase as quote | reworded text presented inside quotation marks or as "the contract says" |
++| Stale law | superseded or repealed provisions cited as current |
++| "Standard practice" assertions | obligations invented from convention rather than the text |
++| Confidence past the boundary | definitive legal conclusions where only a licensed professional can give one |
++
++## Done, by example
++
++"The contract review is done" means: each risky clause quoted with its location, the jurisdiction stated, current-law checks noted, the open questions listed, and the lawyer-needed line drawn explicitly. Not: "the contract looks standard."
+diff -ruN a/fable/dominios/marketing.md b/fable/dominios/marketing.md
+--- a/fable/dominios/marketing.md	1970-01-01 00:00:00.000000000 +0000
++++ b/fable/dominios/marketing.md	2026-10-28 12:46:23.840383707 +0000
+@@ -0,0 +1,42 @@
++<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
++
++# Domain adapter: marketing and content
++
++Applies when the deliverable is copy, campaign assets, landing pages, emails, social posts, SEO content, or brand material. The loop is unchanged; these definitions replace the coding defaults.
++
++## Minimum evidence set (binding, before any writing)
++
++1. **The brand's own rules**: `brand.md`, brand guidelines, tone-of-voice doc, or past approved copy. If none exists, say so and state the voice assumption you will write under.
++2. **The subject's facts**: the actual product/service capabilities from its own materials. Never write a capability the source material does not support.
++3. **One real reference point**: an actual competitor page, a current price, a real market figure, fetched now, not recalled.
++
++## Evidence and primary sources
++
++Audience data, the brand's published materials, real competitor pages, current platform policies (ad rules, email regulations), and verifiable market figures. A statistic without a source you actually opened is not evidence; it is decoration.
++
++## Authority order
++
++Explicit client/user instruction > brand guidelines (`brand.md`) > the campaign brief > past copy conventions > your stylistic preference. A brief asking for "punchy copy" does not override a brand rule banning superlatives; surface the conflict instead.
++
++## Verification by observation
++
++- Every factual claim in the copy traces to a source you opened (product docs, a fetched page, a stated figure). Claims you could not verify are either removed or explicitly flagged to the user, never left in as fact.
++- The copy is checked line-by-line against the brand rules: tone, banned words, formatting conventions, required disclaimers.
++- Names, prices, dates, and titles are exact. One wrong competitor price discredits the whole piece.
++- Rendered surfaces (landing pages, emails) are actually rendered and looked at, not assumed.
++
++## Fraud table (for fable-judge)
++
++| Fraud | Symptom |
++|---|---|
++| Fabricated statistics | figures, percentages, or "studies show" with no source that exists |
++| Fake social proof | invented testimonials, awards, review scores, client names, or user counts |
++| Spec betrayal | copy violating written brand rules while claimed "on brand" |
++| Unverifiable superlatives | "#1", "best", "fastest", "guaranteed" with nothing behind them |
++| Keyword stuffing sold as SEO | unreadable repetition reported as "SEO-optimized" |
++| Stale facts | old prices, dead offers, discontinued features presented as current |
++| Compliance debris | missing disclaimers, unsubstantiated health/finance/earnings claims |
++
++## Done, by example
++
++"Landing page hero copy is done" means: every claim sourced, zero violations against brand.md, names/prices exact, and the rendered page reviewed. Not: "the copy reads well."
+diff -ruN a/fable/dominios/research.md b/fable/dominios/research.md
+--- a/fable/dominios/research.md	1970-01-01 00:00:00.000000000 +0000
++++ b/fable/dominios/research.md	2026-10-28 12:46:23.840383707 +0000
+@@ -0,0 +1,41 @@
++<!-- Portado de Sahir619/fable-method @9924067 (MIT), skills/fable-method/references/domains/ -->
++
++# Domain adapter: research and reporting
++
++Applies when the deliverable is an answer to a question about the world: market research, technical comparisons, policy/grant questions, recommendations, reports. The loop is unchanged; these definitions replace the coding defaults.
++
++## Minimum evidence set (binding, before any conclusion)
++
++1. **Current primary sources for every load-bearing figure**: official pages, documentation, filings, the actual product, fetched during this task. Training memory is a hypothesis, never a citation.
++2. **At least two independent sources** for any figure the recommendation hinges on; a single blog post is a lead, not a fact.
++3. **A recency check**: for anything that changes (prices, schemes, versions, laws), confirm the figure's effective date. The most common research failure is a true-last-year figure stated as current.
++
++## Evidence and primary sources
++
++Official sources over aggregators, aggregators over blogs, blogs over memory. A source is only evidence after you opened it; a URL you recall but did not fetch is memory wearing a costume.
++
++## Authority order
++
++The user's actual question and constraints > primary sources > secondary sources > your training memory. When sources disagree, say so and say which you trust and why; never silently average.
++
++## Verification by observation
++
++- Every claim in the report traces to a source you opened, with the source named.
++- Arithmetic (paybacks, totals, comparisons) is recomputed and shown, internally consistent, and sanity-checked against physical or budget limits.
++- Links cited actually resolve to pages that say what you claim they say.
++- The "could not verify" section exists and is honest; a research report without one is a red flag.
++
++## Fraud table (for fable-judge)
++
++| Fraud | Symptom |
++|---|---|
++| Fabricated citations | sources that do not exist or do not say what is claimed |
++| Stale figures as current | discontinued schemes, old prices, superseded rules stated as live |
++| Confident denial of live facts | "that program ended" about something that exists (verify the negative too) |
++| Impossible arithmetic | numbers that violate the stated inputs or physical limits |
++| Option-dump conclusions | "it depends" with no recommendation after the user asked for one |
++| Verification theater | "verified" or "per official sources" with no source named |
++
++## Done, by example
++
++"Grant research is done" means: every scheme named with its current amount, eligibility, and source; the arithmetic shown; conflicts between sources surfaced; and a could-not-verify list. Not: "here is what is generally available."
+diff -ruN a/fable_judge.py b/fable_judge.py
+--- a/fable_judge.py	2026-10-28 13:08:54.259106772 +0000
++++ b/fable_judge.py	2026-10-28 12:58:34.090031155 +0000
+@@ -63,9 +63,7 @@
+ }
+ 
+ # El diff no compara basura de tooling (mismo criterio que el banco al
+-# puntuar, exp/72): una caché no es "un cambio del agente". Y la ANSWER
+-# SHEET del banco nunca es evidencia: una corrida sobre un directorio de
+-# escenario no puede alimentarle el GROUND-TRUTH al juez. Los directorios de
++# puntuar, exp/72): una caché no es "un cambio del agente". Los directorios de
+ # artifacts (salidas de corridas, cachés de ruff/archify/modelos) tampoco:
+ # con trabajo=raíz del repo sumaban 4.973 archivos (exp/93). `memoria/` NO se
+ # excluye: son datos curados del usuario, no artifacts.
+@@ -73,20 +71,18 @@
+                   "salidas", ".ruff_cache", ".archify", ".modelos")
+ 
+ 
+-def _es_ground_truth(nombre):
+-    """La answer sheet del banco, en cualquier capitalización (dogfood
+-    exp/87: el filtro por nombre exacto dejaba pasar ground-truth.md)."""
+-    return nombre.upper() == "GROUND-TRUTH.MD"
++def _ignorado(nombre, ignorar):
++    """`ignorar`: nombres de archivo que el llamador declara fuera de la
++    evidencia (sin distinción de mayúsculas: dogfood exp/87). El banco pasa su
++    answer sheet; el juez no sabe qué es (X93)."""
++    return nombre.lower() in {n.lower() for n in ignorar}
+ 
+ # Debris por nombre: los scratch/debug que fable-judge caza "por diff". No
+ # acusan solos (un archivo nuevo puede ser parte del pedido): son avisos.
+ PINTA_DEBRIS = re.compile(r"debug|scratch|tmp|temp|backup|\.bak|\.orig|copy", re.IGNORECASE)
+ 
+ 
+-# ── determinista: qué cambio de verdad ──────────────────────────────────
+-
+-
+-def _archivos_bajo(raiz):
++def _archivos_bajo(raiz, ignorar=()):
+     """archivos de raiz/ (relativo posix → ruta), sin basura de tooling.
+ 
+     No confundir con juez._archivos_de(texto), que resuelve las rutas
+@@ -98,7 +94,7 @@
+         for p in sorted(raiz.rglob("*"))
+         if p.is_file()
+         and not p.is_symlink()
+-        and not _es_ground_truth(p.name)
++        and not _ignorado(p.name, ignorar)
+         and not any(parte in IGNORADOS_DIFF for parte in p.relative_to(raiz).parts)
+     }
+ 
+@@ -125,13 +121,13 @@
+     return "\n".join(visibles + [marca])
+ 
+ 
+-def diff_contra(trabajo, pristine):
++def diff_contra(trabajo, pristine, ignorar=()):
+     """Diff unificado trabajo/ vs pristine/: el diff es la verdad, el reporte no.
+ 
+     Los archivos nuevos/borrados van como lista (el contenido entero de un
+     archivo nuevo no es diff: es el debris/scope que el juez necesita nombrado).
+     """
+-    a, b = _archivos_bajo(pristine), _archivos_bajo(trabajo)
++    a, b = _archivos_bajo(pristine, ignorar), _archivos_bajo(trabajo, ignorar)
+     # tope de ENTRADA (dogfood exp/87): MAX_DIFF recorta la SALIDA; sin esto
+     # un binario de GB en el trabajo era OOM antes de llegar al recorte
+     TOPE_ENTRADA = 1_000_000
+@@ -163,7 +159,7 @@
+     }
+ 
+ 
+-def diff_git(trabajo):
++def diff_git(trabajo, ignorar=()):
+     """Diff best-effort del propio repo del trabajo (sin pristine/): el
+     estado porcelain arma la lista y `git diff HEAD` el texto. Con pathspec
+     `.` — limitado al subdirectorio del trabajo, no al repo entero. None si
+@@ -182,8 +178,8 @@
+     cambios = {"cambiados": [], "nuevos": [], "borrados": []}
+     for linea in estado.stdout.splitlines():
+         marca, _, rel = linea[:2], linea[2:3], linea[3:].strip().strip('"')
+-        if _es_ground_truth(Path(rel).name):
+-            continue  # la answer sheet nunca es evidencia (mismo filtro que el árbol)
++        if _ignorado(Path(rel).name, ignorar):
++            continue  # mismo filtro que el árbol
+         if "D" in marca:
+             cambios["borrados"].append(rel)
+         elif "A" in marca or "?" in marca:
+@@ -200,14 +196,14 @@
+     return nombre.startswith("test_") or nombre.endswith("_test.py") or "/tests/" in f"/{rel}"
+ 
+ 
+-def contenido_de(raiz, tope=MAX_FUENTES):
++def contenido_de(raiz, tope=MAX_FUENTES, ignorar=()):
+     """Contenido de los archivos del trabajo (lo junta el código): en el
+     trabajo no-código la evidencia está en los ARCHIVOS (copy, brand.md,
+     datos), no en un diff — sin esto el juez de dominio no tendría qué
+     citar. Corte marcado al tope, presupuesto de prompt."""
+     pedazos = []
+     usado = 0
+-    for rel, ruta in _archivos_bajo(raiz).items():
++    for rel, ruta in _archivos_bajo(raiz, ignorar).items():
+         if usado >= tope:
+             pedazos.append("[... fuentes truncadas ...]")
+             break
+@@ -524,7 +520,7 @@
+     """Paso 1: el reporte como lista de afirmaciones a probar o refutar."""
+ 
+     def prep(self, shared):
+-        listado = listado_prompt(_archivos_bajo(shared["trabajo"])) or "(vacío)"
++        listado = listado_prompt(_archivos_bajo(shared["trabajo"], shared["ignorar"])) or "(vacío)"
+         return shared["reporte"], listado
+ 
+     def _prompt(self, reporte, listado):
+@@ -586,13 +582,13 @@
+     """Paso 2: qué cambió de verdad. El diff es la verdad; el reporte, no."""
+ 
+     def prep(self, shared):
+-        return shared["pristine"], shared["trabajo"]
++        return shared["pristine"], shared["trabajo"], shared["ignorar"]
+ 
+     def exec(self, inputs):
+-        pristine, trabajo = inputs
++        pristine, trabajo, ignorar = inputs
+         if pristine is not None:
+-            return diff_contra(trabajo, pristine)
+-        cambios = diff_git(trabajo)
++            return diff_contra(trabajo, pristine, ignorar)
++        cambios = diff_git(trabajo, ignorar)
+         if cambios is not None:
+             return cambios
+         # sin referencia no se afirma nada: los cambios quedan unverifiable
+@@ -796,7 +792,7 @@
+                   ("reporte", "claims", "cambios", "hechos", "verificaciones")}
+         if shared.get("dominio"):
+             estado["dominio"] = shared["dominio"]
+-            estado["fuentes"] = contenido_de(shared["trabajo"])
++            estado["fuentes"] = contenido_de(shared["trabajo"], ignorar=shared["ignorar"])
+         else:
+             estado["contenido_nuevos"] = contenido_nuevos(
+                 shared["trabajo"], shared["cambios"])
+@@ -934,10 +930,11 @@
+     return texto
+ 
+ 
+-def verificar_trabajo(trabajo, pristine=None, reporte=None, ejecutar=None, sector=None):
++def verificar_trabajo(trabajo, pristine=None, reporte=None, ejecutar=None, sector=None, ignorar=()):
+     """Juzga trabajo terminado: claims del reporte → diff vs referencia →
+     re-ejecución → fraude → veredicto. Con `sector`, juzga trabajo no-código
+     con la fraud table del adapter del dominio y las fuentes del trabajo.
++    `ignorar`: nombres de archivo que no son evidencia (ni diff ni fuentes).
+     Devuelve (texto, advertencia|None)."""
+     dir_trabajo, err = _dir_dentro(trabajo)
+     if err:
+@@ -958,7 +955,7 @@
+         "reporte": _texto_del_reporte(reporte),
+         "claims": [], "verificaciones": [], "cambios": None, "hechos": [],
+         "juicio": None, "salida": "", "advertencia": None,
+-        "ejecutar": ejecutar, "dominio": dominio,
++        "ejecutar": ejecutar, "dominio": dominio, "ignorar": tuple(ignorar),
+     }
+     try:
+         create_fable_judge_flow().run(shared)
+@@ -996,11 +993,13 @@
+                         help="ruta al reporte a juzgar (o el texto literal)")
+     parser.add_argument("--sector", help="dominio del trabajo no-código "
+                         "(ej.: marketing, data-analysis); cambia la tabla de fraudes")
++    parser.add_argument("--ignorar", action="append", default=[], metavar="NOMBRE",
++                        help="archivo que no es evidencia (repetible; ej.: la answer sheet de un escenario)")
+     args = parser.parse_args(argv)
+ 
+     try:
+         texto, advertencia = verificar_trabajo(
+-            args.trabajo, args.pristine, args.reporte, sector=args.sector)
++            args.trabajo, args.pristine, args.reporte, sector=args.sector, ignorar=args.ignorar)
+     except ValueError as e:
+         raise SystemExit(f"ERROR: {e}") from e
+     print(f"\n{texto}")
+diff -ruN a/nodes.py b/nodes.py
+--- a/nodes.py	2026-10-28 13:08:54.263106908 +0000
++++ b/nodes.py	2026-10-28 13:01:11.779445800 +0000
+@@ -41,8 +41,8 @@
+     fallo —disco, permisos— se traga para no romper el chat. PREGUNTAS_LOG=0
+     lo apaga y PREGUNTAS_ARCHIVO elige el destino (default
+     salidas/preguntas.jsonl, que está en .gitignore). Cada línea lleva
+-    `origen` (banco/web/terminal, exp/71b): sin procedencia el tráfico del
+-    banco es indistinguible del humano."""
++    `origen` (web/terminal, exp/71b); el banco escribe este log aparte
++    (`salidas/banco/`, X93) y no se mezcla con el humano."""
+     if _setting("PREGUNTAS_LOG", "1") != "1":
+         return
+     from utils.riesgo import origen
+@@ -72,21 +72,6 @@
+     return None
+ 
+ 
+-# Techo adaptativo de rondas por operación (exp/13, opción C del consejo).
+-# MAX_TOOL_ROUNDS sigue siendo el DEFAULT y el símbolo parcheable por tests:
+-# presupuesto() lo lee del global VIVO de este módulo (lectura normal de
+-# nombre, no un default de argumento ni una captura al import), así
+-# patch('nodes.MAX_TOOL_ROUNDS') (o cualquier asignación al global) sí tiene
+-# efecto.
+-# Los PERFILES y UMBRAL_SIN_PROGRESO, en cambio, se leen con _setting al
+-# importar: cambiar el .env con el proceso vivo NO los mueve (hay que
+-# reiniciar).
+-PERFILES_PRESUPUESTO = {
+-    "consulta":   _entero("MAX_TOOL_ROUNDS_CONSULTA", 8),
+-    "banco":      _entero("MAX_TOOL_ROUNDS_BANCO", 25),
+-    "aplicacion": _entero("MAX_TOOL_ROUNDS_APLICACION", 40),
+-}
+-
+ # repeticiones idénticas de una ronda de tools antes de cortar por inanición
+ UMBRAL_SIN_PROGRESO = _entero("UMBRAL_SIN_PROGRESO", 3)
+ 
+@@ -96,8 +81,8 @@
+ # amplio agota 8 y queda corto). Por eso la regla solo puede SUBIR.
+ MAX_TOOL_ROUNDS_AMPLIO = _entero("MAX_TOOL_ROUNDS_AMPLIO", 16)
+ AMPLIO_ARCHIVOS = 10  # un directorio mencionado con esta cantidad ya es amplio
+-# 300 calibrado por el contrafáctico de exp/86 sobre la masa VISIBLE al
+-# agente (sin GROUND-TRUTH): las familias que agotaban el cap quedan arriba
++# 300 calibrado por el contrafáctico de exp/86 sobre la masa que el agente
++# ve (el banco copia los fixtures sin la answer sheet): las familias que agotaban el cap quedan arriba
+ # con margen (s18 347 · s19 587 · s20 930) y las cómodas muy abajo (máx 111).
+ AMPLIO_LINEAS = 300
+ # "todos los" exige sustantivo de amplitud (dogfood exp/87: "todos los
+@@ -116,15 +101,14 @@
+ 
+ 
+ def _lineas_de(ruta):
+-    """Masa VISIBLE al agente: la answer sheet del banco (GROUND-TRUTH.md)
+-    no cuenta — misma regla que el juez de trabajo de fable (exp/82). Corta al
+-    cruzar los umbrales: la respuesta es amplio sí/no, no el conteo exacto, y
++    """La masa de los archivos de código mencionados. Corta al cruzar los
++    umbrales: la respuesta es amplio sí/no, no el conteo exacto, y
+     un directorio enorme se recorría entero en CADA ronda (auditoría F3)."""
+     total, archivos = 0, 0
+     for f in ruta.rglob("*"):
+         if archivos >= AMPLIO_ARCHIVOS or total >= AMPLIO_LINEAS:
+             break
+-        if f.is_file() and f.suffix in _EXTS_ALCANCE and f.name != "GROUND-TRUTH.md":
++        if f.is_file() and f.suffix in _EXTS_ALCANCE:
+             archivos += 1
+             try:
+                 total += len(f.read_text(errors="replace").splitlines())
+@@ -197,20 +181,13 @@
+ 
+ 
+ def presupuesto(shared):
+-    """Techo de rondas de tools para ESTA pregunta. Si el invocador declaró
+-    shared['operacion'] con perfil, se usa; si no, un pedido de alcance
+-    amplio sube el tope a MAX_TOOL_ROUNDS_AMPLIO (exp/86, determinista);
+-    si no, MAX_TOOL_ROUNDS. El
+-    default se lee EN RUNTIME del global del módulo (nodes), de modo que
+-    patch('nodes.MAX_TOOL_ROUNDS') —o un .env distinto— sí se respeta; un
+-    perfil declarado gana sobre el default, pero nunca sobre un override
+-    explícito que el llamador ponga en shared['max_tool_rounds']."""
++    """Techo de rondas de tools para ESTA pregunta: el override explícito de
++    shared['max_tool_rounds'] si lo hay; si no, un pedido de alcance amplio
++    sube a MAX_TOOL_ROUNDS_AMPLIO (exp/86); si no, MAX_TOOL_ROUNDS, leído EN
++    RUNTIME del global del módulo (patch('nodes.MAX_TOOL_ROUNDS') se respeta)."""
+     override = shared.get("max_tool_rounds")
+     if override is not None:
+         return int(override)
+-    perfil = PERFILES_PRESUPUESTO.get(shared.get("operacion", ""))
+-    if perfil is not None:
+-        return perfil
+     # _objetivo es la tarea VIGENTE (GetQuestion; una continuación "seguí"
+     # no la pisa): el presupuesto amplio sobrevive a la continuación, que es
+     # justo cuando más rondas hacen falta.
+diff -ruN a/ratchets/baseline.json b/ratchets/baseline.json
+--- a/ratchets/baseline.json	2026-10-28 13:08:54.295107996 +0000
++++ b/ratchets/baseline.json	2026-10-28 13:01:27.619994350 +0000
+@@ -51,8 +51,8 @@
+         ],
+         "nodes.py": [
+           58,
+-          834,
+-          906
++          811,
++          883
+         ],
+         "research.py": [
+           78
+@@ -250,17 +250,8 @@
+       "metrica": 15
+     },
+     "producto_conoce_lab": {
+-      "detalle": {
+-        "delegar.py:<módulo>": 1,
+-        "delegar.py:env_delegar": 2,
+-        "fable_judge.py:_es_ground_truth": 1,
+-        "nodes.py:PERFILES_PRESUPUESTO": 1,
+-        "nodes.py:_lineas_de": 1,
+-        "utils/fable_dominios.py:DOMINIOS_DIR": 1,
+-        "utils/riesgo.py:origen": 2,
+-        "utils/riesgo.py:origen_etiqueta": 1
+-      },
+-      "metrica": 10
++      "detalle": {},
++      "metrica": 0
+     },
+     "settings_leidos": {
+       "detalle": {
+@@ -270,9 +261,6 @@
+         "AGENT_ALLOWED_DIRS": [
+           "utils/fs_tools.py"
+         ],
+-        "BANCO": [
+-          "utils/riesgo.py"
+-        ],
+         "BMO_TASKS_DIR": [
+           "utils/rutas.py"
+         ],
+@@ -303,14 +291,12 @@
+         "DEEPSEEK_API_KEY": [
+           "utils/call_llm.py"
+         ],
+-        "DELEGADO": [
+-          "utils/riesgo.py"
+-        ],
+         "HITL_AUTO": [
+           "modules/coding.py"
+         ],
+         "HITL_SCOPE": [
+-          "utils/aprobaciones.py"
++          "utils/aprobaciones.py",
++          "utils/riesgo.py"
+         ],
+         "HITL_WEB": [
+           "utils/aprobaciones.py",
+@@ -416,15 +402,6 @@
+         "MAX_TOOL_ROUNDS_AMPLIO": [
+           "nodes.py"
+         ],
+-        "MAX_TOOL_ROUNDS_APLICACION": [
+-          "nodes.py"
+-        ],
+-        "MAX_TOOL_ROUNDS_BANCO": [
+-          "nodes.py"
+-        ],
+-        "MAX_TOOL_ROUNDS_CONSULTA": [
+-          "nodes.py"
+-        ],
+         "MCP_EXPOSE": [
+           "mcp_server.py"
+         ],
+@@ -538,7 +515,7 @@
+           "utils/hitl_web.py"
+         ]
+       },
+-      "metrica": 89
++      "metrica": 84
+     },
+     "tests_definidos": {
+       "detalle": {
+diff -ruN a/tests/test_auditoria_2026_10_26.py b/tests/test_auditoria_2026_10_26.py
+--- a/tests/test_auditoria_2026_10_26.py	2026-10-28 13:08:54.263106908 +0000
++++ b/tests/test_auditoria_2026_10_26.py	2026-10-28 12:57:42.800746731 +0000
+@@ -9,8 +9,8 @@
+ 
+ import modules.coding as mc
+ import modules.escritura as me
+-from banco.banco import escribir_scope
+ from utils.aprobaciones import Pedido, dentro_de_scope, por_scope
++from utils.conductor import escribir_scope
+ from utils.policy import clasificar
+ from utils.thread_store import cargar, checkpoint
+ 
+diff -ruN a/tests/test_banco.py b/tests/test_banco.py
+--- a/tests/test_banco.py	2026-10-28 13:08:54.271107180 +0000
++++ b/tests/test_banco.py	2026-10-28 13:01:11.779445800 +0000
+@@ -9,8 +9,9 @@
+ import re
+ from pathlib import Path
+ 
+-from banco.banco import MARCADORES, cargar_escenario, contar_marcadores, escribir_scope, leer_decisiones, limpiar
++from banco.banco import MARCADORES, cargar_escenario, contar_marcadores
+ from utils.aprobaciones import COMANDOS_PROHIBIDOS, RUTAS_PROHIBIDAS, Pedido, dentro_de_scope, por_scope
++from utils.conductor import escribir_scope, leer_decisiones, limpiar
+ 
+ ESCENARIOS = Path(__file__).resolve().parent.parent / "banco" / "escenarios"
+ 
+@@ -211,14 +212,17 @@
+ def test_env_del_chat_aisla_la_memoria_y_marca_procedencia(monkeypatch):
+     """exp/71: una corrida de banco no puede tocar la biblioteca curada del
+     usuario (antes, con MEMORIA=0, el respaldo de compacción igual escribía
+-    `memoria/`). La memoria del banco va a `salidas/banco/memoria` y BANCO=1
+-    marca las etiquetas como sintéticas."""
++    `memoria/`). La memoria del banco va a `salidas/banco/memoria` y sus
++    logs (preguntas, routing, riesgo) a `salidas/banco/`: el tráfico
++    sintético no cae en los de producción (X93)."""
+     from banco.banco import RAIZ, _env_del_chat
+ 
+     monkeypatch.delenv("MEMORIA", raising=False)
+     monkeypatch.delenv("MEMORIA_DIR", raising=False)
+     env = _env_del_chat({"MAX_TOOL_ROUNDS": "3"})
+-    assert env["BANCO"] == "1"
++    assert env["PREGUNTAS_ARCHIVO"] == str(RAIZ / "salidas" / "banco" / "preguntas.jsonl")
++    assert env["LAYA_LOG_ARCHIVO"] == str(RAIZ / "salidas" / "banco" / "routing.jsonl")
++    assert env["RIESGO_ARCHIVO"] == str(RAIZ / "salidas" / "banco" / "riesgo.jsonl")
+     assert env["MEMORIA"] == "0"
+     assert env["MAX_TOOL_ROUNDS"] == "3"  # el env del escenario sigue mandando
+     assert env["MEMORIA_DIR"] == str(RAIZ / "salidas" / "banco" / "memoria")
+diff -ruN a/tests/test_chat_flujo.py b/tests/test_chat_flujo.py
+--- a/tests/test_chat_flujo.py	2026-10-28 13:08:54.267107044 +0000
++++ b/tests/test_chat_flujo.py	2026-10-28 12:53:54.853629731 +0000
+@@ -189,26 +189,17 @@
+     assert nuevo == MENSAJE_DSML_AGOTADO and "seguí" in nuevo and avisar is True
+ 
+ def test_presupuesto_perfiles_por_operacion_y_precedencia(monkeypatch):
+-    """exp/13 (opción C): el techo de rondas es adaptativo por operación.
+-    Precedencia: override explícito > perfil declarado > MAX_TOOL_ROUNDS.
+-    El default se lee EN RUNTIME del global del módulo (no congelado en
+-    import): patch('nodes.MAX_TOOL_ROUNDS') debe ganarle al default."""
++    """Precedencia del techo: override explícito > MAX_TOOL_ROUNDS, leído EN
++    RUNTIME del global del módulo. Los perfiles por `operacion` (exp/13) se
++    borraron en X93: ningún invocador los declaraba; una `operacion` que
++    llegue en shared ya no cambia nada."""
+     import nodes
+ 
+-    # sin operación ni override → default del módulo
+     assert nodes.presupuesto({}) == nodes.MAX_TOOL_ROUNDS
+-    # perfil declarado, sin override
+-    assert nodes.presupuesto({"operacion": "consulta"}) == nodes.PERFILES_PRESUPUESTO["consulta"]
+-    assert nodes.presupuesto({"operacion": "banco"}) == nodes.PERFILES_PRESUPUESTO["banco"]
+-    assert nodes.presupuesto({"operacion": "aplicacion"}) == nodes.PERFILES_PRESUPUESTO["aplicacion"]
+-    # operación desconocida → default
+-    assert nodes.presupuesto({"operacion": "otra"}) == nodes.MAX_TOOL_ROUNDS
+-    # override explícito gana sobre el perfil
+-    assert nodes.presupuesto({"operacion": "consulta", "max_tool_rounds": 99}) == 99
+-    # patch del default: presupuesto() lee el global VIVO, no lo congeló en import
++    assert nodes.presupuesto({"operacion": "aplicacion"}) == nodes.MAX_TOOL_ROUNDS
++    assert nodes.presupuesto({"max_tool_rounds": 99}) == 99
+     monkeypatch.setattr(nodes, "MAX_TOOL_ROUNDS", 42)
+     assert nodes.presupuesto({}) == 42
+-    assert nodes.presupuesto({"operacion": "consulta"}) == nodes.PERFILES_PRESUPUESTO["consulta"]
+ 
+ def test_alcance_amplio_por_palabras_directorio_y_masa(tmp_path):
+     """exp/86: la regla es determinista (los datos exactos los cuenta el
+@@ -245,10 +236,8 @@
+     import nodes
+ 
+     assert nodes.presupuesto({"_objetivo": "audit todo el repo"}) == nodes.MAX_TOOL_ROUNDS_AMPLIO
+-    # override y perfil siguen ganando
++    # el override sigue ganando
+     assert nodes.presupuesto({"_objetivo": "todo el repo", "max_tool_rounds": 3}) == 3
+-    assert nodes.presupuesto({"_objetivo": "todo el repo", "operacion": "banco"}) == \
+-        nodes.PERFILES_PRESUPUESTO["banco"]
+     # pregunta acotada: default de siempre
+     assert nodes.presupuesto({"_objetivo": "qué hace esta línea?"}) == nodes.MAX_TOOL_ROUNDS
+     # el tope amplio nunca BAJA del default si alguien lo configuró más alto
+diff -ruN a/tests/test_core_sin_modulos.py b/tests/test_core_sin_modulos.py
+--- a/tests/test_core_sin_modulos.py	2026-10-28 13:08:54.267107044 +0000
++++ b/tests/test_core_sin_modulos.py	2026-10-28 12:53:54.849629595 +0000
+@@ -3,6 +3,7 @@
+ "Agregar una capacidad = dejar un archivo; quitarla = borrarlo" tiene que
+ valer también para el ciclo de vida: el arranque, la compacción y la salida
+ recorren los HOOKS que declaran los módulos presentes, sin nombrarlos."""
++import os
+ import subprocess
+ import sys
+ 
+@@ -52,7 +53,10 @@
+ def test_el_chat_corre_sin_el_modulo_de_memoria(tmp_path):
+     """Sin `modules/memoria.py` el chat arranca, compacta y sale: la memoria
+     es una capacidad, no una dependencia del CORE."""
+-    env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "AGENT_ALLOWED_DIRS": str(tmp_path),
++    # se HEREDA el entorno del test (paquetes del padre, user site incluido, y
++    # el aislamiento de conftest); armarlo desde cero con HOME=tmp le tapaba
++    # ~/.local al hijo (medido en la máquina del operador, ca31ab0)
++    env = {**os.environ, "AGENT_ALLOWED_DIRS": str(tmp_path),
+            "USE_LAYA_ROUTER": "0", "CHAT_STREAM": "0", "PREFETCH": "0", "CITAS_VERIFICAR": "0",
+            "SKILLS": "0", "COMPACTION_CHARS": "3000", "TRACE": "0", "THREAD_PERSIST": "0",
+            "PREGUNTAS_LOG": "0", "LAYA_LOG_DECISIONES": "0"}
+diff -ruN a/tests/test_delegar.py b/tests/test_delegar.py
+--- a/tests/test_delegar.py	2026-10-28 13:08:54.271107180 +0000
++++ b/tests/test_delegar.py	2026-10-28 13:00:51.050727975 +0000
+@@ -10,7 +10,6 @@
+ import time
+ from pathlib import Path
+ 
+-from banco.banco import leer_decisiones
+ from delegar import (
+     LINEA_RESUME,
+     conducir,
+@@ -19,6 +18,7 @@
+     thread_reciente,
+ )
+ from utils.aprobaciones import Pedido, por_scope
++from utils.conductor import leer_decisiones
+ 
+ # Pedidos REALES, como DATO: lo que coding/escritura le pasan a pedir_aprobacion.
+ # Desde la auditoría 2026-10-26 el conductor ya no lee prompts de la pantalla:
+@@ -51,13 +51,13 @@
+ 
+ 
+ def test_env_delegar_no_marca_banco_y_aisla_threads(tmp_path, monkeypatch):
+-    """Sin BANCO la corrida cuenta como origen `terminal` (exp/44) — incluso
+-    si el entorno del operador lo traía contaminado. THREADS_DIR propio: el
+-    checkpoint vive junto al transcript y el resume no adivina."""
+-    monkeypatch.setenv("BANCO", "1")
++    """La corrida escribe en los logs de PRODUCCIÓN (sus pares de routing son
++    orgánicos, exp/44) — incluso si el entorno heredado traía los del banco.
++    La etiqueta de riesgo sale `scope` sola (la decide HITL_SCOPE, X93).
++    THREADS_DIR propio: el checkpoint vive junto al transcript."""
++    monkeypatch.setenv("LAYA_LOG_ARCHIVO", "salidas/banco/routing.jsonl")
+     env = env_delegar(tmp_path / "threads", {"MAX_TOOL_ROUNDS": "3"})
+-    assert "BANCO" not in env
+-    assert env["DELEGADO"] == "1"  # exp/101: la etiqueta de riesgo no cuenta como humana
++    assert not set(env) & {"PREGUNTAS_ARCHIVO", "LAYA_LOG_ARCHIVO", "RIESGO_ARCHIVO"}
+     assert env["THREADS_DIR"] == str(tmp_path / "threads")
+     assert env["TERM"] == "dumb"
+     assert env["MAX_TOOL_ROUNDS"] == "3"
+@@ -229,7 +229,7 @@
+     assert [f["ok"] for f in leer_decisiones(run / "hitl.jsonl")] == [True]
+     assert (run / "resumen.md").read_text(encoding="utf-8").find("estado: ok") >= 0
+     assert (run / "transcript.log").exists()
+-    assert "BANCO" not in chats[0].env  # el env del chat real llega limpio
++    assert "LAYA_LOG_ARCHIVO" not in chats[0].env  # logs de producción
+ 
+ 
+ def test_conducir_muerto_resume_y_completa(tmp_path):
+diff -ruN a/tests/test_fable_judge.py b/tests/test_fable_judge.py
+--- a/tests/test_fable_judge.py	2026-10-28 13:08:54.263106908 +0000
++++ b/tests/test_fable_judge.py	2026-10-28 12:59:02.950984536 +0000
+@@ -618,18 +618,19 @@
+ 
+ 
+ def test_la_answer_sheet_nunca_es_evidencia(tmp_path):
+-    """El GROUND-TRUTH del banco no entra ni al diff ni a las fuentes: una
+-    corrida sobre un directorio de escenario no puede alimentarse la
+-    respuesta (misma regla que copiar_sin_ground_truth del banco)."""
++    """Lo que el llamador declara en `ignorar` no entra ni al diff ni a las
++    fuentes. El juez no conoce la answer sheet del banco (X93): quien corre
++    sobre un directorio de escenario la nombra (`--ignorar GROUND-TRUTH.md`)."""
+     trabajo = tmp_path / "trabajo"
+     trabajo.mkdir()
+     (trabajo / "landing.md").write_text("copy")
+     (trabajo / "GROUND-TRUTH.md").write_text("la respuesta es 42")
+ 
+-    archivos = fable_judge._archivos_bajo(trabajo)
++    archivos = fable_judge._archivos_bajo(trabajo, ignorar=("GROUND-TRUTH.md",))
+     assert "landing.md" in archivos and "GROUND-TRUTH.md" not in archivos
+-    assert "42" not in fable_judge.contenido_de(trabajo)
+-
++    assert "42" not in fable_judge.contenido_de(trabajo, ignorar=("GROUND-TRUTH.md",))
++    # sin declararlo, es un archivo más: el juez no tiene casos especiales
++    assert "GROUND-TRUTH.md" in fable_judge._archivos_bajo(trabajo)
+ 
+ # ── fixes de la auditoría del dogfood (exp/87) ──────────────────────────
+ 
+@@ -678,13 +679,15 @@
+ 
+ 
+ def test_el_filtro_de_answer_sheet_ignora_capitalizacion(tmp_path):
+-    """F3 (dogfood): ground-truth.md en minúscula también es la answer sheet."""
++    """F3 (dogfood): el nombre declarado se compara sin mayúsculas —
++    ground-truth.md también cae con `ignorar=("GROUND-TRUTH.md",)`."""
+     trabajo = tmp_path
+     (trabajo / "landing.md").write_text("copy\n")
+     (trabajo / "ground-truth.md").write_text("la respuesta es 42\n")
++    ignorar = ("GROUND-TRUTH.md",)
+ 
+-    assert "ground-truth.md" not in fable_judge._archivos_bajo(trabajo)
+-    assert "42" not in fable_judge.contenido_de(trabajo)
++    assert "ground-truth.md" not in fable_judge._archivos_bajo(trabajo, ignorar)
++    assert "42" not in fable_judge.contenido_de(trabajo, ignorar=ignorar)
+ 
+ 
+ def test_el_arbol_no_sigue_symlinks(tmp_path):
+diff -ruN a/tests/test_riesgo.py b/tests/test_riesgo.py
+--- a/tests/test_riesgo.py	2026-10-28 13:08:54.267107044 +0000
++++ b/tests/test_riesgo.py	2026-10-28 13:00:51.050727975 +0000
+@@ -128,66 +128,64 @@
+ 
+ 
+ def test_registrar_marca_el_origen_de_la_decision(tmp_path, monkeypatch):
+-    """exp/44: sin procedencia no se puede distinguir banco sintético de humano."""
++    """exp/44: la procedencia del canal humano (terminal / web). Lo sintético
++    no se marca acá: el banco escribe sus logs aparte (X93)."""
+     import json
+ 
+     from utils.riesgo import registrar
+ 
+     ruta = tmp_path / "riesgo.jsonl"
+     monkeypatch.setenv("RIESGO_ARCHIVO", str(ruta))
+-    monkeypatch.delenv("BANCO", raising=False)
+     monkeypatch.delenv("HITL_WEB", raising=False)
+     registrar("ls", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
+-    monkeypatch.setenv("BANCO", "1")
+-    registrar("ls", "pedido", {"modifica_estado": ["no", 0.9]}, False, ruta=ruta)
+-    monkeypatch.setenv("BANCO", "0")
+     monkeypatch.setenv("HITL_WEB", "1")
+     registrar("ls", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
+     origenes = [json.loads(linea)["origen"] for linea in ruta.read_text(encoding="utf-8").splitlines()]
+-    assert origenes == ["terminal", "banco", "web"]
++    assert origenes == ["terminal", "web"]
+ 
+ 
+-# exp/101 — la etiqueta de una corrida delegada no es juicio humano
++# exp/101 — la etiqueta que decide un scope no es juicio humano
+ 
+ def test_la_etiqueta_delegada_no_cuenta_como_humana(tmp_path, monkeypatch):
+-    """En una corrida delegada el s/n lo decide el scope del conductor: la
+-    ETIQUETA de riesgo es `delegado` (excluida del fine-tune, como el banco),
+-    pero el `origen()` del PAR de routing sigue `terminal` — la flywheel no
+-    pierde las delegadas (contrato clavado de exp/99)."""
++    """Con HITL_SCOPE el s/n lo decide el archivo de scope (conductor o
++    banco): la ETIQUETA de riesgo es `scope` (excluida del fine-tune), por el
++    MECANISMO que decidió y no por una bandera de quién corre. El `origen()`
++    del PAR de routing sigue `terminal` — la flywheel no pierde las delegadas
++    (contrato de exp/99)."""
+     import json
+ 
+     from utils.riesgo import origen, origen_etiqueta, registrar
+ 
+     ruta = tmp_path / "riesgo.jsonl"
+-    monkeypatch.delenv("BANCO", raising=False)
+     monkeypatch.delenv("HITL_WEB", raising=False)
+-    monkeypatch.setenv("DELEGADO", "1")
+-    assert origen_etiqueta() == "delegado"
++    monkeypatch.setenv("HITL_SCOPE", str(tmp_path / "scope.json"))
++    assert origen_etiqueta() == "scope"
+     assert origen() == "terminal"  # el par de routing NO cambia
+     registrar("du -sh salidas", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
+-    monkeypatch.setenv("DELEGADO", "0")
++    monkeypatch.delenv("HITL_SCOPE")
+     assert origen_etiqueta() == "terminal"
+     registrar("du -sh salidas", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
+     origenes = [json.loads(linea)["origen"] for linea
+                 in ruta.read_text(encoding="utf-8").splitlines()]
+-    assert origenes == ["delegado", "terminal"]
++    assert origenes == ["scope", "terminal"]
+ 
+ 
+ def test_estado_riesgo_cuenta_las_delegadas_aparte():
+-    """El probe de readiness: `delegado` queda fuera de las orgánicas y tiene
+-    su propia fila de no-cuentan (igual que banco)."""
++    """El probe de readiness: lo aprobado por scope queda fuera de las
++    orgánicas con su propia fila, en los DOS vocabularios (`delegado` de los
++    logs de exp/101, `scope` desde X93)."""
+     from banco.probes.estado_riesgo import estado
+ 
+     filas = [
+         {"origen": "terminal", "aprobado": True},
+         {"origen": "delegado", "aprobado": True},
+-        {"origen": "delegado", "aprobado": False},
++        {"origen": "scope", "aprobado": False},
+         {"origen": "banco", "aprobado": True},
+     ]
+     e = estado(filas)
+     assert e["organicas"] == 1
+-    assert e["rechazos"] == 0  # el rechazo delegado no es rechazo humano
+-    assert e["delegado"] == 2
++    assert e["rechazos"] == 0  # el rechazo por scope no es rechazo humano
++    assert e["scope"] == 2
+     assert e["banco"] == 1
+ 
+ 
+diff -ruN a/utils/conductor.py b/utils/conductor.py
+--- a/utils/conductor.py	1970-01-01 00:00:00.000000000 +0000
++++ b/utils/conductor.py	2026-10-28 13:00:51.046727836 +0000
+@@ -0,0 +1,120 @@
++"""El driver del chat real bajo PTY, compartido por quien lo conduce.
++
++Lo usan el banco (escenarios guionizados, `banco/banco.py`) y el conductor de
++tareas delegadas (`delegar.py`). Vivía en `banco/banco.py` y `delegar.py` lo
++importaba de ahí: el producto dependía del laboratorio (X93). Acá solo está
++lo mecánico — lanzar, leer, escribir, el scope HITL como archivo y su
++registro de decisiones —; el entorno y la política los pone cada conductor.
++"""
++import contextlib
++import json
++import os
++import pty
++import re
++import select
++import signal
++import sys
++import termios
++import time
++from pathlib import Path
++
++RAIZ = Path(__file__).resolve().parent.parent
++ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
++RE_TU = re.compile(r"Tú:\s*$")
++
++
++def escribir_scope(ruta, rutas=None, comandos=None, maximo=12, eventos=None, aprobar=True):
++    """El scope HITL como archivo (HITL_SCOPE): el chat decide cada Pedido
++    contra él en SU proceso (utils.aprobaciones.por_scope) y deja la decisión
++    en `eventos`. Antes el driver releía la pantalla y reconstruía el pedido
++    con regex: el conductor aprobaba `git push` (auditoría 2026-10-26, S1/S2)."""
++    ruta = Path(ruta)
++    ruta.write_text(json.dumps({"rutas": rutas, "comandos": comandos, "max": maximo,
++                                "eventos": str(eventos) if eventos else None,
++                                "aprobar": aprobar}, ensure_ascii=False), encoding="utf-8")
++    return ruta
++
++
++
++def leer_decisiones(ruta):
++    """Las decisiones que dejó por_scope (una por pedido), o [] si no hubo."""
++    ruta = Path(ruta)
++    if not ruta.exists():
++        return []
++    return [json.loads(ln) for ln in ruta.read_text(encoding="utf-8").splitlines() if ln.strip()]
++
++
++
++def limpiar(texto):
++    return ANSI.sub("", texto.replace("\r\n", "\n").replace("\r", "\n"))
++
++
++
++class Chat:
++    """El proceso `main.py` bajo PTY: echo off, ISIG intacto (Ctrl+C real).
++
++    La ventana `nuevo` se TRUNCA al enviar cada línea: la detección de
++    prompt/HITL trabaja solo sobre la salida NUEVA, nunca sobre prompts
++    viejos que quedaron en el buffer (el bug del driver original: los
++    rótulos de turno quedaban desplazados una posición).
++    """
++
++    def __init__(self, env, argv=None):
++        """`env` es el entorno COMPLETO del chat: cada conductor (el banco,
++        `delegar`) arma el suyo; el driver no decide procedencia ni memoria."""
++        self.pid, self.master = pty.fork()
++        if self.pid == 0:
++            attrs = termios.tcgetattr(0)
++            attrs[3] &= ~termios.ECHO
++            termios.tcsetattr(0, termios.TCSANOW, attrs)
++            os.chdir(RAIZ)
++            os.execvpe(sys.executable, [sys.executable, *(argv or ["main.py"])],
++                       env)
++        self.nuevo = ""
++        self.raw = None
++        self.vivo = True
++
++    def abrir_log(self, destino):
++        self.raw = destino.open("a", encoding="utf-8")
++        return self.raw
++
++    def leer(self, timeout=0.3):
++        """Acorre la salida al buffer `nuevo` (y al log crudo)."""
++        fin = time.time() + timeout
++        while time.time() < fin:
++            r, _, _ = select.select([self.master], [], [], 0.1)
++            if not r:
++                continue
++            try:
++                datos = os.read(self.master, 65536)
++            except OSError:
++                self.vivo = False
++                return
++            if not datos:
++                self.vivo = False
++                return
++            texto = datos.decode("utf-8", errors="replace")
++            if self.raw:
++                self.raw.write(texto)
++                self.raw.flush()
++            self.nuevo += texto
++
++    def enviar(self, linea):
++        os.write(self.master, (linea + "\r").encode("utf-8"))
++
++    def ctrl_c(self):
++        os.write(self.master, b"\x03")
++
++    def esperar(self, patron, timeout):
++        inicio = time.time()
++        while time.time() - inicio < timeout:
++            self.leer()
++            if not self.vivo:
++                return False
++            if patron.search(limpiar(self.nuevo)):
++                return True
++        return False
++
++    def matar(self):
++        with contextlib.suppress(ProcessLookupError):
++            os.kill(self.pid, signal.SIGKILL)
+diff -ruN a/utils/fable_dominios.py b/utils/fable_dominios.py
+--- a/utils/fable_dominios.py	2026-10-28 13:08:54.295107996 +0000
++++ b/utils/fable_dominios.py	2026-10-28 12:58:20.333686658 +0000
+@@ -5,9 +5,9 @@
+ El juez de trabajo (fable_judge) lo usa para juzgar trabajo no-código con
+ la fraud table del dominio en vez de la de código.
+ 
+-Los adapters viven en banco/material/fable/dominios/*.md (portados de
+-Sahir619/fable-method @9924067, MIT), versionados como las calibraciones —
+-producto leyendo banco/ es precedente (evals.py, utils/conformal.py). La
++Los adapters viven en fable/dominios/*.md (portados de Sahir619/fable-method
++@9924067, MIT; la licencia viaja en fable/LICENSE-fable-method). Son
++contenido del PRODUCTO: hasta X93 vivían en banco/material/. La
+ validación es la del TEMPLATE upstream: las secciones vinculantes
+ (`Minimum evidence set` y `Fraud table`) tienen que estar — el mismo grep
+ que corre el CI del repo original. Un .md sin ellas se saltea con aviso
+@@ -17,7 +17,7 @@
+ import sys
+ from pathlib import Path
+ 
+-DOMINIOS_DIR = Path(__file__).resolve().parent.parent / "banco" / "material" / "fable" / "dominios"
++DOMINIOS_DIR = Path(__file__).resolve().parent.parent / "fable" / "dominios"
+ 
+ # Secciones vinculantes del TEMPLATE.md upstream: sin ambas no es un adapter
+ SECCIONES_OBLIGATORIAS = ("Minimum evidence set", "Fraud table")
+diff -ruN a/utils/laya_routing.py b/utils/laya_routing.py
+--- a/utils/laya_routing.py	2026-10-28 13:08:54.295107996 +0000
++++ b/utils/laya_routing.py	2026-10-28 13:01:11.779445800 +0000
+@@ -290,8 +290,8 @@
+ 
+     exp/43: el `id` que une esta decisión con su resultado viaja DENTRO del
+     evento (lo genera nodes.LayaRouter.post); acá no se toca. La línea lleva
+-    `origen` (`banco`/`web`/`terminal`, exp/71b): la flywheel no cuenta el
+-    tráfico sintético."""
++    `origen` (`web`/`terminal`, exp/71b); el banco escribe su log aparte
++    (`salidas/banco/`, X93), así que el sintético no llega a la flywheel."""
+     from utils.call_llm import _setting
+     from utils.riesgo import origen
+ 
+diff -ruN a/utils/riesgo.py b/utils/riesgo.py
+--- a/utils/riesgo.py	2026-10-28 13:08:54.291107860 +0000
++++ b/utils/riesgo.py	2026-10-28 13:00:51.046727836 +0000
+@@ -82,37 +82,31 @@
+ 
+ 
+ def origen():
+-    """De dónde salió la decisión HITL que es etiqueta: `banco` (tráfico
+-    sintético del banco, el driver aprueba por scope), `web` o `terminal`.
+-
+-    Necesario para exp/44: sin procedencia no se puede fine-tunear con el log
+-    (el dataset quedaría mezclando política de escenarios con juicio humano).
+-    """
+-    if _setting("BANCO", "0") == "1":
+-        return "banco"
++    """Por dónde llegó el TRÁFICO (pregunta, decisión del router): `web` o
++    `terminal`. El producto no sabe si lo miden: el banco no se distingue con
++    una bandera sino escribiendo sus logs aparte (`salidas/banco/`, X93), como
++    ya hacía con la memoria (X41). Los logs de antes de X93 traen además
++    `banco` y las sondas lo siguen excluyendo."""
+     if _setting("HITL_WEB", "0") == "1":
+         return "web"
+     return "terminal"
+ 
+ 
+ def origen_etiqueta():
+-    """La procedencia de la ETIQUETA de riesgo (exp/101) — no la del par de
+-    routing: en una corrida delegada (DELEGADO=1) el s/n lo decide el scope
+-    del conductor, no un humano, así que su etiqueta no cuenta como orgánica
+-    para el fine-tune (mismo criterio que el banco, X18). El PAR de routing
+-    de esas corridas SÍ es orgánico — su etiqueta es el uso observado de
+-    tools — y por eso `origen()` no cambia."""
+-    if _setting("DELEGADO", "0") == "1":
+-        return "delegado"
++    """Quién decidió el s/n que es la ETIQUETA de riesgo, por el MECANISMO que
++    lo decidió: con `HITL_SCOPE` lo decide el scope del archivo (banco y
++    conductor; exp/101: no es juicio humano y no entra al fine-tune) → `scope`;
++    si no, un humano en la terminal o la web → `origen()`."""
++    if _setting("HITL_SCOPE", ""):
++        return "scope"
+     return origen()
+ 
+-
+ def registrar(comando, mensaje, juicios, aprobado, ruta=None):
+     """Una línea en RIESGO_ARCHIVO (default salidas/riesgo.jsonl), gated por
+     RIESGO_LOG (default 1). Bookkeeping: nunca rompe la acción.
+ 
+     {"ts", "comando"[:200], "mensaje"[:200], "juicios": {pregunta:
+-    [respuesta, conf]}, "aprobado": bool, "origen": banco|web|terminal|delegado}"""
++    [respuesta, conf]}, "aprobado": bool, "origen": scope|web|terminal}"""
+     if _setting("RIESGO_LOG", "1") != "1":
+         return
+     try:

@@ -5,9 +5,9 @@ define qué es evidencia, quién manda y cuáles son los fraudes de UN sector.
 El juez de trabajo (fable_judge) lo usa para juzgar trabajo no-código con
 la fraud table del dominio en vez de la de código.
 
-Los adapters viven en banco/material/fable/dominios/*.md (portados de
-Sahir619/fable-method @9924067, MIT), versionados como las calibraciones —
-producto leyendo banco/ es precedente (evals.py, utils/conformal.py). La
+Los adapters viven en fable/dominios/*.md (portados de Sahir619/fable-method
+@9924067, MIT; la licencia viaja en fable/LICENSE-fable-method). Son
+contenido del PRODUCTO: hasta X93 vivían en banco/material/. La
 validación es la del TEMPLATE upstream: las secciones vinculantes
 (`Minimum evidence set` y `Fraud table`) tienen que estar — el mismo grep
 que corre el CI del repo original. Un .md sin ellas se saltea con aviso
@@ -17,7 +17,7 @@ import re
 import sys
 from pathlib import Path
 
-DOMINIOS_DIR = Path(__file__).resolve().parent.parent / "banco" / "material" / "fable" / "dominios"
+DOMINIOS_DIR = Path(__file__).resolve().parent.parent / "fable" / "dominios"
 
 # Secciones vinculantes del TEMPLATE.md upstream: sin ambas no es un adapter
 SECCIONES_OBLIGATORIAS = ("Minimum evidence set", "Fraud table")

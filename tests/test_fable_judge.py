@@ -618,18 +618,19 @@ accion: no publicar
 
 
 def test_la_answer_sheet_nunca_es_evidencia(tmp_path):
-    """El GROUND-TRUTH del banco no entra ni al diff ni a las fuentes: una
-    corrida sobre un directorio de escenario no puede alimentarse la
-    respuesta (misma regla que copiar_sin_ground_truth del banco)."""
+    """Lo que el llamador declara en `ignorar` no entra ni al diff ni a las
+    fuentes. El juez no conoce la answer sheet del banco (X93): quien corre
+    sobre un directorio de escenario la nombra (`--ignorar GROUND-TRUTH.md`)."""
     trabajo = tmp_path / "trabajo"
     trabajo.mkdir()
     (trabajo / "landing.md").write_text("copy")
     (trabajo / "GROUND-TRUTH.md").write_text("la respuesta es 42")
 
-    archivos = fable_judge._archivos_bajo(trabajo)
+    archivos = fable_judge._archivos_bajo(trabajo, ignorar=("GROUND-TRUTH.md",))
     assert "landing.md" in archivos and "GROUND-TRUTH.md" not in archivos
-    assert "42" not in fable_judge.contenido_de(trabajo)
-
+    assert "42" not in fable_judge.contenido_de(trabajo, ignorar=("GROUND-TRUTH.md",))
+    # sin declararlo, es un archivo más: el juez no tiene casos especiales
+    assert "GROUND-TRUTH.md" in fable_judge._archivos_bajo(trabajo)
 
 # ── fixes de la auditoría del dogfood (exp/87) ──────────────────────────
 
@@ -678,13 +679,15 @@ def test_un_script_del_trabajo_existente_se_permite(tmp_path):
 
 
 def test_el_filtro_de_answer_sheet_ignora_capitalizacion(tmp_path):
-    """F3 (dogfood): ground-truth.md en minúscula también es la answer sheet."""
+    """F3 (dogfood): el nombre declarado se compara sin mayúsculas —
+    ground-truth.md también cae con `ignorar=("GROUND-TRUTH.md",)`."""
     trabajo = tmp_path
     (trabajo / "landing.md").write_text("copy\n")
     (trabajo / "ground-truth.md").write_text("la respuesta es 42\n")
+    ignorar = ("GROUND-TRUTH.md",)
 
-    assert "ground-truth.md" not in fable_judge._archivos_bajo(trabajo)
-    assert "42" not in fable_judge.contenido_de(trabajo)
+    assert "ground-truth.md" not in fable_judge._archivos_bajo(trabajo, ignorar)
+    assert "42" not in fable_judge.contenido_de(trabajo, ignorar=ignorar)
 
 
 def test_el_arbol_no_sigue_symlinks(tmp_path):

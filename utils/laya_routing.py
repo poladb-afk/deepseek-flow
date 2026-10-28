@@ -290,8 +290,8 @@ def registrar_decision(evento, pregunta=None, ruta=None):
 
     exp/43: el `id` que une esta decisión con su resultado viaja DENTRO del
     evento (lo genera nodes.LayaRouter.post); acá no se toca. La línea lleva
-    `origen` (`banco`/`web`/`terminal`, exp/71b): la flywheel no cuenta el
-    tráfico sintético."""
+    `origen` (`web`/`terminal`, exp/71b); el banco escribe su log aparte
+    (`salidas/banco/`, X93), así que el sintético no llega a la flywheel."""
     from utils.call_llm import _setting
     from utils.riesgo import origen
 

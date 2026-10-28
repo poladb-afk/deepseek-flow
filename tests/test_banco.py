@@ -9,8 +9,9 @@ es el que lo avisa)."""
 import re
 from pathlib import Path
 
-from banco.banco import MARCADORES, cargar_escenario, contar_marcadores, escribir_scope, leer_decisiones, limpiar
+from banco.banco import MARCADORES, cargar_escenario, contar_marcadores
 from utils.aprobaciones import COMANDOS_PROHIBIDOS, RUTAS_PROHIBIDAS, Pedido, dentro_de_scope, por_scope
+from utils.conductor import escribir_scope, leer_decisiones, limpiar
 
 ESCENARIOS = Path(__file__).resolve().parent.parent / "banco" / "escenarios"
 
@@ -211,14 +212,17 @@ def test_max_hitl_por_turno_se_valida_y_llega_al_dict(tmp_path):
 def test_env_del_chat_aisla_la_memoria_y_marca_procedencia(monkeypatch):
     """exp/71: una corrida de banco no puede tocar la biblioteca curada del
     usuario (antes, con MEMORIA=0, el respaldo de compacción igual escribía
-    `memoria/`). La memoria del banco va a `salidas/banco/memoria` y BANCO=1
-    marca las etiquetas como sintéticas."""
+    `memoria/`). La memoria del banco va a `salidas/banco/memoria` y sus
+    logs (preguntas, routing, riesgo) a `salidas/banco/`: el tráfico
+    sintético no cae en los de producción (X93)."""
     from banco.banco import RAIZ, _env_del_chat
 
     monkeypatch.delenv("MEMORIA", raising=False)
     monkeypatch.delenv("MEMORIA_DIR", raising=False)
     env = _env_del_chat({"MAX_TOOL_ROUNDS": "3"})
-    assert env["BANCO"] == "1"
+    assert env["PREGUNTAS_ARCHIVO"] == str(RAIZ / "salidas" / "banco" / "preguntas.jsonl")
+    assert env["LAYA_LOG_ARCHIVO"] == str(RAIZ / "salidas" / "banco" / "routing.jsonl")
+    assert env["RIESGO_ARCHIVO"] == str(RAIZ / "salidas" / "banco" / "riesgo.jsonl")
     assert env["MEMORIA"] == "0"
     assert env["MAX_TOOL_ROUNDS"] == "3"  # el env del escenario sigue mandando
     assert env["MEMORIA_DIR"] == str(RAIZ / "salidas" / "banco" / "memoria")

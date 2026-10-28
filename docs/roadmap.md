@@ -6,11 +6,11 @@
 
 Fase 0 cerrada (X91): la deuda quedó contada en siete ratchets. Siguen las
 fases 1–5 de [elegancia.md](elegancia.md), cada una con su gate de salida.
-Fase 1a cerrada (X92): `HOOKS` de ciclo de vida, `core_importa_modulos` 3 → 0.
-Próxima: **fase 1b** — el producto deja de leer el banco (`producto_conoce_lab`
-10 → 0): perfiles de presupuesto muertos fuera, driver PTY a `utils/`,
-procedencia por mecanismo (`ORIGEN` + `scope`) con las sondas aceptando los
-dos vocabularios, adapters de fable fuera de `banco/`, juez sin answer sheet.
+Fase 1 cerrada: 1a (X92, `core_importa_modulos` 3 → 0) y 1b (X93,
+`producto_conoce_lab` 10 → 0). Próxima: **fase 2** — el chat como
+`kernel.loop` con las políticas como nodos y el esquema de tools fijo con
+cierre por arista. Cambia conducta (mínimo): antes de empezarla, una corrida
+de fable s17–s20 como línea de base (la pide el gate de salida).
 
 ## Refactor del harness (auditoría 2026-10-26) — la secuencia vigente
 

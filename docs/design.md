@@ -105,7 +105,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | `_objetivo` / `tokens_por_pregunta` | De la SESIÓN, no de la pregunta: la tarea vigente (un "seguí" no la pisa) y el costo cerrado de cada pregunta |
 | `compacciones` / `_compaccion_huella` | Compactaciones aplicadas al historial y huella del historial ya compactado (evita re-compactar la misma ronda) |
 | `_respaldo_huella` / `_respaldo_ruta` | Huella de la última zona fría respaldada en `memoria/` y ruta de ese respaldo: si la siguiente compacción descarta la MISMA zona fría no se reescribe (exp/70; el marcador A17 sigue nombrando la ruta vigente) |
-| `operacion` / `max_tool_rounds` | Perfil de presupuesto declarado por el invocador y override explícito del techo; los lee `presupuesto()` (hoy el chat no los siembra) |
+| `max_tool_rounds` | Override explícito del techo; lo lee `presupuesto()` (los perfiles por `operacion` se borraron en X93: nadie los sembraba) |
 
 ## Nodos
 
@@ -152,7 +152,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Límite | Qué | Dónde |
 |---|---|---|
 | Contención | Ninguna ruta sale de `AGENT_ALLOWED_DIRS` (resueltas con `Path.resolve`) | `fs_tools._resolve` |
-| Rondas | `presupuesto(shared)` por pregunta (override > perfil de `operacion` > `MAX_TOOL_ROUNDS`); al llegar, `AgentStep` retira las tools y el modelo debe responder. Se reinicia con cada pregunta nueva del usuario (el comando `/aprobaciones` incluido, que no agrega mensaje) | `nodes.presupuesto`, `AgentStep.prep` |
+| Rondas | `presupuesto(shared)` por pregunta (override > alcance amplio > `MAX_TOOL_ROUNDS`); al llegar, `AgentStep` retira las tools y el modelo debe responder. Se reinicia con cada pregunta nueva del usuario (el comando `/aprobaciones` incluido, que no agrega mensaje) | `nodes.presupuesto`, `AgentStep.prep` |
 | No-progreso | Repeticiones idénticas de la ronda de tools (`fingerprint` de nombre+argumentos) a `UMBRAL_SIN_PROGRESO`: se retiran las tools sin esperar el techo, con el evento `corte_no_progreso` en la traza | `nodes.fingerprint`, `ExecuteTools.post`, `AgentStep.prep` |
 | Contexto | `READ_MAX_CHARS` por lectura, listados truncados | `fs_tools` |
 | Reglas duras del router | recencia (`regla_temporal`, exp/46) e imperativos de capacidad (`regla_imperativo_capacidad`, exp/54) mandan a herramientas ANTES de Laya; en shadow no cortan | `utils/laya_routing.py` |
@@ -382,7 +382,7 @@ evidence set y el orden de autoridad del sector reemplazan los de código
 evidencia está en los archivos y no en un diff; el vocabulario del `tipo`
 de fraude del contrato es el de las filas de la tabla del adapter). Los 8
 adapters + TEMPLATE de fable-method viven como datos versionados con
-atribución MIT en `banco/material/fable/dominios/` y los carga
+atribución MIT en `fable/dominios/` (contenido del producto, X93) y los carga
 [utils/fable_dominios.py](../utils/fable_dominios.py) (puro; un .md sin las
 secciones vinculantes se saltea con aviso — mismo grep que el CI del repo
 original). Medición: exp/82 sobre el fixture s8 (6 fraudes de copy contra
@@ -855,9 +855,10 @@ biblioteca no hay `memory_search` que lo recupere, exp/71).
 [delegar.py](../delegar.py) · salidas en `salidas/delegar/<fecha-hora>/`
 
 No es un flujo de PocketFlow: es un **driver** que lanza el chat real bajo
-PTY (reusa `banco.banco.Chat`) y le contesta los HITL. El banco corre
-escenarios guionizados con `BANCO=1` (tráfico sintético); el conductor corre
-el pedido real de UNA tarea del operador **sin** `BANCO` — las decisiones
+PTY (`utils.conductor.Chat`, el mismo que usa el banco) y le contesta los
+HITL. El banco corre escenarios guionizados y escribe sus logs en
+`salidas/banco/` (tráfico sintético, X93); el conductor corre el pedido real
+de UNA tarea del operador con los logs de **producción** — las decisiones
 cuentan como origen `terminal` y alimentan la flywheel del router (X42). Con
 `--env LAYA_MODO=shadow` cada pregunta delegada suma además su PAR
 (decisión+resultado: la receta de sesión shadow de exp/95 — en enforce el
@@ -885,7 +886,8 @@ conductor (proceso aparte) con el scope que el operador firmó en el
 lanzamiento — el chat dispara, no aprueba. La denylist dura corre siempre.
 Y la procedencia se parte en dos (exp/101): el PAR de routing de una
 delegada es orgánico (`origen` sigue `terminal`, alimenta la flywheel), pero
-su ETIQUETA de riesgo es `delegado` (`origen_etiqueta` con `DELEGADO=1`) —
+su ETIQUETA de riesgo es `scope` (`origen_etiqueta`: la decidió `HITL_SCOPE`;
+`delegado` en los logs anteriores a X93) —
 el s/n lo decidió el scope, no un humano, y no entra al fine-tune.
 
 Leyes del conductor (spec [exp99](../banco/specs/exp99_delegar.md) y
@@ -964,9 +966,10 @@ carga el checkpoint real), y manda `RIESGO_ARCHIVO`, `PREGUNTAS_ARCHIVO`,
 que prueban esos caminos fijan su propia ruta. El banco tampoco toca la
 biblioteca: `banco.banco._env_del_chat` fuerza
 `MEMORIA_DIR=salidas/banco/memoria` (solo el `env:` del escenario puede
-pisarlo) y `BANCO=1` marca las etiquetas HITL como sintéticas. Desde exp/71b
+pisarlo) y manda sus logs de preguntas, routing y riesgo a `salidas/banco/`:
+el sintético no se marca, no llega (X93; antes `BANCO=1`). Desde exp/71b
 las decisiones del router y las preguntas llevan `origen`
-(`banco`/`web`/`terminal`) y la flywheel solo cuenta pares con procedencia
+(`web`/`terminal`; `banco` en los logs anteriores a X93) y la flywheel solo cuenta pares con procedencia
 auditable: el log de routing previo no tiene el campo y queda fuera del conteo
 (80 de sus 152 pares eran corridas del banco). El log del juez de riesgo
 previo a exp/71 quedó en cuarentena (`salidas/riesgo_pre_exp71_2026-10-21.jsonl`)

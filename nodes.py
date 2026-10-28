@@ -41,8 +41,8 @@ def registrar_pregunta(texto, ruta=None):
     fallo —disco, permisos— se traga para no romper el chat. PREGUNTAS_LOG=0
     lo apaga y PREGUNTAS_ARCHIVO elige el destino (default
     salidas/preguntas.jsonl, que está en .gitignore). Cada línea lleva
-    `origen` (banco/web/terminal, exp/71b): sin procedencia el tráfico del
-    banco es indistinguible del humano."""
+    `origen` (web/terminal, exp/71b); el banco escribe este log aparte
+    (`salidas/banco/`, X93) y no se mezcla con el humano."""
     if _setting("PREGUNTAS_LOG", "1") != "1":
         return
     from utils.riesgo import origen
@@ -72,21 +72,6 @@ def nota_presupuesto(ronda, maximo):
     return None
 
 
-# Techo adaptativo de rondas por operación (exp/13, opción C del consejo).
-# MAX_TOOL_ROUNDS sigue siendo el DEFAULT y el símbolo parcheable por tests:
-# presupuesto() lo lee del global VIVO de este módulo (lectura normal de
-# nombre, no un default de argumento ni una captura al import), así
-# patch('nodes.MAX_TOOL_ROUNDS') (o cualquier asignación al global) sí tiene
-# efecto.
-# Los PERFILES y UMBRAL_SIN_PROGRESO, en cambio, se leen con _setting al
-# importar: cambiar el .env con el proceso vivo NO los mueve (hay que
-# reiniciar).
-PERFILES_PRESUPUESTO = {
-    "consulta":   _entero("MAX_TOOL_ROUNDS_CONSULTA", 8),
-    "banco":      _entero("MAX_TOOL_ROUNDS_BANCO", 25),
-    "aplicacion": _entero("MAX_TOOL_ROUNDS_APLICACION", 40),
-}
-
 # repeticiones idénticas de una ronda de tools antes de cortar por inanición
 UMBRAL_SIN_PROGRESO = _entero("UMBRAL_SIN_PROGRESO", 3)
 
@@ -96,8 +81,8 @@ UMBRAL_SIN_PROGRESO = _entero("UMBRAL_SIN_PROGRESO", 3)
 # amplio agota 8 y queda corto). Por eso la regla solo puede SUBIR.
 MAX_TOOL_ROUNDS_AMPLIO = _entero("MAX_TOOL_ROUNDS_AMPLIO", 16)
 AMPLIO_ARCHIVOS = 10  # un directorio mencionado con esta cantidad ya es amplio
-# 300 calibrado por el contrafáctico de exp/86 sobre la masa VISIBLE al
-# agente (sin GROUND-TRUTH): las familias que agotaban el cap quedan arriba
+# 300 calibrado por el contrafáctico de exp/86 sobre la masa que el agente
+# ve (el banco copia los fixtures sin la answer sheet): las familias que agotaban el cap quedan arriba
 # con margen (s18 347 · s19 587 · s20 930) y las cómodas muy abajo (máx 111).
 AMPLIO_LINEAS = 300
 # "todos los" exige sustantivo de amplitud (dogfood exp/87: "todos los
@@ -116,15 +101,14 @@ _EXTS_ALCANCE = {".py", ".md", ".json", ".csv", ".js", ".yaml", ".jsonl", ".txt"
 
 
 def _lineas_de(ruta):
-    """Masa VISIBLE al agente: la answer sheet del banco (GROUND-TRUTH.md)
-    no cuenta — misma regla que el juez de trabajo de fable (exp/82). Corta al
-    cruzar los umbrales: la respuesta es amplio sí/no, no el conteo exacto, y
+    """La masa de los archivos de código mencionados. Corta al cruzar los
+    umbrales: la respuesta es amplio sí/no, no el conteo exacto, y
     un directorio enorme se recorría entero en CADA ronda (auditoría F3)."""
     total, archivos = 0, 0
     for f in ruta.rglob("*"):
         if archivos >= AMPLIO_ARCHIVOS or total >= AMPLIO_LINEAS:
             break
-        if f.is_file() and f.suffix in _EXTS_ALCANCE and f.name != "GROUND-TRUTH.md":
+        if f.is_file() and f.suffix in _EXTS_ALCANCE:
             archivos += 1
             try:
                 total += len(f.read_text(errors="replace").splitlines())
@@ -197,20 +181,13 @@ def turno(shared):
 
 
 def presupuesto(shared):
-    """Techo de rondas de tools para ESTA pregunta. Si el invocador declaró
-    shared['operacion'] con perfil, se usa; si no, un pedido de alcance
-    amplio sube el tope a MAX_TOOL_ROUNDS_AMPLIO (exp/86, determinista);
-    si no, MAX_TOOL_ROUNDS. El
-    default se lee EN RUNTIME del global del módulo (nodes), de modo que
-    patch('nodes.MAX_TOOL_ROUNDS') —o un .env distinto— sí se respeta; un
-    perfil declarado gana sobre el default, pero nunca sobre un override
-    explícito que el llamador ponga en shared['max_tool_rounds']."""
+    """Techo de rondas de tools para ESTA pregunta: el override explícito de
+    shared['max_tool_rounds'] si lo hay; si no, un pedido de alcance amplio
+    sube a MAX_TOOL_ROUNDS_AMPLIO (exp/86); si no, MAX_TOOL_ROUNDS, leído EN
+    RUNTIME del global del módulo (patch('nodes.MAX_TOOL_ROUNDS') se respeta)."""
     override = shared.get("max_tool_rounds")
     if override is not None:
         return int(override)
-    perfil = PERFILES_PRESUPUESTO.get(shared.get("operacion", ""))
-    if perfil is not None:
-        return perfil
     # _objetivo es la tarea VIGENTE (GetQuestion; una continuación "seguí"
     # no la pisa): el presupuesto amplio sobrevive a la continuación, que es
     # justo cuando más rondas hacen falta.

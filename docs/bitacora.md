@@ -5122,3 +5122,47 @@ Ratchets: `core_importa_modulos` **3 → 0**, `imports_perezosos` 137 → 126
 importa arriba), `excepts_amplios` 34 → 33 (`catalogo` atrapa `OSError`, no
 `Exception`), `tests_definidos` 1109 → 1111. `./calidad.sh` verde, 1107
 passed.
+
+---
+
+## Fase 1b de elegancia — el producto deja de saber que lo miden (2026-10-28, X93)
+
+`producto_conoce_lab` marcaba 10. Cada caso tenía su raíz y ninguno se tapó
+con una bandera nueva:
+
+| Caso | Raíz | Cambio |
+|---|---|---|
+| `nodes.PERFILES_PRESUPUESTO` (perfil `banco`) | código muerto: nadie escribe `shared["operacion"]` | borrado con `MAX_TOOL_ROUNDS_{CONSULTA,BANCO,APLICACION}` |
+| `delegar.py` importaba `banco.banco` | el driver PTY vivía en el laboratorio | `utils/conductor.py` (`Chat`, `limpiar`, `escribir_scope`, `leer_decisiones`); `Chat(env)` recibe el entorno completo, cada conductor arma el suyo |
+| `riesgo.origen` leía `BANCO` | el producto marcaba el tráfico sintético | el banco manda sus logs (preguntas, routing, riesgo) a `salidas/banco/`: el sintético no se marca, no llega a producción — el mismo mecanismo que ya aislaba la memoria (X41) |
+| `riesgo.origen_etiqueta` leía `DELEGADO` | una bandera de QUIÉN corre | se deduce del MECANISMO: si decidió `HITL_SCOPE`, la etiqueta es `scope` |
+| `fable_dominios.DOMINIOS_DIR` en `banco/material/` | contenido del producto guardado en el lab | `fable/dominios/` + `fable/LICENSE-fable-method` |
+| `fable_judge._es_ground_truth` | el juez conocía la answer sheet | `ignorar=` / `--ignorar NOMBRE` genérico (sin mayúsculas, como pidió exp/87) |
+| `nodes._lineas_de` excluía `GROUND-TRUTH.md` | ídem | borrada: el banco copia los fixtures sin la answer sheet (`copiar_sin_ground_truth`, verificado en `bench_fable` y `h3b_swarm`; ningún escenario YAML apunta a un fixture de fable) |
+
+**Desvío del plan, declarado**: el plan proponía un setting `ORIGEN` que el
+banco pusiera en `banco`. Al escribirlo, era la misma bandera con otro nombre
+(y el ratchet de settings lo marcó como nuevo). La raíz es otra: el producto
+no tiene por qué distinguir sintético de humano si el sintético escribe en
+otro lado. `ORIGEN` no existe.
+
+**Compatibilidad de logs** (decisión del operador, opción a): las sondas
+aceptan los dos vocabularios — `estado_riesgo` cuenta `scope` y `delegado`
+juntos como "por scope" (no orgánicas), y `banco` sigue excluido de las
+orgánicas en los logs viejos. `etiquetar_ambiental` y `estado_flywheel` ya
+filtraban por `web`/`terminal` y no cambian.
+
+**Conducta**: el chat interactivo no cambia (`test_caracterizacion_chat.py`
+intacto). Cambian dos procedencias, a propósito: una corrida de banco ya no
+escribe en `salidas/{preguntas,routing,riesgo}.jsonl` sino en
+`salidas/banco/`, y la etiqueta de riesgo de una delegada sale `scope` en vez
+de `delegado`. Los tests que fijaban `BANCO`/`DELEGADO` ahora fijan el
+mecanismo, con los mismos nombres (inventario intacto).
+
+**Portabilidad** (alineado con `ca31ab0`): el candado de X92 hereda el
+entorno del test en vez de armarlo con `HOME=tmp` — el operador midió que
+eso le tapaba `~/.local` al proceso hijo.
+
+Ratchets: `producto_conoce_lab` **10 → 0**, `settings_leidos` 89 → 84
+(`BANCO`, `DELEGADO` y los tres perfiles fuera; nada entra). `./calidad.sh`
+verde, 1107 passed (en este entorno; 20 skipped por git/Laya/red).

@@ -128,66 +128,64 @@ def test_el_contrato_de_riesgo_queda_congelado_sha1():
 
 
 def test_registrar_marca_el_origen_de_la_decision(tmp_path, monkeypatch):
-    """exp/44: sin procedencia no se puede distinguir banco sintético de humano."""
+    """exp/44: la procedencia del canal humano (terminal / web). Lo sintético
+    no se marca acá: el banco escribe sus logs aparte (X93)."""
     import json
 
     from utils.riesgo import registrar
 
     ruta = tmp_path / "riesgo.jsonl"
     monkeypatch.setenv("RIESGO_ARCHIVO", str(ruta))
-    monkeypatch.delenv("BANCO", raising=False)
     monkeypatch.delenv("HITL_WEB", raising=False)
     registrar("ls", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
-    monkeypatch.setenv("BANCO", "1")
-    registrar("ls", "pedido", {"modifica_estado": ["no", 0.9]}, False, ruta=ruta)
-    monkeypatch.setenv("BANCO", "0")
     monkeypatch.setenv("HITL_WEB", "1")
     registrar("ls", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
     origenes = [json.loads(linea)["origen"] for linea in ruta.read_text(encoding="utf-8").splitlines()]
-    assert origenes == ["terminal", "banco", "web"]
+    assert origenes == ["terminal", "web"]
 
 
-# exp/101 — la etiqueta de una corrida delegada no es juicio humano
+# exp/101 — la etiqueta que decide un scope no es juicio humano
 
 def test_la_etiqueta_delegada_no_cuenta_como_humana(tmp_path, monkeypatch):
-    """En una corrida delegada el s/n lo decide el scope del conductor: la
-    ETIQUETA de riesgo es `delegado` (excluida del fine-tune, como el banco),
-    pero el `origen()` del PAR de routing sigue `terminal` — la flywheel no
-    pierde las delegadas (contrato clavado de exp/99)."""
+    """Con HITL_SCOPE el s/n lo decide el archivo de scope (conductor o
+    banco): la ETIQUETA de riesgo es `scope` (excluida del fine-tune), por el
+    MECANISMO que decidió y no por una bandera de quién corre. El `origen()`
+    del PAR de routing sigue `terminal` — la flywheel no pierde las delegadas
+    (contrato de exp/99)."""
     import json
 
     from utils.riesgo import origen, origen_etiqueta, registrar
 
     ruta = tmp_path / "riesgo.jsonl"
-    monkeypatch.delenv("BANCO", raising=False)
     monkeypatch.delenv("HITL_WEB", raising=False)
-    monkeypatch.setenv("DELEGADO", "1")
-    assert origen_etiqueta() == "delegado"
+    monkeypatch.setenv("HITL_SCOPE", str(tmp_path / "scope.json"))
+    assert origen_etiqueta() == "scope"
     assert origen() == "terminal"  # el par de routing NO cambia
     registrar("du -sh salidas", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
-    monkeypatch.setenv("DELEGADO", "0")
+    monkeypatch.delenv("HITL_SCOPE")
     assert origen_etiqueta() == "terminal"
     registrar("du -sh salidas", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
     origenes = [json.loads(linea)["origen"] for linea
                 in ruta.read_text(encoding="utf-8").splitlines()]
-    assert origenes == ["delegado", "terminal"]
+    assert origenes == ["scope", "terminal"]
 
 
 def test_estado_riesgo_cuenta_las_delegadas_aparte():
-    """El probe de readiness: `delegado` queda fuera de las orgánicas y tiene
-    su propia fila de no-cuentan (igual que banco)."""
+    """El probe de readiness: lo aprobado por scope queda fuera de las
+    orgánicas con su propia fila, en los DOS vocabularios (`delegado` de los
+    logs de exp/101, `scope` desde X93)."""
     from banco.probes.estado_riesgo import estado
 
     filas = [
         {"origen": "terminal", "aprobado": True},
         {"origen": "delegado", "aprobado": True},
-        {"origen": "delegado", "aprobado": False},
+        {"origen": "scope", "aprobado": False},
         {"origen": "banco", "aprobado": True},
     ]
     e = estado(filas)
     assert e["organicas"] == 1
-    assert e["rechazos"] == 0  # el rechazo delegado no es rechazo humano
-    assert e["delegado"] == 2
+    assert e["rechazos"] == 0  # el rechazo por scope no es rechazo humano
+    assert e["scope"] == 2
     assert e["banco"] == 1
 
 

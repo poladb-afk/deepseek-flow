@@ -16,14 +16,10 @@ Uso:
     python3 banco/banco.py banco/escenarios/smoke.yaml [--dir salidas/banco]
 """
 import argparse
-import contextlib
 import json
 import os
-import pty
 import re
-import select
 import shutil
-import signal
 import sys
 import time
 from datetime import datetime
@@ -31,10 +27,10 @@ from pathlib import Path
 
 import yaml
 
-RAIZ = Path(__file__).resolve().parent.parent
-ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # corrido como script
+from utils.conductor import RAIZ, RE_TU, Chat, escribir_scope, leer_decisiones, limpiar
+
 RE_HITL = re.compile(r"\(s/n\):?\s*$")
-RE_TU = re.compile(r"Tú:\s*$")
 RE_DEEPSEEK = re.compile(r"DeepSeek: ?$")
 MAX_HITL_POR_TURNO = 6
 
@@ -59,34 +55,19 @@ MARCADORES = {
 }
 
 
-def escribir_scope(ruta, rutas=None, comandos=None, maximo=12, eventos=None, aprobar=True):
-    """El scope HITL como archivo (HITL_SCOPE): el chat decide cada Pedido
-    contra él en SU proceso (utils.aprobaciones.por_scope) y deja la decisión
-    en `eventos`. Antes el driver releía la pantalla y reconstruía el pedido
-    con regex: el conductor aprobaba `git push` (auditoría 2026-10-26, S1/S2)."""
-    ruta = Path(ruta)
-    ruta.write_text(json.dumps({"rutas": rutas, "comandos": comandos, "max": maximo,
-                                "eventos": str(eventos) if eventos else None,
-                                "aprobar": aprobar}, ensure_ascii=False), encoding="utf-8")
-    return ruta
 
 
-def leer_decisiones(ruta):
-    """Las decisiones que dejó por_scope (una por pedido), o [] si no hubo."""
-    ruta = Path(ruta)
-    if not ruta.exists():
-        return []
-    return [json.loads(ln) for ln in ruta.read_text(encoding="utf-8").splitlines() if ln.strip()]
 
 
-def limpiar(texto):
-    return ANSI.sub("", texto.replace("\r\n", "\n").replace("\r", "\n"))
 
 
 def _env_del_chat(extras=None):
-    """Entorno del chat bajo banco: procedencia + memoria fuera de la curada.
+    """Entorno del chat bajo banco: sus datos fuera de los de producción.
 
-    BANCO=1 marca las decisiones HITL como sintéticas (exp/44). Y la memoria
+    Los logs que alimentan la flywheel y el juez de riesgo (preguntas,
+    routing, riesgo) van a `salidas/banco/`: el tráfico sintético no se marca
+    con una bandera que el producto tenga que leer, directamente no cae en los
+    logs de producción (X93; antes BANCO=1 y `origen=banco`). Y la memoria
     va SIEMPRE a `salidas/banco/memoria`: una corrida de banco no puede tocar
     la biblioteca del usuario (exp/71 — con MEMORIA=0 el respaldo de compacción
     igual escribía `memoria/`; los escenarios con `memoria: true` también
@@ -97,7 +78,9 @@ def _env_del_chat(extras=None):
         os.environ,
         PYTHONUNBUFFERED="1",
         TERM="dumb",
-        BANCO="1",
+        PREGUNTAS_ARCHIVO=str(RAIZ / "salidas" / "banco" / "preguntas.jsonl"),
+        LAYA_LOG_ARCHIVO=str(RAIZ / "salidas" / "banco" / "routing.jsonl"),
+        RIESGO_ARCHIVO=str(RAIZ / "salidas" / "banco" / "riesgo.jsonl"),
         MEMORIA="0",
         MEMORIA_DIR=str(RAIZ / "salidas" / "banco" / "memoria"),
     )
@@ -105,77 +88,6 @@ def _env_del_chat(extras=None):
     return env
 
 
-class Chat:
-    """El proceso `main.py` bajo PTY: echo off, ISIG intacto (Ctrl+C real).
-
-    La ventana `nuevo` se TRUNCA al enviar cada línea: la detección de
-    prompt/HITL trabaja solo sobre la salida NUEVA, nunca sobre prompts
-    viejos que quedaron en el buffer (el bug del driver original: los
-    rótulos de turno quedaban desplazados una posición).
-    """
-
-    def __init__(self, env_extra=None, argv=None, env=None):
-        """`env` explícito es el del conductor (exp/99): NO pasa por
-        _env_del_chat — sin BANCO=1 (origen terminal) y sin tocar MEMORIA.
-        Sin `env`, el comportamiento del banco queda intacto."""
-        self.pid, self.master = pty.fork()
-        if self.pid == 0:
-            import termios
-
-            attrs = termios.tcgetattr(0)
-            attrs[3] &= ~termios.ECHO
-            termios.tcsetattr(0, termios.TCSANOW, attrs)
-            os.chdir(RAIZ)
-            os.execvpe(sys.executable, [sys.executable, *(argv or ["main.py"])],
-                       env if env is not None else _env_del_chat(env_extra))
-        self.nuevo = ""
-        self.raw = None
-        self.vivo = True
-
-    def abrir_log(self, destino):
-        self.raw = destino.open("a", encoding="utf-8")
-        return self.raw
-
-    def leer(self, timeout=0.3):
-        """Acorre la salida al buffer `nuevo` (y al log crudo)."""
-        fin = time.time() + timeout
-        while time.time() < fin:
-            r, _, _ = select.select([self.master], [], [], 0.1)
-            if not r:
-                continue
-            try:
-                datos = os.read(self.master, 65536)
-            except OSError:
-                self.vivo = False
-                return
-            if not datos:
-                self.vivo = False
-                return
-            texto = datos.decode("utf-8", errors="replace")
-            if self.raw:
-                self.raw.write(texto)
-                self.raw.flush()
-            self.nuevo += texto
-
-    def enviar(self, linea):
-        os.write(self.master, (linea + "\r").encode("utf-8"))
-
-    def ctrl_c(self):
-        os.write(self.master, b"\x03")
-
-    def esperar(self, patron, timeout):
-        inicio = time.time()
-        while time.time() - inicio < timeout:
-            self.leer()
-            if not self.vivo:
-                return False
-            if patron.search(limpiar(self.nuevo)):
-                return True
-        return False
-
-    def matar(self):
-        with contextlib.suppress(ProcessLookupError):
-            os.kill(self.pid, signal.SIGKILL)
 
 
 def contar_marcadores(texto):
@@ -214,7 +126,7 @@ def correr(escenario, dir_salida):
 
     ruta_scope = escribir_scope(dir_salida / f"{escenario['id']}_{stamp}_scope.json", aprobar=False)
     env["HITL_SCOPE"] = str(ruta_scope)
-    chat = Chat(env_extra=env)
+    chat = Chat(_env_del_chat(env))
     chat.abrir_log(crudo)
     eventos = eventos_f.open("a", encoding="utf-8")
 

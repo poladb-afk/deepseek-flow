@@ -30,7 +30,7 @@ sys.path.insert(0, str(RAIZ / "banco" / "probes"))
 
 import bench_fable as bf  # noqa: E402
 
-from banco.banco import escribir_scope  # noqa: E402
+from utils.conductor import escribir_scope  # noqa: E402
 
 EXP = "h3b-swarm"
 ESCENARIOS = ("s17-scale-audit", "s18-real-audit", "s19-real-audit-2", "s20-real-audit-3")

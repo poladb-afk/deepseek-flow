@@ -49,8 +49,9 @@ def estado(filas):
         "organicas": len(organicas),
         "rechazos": rechazos,
         "banco": sum(1 for f in filas if f.get("origen") == "banco"),
-        # exp/101: el conductor aprueba por scope, no por juicio humano
-        "delegado": sum(1 for f in filas if f.get("origen") == "delegado"),
+        # aprobadas por scope, no por un humano: `scope` desde X93, `delegado`
+        # en los logs anteriores (exp/101) — se aceptan los dos vocabularios
+        "scope": sum(1 for f in filas if f.get("origen") in ("scope", "delegado")),
         "faltan_organicas": max(0, CRITERIO_ORGANICAS - len(organicas)),
         "faltan_rechazos": max(0, CRITERIO_RECHAZOS - rechazos),
         "listo": (
@@ -74,7 +75,7 @@ def main(argv=None):
         f"{e['rechazos']}/{CRITERIO_RECHAZOS} (faltan {e['faltan_rechazos']})"
     )
     print(f"filas de banco (no cuentan): {e['banco']}")
-    print(f"filas delegadas (no cuentan): {e['delegado']}")
+    print(f"filas por scope (no cuentan): {e['scope']}")
     print(
         "fine-tune: LISTO (revisar `requiere_revision` y balance antes de entrenar)"
         if e["listo"]

@@ -10,7 +10,6 @@ import subprocess
 import time
 from pathlib import Path
 
-from banco.banco import leer_decisiones
 from delegar import (
     LINEA_RESUME,
     conducir,
@@ -19,6 +18,7 @@ from delegar import (
     thread_reciente,
 )
 from utils.aprobaciones import Pedido, por_scope
+from utils.conductor import leer_decisiones
 
 # Pedidos REALES, como DATO: lo que coding/escritura le pasan a pedir_aprobacion.
 # Desde la auditoría 2026-10-26 el conductor ya no lee prompts de la pantalla:
@@ -51,13 +51,13 @@ def _decide(tmp_path, pedido, **scope):
 
 
 def test_env_delegar_no_marca_banco_y_aisla_threads(tmp_path, monkeypatch):
-    """Sin BANCO la corrida cuenta como origen `terminal` (exp/44) — incluso
-    si el entorno del operador lo traía contaminado. THREADS_DIR propio: el
-    checkpoint vive junto al transcript y el resume no adivina."""
-    monkeypatch.setenv("BANCO", "1")
+    """La corrida escribe en los logs de PRODUCCIÓN (sus pares de routing son
+    orgánicos, exp/44) — incluso si el entorno heredado traía los del banco.
+    La etiqueta de riesgo sale `scope` sola (la decide HITL_SCOPE, X93).
+    THREADS_DIR propio: el checkpoint vive junto al transcript."""
+    monkeypatch.setenv("LAYA_LOG_ARCHIVO", "salidas/banco/routing.jsonl")
     env = env_delegar(tmp_path / "threads", {"MAX_TOOL_ROUNDS": "3"})
-    assert "BANCO" not in env
-    assert env["DELEGADO"] == "1"  # exp/101: la etiqueta de riesgo no cuenta como humana
+    assert not set(env) & {"PREGUNTAS_ARCHIVO", "LAYA_LOG_ARCHIVO", "RIESGO_ARCHIVO"}
     assert env["THREADS_DIR"] == str(tmp_path / "threads")
     assert env["TERM"] == "dumb"
     assert env["MAX_TOOL_ROUNDS"] == "3"
@@ -229,7 +229,7 @@ def test_conducir_completa_y_cierra_limpio(tmp_path):
     assert [f["ok"] for f in leer_decisiones(run / "hitl.jsonl")] == [True]
     assert (run / "resumen.md").read_text(encoding="utf-8").find("estado: ok") >= 0
     assert (run / "transcript.log").exists()
-    assert "BANCO" not in chats[0].env  # el env del chat real llega limpio
+    assert "LAYA_LOG_ARCHIVO" not in chats[0].env  # logs de producción
 
 
 def test_conducir_muerto_resume_y_completa(tmp_path):

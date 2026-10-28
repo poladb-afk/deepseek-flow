@@ -51,8 +51,8 @@
         ],
         "nodes.py": [
           58,
-          834,
-          906
+          811,
+          883
         ],
         "research.py": [
           78
@@ -250,17 +250,8 @@
       "metrica": 15
     },
     "producto_conoce_lab": {
-      "detalle": {
-        "delegar.py:<módulo>": 1,
-        "delegar.py:env_delegar": 2,
-        "fable_judge.py:_es_ground_truth": 1,
-        "nodes.py:PERFILES_PRESUPUESTO": 1,
-        "nodes.py:_lineas_de": 1,
-        "utils/fable_dominios.py:DOMINIOS_DIR": 1,
-        "utils/riesgo.py:origen": 2,
-        "utils/riesgo.py:origen_etiqueta": 1
-      },
-      "metrica": 10
+      "detalle": {},
+      "metrica": 0
     },
     "settings_leidos": {
       "detalle": {
@@ -269,9 +260,6 @@
         ],
         "AGENT_ALLOWED_DIRS": [
           "utils/fs_tools.py"
-        ],
-        "BANCO": [
-          "utils/riesgo.py"
         ],
         "BMO_TASKS_DIR": [
           "utils/rutas.py"
@@ -303,14 +291,12 @@
         "DEEPSEEK_API_KEY": [
           "utils/call_llm.py"
         ],
-        "DELEGADO": [
-          "utils/riesgo.py"
-        ],
         "HITL_AUTO": [
           "modules/coding.py"
         ],
         "HITL_SCOPE": [
-          "utils/aprobaciones.py"
+          "utils/aprobaciones.py",
+          "utils/riesgo.py"
         ],
         "HITL_WEB": [
           "utils/aprobaciones.py",
@@ -414,15 +400,6 @@
           "utils/fs_tools.py"
         ],
         "MAX_TOOL_ROUNDS_AMPLIO": [
-          "nodes.py"
-        ],
-        "MAX_TOOL_ROUNDS_APLICACION": [
-          "nodes.py"
-        ],
-        "MAX_TOOL_ROUNDS_BANCO": [
-          "nodes.py"
-        ],
-        "MAX_TOOL_ROUNDS_CONSULTA": [
           "nodes.py"
         ],
         "MCP_EXPOSE": [
@@ -538,7 +515,7 @@
           "utils/hitl_web.py"
         ]
       },
-      "metrica": 89
+      "metrica": 84
     },
     "tests_definidos": {
       "detalle": {

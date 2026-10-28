@@ -82,37 +82,31 @@ def juzgar(comando, mensaje):
 
 
 def origen():
-    """De dónde salió la decisión HITL que es etiqueta: `banco` (tráfico
-    sintético del banco, el driver aprueba por scope), `web` o `terminal`.
-
-    Necesario para exp/44: sin procedencia no se puede fine-tunear con el log
-    (el dataset quedaría mezclando política de escenarios con juicio humano).
-    """
-    if _setting("BANCO", "0") == "1":
-        return "banco"
+    """Por dónde llegó el TRÁFICO (pregunta, decisión del router): `web` o
+    `terminal`. El producto no sabe si lo miden: el banco no se distingue con
+    una bandera sino escribiendo sus logs aparte (`salidas/banco/`, X93), como
+    ya hacía con la memoria (X41). Los logs de antes de X93 traen además
+    `banco` y las sondas lo siguen excluyendo."""
     if _setting("HITL_WEB", "0") == "1":
         return "web"
     return "terminal"
 
 
 def origen_etiqueta():
-    """La procedencia de la ETIQUETA de riesgo (exp/101) — no la del par de
-    routing: en una corrida delegada (DELEGADO=1) el s/n lo decide el scope
-    del conductor, no un humano, así que su etiqueta no cuenta como orgánica
-    para el fine-tune (mismo criterio que el banco, X18). El PAR de routing
-    de esas corridas SÍ es orgánico — su etiqueta es el uso observado de
-    tools — y por eso `origen()` no cambia."""
-    if _setting("DELEGADO", "0") == "1":
-        return "delegado"
+    """Quién decidió el s/n que es la ETIQUETA de riesgo, por el MECANISMO que
+    lo decidió: con `HITL_SCOPE` lo decide el scope del archivo (banco y
+    conductor; exp/101: no es juicio humano y no entra al fine-tune) → `scope`;
+    si no, un humano en la terminal o la web → `origen()`."""
+    if _setting("HITL_SCOPE", ""):
+        return "scope"
     return origen()
-
 
 def registrar(comando, mensaje, juicios, aprobado, ruta=None):
     """Una línea en RIESGO_ARCHIVO (default salidas/riesgo.jsonl), gated por
     RIESGO_LOG (default 1). Bookkeeping: nunca rompe la acción.
 
     {"ts", "comando"[:200], "mensaje"[:200], "juicios": {pregunta:
-    [respuesta, conf]}, "aprobado": bool, "origen": banco|web|terminal|delegado}"""
+    [respuesta, conf]}, "aprobado": bool, "origen": scope|web|terminal}"""
     if _setting("RIESGO_LOG", "1") != "1":
         return
     try:

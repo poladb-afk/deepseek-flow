@@ -63,9 +63,7 @@ ETIQUETAS_VEREDICTO = {
 }
 
 # El diff no compara basura de tooling (mismo criterio que el banco al
-# puntuar, exp/72): una caché no es "un cambio del agente". Y la ANSWER
-# SHEET del banco nunca es evidencia: una corrida sobre un directorio de
-# escenario no puede alimentarle el GROUND-TRUTH al juez. Los directorios de
+# puntuar, exp/72): una caché no es "un cambio del agente". Los directorios de
 # artifacts (salidas de corridas, cachés de ruff/archify/modelos) tampoco:
 # con trabajo=raíz del repo sumaban 4.973 archivos (exp/93). `memoria/` NO se
 # excluye: son datos curados del usuario, no artifacts.
@@ -73,20 +71,18 @@ IGNORADOS_DIFF = ("__pycache__", ".pytest_cache", ".git", ".runs",
                   "salidas", ".ruff_cache", ".archify", ".modelos")
 
 
-def _es_ground_truth(nombre):
-    """La answer sheet del banco, en cualquier capitalización (dogfood
-    exp/87: el filtro por nombre exacto dejaba pasar ground-truth.md)."""
-    return nombre.upper() == "GROUND-TRUTH.MD"
+def _ignorado(nombre, ignorar):
+    """`ignorar`: nombres de archivo que el llamador declara fuera de la
+    evidencia (sin distinción de mayúsculas: dogfood exp/87). El banco pasa su
+    answer sheet; el juez no sabe qué es (X93)."""
+    return nombre.lower() in {n.lower() for n in ignorar}
 
 # Debris por nombre: los scratch/debug que fable-judge caza "por diff". No
 # acusan solos (un archivo nuevo puede ser parte del pedido): son avisos.
 PINTA_DEBRIS = re.compile(r"debug|scratch|tmp|temp|backup|\.bak|\.orig|copy", re.IGNORECASE)
 
 
-# ── determinista: qué cambio de verdad ──────────────────────────────────
-
-
-def _archivos_bajo(raiz):
+def _archivos_bajo(raiz, ignorar=()):
     """archivos de raiz/ (relativo posix → ruta), sin basura de tooling.
 
     No confundir con juez._archivos_de(texto), que resuelve las rutas
@@ -98,7 +94,7 @@ def _archivos_bajo(raiz):
         for p in sorted(raiz.rglob("*"))
         if p.is_file()
         and not p.is_symlink()
-        and not _es_ground_truth(p.name)
+        and not _ignorado(p.name, ignorar)
         and not any(parte in IGNORADOS_DIFF for parte in p.relative_to(raiz).parts)
     }
 
@@ -125,13 +121,13 @@ def listado_prompt(archivos, tope=MAX_LISTADO):
     return "\n".join(visibles + [marca])
 
 
-def diff_contra(trabajo, pristine):
+def diff_contra(trabajo, pristine, ignorar=()):
     """Diff unificado trabajo/ vs pristine/: el diff es la verdad, el reporte no.
 
     Los archivos nuevos/borrados van como lista (el contenido entero de un
     archivo nuevo no es diff: es el debris/scope que el juez necesita nombrado).
     """
-    a, b = _archivos_bajo(pristine), _archivos_bajo(trabajo)
+    a, b = _archivos_bajo(pristine, ignorar), _archivos_bajo(trabajo, ignorar)
     # tope de ENTRADA (dogfood exp/87): MAX_DIFF recorta la SALIDA; sin esto
     # un binario de GB en el trabajo era OOM antes de llegar al recorte
     TOPE_ENTRADA = 1_000_000
@@ -163,7 +159,7 @@ def diff_contra(trabajo, pristine):
     }
 
 
-def diff_git(trabajo):
+def diff_git(trabajo, ignorar=()):
     """Diff best-effort del propio repo del trabajo (sin pristine/): el
     estado porcelain arma la lista y `git diff HEAD` el texto. Con pathspec
     `.` — limitado al subdirectorio del trabajo, no al repo entero. None si
@@ -182,8 +178,8 @@ def diff_git(trabajo):
     cambios = {"cambiados": [], "nuevos": [], "borrados": []}
     for linea in estado.stdout.splitlines():
         marca, _, rel = linea[:2], linea[2:3], linea[3:].strip().strip('"')
-        if _es_ground_truth(Path(rel).name):
-            continue  # la answer sheet nunca es evidencia (mismo filtro que el árbol)
+        if _ignorado(Path(rel).name, ignorar):
+            continue  # mismo filtro que el árbol
         if "D" in marca:
             cambios["borrados"].append(rel)
         elif "A" in marca or "?" in marca:
@@ -200,14 +196,14 @@ def es_test(rel):
     return nombre.startswith("test_") or nombre.endswith("_test.py") or "/tests/" in f"/{rel}"
 
 
-def contenido_de(raiz, tope=MAX_FUENTES):
+def contenido_de(raiz, tope=MAX_FUENTES, ignorar=()):
     """Contenido de los archivos del trabajo (lo junta el código): en el
     trabajo no-código la evidencia está en los ARCHIVOS (copy, brand.md,
     datos), no en un diff — sin esto el juez de dominio no tendría qué
     citar. Corte marcado al tope, presupuesto de prompt."""
     pedazos = []
     usado = 0
-    for rel, ruta in _archivos_bajo(raiz).items():
+    for rel, ruta in _archivos_bajo(raiz, ignorar).items():
         if usado >= tope:
             pedazos.append("[... fuentes truncadas ...]")
             break
@@ -524,7 +520,7 @@ class RecolectarClaims(Node):
     """Paso 1: el reporte como lista de afirmaciones a probar o refutar."""
 
     def prep(self, shared):
-        listado = listado_prompt(_archivos_bajo(shared["trabajo"])) or "(vacío)"
+        listado = listado_prompt(_archivos_bajo(shared["trabajo"], shared["ignorar"])) or "(vacío)"
         return shared["reporte"], listado
 
     def _prompt(self, reporte, listado):
@@ -586,13 +582,13 @@ class EstablecerCambio(Node):
     """Paso 2: qué cambió de verdad. El diff es la verdad; el reporte, no."""
 
     def prep(self, shared):
-        return shared["pristine"], shared["trabajo"]
+        return shared["pristine"], shared["trabajo"], shared["ignorar"]
 
     def exec(self, inputs):
-        pristine, trabajo = inputs
+        pristine, trabajo, ignorar = inputs
         if pristine is not None:
-            return diff_contra(trabajo, pristine)
-        cambios = diff_git(trabajo)
+            return diff_contra(trabajo, pristine, ignorar)
+        cambios = diff_git(trabajo, ignorar)
         if cambios is not None:
             return cambios
         # sin referencia no se afirma nada: los cambios quedan unverifiable
@@ -796,7 +792,7 @@ class CazarFraudes(Node):
                   ("reporte", "claims", "cambios", "hechos", "verificaciones")}
         if shared.get("dominio"):
             estado["dominio"] = shared["dominio"]
-            estado["fuentes"] = contenido_de(shared["trabajo"])
+            estado["fuentes"] = contenido_de(shared["trabajo"], ignorar=shared["ignorar"])
         else:
             estado["contenido_nuevos"] = contenido_nuevos(
                 shared["trabajo"], shared["cambios"])
@@ -934,10 +930,11 @@ def _texto_del_reporte(reporte):
     return texto
 
 
-def verificar_trabajo(trabajo, pristine=None, reporte=None, ejecutar=None, sector=None):
+def verificar_trabajo(trabajo, pristine=None, reporte=None, ejecutar=None, sector=None, ignorar=()):
     """Juzga trabajo terminado: claims del reporte → diff vs referencia →
     re-ejecución → fraude → veredicto. Con `sector`, juzga trabajo no-código
     con la fraud table del adapter del dominio y las fuentes del trabajo.
+    `ignorar`: nombres de archivo que no son evidencia (ni diff ni fuentes).
     Devuelve (texto, advertencia|None)."""
     dir_trabajo, err = _dir_dentro(trabajo)
     if err:
@@ -958,7 +955,7 @@ def verificar_trabajo(trabajo, pristine=None, reporte=None, ejecutar=None, secto
         "reporte": _texto_del_reporte(reporte),
         "claims": [], "verificaciones": [], "cambios": None, "hechos": [],
         "juicio": None, "salida": "", "advertencia": None,
-        "ejecutar": ejecutar, "dominio": dominio,
+        "ejecutar": ejecutar, "dominio": dominio, "ignorar": tuple(ignorar),
     }
     try:
         create_fable_judge_flow().run(shared)
@@ -996,11 +993,13 @@ def main(argv=None):
                         help="ruta al reporte a juzgar (o el texto literal)")
     parser.add_argument("--sector", help="dominio del trabajo no-código "
                         "(ej.: marketing, data-analysis); cambia la tabla de fraudes")
+    parser.add_argument("--ignorar", action="append", default=[], metavar="NOMBRE",
+                        help="archivo que no es evidencia (repetible; ej.: la answer sheet de un escenario)")
     args = parser.parse_args(argv)
 
     try:
         texto, advertencia = verificar_trabajo(
-            args.trabajo, args.pristine, args.reporte, sector=args.sector)
+            args.trabajo, args.pristine, args.reporte, sector=args.sector, ignorar=args.ignorar)
     except ValueError as e:
         raise SystemExit(f"ERROR: {e}") from e
     print(f"\n{texto}")

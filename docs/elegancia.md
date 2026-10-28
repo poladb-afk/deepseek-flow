@@ -56,9 +56,9 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91).
 | Ratchet | Baseline | Meta del refactor |
 |---|---|---|
 | `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
-| `producto_conoce_lab` | 10 | 0 (fase 1) |
+| `producto_conoce_lab` | 10 → **0** (X93) | 0 ✅ |
 | `vocabulario_hardcodeado` | 8 | ≤ 2 (fases 3–4; quedan los sí/no del HITL) |
-| `settings_leidos` | 89 | ≤ 45 (fases 1–5, ver inventario) |
+| `settings_leidos` | 89 → 84 (X93) | ≤ 45 (fases 1–5, ver inventario) |
 | `imports_perezosos` | 137 → 126 (X92) | ≤ 40 |
 | `nodos_largos` | 15 | ≤ 3 |
 | `texto_de_prompt` | 2748 chars | ≤ 800 |
@@ -68,22 +68,20 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91).
 | Fase | Cambio | ¿Cambia conducta? | Gate de salida |
 |---|---|---|---|
 | 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
-| 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). Falta 1b: el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
+| 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
 | 2 | El chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
 | 3 | `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
 | 4 | Se borran reglas, voto, `alcance_amplio`, perfiles y directivas (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
 | 5 | Política de comandos como datos (S10); skills por descripción; Laya 0.4.x | Mínimo | `test_policy_bypass.py` idéntico |
 
-## Inventario de settings (89: 41 contrato · 26 revisar · 22 borrar)
+## Inventario de settings (84 tras X93: 41 contrato · 26 revisar · 17 borrar)
 
 `contrato` = decisión del operador que se queda; `revisar` = se decide en la
 fase indicada; `borrar` = se va con su rama en esa fase.
 
 | Setting | Veredicto | Fase | Motivo | Lo lee |
 |---|---|---|---|---|
-| `BANCO` | borrar | 1 | S5: el producto no sabe si lo miden | `utils/riesgo.py` |
 | `BMO_TASKS_DIR` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/rutas.py` |
-| `DELEGADO` | borrar | 1 | S5: el producto no sabe si lo miden | `utils/riesgo.py` |
 | `LEER_BMO_ENV` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/call_llm.py` |
 | `LAYA_ALPHA_VOTO` | borrar | 3 | S2: el voto existe para tapar el directo sin tools | `utils/laya_routing.py` |
 | `LAYA_CALIBRACION_VOTO` | borrar | 3 | S2: el voto existe para tapar el directo sin tools | `utils/laya_routing.py` |
@@ -97,9 +95,6 @@ fase indicada; `borrar` = se va con su rama en esa fase.
 | `CORTE_NOVEDAD` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
 | `CORTE_NOVEDAD_MIN` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
 | `MAX_TOOL_ROUNDS_AMPLIO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
-| `MAX_TOOL_ROUNDS_APLICACION` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
-| `MAX_TOOL_ROUNDS_BANCO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
-| `MAX_TOOL_ROUNDS_CONSULTA` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
 | `PROMPT_AUDITORIA` | borrar | 4 | S7/S8: brazos de A/B cerrados → skills | `main.py` |
 | `PROMPT_FABLE` | borrar | 4 | S7/S8: brazos de A/B cerrados → skills | `main.py` |
 | `UMBRAL_SIN_PROGRESO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |

@@ -9,8 +9,8 @@ import pytest
 
 import modules.coding as mc
 import modules.escritura as me
-from banco.banco import escribir_scope
 from utils.aprobaciones import Pedido, dentro_de_scope, por_scope
+from utils.conductor import escribir_scope
 from utils.policy import clasificar
 from utils.thread_store import cargar, checkpoint
 
