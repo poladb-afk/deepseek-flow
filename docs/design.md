@@ -112,6 +112,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Nodo | Tipo | prep | exec | post |
 |---|---|---|---|---|
 | GetQuestion | Node | — | `input()` (ignora vacías; EOF → exit) | `salir/exit/quit` → `exit`; si no, resetea el presupuesto por pregunta (ley L8) y agrega el mensaje user → `continue`; `/aprobaciones` imprime el historial HITL y NO entra al historial |
+| Contexto | Node | si el historial supera `COMPACTION_CHARS`: respaldo de la zona fría (gancho `al_compactar`), compacción, recorte de tool results viejos y aviso de ventana caliente | — | sale por `turno["ruta"]` (`herramientas`/`directo`, la fija el router; tras una ronda de tools, `herramientas`) — X95 |
 | AgentStep | Node (max_retries=3, wait=5) | historial + tools (sin tools si ya gastó el límite) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
 | ExecuteTools | Node | último `tool_calls` | ejecuta cada llamada (`run_tool_call`) | agrega mensajes tool, suma `tool_rounds` → `default` |
 | VerificarCitas | Node (max_retries=2, wait=2) | la última respuesta (si `CITAS_VERIFICAR=1` y no trae `tool_calls`) | verifica `ruta:línea` contra el disco; si alguna falla, UNA corrección sin tools (`exec_fallback`: si la corrección revienta, queda la respuesta) | reemplaza el contenido corregido → `default` (antes vivía en `AgentStep.post`, sin retry: auditoría F6) |

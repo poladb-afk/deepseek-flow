@@ -270,11 +270,16 @@ def guardar_baseline(bench, ruta=BASELINE, sha=None):
 ACCIONES_CANONICAS = {
     # chat (nodes.py)
     ("GetQuestion", "continue"), ("GetQuestion", "exit"),
+    # exp/50 y F6: nunca entraron acá — toda traza real del chat desde
+    # entonces daba dos violaciones (c) falsas (descubierto en X95)
+    ("PreFetch", "continue"), ("VerificarCitas", "default"),
     # marca de incidente del corte por no-progreso (nodes.py la emite con
     # evento_tool): no es una tool, pero viaja en la traza y el linter la
     # tiene que reconocer para no contarla como acción desconocida
     ("corte_no_progreso", "ok"),
     ("LayaRouter", "directo"), ("LayaRouter", "herramientas"),
+    # X95: la compacción antes de cada llamada al modelo; sale por la ruta
+    ("Contexto", "directo"), ("Contexto", "herramientas"),
     ("AgentStep", "tool"), ("AgentStep", "answer"),
     ("DirectAnswer", "tool"), ("DirectAnswer", "answer"),
     ("ExecuteTools", "default"),

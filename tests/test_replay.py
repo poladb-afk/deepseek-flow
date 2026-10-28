@@ -73,7 +73,7 @@ def _caminata_chat():
 def test_grafos_vivos_traen_las_variantes_del_chat(vivos):
     clases, aristas, _ = vivos
     # nodos del chat con y sin router (PreFetch desde exp/50 en ambas variantes)
-    for nodo in ("GetQuestion", "PreFetch", "LayaRouter", "DirectAnswer",
+    for nodo in ("GetQuestion", "PreFetch", "LayaRouter", "Contexto", "DirectAnswer",
                  "AgentStep", "ExecuteTools", "ExitChat"):
         assert nodo in clases, nodo
     # las aristas de ambas variantes: la del router y la de degradación
@@ -94,6 +94,28 @@ def test_grafos_vivos_traen_los_inline_y_las_tools(vivos):
 
 
 # Nivel A — emisibilidad
+
+
+def test_caminata_con_contexto_es_valida(vivos):
+    """X95: la caminata NUEVA — router → Contexto → AgentStep → ExecuteTools →
+    Contexto → AgentStep — es arista del chat, y la vieja (sin Contexto)
+    también sigue valiendo (test_caminata_valida_sin_violaciones)."""
+    clases, aristas, _ = vivos
+    nueva = [
+        _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"),
+        _ev("LayaRouter", "herramientas"), _ev("Contexto", "herramientas"),
+        _ev("AgentStep", "tool"), _ev("read_file", "ok", 0.3), _ev("ExecuteTools", "default"),
+        _ev("Contexto", "herramientas"), _ev("AgentStep", "answer"),
+        _ev("VerificarCitas", "default"), _ev("GetQuestion", "continue"),
+        _ev("PreFetch", "continue"), _ev("LayaRouter", "directo"),
+        _ev("Contexto", "directo"), _ev("DirectAnswer", "answer"),
+        _ev("VerificarCitas", "default"), _ev("GetQuestion", "exit"), _ev("ExitChat", "None"),
+    ]
+    assert replay.nivel_b_chat(nueva, clases, aristas) == []
+    assert replay.nivel_a(nueva, clases) == []
+    # una ruta cruzada NO vale: Contexto sale por la arista por la que entró
+    cruzada = [_ev("LayaRouter", "directo"), _ev("Contexto", "directo"), _ev("AgentStep", "answer")]
+    assert replay.nivel_b_chat(cruzada, clases, aristas) == [("Contexto", "directo", "AgentStep")]
 
 
 def test_caminata_valida_sin_violaciones(vivos):

@@ -5200,3 +5200,49 @@ producción. Probado contra la regresión: volver a meter un `Ctx` en
 `./calidad.sh` verde, 1109 passed (20 skipped por git/Laya/red en este
 entorno); `tests_definidos` 1111 → 1113. 2b y 2c tampoco cambian conducta;
 2d espera la línea de base de s17–s20 y la prueba de `tool_choice="none"`.
+
+---
+
+## Fase 2b-1 de elegancia — la compacción como nodo del grafo (2026-10-28, X95)
+
+**Por qué 2b cambió de plan.** La propuesta de fase 2 suponía una 2b chica
+(el chat sobre `kernel.loop` conservando los nombres de nodo) y una 2c con la
+migración de tests. Leyendo los tests no se sostenía: ~46 llamadas directas a
+`AgentStep().prep/exec/post` y `ExecuteTools().prep/post` en 11 archivos
+fijan la FORMA de los nodos, y conservar los nombres viejos sobre los nodos
+del kernel exigía subclases que solo renombran (el parche que la regla
+prohíbe). El operador eligió el camino incremental: cada política sale a un
+nodo visible del chat, con sus tests migrados en el MISMO PR, y el gate verde
+siempre.
+
+**Cambio.** `Contexto` corre antes de CADA llamada al modelo — al entrar por
+el router y tras cada ronda de tools —, que es exactamente cuándo corría la
+compacción dentro de `AgentStep.prep`. Una instancia sirve a las dos rutas:
+el router deja la suya en `turno["ruta"]` (`ExecuteTools` la vuelve
+`herramientas`) y `Contexto` sale por ella. `AgentStep` 125 → 92 líneas;
+`DirectAnswer` ya no hereda la compacción por `super().prep`. Los imports de
+`utils.compaccion` dejaron de ser perezosos (`imports_perezosos` 126 → 124).
+
+**Conducta**: ninguna. `test_caracterizacion_chat.py` intacto. Probado
+contra la regresión: saltear `Contexto` tras las tools (`tools >> step`)
+pone rojo `test_el_historial_compacto_sigue_siendo_valido` (10.484 > 9.000
+chars). Los 13 tests de compacción migraron de `AgentStep().prep(shared)` a
+`Contexto()._run(shared)` con las MISMAS aserciones; el del typo en
+`COMPACTION_CHARS` ahora prueba los dos preps (ninguno puede reventar).
+
+**Trazas.** `replay` trata a `Contexto` como paso transparente (como
+`PreFetch` y `VerificarCitas`): las caminatas viejas sin él siguen válidas y
+una ruta cruzada (`Contexto/directo → AgentStep`) se marca rota
+(`test_caminata_con_contexto_es_valida`).
+
+**Bug previo encontrado.** Al sumar `Contexto` a `evals.ACCIONES_CANONICAS`
+apareció que `PreFetch/continue` (exp/50) y `VerificarCitas/default` (F6)
+nunca habían entrado: el linter de trazas marcaba DOS violaciones (c) falsas
+en toda traza real del chat desde entonces. El test del linter solo usaba
+trazas sintéticas sin esos nodos y no lo veía. Agregadas, con
+`test_el_linter_acepta_la_caminata_con_contexto` como candado. Los informes
+de evals viejos sobrestimaban las violaciones (c).
+
+`./calidad.sh` verde, 1111 passed; `tests_definidos` 1113 → 1115.
+`nodos_largos` sigue en 15: `AgentStep` (92) y `ExecuteTools` (60) bajan en
+2b-2.

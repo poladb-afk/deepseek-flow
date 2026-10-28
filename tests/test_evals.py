@@ -323,6 +323,19 @@ def test_tool_evals_no_pisa_el_baseline(monkeypatch, tmp_path):
     assert "Informe de evals generado" in r
     assert llamadas["guardar"] == 0, "la tool del chat NO guarda baseline"
 
+def test_el_linter_acepta_la_caminata_con_contexto():
+    """X95: Contexto (la compacción antes de cada llamada) es una acción
+    canónica del chat; una traza del grafo nuevo no viola ningún invariante."""
+    from evals import linter_traza
+
+    traza = [{"nodo": n, "accion": a, "seg": 0.1} for n, a in (
+        ("GetQuestion", "continue"), ("PreFetch", "continue"), ("LayaRouter", "herramientas"),
+        ("Contexto", "herramientas"), ("AgentStep", "tool"), ("read_file", "ok"),
+        ("ExecuteTools", "default"), ("Contexto", "herramientas"), ("AgentStep", "answer"),
+        ("LayaRouter", "directo"), ("Contexto", "directo"), ("DirectAnswer", "answer"))]
+    assert linter_traza(traza) == []
+
+
 def test_el_linter_reconoce_las_acciones_y_tools_que_faltaban():
     """exp/37: el linter marcaba como desconocidas una arista real del juez
     (Judge/retry, juez.py:233) y cuatro tools de módulos (visión y a2a), lo que

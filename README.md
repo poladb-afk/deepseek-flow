@@ -15,15 +15,17 @@ disparan por regex, sin LLM.
 flowchart TD
     GetQuestion_0 -->|continue| PreFetch_1
     PreFetch_1 -->|continue| LayaRouter_2
-    LayaRouter_2 -->|directo| DirectAnswer_3
-    DirectAnswer_3 -->|answer| VerificarCitas_4
-    VerificarCitas_4 -->|default| GetQuestion_0
-    DirectAnswer_3 -->|tool| ExecuteTools_5
-    ExecuteTools_5 -->|default| AgentStep_6
-    AgentStep_6 -->|answer| VerificarCitas_4
-    AgentStep_6 -->|tool| ExecuteTools_5
-    LayaRouter_2 -->|herramientas| AgentStep_6
-    GetQuestion_0 -->|exit| ExitChat_7
+    LayaRouter_2 -->|directo| Contexto_3
+    Contexto_3 -->|directo| DirectAnswer_4
+    DirectAnswer_4 -->|answer| VerificarCitas_5
+    VerificarCitas_5 -->|default| GetQuestion_0
+    DirectAnswer_4 -->|tool| ExecuteTools_6
+    ExecuteTools_6 -->|default| Contexto_3
+    Contexto_3 -->|herramientas| AgentStep_7
+    AgentStep_7 -->|answer| VerificarCitas_5
+    AgentStep_7 -->|tool| ExecuteTools_6
+    LayaRouter_2 -->|herramientas| Contexto_3
+    GetQuestion_0 -->|exit| ExitChat_8
 ```
 
 ## Filosofía

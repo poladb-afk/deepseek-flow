@@ -8,6 +8,7 @@ from pocketflow import Node
 
 from modules import discover, ganchos
 from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_stream
+from utils.compaccion import PREFIJO_COMPACCION, compactar, huella, recortar_tools_viejos, serializar
 from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
 from utils.fs_tools import TOOLS as CORE_TOOLS
 from utils.proveedor import (  # noqa: F401  (re-export: tests y banco los importan de nodes)
@@ -172,6 +173,7 @@ def nuevo_turno():
         "skill": None,           # id del skill activo (exp/55)
         "router_pendiente": None,  # id de la decisión shadow a etiquetar (exp/43)
         "uso_inicio": None,      # desglose de tokens al empezar (exp/90)
+        "ruta": "herramientas",  # la arista que toma Contexto (la fija el router)
     }
 
 
@@ -395,13 +397,6 @@ def _recortar_si_sigue_sobre_el_tope(shared, tope):
 
     Se evalúa DESPUÉS del respaldo de zona fría (A17) y no genera respaldo
     propio: un tool result se re-obtiene re-corriendo la tool."""
-    from utils.compaccion import (
-        PREFIJO_COMPACCION,
-        huella,
-        recortar_tools_viejos,
-        serializar,
-    )
-
     mensajes = shared["messages"]
     if len(serializar(mensajes)) <= tope:
         return
@@ -417,41 +412,41 @@ def _recortar_si_sigue_sobre_el_tope(shared, tope):
     shared["_compaccion_huella"] = huella(nuevo)
 
 
-class AgentStep(Node):
-    def prep(self, shared):
-        # Compacción de contexto (Mesa 6, 12-factor #5): si el historial
-        # serializado supera COMPACTION_CHARS, la zona fría se reemplaza por
-        # un resumen-instrucción (código puro, sin LLM) ANTES de llamar al
-        # modelo. Nunca se separa un assistant con tool_calls de sus tools ni
-        # se toca el system: los invariantes del modo thinking quedan dados
-        # por utils/compaccion.compactar. El costo se paga UNA vez por ronda:
-        # la huella del historial compactado evita re-compactar si coincide.
-        from utils.compaccion import PREFIJO_COMPACCION, compactar, huella, serializar
+class Contexto(Node):
+    """El contexto que viaja al modelo, una vez antes de CADA llamada (al
+    entrar por el router y tras cada ronda de tools). Si el historial supera
+    COMPACTION_CHARS: la zona fría se respalda (gancho `al_compactar`) y se
+    reemplaza por un marcador (código puro, sin LLM; los invariantes del modo
+    thinking los da utils/compaccion.compactar); si ni así baja, se recortan
+    los tool results viejos (exp/91) y se avisa una vez (X51). La huella evita
+    re-compactar la misma ronda. Sale por la ruta que eligió el router."""
 
+    def prep(self, shared):
         tope = _entero("COMPACTION_CHARS", 60000)
         mensajes = shared["messages"]
-        if tope > 0 and len(serializar(mensajes)) > tope:
-            h = huella(mensajes)
-            if shared.get("_compaccion_huella") != h:
-                # A17: la zona fría se RESPALDA antes de descartarla (lo hace
-                # el módulo que la sepa guardar), así el marcador dice la verdad.
-                respaldo = next(filter(None, (g(mensajes, shared) for g in ganchos("al_compactar"))), None)
-                nuevo = compactar(mensajes, tope, respaldo=respaldo,
-                                  objetivo=shared.get("_objetivo"))
-                if nuevo is not mensajes and len(nuevo) < len(mensajes):
-                    frios = len(mensajes) - len(nuevo) + 1  # +1: el propio resumen
-                    print(
-                        f"{PREFIJO_COMPACCION} zona fría: {frios} mensajes → "
-                        f"resumen; ventana caliente: {len(nuevo) - 1}"
-                    )
-                    shared["messages"] = nuevo
-                    shared["compacciones"] = shared.get("compacciones", 0) + 1
-                    shared["_compaccion_huella"] = huella(nuevo)
-            # exp/91: si ni así se baja del tope, la masa está en el CONTENIDO
-            # de la ventana caliente. Se evalúa en los DOS caminos (compacción
-            # exitosa o no-op) y el aviso de X51 mira el tamaño FINAL.
-            _recortar_si_sigue_sobre_el_tope(shared, tope)
-            _aviso_ventana_caliente(shared, len(serializar(shared["messages"])), tope)
+        if tope <= 0 or len(serializar(mensajes)) <= tope:
+            return
+        if shared.get("_compaccion_huella") != huella(mensajes):
+            respaldo = next(filter(None, (g(mensajes, shared) for g in ganchos("al_compactar"))), None)
+            nuevo = compactar(mensajes, tope, respaldo=respaldo, objetivo=shared.get("_objetivo"))
+            if nuevo is not mensajes and len(nuevo) < len(mensajes):
+                frios = len(mensajes) - len(nuevo) + 1  # +1: el propio resumen
+                print(f"{PREFIJO_COMPACCION} zona fría: {frios} mensajes → "
+                      f"resumen; ventana caliente: {len(nuevo) - 1}")
+                shared["messages"] = nuevo
+                shared["compacciones"] = shared.get("compacciones", 0) + 1
+                shared["_compaccion_huella"] = huella(nuevo)
+        _recortar_si_sigue_sobre_el_tope(shared, tope)
+        _aviso_ventana_caliente(shared, len(serializar(shared["messages"])), tope)
+
+    def post(self, shared, prep_res, exec_res):
+        if turno(shared).get("ruta") == "directo":
+            return "directo"
+        return "herramientas"
+
+
+class AgentStep(Node):
+    def prep(self, shared):
         # Techo adaptativo por operación (exp/13) + escape por no-progreso:
         # si el modelo repite la MISMA ronda de tools demasiadas veces, se
         # retiran las tools sin esperar el techo — el loop no se paga hasta
@@ -597,6 +592,7 @@ class ExecuteTools(Node):
 
     def post(self, shared, prep_res, exec_res):
         t = turno(shared)
+        t["ruta"] = "herramientas"  # tras una ronda de tools se vuelve a AgentStep
         t["rondas"] += 1
         ronda = t["rondas"]
         tope = presupuesto(shared)
@@ -910,6 +906,8 @@ class LayaRouter(Node):
             and _setting("LAYA_LOG_DECISIONES", "1") == "1"
         ):
             turno(shared)["router_pendiente"] = id_decision
+        # la ruta viaja en el turno: Contexto la lee después de compactar
+        turno(shared)["ruta"] = "herramientas" if aplicada != "directo" else "directo"
         if aplicada != "directo":
             return "herramientas"  # off, shadow y veto conservan las herramientas
         return "directo"
@@ -921,8 +919,8 @@ class DirectAnswer(AgentStep):
     ofrece_tools = False  # el DSML acá es texto: nunca se ofrecieron tools
 
     def prep(self, shared):
-        # Reusa el prep de AgentStep (compacción incluida): la ruta directa
-        # mandaba el historial entero sin techo (medido, exp/36) y solo se
-        # salva por la ventana de caracteres del API. Sin tools.
+        # La compacción ya corrió en Contexto (la ruta directa mandaba el
+        # historial entero sin techo, exp/36); acá el prep de AgentStep y
+        # sin tools.
         mensajes, _ = super().prep(shared)
         return mensajes, None

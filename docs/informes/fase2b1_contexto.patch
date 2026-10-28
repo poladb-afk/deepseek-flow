@@ -1,0 +1,672 @@
+diff -ruN a/README.md b/README.md
+--- a/README.md	2026-10-28 14:42:50.121986623 +0000
++++ b/README.md	2026-10-28 14:38:56.742311845 +0000
+@@ -15,15 +15,17 @@
+ flowchart TD
+     GetQuestion_0 -->|continue| PreFetch_1
+     PreFetch_1 -->|continue| LayaRouter_2
+-    LayaRouter_2 -->|directo| DirectAnswer_3
+-    DirectAnswer_3 -->|answer| VerificarCitas_4
+-    VerificarCitas_4 -->|default| GetQuestion_0
+-    DirectAnswer_3 -->|tool| ExecuteTools_5
+-    ExecuteTools_5 -->|default| AgentStep_6
+-    AgentStep_6 -->|answer| VerificarCitas_4
+-    AgentStep_6 -->|tool| ExecuteTools_5
+-    LayaRouter_2 -->|herramientas| AgentStep_6
+-    GetQuestion_0 -->|exit| ExitChat_7
++    LayaRouter_2 -->|directo| Contexto_3
++    Contexto_3 -->|directo| DirectAnswer_4
++    DirectAnswer_4 -->|answer| VerificarCitas_5
++    VerificarCitas_5 -->|default| GetQuestion_0
++    DirectAnswer_4 -->|tool| ExecuteTools_6
++    ExecuteTools_6 -->|default| Contexto_3
++    Contexto_3 -->|herramientas| AgentStep_7
++    AgentStep_7 -->|answer| VerificarCitas_5
++    AgentStep_7 -->|tool| ExecuteTools_6
++    LayaRouter_2 -->|herramientas| Contexto_3
++    GetQuestion_0 -->|exit| ExitChat_8
+ ```
+ 
+ ## Filosofía
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-28 14:42:50.133986876 +0000
++++ b/docs/bitacora.md	2026-10-28 14:42:02.056971777 +0000
+@@ -5200,3 +5200,49 @@
+ `./calidad.sh` verde, 1109 passed (20 skipped por git/Laya/red en este
+ entorno); `tests_definidos` 1111 → 1113. 2b y 2c tampoco cambian conducta;
+ 2d espera la línea de base de s17–s20 y la prueba de `tool_choice="none"`.
++
++---
++
++## Fase 2b-1 de elegancia — la compacción como nodo del grafo (2026-10-28, X95)
++
++**Por qué 2b cambió de plan.** La propuesta de fase 2 suponía una 2b chica
++(el chat sobre `kernel.loop` conservando los nombres de nodo) y una 2c con la
++migración de tests. Leyendo los tests no se sostenía: ~46 llamadas directas a
++`AgentStep().prep/exec/post` y `ExecuteTools().prep/post` en 11 archivos
++fijan la FORMA de los nodos, y conservar los nombres viejos sobre los nodos
++del kernel exigía subclases que solo renombran (el parche que la regla
++prohíbe). El operador eligió el camino incremental: cada política sale a un
++nodo visible del chat, con sus tests migrados en el MISMO PR, y el gate verde
++siempre.
++
++**Cambio.** `Contexto` corre antes de CADA llamada al modelo — al entrar por
++el router y tras cada ronda de tools —, que es exactamente cuándo corría la
++compacción dentro de `AgentStep.prep`. Una instancia sirve a las dos rutas:
++el router deja la suya en `turno["ruta"]` (`ExecuteTools` la vuelve
++`herramientas`) y `Contexto` sale por ella. `AgentStep` 125 → 92 líneas;
++`DirectAnswer` ya no hereda la compacción por `super().prep`. Los imports de
++`utils.compaccion` dejaron de ser perezosos (`imports_perezosos` 126 → 124).
++
++**Conducta**: ninguna. `test_caracterizacion_chat.py` intacto. Probado
++contra la regresión: saltear `Contexto` tras las tools (`tools >> step`)
++pone rojo `test_el_historial_compacto_sigue_siendo_valido` (10.484 > 9.000
++chars). Los 13 tests de compacción migraron de `AgentStep().prep(shared)` a
++`Contexto()._run(shared)` con las MISMAS aserciones; el del typo en
++`COMPACTION_CHARS` ahora prueba los dos preps (ninguno puede reventar).
++
++**Trazas.** `replay` trata a `Contexto` como paso transparente (como
++`PreFetch` y `VerificarCitas`): las caminatas viejas sin él siguen válidas y
++una ruta cruzada (`Contexto/directo → AgentStep`) se marca rota
++(`test_caminata_con_contexto_es_valida`).
++
++**Bug previo encontrado.** Al sumar `Contexto` a `evals.ACCIONES_CANONICAS`
++apareció que `PreFetch/continue` (exp/50) y `VerificarCitas/default` (F6)
++nunca habían entrado: el linter de trazas marcaba DOS violaciones (c) falsas
++en toda traza real del chat desde entonces. El test del linter solo usaba
++trazas sintéticas sin esos nodos y no lo veía. Agregadas, con
++`test_el_linter_acepta_la_caminata_con_contexto` como candado. Los informes
++de evals viejos sobrestimaban las violaciones (c).
++
++`./calidad.sh` verde, 1111 passed; `tests_definidos` 1113 → 1115.
++`nodos_largos` sigue en 15: `AgentStep` (92) y `ExecuteTools` (60) bajan en
++2b-2.
+diff -ruN a/docs/design.md b/docs/design.md
+--- a/docs/design.md	2026-10-28 14:42:50.133986876 +0000
++++ b/docs/design.md	2026-10-28 14:42:02.052971693 +0000
+@@ -112,6 +112,7 @@
+ | Nodo | Tipo | prep | exec | post |
+ |---|---|---|---|---|
+ | GetQuestion | Node | — | `input()` (ignora vacías; EOF → exit) | `salir/exit/quit` → `exit`; si no, resetea el presupuesto por pregunta (ley L8) y agrega el mensaje user → `continue`; `/aprobaciones` imprime el historial HITL y NO entra al historial |
++| Contexto | Node | si el historial supera `COMPACTION_CHARS`: respaldo de la zona fría (gancho `al_compactar`), compacción, recorte de tool results viejos y aviso de ventana caliente | — | sale por `turno["ruta"]` (`herramientas`/`directo`, la fija el router; tras una ronda de tools, `herramientas`) — X95 |
+ | AgentStep | Node (max_retries=3, wait=5) | historial + tools (sin tools si ya gastó el límite) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
+ | ExecuteTools | Node | último `tool_calls` | ejecuta cada llamada (`run_tool_call`) | agrega mensajes tool, suma `tool_rounds` → `default` |
+ | VerificarCitas | Node (max_retries=2, wait=2) | la última respuesta (si `CITAS_VERIFICAR=1` y no trae `tool_calls`) | verifica `ruta:línea` contra el disco; si alguna falla, UNA corrección sin tools (`exec_fallback`: si la corrección revienta, queda la respuesta) | reemplaza el contenido corregido → `default` (antes vivía en `AgentStep.post`, sin retry: auditoría F6) |
+diff -ruN a/docs/elegancia.md b/docs/elegancia.md
+--- a/docs/elegancia.md	2026-10-28 14:42:50.133986876 +0000
++++ b/docs/elegancia.md	2026-10-28 14:42:02.052971693 +0000
+@@ -69,7 +69,7 @@
+ |---|---|---|---|
+ | 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
+ | 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
+-| 2 | ✅ 2a (X94): el kernel con el shared solo de datos. Falta: el chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
++| 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. Falta: el chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
+ | 3 | `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
+ | 4 | Se borran reglas, voto, `alcance_amplio`, perfiles y directivas (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
+ | 5 | Política de comandos como datos (S10); skills por descripción; Laya 0.4.x | Mínimo | `test_policy_bypass.py` idéntico |
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-28 14:42:50.133986876 +0000
++++ b/docs/estado.md	2026-10-28 14:42:02.052971693 +0000
+@@ -136,6 +136,7 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
++| X95 | — | La compacción vivía dentro de `AgentStep.prep` (30 líneas) y la ruta directa la heredaba por `super().prep`: el grafo no la mostraba. Al moverla apareció un bug previo del linter de trazas: `PreFetch/continue` y `VerificarCitas/default` nunca entraron a `ACCIONES_CANONICAS`, así que toda traza real del chat desde exp/50 daba dos violaciones (c) falsas | ✅ 2026-10-28 (fase 2b-1) | nodo `Contexto` antes de cada llamada al modelo, sale por `turno["ruta"]`; `replay` lo trata como paso transparente (las trazas viejas siguen válidas) y `evals` lo reconoce junto con las dos acciones que faltaban. Caracterización intacta | `test_caminata_con_contexto_es_valida`, `test_el_linter_acepta_la_caminata_con_contexto` |
+ | X94 | — | El kernel guardaba objetos vivos en el shared (`ctx` con el LLM, `tools` con callables; el supervisor además la ley con su `Lock`) y llamaba al historial `mensajes` mientras el chat dice `messages`: el chat no podía correr sobre el kernel sin perder los checkpoints (F4) | ✅ 2026-10-28 (fase 2a) | `loop(ctx, tools)` fija lo vivo en los nodos; `semilla(system, pedido)` devuelve solo `{"messages": …}`; el supervisor arma una `Corrida` (ctx + tools + ley) por flujo. Sin cambio de conducta | `test_el_shared_del_loop_es_json_en_cada_paso`, `test_el_shared_del_supervisor_es_json` |
+ | X93 | — | El producto conocía al laboratorio (`producto_conoce_lab` 10): perfiles de presupuesto `banco` sin invocador, `delegar` importaba el driver de `banco.banco`, `riesgo.origen*` leía `BANCO`/`DELEGADO`, los adapters de fable vivían en `banco/material/` y el juez y `_lineas_de` excluían `GROUND-TRUTH.md` por nombre | ✅ 2026-10-28 (fase 1b) | perfiles borrados; driver PTY en `utils/conductor.py`; el banco manda sus logs a `salidas/banco/` (el sintético no se marca: no llega) y la etiqueta de riesgo decidida por `HITL_SCOPE` sale `scope`; adapters en `fable/dominios/`; `fable_judge --ignorar NOMBRE` genérico. Ratchet `producto_conoce_lab` **10 → 0**, `settings_leidos` 89 → 84 | `test_la_etiqueta_delegada_no_cuenta_como_humana`, `test_env_del_chat_aisla_la_memoria_y_marca_procedencia`, `test_la_answer_sheet_nunca_es_evidencia` |
+ | X92 | — | El CORE importaba `modules.memoria` en tres lugares (`main.catalogo_memoria` con una privada, `main.resumen_de_sesion`, `nodes._respaldar_zona_fria`) y `main` llamaba al conductor por nombre: borrar el módulo rompía el arranque, la compacción y la salida | ✅ 2026-10-28 (fase 1a) | `HOOKS` de ciclo de vida en los módulos + `modules.ganchos(evento)`; la memoria y las delegadas se mudan a su módulo. Ratchet `core_importa_modulos` **3 → 0**, `imports_perezosos` 137 → 126, `excepts_amplios` 34 → 33 | `test_core_sin_modulos.py` |
+diff -ruN a/docs/roadmap.md b/docs/roadmap.md
+--- a/docs/roadmap.md	2026-10-28 14:42:50.133986876 +0000
++++ b/docs/roadmap.md	2026-10-28 14:42:02.056971777 +0000
+@@ -9,8 +9,11 @@
+ Fase 1 cerrada: 1a (X92, `core_importa_modulos` 3 → 0) y 1b (X93,
+ `producto_conoce_lab` 10 → 0). Fase 2 en curso (plan en
+ `docs/elegancia.md`): **2a cerrada** (X94, el kernel con el shared solo de
+-datos). Próximas: 2b (el chat sobre `kernel.loop`, caracterización sin
+-cambios) y 2c (migración de los tests de `AgentStep`/`ExecuteTools`), sin
++datos) y **2b-1** (X95, `Contexto`: la compacción como nodo). Plan de 2b
++revisado (incremental, cada PR verde y con sus tests migrados): 2b-2
++`Observar` (lo que `ExecuteTools.post` decide: no-progreso, novedad, nota de
++presupuesto) y el cierre del presupuesto; 2b-3 `AgentStep`/`ExecuteTools` →
++`Paso`/`Actuar` del kernel con renombre y alias en `replay`/`evals`. Sin
+ cambio de conducta; 2d (esquema de tools fijo + `tool_choice="none"`) espera
+ la línea de base de fable s17–s20 sobre `012b92f` y la prueba de que
+ DeepSeek acepta `tool_choice="none"`.
+diff -ruN a/evals.py b/evals.py
+--- a/evals.py	2026-10-28 14:42:50.121986623 +0000
++++ b/evals.py	2026-10-28 14:39:50.523174164 +0000
+@@ -270,11 +270,16 @@
+ ACCIONES_CANONICAS = {
+     # chat (nodes.py)
+     ("GetQuestion", "continue"), ("GetQuestion", "exit"),
++    # exp/50 y F6: nunca entraron acá — toda traza real del chat desde
++    # entonces daba dos violaciones (c) falsas (descubierto en X95)
++    ("PreFetch", "continue"), ("VerificarCitas", "default"),
+     # marca de incidente del corte por no-progreso (nodes.py la emite con
+     # evento_tool): no es una tool, pero viaja en la traza y el linter la
+     # tiene que reconocer para no contarla como acción desconocida
+     ("corte_no_progreso", "ok"),
+     ("LayaRouter", "directo"), ("LayaRouter", "herramientas"),
++    # X95: la compacción antes de cada llamada al modelo; sale por la ruta
++    ("Contexto", "directo"), ("Contexto", "herramientas"),
+     ("AgentStep", "tool"), ("AgentStep", "answer"),
+     ("DirectAnswer", "tool"), ("DirectAnswer", "answer"),
+     ("ExecuteTools", "default"),
+diff -ruN a/flow.py b/flow.py
+--- a/flow.py	2026-10-28 14:42:50.117986538 +0000
++++ b/flow.py	2026-10-28 14:41:22.784142570 +0000
+@@ -2,6 +2,7 @@
+ 
+ from nodes import (
+     AgentStep,
++    Contexto,
+     DirectAnswer,
+     ExecuteTools,
+     ExitChat,
+@@ -15,6 +16,7 @@
+ def create_agent_flow():
+     ask = GetQuestion()
+     prefetch = PreFetch()
++    contexto = Contexto()  # compacta antes de CADA llamada al modelo
+     step = AgentStep(max_retries=3, wait=5)
+     tools = ExecuteTools()
+     bye = ExitChat()
+@@ -33,20 +35,22 @@
+         # router (que saltea el prefetch para leer la pregunta real).
+         ask - "continue" >> prefetch
+         prefetch - "continue" >> router
+-        router - "directo" >> directo
+-        router - "herramientas" >> step
++        router - "directo" >> contexto
++        router - "herramientas" >> contexto
++        contexto - "directo" >> directo
+         # DirectAnswer hereda el post de AgentStep: devuelve "answer" (nunca
+         # "tool", va sin tools) — la arista correcta es esa, no la default.
+         directo - "answer" >> citas
+         directo - "tool" >> tools
+     else:
+         ask - "continue" >> prefetch
+-        prefetch - "continue" >> step
++        prefetch - "continue" >> contexto
+ 
+     step - "answer" >> citas  # respuesta entregada: se verifican sus citas
+     citas >> ask              # y vuelve a la siguiente pregunta
++    contexto - "herramientas" >> step
+     step - "tool" >> tools  # pidió herramientas: ejecutarlas y volver a pensar
+-    tools >> step
++    tools >> contexto       # y antes de pensar, el contexto otra vez
+     ask - "exit" >> bye
+ 
+     return Flow(start=ask)
+diff -ruN a/nodes.py b/nodes.py
+--- a/nodes.py	2026-10-28 14:42:50.121986623 +0000
++++ b/nodes.py	2026-10-28 14:34:14.319443045 +0000
+@@ -8,6 +8,7 @@
+ 
+ from modules import discover, ganchos
+ from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_stream
++from utils.compaccion import PREFIJO_COMPACCION, compactar, huella, recortar_tools_viejos, serializar
+ from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
+ from utils.fs_tools import TOOLS as CORE_TOOLS
+ from utils.proveedor import (  # noqa: F401  (re-export: tests y banco los importan de nodes)
+@@ -172,6 +173,7 @@
+         "skill": None,           # id del skill activo (exp/55)
+         "router_pendiente": None,  # id de la decisión shadow a etiquetar (exp/43)
+         "uso_inicio": None,      # desglose de tokens al empezar (exp/90)
++        "ruta": "herramientas",  # la arista que toma Contexto (la fija el router)
+     }
+ 
+ 
+@@ -395,13 +397,6 @@
+ 
+     Se evalúa DESPUÉS del respaldo de zona fría (A17) y no genera respaldo
+     propio: un tool result se re-obtiene re-corriendo la tool."""
+-    from utils.compaccion import (
+-        PREFIJO_COMPACCION,
+-        huella,
+-        recortar_tools_viejos,
+-        serializar,
+-    )
+-
+     mensajes = shared["messages"]
+     if len(serializar(mensajes)) <= tope:
+         return
+@@ -417,41 +412,41 @@
+     shared["_compaccion_huella"] = huella(nuevo)
+ 
+ 
+-class AgentStep(Node):
+-    def prep(self, shared):
+-        # Compacción de contexto (Mesa 6, 12-factor #5): si el historial
+-        # serializado supera COMPACTION_CHARS, la zona fría se reemplaza por
+-        # un resumen-instrucción (código puro, sin LLM) ANTES de llamar al
+-        # modelo. Nunca se separa un assistant con tool_calls de sus tools ni
+-        # se toca el system: los invariantes del modo thinking quedan dados
+-        # por utils/compaccion.compactar. El costo se paga UNA vez por ronda:
+-        # la huella del historial compactado evita re-compactar si coincide.
+-        from utils.compaccion import PREFIJO_COMPACCION, compactar, huella, serializar
++class Contexto(Node):
++    """El contexto que viaja al modelo, una vez antes de CADA llamada (al
++    entrar por el router y tras cada ronda de tools). Si el historial supera
++    COMPACTION_CHARS: la zona fría se respalda (gancho `al_compactar`) y se
++    reemplaza por un marcador (código puro, sin LLM; los invariantes del modo
++    thinking los da utils/compaccion.compactar); si ni así baja, se recortan
++    los tool results viejos (exp/91) y se avisa una vez (X51). La huella evita
++    re-compactar la misma ronda. Sale por la ruta que eligió el router."""
+ 
++    def prep(self, shared):
+         tope = _entero("COMPACTION_CHARS", 60000)
+         mensajes = shared["messages"]
+-        if tope > 0 and len(serializar(mensajes)) > tope:
+-            h = huella(mensajes)
+-            if shared.get("_compaccion_huella") != h:
+-                # A17: la zona fría se RESPALDA antes de descartarla (lo hace
+-                # el módulo que la sepa guardar), así el marcador dice la verdad.
+-                respaldo = next(filter(None, (g(mensajes, shared) for g in ganchos("al_compactar"))), None)
+-                nuevo = compactar(mensajes, tope, respaldo=respaldo,
+-                                  objetivo=shared.get("_objetivo"))
+-                if nuevo is not mensajes and len(nuevo) < len(mensajes):
+-                    frios = len(mensajes) - len(nuevo) + 1  # +1: el propio resumen
+-                    print(
+-                        f"{PREFIJO_COMPACCION} zona fría: {frios} mensajes → "
+-                        f"resumen; ventana caliente: {len(nuevo) - 1}"
+-                    )
+-                    shared["messages"] = nuevo
+-                    shared["compacciones"] = shared.get("compacciones", 0) + 1
+-                    shared["_compaccion_huella"] = huella(nuevo)
+-            # exp/91: si ni así se baja del tope, la masa está en el CONTENIDO
+-            # de la ventana caliente. Se evalúa en los DOS caminos (compacción
+-            # exitosa o no-op) y el aviso de X51 mira el tamaño FINAL.
+-            _recortar_si_sigue_sobre_el_tope(shared, tope)
+-            _aviso_ventana_caliente(shared, len(serializar(shared["messages"])), tope)
++        if tope <= 0 or len(serializar(mensajes)) <= tope:
++            return
++        if shared.get("_compaccion_huella") != huella(mensajes):
++            respaldo = next(filter(None, (g(mensajes, shared) for g in ganchos("al_compactar"))), None)
++            nuevo = compactar(mensajes, tope, respaldo=respaldo, objetivo=shared.get("_objetivo"))
++            if nuevo is not mensajes and len(nuevo) < len(mensajes):
++                frios = len(mensajes) - len(nuevo) + 1  # +1: el propio resumen
++                print(f"{PREFIJO_COMPACCION} zona fría: {frios} mensajes → "
++                      f"resumen; ventana caliente: {len(nuevo) - 1}")
++                shared["messages"] = nuevo
++                shared["compacciones"] = shared.get("compacciones", 0) + 1
++                shared["_compaccion_huella"] = huella(nuevo)
++        _recortar_si_sigue_sobre_el_tope(shared, tope)
++        _aviso_ventana_caliente(shared, len(serializar(shared["messages"])), tope)
++
++    def post(self, shared, prep_res, exec_res):
++        if turno(shared).get("ruta") == "directo":
++            return "directo"
++        return "herramientas"
++
++
++class AgentStep(Node):
++    def prep(self, shared):
+         # Techo adaptativo por operación (exp/13) + escape por no-progreso:
+         # si el modelo repite la MISMA ronda de tools demasiadas veces, se
+         # retiran las tools sin esperar el techo — el loop no se paga hasta
+@@ -597,6 +592,7 @@
+ 
+     def post(self, shared, prep_res, exec_res):
+         t = turno(shared)
++        t["ruta"] = "herramientas"  # tras una ronda de tools se vuelve a AgentStep
+         t["rondas"] += 1
+         ronda = t["rondas"]
+         tope = presupuesto(shared)
+@@ -910,6 +906,8 @@
+             and _setting("LAYA_LOG_DECISIONES", "1") == "1"
+         ):
+             turno(shared)["router_pendiente"] = id_decision
++        # la ruta viaja en el turno: Contexto la lee después de compactar
++        turno(shared)["ruta"] = "herramientas" if aplicada != "directo" else "directo"
+         if aplicada != "directo":
+             return "herramientas"  # off, shadow y veto conservan las herramientas
+         return "directo"
+@@ -921,8 +919,8 @@
+     ofrece_tools = False  # el DSML acá es texto: nunca se ofrecieron tools
+ 
+     def prep(self, shared):
+-        # Reusa el prep de AgentStep (compacción incluida): la ruta directa
+-        # mandaba el historial entero sin techo (medido, exp/36) y solo se
+-        # salva por la ventana de caracteres del API. Sin tools.
++        # La compacción ya corrió en Contexto (la ruta directa mandaba el
++        # historial entero sin techo, exp/36); acá el prep de AgentStep y
++        # sin tools.
+         mensajes, _ = super().prep(shared)
+         return mensajes, None
+diff -ruN a/ratchets/baseline.json b/ratchets/baseline.json
+--- a/ratchets/baseline.json	2026-10-28 14:42:50.153987298 +0000
++++ b/ratchets/baseline.json	2026-10-28 14:40:12.479365348 +0000
+@@ -50,9 +50,9 @@
+           74
+         ],
+         "nodes.py": [
+-          58,
+-          811,
+-          883
++          59,
++          807,
++          879
+         ],
+         "research.py": [
+           78
+@@ -168,12 +168,11 @@
+         "modules/rag.py:_prefiltrar": 2,
+         "modules/supervisor.py:run_supervisor": 2,
+         "modules/vision.py:ver_pdf": 1,
+-        "nodes.py:AgentStep": 3,
++        "nodes.py:AgentStep": 2,
+         "nodes.py:GetQuestion": 4,
+         "nodes.py:LayaRouter": 6,
+         "nodes.py:PreFetch": 3,
+         "nodes.py:VerificarCitas": 1,
+-        "nodes.py:_recortar_si_sigue_sobre_el_tope": 1,
+         "nodes.py:alcance_amplio": 1,
+         "nodes.py:registrar_pregunta": 1,
+         "nodes.py:voto_confirmacion_router": 4,
+@@ -227,7 +226,7 @@
+         "utils/websearch.py:search_web": 1,
+         "visor.py:vigilar": 1
+       },
+-      "metrica": 126
++      "metrica": 124
+     },
+     "nodos_largos": {
+       "detalle": {
+@@ -240,10 +239,10 @@
+         "juez.py:Judge": 144,
+         "juez_lote.py:CorrerJuez": 51,
+         "juez_lote.py:JuezLoteFlow": 108,
+-        "nodes.py:AgentStep": 125,
+-        "nodes.py:ExecuteTools": 59,
++        "nodes.py:AgentStep": 92,
++        "nodes.py:ExecuteTools": 60,
+         "nodes.py:GetQuestion": 56,
+-        "nodes.py:LayaRouter": 153,
++        "nodes.py:LayaRouter": 155,
+         "nodes.py:VerificarCitas": 53,
+         "research.py:Synthesizer": 60
+       },
+@@ -542,7 +541,7 @@
+         "tests/test_estado_riesgo.py": 3,
+         "tests/test_estado_turno.py": 6,
+         "tests/test_estilo_humano.py": 9,
+-        "tests/test_evals.py": 15,
++        "tests/test_evals.py": 16,
+         "tests/test_f_prompt.py": 9,
+         "tests/test_fable.py": 29,
+         "tests/test_fable_dominios.py": 6,
+@@ -575,7 +574,7 @@
+         "tests/test_producto_router.py": 3,
+         "tests/test_ratchet.py": 35,
+         "tests/test_ratchet_elegancia.py": 15,
+-        "tests/test_replay.py": 16,
++        "tests/test_replay.py": 17,
+         "tests/test_riesgo.py": 19,
+         "tests/test_rondas.py": 5,
+         "tests/test_router.py": 12,
+@@ -599,7 +598,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 1113
++      "metrica": 1115
+     },
+     "texto_de_prompt": {
+       "detalle": {
+diff -ruN a/replay.py b/replay.py
+--- a/replay.py	2026-10-28 14:42:50.121986623 +0000
++++ b/replay.py	2026-10-28 14:38:13.005243462 +0000
+@@ -78,7 +78,7 @@
+ # cualquier traza. Los flujos internos que el chat despacha por tools
+ # (supervisor, debate, juez...) dejan SUS eventos en el mismo archivo — son
+ # corridas de OTROS grafos, no caminatas del chat.
+-NODOS_CHAT = {"GetQuestion", "LayaRouter", "DirectAnswer", "AgentStep",
++NODOS_CHAT = {"GetQuestion", "LayaRouter", "Contexto", "DirectAnswer", "AgentStep",
+               "ExecuteTools", "ExitChat", "VerificarCitas"}
+ 
+ 
+@@ -181,6 +181,19 @@
+         for nodo in _nodos_alcanzables(start):
+             for accion, siguiente in nodo.successors.items():
+                 aristas_chat.add((type(nodo).__name__, accion, type(siguiente).__name__))
++    # X95: Contexto (la compacción) corre antes de cada llamada al modelo y
++    # sale por la misma ruta por la que entró (o "herramientas" si entró por
++    # una arista que no es de ruta: PreFetch sin router, ExecuteTools). Las
++    # caminatas previas saltaban de ahí directo al modelo: misma regla
++    # transitiva que PreFetch y VerificarCitas.
++    rutas = {"directo", "herramientas"}
++    aristas_chat |= {
++        (a, accion, c)
++        for (a, accion, b) in aristas_chat
++        if b == "Contexto"
++        for (b2, salida, c) in aristas_chat
++        if b2 == "Contexto" and salida == (accion if accion in rutas else "herramientas")
++    }
+     # exp/50: PreFetch es un pasaje TRANSPARENTE entre GetQuestion y el resto.
+     # Las caminatas históricas (pre-exp/50) saltaban directo de GetQuestion a
+     # LayaRouter/AgentStep y siguen siendo válidas: se agregan las aristas
+diff -ruN a/tests/test_compaccion.py b/tests/test_compaccion.py
+--- a/tests/test_compaccion.py	2026-10-28 14:42:50.129986792 +0000
++++ b/tests/test_compaccion.py	2026-10-28 14:37:08.655630350 +0000
+@@ -118,9 +118,10 @@
+     assert validar_historial(sin_system)
+ 
+ def test_agent_step_prep_compacta_y_cuenta(monkeypatch, capsys):
+-    """Integración: con COMPACTION_CHARS chico, AgentStep.prep devuelve el
+-    historial compactado y cuenta en shared['compacciones']. Y no re-compacta
+-    la misma ronda (huella)."""
++    """Integración: con COMPACTION_CHARS chico, el nodo Contexto (que corre
++    antes de cada llamada al modelo, X95) deja el historial compactado y
++    cuenta en shared['compacciones']. Y no re-compacta la misma ronda
++    (huella)."""
+     import nodes
+     from utils.compaccion import PREFIJO_COMPACCION
+ 
+@@ -128,21 +129,21 @@
+     largo = _historial_sintetico(n_vueltas=40)
+     shared = {"messages": list(largo), "tool_rounds": 0}
+ 
+-    mensajes, tools = nodes.AgentStep().prep(shared)
++    nodes.Contexto()._run(shared)
++    mensajes = shared["messages"]
+     assert shared["compacciones"] == 1
+-    assert mensajes is shared["messages"]
+     assert len(mensajes) < len(largo)
+     assert mensajes[1]["content"].startswith(PREFIJO_COMPACCION)
+     assert mensajes[0] == largo[0]
+     assert "zona fría" in capsys.readouterr().out
+ 
+     # segunda llamada con el MISMO historial ya compactado: no re-compacta
+-    nodes.AgentStep().prep(shared)
++    nodes.Contexto()._run(shared)
+     assert shared["compacciones"] == 1
+ 
+     # un historial corto no dispara compacción
+     shared2 = {"messages": largo[:3], "tool_rounds": 0}
+-    nodes.AgentStep().prep(shared2)
++    nodes.Contexto()._run(shared2)
+     assert "compacciones" not in shared2
+ 
+ def test_compactar_dispara_por_caracteres_con_umbral_de_mensajes():
+@@ -174,8 +175,9 @@
+ 
+ def test_un_typo_en_un_setting_numerico_no_mata_el_chat(monkeypatch):
+     """exp/37 (barrida): un ".env" con COMPACTION_CHARS=sesenta mil reventaba
+-    en AgentStep.prep — que corre FUERA del retry del nodo — y mataba el chat.
+-    _entero avisa y usa el default."""
++    en el prep que compacta — corre FUERA del retry del nodo — y mataba el
++    chat. _entero avisa y usa el default. Desde X95 la compacción vive en
++    Contexto: se prueban los dos preps (el de AgentStep tampoco lo lee)."""
+     import nodes
+     from utils import call_llm
+ 
+@@ -184,7 +186,8 @@
+         lambda nombre, default=None: "sesenta mil" if nombre == "COMPACTION_CHARS" else default,
+     )
+     shared = {"messages": [{"role": "system", "content": "s"}], "tool_rounds": 0}
+-    mensajes, tools = nodes.AgentStep().prep(shared)   # no debe levantar
++    assert nodes.Contexto()._run(shared) == "herramientas"   # no debe levantar
++    mensajes, tools = nodes.AgentStep().prep(shared)
+     assert mensajes and tools is not None
+ 
+ def test_compactar_no_devuelve_mas_contexto_del_que_recibio():
+@@ -290,9 +293,9 @@
+              {"role": "user", "content": "pregunta"}] + _gigante(12))
+     shared = {"messages": msgs, "tool_rounds": 0, "_objetivo": "pregunta",
+               "no_progress": 0}
+-    nodo = nodes.AgentStep()
++    nodo = nodes.Contexto()
+     for _ in range(3):  # tres rondas seguidas: el aviso no se repite
+-        nodo.prep(shared)  # MISMO dict: el flag vive en shared
++        nodo._run(shared)  # MISMO dict: el flag vive en shared
+     salida = capsys.readouterr().out
+     assert salida.count("la ventana caliente sola supera el tope") == 1
+ 
+@@ -389,7 +392,7 @@
+               "no_progress": 0}
+     antes = len(serializar(shared["messages"]))
+ 
+-    nodes.AgentStep().prep(shared)
++    nodes.Contexto()._run(shared)
+ 
+     despues = shared["messages"]
+     assert len(serializar(despues)) < antes
+@@ -410,7 +413,7 @@
+     largo = _historial_sintetico(n_vueltas=40, relleno=400)
+     shared = {"messages": list(largo), "tool_rounds": 0}
+ 
+-    nodes.AgentStep().prep(shared)
++    nodes.Contexto()._run(shared)
+ 
+     assert shared["compacciones"] == 1
+     assert len(serializar(shared["messages"])) <= 20000
+@@ -431,7 +434,7 @@
+              {"role": "user", "content": "pregunta"}] + _gigante(12, chars=2000))
+     shared = {"messages": list(msgs), "tool_rounds": 0, "_objetivo": "pregunta",
+               "no_progress": 0}
+-    nodes.AgentStep().prep(shared)
++    nodes.Contexto()._run(shared)
+     salida = capsys.readouterr().out
+     assert len(serializar(shared["messages"])) <= 12000
+     assert "recorte" in salida
+@@ -441,7 +444,7 @@
+     monkeypatch.setenv("COMPACTION_CHARS", "3000")
+     shared = {"messages": list(msgs), "tool_rounds": 0, "_objetivo": "pregunta",
+               "no_progress": 0}
+-    nodes.AgentStep().prep(shared)
++    nodes.Contexto()._run(shared)
+     salida = capsys.readouterr().out
+     assert len(serializar(shared["messages"])) < len(serializar(msgs))
+     assert "la ventana caliente sola supera el tope" in salida
+@@ -466,7 +469,7 @@
+                  "function": {"name": "read_file", "arguments": "{}"}}]},
+             {"role": "tool", "tool_call_id": f"r{ronda}", "content": "t" * 12000},
+         ]
+-        nodes.AgentStep().prep(shared)
++        nodes.Contexto()._run(shared)
+         assert len(serializar(shared["messages"])) <= 60000, f"clavado en la ronda {ronda}"
+ 
+ 
+diff -ruN a/tests/test_evals.py b/tests/test_evals.py
+--- a/tests/test_evals.py	2026-10-28 14:42:50.129986792 +0000
++++ b/tests/test_evals.py	2026-10-28 14:38:54.606277596 +0000
+@@ -323,6 +323,19 @@
+     assert "Informe de evals generado" in r
+     assert llamadas["guardar"] == 0, "la tool del chat NO guarda baseline"
+ 
++def test_el_linter_acepta_la_caminata_con_contexto():
++    """X95: Contexto (la compacción antes de cada llamada) es una acción
++    canónica del chat; una traza del grafo nuevo no viola ningún invariante."""
++    from evals import linter_traza
++
++    traza = [{"nodo": n, "accion": a, "seg": 0.1} for n, a in (
++        ("GetQuestion", "continue"), ("PreFetch", "continue"), ("LayaRouter", "herramientas"),
++        ("Contexto", "herramientas"), ("AgentStep", "tool"), ("read_file", "ok"),
++        ("ExecuteTools", "default"), ("Contexto", "herramientas"), ("AgentStep", "answer"),
++        ("LayaRouter", "directo"), ("Contexto", "directo"), ("DirectAnswer", "answer"))]
++    assert linter_traza(traza) == []
++
++
+ def test_el_linter_reconoce_las_acciones_y_tools_que_faltaban():
+     """exp/37: el linter marcaba como desconocidas una arista real del juez
+     (Judge/retry, juez.py:233) y cuatro tools de módulos (visión y a2a), lo que
+diff -ruN a/tests/test_pendientes.py b/tests/test_pendientes.py
+--- a/tests/test_pendientes.py	2026-10-28 14:42:50.125986707 +0000
++++ b/tests/test_pendientes.py	2026-10-28 14:37:08.655630350 +0000
+@@ -370,7 +370,8 @@
+     largo = _historial_largo()
+ 
+     shared = {"messages": list(largo), "tool_rounds": 0}
+-    mensajes, _ = nodes.AgentStep().prep(shared)
++    nodes.Contexto()._run(shared)
++    mensajes = shared["messages"]
+     ruta = shared["_respaldo_ruta"]
+     assert mensajes[1]["content"].startswith(PREFIJO_COMPACCION)
+     assert ruta in mensajes[1]["content"]
+@@ -384,7 +385,8 @@
+         {"role": "user", "content": "seguí"},
+     ]
+     shared.pop("_compaccion_huella")
+-    mensajes2, _ = nodes.AgentStep().prep(shared)
++    nodes.Contexto()._run(shared)
++    mensajes2 = shared["messages"]
+     ruta2 = shared["_respaldo_ruta"]
+     assert shared["compacciones"] == 2
+     assert ruta2 != ruta
+diff -ruN a/tests/test_replay.py b/tests/test_replay.py
+--- a/tests/test_replay.py	2026-10-28 14:42:50.121986623 +0000
++++ b/tests/test_replay.py	2026-10-28 14:39:23.682743806 +0000
+@@ -73,7 +73,7 @@
+ def test_grafos_vivos_traen_las_variantes_del_chat(vivos):
+     clases, aristas, _ = vivos
+     # nodos del chat con y sin router (PreFetch desde exp/50 en ambas variantes)
+-    for nodo in ("GetQuestion", "PreFetch", "LayaRouter", "DirectAnswer",
++    for nodo in ("GetQuestion", "PreFetch", "LayaRouter", "Contexto", "DirectAnswer",
+                  "AgentStep", "ExecuteTools", "ExitChat"):
+         assert nodo in clases, nodo
+     # las aristas de ambas variantes: la del router y la de degradación
+@@ -96,6 +96,28 @@
+ # Nivel A — emisibilidad
+ 
+ 
++def test_caminata_con_contexto_es_valida(vivos):
++    """X95: la caminata NUEVA — router → Contexto → AgentStep → ExecuteTools →
++    Contexto → AgentStep — es arista del chat, y la vieja (sin Contexto)
++    también sigue valiendo (test_caminata_valida_sin_violaciones)."""
++    clases, aristas, _ = vivos
++    nueva = [
++        _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"),
++        _ev("LayaRouter", "herramientas"), _ev("Contexto", "herramientas"),
++        _ev("AgentStep", "tool"), _ev("read_file", "ok", 0.3), _ev("ExecuteTools", "default"),
++        _ev("Contexto", "herramientas"), _ev("AgentStep", "answer"),
++        _ev("VerificarCitas", "default"), _ev("GetQuestion", "continue"),
++        _ev("PreFetch", "continue"), _ev("LayaRouter", "directo"),
++        _ev("Contexto", "directo"), _ev("DirectAnswer", "answer"),
++        _ev("VerificarCitas", "default"), _ev("GetQuestion", "exit"), _ev("ExitChat", "None"),
++    ]
++    assert replay.nivel_b_chat(nueva, clases, aristas) == []
++    assert replay.nivel_a(nueva, clases) == []
++    # una ruta cruzada NO vale: Contexto sale por la arista por la que entró
++    cruzada = [_ev("LayaRouter", "directo"), _ev("Contexto", "directo"), _ev("AgentStep", "answer")]
++    assert replay.nivel_b_chat(cruzada, clases, aristas) == [("Contexto", "directo", "AgentStep")]
++
++
+ def test_caminata_valida_sin_violaciones(vivos):
+     clases, aristas, herramientas = vivos
+     eventos = _caminata_chat()
+diff -ruN a/tests/test_router.py b/tests/test_router.py
+--- a/tests/test_router.py	2026-10-28 14:42:50.129986792 +0000
++++ b/tests/test_router.py	2026-10-28 14:37:44.116503408 +0000
+@@ -19,7 +19,10 @@
+     assert prefetch is not None
+     router = prefetch.successors.get("continue")
+     assert router is not None
+-    directo = router.successors.get("directo")
++    # X95: las dos rutas pasan por Contexto (compacción) antes del modelo
++    contexto = router.successors.get("directo")
++    assert contexto is router.successors.get("herramientas")
++    directo = contexto.successors.get("directo")
+     assert directo is not None
+     assert "answer" in directo.successors, f"DirectAnswer debe volver con 'answer': {list(directo.successors)}"
+ 

@@ -50,9 +50,9 @@
           74
         ],
         "nodes.py": [
-          58,
-          811,
-          883
+          59,
+          807,
+          879
         ],
         "research.py": [
           78
@@ -168,12 +168,11 @@
         "modules/rag.py:_prefiltrar": 2,
         "modules/supervisor.py:run_supervisor": 2,
         "modules/vision.py:ver_pdf": 1,
-        "nodes.py:AgentStep": 3,
+        "nodes.py:AgentStep": 2,
         "nodes.py:GetQuestion": 4,
         "nodes.py:LayaRouter": 6,
         "nodes.py:PreFetch": 3,
         "nodes.py:VerificarCitas": 1,
-        "nodes.py:_recortar_si_sigue_sobre_el_tope": 1,
         "nodes.py:alcance_amplio": 1,
         "nodes.py:registrar_pregunta": 1,
         "nodes.py:voto_confirmacion_router": 4,
@@ -227,7 +226,7 @@
         "utils/websearch.py:search_web": 1,
         "visor.py:vigilar": 1
       },
-      "metrica": 126
+      "metrica": 124
     },
     "nodos_largos": {
       "detalle": {
@@ -240,10 +239,10 @@
         "juez.py:Judge": 144,
         "juez_lote.py:CorrerJuez": 51,
         "juez_lote.py:JuezLoteFlow": 108,
-        "nodes.py:AgentStep": 125,
-        "nodes.py:ExecuteTools": 59,
+        "nodes.py:AgentStep": 92,
+        "nodes.py:ExecuteTools": 60,
         "nodes.py:GetQuestion": 56,
-        "nodes.py:LayaRouter": 153,
+        "nodes.py:LayaRouter": 155,
         "nodes.py:VerificarCitas": 53,
         "research.py:Synthesizer": 60
       },
@@ -542,7 +541,7 @@
         "tests/test_estado_riesgo.py": 3,
         "tests/test_estado_turno.py": 6,
         "tests/test_estilo_humano.py": 9,
-        "tests/test_evals.py": 15,
+        "tests/test_evals.py": 16,
         "tests/test_f_prompt.py": 9,
         "tests/test_fable.py": 29,
         "tests/test_fable_dominios.py": 6,
@@ -575,7 +574,7 @@
         "tests/test_producto_router.py": 3,
         "tests/test_ratchet.py": 35,
         "tests/test_ratchet_elegancia.py": 15,
-        "tests/test_replay.py": 16,
+        "tests/test_replay.py": 17,
         "tests/test_riesgo.py": 19,
         "tests/test_rondas.py": 5,
         "tests/test_router.py": 12,
@@ -599,7 +598,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1113
+      "metrica": 1115
     },
     "texto_de_prompt": {
       "detalle": {

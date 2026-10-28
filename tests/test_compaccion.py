@@ -118,9 +118,10 @@ def test_compaccion_invariantes_antes_y_despues():
     assert validar_historial(sin_system)
 
 def test_agent_step_prep_compacta_y_cuenta(monkeypatch, capsys):
-    """Integración: con COMPACTION_CHARS chico, AgentStep.prep devuelve el
-    historial compactado y cuenta en shared['compacciones']. Y no re-compacta
-    la misma ronda (huella)."""
+    """Integración: con COMPACTION_CHARS chico, el nodo Contexto (que corre
+    antes de cada llamada al modelo, X95) deja el historial compactado y
+    cuenta en shared['compacciones']. Y no re-compacta la misma ronda
+    (huella)."""
     import nodes
     from utils.compaccion import PREFIJO_COMPACCION
 
@@ -128,21 +129,21 @@ def test_agent_step_prep_compacta_y_cuenta(monkeypatch, capsys):
     largo = _historial_sintetico(n_vueltas=40)
     shared = {"messages": list(largo), "tool_rounds": 0}
 
-    mensajes, tools = nodes.AgentStep().prep(shared)
+    nodes.Contexto()._run(shared)
+    mensajes = shared["messages"]
     assert shared["compacciones"] == 1
-    assert mensajes is shared["messages"]
     assert len(mensajes) < len(largo)
     assert mensajes[1]["content"].startswith(PREFIJO_COMPACCION)
     assert mensajes[0] == largo[0]
     assert "zona fría" in capsys.readouterr().out
 
     # segunda llamada con el MISMO historial ya compactado: no re-compacta
-    nodes.AgentStep().prep(shared)
+    nodes.Contexto()._run(shared)
     assert shared["compacciones"] == 1
 
     # un historial corto no dispara compacción
     shared2 = {"messages": largo[:3], "tool_rounds": 0}
-    nodes.AgentStep().prep(shared2)
+    nodes.Contexto()._run(shared2)
     assert "compacciones" not in shared2
 
 def test_compactar_dispara_por_caracteres_con_umbral_de_mensajes():
@@ -174,8 +175,9 @@ def test_compactar_dispara_por_caracteres_con_umbral_de_mensajes():
 
 def test_un_typo_en_un_setting_numerico_no_mata_el_chat(monkeypatch):
     """exp/37 (barrida): un ".env" con COMPACTION_CHARS=sesenta mil reventaba
-    en AgentStep.prep — que corre FUERA del retry del nodo — y mataba el chat.
-    _entero avisa y usa el default."""
+    en el prep que compacta — corre FUERA del retry del nodo — y mataba el
+    chat. _entero avisa y usa el default. Desde X95 la compacción vive en
+    Contexto: se prueban los dos preps (el de AgentStep tampoco lo lee)."""
     import nodes
     from utils import call_llm
 
@@ -184,7 +186,8 @@ def test_un_typo_en_un_setting_numerico_no_mata_el_chat(monkeypatch):
         lambda nombre, default=None: "sesenta mil" if nombre == "COMPACTION_CHARS" else default,
     )
     shared = {"messages": [{"role": "system", "content": "s"}], "tool_rounds": 0}
-    mensajes, tools = nodes.AgentStep().prep(shared)   # no debe levantar
+    assert nodes.Contexto()._run(shared) == "herramientas"   # no debe levantar
+    mensajes, tools = nodes.AgentStep().prep(shared)
     assert mensajes and tools is not None
 
 def test_compactar_no_devuelve_mas_contexto_del_que_recibio():
@@ -290,9 +293,9 @@ def test_el_aviso_de_ventana_caliente_sale_una_vez(monkeypatch, capsys):
              {"role": "user", "content": "pregunta"}] + _gigante(12))
     shared = {"messages": msgs, "tool_rounds": 0, "_objetivo": "pregunta",
               "no_progress": 0}
-    nodo = nodes.AgentStep()
+    nodo = nodes.Contexto()
     for _ in range(3):  # tres rondas seguidas: el aviso no se repite
-        nodo.prep(shared)  # MISMO dict: el flag vive en shared
+        nodo._run(shared)  # MISMO dict: el flag vive en shared
     salida = capsys.readouterr().out
     assert salida.count("la ventana caliente sola supera el tope") == 1
 
@@ -389,7 +392,7 @@ def test_prep_recorta_cuando_la_compaccion_es_noop(monkeypatch, capsys):
               "no_progress": 0}
     antes = len(serializar(shared["messages"]))
 
-    nodes.AgentStep().prep(shared)
+    nodes.Contexto()._run(shared)
 
     despues = shared["messages"]
     assert len(serializar(despues)) < antes
@@ -410,7 +413,7 @@ def test_prep_no_recorta_si_la_compaccion_alcanza(monkeypatch, capsys):
     largo = _historial_sintetico(n_vueltas=40, relleno=400)
     shared = {"messages": list(largo), "tool_rounds": 0}
 
-    nodes.AgentStep().prep(shared)
+    nodes.Contexto()._run(shared)
 
     assert shared["compacciones"] == 1
     assert len(serializar(shared["messages"])) <= 20000
@@ -431,7 +434,7 @@ def test_prep_aviso_de_ventana_caliente_mira_el_tamano_final(monkeypatch, capsys
              {"role": "user", "content": "pregunta"}] + _gigante(12, chars=2000))
     shared = {"messages": list(msgs), "tool_rounds": 0, "_objetivo": "pregunta",
               "no_progress": 0}
-    nodes.AgentStep().prep(shared)
+    nodes.Contexto()._run(shared)
     salida = capsys.readouterr().out
     assert len(serializar(shared["messages"])) <= 12000
     assert "recorte" in salida
@@ -441,7 +444,7 @@ def test_prep_aviso_de_ventana_caliente_mira_el_tamano_final(monkeypatch, capsys
     monkeypatch.setenv("COMPACTION_CHARS", "3000")
     shared = {"messages": list(msgs), "tool_rounds": 0, "_objetivo": "pregunta",
               "no_progress": 0}
-    nodes.AgentStep().prep(shared)
+    nodes.Contexto()._run(shared)
     salida = capsys.readouterr().out
     assert len(serializar(shared["messages"])) < len(serializar(msgs))
     assert "la ventana caliente sola supera el tope" in salida
@@ -466,7 +469,7 @@ def test_el_recorte_se_mantiene_al_agregar_rondas(monkeypatch):
                  "function": {"name": "read_file", "arguments": "{}"}}]},
             {"role": "tool", "tool_call_id": f"r{ronda}", "content": "t" * 12000},
         ]
-        nodes.AgentStep().prep(shared)
+        nodes.Contexto()._run(shared)
         assert len(serializar(shared["messages"])) <= 60000, f"clavado en la ronda {ronda}"
 
 

@@ -2,6 +2,7 @@ from pocketflow import Flow
 
 from nodes import (
     AgentStep,
+    Contexto,
     DirectAnswer,
     ExecuteTools,
     ExitChat,
@@ -15,6 +16,7 @@ from nodes import (
 def create_agent_flow():
     ask = GetQuestion()
     prefetch = PreFetch()
+    contexto = Contexto()  # compacta antes de CADA llamada al modelo
     step = AgentStep(max_retries=3, wait=5)
     tools = ExecuteTools()
     bye = ExitChat()
@@ -33,20 +35,22 @@ def create_agent_flow():
         # router (que saltea el prefetch para leer la pregunta real).
         ask - "continue" >> prefetch
         prefetch - "continue" >> router
-        router - "directo" >> directo
-        router - "herramientas" >> step
+        router - "directo" >> contexto
+        router - "herramientas" >> contexto
+        contexto - "directo" >> directo
         # DirectAnswer hereda el post de AgentStep: devuelve "answer" (nunca
         # "tool", va sin tools) — la arista correcta es esa, no la default.
         directo - "answer" >> citas
         directo - "tool" >> tools
     else:
         ask - "continue" >> prefetch
-        prefetch - "continue" >> step
+        prefetch - "continue" >> contexto
 
     step - "answer" >> citas  # respuesta entregada: se verifican sus citas
     citas >> ask              # y vuelve a la siguiente pregunta
+    contexto - "herramientas" >> step
     step - "tool" >> tools  # pidió herramientas: ejecutarlas y volver a pensar
-    tools >> step
+    tools >> contexto       # y antes de pensar, el contexto otra vez
     ask - "exit" >> bye
 
     return Flow(start=ask)

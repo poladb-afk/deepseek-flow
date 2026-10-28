@@ -19,7 +19,10 @@ def test_router_aristas_del_chat(monkeypatch):
     assert prefetch is not None
     router = prefetch.successors.get("continue")
     assert router is not None
-    directo = router.successors.get("directo")
+    # X95: las dos rutas pasan por Contexto (compacción) antes del modelo
+    contexto = router.successors.get("directo")
+    assert contexto is router.successors.get("herramientas")
+    directo = contexto.successors.get("directo")
     assert directo is not None
     assert "answer" in directo.successors, f"DirectAnswer debe volver con 'answer': {list(directo.successors)}"
 

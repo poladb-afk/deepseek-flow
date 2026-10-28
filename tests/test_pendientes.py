@@ -370,7 +370,8 @@ def test_marcador_de_compaccion_menciona_el_ultimo_respaldo(tmp_path, monkeypatc
     largo = _historial_largo()
 
     shared = {"messages": list(largo), "tool_rounds": 0}
-    mensajes, _ = nodes.AgentStep().prep(shared)
+    nodes.Contexto()._run(shared)
+    mensajes = shared["messages"]
     ruta = shared["_respaldo_ruta"]
     assert mensajes[1]["content"].startswith(PREFIJO_COMPACCION)
     assert ruta in mensajes[1]["content"]
@@ -384,7 +385,8 @@ def test_marcador_de_compaccion_menciona_el_ultimo_respaldo(tmp_path, monkeypatc
         {"role": "user", "content": "seguí"},
     ]
     shared.pop("_compaccion_huella")
-    mensajes2, _ = nodes.AgentStep().prep(shared)
+    nodes.Contexto()._run(shared)
+    mensajes2 = shared["messages"]
     ruta2 = shared["_respaldo_ruta"]
     assert shared["compacciones"] == 2
     assert ruta2 != ruta

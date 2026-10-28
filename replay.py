@@ -78,7 +78,7 @@ NO_NODOS_TOLERADOS = {
 # cualquier traza. Los flujos internos que el chat despacha por tools
 # (supervisor, debate, juez...) dejan SUS eventos en el mismo archivo — son
 # corridas de OTROS grafos, no caminatas del chat.
-NODOS_CHAT = {"GetQuestion", "LayaRouter", "DirectAnswer", "AgentStep",
+NODOS_CHAT = {"GetQuestion", "LayaRouter", "Contexto", "DirectAnswer", "AgentStep",
               "ExecuteTools", "ExitChat", "VerificarCitas"}
 
 
@@ -181,6 +181,19 @@ def _grafos_vivos():
         for nodo in _nodos_alcanzables(start):
             for accion, siguiente in nodo.successors.items():
                 aristas_chat.add((type(nodo).__name__, accion, type(siguiente).__name__))
+    # X95: Contexto (la compacción) corre antes de cada llamada al modelo y
+    # sale por la misma ruta por la que entró (o "herramientas" si entró por
+    # una arista que no es de ruta: PreFetch sin router, ExecuteTools). Las
+    # caminatas previas saltaban de ahí directo al modelo: misma regla
+    # transitiva que PreFetch y VerificarCitas.
+    rutas = {"directo", "herramientas"}
+    aristas_chat |= {
+        (a, accion, c)
+        for (a, accion, b) in aristas_chat
+        if b == "Contexto"
+        for (b2, salida, c) in aristas_chat
+        if b2 == "Contexto" and salida == (accion if accion in rutas else "herramientas")
+    }
     # exp/50: PreFetch es un pasaje TRANSPARENTE entre GetQuestion y el resto.
     # Las caminatas históricas (pre-exp/50) saltaban directo de GetQuestion a
     # LayaRouter/AgentStep y siguen siendo válidas: se agregan las aristas
