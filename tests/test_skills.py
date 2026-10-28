@@ -7,6 +7,7 @@ YAML roto se saltea; un skill nunca expande el action space.
 """
 import json
 
+from modules import memoria
 from utils.skills import (
     PREFIJO_SKILL,
     Skill,
@@ -111,11 +112,10 @@ def test_agent_step_anuncia_solo_el_subset_del_skill():
 
 
 def test_preguntas_reales_no_cuentan_el_mensaje_de_skill():
-    import main
 
     mensajes = [
         {"role": "user", "content": "¿qué es un closure?"},
         {"role": "user", "content": f"{PREFIJO_SKILL} revision — reglas"},
         {"role": "assistant", "content": "…"},
     ]
-    assert main._preguntas_reales(mensajes) == 1
+    assert memoria.preguntas_reales(mensajes) == 1

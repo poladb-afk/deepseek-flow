@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pocketflow import Node
 
-from modules import discover
+from modules import discover, ganchos
 from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_stream
 from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
 from utils.fs_tools import TOOLS as CORE_TOOLS
@@ -397,15 +397,6 @@ class PreFetch(Node):
         return "continue"
 
 
-def _ahora():
-    """Timestamp del título del respaldo (segundos: dos compacciones del mismo
-    minuto colisionaban y el dedupe de guardar_nota las desambiguaba con
-    "-2", "-3"). Aislado para poder fijarlo en los tests."""
-    from datetime import datetime
-
-    return datetime.now().strftime("%Y-%m-%d %H-%M-%S")
-
-
 def _aviso_ventana_caliente(shared, tamano, tope):
     """exp/88: si ni compactando se baja del tope, la masa está en la
     ventana caliente — decílo UNA vez por sesión: el marcador de compacción
@@ -449,62 +440,6 @@ def _recortar_si_sigue_sobre_el_tope(shared, tope):
     shared["_compaccion_huella"] = huella(nuevo)
 
 
-def _respaldar_zona_fria(mensajes, shared=None):
-    """Guarda en memoria/ los mensajes que la compacción va a descartar (A17).
-
-    Sin LLM a propósito: una transcripción literal es barata, no suma latencia
-    al turno ni un modo de fallo nuevo (y el resumen real de la sesión ya se
-    hace al salir, en main.resumen_de_sesion). Devuelve la ruta o None.
-
-    Medido: la zona fría casi no cambia entre compacciones de la MISMA sesión,
-    así que respaldarla en cada una llenó memoria/ de copias idénticas (143
-    respaldos con el mismo cuerpo) y contaminó memory_search. Con `shared` la
-    sesión recuerda la huella de lo último respaldado: si la zona fría es la
-    misma, no se escribe nada y se devuelve la ruta del respaldo que ya existe
-    (el marcador la sigue diciendo, A17).
-
-    Con MEMORIA=0 la biblioteca está apagada (ni catálogo ni memory_search):
-    el respaldo no tendría cómo recuperarse y solo ensuciaría `memoria/`.
-    exp/71 midió que la suite (que corre con MEMORIA=1) y el banco (que corre
-    con 0, pero el respaldo ignoraba el setting) dejaban 157 respaldos de
-    fixture en la biblioteca curada; en ese modo no escribe.
-
-    exp/88: la sesión real del operador destapó la puerta que X37 no cerró —
-    cuando la ventana caliente sola supera el tope, la compacción se vuelve
-    RODANTE (dispara cada ronda con una zona fría recién envejecida) y el
-    respaldo por-huella escribía un archivo por ronda (19 en 5 minutos). Regla:
-    solo se respalda lo IRRECUPERABLE — una zona fría sin ningún mensaje
-    `user` (solo assistant/tool) no se respalda: los resultados de tools se
-    re-obtienen re-corriendo la tool y la prosa del asistente es derivada."""
-    from utils.compaccion import MAX_RESPALDO_CHARS, huella, serializar, zona_fria
-
-    if _setting("MEMORIA", "1") != "1":
-        return None
-    frios = zona_fria(mensajes)
-    if not frios:
-        return None
-    if not any(m.get("role") == "user" for m in frios if isinstance(m, dict)):
-        return None
-    cuerpo = serializar(frios)
-    firma = huella(frios)
-    if shared is not None and shared.get("_respaldo_huella") == firma:
-        return shared.get("_respaldo_ruta")
-    from modules.memoria import guardar_nota
-
-    aviso = ""
-    if len(cuerpo) > MAX_RESPALDO_CHARS:
-        cuerpo = cuerpo[:MAX_RESPALDO_CHARS]
-        aviso = "\n\n[... transcripción truncada por tamaño ...]"
-    titulo = f"Compactación {_ahora()}"
-    destino = guardar_nota(titulo, cuerpo + aviso)
-    if destino is None:
-        return None
-    if shared is not None:
-        shared["_respaldo_huella"] = firma
-        shared["_respaldo_ruta"] = str(destino)
-    return str(destino)
-
-
 class AgentStep(Node):
     def prep(self, shared):
         # Compacción de contexto (Mesa 6, 12-factor #5): si el historial
@@ -521,9 +456,9 @@ class AgentStep(Node):
         if tope > 0 and len(serializar(mensajes)) > tope:
             h = huella(mensajes)
             if shared.get("_compaccion_huella") != h:
-                # A17: la zona fría se RESPALDA antes de descartarla, así el
-                # marcador puede decir la verdad y memory_search la encuentra.
-                respaldo = _respaldar_zona_fria(mensajes, shared)
+                # A17: la zona fría se RESPALDA antes de descartarla (lo hace
+                # el módulo que la sepa guardar), así el marcador dice la verdad.
+                respaldo = next(filter(None, (g(mensajes, shared) for g in ganchos("al_compactar"))), None)
                 nuevo = compactar(mensajes, tope, respaldo=respaldo,
                                   objetivo=shared.get("_objetivo"))
                 if nuevo is not mensajes and len(nuevo) < len(mensajes):

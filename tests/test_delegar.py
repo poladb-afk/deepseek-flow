@@ -431,23 +431,23 @@ def test_delegar_tarea_shadow_fuerza_el_modo(monkeypatch):
 
 
 def test_el_arranque_y_cierre_del_chat_reportan_delegadas(monkeypatch, capsys):
-    """main.estado_delegadas imprime el panorama; el aviso de cierre solo
-    sale cuando hay corridas activas (exp/100, los tres momentos)."""
+    """Los ganchos del módulo delegar: el arranque imprime el panorama; el
+    aviso de cierre solo sale cuando hay corridas activas (exp/100)."""
     import delegar
-    import main
+    import modules.delegar as delegar_mod
 
     monkeypatch.setattr(delegar, "panorama_delegadas",
                         lambda: ["20261025-101000: ok", "20261025-100900: en curso"])
-    main.estado_delegadas()
+    delegar_mod.estado_delegadas()
     out = capsys.readouterr().out
     assert "[delegar]" in out and "20261025-101000: ok" in out
 
     monkeypatch.setattr(delegar, "corridas_activas", lambda: [])
-    main.aviso_delegadas_al_cerrar()
+    delegar_mod.aviso_delegadas_al_cerrar()
     assert capsys.readouterr().out == ""
 
     from pathlib import Path as _Path
 
     monkeypatch.setattr(delegar, "corridas_activas", lambda: [_Path("20261025-101500")])
-    main.aviso_delegadas_al_cerrar()
+    delegar_mod.aviso_delegadas_al_cerrar()
     assert "siguen corriendo" in capsys.readouterr().out

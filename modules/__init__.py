@@ -3,12 +3,22 @@
 Un módulo es un archivo Python en este paquete que exporta:
 - TOOLS: esquemas de herramientas (formato OpenAI) que agrega al chat
 - IMPL: {nombre_de_herramienta: implementación}
+- HOOKS (opcional): {evento: función} para el ciclo de vida del chat
 
 Agregar una capacidad = dejar un archivo aquí; quitarla = borrarlo.
 El descubrimiento ocurre al iniciar el proceso.
+
+Eventos de HOOKS (el CORE los recorre sin saber qué módulo los aporta):
+- `al_arrancar(shared)` y `al_salir(shared)`: bookkeeping de la sesión, en
+  orden de nombre de módulo al arrancar y en el inverso al salir.
+- `al_compactar(mensajes, shared)`: antes de descartar la zona fría de
+  `mensajes`, la guarda y devuelve dónde (o None). La primera ruta es la que
+  nombra el marcador `[compacción]`.
+Un gancho no lanza: su fallo es del módulo, que lo degrada a no-op.
 """
 import importlib
 import pkgutil
+import sys
 
 
 def discover():
@@ -16,8 +26,6 @@ def discover():
     chat entero: "quitar = borrar el archivo" también debe valer para un
     archivo roto). Un nombre de tool repetido entre módulos también avisa:
     el segundo pisaba al primero en silencio."""
-    import sys
-
     tools, impls = [], {}
     for info in pkgutil.iter_modules(__path__):
         try:
@@ -32,3 +40,11 @@ def discover():
         tools.extend(getattr(module, "TOOLS", []))
         impls.update(nuevos)
     return tools, impls
+
+
+def ganchos(evento):
+    """Las funciones que los módulos presentes registran para `evento`, en
+    orden de nombre de módulo. Solo los ya cargados por `discover()`: un
+    módulo roto no se reintenta (ni re-avisa) en cada evento."""
+    cargados = (sys.modules.get(f"{__name__}.{info.name}") for info in pkgutil.iter_modules(__path__))
+    return [m.HOOKS[evento] for m in cargados if evento in getattr(m, "HOOKS", {})]

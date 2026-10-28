@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+import modules.memoria as mem
+
 
 def test_memory_search_encuentra_y_lista(tmp_path, monkeypatch):
     """La memoria es una BIBLIOTECA consultable: memory_search encuentra el
@@ -70,7 +72,6 @@ def test_memory_save_escribe_con_titulo_primera_linea(tmp_path, monkeypatch):
 def test_resumen_de_sesion_escribe_con_llm(tmp_path, monkeypatch):
     """Al salir, con MEMORIA activo y >=2 preguntas, UNA llamada a call_llm
     resume y guarda memoria/sesion_FECHA.md. La llamada va fiteada."""
-    import main
     import utils.call_llm as c
 
     monkeypatch.setenv("MEMORIA", "1")
@@ -91,7 +92,7 @@ def test_resumen_de_sesion_escribe_con_llm(tmp_path, monkeypatch):
         {"role": "user", "content": "chau mundo"},
         {"role": "assistant", "content": "respuesta dos"},
     ]}
-    main.resumen_de_sesion(shared)
+    mem.resumen_de_sesion(shared)
     assert llamadas["n"] == 1  # UNA sola llamada
 
     sesiones = list(tmp_path.glob("sesion_*.md"))
@@ -101,7 +102,6 @@ def test_resumen_de_sesion_escribe_con_llm(tmp_path, monkeypatch):
 def test_resumen_de_sesion_se_apaga_y_no_rompe(tmp_path, monkeypatch):
     """MEMORIA=0 no resume; menos de 2 preguntas tampoco; y un fallo del LLM
     no rompe la salida (bookkeeping)."""
-    import main
     import utils.call_llm as c
 
     def no_llamar(prompt):
@@ -111,12 +111,12 @@ def test_resumen_de_sesion_se_apaga_y_no_rompe(tmp_path, monkeypatch):
     monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
 
     monkeypatch.setenv("MEMORIA", "0")
-    main.resumen_de_sesion({"messages": [
+    mem.resumen_de_sesion({"messages": [
         {"role": "user", "content": "una"}, {"role": "user", "content": "dos"}]})
     assert not list(tmp_path.glob("sesion_*.md"))
 
     monkeypatch.setenv("MEMORIA", "1")
-    main.resumen_de_sesion({"messages": [{"role": "user", "content": "una sola"}]})
+    mem.resumen_de_sesion({"messages": [{"role": "user", "content": "una sola"}]})
     assert not list(tmp_path.glob("sesion_*.md"))  # <2 preguntas
 
     # fallo del LLM: se sale igual, sin archivo, sin excepción
@@ -124,33 +124,30 @@ def test_resumen_de_sesion_se_apaga_y_no_rompe(tmp_path, monkeypatch):
         raise RuntimeError("sin saldo")
 
     monkeypatch.setattr(c, "call_llm", explota, raising=False)
-    main.resumen_de_sesion({"messages": [
+    mem.resumen_de_sesion({"messages": [
         {"role": "user", "content": "una"}, {"role": "user", "content": "dos"}]})
     assert not list(tmp_path.glob("sesion_*.md"))
 
 def test_resumen_de_sesion_rutas_visibles(capsys, monkeypatch, tmp_path):
     """Ninguna ruta del exit-summary es muda (episodio silencioso no
     reproducido: sin prints es indecidible cuál disparó)."""
-    import main
 
     # desactivada
     monkeypatch.setenv("MEMORIA", "0")
-    main.resumen_de_sesion({"messages": []})
+    mem.resumen_de_sesion({"messages": []})
     assert "desactivada" in capsys.readouterr().out
 
     # sesión corta
     monkeypatch.setenv("MEMORIA", "1")
-    main.resumen_de_sesion({"messages": [
+    mem.resumen_de_sesion({"messages": [
         {"role": "user", "content": "hola"},
     ]})
     assert "sesión corta" in capsys.readouterr().out
 
     # feliz: escribe y anuncia el destino
     monkeypatch.setattr("utils.call_llm.call_llm", lambda p: "resumen de prueba")
-    import modules.memoria as mem
-
     monkeypatch.setattr(mem, "_raiz", lambda: tmp_path)
-    main.resumen_de_sesion({"messages": [
+    mem.resumen_de_sesion({"messages": [
         {"role": "user", "content": "uno"},
         {"role": "assistant", "content": "r1"},
         {"role": "user", "content": "dos"},
@@ -353,7 +350,6 @@ def test_rag_prefiltro_extrae_fragmentos():
 def test_catalogo_memoria_al_arranque(tmp_path, monkeypatch, capsys):
     """El arranque muestra el CATÁLOGO de la biblioteca (qué notas hay) SIN
     inyectar su contenido al contexto — el arranque vacío es regla (mesa 8)."""
-    import main
 
     monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
     monkeypatch.setenv("MEMORIA", "1")
@@ -361,7 +357,7 @@ def test_catalogo_memoria_al_arranque(tmp_path, monkeypatch, capsys):
     (tmp_path / "nota_a.md").write_text("contenido secreto A\n", encoding="utf-8")
     (tmp_path / "nota_b.md").write_text("contenido secreto B\n", encoding="utf-8")
 
-    main.catalogo_memoria()
+    mem.catalogo()
     salida = capsys.readouterr().out
     assert "biblioteca: 2 notas" in salida
     assert "nota_a.md" in salida and "nota_b.md" in salida
@@ -370,16 +366,15 @@ def test_catalogo_memoria_al_arranque(tmp_path, monkeypatch, capsys):
 
     # MEMORIA=0 no muestra nada
     monkeypatch.setenv("MEMORIA", "0")
-    main.catalogo_memoria()
+    mem.catalogo()
     assert capsys.readouterr().out == ""
 
 def test_catalogo_memoria_vacio(tmp_path, monkeypatch, capsys):
     """Biblioteca vacía: no imprime nada (arranque silencioso)."""
-    import main
 
     monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
     monkeypatch.setenv("MEMORIA", "1")
-    main.catalogo_memoria()
+    mem.catalogo()
     assert capsys.readouterr().out == ""
 
 def test_catalogo_memoria_resumen_acotado(tmp_path, monkeypatch, capsys):
@@ -387,7 +382,6 @@ def test_catalogo_memoria_resumen_acotado(tmp_path, monkeypatch, capsys):
     CATALOGO_MAX (la lista completa era spam: 229 de 234 tapaban las útiles)."""
     import os
 
-    import main
 
     monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
     monkeypatch.setenv("MEMORIA", "1")
@@ -398,11 +392,11 @@ def test_catalogo_memoria_resumen_acotado(tmp_path, monkeypatch, capsys):
         # mtime creciente y determinista: nota_19 es la más reciente
         os.utime(p, (1_700_000_000 + i, 1_700_000_000 + i))
 
-    main.catalogo_memoria()
+    mem.catalogo()
     salida = capsys.readouterr().out
     lineas = [linea for linea in salida.splitlines() if linea.strip().startswith("- ")]
     assert f"biblioteca: {total} notas" in salida
-    assert len(lineas) == main.CATALOGO_MAX < total
+    assert len(lineas) == mem.CATALOGO_MAX < total
     assert "nota_19.md" in salida and "nota_00.md" not in salida
     assert "memory_search" in salida
     assert "cuerpo" not in salida
@@ -411,13 +405,12 @@ def test_catalogo_memoria_resumen_acotado(tmp_path, monkeypatch, capsys):
     vacia = tmp_path / "vacia"
     vacia.mkdir()
     monkeypatch.setenv("MEMORIA_DIR", str(vacia))
-    main.catalogo_memoria()
+    mem.catalogo()
     assert capsys.readouterr().out == ""
 
 
 def test_catalogo_memoria_nunca_rompe(monkeypatch, capsys):
     """Aunque la lectura de la biblioteca falle, el arranque sigue."""
-    import main
 
     monkeypatch.setenv("MEMORIA", "1")
     import modules.memoria as mem
@@ -426,7 +419,7 @@ def test_catalogo_memoria_nunca_rompe(monkeypatch, capsys):
         raise OSError("disco")
 
     monkeypatch.setattr(mem, "_archivos_md", boom)
-    main.catalogo_memoria()  # no levanta
+    mem.catalogo()  # no levanta
     assert capsys.readouterr().out == ""
 
 def test_embed_decide_prefijo_despues_de_cargar(monkeypatch):

@@ -1,0 +1,1306 @@
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-28 11:38:53.734009096 +0000
++++ b/docs/bitacora.md	2026-10-28 11:37:48.402252554 +0000
+@@ -5085,3 +5085,40 @@
+ `AGENTS.md` gana R10 (elegancia, con su gate). La regla blanda "parche mínimo"
+ se levanta para las fases 1–5 del refactor, igual que para H2 (X71): cada fase
+ tiene su gate de salida en `docs/elegancia.md`.
++
++---
++
++## Fase 1a de elegancia — el CORE deja de conocer a la memoria (2026-10-28, X92)
++
++`core_importa_modulos` marcaba 3: `main.catalogo_memoria` (que además
++importaba la privada `_archivos_md`), `main.resumen_de_sesion` y
++`nodes._respaldar_zona_fria`. Borrar `modules/memoria.py` rompía el arranque,
++la compacción y la salida; la promesa "quitar = borrarlo" valía para las
++tools pero no para el ciclo de vida.
++
++**Mecanismo** (el mismo patrón que `TOOLS`/`IMPL`): un módulo puede exportar
++`HOOKS = {evento: función}` y `modules.ganchos(evento)` devuelve las de los
++módulos ya cargados por `discover()`. Tres eventos, los que el código ya
++tenía: `al_arrancar(shared)`, `al_compactar(mensajes, shared)` → ruta|None y
++`al_salir(shared)` (en orden inverso). Las funciones se mudaron a su dueño:
++`memoria.catalogo`, `memoria.respaldar_zona_fria`, `memoria.resumen_de_sesion`
++y `memoria.preguntas_reales`; `delegar.estado_delegadas` y
++`aviso_delegadas_al_cerrar` pasaron de `main` a `modules/delegar.py`.
++
++**Sin cambio de conducta**, con una excepción declarada: el resumen de sesión
++corre ahora ANTES del reporte de tokens, así el `[tokens]` de salida incluye
++la llamada del resumen (antes la omitía). `test_caracterizacion_chat.py` sin
++cambios; los tests de memoria, compacción y delegadas cambiaron solo el
++import (el comportamiento que afirman es el mismo).
++
++**Candado**: `test_el_chat_corre_sin_el_modulo_de_memoria` levanta el chat
++real en otro proceso con `modules.memoria` ilegible: `discover()` avisa y
++saltea, el chat arranca, compacta (sin respaldo), responde y sale. Probado
++contra la regresión: reinyectar `from modules.memoria import guardar_nota`
++en `nodes.py` lo pone rojo, y el ratchet también (`+ nodes.py:<módulo>`).
++
++Ratchets: `core_importa_modulos` **3 → 0**, `imports_perezosos` 137 → 126
++(los imports de memoria y delegar dejaron de ser perezosos: el módulo los
++importa arriba), `excepts_amplios` 34 → 33 (`catalogo` atrapa `OSError`, no
++`Exception`), `tests_definidos` 1109 → 1111. `./calidad.sh` verde, 1107
++passed.
+diff -ruN a/docs/design.md b/docs/design.md
+--- a/docs/design.md	2026-10-28 11:38:53.734009096 +0000
++++ b/docs/design.md	2026-10-28 11:37:48.394252584 +0000
+@@ -219,6 +219,14 @@
+ 
+ - Agregar una capacidad = dejar un archivo en `modules/`.
+ - Quitarla = borrarlo (el descubrimiento es al iniciar el proceso).
++- Ciclo de vida (X92): un módulo puede exportar además `HOOKS =
++  {evento: función}` con `al_arrancar(shared)`, `al_compactar(mensajes,
++  shared)` → ruta|None y `al_salir(shared)`. `modules.ganchos(evento)` los
++  junta y el CORE (`main`, `nodes.AgentStep`) los recorre sin nombrar a
++  nadie: la memoria (catálogo, respaldo de la zona fría, resumen de sesión)
++  y el reporte de delegadas viven en su módulo. Borrar `modules/memoria.py`
++  deja el chat andando sin biblioteca
++  (`test_el_chat_corre_sin_el_modulo_de_memoria`).
+ - Una pieza puede existir standalone y exponerse como módulo:
+   `modules/informe.py` es solo el adaptador de `informe.py`, que sigue
+   funcionando sola (`main.py informe`).
+@@ -831,15 +839,16 @@
+   sin caracteres utilizables se rechaza. Devuelve el path escrito.
+ 
+ Resumen automático al salir: `main.py` envuelve la corrida del flujo en
+-`try/finally` (cubre el retorno normal y el Ctrl+C del prompt).
+-`resumen_de_sesion(shared)` corre en el `finally`; con `MEMORIA=1`
++`try/finally` (cubre el retorno normal y el Ctrl+C del prompt) y en el
++`finally` recorre los ganchos `al_salir` de los módulos; el de la memoria es
++`modules.memoria.resumen_de_sesion(shared)`; con `MEMORIA=1`
+ (default) y al menos 2 preguntas de usuario hace UNA sola llamada a
+ `call_llm` que comprime la conversación (tema, pedidos y resultados,
+ decisiones, hallazgos, archivos tocados) y la guarda como
+ `memoria/sesion_FECHA.md` vía `guardar_resumen_sesion`. Sin HITL (es
+ bookkeeping, no una acción nueva) y con el fallo de la llamada contenido:
+ se sale igual sin romper nada. `MEMORIA=0` apaga todo: también el
+-respaldo de la zona fría que hace la compacción (`_respaldar_zona_fria`; sin
++respaldo de la zona fría que hace la compacción (`memoria.respaldar_zona_fria`, gancho `al_compactar`; sin
+ biblioteca no hay `memory_search` que lo recupere, exp/71).
+ 
+ ### El conductor — `delegar`: UNA tarea real sin nadie al timón (exp/99)
+@@ -863,11 +872,11 @@
+   exp/98 vuelve al modelo); aprobada → `Popen` **detached**
+   (`start_new_session=True`, stdio a DEVNULL): la tarea sigue aunque el chat
+   se cierre. `shadow="1"` fuerza `LAYA_MODO=shadow` del conductor.
+-- **Al arrancar** — `main.estado_delegadas()` imprime `panorama_delegadas()`:
++- **Al arrancar** — el gancho `modules.delegar.estado_delegadas` imprime `panorama_delegadas()`:
+   las últimas 3 corridas con su estado (`ok`/`timeout`/`muerto-sin-resume`/
+   `en curso` —pid del conductor vivo en `conductor.pid`—/`murió sin
+   resumen`), best-effort junto al catálogo de memoria.
+-- **Al cerrar** — `main.aviso_delegadas_al_cerrar()`: si hay delegadas
++- **Al cerrar** — el gancho `modules.delegar.aviso_delegadas_al_cerrar`: si hay delegadas
+   activas (pid vivo y sin `resumen.md`), el cierre las nombra; el resultado
+   se reporta al próximo arranque.
+ 
+diff -ruN a/docs/elegancia.md b/docs/elegancia.md
+--- a/docs/elegancia.md	2026-10-28 11:38:53.734009096 +0000
++++ b/docs/elegancia.md	2026-10-28 11:37:48.398252569 +0000
+@@ -55,11 +55,11 @@
+ 
+ | Ratchet | Baseline | Meta del refactor |
+ |---|---|---|
+-| `core_importa_modulos` | 3 | 0 (fase 1) |
++| `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
+ | `producto_conoce_lab` | 10 | 0 (fase 1) |
+ | `vocabulario_hardcodeado` | 8 | ≤ 2 (fases 3–4; quedan los sí/no del HITL) |
+ | `settings_leidos` | 89 | ≤ 45 (fases 1–5, ver inventario) |
+-| `imports_perezosos` | 137 | ≤ 40 |
++| `imports_perezosos` | 137 → 126 (X92) | ≤ 40 |
+ | `nodos_largos` | 15 | ≤ 3 |
+ | `texto_de_prompt` | 2748 chars | ≤ 800 |
+ 
+@@ -68,7 +68,7 @@
+ | Fase | Cambio | ¿Cambia conducta? | Gate de salida |
+ |---|---|---|---|
+ | 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
+-| 1 | Hooks de ciclo de vida en los módulos (S4); el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
++| 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). Falta 1b: el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
+ | 2 | El chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
+ | 3 | `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
+ | 4 | Se borran reglas, voto, `alcance_amplio`, perfiles y directivas (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-28 11:38:53.734009096 +0000
++++ b/docs/estado.md	2026-10-28 11:37:48.398252569 +0000
+@@ -60,7 +60,7 @@
+ | A50 | — | `utils/aprobaciones.py` duplicaba el literal "preguntar" en vez de importar `policy.PREGUNTAR` (contrato por string) | ✅ 2026-10-17 | importa la constante de `utils.policy` | — |
+ | A51 | — | `utils/citas.py` citaba `policy.py:88` como ejemplo de nombre suelto (línea equivocada) | ✅ 2026-10-17 | ejemplo genérico corregido | — |
+ | A41 | — | `corte_no_progreso` se registraba como tool ok: inflaba métricas de tools | ✅ 2026-10-17 | `utils/tracing.evento_politica` + uso en `nodes.AgentStep.prep` (accion="politica") | `test_evento_politica_no_se_confunde_con_tool` |
+-| A42 | — | El resumen de sesión contaba mensajes sintéticos (prefetch/compacción) como preguntas del usuario | ✅ 2026-10-17 | `main._preguntas_reales` excluye `PREFIJO_PREFETCH` y `PREFIJO_COMPACCION` | `test_preguntas_reales_ignora_prefetch_y_compaccion` |
++| A42 | — | El resumen de sesión contaba mensajes sintéticos (prefetch/compacción) como preguntas del usuario | ✅ 2026-10-17 | `memoria.preguntas_reales` (antes `main._preguntas_reales`) excluye `PREFIJO_PREFETCH` y `PREFIJO_COMPACCION` | `test_preguntas_reales_ignora_prefetch_y_compaccion` |
+ | A43 | — | Doc `laya_routing` decía "en force" y el modo se llama `enforce` | ✅ 2026-10-17 | `utils/laya_routing.py:219` | — |
+ | A44 | — | `policy` descartaba `2>&1` como substring del comando, no como token (el doc dice token) | ✅ 2026-10-17 | `_sin_dup_stderr`: solo el token exacto; lo pegado a un argumento degrada por prudencia | `test_policy_2and1_se_descarta_como_token_no_substring` |
+ | A52 | — | `citas.extraer` truncaba rangos `N-M` al primer número y validaba como si el rango entero existiera | ✅ 2026-10-17 | `CITAS_RE` captura `line2` y `verificar_citas` valida ambos extremos | `test_verificar_citas_rango` |
+@@ -95,7 +95,7 @@
+ | X10 | — | No había contrato versionado para agentes ni linter de sus reglas: las reglas del repo vivían en prosa (y `docs/agents/` apunta a un `CONTEXT.md` inexistente) | ✅ 2026-10-19 | `AGENTS.md` (8 reglas con gate + blandas declaradas + bypasses) + `tests/test_deriva_reglas.py` (bloat, rutas/tests citados, tabla de enforcement) | `test_deriva_reglas.py` |
+ | X11 | — | Helpers privados bifurcados y tests nuevos borrables sin gate: no había métrica estructural con baseline (el inventario del PR 4 solo vigila su foto) | ✅ 2026-10-19 | `ratchet.py` + `ratchets/baseline.json` (siembra: 20 helpers duplicados · 491 tests definidos) + guardia anti-bypass; palanca 3 de `calidad.sh` y CI | `test_ratchet.py` |
+ | X37 | — | La compacción respaldaba la zona fría en `memoria/` en CADA compacción: 143 respaldos con el mismo cuerpo (solo cambiaba el título al minuto) y 9 respaldos en una sesión real de 3 preguntas; la biblioteca curada quedó con 229 respaldos de 234 notas | ✅ 2026-10-21 (exp/70) | `_respaldar_zona_fria` recuerda en `shared` la huella de la última zona fría respaldada y no reescribe si es idéntica (devuelve la ruta vigente, el marcador A17 sigue siendo verdadero); título con segundos (`%H-%M-%S`) para no colisionar dentro del minuto. Límite: cuando la zona fría crece con mensajes nuevos sigue escribiendo un respaldo por compacción; mover los respaldos fuera de `memoria/` queda como decisión futura. **Corrección exp/71**: de los 243 respaldos, **157 eran el fixture sintético de la suite** (`pedido 0…`, 57.591 B), no sesiones reales — el dedupe intra-sesión sigue siendo válido, pero el volumen histórico no era de uso orgánico | `test_zona_fria_identica_no_se_respalda_dos_veces`, `test_zona_fria_distinta_se_respalda_de_nuevo`, `test_marcador_de_compaccion_menciona_el_ultimo_respaldo` |
+-| X38 | — | El arranque imprimía la biblioteca de memoria COMPLETA: 234 líneas por sesión (229 eran respaldos de compacción), spam en cada inicio | ✅ 2026-10-21 (exp/70) | `main.catalogo_memoria` imprime el total + solo las `CATALOGO_MAX` (8) notas más recientes y recuerda `memory_search`; sigue best-effort y respeta `MEMORIA=0` | `test_catalogo_memoria_resumen_acotado` |
++| X38 | — | El arranque imprimía la biblioteca de memoria COMPLETA: 234 líneas por sesión (229 eran respaldos de compacción), spam en cada inicio | ✅ 2026-10-21 (exp/70) | `memoria.catalogo` (antes `main.catalogo_memoria`) imprime el total + solo las `CATALOGO_MAX` (8) notas más recientes y recuerda `memory_search`; sigue best-effort y respeta `MEMORIA=0` | `test_catalogo_memoria_resumen_acotado` |
+ | X39 | — | Una sesión real usó `run_command` para leer/listar/buscar (21 shell vs 6 `read_file`): el system prompt no desalentaba ese atajo, que paga HITL y latencia | ✅ 2026-10-21 (exp/70) | `main.system_prompt` suma una línea que pide `read_file`/`list_files`/`search_files` para leer/listar/buscar y no `cat`/`grep`/`find` por `run_command` (prompt 907 → 1.029 chars, dentro del presupuesto de 1.400) | `test_system_prompt_pide_codigo_minimo_y_no_crece` |
+ | X40 | — | La suite escribía el log del juez de riesgo de PRODUCCIÓN: 541 filas con `origen=terminal` eran tráfico sintético de tests (24 tests de `test_policy.py` dejan 8 y cargan el checkpoint del `.env`: 18,9 s y 2,98 GiB de RSS), y `salidas/preguntas.jsonl`/`salidas/routing.jsonl` también recibían líneas de tests — el "577 orgánicas" que parecía cumplir el criterio del fine-tune era falso | ✅ 2026-10-21 (exp/71) | `tests/conftest.py` fixture autouse: `LAYA_MODEL_RIESGO=0` (nunca el checkpoint real), `RIESGO_ARCHIVO`/`PREGUNTAS_ARCHIVO`/`LAYA_LOG_ARCHIVO`/`MEMORIA_DIR` a tmp (los tests que prueban esos caminos fijan su ruta y ganan por monkeypatch); sonda read-only `banco/probes/estado_riesgo.py` mide orgánicas/rechazos contra el criterio ≥300/≥100; el log viejo quedó en cuarentena (`salidas/riesgo_pre_exp71_2026-10-21.jsonl`) porque su procedencia no es auditable; el último test que escribía el routing log por parchear `_setting` sin `LAYA_LOG_ARCHIVO` ahora apunta a tmp. Medición: mismo test 18,9 s/2,98 GiB → **1,8 s/161 MB** y **0 filas** nuevas | `test_la_suite_no_escribe_los_logs_ni_la_memoria_de_produccion`, `test_observar_riesgo_solo_juzga_bandas_humanas`, `test_estado_riesgo.py` |
+ | X41 | — | El respaldo de la zona fría ignoraba `MEMORIA=0`: la suite y las corridas del banco compactaban con la memoria apagada y escribían en la biblioteca curada — **157 de los 243 respaldos** de `memoria/` eran el fixture sintético de `test_agent_step_prep_compacta_y_cuenta` (57.591 B, `pedido 0…`), indistinguibles de una nota real | ✅ 2026-10-21 (exp/71) | `_respaldar_zona_fria` devuelve `None` sin escribir cuando `MEMORIA != "1"` (sin biblioteca no hay `memory_search` que recupere el respaldo); `tests/conftest.py` manda `MEMORIA_DIR` a tmp y `banco/banco.py` fija `MEMORIA_DIR=salidas/banco/memoria` en el chat del banco (una corrida no toca la biblioteca ni con `memoria: true`). Limpieza: los 157 sintéticos se movieron a `salidas/memoria_respaldos_suite/` (la biblioteca quedó en 100 notas: 86 respaldos + 12 notas + 2 sesiones) | `test_compaccion_no_respalda_con_memoria_apagada`, `test_env_del_chat_aisla_la_memoria_y_marca_procedencia` |
+@@ -136,6 +136,7 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
++| X92 | — | El CORE importaba `modules.memoria` en tres lugares (`main.catalogo_memoria` con una privada, `main.resumen_de_sesion`, `nodes._respaldar_zona_fria`) y `main` llamaba al conductor por nombre: borrar el módulo rompía el arranque, la compacción y la salida | ✅ 2026-10-28 (fase 1a) | `HOOKS` de ciclo de vida en los módulos + `modules.ganchos(evento)`; la memoria y las delegadas se mudan a su módulo. Ratchet `core_importa_modulos` **3 → 0**, `imports_perezosos` 137 → 126, `excepts_amplios` 34 → 33 | `test_core_sin_modulos.py` |
+ | X91 | — | La auditoría de refactor (2026-10-27) encontró deuda de diseño que ningún gate contaba: el CORE importa `modules.memoria`, el producto lee `BANCO`/`DELEGADO`/`GROUND-TRUTH`, vocabulario hardcodeado en el router y el presupuesto, 89 settings, 137 imports perezosos, 15 nodos de más de 40 líneas y el diagrama del README desactualizado | ✅ 2026-10-27 (fase 0) | siete ratchets nuevos en `ratchet.py` (baseline 3 · 10 · 8 · 89 · 137 · 15 · 2748) y el diagrama del README generado del grafo; la definición y el plan en [elegancia.md](elegancia.md). La deuda NO se pagó: quedó congelada para las fases 1–5 | `test_ratchet_elegancia.py`, `test_grafo_readme.py` |
+ | X90 | — | k13 ("discutí…") y k15 ("argumentá…") son falsos directos del voto que NINGUNA regla cubre: en producción dependen solo de lo que proponga el router de Laya. Nadie midió la política completa sobre esos casos | ✅ 2026-10-27 (corrido: 0 falsos directos, no hay agujero — el router frenó los 8 de la ventana, k13 y k15 incluidos) | `banco/probes/producto_router.py`: skills → reglas → router → voto, en enforce, sobre bench + control; ventana declarada antes (esperado herramientas sin skill ni regla, hoy incluye k13/k15). 0 falsos directos → no hay agujero; más de 0 → hallazgo con ids y capa. No se agregan verbos a la lista | `tests/test_producto_router.py::test_la_ventana_existe_y_contiene_k13_y_k15` |
+ | X62 | — | El meta-loop exigía un auditor al timón (contestar s/n por tmux): sin conductor no había forma de delegarle trabajo real al harness solo, y cada sesión muerta a mitad (exp/98) se perdía entera; además la regex de scope del banco no matcheaba el prompt de `edit_file` de exp/98 (`¿Aplicar? → ruta (2 hunks…)`) → cualquier conductor habría aprobado ediciones fuera de scope y de la denylist | ✅ 2026-10-25 (exp/99) | `delegar.py`: conductor que reusa el driver PTY y `decision_hitl` del banco, sin `BANCO=1` (origen `terminal`), HITL por scope declarado con rechazo CON motivo (exp/98), doble confirmación solo con prefijo explícito, muerte → `resume` (tope 2) y `THREADS_DIR` propio; regex corregida en `banco/banco.py`. e2e: tarea delegada exit 0 + drill `kill -9` → rehidrata y completa; **par #14/250** de la flywheel con `--env LAYA_MODO=shadow` (día 3/14) | `tests/test_delegar.py` (13: `test_conducir_muerto_resume_y_completa`, `test_plan_respuesta_doble_exige_prefijo_explicito`…), `test_el_scope_cubre_el_prompt_de_edit_file_de_exp98` |
+diff -ruN a/docs/roadmap.md b/docs/roadmap.md
+--- a/docs/roadmap.md	2026-10-28 11:38:53.734009096 +0000
++++ b/docs/roadmap.md	2026-10-28 11:37:48.398252569 +0000
+@@ -6,8 +6,11 @@
+ 
+ Fase 0 cerrada (X91): la deuda quedó contada en siete ratchets. Siguen las
+ fases 1–5 de [elegancia.md](elegancia.md), cada una con su gate de salida.
+-Próxima: **fase 1** (hooks de ciclo de vida en los módulos; el producto deja
+-de leer el banco), sin cambio de conducta.
++Fase 1a cerrada (X92): `HOOKS` de ciclo de vida, `core_importa_modulos` 3 → 0.
++Próxima: **fase 1b** — el producto deja de leer el banco (`producto_conoce_lab`
++10 → 0): perfiles de presupuesto muertos fuera, driver PTY a `utils/`,
++procedencia por mecanismo (`ORIGEN` + `scope`) con las sondas aceptando los
++dos vocabularios, adapters de fable fuera de `banco/`, juez sin answer sheet.
+ 
+ ## Refactor del harness (auditoría 2026-10-26) — la secuencia vigente
+ 
+diff -ruN a/main.py b/main.py
+--- a/main.py	2026-10-28 11:38:53.718009155 +0000
++++ b/main.py	2026-10-28 11:33:12.887171762 +0000
+@@ -4,6 +4,7 @@
+ from pathlib import Path
+ 
+ from flow import create_agent_flow
++from modules import ganchos
+ from utils.costos import costo_desglose
+ from utils.fs_tools import allowed_roots
+ 
+@@ -140,135 +141,6 @@
+ }
+ 
+ 
+-def _preguntas_reales(mensajes):
+-    """Cuenta los user-role que son PREGUNTAS: excluye los mensajes sintéticos
+-    de prefetch y el marcador de compacción (medido en vivo: con 1 pregunta +
+-    1 pre-fetch el resumen se disparaba igual, contradiciendo el docstring)."""
+-    from utils.compaccion import PREFIJO_COMPACCION
+-    from utils.prefetch import PREFIJO_PREFETCH
+-    from utils.skills import PREFIJO_SKILL
+-
+-    return sum(
+-        1 for m in mensajes
+-        if m.get("role") == "user"
+-        and not str(m.get("content", "")).startswith(
+-            (PREFIJO_PREFETCH, PREFIJO_COMPACCION, PREFIJO_SKILL))
+-    )
+-
+-
+-def resumen_de_sesion(shared):
+-    """Resumen automático al salir (bookkeeping, sin HITL): UNA sola llamada
+-    a call_llm comprime la conversación y la guarda como
+-    memoria/sesion_FECHA.md. Con MEMORIA=0 no hace nada; con menos de 2
+-    preguntas de usuario tampoco. Si la llamada falla, se sale igual sin
+-    romper nada (es bookkeeping, no una acción nueva)."""
+-    from utils.call_llm import _setting
+-
+-    # ninguna ruta es muda: un episodio de resumen silenciosamente ausente
+-    # no se pudo reproducir (4 intentos) y sin prints es indecidible cuál fue
+-    if _setting("MEMORIA", "1") != "1":
+-        print("\n[memoria] desactivada (MEMORIA=0): sin resumen de sesión")
+-        return
+-    mensajes = shared.get("messages", [])
+-    n_users = _preguntas_reales(mensajes)
+-    if n_users < 2:
+-        print(f"\n[memoria] sesión corta ({n_users} pregunta): sin resumen")
+-        return
+-    try:
+-        from modules.memoria import guardar_resumen_sesion
+-        from utils.call_llm import call_llm
+-
+-        lineas = []
+-        for m in mensajes:
+-            rol = m.get("role")
+-            if rol == "system":
+-                continue
+-            contenido = m.get("content")
+-            if not contenido and m.get("tool_calls"):
+-                contenido = "(herramientas) " + ", ".join(
+-                    tc["function"]["name"] for tc in m["tool_calls"])
+-            if contenido:
+-                lineas.append(f"{rol}: {contenido}")
+-        transcript = "\n".join(lineas)
+-        resumen = call_llm(
+-            "Resumí esta conversación entre un usuario y un agente, en español, "
+-            "en pocas líneas y para consulta futura. Incluí: el tema en una línea; "
+-            "los pedidos del usuario y sus resultados; las decisiones tomadas; los "
+-            "hallazgos; y los archivos tocados. No repitas saludos ni el texto crudo.\n\n"
+-            f"--- Conversación ---\n{transcript}"
+-        )
+-        destino = guardar_resumen_sesion(resumen)
+-        if destino:
+-            print(f"\n[memoria] resumen de sesión guardado en {destino}")
+-        else:
+-            print("\n[memoria] el resumen no se pudo escribir (OSError en memoria/)")
+-    except Exception as e:  # noqa: BLE001  (bookkeeping: nunca corta la salida)
+-        print(f"\n[memoria] no se pudo guardar el resumen de la sesión ({type(e).__name__})")
+-
+-
+-CATALOGO_MAX = 8
+-
+-
+-def catalogo_memoria():
+-    """Muestra el CATÁLOGO de la biblioteca de memoria al arrancar (mesa 8):
+-    cuántas notas hay y las más recientes, SIN inyectar su contenido al
+-    contexto — el arranque vacío es regla (la memoria es una biblioteca que el
+-    agente consulta, no contexto automático). Con MEMORIA=0 o si la biblioteca
+-    está vacía, no imprime nada. Nunca rompe el arranque (best-effort)."""
+-    from utils.call_llm import _setting
+-
+-    if _setting("MEMORIA", "1") != "1":
+-        return
+-    try:
+-        from modules.memoria import _archivos_md
+-
+-        archivos = _archivos_md()
+-        if not archivos:
+-            return
+-        # lista completa = spam de arranque (medido: 229 de 234 notas eran
+-        # respaldos de compacción y tapaban las útiles): van solo las últimas.
+-        # mtime desempata a favor de lo recién guardado; el nombre (que trae la
+-        # fecha) ordena determinísticamente cuando los mtime empatan.
+-        recientes = sorted(archivos, key=lambda p: (p.stat().st_mtime, p.name),
+-                           reverse=True)[:CATALOGO_MAX]
+-        print(f"\n[memoria] biblioteca: {len(archivos)} notas; "
+-              f"las {len(recientes)} más recientes:")
+-        for p in recientes:
+-            print(f"  - {p.name}")
+-        print("  (consultá cualquier nota con memory_search)")
+-    except Exception:  # noqa: BLE001 (mostrar el catálogo nunca corta el arranque)
+-        pass
+-
+-
+-def estado_delegadas():
+-    """exp/100: el resultado de lo delegado aparece AL ARRANCAR el chat (el
+-    operador vive acá; si no se reporta, es como si no hubiera pasado).
+-    Best-effort: sin corridas no imprime nada y un fallo jamás corta el
+-    arranque, igual que el catálogo."""
+-    with contextlib.suppress(Exception):  # noqa: BLE001 (reportar nunca corta el arranque)
+-        from delegar import panorama_delegadas
+-
+-        lineas = panorama_delegadas()
+-        if lineas:
+-            print(f"\n[delegar] últimas tareas delegadas: {len(lineas)}")
+-            for linea in lineas:
+-                print(f"  - {linea}")
+-
+-
+-def aviso_delegadas_al_cerrar():
+-    """exp/100: si hay delegadas corriendo, el cierre las nombra — siguen en
+-    background (el conductor corre detached) y el resultado se reporta al
+-    próximo arranque. Sin activas, silencio."""
+-    with contextlib.suppress(Exception):  # noqa: BLE001 (aviso de cierre best-effort)
+-        from delegar import corridas_activas
+-
+-        activas = corridas_activas()
+-        if activas:
+-            nombres = ", ".join(d.name for d in activas)
+-            print(f"[delegar] {len(activas)} tarea(s) delegadas siguen corriendo "
+-                  f"({nombres}) — el resultado se reporta al próximo arranque")
+-
+-
+ def main():
+     from utils.tracing import activar
+ 
+@@ -283,16 +155,17 @@
+         return
+     shared = {"messages": [{"role": "system", "content": system_prompt()}]}
+     print(WELCOME)
+-    catalogo_memoria()
+-    estado_delegadas()
++    for gancho in ganchos("al_arrancar"):
++        gancho(shared)
+     try:
+         create_agent_flow().run(shared)
+     except KeyboardInterrupt:
+         print("\n¡Chao! 👋")
+     finally:
+-        resumen_de_sesion(shared)
++        # antes del reporte: el resumen de sesión es una llamada y se cobra
++        for gancho in reversed(ganchos("al_salir")):
++            gancho(shared)
+         _reporte_tokens(shared)
+-        aviso_delegadas_al_cerrar()
+ 
+ 
+ def _miles(n):
+diff -ruN a/modules/__init__.py b/modules/__init__.py
+--- a/modules/__init__.py	2026-10-28 11:38:53.750009036 +0000
++++ b/modules/__init__.py	2026-10-28 11:33:12.887171762 +0000
+@@ -3,12 +3,22 @@
+ Un módulo es un archivo Python en este paquete que exporta:
+ - TOOLS: esquemas de herramientas (formato OpenAI) que agrega al chat
+ - IMPL: {nombre_de_herramienta: implementación}
++- HOOKS (opcional): {evento: función} para el ciclo de vida del chat
+ 
+ Agregar una capacidad = dejar un archivo aquí; quitarla = borrarlo.
+ El descubrimiento ocurre al iniciar el proceso.
++
++Eventos de HOOKS (el CORE los recorre sin saber qué módulo los aporta):
++- `al_arrancar(shared)` y `al_salir(shared)`: bookkeeping de la sesión, en
++  orden de nombre de módulo al arrancar y en el inverso al salir.
++- `al_compactar(mensajes, shared)`: antes de descartar la zona fría de
++  `mensajes`, la guarda y devuelve dónde (o None). La primera ruta es la que
++  nombra el marcador `[compacción]`.
++Un gancho no lanza: su fallo es del módulo, que lo degrada a no-op.
+ """
+ import importlib
+ import pkgutil
++import sys
+ 
+ 
+ def discover():
+@@ -16,8 +26,6 @@
+     chat entero: "quitar = borrar el archivo" también debe valer para un
+     archivo roto). Un nombre de tool repetido entre módulos también avisa:
+     el segundo pisaba al primero en silencio."""
+-    import sys
+-
+     tools, impls = [], {}
+     for info in pkgutil.iter_modules(__path__):
+         try:
+@@ -32,3 +40,11 @@
+         tools.extend(getattr(module, "TOOLS", []))
+         impls.update(nuevos)
+     return tools, impls
++
++
++def ganchos(evento):
++    """Las funciones que los módulos presentes registran para `evento`, en
++    orden de nombre de módulo. Solo los ya cargados por `discover()`: un
++    módulo roto no se reintenta (ni re-avisa) en cada evento."""
++    cargados = (sys.modules.get(f"{__name__}.{info.name}") for info in pkgutil.iter_modules(__path__))
++    return [m.HOOKS[evento] for m in cargados if evento in getattr(m, "HOOKS", {})]
+diff -ruN a/modules/delegar.py b/modules/delegar.py
+--- a/modules/delegar.py	2026-10-28 11:38:53.750009036 +0000
++++ b/modules/delegar.py	2026-10-28 11:33:12.887171762 +0000
+@@ -7,6 +7,7 @@
+ el pedido y el scope a la vista (el operador es el veto del scope que el
+ modelo propuso), y el resto lo maneja el scope. El import de la pieza es
+ perezoso (el top-level corre discover() al cargarse)."""
++import contextlib
+ import os
+ import subprocess
+ import sys
+@@ -123,3 +124,35 @@
+ 
+ 
+ IMPL = {"delegar_tarea": delegar_tarea}
++
++
++def estado_delegadas(_shared=None):
++    """exp/100: el resultado de lo delegado aparece AL ARRANCAR el chat (el
++    operador vive acá; si no se reporta, es como si no hubiera pasado).
++    Best-effort: sin corridas no imprime nada y un fallo jamás corta el
++    arranque. Import perezoso: el conductor arrastra el driver PTY."""
++    with contextlib.suppress(Exception):  # noqa: BLE001 (reportar nunca corta el arranque)
++        from delegar import panorama_delegadas
++
++        lineas = panorama_delegadas()
++        if lineas:
++            print(f"\n[delegar] últimas tareas delegadas: {len(lineas)}")
++            for linea in lineas:
++                print(f"  - {linea}")
++
++
++def aviso_delegadas_al_cerrar(_shared=None):
++    """exp/100: si hay delegadas corriendo, el cierre las nombra — siguen en
++    background (el conductor corre detached) y el resultado se reporta al
++    próximo arranque. Sin activas, silencio."""
++    with contextlib.suppress(Exception):  # noqa: BLE001 (aviso de cierre best-effort)
++        from delegar import corridas_activas
++
++        activas = corridas_activas()
++        if activas:
++            nombres = ", ".join(c.name for c in activas)
++            print(f"[delegar] {len(activas)} tarea(s) delegadas siguen corriendo "
++                  f"({nombres}) — el resultado se reporta al próximo arranque")
++
++
++HOOKS = {"al_arrancar": estado_delegadas, "al_salir": aviso_delegadas_al_cerrar}
+diff -ruN a/modules/memoria.py b/modules/memoria.py
+--- a/modules/memoria.py	2026-10-28 11:38:53.750009036 +0000
++++ b/modules/memoria.py	2026-10-28 11:33:12.887171762 +0000
+@@ -5,6 +5,11 @@
+ el system prompt no se toca); el agente consulta/guarda solo cuando el
+ pedido lo justifica, vía estas tools.
+ 
++Además engancha el ciclo de vida del chat (`HOOKS`, ver modules/__init__):
++el catálogo al arrancar, el respaldo de la zona fría al compactar y el
++resumen de la sesión al salir. Sin este archivo el chat corre igual, sin
++biblioteca: el CORE no sabe que la memoria existe.
++
+ Dos tools, código puro (sin LLM):
+ - memory_search: busca texto (case-insensitive) dentro de los .md de
+   `memoria/` y lista la biblioteca.
+@@ -14,11 +19,15 @@
+ import os
+ import re
+ import unicodedata
+-from datetime import date
++from datetime import date, datetime
+ from pathlib import Path
+ 
++from utils import call_llm as cliente
+ from utils.call_llm import _setting
++from utils.compaccion import MAX_RESPALDO_CHARS, PREFIJO_COMPACCION, huella, serializar, zona_fria
+ from utils.fs_tools import escribir_atomico
++from utils.prefetch import PREFIJO_PREFETCH
++from utils.skills import PREFIJO_SKILL
+ 
+ MEMORIA_DIR_DEFAULT = "memoria"
+ SEARCH_MAX_FILES = 50
+@@ -267,3 +276,129 @@
+ 
+ 
+ IMPL = {"memory_search": memory_search, "memory_save": memory_save}
++
++
++# ciclo de vida del chat
++
++
++def preguntas_reales(mensajes):
++    """Cuenta los user-role que son PREGUNTAS: excluye los mensajes sintéticos
++    de prefetch, skill y el marcador de compacción (medido en vivo: con 1
++    pregunta + 1 pre-fetch el resumen se disparaba igual)."""
++    return sum(
++        1 for m in mensajes
++        if m.get("role") == "user"
++        and not str(m.get("content", "")).startswith(
++            (PREFIJO_PREFETCH, PREFIJO_COMPACCION, PREFIJO_SKILL))
++    )
++
++
++def _transcript(mensajes):
++    lineas = []
++    for m in mensajes:
++        if m.get("role") == "system":
++            continue
++        contenido = m.get("content")
++        if not contenido and m.get("tool_calls"):
++            contenido = "(herramientas) " + ", ".join(tc["function"]["name"] for tc in m["tool_calls"])
++        if contenido:
++            lineas.append(f"{m.get('role')}: {contenido}")
++    return "\n".join(lineas)
++
++
++def resumen_de_sesion(shared):
++    """Al salir, UNA llamada a call_llm comprime la conversación y la guarda
++    como memoria/sesion_FECHA.md (bookkeeping, sin HITL). Con MEMORIA=0 o
++    menos de 2 preguntas no hace nada; si la llamada falla se sale igual.
++    Ninguna ruta es muda: un resumen ausente sin print no se pudo reproducir
++    (4 intentos)."""
++    if _setting("MEMORIA", "1") != "1":
++        print("\n[memoria] desactivada (MEMORIA=0): sin resumen de sesión")
++        return
++    mensajes = shared.get("messages", [])
++    n_users = preguntas_reales(mensajes)
++    if n_users < 2:
++        print(f"\n[memoria] sesión corta ({n_users} pregunta): sin resumen")
++        return
++    try:
++        resumen = cliente.call_llm(
++            "Resumí esta conversación entre un usuario y un agente, en español, "
++            "en pocas líneas y para consulta futura. Incluí: el tema en una línea; "
++            "los pedidos del usuario y sus resultados; las decisiones tomadas; los "
++            "hallazgos; y los archivos tocados. No repitas saludos ni el texto crudo.\n\n"
++            f"--- Conversación ---\n{_transcript(mensajes)}"
++        )
++        destino = guardar_resumen_sesion(resumen)
++    except Exception as e:  # noqa: BLE001 (bookkeeping: nunca corta la salida)
++        print(f"\n[memoria] no se pudo guardar el resumen de la sesión ({type(e).__name__})")
++        return
++    if destino:
++        print(f"\n[memoria] resumen de sesión guardado en {destino}")
++    else:
++        print("\n[memoria] el resumen no se pudo escribir (OSError en memoria/)")
++
++
++CATALOGO_MAX = 8
++
++
++def catalogo(_shared=None):
++    """Al arrancar, el CATÁLOGO de la biblioteca (cuántas notas y las más
++    recientes) SIN su contenido: el arranque vacío es regla. Con MEMORIA=0 o
++    la biblioteca vacía no imprime nada; nunca corta el arranque."""
++    if _setting("MEMORIA", "1") != "1":
++        return
++    try:
++        archivos = _archivos_md()
++    except OSError:
++        return
++    if not archivos:
++        return
++    # lista completa = spam de arranque (229 de 234 notas eran respaldos de
++    # compacción): van las últimas; el nombre desempata cuando el mtime empata.
++    recientes = sorted(archivos, key=lambda p: (p.stat().st_mtime, p.name), reverse=True)[:CATALOGO_MAX]
++    print(f"\n[memoria] biblioteca: {len(archivos)} notas; las {len(recientes)} más recientes:")
++    for p in recientes:
++        print(f"  - {p.name}")
++    print("  (consultá cualquier nota con memory_search)")
++
++
++def _ahora():
++    """Timestamp del título del respaldo (segundos: dos compacciones del mismo
++    minuto colisionaban y guardar_nota las desambiguaba con -2, -3)."""
++    return datetime.now().strftime("%Y-%m-%d %H-%M-%S")
++
++
++def respaldar_zona_fria(mensajes, shared=None):
++    """Guarda en memoria/ los mensajes que la compacción va a descartar (A17)
++    y devuelve la ruta, o None. Transcripción literal, sin LLM: barata y sin
++    modos de fallo nuevos.
++
++    - Con `shared`, la sesión recuerda la huella del último respaldo: la zona
++      fría casi no cambia entre compacciones y respaldarla siempre dejó 143
++      copias idénticas (X37); si es la misma, devuelve la ruta existente.
++    - Con MEMORIA=0 no escribe: sin biblioteca no hay memory_search que lo
++      recupere (exp/71: 157 respaldos de fixture en la curada).
++    - Una zona fría sin ningún `user` no se respalda: los resultados de tools
++      se re-obtienen y la prosa del asistente es derivada (exp/88: la
++      compacción rodante escribía un archivo por ronda)."""
++    if _setting("MEMORIA", "1") != "1":
++        return None
++    frios = zona_fria(mensajes)
++    if not any(isinstance(m, dict) and m.get("role") == "user" for m in frios):
++        return None
++    firma = huella(frios)
++    if shared is not None and shared.get("_respaldo_huella") == firma:
++        return shared.get("_respaldo_ruta")
++    cuerpo = serializar(frios)
++    if len(cuerpo) > MAX_RESPALDO_CHARS:
++        cuerpo = cuerpo[:MAX_RESPALDO_CHARS] + "\n\n[... transcripción truncada por tamaño ...]"
++    destino = guardar_nota(f"Compactación {_ahora()}", cuerpo)
++    if destino is None:
++        return None
++    if shared is not None:
++        shared["_respaldo_huella"] = firma
++        shared["_respaldo_ruta"] = str(destino)
++    return str(destino)
++
++
++HOOKS = {"al_arrancar": catalogo, "al_compactar": respaldar_zona_fria, "al_salir": resumen_de_sesion}
+diff -ruN a/nodes.py b/nodes.py
+--- a/nodes.py	2026-10-28 11:38:53.718009155 +0000
++++ b/nodes.py	2026-10-28 11:35:58.074663690 +0000
+@@ -6,7 +6,7 @@
+ 
+ from pocketflow import Node
+ 
+-from modules import discover
++from modules import discover, ganchos
+ from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_stream
+ from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
+ from utils.fs_tools import TOOLS as CORE_TOOLS
+@@ -397,15 +397,6 @@
+         return "continue"
+ 
+ 
+-def _ahora():
+-    """Timestamp del título del respaldo (segundos: dos compacciones del mismo
+-    minuto colisionaban y el dedupe de guardar_nota las desambiguaba con
+-    "-2", "-3"). Aislado para poder fijarlo en los tests."""
+-    from datetime import datetime
+-
+-    return datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+-
+-
+ def _aviso_ventana_caliente(shared, tamano, tope):
+     """exp/88: si ni compactando se baja del tope, la masa está en la
+     ventana caliente — decílo UNA vez por sesión: el marcador de compacción
+@@ -449,62 +440,6 @@
+     shared["_compaccion_huella"] = huella(nuevo)
+ 
+ 
+-def _respaldar_zona_fria(mensajes, shared=None):
+-    """Guarda en memoria/ los mensajes que la compacción va a descartar (A17).
+-
+-    Sin LLM a propósito: una transcripción literal es barata, no suma latencia
+-    al turno ni un modo de fallo nuevo (y el resumen real de la sesión ya se
+-    hace al salir, en main.resumen_de_sesion). Devuelve la ruta o None.
+-
+-    Medido: la zona fría casi no cambia entre compacciones de la MISMA sesión,
+-    así que respaldarla en cada una llenó memoria/ de copias idénticas (143
+-    respaldos con el mismo cuerpo) y contaminó memory_search. Con `shared` la
+-    sesión recuerda la huella de lo último respaldado: si la zona fría es la
+-    misma, no se escribe nada y se devuelve la ruta del respaldo que ya existe
+-    (el marcador la sigue diciendo, A17).
+-
+-    Con MEMORIA=0 la biblioteca está apagada (ni catálogo ni memory_search):
+-    el respaldo no tendría cómo recuperarse y solo ensuciaría `memoria/`.
+-    exp/71 midió que la suite (que corre con MEMORIA=1) y el banco (que corre
+-    con 0, pero el respaldo ignoraba el setting) dejaban 157 respaldos de
+-    fixture en la biblioteca curada; en ese modo no escribe.
+-
+-    exp/88: la sesión real del operador destapó la puerta que X37 no cerró —
+-    cuando la ventana caliente sola supera el tope, la compacción se vuelve
+-    RODANTE (dispara cada ronda con una zona fría recién envejecida) y el
+-    respaldo por-huella escribía un archivo por ronda (19 en 5 minutos). Regla:
+-    solo se respalda lo IRRECUPERABLE — una zona fría sin ningún mensaje
+-    `user` (solo assistant/tool) no se respalda: los resultados de tools se
+-    re-obtienen re-corriendo la tool y la prosa del asistente es derivada."""
+-    from utils.compaccion import MAX_RESPALDO_CHARS, huella, serializar, zona_fria
+-
+-    if _setting("MEMORIA", "1") != "1":
+-        return None
+-    frios = zona_fria(mensajes)
+-    if not frios:
+-        return None
+-    if not any(m.get("role") == "user" for m in frios if isinstance(m, dict)):
+-        return None
+-    cuerpo = serializar(frios)
+-    firma = huella(frios)
+-    if shared is not None and shared.get("_respaldo_huella") == firma:
+-        return shared.get("_respaldo_ruta")
+-    from modules.memoria import guardar_nota
+-
+-    aviso = ""
+-    if len(cuerpo) > MAX_RESPALDO_CHARS:
+-        cuerpo = cuerpo[:MAX_RESPALDO_CHARS]
+-        aviso = "\n\n[... transcripción truncada por tamaño ...]"
+-    titulo = f"Compactación {_ahora()}"
+-    destino = guardar_nota(titulo, cuerpo + aviso)
+-    if destino is None:
+-        return None
+-    if shared is not None:
+-        shared["_respaldo_huella"] = firma
+-        shared["_respaldo_ruta"] = str(destino)
+-    return str(destino)
+-
+-
+ class AgentStep(Node):
+     def prep(self, shared):
+         # Compacción de contexto (Mesa 6, 12-factor #5): si el historial
+@@ -521,9 +456,9 @@
+         if tope > 0 and len(serializar(mensajes)) > tope:
+             h = huella(mensajes)
+             if shared.get("_compaccion_huella") != h:
+-                # A17: la zona fría se RESPALDA antes de descartarla, así el
+-                # marcador puede decir la verdad y memory_search la encuentra.
+-                respaldo = _respaldar_zona_fria(mensajes, shared)
++                # A17: la zona fría se RESPALDA antes de descartarla (lo hace
++                # el módulo que la sepa guardar), así el marcador dice la verdad.
++                respaldo = next(filter(None, (g(mensajes, shared) for g in ganchos("al_compactar"))), None)
+                 nuevo = compactar(mensajes, tope, respaldo=respaldo,
+                                   objetivo=shared.get("_objetivo"))
+                 if nuevo is not mensajes and len(nuevo) < len(mensajes):
+diff -ruN a/ratchets/baseline.json b/ratchets/baseline.json
+--- a/ratchets/baseline.json	2026-10-28 11:38:53.754009021 +0000
++++ b/ratchets/baseline.json	2026-10-28 11:36:00.730653793 +0000
+@@ -5,12 +5,8 @@
+       "metrica": 0
+     },
+     "core_importa_modulos": {
+-      "detalle": {
+-        "main.py:catalogo_memoria": 1,
+-        "main.py:resumen_de_sesion": 1,
+-        "nodes.py:_respaldar_zona_fria": 1
+-      },
+-      "metrica": 3
++      "detalle": {},
++      "metrica": 0
+     },
+     "cuerpos_duplicados": {
+       "detalle": {},
+@@ -40,10 +36,6 @@
+         "juez_lote.py": [
+           91
+         ],
+-        "main.py": [
+-          205,
+-          239
+-        ],
+         "modules/db.py": [
+           131
+         ],
+@@ -51,15 +43,16 @@
+           36
+         ],
+         "modules/memoria.py": [
+-          138
++          147,
++          332
+         ],
+         "modules/rag.py": [
+           74
+         ],
+         "nodes.py": [
+           58,
+-          899,
+-          971
++          834,
++          906
+         ],
+         "research.py": [
+           78
+@@ -111,7 +104,7 @@
+           16
+         ]
+       },
+-      "metrica": 34
++      "metrica": 33
+     },
+     "funciones_anidadas": {
+       "detalle": {},
+@@ -156,13 +149,8 @@
+         "heartbeat.py:guardar_estado": 1,
+         "heartbeat.py:main": 1,
+         "juez.py:_inventario_tools": 1,
+-        "main.py:_preguntas_reales": 3,
+         "main.py:_reporte_tokens": 2,
+-        "main.py:aviso_delegadas_al_cerrar": 1,
+-        "main.py:catalogo_memoria": 2,
+-        "main.py:estado_delegadas": 1,
+         "main.py:main": 1,
+-        "main.py:resumen_de_sesion": 3,
+         "main.py:system_prompt": 1,
+         "mcp_server.py:envolver": 3,
+         "mcp_server.py:main": 1,
+@@ -170,6 +158,8 @@
+         "modules/coding.py:_registrar_hooks": 1,
+         "modules/coding.py:_sale_de_raices": 2,
+         "modules/coding.py:_vetar_comando_prohibido": 1,
++        "modules/delegar.py:aviso_delegadas_al_cerrar": 1,
++        "modules/delegar.py:estado_delegadas": 1,
+         "modules/effective_n.py:run_effective_n": 1,
+         "modules/fable.py:verificar_trabajo": 1,
+         "modules/humano.py:request_human_input": 1,
+@@ -183,9 +173,7 @@
+         "nodes.py:LayaRouter": 6,
+         "nodes.py:PreFetch": 3,
+         "nodes.py:VerificarCitas": 1,
+-        "nodes.py:_ahora": 1,
+         "nodes.py:_recortar_si_sigue_sobre_el_tope": 1,
+-        "nodes.py:_respaldar_zona_fria": 2,
+         "nodes.py:alcance_amplio": 1,
+         "nodes.py:registrar_pregunta": 1,
+         "nodes.py:voto_confirmacion_router": 4,
+@@ -239,7 +227,7 @@
+         "utils/websearch.py:search_web": 1,
+         "visor.py:vigilar": 1
+       },
+-      "metrica": 137
++      "metrica": 126
+     },
+     "nodos_largos": {
+       "detalle": {
+@@ -444,8 +432,7 @@
+           "utils/mcp_client.py"
+         ],
+         "MEMORIA": [
+-          "main.py",
+-          "nodes.py"
++          "modules/memoria.py"
+         ],
+         "MEMORIA_DIR": [
+           "modules/memoria.py"
+@@ -568,6 +555,7 @@
+         "tests/test_consolidacion.py": 44,
+         "tests/test_contratos.py": 6,
+         "tests/test_convergencia.py": 9,
++        "tests/test_core_sin_modulos.py": 2,
+         "tests/test_costos.py": 11,
+         "tests/test_db.py": 18,
+         "tests/test_delegar.py": 21,
+@@ -634,7 +622,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 1109
++      "metrica": 1111
+     },
+     "texto_de_prompt": {
+       "detalle": {
+diff -ruN a/tests/test_chat_flujo.py b/tests/test_chat_flujo.py
+--- a/tests/test_chat_flujo.py	2026-10-28 11:38:53.726009125 +0000
++++ b/tests/test_chat_flujo.py	2026-10-28 11:33:32.411107141 +0000
+@@ -431,7 +431,7 @@
+ def test_preguntas_reales_ignora_prefetch_y_compaccion():
+     """El resumen de sesión cuenta preguntas REALES: un mensaje sintético de
+     prefetch o el marcador de compacción no lo disparan (medido en vivo)."""
+-    from main import _preguntas_reales
++    from modules.memoria import preguntas_reales as _preguntas_reales
+ 
+     mensajes = [
+         {"role": "system", "content": "s"},
+diff -ruN a/tests/test_compaccion.py b/tests/test_compaccion.py
+--- a/tests/test_compaccion.py	2026-10-28 11:38:53.730009111 +0000
++++ b/tests/test_compaccion.py	2026-10-28 11:34:03.635014262 +0000
+@@ -1,5 +1,7 @@
+ """Compactación del historial: zona fría, unidades indivisibles y validación (PR 4)."""
+ 
++from modules import memoria
++
+ 
+ def _historial_sintetico(n_vueltas=50, relleno=400):
+     """Historial canónico grande: system + N vueltas (user → assistant con
+@@ -248,7 +250,6 @@
+ def test_zona_fria_sin_user_no_se_respalda(tmp_path, monkeypatch):
+     """exp/88 F1: la zona fría RODANTE (solo assistant/tool recién envejecido)
+     no escribe respaldo — lo irrecuperable es lo que escribió el usuario."""
+-    import nodes
+ 
+     llamadas = []
+     monkeypatch.setattr("modules.memoria.guardar_nota",
+@@ -257,14 +258,13 @@
+     msgs = ([{"role": "system", "content": "s"}] + _gigante(12)
+             + [{"role": "user", "content": "seguí"}] + _gigante(2))
+ 
+-    assert nodes._respaldar_zona_fria(msgs) is None
++    assert memoria.respaldar_zona_fria(msgs) is None
+     assert llamadas == []
+ 
+ 
+ def test_zona_fria_con_user_se_respalda_como_siempre(tmp_path, monkeypatch):
+     """A17 intacto para lo que importa: la primera compacción de una
+     conversación larga lleva preguntas viejas adentro y SÍ se respalda."""
+-    import nodes
+ 
+     llamadas = []
+     monkeypatch.setattr("modules.memoria.guardar_nota",
+@@ -274,7 +274,7 @@
+              {"role": "user", "content": "pregunta vieja irrecuperable"}]
+             + _gigante(12))
+ 
+-    ruta = nodes._respaldar_zona_fria(msgs)
++    ruta = memoria.respaldar_zona_fria(msgs)
+     assert ruta is not None and len(llamadas) == 1
+ 
+ 
+diff -ruN a/tests/test_core_sin_modulos.py b/tests/test_core_sin_modulos.py
+--- a/tests/test_core_sin_modulos.py	1970-01-01 00:00:00.000000000 +0000
++++ b/tests/test_core_sin_modulos.py	2026-10-28 11:35:41.138725227 +0000
+@@ -0,0 +1,63 @@
++"""El CORE no conoce a sus módulos (fase 1a de docs/elegancia.md, F5).
++
++"Agregar una capacidad = dejar un archivo; quitarla = borrarlo" tiene que
++valer también para el ciclo de vida: el arranque, la compacción y la salida
++recorren los HOOKS que declaran los módulos presentes, sin nombrarlos."""
++import subprocess
++import sys
++
++from conftest import RAIZ
++
++import modules
++import modules.delegar as delegar_mod
++import modules.memoria as memoria
++
++# el chat real, en otro proceso, con modules/memoria.py ilegible (como si se
++# hubiera borrado): arranca, compacta, responde y sale
++SIN_MEMORIA = """
++import importlib.abc, sys
++class SinMemoria(importlib.abc.MetaPathFinder):
++    def find_spec(self, nombre, *a):
++        if nombre == "modules.memoria":
++            raise ImportError("borrado a propósito")
++sys.meta_path.insert(0, SinMemoria())
++sys.path.insert(0, RAIZ)
++from types import SimpleNamespace as NS
++import builtins, main, nodes
++from modules import ganchos
++assert "memory_search" not in nodes.MODULE_IMPLS
++assert not ganchos("al_compactar")
++entradas = iter(["hola", "salir"])
++builtins.input = lambda *a, **k: next(entradas)
++nodes.call_llm_agent = lambda m, t=None: NS(content="ok", tool_calls=None)
++viejo = [{"role": "user", "content": "x" * 300}, {"role": "assistant", "content": "y"}]
++shared = {"messages": [{"role": "system", "content": "s"}] + viejo * 12}
++for g in ganchos("al_arrancar"):
++    g(shared)
++main.create_agent_flow().run(shared)
++for g in reversed(ganchos("al_salir")):
++    g(shared)
++assert shared["compacciones"] == 1, shared.get("compacciones")
++print("CHAT-SIN-MEMORIA-OK")
++"""
++
++
++def test_los_ganchos_vienen_de_los_modulos_presentes():
++    assert memoria.catalogo in modules.ganchos("al_arrancar")
++    assert delegar_mod.estado_delegadas in modules.ganchos("al_arrancar")
++    assert modules.ganchos("al_compactar") == [memoria.respaldar_zona_fria]
++    assert modules.ganchos("evento_que_nadie_declara") == []
++
++
++def test_el_chat_corre_sin_el_modulo_de_memoria(tmp_path):
++    """Sin `modules/memoria.py` el chat arranca, compacta y sale: la memoria
++    es una capacidad, no una dependencia del CORE."""
++    env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "AGENT_ALLOWED_DIRS": str(tmp_path),
++           "USE_LAYA_ROUTER": "0", "CHAT_STREAM": "0", "PREFETCH": "0", "CITAS_VERIFICAR": "0",
++           "SKILLS": "0", "COMPACTION_CHARS": "3000", "TRACE": "0", "THREAD_PERSIST": "0",
++           "PREGUNTAS_LOG": "0", "LAYA_LOG_DECISIONES": "0"}
++    script = SIN_MEMORIA.replace("sys.path.insert(0, RAIZ)", f"sys.path.insert(0, {str(RAIZ)!r})")
++    r = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, env=env,
++                       capture_output=True, text=True, timeout=120)
++    assert "CHAT-SIN-MEMORIA-OK" in r.stdout, r.stdout[-1500:] + r.stderr[-1500:]
++    assert "memoria no cargó" in r.stderr  # discover() avisa y sigue
+diff -ruN a/tests/test_delegar.py b/tests/test_delegar.py
+--- a/tests/test_delegar.py	2026-10-28 11:38:53.730009111 +0000
++++ b/tests/test_delegar.py	2026-10-28 11:34:03.639014251 +0000
+@@ -431,23 +431,23 @@
+ 
+ 
+ def test_el_arranque_y_cierre_del_chat_reportan_delegadas(monkeypatch, capsys):
+-    """main.estado_delegadas imprime el panorama; el aviso de cierre solo
+-    sale cuando hay corridas activas (exp/100, los tres momentos)."""
++    """Los ganchos del módulo delegar: el arranque imprime el panorama; el
++    aviso de cierre solo sale cuando hay corridas activas (exp/100)."""
+     import delegar
+-    import main
++    import modules.delegar as delegar_mod
+ 
+     monkeypatch.setattr(delegar, "panorama_delegadas",
+                         lambda: ["20261025-101000: ok", "20261025-100900: en curso"])
+-    main.estado_delegadas()
++    delegar_mod.estado_delegadas()
+     out = capsys.readouterr().out
+     assert "[delegar]" in out and "20261025-101000: ok" in out
+ 
+     monkeypatch.setattr(delegar, "corridas_activas", lambda: [])
+-    main.aviso_delegadas_al_cerrar()
++    delegar_mod.aviso_delegadas_al_cerrar()
+     assert capsys.readouterr().out == ""
+ 
+     from pathlib import Path as _Path
+ 
+     monkeypatch.setattr(delegar, "corridas_activas", lambda: [_Path("20261025-101500")])
+-    main.aviso_delegadas_al_cerrar()
++    delegar_mod.aviso_delegadas_al_cerrar()
+     assert "siguen corriendo" in capsys.readouterr().out
+diff -ruN a/tests/test_memoria.py b/tests/test_memoria.py
+--- a/tests/test_memoria.py	2026-10-28 11:38:53.730009111 +0000
++++ b/tests/test_memoria.py	2026-10-28 11:34:19.890966074 +0000
+@@ -3,6 +3,8 @@
+ 
+ import pytest
+ 
++import modules.memoria as mem
++
+ 
+ def test_memory_search_encuentra_y_lista(tmp_path, monkeypatch):
+     """La memoria es una BIBLIOTECA consultable: memory_search encuentra el
+@@ -70,7 +72,6 @@
+ def test_resumen_de_sesion_escribe_con_llm(tmp_path, monkeypatch):
+     """Al salir, con MEMORIA activo y >=2 preguntas, UNA llamada a call_llm
+     resume y guarda memoria/sesion_FECHA.md. La llamada va fiteada."""
+-    import main
+     import utils.call_llm as c
+ 
+     monkeypatch.setenv("MEMORIA", "1")
+@@ -91,7 +92,7 @@
+         {"role": "user", "content": "chau mundo"},
+         {"role": "assistant", "content": "respuesta dos"},
+     ]}
+-    main.resumen_de_sesion(shared)
++    mem.resumen_de_sesion(shared)
+     assert llamadas["n"] == 1  # UNA sola llamada
+ 
+     sesiones = list(tmp_path.glob("sesion_*.md"))
+@@ -101,7 +102,6 @@
+ def test_resumen_de_sesion_se_apaga_y_no_rompe(tmp_path, monkeypatch):
+     """MEMORIA=0 no resume; menos de 2 preguntas tampoco; y un fallo del LLM
+     no rompe la salida (bookkeeping)."""
+-    import main
+     import utils.call_llm as c
+ 
+     def no_llamar(prompt):
+@@ -111,12 +111,12 @@
+     monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+ 
+     monkeypatch.setenv("MEMORIA", "0")
+-    main.resumen_de_sesion({"messages": [
++    mem.resumen_de_sesion({"messages": [
+         {"role": "user", "content": "una"}, {"role": "user", "content": "dos"}]})
+     assert not list(tmp_path.glob("sesion_*.md"))
+ 
+     monkeypatch.setenv("MEMORIA", "1")
+-    main.resumen_de_sesion({"messages": [{"role": "user", "content": "una sola"}]})
++    mem.resumen_de_sesion({"messages": [{"role": "user", "content": "una sola"}]})
+     assert not list(tmp_path.glob("sesion_*.md"))  # <2 preguntas
+ 
+     # fallo del LLM: se sale igual, sin archivo, sin excepción
+@@ -124,33 +124,30 @@
+         raise RuntimeError("sin saldo")
+ 
+     monkeypatch.setattr(c, "call_llm", explota, raising=False)
+-    main.resumen_de_sesion({"messages": [
++    mem.resumen_de_sesion({"messages": [
+         {"role": "user", "content": "una"}, {"role": "user", "content": "dos"}]})
+     assert not list(tmp_path.glob("sesion_*.md"))
+ 
+ def test_resumen_de_sesion_rutas_visibles(capsys, monkeypatch, tmp_path):
+     """Ninguna ruta del exit-summary es muda (episodio silencioso no
+     reproducido: sin prints es indecidible cuál disparó)."""
+-    import main
+ 
+     # desactivada
+     monkeypatch.setenv("MEMORIA", "0")
+-    main.resumen_de_sesion({"messages": []})
++    mem.resumen_de_sesion({"messages": []})
+     assert "desactivada" in capsys.readouterr().out
+ 
+     # sesión corta
+     monkeypatch.setenv("MEMORIA", "1")
+-    main.resumen_de_sesion({"messages": [
++    mem.resumen_de_sesion({"messages": [
+         {"role": "user", "content": "hola"},
+     ]})
+     assert "sesión corta" in capsys.readouterr().out
+ 
+     # feliz: escribe y anuncia el destino
+     monkeypatch.setattr("utils.call_llm.call_llm", lambda p: "resumen de prueba")
+-    import modules.memoria as mem
+-
+     monkeypatch.setattr(mem, "_raiz", lambda: tmp_path)
+-    main.resumen_de_sesion({"messages": [
++    mem.resumen_de_sesion({"messages": [
+         {"role": "user", "content": "uno"},
+         {"role": "assistant", "content": "r1"},
+         {"role": "user", "content": "dos"},
+@@ -353,7 +350,6 @@
+ def test_catalogo_memoria_al_arranque(tmp_path, monkeypatch, capsys):
+     """El arranque muestra el CATÁLOGO de la biblioteca (qué notas hay) SIN
+     inyectar su contenido al contexto — el arranque vacío es regla (mesa 8)."""
+-    import main
+ 
+     monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+     monkeypatch.setenv("MEMORIA", "1")
+@@ -361,7 +357,7 @@
+     (tmp_path / "nota_a.md").write_text("contenido secreto A\n", encoding="utf-8")
+     (tmp_path / "nota_b.md").write_text("contenido secreto B\n", encoding="utf-8")
+ 
+-    main.catalogo_memoria()
++    mem.catalogo()
+     salida = capsys.readouterr().out
+     assert "biblioteca: 2 notas" in salida
+     assert "nota_a.md" in salida and "nota_b.md" in salida
+@@ -370,16 +366,15 @@
+ 
+     # MEMORIA=0 no muestra nada
+     monkeypatch.setenv("MEMORIA", "0")
+-    main.catalogo_memoria()
++    mem.catalogo()
+     assert capsys.readouterr().out == ""
+ 
+ def test_catalogo_memoria_vacio(tmp_path, monkeypatch, capsys):
+     """Biblioteca vacía: no imprime nada (arranque silencioso)."""
+-    import main
+ 
+     monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+     monkeypatch.setenv("MEMORIA", "1")
+-    main.catalogo_memoria()
++    mem.catalogo()
+     assert capsys.readouterr().out == ""
+ 
+ def test_catalogo_memoria_resumen_acotado(tmp_path, monkeypatch, capsys):
+@@ -387,7 +382,6 @@
+     CATALOGO_MAX (la lista completa era spam: 229 de 234 tapaban las útiles)."""
+     import os
+ 
+-    import main
+ 
+     monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+     monkeypatch.setenv("MEMORIA", "1")
+@@ -398,11 +392,11 @@
+         # mtime creciente y determinista: nota_19 es la más reciente
+         os.utime(p, (1_700_000_000 + i, 1_700_000_000 + i))
+ 
+-    main.catalogo_memoria()
++    mem.catalogo()
+     salida = capsys.readouterr().out
+     lineas = [linea for linea in salida.splitlines() if linea.strip().startswith("- ")]
+     assert f"biblioteca: {total} notas" in salida
+-    assert len(lineas) == main.CATALOGO_MAX < total
++    assert len(lineas) == mem.CATALOGO_MAX < total
+     assert "nota_19.md" in salida and "nota_00.md" not in salida
+     assert "memory_search" in salida
+     assert "cuerpo" not in salida
+@@ -411,13 +405,12 @@
+     vacia = tmp_path / "vacia"
+     vacia.mkdir()
+     monkeypatch.setenv("MEMORIA_DIR", str(vacia))
+-    main.catalogo_memoria()
++    mem.catalogo()
+     assert capsys.readouterr().out == ""
+ 
+ 
+ def test_catalogo_memoria_nunca_rompe(monkeypatch, capsys):
+     """Aunque la lectura de la biblioteca falle, el arranque sigue."""
+-    import main
+ 
+     monkeypatch.setenv("MEMORIA", "1")
+     import modules.memoria as mem
+@@ -426,7 +419,7 @@
+         raise OSError("disco")
+ 
+     monkeypatch.setattr(mem, "_archivos_md", boom)
+-    main.catalogo_memoria()  # no levanta
++    mem.catalogo()  # no levanta
+     assert capsys.readouterr().out == ""
+ 
+ def test_embed_decide_prefijo_despues_de_cargar(monkeypatch):
+diff -ruN a/tests/test_pendientes.py b/tests/test_pendientes.py
+--- a/tests/test_pendientes.py	2026-10-28 11:38:53.726009125 +0000
++++ b/tests/test_pendientes.py	2026-10-28 11:34:03.643014239 +0000
+@@ -15,6 +15,8 @@
+ import pytest
+ from conftest import requiere_repo_git
+ 
++from modules import memoria
++
+ 
+ @pytest.fixture(autouse=True)
+ def _bench_en_shadow(monkeypatch):
+@@ -282,12 +284,11 @@
+ 
+ 
+ def test_compaccion_respalda_la_zona_fria(tmp_path, monkeypatch):
+-    import nodes
+     from utils.compaccion import compactar
+ 
+     monkeypatch.setenv("MEMORIA_DIR", str(tmp_path / "memoria"))
+     msgs = _historial_largo()
+-    ruta = nodes._respaldar_zona_fria(msgs)
++    ruta = memoria.respaldar_zona_fria(msgs)
+     assert ruta is not None
+     assert "OBJETIVO_ACTIVO" in Path(ruta).read_text(encoding="utf-8")
+     assert ruta in compactar(msgs, 4000, respaldo=ruta)[1]["content"]
+@@ -307,12 +308,11 @@
+     memory_search), así que el respaldo no tendría recuperación posible: no se
+     escribe. La suite corría con MEMORIA=1 y el banco con 0, pero el respaldo
+     ignoraba el setting: dejaban respaldos de fixture en `memoria/` (157 de 243)."""
+-    import nodes
+ 
+     raiz = tmp_path / "memoria"
+     monkeypatch.setenv("MEMORIA_DIR", str(raiz))
+     monkeypatch.setenv("MEMORIA", "0")
+-    assert nodes._respaldar_zona_fria(_historial_largo()) is None
++    assert memoria.respaldar_zona_fria(_historial_largo()) is None
+     assert _notas(raiz) == []
+ 
+ 
+@@ -324,15 +324,14 @@
+ def test_zona_fria_identica_no_se_respalda_dos_veces(tmp_path, monkeypatch):
+     """Dos compacciones con la MISMA zona fría: la segunda no escribe nota ni
+     duplica archivo (medido: 143 respaldos con el mismo cuerpo)."""
+-    import nodes
+ 
+     raiz = tmp_path / "memoria"
+     monkeypatch.setenv("MEMORIA_DIR", str(raiz))
+     msgs = _historial_largo()
+     shared = {}
+ 
+-    primera = nodes._respaldar_zona_fria(msgs, shared)
+-    segunda = nodes._respaldar_zona_fria(msgs, shared)
++    primera = memoria.respaldar_zona_fria(msgs, shared)
++    segunda = memoria.respaldar_zona_fria(msgs, shared)
+ 
+     assert primera is not None and Path(primera).exists()
+     assert segunda == primera          # devuelve la ruta del respaldo que ya existe
+@@ -341,16 +340,15 @@
+ 
+ def test_zona_fria_distinta_se_respalda_de_nuevo(tmp_path, monkeypatch):
+     """Si la zona fría CAMBIÓ, el respaldo legítimo sigue ocurriendo."""
+-    import nodes
+ 
+     raiz = tmp_path / "memoria"
+     monkeypatch.setenv("MEMORIA_DIR", str(raiz))
+     shared = {}
+ 
+-    primera = nodes._respaldar_zona_fria(_historial_largo(), shared)
++    primera = memoria.respaldar_zona_fria(_historial_largo(), shared)
+     otra = _historial_largo()
+     otra[3]["content"] = "Z" * 1000     # la zona fría ahora dice otra cosa
+-    segunda = nodes._respaldar_zona_fria(otra, shared)
++    segunda = memoria.respaldar_zona_fria(otra, shared)
+ 
+     assert primera != segunda
+     assert len(_notas(raiz)) == 2
+@@ -403,12 +401,11 @@
+     guardar_nota con -2, -3)."""
+     import re
+ 
+-    import nodes
+ 
+-    assert re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}", nodes._ahora())
++    assert re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}", memoria._ahora())
+     # el reloj se congela DESPUÉS de medir el formato: lo que se mide acá es
+     # el nombre de archivo que produce guardar_nota con un título dado.
+-    monkeypatch.setattr(nodes, "_ahora", lambda: "2026-10-21 12-34-56")
++    monkeypatch.setattr(memoria, "_ahora", lambda: "2026-10-21 12-34-56")
+     # el PREFIJO del nombre usa memoria.date.today() (otra fuente de fecha): sin
+     # congelarla el test era un time-bomb — falló al cruzar a 2026-10-22.
+     from datetime import date
+@@ -420,7 +417,7 @@
+     raiz = tmp_path / "memoria"
+     monkeypatch.setenv("MEMORIA_DIR", str(raiz))
+ 
+-    nodes._respaldar_zona_fria(_historial_largo(), {})
++    memoria.respaldar_zona_fria(_historial_largo(), {})
+     nombres = [n.name for n in _notas(raiz)]
+     assert nombres == [
+         "nota_2026-10-21_compactacion-2026-10-21-12-34-56.md"], nombres
+diff -ruN a/tests/test_skills.py b/tests/test_skills.py
+--- a/tests/test_skills.py	2026-10-28 11:38:53.726009125 +0000
++++ b/tests/test_skills.py	2026-10-28 11:34:03.643014239 +0000
+@@ -7,6 +7,7 @@
+ """
+ import json
+ 
++from modules import memoria
+ from utils.skills import (
+     PREFIJO_SKILL,
+     Skill,
+@@ -111,11 +112,10 @@
+ 
+ 
+ def test_preguntas_reales_no_cuentan_el_mensaje_de_skill():
+-    import main
+ 
+     mensajes = [
+         {"role": "user", "content": "¿qué es un closure?"},
+         {"role": "user", "content": f"{PREFIJO_SKILL} revision — reglas"},
+         {"role": "assistant", "content": "…"},
+     ]
+-    assert main._preguntas_reales(mensajes) == 1
++    assert memoria.preguntas_reales(mensajes) == 1
+diff -ruN a/tests/test_ui.py b/tests/test_ui.py
+--- a/tests/test_ui.py	2026-10-28 11:38:53.726009125 +0000
++++ b/tests/test_ui.py	2026-10-28 11:34:03.643014239 +0000
+@@ -1,5 +1,6 @@
+ """UX de terminal: color, progreso y diff resaltado (PR 4)."""
+ 
++import modules.memoria as mem
+ 
+ # Pulido de terminal (mesa 8): colores por tipo de evento + progreso de rondas
+ 
+@@ -72,16 +73,15 @@
+ def test_catalogo_memoria_muestra_nombres_y_respeta_memoria_0(tmp_path, monkeypatch, capsys):
+     """Mesa 8: al arrancar se lista la biblioteca (solo nombres, SIN inyectar
+     contexto); con MEMORIA=0 no imprime nada."""
+-    import main
+ 
+     monkeypatch.delenv("MEMORIA", raising=False)
+     monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
+     (tmp_path / "nota_uno.md").write_text("cuerpo uno\n", encoding="utf-8")
+     (tmp_path / "nota_dos.md").write_text("cuerpo dos\n", encoding="utf-8")
+-    main.catalogo_memoria()
++    mem.catalogo()
+     salida = capsys.readouterr().out
+     assert "biblioteca: 2 notas" in salida and "nota_uno.md" in salida
+ 
+     monkeypatch.setenv("MEMORIA", "0")
+-    main.catalogo_memoria()
++    mem.catalogo()
+     assert capsys.readouterr().out == ""

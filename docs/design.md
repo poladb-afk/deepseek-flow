@@ -219,6 +219,14 @@ las herramientas que aporten los módulos. Un módulo es un archivo en
 
 - Agregar una capacidad = dejar un archivo en `modules/`.
 - Quitarla = borrarlo (el descubrimiento es al iniciar el proceso).
+- Ciclo de vida (X92): un módulo puede exportar además `HOOKS =
+  {evento: función}` con `al_arrancar(shared)`, `al_compactar(mensajes,
+  shared)` → ruta|None y `al_salir(shared)`. `modules.ganchos(evento)` los
+  junta y el CORE (`main`, `nodes.AgentStep`) los recorre sin nombrar a
+  nadie: la memoria (catálogo, respaldo de la zona fría, resumen de sesión)
+  y el reporte de delegadas viven en su módulo. Borrar `modules/memoria.py`
+  deja el chat andando sin biblioteca
+  (`test_el_chat_corre_sin_el_modulo_de_memoria`).
 - Una pieza puede existir standalone y exponerse como módulo:
   `modules/informe.py` es solo el adaptador de `informe.py`, que sigue
   funcionando sola (`main.py informe`).
@@ -831,15 +839,16 @@ tools. Dos tools, código puro (sin LLM):
   sin caracteres utilizables se rechaza. Devuelve el path escrito.
 
 Resumen automático al salir: `main.py` envuelve la corrida del flujo en
-`try/finally` (cubre el retorno normal y el Ctrl+C del prompt).
-`resumen_de_sesion(shared)` corre en el `finally`; con `MEMORIA=1`
+`try/finally` (cubre el retorno normal y el Ctrl+C del prompt) y en el
+`finally` recorre los ganchos `al_salir` de los módulos; el de la memoria es
+`modules.memoria.resumen_de_sesion(shared)`; con `MEMORIA=1`
 (default) y al menos 2 preguntas de usuario hace UNA sola llamada a
 `call_llm` que comprime la conversación (tema, pedidos y resultados,
 decisiones, hallazgos, archivos tocados) y la guarda como
 `memoria/sesion_FECHA.md` vía `guardar_resumen_sesion`. Sin HITL (es
 bookkeeping, no una acción nueva) y con el fallo de la llamada contenido:
 se sale igual sin romper nada. `MEMORIA=0` apaga todo: también el
-respaldo de la zona fría que hace la compacción (`_respaldar_zona_fria`; sin
+respaldo de la zona fría que hace la compacción (`memoria.respaldar_zona_fria`, gancho `al_compactar`; sin
 biblioteca no hay `memory_search` que lo recupere, exp/71).
 
 ### El conductor — `delegar`: UNA tarea real sin nadie al timón (exp/99)
@@ -863,11 +872,11 @@ en el chat, lo que no se activa ahí no se usa):**
   exp/98 vuelve al modelo); aprobada → `Popen` **detached**
   (`start_new_session=True`, stdio a DEVNULL): la tarea sigue aunque el chat
   se cierre. `shadow="1"` fuerza `LAYA_MODO=shadow` del conductor.
-- **Al arrancar** — `main.estado_delegadas()` imprime `panorama_delegadas()`:
+- **Al arrancar** — el gancho `modules.delegar.estado_delegadas` imprime `panorama_delegadas()`:
   las últimas 3 corridas con su estado (`ok`/`timeout`/`muerto-sin-resume`/
   `en curso` —pid del conductor vivo en `conductor.pid`—/`murió sin
   resumen`), best-effort junto al catálogo de memoria.
-- **Al cerrar** — `main.aviso_delegadas_al_cerrar()`: si hay delegadas
+- **Al cerrar** — el gancho `modules.delegar.aviso_delegadas_al_cerrar`: si hay delegadas
   activas (pid vivo y sin `resumen.md`), el cierre las nombra; el resultado
   se reporta al próximo arranque.
 

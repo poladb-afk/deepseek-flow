@@ -1,5 +1,7 @@
 """Compactación del historial: zona fría, unidades indivisibles y validación (PR 4)."""
 
+from modules import memoria
+
 
 def _historial_sintetico(n_vueltas=50, relleno=400):
     """Historial canónico grande: system + N vueltas (user → assistant con
@@ -248,7 +250,6 @@ def _gigante(n=10, chars=8000):
 def test_zona_fria_sin_user_no_se_respalda(tmp_path, monkeypatch):
     """exp/88 F1: la zona fría RODANTE (solo assistant/tool recién envejecido)
     no escribe respaldo — lo irrecuperable es lo que escribió el usuario."""
-    import nodes
 
     llamadas = []
     monkeypatch.setattr("modules.memoria.guardar_nota",
@@ -257,14 +258,13 @@ def test_zona_fria_sin_user_no_se_respalda(tmp_path, monkeypatch):
     msgs = ([{"role": "system", "content": "s"}] + _gigante(12)
             + [{"role": "user", "content": "seguí"}] + _gigante(2))
 
-    assert nodes._respaldar_zona_fria(msgs) is None
+    assert memoria.respaldar_zona_fria(msgs) is None
     assert llamadas == []
 
 
 def test_zona_fria_con_user_se_respalda_como_siempre(tmp_path, monkeypatch):
     """A17 intacto para lo que importa: la primera compacción de una
     conversación larga lleva preguntas viejas adentro y SÍ se respalda."""
-    import nodes
 
     llamadas = []
     monkeypatch.setattr("modules.memoria.guardar_nota",
@@ -274,7 +274,7 @@ def test_zona_fria_con_user_se_respalda_como_siempre(tmp_path, monkeypatch):
              {"role": "user", "content": "pregunta vieja irrecuperable"}]
             + _gigante(12))
 
-    ruta = nodes._respaldar_zona_fria(msgs)
+    ruta = memoria.respaldar_zona_fria(msgs)
     assert ruta is not None and len(llamadas) == 1
 
 

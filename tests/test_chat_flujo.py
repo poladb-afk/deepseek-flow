@@ -431,7 +431,7 @@ def test_getquestion_cierra_el_costo_de_la_pregunta_anterior(monkeypatch):
 def test_preguntas_reales_ignora_prefetch_y_compaccion():
     """El resumen de sesión cuenta preguntas REALES: un mensaje sintético de
     prefetch o el marcador de compacción no lo disparan (medido en vivo)."""
-    from main import _preguntas_reales
+    from modules.memoria import preguntas_reales as _preguntas_reales
 
     mensajes = [
         {"role": "system", "content": "s"},

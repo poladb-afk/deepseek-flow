@@ -7,6 +7,7 @@ que los pide — pero la puerta es esta tool: UNA aprobación del operador con
 el pedido y el scope a la vista (el operador es el veto del scope que el
 modelo propuso), y el resto lo maneja el scope. El import de la pieza es
 perezoso (el top-level corre discover() al cargarse)."""
+import contextlib
 import os
 import subprocess
 import sys
@@ -123,3 +124,35 @@ def delegar_tarea(pedido, permitir=None, permitir_comandos=None,
 
 
 IMPL = {"delegar_tarea": delegar_tarea}
+
+
+def estado_delegadas(_shared=None):
+    """exp/100: el resultado de lo delegado aparece AL ARRANCAR el chat (el
+    operador vive acá; si no se reporta, es como si no hubiera pasado).
+    Best-effort: sin corridas no imprime nada y un fallo jamás corta el
+    arranque. Import perezoso: el conductor arrastra el driver PTY."""
+    with contextlib.suppress(Exception):  # noqa: BLE001 (reportar nunca corta el arranque)
+        from delegar import panorama_delegadas
+
+        lineas = panorama_delegadas()
+        if lineas:
+            print(f"\n[delegar] últimas tareas delegadas: {len(lineas)}")
+            for linea in lineas:
+                print(f"  - {linea}")
+
+
+def aviso_delegadas_al_cerrar(_shared=None):
+    """exp/100: si hay delegadas corriendo, el cierre las nombra — siguen en
+    background (el conductor corre detached) y el resultado se reporta al
+    próximo arranque. Sin activas, silencio."""
+    with contextlib.suppress(Exception):  # noqa: BLE001 (aviso de cierre best-effort)
+        from delegar import corridas_activas
+
+        activas = corridas_activas()
+        if activas:
+            nombres = ", ".join(c.name for c in activas)
+            print(f"[delegar] {len(activas)} tarea(s) delegadas siguen corriendo "
+                  f"({nombres}) — el resultado se reporta al próximo arranque")
+
+
+HOOKS = {"al_arrancar": estado_delegadas, "al_salir": aviso_delegadas_al_cerrar}

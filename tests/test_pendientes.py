@@ -15,6 +15,8 @@ from pathlib import Path
 import pytest
 from conftest import requiere_repo_git
 
+from modules import memoria
+
 
 @pytest.fixture(autouse=True)
 def _bench_en_shadow(monkeypatch):
@@ -282,12 +284,11 @@ def test_zona_fria_coincide_con_lo_que_compactar_descarta():
 
 
 def test_compaccion_respalda_la_zona_fria(tmp_path, monkeypatch):
-    import nodes
     from utils.compaccion import compactar
 
     monkeypatch.setenv("MEMORIA_DIR", str(tmp_path / "memoria"))
     msgs = _historial_largo()
-    ruta = nodes._respaldar_zona_fria(msgs)
+    ruta = memoria.respaldar_zona_fria(msgs)
     assert ruta is not None
     assert "OBJETIVO_ACTIVO" in Path(ruta).read_text(encoding="utf-8")
     assert ruta in compactar(msgs, 4000, respaldo=ruta)[1]["content"]
@@ -307,12 +308,11 @@ def test_compaccion_no_respalda_con_memoria_apagada(tmp_path, monkeypatch):
     memory_search), así que el respaldo no tendría recuperación posible: no se
     escribe. La suite corría con MEMORIA=1 y el banco con 0, pero el respaldo
     ignoraba el setting: dejaban respaldos de fixture en `memoria/` (157 de 243)."""
-    import nodes
 
     raiz = tmp_path / "memoria"
     monkeypatch.setenv("MEMORIA_DIR", str(raiz))
     monkeypatch.setenv("MEMORIA", "0")
-    assert nodes._respaldar_zona_fria(_historial_largo()) is None
+    assert memoria.respaldar_zona_fria(_historial_largo()) is None
     assert _notas(raiz) == []
 
 
@@ -324,15 +324,14 @@ def _notas(directorio):
 def test_zona_fria_identica_no_se_respalda_dos_veces(tmp_path, monkeypatch):
     """Dos compacciones con la MISMA zona fría: la segunda no escribe nota ni
     duplica archivo (medido: 143 respaldos con el mismo cuerpo)."""
-    import nodes
 
     raiz = tmp_path / "memoria"
     monkeypatch.setenv("MEMORIA_DIR", str(raiz))
     msgs = _historial_largo()
     shared = {}
 
-    primera = nodes._respaldar_zona_fria(msgs, shared)
-    segunda = nodes._respaldar_zona_fria(msgs, shared)
+    primera = memoria.respaldar_zona_fria(msgs, shared)
+    segunda = memoria.respaldar_zona_fria(msgs, shared)
 
     assert primera is not None and Path(primera).exists()
     assert segunda == primera          # devuelve la ruta del respaldo que ya existe
@@ -341,16 +340,15 @@ def test_zona_fria_identica_no_se_respalda_dos_veces(tmp_path, monkeypatch):
 
 def test_zona_fria_distinta_se_respalda_de_nuevo(tmp_path, monkeypatch):
     """Si la zona fría CAMBIÓ, el respaldo legítimo sigue ocurriendo."""
-    import nodes
 
     raiz = tmp_path / "memoria"
     monkeypatch.setenv("MEMORIA_DIR", str(raiz))
     shared = {}
 
-    primera = nodes._respaldar_zona_fria(_historial_largo(), shared)
+    primera = memoria.respaldar_zona_fria(_historial_largo(), shared)
     otra = _historial_largo()
     otra[3]["content"] = "Z" * 1000     # la zona fría ahora dice otra cosa
-    segunda = nodes._respaldar_zona_fria(otra, shared)
+    segunda = memoria.respaldar_zona_fria(otra, shared)
 
     assert primera != segunda
     assert len(_notas(raiz)) == 2
@@ -403,12 +401,11 @@ def test_titulo_de_respaldo_lleva_segundos(tmp_path, monkeypatch):
     guardar_nota con -2, -3)."""
     import re
 
-    import nodes
 
-    assert re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}", nodes._ahora())
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}-\d{2}-\d{2}", memoria._ahora())
     # el reloj se congela DESPUÉS de medir el formato: lo que se mide acá es
     # el nombre de archivo que produce guardar_nota con un título dado.
-    monkeypatch.setattr(nodes, "_ahora", lambda: "2026-10-21 12-34-56")
+    monkeypatch.setattr(memoria, "_ahora", lambda: "2026-10-21 12-34-56")
     # el PREFIJO del nombre usa memoria.date.today() (otra fuente de fecha): sin
     # congelarla el test era un time-bomb — falló al cruzar a 2026-10-22.
     from datetime import date
@@ -420,7 +417,7 @@ def test_titulo_de_respaldo_lleva_segundos(tmp_path, monkeypatch):
     raiz = tmp_path / "memoria"
     monkeypatch.setenv("MEMORIA_DIR", str(raiz))
 
-    nodes._respaldar_zona_fria(_historial_largo(), {})
+    memoria.respaldar_zona_fria(_historial_largo(), {})
     nombres = [n.name for n in _notas(raiz)]
     assert nombres == [
         "nota_2026-10-21_compactacion-2026-10-21-12-34-56.md"], nombres

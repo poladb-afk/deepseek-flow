@@ -5085,3 +5085,40 @@ GetQuestion → AgentStep y el real pasa por PreFetch y LayaRouter.
 `AGENTS.md` gana R10 (elegancia, con su gate). La regla blanda "parche mínimo"
 se levanta para las fases 1–5 del refactor, igual que para H2 (X71): cada fase
 tiene su gate de salida en `docs/elegancia.md`.
+
+---
+
+## Fase 1a de elegancia — el CORE deja de conocer a la memoria (2026-10-28, X92)
+
+`core_importa_modulos` marcaba 3: `main.catalogo_memoria` (que además
+importaba la privada `_archivos_md`), `main.resumen_de_sesion` y
+`nodes._respaldar_zona_fria`. Borrar `modules/memoria.py` rompía el arranque,
+la compacción y la salida; la promesa "quitar = borrarlo" valía para las
+tools pero no para el ciclo de vida.
+
+**Mecanismo** (el mismo patrón que `TOOLS`/`IMPL`): un módulo puede exportar
+`HOOKS = {evento: función}` y `modules.ganchos(evento)` devuelve las de los
+módulos ya cargados por `discover()`. Tres eventos, los que el código ya
+tenía: `al_arrancar(shared)`, `al_compactar(mensajes, shared)` → ruta|None y
+`al_salir(shared)` (en orden inverso). Las funciones se mudaron a su dueño:
+`memoria.catalogo`, `memoria.respaldar_zona_fria`, `memoria.resumen_de_sesion`
+y `memoria.preguntas_reales`; `delegar.estado_delegadas` y
+`aviso_delegadas_al_cerrar` pasaron de `main` a `modules/delegar.py`.
+
+**Sin cambio de conducta**, con una excepción declarada: el resumen de sesión
+corre ahora ANTES del reporte de tokens, así el `[tokens]` de salida incluye
+la llamada del resumen (antes la omitía). `test_caracterizacion_chat.py` sin
+cambios; los tests de memoria, compacción y delegadas cambiaron solo el
+import (el comportamiento que afirman es el mismo).
+
+**Candado**: `test_el_chat_corre_sin_el_modulo_de_memoria` levanta el chat
+real en otro proceso con `modules.memoria` ilegible: `discover()` avisa y
+saltea, el chat arranca, compacta (sin respaldo), responde y sale. Probado
+contra la regresión: reinyectar `from modules.memoria import guardar_nota`
+en `nodes.py` lo pone rojo, y el ratchet también (`+ nodes.py:<módulo>`).
+
+Ratchets: `core_importa_modulos` **3 → 0**, `imports_perezosos` 137 → 126
+(los imports de memoria y delegar dejaron de ser perezosos: el módulo los
+importa arriba), `excepts_amplios` 34 → 33 (`catalogo` atrapa `OSError`, no
+`Exception`), `tests_definidos` 1109 → 1111. `./calidad.sh` verde, 1107
+passed.

@@ -5,12 +5,8 @@
       "metrica": 0
     },
     "core_importa_modulos": {
-      "detalle": {
-        "main.py:catalogo_memoria": 1,
-        "main.py:resumen_de_sesion": 1,
-        "nodes.py:_respaldar_zona_fria": 1
-      },
-      "metrica": 3
+      "detalle": {},
+      "metrica": 0
     },
     "cuerpos_duplicados": {
       "detalle": {},
@@ -40,10 +36,6 @@
         "juez_lote.py": [
           91
         ],
-        "main.py": [
-          205,
-          239
-        ],
         "modules/db.py": [
           131
         ],
@@ -51,15 +43,16 @@
           36
         ],
         "modules/memoria.py": [
-          138
+          147,
+          332
         ],
         "modules/rag.py": [
           74
         ],
         "nodes.py": [
           58,
-          899,
-          971
+          834,
+          906
         ],
         "research.py": [
           78
@@ -111,7 +104,7 @@
           16
         ]
       },
-      "metrica": 34
+      "metrica": 33
     },
     "funciones_anidadas": {
       "detalle": {},
@@ -156,13 +149,8 @@
         "heartbeat.py:guardar_estado": 1,
         "heartbeat.py:main": 1,
         "juez.py:_inventario_tools": 1,
-        "main.py:_preguntas_reales": 3,
         "main.py:_reporte_tokens": 2,
-        "main.py:aviso_delegadas_al_cerrar": 1,
-        "main.py:catalogo_memoria": 2,
-        "main.py:estado_delegadas": 1,
         "main.py:main": 1,
-        "main.py:resumen_de_sesion": 3,
         "main.py:system_prompt": 1,
         "mcp_server.py:envolver": 3,
         "mcp_server.py:main": 1,
@@ -170,6 +158,8 @@
         "modules/coding.py:_registrar_hooks": 1,
         "modules/coding.py:_sale_de_raices": 2,
         "modules/coding.py:_vetar_comando_prohibido": 1,
+        "modules/delegar.py:aviso_delegadas_al_cerrar": 1,
+        "modules/delegar.py:estado_delegadas": 1,
         "modules/effective_n.py:run_effective_n": 1,
         "modules/fable.py:verificar_trabajo": 1,
         "modules/humano.py:request_human_input": 1,
@@ -183,9 +173,7 @@
         "nodes.py:LayaRouter": 6,
         "nodes.py:PreFetch": 3,
         "nodes.py:VerificarCitas": 1,
-        "nodes.py:_ahora": 1,
         "nodes.py:_recortar_si_sigue_sobre_el_tope": 1,
-        "nodes.py:_respaldar_zona_fria": 2,
         "nodes.py:alcance_amplio": 1,
         "nodes.py:registrar_pregunta": 1,
         "nodes.py:voto_confirmacion_router": 4,
@@ -239,7 +227,7 @@
         "utils/websearch.py:search_web": 1,
         "visor.py:vigilar": 1
       },
-      "metrica": 137
+      "metrica": 126
     },
     "nodos_largos": {
       "detalle": {
@@ -444,8 +432,7 @@
           "utils/mcp_client.py"
         ],
         "MEMORIA": [
-          "main.py",
-          "nodes.py"
+          "modules/memoria.py"
         ],
         "MEMORIA_DIR": [
           "modules/memoria.py"
@@ -568,6 +555,7 @@
         "tests/test_consolidacion.py": 44,
         "tests/test_contratos.py": 6,
         "tests/test_convergencia.py": 9,
+        "tests/test_core_sin_modulos.py": 2,
         "tests/test_costos.py": 11,
         "tests/test_db.py": 18,
         "tests/test_delegar.py": 21,
@@ -634,7 +622,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1109
+      "metrica": 1111
     },
     "texto_de_prompt": {
       "detalle": {
