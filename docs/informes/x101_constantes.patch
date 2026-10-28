@@ -1,0 +1,420 @@
+diff -ruN a/.env.example b/.env.example
+--- a/.env.example	2026-10-28 20:51:06.709649799 +0000
++++ b/.env.example	2026-10-28 20:47:41.145167332 +0000
+@@ -88,8 +88,6 @@
+ # COMPACTION_CHARS=60000
+ # Máximo de caracteres que devuelve read_file (corta el medio)
+ # READ_MAX_CHARS=24000
+-# Concurrencia del mapa paralelo del informe (semáforo anti-429)
+-# MAPA_CONCURRENCIA=8
+ 
+ # Servidores MCP que el agente consume: nombre::comando ; otro::comando2
+ # MCP_SERVERS=matematica::python3 /ruta/a/servidor.py
+@@ -172,10 +170,6 @@
+ # banco/probes/etiquetar_router.py --extra salidas/routing.jsonl y elegir alpha
+ # con tráfico real. Default 0: el registro no guarda texto del usuario.
+ # LAYA_LOG_PREGUNTA=0
+-# Tope de checkpoints cargados en el proceso (exp/32). Cada uno pesa 2,86 GiB
+-# de RSS: al pasarse, se descarga el agente MENOS usado y la RAM vuelve al SO.
+-# El desalojo ocurre ANTES de cargar el nuevo: el pico nunca supera el tope.
+-# LAYA_MAX_EN_PROCESO=2
+ # Tamaño de lote de la inferencia en lote (prefiltro de memoria/RAG). Sin
+ # definir, TODOS los estados viajan en un solo forward y el pico de memoria
+ # crece con la cantidad de candidatos; con un N positivo se parte en lotes.
+@@ -242,9 +236,6 @@
+ # LAYA_CALIBRACION_ROUTER, una capa abajo; artefacto de banco/probes/calibrar_voto.py)
+ # LAYA_CALIBRACION_VOTO=salidas/evals/conformal_calibracion_voto.jsonl
+ # LAYA_ALPHA_VOTO=0.10
+-# Segundos que un checkpoint de Laya que falló al cargar queda en cuarentena
+-# antes de reintentar (antes el error era permanente para toda la sesión)
+-# LAYA_ERROR_COOLDOWN=60
+ # Los umbrales LAYA_UNSURE_HIGH* deben estar en [0, 1]: NaN, inf o fuera de
+ # rango se ignoran con aviso y rige el default.
+ 
+@@ -256,17 +247,12 @@
+ # Pre-fetch declarativo (exp/50): si la pregunta menciona archivos existentes
+ # dentro de las raíces, se leen antes de la primera llamada. 0 lo apaga.
+ # PREFETCH=1
+-# PREFETCH_MAX_ARCHIVOS=2
+-# PREFETCH_MAX_LINEAS=80
+ 
+ # Persistencia del thread (exp/48): checkpoint del shared por ciclo, para
+ # `main.py resume <id>`. 0 apaga todo (ni crea el directorio).
+ # THREAD_PERSIST=1
+ # THREADS_DIR=salidas/threads
+ 
+-# Concurrencia del juez en lote (semáforo anti-429)
+-# JUEZ_LOTE_CONCURRENCIA=8
+-
+ # Base SQLite de trazas para las tools sql/db_schema (se abre en solo lectura)
+ # DB_PATH=trazas.db
+ 
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-28 20:51:06.721649588 +0000
++++ b/docs/bitacora.md	2026-10-28 20:50:18.558534727 +0000
+@@ -5406,3 +5406,36 @@
+ de una sesión vieja, arrancar con thinking OFF). Escribirlo antes de la sonda
+ sería adivinar el diseño — y sumaría un setting que el ratchet cuenta para
+ nada.
++
++---
++
++## Seis tunables pasan a constantes (2026-10-28, X101)
++
++El inventario de `docs/elegancia.md` marcaba siete settings como "revisar →
++constante". Antes de tocarlos, el grep: ningún escenario del banco los fija;
++los tests que los variaban lo hacen sobre la constante del módulo
++(`monkeypatch.setattr`) salvo dos (el tope de archivos del pre-fetch y el
++parseo con basura del cooldown).
++
++**Seis pasan a constantes, con el MISMO valor**: `MAPA_CONCURRENCIA` (8),
++`JUEZ_LOTE_CONCURRENCIA` (8), `PREFETCH_MAX_ARCHIVOS` (2) y
++`PREFETCH_MAX_LINEAS` (80) — hoy `utils.prefetch.MAX_ARCHIVOS/MAX_LINEAS`;
++`PREFETCH=0` sigue siendo el apagador —, `LAYA_ERROR_COOLDOWN` (60) y
++`LAYA_MAX_EN_PROCESO` (2).
++
++**Un bug que se fue con la estructura**: `LAYA_MAX_EN_PROCESO` se leía con
++`int(_setting(...))`, sin el `_entero` a prueba de typos que exp/37 puso en
++todos los demás — un `.env` con `LAYA_MAX_EN_PROCESO=dos` tiraba el import
++de `utils.laya` y con él el router. Como constante no queda lectura que
++pueda fallar.
++
++**Uno no**: `LAYA_BATCH_SIZE`. Su `0` no es un número sino un MODO (el lote
++entero en un forward, como antes de exp/32) y un test con nombre propio cubre
++las dos ramas; pasarlo a constante borraba una. En el inventario pasa de
++"revisar" a "contrato", con el motivo.
++
++Los dos tests que variaban por entorno pasan a fijar la constante, con las
++mismas aserciones. Candado: `test_los_tunables_de_x101_no_se_leen_del_entorno`
++(probado: volver a leer `JUEZ_LOTE_CONCURRENCIA` con `_entero` lo pone rojo).
++`settings_leidos` 84 → 78; inventario 78 (42 contrato · 19 revisar · 17
++borrar). `./calidad.sh` verde, 1126 passed.
+diff -ruN a/docs/elegancia.md b/docs/elegancia.md
+--- a/docs/elegancia.md	2026-10-28 20:51:06.721649588 +0000
++++ b/docs/elegancia.md	2026-10-28 20:47:41.149167277 +0000
+@@ -58,7 +58,7 @@
+ | `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
+ | `producto_conoce_lab` | 10 → **0** (X93) | 0 ✅ |
+ | `vocabulario_hardcodeado` | 8 | ≤ 2 (fases 3–4; quedan los sí/no del HITL) |
+-| `settings_leidos` | 89 → 84 (X93) | ≤ 45 (fases 1–5, ver inventario) |
++| `settings_leidos` | 89 → 84 (X93) → 78 (X101) | ≤ 45 (fases 1–5, ver inventario) |
+ | `imports_perezosos` | 137 → 126 (X92) | ≤ 40 |
+ | `nodos_largos` | 15 → 14 (X96) | ≤ 3 |
+ | `texto_de_prompt` | 2748 chars | ≤ 800 |
+@@ -74,7 +74,7 @@
+ | 4 | Se borran reglas, voto, `alcance_amplio`, perfiles y directivas (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
+ | 5 | Política de comandos como datos (S10); skills por descripción; Laya 0.4.x | Mínimo | `test_policy_bypass.py` idéntico |
+ 
+-## Inventario de settings (84 tras X93: 41 contrato · 26 revisar · 17 borrar)
++## Inventario de settings (78 tras X101: 42 contrato · 19 revisar · 17 borrar)
+ 
+ `contrato` = decisión del operador que se queda; `revisar` = se decide en la
+ fase indicada; `borrar` = se va con su rama en esa fase.
+@@ -106,20 +106,14 @@
+ | `CHAT_STREAM_INTERRUPT` | revisar | 2 | S9: citas e interrupción siempre activas | `utils/call_llm.py` |
+ | `CITAS_VERIFICAR` | revisar | 2 | S9: citas e interrupción siempre activas | `nodes.py` |
+ | `PREFETCH` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
+-| `PREFETCH_MAX_ARCHIVOS` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
+-| `PREFETCH_MAX_LINEAS` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
+ | `LAYA_ALPHA` | revisar | 3 | S1/S2: la calibración conformal se queda si Laya elige el modo | `utils/laya_routing.py` |
+ | `LAYA_CALIBRACION_ROUTER` | revisar | 3 | S1/S2: la calibración conformal se queda si Laya elige el modo | `utils/laya_routing.py` |
+ | `LAYA_MODEL_RIESGO` | revisar | 3 | S1: el juez de riesgo observa sin decidir: decidir o borrar | `utils/riesgo.py` |
+ | `PROMPT_FORMA` | revisar | 4 | S8: se queda solo si un A/B del modelo actual lo sostiene | `main.py` |
+ | `SKILLS` | revisar | 4 | S7: skills por descripción; el apagador global quizá sobra | `nodes.py` |
+ | `INFORME_CARPETA` | revisar | 5 | concurrencia: una constante del kernel | `informe.py` |
+-| `JUEZ_LOTE_CONCURRENCIA` | revisar | 5 | concurrencia: una constante del kernel | `juez_lote.py` |
+-| `LAYA_BATCH_SIZE` | revisar | 5 | tunables internos de Laya: constantes | `utils/laya.py` |
+-| `LAYA_ERROR_COOLDOWN` | revisar | 5 | tunables internos de Laya: constantes | `utils/laya.py` |
+-| `LAYA_MAX_EN_PROCESO` | revisar | 5 | tunables internos de Laya: constantes | `utils/laya.py` |
++| `LAYA_BATCH_SIZE` | contrato | — | no es un tunable: `0` = el lote no se parte (un solo forward), N = lotes de N; elige el pico de memoria del prefiltro (X101) | `utils/laya.py` |
+ | `LAYA_MODEL_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
+-| `MAPA_CONCURRENCIA` | revisar | 5 | concurrencia: una constante del kernel | `informe.py` |
+ | `MEMORIA_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
+ | `MEMORIA_PREFILTRO_N` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
+ | `RAG_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/rag.py` |
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-28 20:51:06.721649588 +0000
++++ b/docs/estado.md	2026-10-28 20:50:18.558534727 +0000
+@@ -136,6 +136,7 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
++| X101 | — | Seis settings eran tunables que nadie fijaba (ningún escenario del banco, ningún test por entorno salvo dos) y uno, `LAYA_MAX_EN_PROCESO`, se leía con `int()` a secas: un typo en el `.env` tiraba el import de `utils.laya` | ✅ 2026-10-28 | `MAPA_CONCURRENCIA`, `JUEZ_LOTE_CONCURRENCIA`, `PREFETCH_MAX_ARCHIVOS`, `PREFETCH_MAX_LINEAS`, `LAYA_ERROR_COOLDOWN` y `LAYA_MAX_EN_PROCESO` pasan a constantes con el MISMO valor (el bug del `int()` deja de existir: no queda lectura que falle). `LAYA_BATCH_SIZE` NO: su `0` es un modo (el lote no se parte), no un número — pasa a contrato en el inventario. Ratchet `settings_leidos` **84 → 78**. Sin cambio de conducta | `test_los_tunables_de_x101_no_se_leen_del_entorno` |
+ | X100 | — | El gate previo de la fase 3 (thinking con tools, reasoning preservado) no tenía sonda | ✅ 2026-10-28 (sonda escrita; falta correrla) | `banco/probes/thinking_tools.py`, seis secuencias (A–F, incluido el rechazo de s19-s3 y la compacción); arma los requests con `_kwargs_agente(..., pensar=True)`, el builder de producción, que hoy solo usa la sonda. El cableado en el chat espera el resultado | `test_pensar_preserva_el_reasoning_y_habilita_thinking_con_tools`, `test_un_400_tumba_el_gate_y_se_ve_donde` |
+ | X99 | — | La fase 2d (esquema de tools fijo + `tool_choice="none"` en `Cierre`) prometía que el cierre reusara el KV-cache | ❌ no entra (2026-10-28) | Medido con X98 sobre la base de 16 corridas: 2 cierres reales por presupuesto (tope amplio 16), ambos con 0% de hit por venir justo tras una compacción. Con < 5 cierres el criterio no se puede decidir y el beneficio alcanza 2 de 16 preguntas. Una primera lectura los confundió con respuestas de 9–15 rondas (tope 8 en vez de 16): NO quedó probado que DeepSeek mantenga la caché sin tools. Detalle en [fase2d.md](../banco/specs/fase2d.md) | [banco/specs/fase2d.md](../banco/specs/fase2d.md) |
+ | X98 | — | El pre-registro de la fase 2d pedía medir si la llamada de `Cierre` reusa caché, y la traza no podía decirlo: `_contabilizar` recibía `prompt_cache_hit_tokens` pero `evento_llm` escribía solo prompt/completion, y ningún evento decía QUÉ nodo hizo la llamada | ✅ 2026-10-28 | `evento_llm` suma `cache_hit` (solo si el proveedor lo informa: ausente = desconocido, no 0) y `llamador` (el nodo en curso, de una pila por hilo que llena `_run_trazado`; un hilo de tools en paralelo no hereda la pila, no se inventa un nodo). `tokens_runs` desglosa por llamador. Pre-registros escritos: [fase2d](../banco/specs/fase2d.md), [fase3](../banco/specs/fase3.md). Sin cambio de conducta | `test_el_evento_de_uso_lleva_cache_hit_y_quien_llamo`, `test_el_tracing_activo_registra_al_nodo_que_llama`, `test_desglose_por_llamador_y_cache_hit` |
+diff -ruN a/informe.py b/informe.py
+--- a/informe.py	2026-10-28 20:51:06.705649870 +0000
++++ b/informe.py	2026-10-28 20:46:42.097977602 +0000
+@@ -24,7 +24,7 @@
+ 
+ from pocketflow import AsyncFlow, AsyncParallelBatchNode, Node
+ 
+-from utils.call_llm import _entero, _setting, call_llm, call_llm_async
++from utils.call_llm import _setting, call_llm, call_llm_async
+ from utils.fs_tools import SKIP_DIRS, _resolve, escribir_salida, sin_enlaces
+ 
+ MAX_FILES = 30
+@@ -32,10 +32,10 @@
+ TASK_CHARS = 300
+ DEFAULT_FOLDER = _setting("INFORME_CARPETA", ".")  # portable; local: INFORME_CARPETA en .env
+ # Semáforo anti-429: acota cuántas llamadas a DeepSeek se solapan en el mapa
+-# exp/37: _entero no revienta el módulo con un valor mal formado.
+ # El semáforo NO vuelve a ser de módulo: exp/36 lo hizo por corrida
+ # (self.semaforo) porque el de módulo se ataba al primer event loop.
+-MAPA_CONCURRENCIA = _entero("MAPA_CONCURRENCIA", 8)
++# Constante, no setting (X101): ningún escenario ni operador lo cambiaba.
++MAPA_CONCURRENCIA = 8
+ 
+ 
+ def collect_files(folder, pattern, max_files=MAX_FILES):
+diff -ruN a/juez_lote.py b/juez_lote.py
+--- a/juez_lote.py	2026-10-28 20:51:06.709649799 +0000
++++ b/juez_lote.py	2026-10-28 20:50:18.554534802 +0000
+@@ -36,13 +36,12 @@
+ from pocketflow import AsyncNode, AsyncParallelBatchFlow
+ 
+ from juez import create_juez_flow
+-from utils.call_llm import _entero
+ from utils.fs_tools import _resolve, escribir_salida
+ 
+ DEFAULT_SALIDA = "salidas/juez_lote.md"
+ # Semáforo anti-429 entre preguntas (mismo criterio que informe.py): no
+ # limita el paralelismo de las corridas, solo cuántas llamadas LLM se solapan.
+-JUEZ_LOTE_CONCURRENCIA = _entero("JUEZ_LOTE_CONCURRENCIA", 8)
++JUEZ_LOTE_CONCURRENCIA = 8
+ 
+ 
+ def leer_preguntas(path):
+diff -ruN a/ratchets/baseline.json b/ratchets/baseline.json
+--- a/ratchets/baseline.json	2026-10-28 20:51:06.745649166 +0000
++++ b/ratchets/baseline.json	2026-10-28 20:48:41.084344823 +0000
+@@ -34,7 +34,7 @@
+           555
+         ],
+         "juez_lote.py": [
+-          91
++          90
+         ],
+         "modules/db.py": [
+           131
+@@ -81,7 +81,7 @@
+           577
+         ],
+         "utils/laya.py": [
+-          96
++          97
+         ],
+         "utils/laya_routing.py": [
+           127
+@@ -312,9 +312,6 @@
+         "INFORME_CARPETA": [
+           "informe.py"
+         ],
+-        "JUEZ_LOTE_CONCURRENCIA": [
+-          "juez_lote.py"
+-        ],
+         "LAYA_ALPHA": [
+           "utils/laya_routing.py"
+         ],
+@@ -330,9 +327,6 @@
+         "LAYA_CALIBRACION_VOTO": [
+           "utils/laya_routing.py"
+         ],
+-        "LAYA_ERROR_COOLDOWN": [
+-          "utils/laya.py"
+-        ],
+         "LAYA_LOG_ARCHIVO": [
+           "utils/laya_routing.py"
+         ],
+@@ -343,9 +337,6 @@
+         "LAYA_LOG_PREGUNTA": [
+           "utils/laya_routing.py"
+         ],
+-        "LAYA_MAX_EN_PROCESO": [
+-          "utils/laya.py"
+-        ],
+         "LAYA_MODEL": [
+           "utils/laya.py"
+         ],
+@@ -391,9 +382,6 @@
+           "modules/vision.py",
+           "utils/call_llm.py"
+         ],
+-        "MAPA_CONCURRENCIA": [
+-          "informe.py"
+-        ],
+         "MAX_TOOL_ROUNDS": [
+           "utils/fs_tools.py"
+         ],
+@@ -427,12 +415,6 @@
+         "PREFETCH": [
+           "utils/prefetch.py"
+         ],
+-        "PREFETCH_MAX_ARCHIVOS": [
+-          "utils/prefetch.py"
+-        ],
+-        "PREFETCH_MAX_LINEAS": [
+-          "utils/prefetch.py"
+-        ],
+         "PREGUNTAS_ARCHIVO": [
+           "nodes.py"
+         ],
+@@ -513,7 +495,7 @@
+           "utils/hitl_web.py"
+         ]
+       },
+-      "metrica": 84
++      "metrica": 78
+     },
+     "tests_definidos": {
+       "detalle": {
+@@ -535,7 +517,7 @@
+         "tests/test_db.py": 18,
+         "tests/test_delegar.py": 21,
+         "tests/test_deriva_reglas.py": 7,
+-        "tests/test_docs_sin_deriva.py": 5,
++        "tests/test_docs_sin_deriva.py": 6,
+         "tests/test_estado_flywheel.py": 3,
+         "tests/test_estado_riesgo.py": 3,
+         "tests/test_estado_turno.py": 7,
+@@ -598,7 +580,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 1129
++      "metrica": 1130
+     },
+     "texto_de_prompt": {
+       "detalle": {
+diff -ruN a/tests/test_docs_sin_deriva.py b/tests/test_docs_sin_deriva.py
+--- a/tests/test_docs_sin_deriva.py	2026-10-28 20:51:06.713649729 +0000
++++ b/tests/test_docs_sin_deriva.py	2026-10-28 20:47:41.145167332 +0000
+@@ -84,3 +84,17 @@
+     listados = set(re.findall(r"python3 main\.py ([\w-]+)", readme))
+     faltan = sorted(set(SUBCOMANDOS) - listados)
+     assert not faltan, f"subcomandos de main.py sin línea en 'CLI completo': {faltan}"
++
++
++# X101 — tunables que pasaron a constantes: ningún escenario ni operador los
++# fijaba, y uno (LAYA_MAX_EN_PROCESO) se leía con int() a secas: un typo en el
++# .env tiraba el import. El candado es contra la VUELTA del setting.
++CONSTANTES_X101 = ("MAPA_CONCURRENCIA", "JUEZ_LOTE_CONCURRENCIA", "PREFETCH_MAX_ARCHIVOS",
++                   "PREFETCH_MAX_LINEAS", "LAYA_ERROR_COOLDOWN", "LAYA_MAX_EN_PROCESO")
++
++
++def test_los_tunables_de_x101_no_se_leen_del_entorno():
++    leidos = set(_settings_usados())
++    vuelven = sorted(set(CONSTANTES_X101) & leidos)
++    assert not vuelven, f"volvieron a leerse del entorno: {vuelven} (son constantes desde X101)"
++    assert not set(CONSTANTES_X101) & set(_settings_documentados())
+diff -ruN a/tests/test_laya_cache_reintento.py b/tests/test_laya_cache_reintento.py
+--- a/tests/test_laya_cache_reintento.py	2026-10-28 20:51:06.713649729 +0000
++++ b/tests/test_laya_cache_reintento.py	2026-10-28 20:47:41.145167332 +0000
+@@ -100,9 +100,10 @@
+ 
+ 
+ def test_cooldown_con_basura_usa_60(monkeypatch):
+-    """LAYA_ERROR_COOLDOWN con basura ("sesenta") → avisa y usa 60 (patrón
+-    _entero)."""
+-    import utils.call_llm as call_llm
++    """El cooldown es una constante desde X101: un .env con
++    LAYA_ERROR_COOLDOWN=sesenta (el caso que este test cubría vía `_entero`)
++    ya no tiene lectura que pueda fallar. Queda fijado el valor."""
++    from utils import laya
+ 
+-    monkeypatch.setattr(call_llm, "_setting", lambda nombre, default=None: "sesenta")
+-    assert call_llm._entero("LAYA_ERROR_COOLDOWN", 60) == 60
++    monkeypatch.setenv("LAYA_ERROR_COOLDOWN", "sesenta")
++    assert laya.LAYA_ERROR_COOLDOWN == 60
+diff -ruN a/tests/test_prefetch.py b/tests/test_prefetch.py
+--- a/tests/test_prefetch.py	2026-10-28 20:51:06.717649659 +0000
++++ b/tests/test_prefetch.py	2026-10-28 20:47:41.145167332 +0000
+@@ -12,9 +12,6 @@
+     monkeypatch.setattr(
+         prefetch, "_setting", lambda nombre, default=None: valores.get(nombre, default)
+     )
+-    monkeypatch.setattr(
+-        prefetch, "_entero", lambda nombre, default: valores.get(nombre, default)
+-    )
+ 
+ 
+ def _pregunta_con(path):
+@@ -45,7 +42,8 @@
+ 
+ 
+ def test_decidir_respeta_el_tope_de_archivos(monkeypatch):
+-    _ajustes(monkeypatch, PREFETCH_MAX_ARCHIVOS=1)
++    _ajustes(monkeypatch)
++    monkeypatch.setattr(prefetch, "MAX_ARCHIVOS", 1)  # constante desde X101
+     rutas = decidir("Compará flow.py y nodes.py línea por línea.")
+     assert len(rutas) == 1
+ 
+diff -ruN a/utils/laya.py b/utils/laya.py
+--- a/utils/laya.py	2026-10-28 20:51:06.741649236 +0000
++++ b/utils/laya.py	2026-10-28 20:46:42.085977766 +0000
+@@ -32,13 +32,14 @@
+ # pero VENCE: pasado el cooldown se reintenta la carga en la misma llamada.
+ # Sin esto, un solo OOM del primer request envenenaba la sesión entera sin
+ # un solo reintento (medido: 31/37 decisiones sin detalle de Laya).
+-LAYA_ERROR_COOLDOWN = _entero("LAYA_ERROR_COOLDOWN", 60)
++LAYA_ERROR_COOLDOWN = 60
+ 
+ # La ley medida (exp/7) es un checkpoint por proceso: 2,86 GiB de RSS CADA UNO.
+ # En un chat son alcanzables cuatro (router, voto, prefiltro y supervisor
+ # in-process): ~11 GiB. Este tope convierte la ley en contrato — al pasarse,
+-# se descarga el menos usado y la RAM vuelve al SO.
+-MAX_EN_PROCESO = int(_setting("LAYA_MAX_EN_PROCESO", "2"))
++# se descarga el menos usado y la RAM vuelve al SO. Constante desde X101: como
++# setting se leía con int() a secas y un typo en el .env tiraba el import.
++MAX_EN_PROCESO = 2
+ 
+ 
+ def _descargar(clave):
+diff -ruN a/utils/prefetch.py b/utils/prefetch.py
+--- a/utils/prefetch.py	2026-10-28 20:51:06.741649236 +0000
++++ b/utils/prefetch.py	2026-10-28 20:48:38.464380775 +0000
+@@ -17,12 +17,17 @@
+ """
+ import re
+ 
+-from utils.call_llm import _entero, _setting
++from utils.call_llm import _setting
+ 
+ # Prefijo FIJO e inconfundible del mensaje user sintético (patrón compacción).
+ # Un solo lugar para cambiarlo; los tests y el router lo leen de acá.
+ PREFIJO_PREFETCH = "[pre-fetch]"
+ 
++# Topes del pre-fetch (constantes desde X101: eran settings que nadie fijaba;
++# PREFETCH=0 sigue siendo el apagador).
++MAX_ARCHIVOS = 2
++MAX_LINEAS = 80
++
+ # La ruta que se menciona en la pregunta: mismo espíritu que juez.ARCHIVO_RE.
+ ARCHIVO_RE = re.compile(r"[\w./-]+\.[A-Za-z]{1,4}")
+ 
+@@ -37,10 +42,6 @@
+     texto = str(pregunta or "")
+     if not texto:
+         return []
+-    max_archivos = _entero("PREFETCH_MAX_ARCHIVOS", 2)
+-    max_lineas = _entero("PREFETCH_MAX_LINEAS", 80)
+-    if max_archivos <= 0:
+-        return []
+ 
+     # Una sola pasada por el resolvedor de contención que ya existe.
+     from utils.fs_tools import _resolve
+@@ -58,11 +59,11 @@
+         if err or resolved is None or not resolved.is_file():
+             continue  # fuera del perímetro o inexistente → se salta
+         try:
+-            contenido = _leer_lineas(resolved, max_lineas)
++            contenido = _leer_lineas(resolved, MAX_LINEAS)
+         except (OSError, ValueError):  # noqa: BLE001  (error de lectura → esa ruta se salta)
+             continue
+         resultado.append((resolved, contenido))
+-        if len(resultado) >= max_archivos:
++        if len(resultado) >= MAX_ARCHIVOS:
+             break
+     return resultado
+ 

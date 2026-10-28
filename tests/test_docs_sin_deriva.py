@@ -84,3 +84,17 @@ def test_readme_lista_cada_subcomando():
     listados = set(re.findall(r"python3 main\.py ([\w-]+)", readme))
     faltan = sorted(set(SUBCOMANDOS) - listados)
     assert not faltan, f"subcomandos de main.py sin línea en 'CLI completo': {faltan}"
+
+
+# X101 — tunables que pasaron a constantes: ningún escenario ni operador los
+# fijaba, y uno (LAYA_MAX_EN_PROCESO) se leía con int() a secas: un typo en el
+# .env tiraba el import. El candado es contra la VUELTA del setting.
+CONSTANTES_X101 = ("MAPA_CONCURRENCIA", "JUEZ_LOTE_CONCURRENCIA", "PREFETCH_MAX_ARCHIVOS",
+                   "PREFETCH_MAX_LINEAS", "LAYA_ERROR_COOLDOWN", "LAYA_MAX_EN_PROCESO")
+
+
+def test_los_tunables_de_x101_no_se_leen_del_entorno():
+    leidos = set(_settings_usados())
+    vuelven = sorted(set(CONSTANTES_X101) & leidos)
+    assert not vuelven, f"volvieron a leerse del entorno: {vuelven} (son constantes desde X101)"
+    assert not set(CONSTANTES_X101) & set(_settings_documentados())

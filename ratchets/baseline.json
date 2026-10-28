@@ -34,7 +34,7 @@
           555
         ],
         "juez_lote.py": [
-          91
+          90
         ],
         "modules/db.py": [
           131
@@ -81,7 +81,7 @@
           577
         ],
         "utils/laya.py": [
-          96
+          97
         ],
         "utils/laya_routing.py": [
           127
@@ -312,9 +312,6 @@
         "INFORME_CARPETA": [
           "informe.py"
         ],
-        "JUEZ_LOTE_CONCURRENCIA": [
-          "juez_lote.py"
-        ],
         "LAYA_ALPHA": [
           "utils/laya_routing.py"
         ],
@@ -330,9 +327,6 @@
         "LAYA_CALIBRACION_VOTO": [
           "utils/laya_routing.py"
         ],
-        "LAYA_ERROR_COOLDOWN": [
-          "utils/laya.py"
-        ],
         "LAYA_LOG_ARCHIVO": [
           "utils/laya_routing.py"
         ],
@@ -342,9 +336,6 @@
         ],
         "LAYA_LOG_PREGUNTA": [
           "utils/laya_routing.py"
-        ],
-        "LAYA_MAX_EN_PROCESO": [
-          "utils/laya.py"
         ],
         "LAYA_MODEL": [
           "utils/laya.py"
@@ -391,9 +382,6 @@
           "modules/vision.py",
           "utils/call_llm.py"
         ],
-        "MAPA_CONCURRENCIA": [
-          "informe.py"
-        ],
         "MAX_TOOL_ROUNDS": [
           "utils/fs_tools.py"
         ],
@@ -425,12 +413,6 @@
           "main.py"
         ],
         "PREFETCH": [
-          "utils/prefetch.py"
-        ],
-        "PREFETCH_MAX_ARCHIVOS": [
-          "utils/prefetch.py"
-        ],
-        "PREFETCH_MAX_LINEAS": [
           "utils/prefetch.py"
         ],
         "PREGUNTAS_ARCHIVO": [
@@ -513,7 +495,7 @@
           "utils/hitl_web.py"
         ]
       },
-      "metrica": 84
+      "metrica": 78
     },
     "tests_definidos": {
       "detalle": {
@@ -535,7 +517,7 @@
         "tests/test_db.py": 18,
         "tests/test_delegar.py": 21,
         "tests/test_deriva_reglas.py": 7,
-        "tests/test_docs_sin_deriva.py": 5,
+        "tests/test_docs_sin_deriva.py": 6,
         "tests/test_estado_flywheel.py": 3,
         "tests/test_estado_riesgo.py": 3,
         "tests/test_estado_turno.py": 7,
@@ -598,7 +580,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1129
+      "metrica": 1130
     },
     "texto_de_prompt": {
       "detalle": {

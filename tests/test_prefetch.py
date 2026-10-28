@@ -12,9 +12,6 @@ def _ajustes(monkeypatch, **valores):
     monkeypatch.setattr(
         prefetch, "_setting", lambda nombre, default=None: valores.get(nombre, default)
     )
-    monkeypatch.setattr(
-        prefetch, "_entero", lambda nombre, default: valores.get(nombre, default)
-    )
 
 
 def _pregunta_con(path):
@@ -45,7 +42,8 @@ def test_decidir_fuera_del_perimetro_es_vacio(monkeypatch):
 
 
 def test_decidir_respeta_el_tope_de_archivos(monkeypatch):
-    _ajustes(monkeypatch, PREFETCH_MAX_ARCHIVOS=1)
+    _ajustes(monkeypatch)
+    monkeypatch.setattr(prefetch, "MAX_ARCHIVOS", 1)  # constante desde X101
     rutas = decidir("Compará flow.py y nodes.py línea por línea.")
     assert len(rutas) == 1
 

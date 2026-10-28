@@ -58,7 +58,7 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91).
 | `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
 | `producto_conoce_lab` | 10 → **0** (X93) | 0 ✅ |
 | `vocabulario_hardcodeado` | 8 | ≤ 2 (fases 3–4; quedan los sí/no del HITL) |
-| `settings_leidos` | 89 → 84 (X93) | ≤ 45 (fases 1–5, ver inventario) |
+| `settings_leidos` | 89 → 84 (X93) → 78 (X101) | ≤ 45 (fases 1–5, ver inventario) |
 | `imports_perezosos` | 137 → 126 (X92) | ≤ 40 |
 | `nodos_largos` | 15 → 14 (X96) | ≤ 3 |
 | `texto_de_prompt` | 2748 chars | ≤ 800 |
@@ -74,7 +74,7 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91).
 | 4 | Se borran reglas, voto, `alcance_amplio`, perfiles y directivas (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
 | 5 | Política de comandos como datos (S10); skills por descripción; Laya 0.4.x | Mínimo | `test_policy_bypass.py` idéntico |
 
-## Inventario de settings (84 tras X93: 41 contrato · 26 revisar · 17 borrar)
+## Inventario de settings (78 tras X101: 42 contrato · 19 revisar · 17 borrar)
 
 `contrato` = decisión del operador que se queda; `revisar` = se decide en la
 fase indicada; `borrar` = se va con su rama en esa fase.
@@ -106,20 +106,14 @@ fase indicada; `borrar` = se va con su rama en esa fase.
 | `CHAT_STREAM_INTERRUPT` | revisar | 2 | S9: citas e interrupción siempre activas | `utils/call_llm.py` |
 | `CITAS_VERIFICAR` | revisar | 2 | S9: citas e interrupción siempre activas | `nodes.py` |
 | `PREFETCH` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
-| `PREFETCH_MAX_ARCHIVOS` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
-| `PREFETCH_MAX_LINEAS` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
 | `LAYA_ALPHA` | revisar | 3 | S1/S2: la calibración conformal se queda si Laya elige el modo | `utils/laya_routing.py` |
 | `LAYA_CALIBRACION_ROUTER` | revisar | 3 | S1/S2: la calibración conformal se queda si Laya elige el modo | `utils/laya_routing.py` |
 | `LAYA_MODEL_RIESGO` | revisar | 3 | S1: el juez de riesgo observa sin decidir: decidir o borrar | `utils/riesgo.py` |
 | `PROMPT_FORMA` | revisar | 4 | S8: se queda solo si un A/B del modelo actual lo sostiene | `main.py` |
 | `SKILLS` | revisar | 4 | S7: skills por descripción; el apagador global quizá sobra | `nodes.py` |
 | `INFORME_CARPETA` | revisar | 5 | concurrencia: una constante del kernel | `informe.py` |
-| `JUEZ_LOTE_CONCURRENCIA` | revisar | 5 | concurrencia: una constante del kernel | `juez_lote.py` |
-| `LAYA_BATCH_SIZE` | revisar | 5 | tunables internos de Laya: constantes | `utils/laya.py` |
-| `LAYA_ERROR_COOLDOWN` | revisar | 5 | tunables internos de Laya: constantes | `utils/laya.py` |
-| `LAYA_MAX_EN_PROCESO` | revisar | 5 | tunables internos de Laya: constantes | `utils/laya.py` |
+| `LAYA_BATCH_SIZE` | contrato | — | no es un tunable: `0` = el lote no se parte (un solo forward), N = lotes de N; elige el pico de memoria del prefiltro (X101) | `utils/laya.py` |
 | `LAYA_MODEL_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
-| `MAPA_CONCURRENCIA` | revisar | 5 | concurrencia: una constante del kernel | `informe.py` |
 | `MEMORIA_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
 | `MEMORIA_PREFILTRO_N` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
 | `RAG_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/rag.py` |

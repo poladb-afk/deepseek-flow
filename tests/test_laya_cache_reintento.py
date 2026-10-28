@@ -100,9 +100,10 @@ def test_el_raise_reporta_la_edad(monkeypatch):
 
 
 def test_cooldown_con_basura_usa_60(monkeypatch):
-    """LAYA_ERROR_COOLDOWN con basura ("sesenta") → avisa y usa 60 (patrón
-    _entero)."""
-    import utils.call_llm as call_llm
+    """El cooldown es una constante desde X101: un .env con
+    LAYA_ERROR_COOLDOWN=sesenta (el caso que este test cubría vía `_entero`)
+    ya no tiene lectura que pueda fallar. Queda fijado el valor."""
+    from utils import laya
 
-    monkeypatch.setattr(call_llm, "_setting", lambda nombre, default=None: "sesenta")
-    assert call_llm._entero("LAYA_ERROR_COOLDOWN", 60) == 60
+    monkeypatch.setenv("LAYA_ERROR_COOLDOWN", "sesenta")
+    assert laya.LAYA_ERROR_COOLDOWN == 60

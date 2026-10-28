@@ -5491,3 +5491,36 @@ mode must be passed back»). GATE: NO PASA — tal como el desvío de X100
 anticipó, el cableado de la 3a es otro: E no obliga a nada, F sí (una
 sesión que arrancó con thinking OFF sigue OFF; el flip no existe).
 Artefacto: `salidas/evals/thinking_tools.json`.
+
+---
+
+## Seis tunables pasan a constantes (2026-10-28, X101)
+
+El inventario de `docs/elegancia.md` marcaba siete settings como "revisar →
+constante". Antes de tocarlos, el grep: ningún escenario del banco los fija;
+los tests que los variaban lo hacen sobre la constante del módulo
+(`monkeypatch.setattr`) salvo dos (el tope de archivos del pre-fetch y el
+parseo con basura del cooldown).
+
+**Seis pasan a constantes, con el MISMO valor**: `MAPA_CONCURRENCIA` (8),
+`JUEZ_LOTE_CONCURRENCIA` (8), `PREFETCH_MAX_ARCHIVOS` (2) y
+`PREFETCH_MAX_LINEAS` (80) — hoy `utils.prefetch.MAX_ARCHIVOS/MAX_LINEAS`;
+`PREFETCH=0` sigue siendo el apagador —, `LAYA_ERROR_COOLDOWN` (60) y
+`LAYA_MAX_EN_PROCESO` (2).
+
+**Un bug que se fue con la estructura**: `LAYA_MAX_EN_PROCESO` se leía con
+`int(_setting(...))`, sin el `_entero` a prueba de typos que exp/37 puso en
+todos los demás — un `.env` con `LAYA_MAX_EN_PROCESO=dos` tiraba el import
+de `utils.laya` y con él el router. Como constante no queda lectura que
+pueda fallar.
+
+**Uno no**: `LAYA_BATCH_SIZE`. Su `0` no es un número sino un MODO (el lote
+entero en un forward, como antes de exp/32) y un test con nombre propio cubre
+las dos ramas; pasarlo a constante borraba una. En el inventario pasa de
+"revisar" a "contrato", con el motivo.
+
+Los dos tests que variaban por entorno pasan a fijar la constante, con las
+mismas aserciones. Candado: `test_los_tunables_de_x101_no_se_leen_del_entorno`
+(probado: volver a leer `JUEZ_LOTE_CONCURRENCIA` con `_entero` lo pone rojo).
+`settings_leidos` 84 → 78; inventario 78 (42 contrato · 19 revisar · 17
+borrar). `./calidad.sh` verde, 1126 passed.

@@ -17,11 +17,16 @@ Setting PREFETCH (default "1"); "0" apaga TODO.
 """
 import re
 
-from utils.call_llm import _entero, _setting
+from utils.call_llm import _setting
 
 # Prefijo FIJO e inconfundible del mensaje user sintético (patrón compacción).
 # Un solo lugar para cambiarlo; los tests y el router lo leen de acá.
 PREFIJO_PREFETCH = "[pre-fetch]"
+
+# Topes del pre-fetch (constantes desde X101: eran settings que nadie fijaba;
+# PREFETCH=0 sigue siendo el apagador).
+MAX_ARCHIVOS = 2
+MAX_LINEAS = 80
 
 # La ruta que se menciona en la pregunta: mismo espíritu que juez.ARCHIVO_RE.
 ARCHIVO_RE = re.compile(r"[\w./-]+\.[A-Za-z]{1,4}")
@@ -36,10 +41,6 @@ def decidir(pregunta):
         return []
     texto = str(pregunta or "")
     if not texto:
-        return []
-    max_archivos = _entero("PREFETCH_MAX_ARCHIVOS", 2)
-    max_lineas = _entero("PREFETCH_MAX_LINEAS", 80)
-    if max_archivos <= 0:
         return []
 
     # Una sola pasada por el resolvedor de contención que ya existe.
@@ -58,11 +59,11 @@ def decidir(pregunta):
         if err or resolved is None or not resolved.is_file():
             continue  # fuera del perímetro o inexistente → se salta
         try:
-            contenido = _leer_lineas(resolved, max_lineas)
+            contenido = _leer_lineas(resolved, MAX_LINEAS)
         except (OSError, ValueError):  # noqa: BLE001  (error de lectura → esa ruta se salta)
             continue
         resultado.append((resolved, contenido))
-        if len(resultado) >= max_archivos:
+        if len(resultado) >= MAX_ARCHIVOS:
             break
     return resultado
 

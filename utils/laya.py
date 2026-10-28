@@ -32,13 +32,14 @@ DEFAULT_MODEL = "convaiinnovations/laya-multilingual"
 # pero VENCE: pasado el cooldown se reintenta la carga en la misma llamada.
 # Sin esto, un solo OOM del primer request envenenaba la sesión entera sin
 # un solo reintento (medido: 31/37 decisiones sin detalle de Laya).
-LAYA_ERROR_COOLDOWN = _entero("LAYA_ERROR_COOLDOWN", 60)
+LAYA_ERROR_COOLDOWN = 60
 
 # La ley medida (exp/7) es un checkpoint por proceso: 2,86 GiB de RSS CADA UNO.
 # En un chat son alcanzables cuatro (router, voto, prefiltro y supervisor
 # in-process): ~11 GiB. Este tope convierte la ley en contrato — al pasarse,
-# se descarga el menos usado y la RAM vuelve al SO.
-MAX_EN_PROCESO = int(_setting("LAYA_MAX_EN_PROCESO", "2"))
+# se descarga el menos usado y la RAM vuelve al SO. Constante desde X101: como
+# setting se leía con int() a secas y un typo en el .env tiraba el import.
+MAX_EN_PROCESO = 2
 
 
 def _descargar(clave):
