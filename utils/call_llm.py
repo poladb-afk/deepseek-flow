@@ -151,7 +151,8 @@ def _contabilizar(usage, modelo=None):
     with contextlib.suppress(Exception):
         from utils.tracing import evento_llm
 
-        evento_llm(pt, ct)
+        informado = getattr(usage, "prompt_cache_hit_tokens", None) is not None
+        evento_llm(pt, ct, cache_hit=hit if informado else None)
 
 
 def call_llm(messages):

@@ -55,3 +55,25 @@ def test_agregados_globales_por_llamada(tmp_path):
     assert a["traza"] == 1 and a["llamadas"] == 5
     assert a["prompt_total"] == 1_100 and a["max"] == 1_000
     assert a["p50"] == 30 and a["p90"] == 1_000
+
+
+def test_desglose_por_llamador_y_cache_hit(tmp_path):
+    """X98: las llamadas se agrupan por el nodo que las hizo; el hit ausente
+    (trazas pre-X98) es DESCONOCIDO, no cero — `con_hit` cuenta las que lo
+    informan, así un 0% no se confunde con "sin dato"."""
+    lineas = [
+        {"ts": 1, "nodo": "llm", "accion": "usage", "prompt_tokens": 1000,
+         "completion_tokens": 10, "cache_hit": 900, "llamador": "AgentStep"},
+        {"ts": 2, "nodo": "llm", "accion": "usage", "prompt_tokens": 1200,
+         "completion_tokens": 40, "cache_hit": 0, "llamador": "Cierre"},
+        {"ts": 3, "nodo": "llm", "accion": "usage", "prompt_tokens": 500, "completion_tokens": 5},
+    ]
+    (tmp_path / "t.jsonl").write_text("\n".join(json.dumps(x) for x in lineas) + "\n", encoding="utf-8")
+    traza = tokens_runs.barrer(tmp_path)[0]
+    assert traza["por_llamador"] == {
+        "AgentStep": {"llamadas": 1, "prompt": 1000, "con_hit": 1, "cache_hit": 900},
+        "Cierre": {"llamadas": 1, "prompt": 1200, "con_hit": 1, "cache_hit": 0},
+        "?": {"llamadas": 1, "prompt": 500, "con_hit": 0, "cache_hit": 0},
+    }
+    assert tokens_runs.agregados([traza, traza])["por_llamador"]["Cierre"]["llamadas"] == 2
+    assert tokens_runs.main(["--runs", str(tmp_path)]) == 0

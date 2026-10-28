@@ -6,6 +6,7 @@ TRACE=0 lo apaga. Los archivos .runs/ son artefactos, van al .gitignore."""
 import atexit
 import json
 import os
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -14,6 +15,9 @@ _activo = False
 _salida = None
 _ruta_salida = None  # archivo planeado: se abre recién al primer evento
 _id_thread = None
+# el nodo que está corriendo, por hilo: lo lee evento_llm para decir QUIÉN
+# hizo la llamada (X98). Solo se llena con el tracing activo.
+_en_curso = threading.local()
 
 
 def _escribir(dic):
@@ -54,20 +58,34 @@ def evento_tool(nombre, ok, seg, codigo=None, huella=None):
     _escribir(evento)
 
 
-def evento_llm(prompt_tokens, completion_tokens):
-    """Uso de UNA llamada al LLM: solo NÚMEROS, sin contenido ni pregunta
-    (mismo contrato social que el resto de la traza — exp/89: la métrica
-    first-class que faltaba; costo_traza medía segundos)."""
-    _escribir(
-        {
-            "ts": round(time.time(), 3),
-            "nodo": "llm",
-            "accion": "usage",
-            "seg": 0.0,
-            "prompt_tokens": int(prompt_tokens or 0),
-            "completion_tokens": int(completion_tokens or 0),
-        }
-    )
+def nodo_en_curso():
+    """El nombre del nodo de PocketFlow que corre en este hilo, o None (fuera
+    de un flujo, o en un hilo de tools en paralelo del kernel)."""
+    pila = getattr(_en_curso, "pila", None)
+    return pila[-1] if pila else None
+
+
+def evento_llm(prompt_tokens, completion_tokens, cache_hit=None):
+    """Uso de UNA llamada al LLM: solo NÚMEROS y el nombre del nodo que la
+    hizo, sin contenido ni pregunta (mismo contrato social que el resto de la
+    traza — exp/89). X98 suma `cache_hit` (los tokens del prompt servidos del
+    KV-cache del proveedor; None si el proveedor no lo informa) y `llamador`:
+    sin los dos, la traza no podía decir si la llamada de cierre reusaba
+    caché (el pre-registro de la fase 2d lo necesita)."""
+    evento = {
+        "ts": round(time.time(), 3),
+        "nodo": "llm",
+        "accion": "usage",
+        "seg": 0.0,
+        "prompt_tokens": int(prompt_tokens or 0),
+        "completion_tokens": int(completion_tokens or 0),
+    }
+    if cache_hit is not None:
+        evento["cache_hit"] = int(cache_hit)
+    llamador = nodo_en_curso()
+    if llamador:
+        evento["llamador"] = llamador
+    _escribir(evento)
 
 
 def evento_hitl(tipo, nivel, decision, seg=0.0):
@@ -167,6 +185,10 @@ def activar(ruta_base=None):
 
     def _run_trazado(self, shared):
         inicio = time.time()
+        pila = getattr(_en_curso, "pila", None)
+        if pila is None:
+            pila = _en_curso.pila = []
+        pila.append(type(self).__name__)
         try:
             accion = _run_original(self, shared)
         except BaseException as e:  # noqa: BLE001 (la traza registra tambien KeyboardInterrupt/SystemExit)
@@ -175,6 +197,8 @@ def activar(ruta_base=None):
             # excepciones" posterior es falsable. La excepción se propaga.
             evento(self, f"error:{type(e).__name__}", inicio)
             raise
+        finally:
+            pila.pop()
         evento(self, accion, inicio)
         return accion
 

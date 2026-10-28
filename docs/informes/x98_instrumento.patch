@@ -1,0 +1,557 @@
+diff -ruN a/banco/probes/tokens_runs.py b/banco/probes/tokens_runs.py
+--- a/banco/probes/tokens_runs.py	2026-10-28 18:52:41.758212282 +0000
++++ b/banco/probes/tokens_runs.py	2026-10-28 18:48:12.937197901 +0000
+@@ -6,9 +6,15 @@
+ llamada re-envía el historial, así que la secuencia es el costo marginal visible.
+ Después, p50/p90/max de prompt por llamada sobre TODAS las llamadas.
+ 
+-Límites declarados (exp/93): la traza no lleva cache hit ni modelo (exp/90), y
+-las trazas pre-exp/89 no tienen usage: se ignoran en silencio. Puro: sin red,
+-sin LLM, sin escribir nada.
++Desde X98 cada evento trae además `cache_hit` (tokens del prompt servidos del
++KV-cache; ausente si el proveedor no lo informa) y `llamador` (el nodo que hizo
++la llamada): `por_llamador` desglosa llamadas, prompt y cache hit por nodo — así
++se lee si la llamada de `Cierre` reusa caché (pre-registro de la fase 2d).
++
++Límites declarados: la traza no lleva el modelo (exp/90); las trazas pre-exp/89
++no tienen usage y las pre-X98 no tienen cache_hit ni llamador (cuentan como
++`?`, y su hit como desconocido, no como 0). Puro: sin red, sin LLM, sin
++escribir nada.
+ 
+ Uso: python3 banco/probes/tokens_runs.py [--runs .runs]
+ """
+@@ -42,6 +48,21 @@
+     return filas
+ 
+ 
++def por_llamador(usos_traza):
++    """{nodo: {llamadas, prompt, con_hit, cache_hit}}. `con_hit` cuenta las
++    llamadas que INFORMAN cache_hit: un hit ausente es desconocido, no 0."""
++    tabla = {}
++    for u in usos_traza:
++        fila = tabla.setdefault(u.get("llamador") or "?",
++                                {"llamadas": 0, "prompt": 0, "con_hit": 0, "cache_hit": 0})
++        fila["llamadas"] += 1
++        fila["prompt"] += int(u.get("prompt_tokens") or 0)
++        if u.get("cache_hit") is not None:
++            fila["con_hit"] += 1
++            fila["cache_hit"] += int(u["cache_hit"])
++    return tabla
++
++
+ def resumir_traza(usos_traza):
+     prompts = [int(u.get("prompt_tokens") or 0) for u in usos_traza]
+     return {
+@@ -50,6 +71,7 @@
+         "completion_total": sum(int(u.get("completion_tokens") or 0) for u in usos_traza),
+         "max_prompt": max(prompts),
+         "secuencia": prompts,
++        "por_llamador": por_llamador(usos_traza),
+     }
+ 
+ 
+@@ -63,12 +85,23 @@
+     return ordenados[max(posicion, 1) - 1]
+ 
+ 
++def _sumar_llamadores(trazas):
++    total = {}
++    for t in trazas:
++        for nodo, fila in t.get("por_llamador", {}).items():
++            acumulado = total.setdefault(nodo, dict.fromkeys(fila, 0))
++            for clave, valor in fila.items():
++                acumulado[clave] += valor
++    return total
++
++
+ def agregados(trazas):
+     prompts = [p for t in trazas for p in t["secuencia"]]
+     if not prompts:
+         return {"llamadas": 0, "traza": 0, "prompt_total": 0,
+-                "completion_total": 0, "p50": 0, "p90": 0, "max": 0}
++                "completion_total": 0, "p50": 0, "p90": 0, "max": 0, "por_llamador": {}}
+     return {
++        "por_llamador": _sumar_llamadores(trazas),
+         "llamadas": len(prompts),
+         "traza": len(trazas),
+         "prompt_total": sum(t["prompt_total"] for t in trazas),
+@@ -115,6 +148,11 @@
+     print(f"global: {a['traza']} trazas · {a['llamadas']} llamadas · "
+           f"prompt {a['prompt_total']:,} · completion {a['completion_total']:,}")
+     print(f"prompt por llamada: p50 {a['p50']:,} · p90 {a['p90']:,} · max {a['max']:,}")
++    for nodo, fila in sorted(a["por_llamador"].items()):
++        hit = (f"cache hit {fila['cache_hit']:,} ({fila['cache_hit'] / fila['prompt']:.0%} del prompt "
++               f"en {fila['con_hit']}/{fila['llamadas']} llamadas que lo informan)"
++               if fila["con_hit"] and fila["prompt"] else "cache hit sin dato")
++        print(f"  {nodo}: {fila['llamadas']} llamadas · prompt {fila['prompt']:,} · {hit}")
+     return 0
+ 
+ 
+diff -ruN a/banco/specs/fase2d.md b/banco/specs/fase2d.md
+--- a/banco/specs/fase2d.md	1970-01-01 00:00:00.000000000 +0000
++++ b/banco/specs/fase2d.md	2026-10-28 18:51:52.270254321 +0000
+@@ -0,0 +1,63 @@
++# Pre-registro — fase 2d de elegancia: esquema de tools fijo y cierre con `tool_choice="none"`
++
++**Estado:** pre-registrado el 2026-10-28, ANTES de escribir el código de 2d y
++de correr su brazo. No se retoca después de ver resultados (si algo cambia,
++va como desvío declarado en la bitácora, con el porqué).
++
++## Hipótesis
++
++`Cierre` (la última llamada de una pregunta, X96) hoy manda `tools=None`: el
++prefijo del request cambia en la llamada que más historial arrastra y el
++KV-cache del proveedor no lo reusa. Mandar el esquema completo con
++`tool_choice="none"` (probado contra DeepSeek: lo honra, oculta las tools al
++modelo) deja el prefijo estable. Predicción: la llamada de `Cierre` reusa
++caché; el resto de la conducta no cambia.
++
++## Instrumento
++
++`.runs` con `evento_llm` X98 (`cache_hit` + `llamador`), agregado con
++`python3 banco/probes/tokens_runs.py`. Calidad y archivos tocados: el JSONL
++de `bench_fable` (`correct_action`, `cambios`).
++
++## Corridas
++
++| | árbol | escenarios × seeds | brazo |
++|---|---|---|---|
++| base | `012b92f` + X98 (el instrumento, sin cambio de conducta) | s17 ×5, s18 ×5, s19 ×3, s20 ×3 | A |
++| 2d | rama de 2d | ídem | A |
++
++La base de `012b92f` sin X98 (16 corridas, `fase2d-linea-base`) sirve para
++calidad y costo, NO para caché (sus trazas no llevan `cache_hit`): por eso
++la base se corre de nuevo con el instrumento. Las 16 corridas viejas quedan
++como réplica de calidad/costo.
++
++## Criterios (todos tienen que cumplirse para que 2d entre)
++
++**¿Sirve?** (la pregunta de la fase)
++1. En la base-X98, se registra el `cache_hit` de las llamadas de `Cierre`.
++   En 2d, **el hit medio de `Cierre` / prompt de `Cierre` supera al de la
++   base en al menos 20 puntos porcentuales**, y al menos el 80% de los
++   cierres de 2d tiene `cache_hit > 0`. Si la base ya cachea el cierre igual
++   (diferencia < 20 pp), 2d no entra: no aportó lo que prometía.
++
++**¿Rompe algo?** (por escenario, contra la base)
++2. Calidad: la SUMA de `correct_action` de cada escenario no baja más de 1
++   punto (pisos con la base de 012b92f: s17 ≥ 4, s18 ≥ 3, s19 ≥ 5, s20 ≥ 5;
++   se recalculan con la base-X98 y vale el MENOR de los dos pisos).
++3. Costo: la MEDIANA de tokens por corrida de cada escenario ≤ 1,25 × la de
++   la base (umbral alto a propósito: 2d cambia UNA llamada por pregunta; si la
++   mediana sube más, el modelo cambió de conducta — más rondas — y eso es lo
++   que se quiere ver; 1,10× daría falsas alarmas con el ruido medido: s17
++   varía 5,5× entre seeds).
++4. Debris: corridas que crean archivos en la auditoría ≤ las de la base
++   (la base de 012b92f tiene 1: s17-s1).
++5. UX: 0 respuestas de `Cierre` que le digan al usuario que no tiene tools
++   ("no tengo", "no dispongo", "no tengo acceso", "no puedo usar" + tool/
++   herramienta, en el reporte final de las 16 corridas; lo revisa el operador
++   sobre `*-reporte.txt`).
++
++## Qué NO decide esto
++
++- El subset de skill (pasa a una nota en el resultado, fiel a "guía, no
++  sandbox"): con `SKILLS=0` en el brazo A no se ejercita; lo cubren los tests.
++- `VerificarCitas`, que también llama sin tools: fuera de 2d (pendiente).
+diff -ruN a/banco/specs/fase3.md b/banco/specs/fase3.md
+--- a/banco/specs/fase3.md	1970-01-01 00:00:00.000000000 +0000
++++ b/banco/specs/fase3.md	2026-10-28 18:51:52.270254321 +0000
+@@ -0,0 +1,37 @@
++# Pre-registro — fase 3 de elegancia: razonamiento en las rondas con tools
++
++**Estado:** pre-registrado el 2026-10-28, ANTES de escribir el código de 3a.
++Criterio fijado por el operador con las cifras de la base a la vista.
++
++## Hipótesis
++
++Hoy toda llamada con tools viaja con thinking DESACTIVADO (`_kwargs_agente`:
++el cliente descarta `reasoning_content` y la API exige devolverlo con tools).
++Preservar el `reasoning_content` de las rondas con tools y prender el
++thinking ahí mejora la calidad de las auditorías (s17/s18, los escenarios que
++no están en el techo), a un costo acotado.
++
++## Gate previo (antes de cualquier corrida del banco)
++
++Una sonda contra la API real que reproduzca las secuencias de los 400 de la
++bitácora (2026-10-05: flips ON→OFF y OFF→ON dentro de la conversación, la
++llamada del tope sin tools) con el historial NUEVO (reasoning preservado).
++0 errores 400 en las secuencias, o 3a no se corre.
++
++## Corridas
++
++Brazo A, s17 ×5, s18 ×5, s19 ×3, s20 ×3, sobre el árbol de la última fase
++aprobada (base) y sobre 3a.
++
++## Criterios (todos)
++
++1. **Mejora por encima del ruido**: la suma de `correct_action` de s17 + s18
++   (10 seeds) sube al menos **2 puntos** sobre la base.
++2. **Nada empeora**: ningún escenario baja su suma (s19 y s20 están en el
++   techo: solo pueden empatar).
++3. **Costo en dinero, no en tokens**: el reasoning se cobra como completion
++   y el caché abarata el prompt, así que tokens y USD pueden decir cosas
++   opuestas. Mediana de USD por corrida (desglose de exp/90) ≤ **1,5 ×** la
++   de la base, por escenario.
++4. **Sin ganancia de calidad no entra**, aunque cueste lo mismo: el thinking
++   en rondas con tools suma latencia y un riesgo conocido (los 400).
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-28 18:52:41.714212320 +0000
++++ b/docs/bitacora.md	2026-10-28 18:51:52.274254318 +0000
+@@ -5332,3 +5332,43 @@
+ sobrestiman (c) y A′. Recién con este parche aplicado tiene sentido
+ `python3 main.py replay --actualizar-baseline`: antes, el baseline nuevo
+ congelaría los falsos positivos.
++
++---
++
++## El instrumento de la fase 2d y los dos pre-registros (2026-10-28, X98)
++
++Al escribir la 2d apareció que su criterio principal — ¿la llamada de
++`Cierre` reusa el KV-cache? — no tenía instrumento. `_contabilizar` recibe
++`prompt_cache_hit_tokens` de la API (exp/90) pero `evento_llm` escribía en
++`.runs` solo prompt y completion, y ningún evento decía qué nodo hizo la
++llamada. La línea de base de `012b92f` (16 corridas) no tiene caché.
++
++**Cambio (sin conducta)**: `evento_llm(pt, ct, cache_hit=None)` agrega
++`cache_hit` solo si el proveedor lo informa (ausente = desconocido, no 0: un
++0% no se confunde con "sin dato") y `llamador`: el nodo en curso, de una pila
++por hilo que llena `_run_trazado`. Un hilo de tools en paralelo del kernel no
++hereda la pila: su llamada sale sin llamador en vez de atribuírsela a otro.
++`tokens_runs` desglosa llamadas, prompt y hit por llamador. Probado contra la
++regresión: sin los dos campos cae el candado del evento.
++
++**Decisión del operador (opción b)**: la base se vuelve a correr sobre
++`012b92f` + X98 (16 corridas, con el instrumento): sin caché en la base, un
++cierre de 2d al 80% podría no mejorar nada si el viejo ya estaba al 90%. La
++base de `012b92f` queda como réplica de calidad y costo (pisos: s17 ≥ 4,
++s18 ≥ 3, s19 ≥ 5, s20 ≥ 5; vale el menor de las dos bases).
++
++**Dato que justificó las 5 seeds**: s18 dio 1, 1, 1 en las tres primeras
++seeds y 0 en la cuarta. Con 3 seeds se lo creía determinista.
++
++**Pre-registros**, fijados antes del código y de las corridas:
++[banco/specs/fase2d.md](../banco/specs/fase2d.md) (sirve: el hit de `Cierre`
++sube ≥ 20 pp sobre la base y ≥ 80% de los cierres con hit; no rompe: suma por
++escenario −1 como máximo, mediana de tokens ≤ 1,25×, debris ≤ base, 0 cierres
++que digan "no tengo tools") y [banco/specs/fase3.md](../banco/specs/fase3.md)
++(gate previo de 0 errores 400 contra la API; s17+s18 suben ≥ 2 puntos;
++ningún escenario baja; USD ≤ 1,5×; sin ganancia de calidad no entra).
++
++**Decisión del operador sobre el skill en 2d**: el subset pasa de recortar
++el esquema a una NOTA en el resultado de la tool fuera del subset — fiel a
++"guía, no sandbox" (`utils/skills.py`, `design.md`); un `ERROR:` lo habría
++vuelto una frontera sin decidirlo.
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-28 18:52:41.714212320 +0000
++++ b/docs/estado.md	2026-10-28 18:51:52.274254318 +0000
+@@ -136,6 +136,7 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
++| X98 | — | El pre-registro de la fase 2d pedía medir si la llamada de `Cierre` reusa caché, y la traza no podía decirlo: `_contabilizar` recibía `prompt_cache_hit_tokens` pero `evento_llm` escribía solo prompt/completion, y ningún evento decía QUÉ nodo hizo la llamada | ✅ 2026-10-28 | `evento_llm` suma `cache_hit` (solo si el proveedor lo informa: ausente = desconocido, no 0) y `llamador` (el nodo en curso, de una pila por hilo que llena `_run_trazado`; un hilo de tools en paralelo no hereda la pila, no se inventa un nodo). `tokens_runs` desglosa por llamador. Pre-registros escritos: [fase2d](../banco/specs/fase2d.md), [fase3](../banco/specs/fase3.md). Sin cambio de conducta | `test_el_evento_de_uso_lleva_cache_hit_y_quien_llamo`, `test_el_tracing_activo_registra_al_nodo_que_llama`, `test_desglose_por_llamador_y_cache_hit` |
+ | X97 | — | Los dos lectores de trazas contaban como desconocidos los eventos que el código actual emite en cada sesión: `llm/usage` (exp/89, uno por llamada al modelo), `hitl_*/aprobado|rechazado` y `*/politica`. El linter de `evals` daba una violación (c) falsa por llamada al LLM; el nivel A′ de `replay`, miles (el baseline del 2026-10-13 los congeló adentro) | ✅ 2026-10-28 | `tracing.es_bookkeeping(nodo, accion)`: la definición vive junto a quien los emite y la usan los dos lectores. Los informes de evals y replay anteriores sobrestiman (c) y A′: refrescar el baseline de replay recién con esto aplicado | `test_los_eventos_de_bookkeeping_no_son_desconocidos`, `test_el_linter_no_cuenta_los_eventos_de_bookkeeping` |
+ | X96 | — | El cierre por presupuesto era un flag dentro de `AgentStep.prep` (`aviso_cierre` para no duplicar el aviso, `corte_novedad` consumible) y la cuenta de la ronda vivía en `ExecuteTools.post`: el grafo no mostraba cuándo se cerraba una pregunta. Además `evals` y `banco/probes/rondas.py` reconocían la respuesta solo en `AgentStep`/`DirectAnswer` | ✅ 2026-10-28 (fase 2b-2) | `Observar` cuenta la ronda; `Contexto` sale a `Cierre` cuando `motivo_de_cierre` (tope, no-progreso, sin novedad); `Cierre` llama sin tools con el aviso — los dos flags se borran y `resume` los descarta de checkpoints viejos. `evals`, `rondas` y `replay` reconocen los nodos nuevos. Ratchet `nodos_largos` 15 → 14. Caracterización intacta | `test_un_turno_cerrado_por_presupuesto_cuenta_como_respuesta`, `test_un_cierre_por_presupuesto_es_una_respuesta`, `test_resume_descarta_las_claves_que_reemplazo_la_estructura`, `test_el_corte_que_no_es_el_techo_deja_su_evento` |
+ | X95 | — | La compacción vivía dentro de `AgentStep.prep` (30 líneas) y la ruta directa la heredaba por `super().prep`: el grafo no la mostraba. Al moverla apareció un bug previo del linter de trazas: `PreFetch/continue` y `VerificarCitas/default` nunca entraron a `ACCIONES_CANONICAS`, así que toda traza real del chat desde exp/50 daba dos violaciones (c) falsas | ✅ 2026-10-28 (fase 2b-1) | nodo `Contexto` antes de cada llamada al modelo, sale por `turno["ruta"]`; `replay` lo trata como paso transparente (las trazas viejas siguen válidas) y `evals` lo reconoce junto con las dos acciones que faltaban. Caracterización intacta | `test_caminata_con_contexto_es_valida`, `test_el_linter_acepta_la_caminata_con_contexto` |
+diff -ruN a/docs/roadmap.md b/docs/roadmap.md
+--- a/docs/roadmap.md	2026-10-28 18:52:41.714212320 +0000
++++ b/docs/roadmap.md	2026-10-28 18:51:52.274254318 +0000
+@@ -12,7 +12,11 @@
+ datos) y **2b-1** (X95, `Contexto`: la compacción como nodo). Plan de 2b
+ revisado (incremental, cada PR verde y con sus tests migrados): **2b-2
+ cerrada** (X96: `Observar` cuenta la ronda y el presupuesto es la arista
+-`Contexto → Cierre`); 2b-3 `AgentStep`/`ExecuteTools` →
++`Contexto → Cierre`). **2d**: instrumento listo (X98, `cache_hit` y
++`llamador` en la traza) y pre-registro en `banco/specs/fase2d.md`; falta la
++base con el instrumento (16 corridas sobre `012b92f` + X98) y el código.
++2b-3 queda para después de la fase 4 (o se descarta si sigue sin haber
++sub-agentes); 2b-3 `AgentStep`/`ExecuteTools` →
+ `Paso`/`Actuar` del kernel con renombre y alias en `replay`/`evals`. Sin
+ cambio de conducta; 2d (esquema de tools fijo + `tool_choice="none"`) espera
+ la línea de base de fable s17–s20 sobre `012b92f` y la prueba de que
+diff -ruN a/ratchets/baseline.json b/ratchets/baseline.json
+--- a/ratchets/baseline.json	2026-10-28 18:52:41.738212299 +0000
++++ b/ratchets/baseline.json	2026-10-28 18:50:04.094015652 +0000
+@@ -64,7 +64,7 @@
+           47
+         ],
+         "utils/call_llm.py": [
+-          327
++          328
+         ],
+         "utils/contexto.py": [
+           119
+@@ -97,8 +97,8 @@
+           160
+         ],
+         "utils/tracing.py": [
+-          172,
+-          191
++          194,
++          215
+         ],
+         "utils/websearch.py": [
+           16
+@@ -559,7 +559,7 @@
+         "tests/test_laya.py": 6,
+         "tests/test_laya_cache_reintento.py": 5,
+         "tests/test_laya_routing.py": 38,
+-        "tests/test_llm.py": 11,
++        "tests/test_llm.py": 13,
+         "tests/test_mcp_laya.py": 11,
+         "tests/test_memoria.py": 25,
+         "tests/test_minar_errores.py": 16,
+@@ -584,7 +584,7 @@
+         "tests/test_supervisor_convergencia.py": 4,
+         "tests/test_tablero.py": 2,
+         "tests/test_thread_store.py": 26,
+-        "tests/test_tokens_runs.py": 4,
++        "tests/test_tokens_runs.py": 5,
+         "tests/test_twins_extractores.py": 5,
+         "tests/test_ui.py": 6,
+         "tests/test_utils_compartidos.py": 7,
+@@ -597,7 +597,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 1121
++      "metrica": 1124
+     },
+     "texto_de_prompt": {
+       "detalle": {
+diff -ruN a/tests/test_llm.py b/tests/test_llm.py
+--- a/tests/test_llm.py	2026-10-28 18:52:41.706212326 +0000
++++ b/tests/test_llm.py	2026-10-28 18:49:34.233900813 +0000
+@@ -1,4 +1,5 @@
+ """Cliente LLM: historial canónico, filtrado de reasoning y lectura del .env (PR 4)."""
++import pytest
+ 
+ 
+ def test_historial_canonico_sin_reasoning():
+@@ -161,7 +162,7 @@
+     monkeypatch.setattr(c, "_client", lambda: _fake(
+         usage=SimpleNamespace(prompt_tokens=100, completion_tokens=50)))
+     monkeypatch.setattr("utils.tracing.evento_llm",
+-                        lambda pt, ct: eventos.append((pt, ct)))
++                        lambda pt, ct, cache_hit=None: eventos.append((pt, ct, cache_hit)))
+     antes = dict(c.USO)
+ 
+     c.call_llm("hola")
+@@ -169,7 +170,7 @@
+     assert c.USO["llamadas"] == antes["llamadas"] + 1
+     assert c.USO["prompt"] == antes["prompt"] + 100
+     assert c.USO["completion"] == antes["completion"] + 50
+-    assert eventos == [(100, 50)]
++    assert eventos == [(100, 50, None)]  # el proveedor no informó el hit: desconocido, no 0
+ 
+ 
+ def test_respuesta_sin_usage_cuenta_cero_y_no_rompe(monkeypatch):
+@@ -296,3 +297,76 @@
+     c.call_llm_agent_stream([{"role": "user", "content": "hola"}])
+ 
+     assert c.USO_POR_MODELO["modelo-stream"]["prompt"] == 50
++
++
++def test_el_evento_de_uso_lleva_cache_hit_y_quien_llamo(tmp_path, monkeypatch):
++    """X98: la traza dice cuántos tokens del prompt salieron del KV-cache y
++    QUÉ NODO hizo la llamada — sin esto el pre-registro de la fase 2d (¿la
++    llamada de Cierre reusa caché?) no tenía instrumento. Sin contenido:
++    solo números y un nombre de nodo."""
++    import io
++    import json
++    from types import SimpleNamespace
++
++    from pocketflow import Node
++
++    import utils.call_llm as c
++    import utils.tracing as tracing
++
++    monkeypatch.setattr(c, "_client", lambda: _fake(usage=SimpleNamespace(
++        prompt_tokens=1000, completion_tokens=20, prompt_cache_hit_tokens=900,
++        prompt_cache_miss_tokens=100)))
++    salida = io.StringIO()
++    monkeypatch.setattr(tracing, "_salida", salida)
++
++    class Cierre(Node):
++        def exec(self, _):
++            return c.call_llm_agent([{"role": "user", "content": "x"}])
++
++    tracing._en_curso.pila = ["Cierre"]  # lo que hace _run_trazado al entrar
++    try:
++        Cierre().exec(None)
++    finally:
++        tracing._en_curso.pila = []
++    c.call_llm_agent([{"role": "user", "content": "fuera de un nodo"}])
++
++    lineas = [json.loads(linea) for linea in salida.getvalue().splitlines()]
++    assert lineas[0] == {**lineas[0], "cache_hit": 900, "llamador": "Cierre", "prompt_tokens": 1000}
++    assert "llamador" not in lineas[1]  # fuera de un flujo no se inventa un nodo
++    assert set(lineas[0]) <= {"ts", "nodo", "accion", "seg", "prompt_tokens",
++                              "completion_tokens", "cache_hit", "llamador"}
++
++
++def test_el_tracing_activo_registra_al_nodo_que_llama(tmp_path, monkeypatch):
++    """La pila del nodo en curso la llena `_run_trazado` (el patch de
++    PocketFlow): una llamada al modelo dentro de un nodo queda atribuida a
++    ese nodo, y al salir la pila queda vacía (también si el nodo lanza)."""
++    import pocketflow
++
++    import utils.tracing as tracing
++
++    vistos = []
++
++    class Paso(pocketflow.Node):
++        def exec(self, _):
++            vistos.append(tracing.nodo_en_curso())
++
++    class Roto(pocketflow.Node):
++        def exec(self, _):
++            raise ValueError("x")
++
++    backup = (tracing._salida, tracing._ruta_salida, tracing._activo, tracing._id_thread)
++    original = pocketflow.BaseNode._run
++    try:
++        tracing._activo = False
++        tracing.activar(ruta_base=str(tmp_path))
++        Paso()._run({})
++        with pytest.raises(ValueError):
++            Roto()._run({})
++        assert vistos == ["Paso"]
++        assert tracing.nodo_en_curso() is None
++    finally:
++        pocketflow.BaseNode._run = original
++        if tracing._salida is not None and not tracing._salida.closed:
++            tracing._salida.close()
++        tracing._salida, tracing._ruta_salida, tracing._activo, tracing._id_thread = backup
+diff -ruN a/tests/test_tokens_runs.py b/tests/test_tokens_runs.py
+--- a/tests/test_tokens_runs.py	2026-10-28 18:52:41.706212326 +0000
++++ b/tests/test_tokens_runs.py	2026-10-28 18:49:14.869733386 +0000
+@@ -55,3 +55,25 @@
+     assert a["traza"] == 1 and a["llamadas"] == 5
+     assert a["prompt_total"] == 1_100 and a["max"] == 1_000
+     assert a["p50"] == 30 and a["p90"] == 1_000
++
++
++def test_desglose_por_llamador_y_cache_hit(tmp_path):
++    """X98: las llamadas se agrupan por el nodo que las hizo; el hit ausente
++    (trazas pre-X98) es DESCONOCIDO, no cero — `con_hit` cuenta las que lo
++    informan, así un 0% no se confunde con "sin dato"."""
++    lineas = [
++        {"ts": 1, "nodo": "llm", "accion": "usage", "prompt_tokens": 1000,
++         "completion_tokens": 10, "cache_hit": 900, "llamador": "AgentStep"},
++        {"ts": 2, "nodo": "llm", "accion": "usage", "prompt_tokens": 1200,
++         "completion_tokens": 40, "cache_hit": 0, "llamador": "Cierre"},
++        {"ts": 3, "nodo": "llm", "accion": "usage", "prompt_tokens": 500, "completion_tokens": 5},
++    ]
++    (tmp_path / "t.jsonl").write_text("\n".join(json.dumps(x) for x in lineas) + "\n", encoding="utf-8")
++    traza = tokens_runs.barrer(tmp_path)[0]
++    assert traza["por_llamador"] == {
++        "AgentStep": {"llamadas": 1, "prompt": 1000, "con_hit": 1, "cache_hit": 900},
++        "Cierre": {"llamadas": 1, "prompt": 1200, "con_hit": 1, "cache_hit": 0},
++        "?": {"llamadas": 1, "prompt": 500, "con_hit": 0, "cache_hit": 0},
++    }
++    assert tokens_runs.agregados([traza, traza])["por_llamador"]["Cierre"]["llamadas"] == 2
++    assert tokens_runs.main(["--runs", str(tmp_path)]) == 0
+diff -ruN a/utils/call_llm.py b/utils/call_llm.py
+--- a/utils/call_llm.py	2026-10-28 18:52:41.734212303 +0000
++++ b/utils/call_llm.py	2026-10-28 18:48:12.937197901 +0000
+@@ -151,7 +151,8 @@
+     with contextlib.suppress(Exception):
+         from utils.tracing import evento_llm
+ 
+-        evento_llm(pt, ct)
++        informado = getattr(usage, "prompt_cache_hit_tokens", None) is not None
++        evento_llm(pt, ct, cache_hit=hit if informado else None)
+ 
+ 
+ def call_llm(messages):
+diff -ruN a/utils/tracing.py b/utils/tracing.py
+--- a/utils/tracing.py	2026-10-28 18:52:41.734212303 +0000
++++ b/utils/tracing.py	2026-10-28 18:50:00.806008372 +0000
+@@ -6,6 +6,7 @@
+ import atexit
+ import json
+ import os
++import threading
+ import time
+ from datetime import datetime
+ from pathlib import Path
+@@ -14,6 +15,9 @@
+ _salida = None
+ _ruta_salida = None  # archivo planeado: se abre recién al primer evento
+ _id_thread = None
++# el nodo que está corriendo, por hilo: lo lee evento_llm para decir QUIÉN
++# hizo la llamada (X98). Solo se llena con el tracing activo.
++_en_curso = threading.local()
+ 
+ 
+ def _escribir(dic):
+@@ -54,20 +58,34 @@
+     _escribir(evento)
+ 
+ 
+-def evento_llm(prompt_tokens, completion_tokens):
+-    """Uso de UNA llamada al LLM: solo NÚMEROS, sin contenido ni pregunta
+-    (mismo contrato social que el resto de la traza — exp/89: la métrica
+-    first-class que faltaba; costo_traza medía segundos)."""
+-    _escribir(
+-        {
+-            "ts": round(time.time(), 3),
+-            "nodo": "llm",
+-            "accion": "usage",
+-            "seg": 0.0,
+-            "prompt_tokens": int(prompt_tokens or 0),
+-            "completion_tokens": int(completion_tokens or 0),
+-        }
+-    )
++def nodo_en_curso():
++    """El nombre del nodo de PocketFlow que corre en este hilo, o None (fuera
++    de un flujo, o en un hilo de tools en paralelo del kernel)."""
++    pila = getattr(_en_curso, "pila", None)
++    return pila[-1] if pila else None
++
++
++def evento_llm(prompt_tokens, completion_tokens, cache_hit=None):
++    """Uso de UNA llamada al LLM: solo NÚMEROS y el nombre del nodo que la
++    hizo, sin contenido ni pregunta (mismo contrato social que el resto de la
++    traza — exp/89). X98 suma `cache_hit` (los tokens del prompt servidos del
++    KV-cache del proveedor; None si el proveedor no lo informa) y `llamador`:
++    sin los dos, la traza no podía decir si la llamada de cierre reusaba
++    caché (el pre-registro de la fase 2d lo necesita)."""
++    evento = {
++        "ts": round(time.time(), 3),
++        "nodo": "llm",
++        "accion": "usage",
++        "seg": 0.0,
++        "prompt_tokens": int(prompt_tokens or 0),
++        "completion_tokens": int(completion_tokens or 0),
++    }
++    if cache_hit is not None:
++        evento["cache_hit"] = int(cache_hit)
++    llamador = nodo_en_curso()
++    if llamador:
++        evento["llamador"] = llamador
++    _escribir(evento)
+ 
+ 
+ def evento_hitl(tipo, nivel, decision, seg=0.0):
+@@ -167,6 +185,10 @@
+ 
+     def _run_trazado(self, shared):
+         inicio = time.time()
++        pila = getattr(_en_curso, "pila", None)
++        if pila is None:
++            pila = _en_curso.pila = []
++        pila.append(type(self).__name__)
+         try:
+             accion = _run_original(self, shared)
+         except BaseException as e:  # noqa: BLE001 (la traza registra tambien KeyboardInterrupt/SystemExit)
+@@ -175,6 +197,8 @@
+             # excepciones" posterior es falsable. La excepción se propaga.
+             evento(self, f"error:{type(e).__name__}", inicio)
+             raise
++        finally:
++            pila.pop()
+         evento(self, accion, inicio)
+         return accion
+ 

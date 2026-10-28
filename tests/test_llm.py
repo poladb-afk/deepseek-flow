@@ -1,4 +1,5 @@
 """Cliente LLM: historial canónico, filtrado de reasoning y lectura del .env (PR 4)."""
+import pytest
 
 
 def test_historial_canonico_sin_reasoning():
@@ -161,7 +162,7 @@ def test_call_llm_registra_el_usage_en_acumulador_y_evento(monkeypatch):
     monkeypatch.setattr(c, "_client", lambda: _fake(
         usage=SimpleNamespace(prompt_tokens=100, completion_tokens=50)))
     monkeypatch.setattr("utils.tracing.evento_llm",
-                        lambda pt, ct: eventos.append((pt, ct)))
+                        lambda pt, ct, cache_hit=None: eventos.append((pt, ct, cache_hit)))
     antes = dict(c.USO)
 
     c.call_llm("hola")
@@ -169,7 +170,7 @@ def test_call_llm_registra_el_usage_en_acumulador_y_evento(monkeypatch):
     assert c.USO["llamadas"] == antes["llamadas"] + 1
     assert c.USO["prompt"] == antes["prompt"] + 100
     assert c.USO["completion"] == antes["completion"] + 50
-    assert eventos == [(100, 50)]
+    assert eventos == [(100, 50, None)]  # el proveedor no informó el hit: desconocido, no 0
 
 
 def test_respuesta_sin_usage_cuenta_cero_y_no_rompe(monkeypatch):
@@ -296,3 +297,76 @@ def test_el_stream_contabiliza_en_el_modelo_del_request(monkeypatch):
     c.call_llm_agent_stream([{"role": "user", "content": "hola"}])
 
     assert c.USO_POR_MODELO["modelo-stream"]["prompt"] == 50
+
+
+def test_el_evento_de_uso_lleva_cache_hit_y_quien_llamo(tmp_path, monkeypatch):
+    """X98: la traza dice cuántos tokens del prompt salieron del KV-cache y
+    QUÉ NODO hizo la llamada — sin esto el pre-registro de la fase 2d (¿la
+    llamada de Cierre reusa caché?) no tenía instrumento. Sin contenido:
+    solo números y un nombre de nodo."""
+    import io
+    import json
+    from types import SimpleNamespace
+
+    from pocketflow import Node
+
+    import utils.call_llm as c
+    import utils.tracing as tracing
+
+    monkeypatch.setattr(c, "_client", lambda: _fake(usage=SimpleNamespace(
+        prompt_tokens=1000, completion_tokens=20, prompt_cache_hit_tokens=900,
+        prompt_cache_miss_tokens=100)))
+    salida = io.StringIO()
+    monkeypatch.setattr(tracing, "_salida", salida)
+
+    class Cierre(Node):
+        def exec(self, _):
+            return c.call_llm_agent([{"role": "user", "content": "x"}])
+
+    tracing._en_curso.pila = ["Cierre"]  # lo que hace _run_trazado al entrar
+    try:
+        Cierre().exec(None)
+    finally:
+        tracing._en_curso.pila = []
+    c.call_llm_agent([{"role": "user", "content": "fuera de un nodo"}])
+
+    lineas = [json.loads(linea) for linea in salida.getvalue().splitlines()]
+    assert lineas[0] == {**lineas[0], "cache_hit": 900, "llamador": "Cierre", "prompt_tokens": 1000}
+    assert "llamador" not in lineas[1]  # fuera de un flujo no se inventa un nodo
+    assert set(lineas[0]) <= {"ts", "nodo", "accion", "seg", "prompt_tokens",
+                              "completion_tokens", "cache_hit", "llamador"}
+
+
+def test_el_tracing_activo_registra_al_nodo_que_llama(tmp_path, monkeypatch):
+    """La pila del nodo en curso la llena `_run_trazado` (el patch de
+    PocketFlow): una llamada al modelo dentro de un nodo queda atribuida a
+    ese nodo, y al salir la pila queda vacía (también si el nodo lanza)."""
+    import pocketflow
+
+    import utils.tracing as tracing
+
+    vistos = []
+
+    class Paso(pocketflow.Node):
+        def exec(self, _):
+            vistos.append(tracing.nodo_en_curso())
+
+    class Roto(pocketflow.Node):
+        def exec(self, _):
+            raise ValueError("x")
+
+    backup = (tracing._salida, tracing._ruta_salida, tracing._activo, tracing._id_thread)
+    original = pocketflow.BaseNode._run
+    try:
+        tracing._activo = False
+        tracing.activar(ruta_base=str(tmp_path))
+        Paso()._run({})
+        with pytest.raises(ValueError):
+            Roto()._run({})
+        assert vistos == ["Paso"]
+        assert tracing.nodo_en_curso() is None
+    finally:
+        pocketflow.BaseNode._run = original
+        if tracing._salida is not None and not tracing._salida.closed:
+            tracing._salida.close()
+        tracing._salida, tracing._ruta_salida, tracing._activo, tracing._id_thread = backup

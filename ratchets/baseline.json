@@ -64,7 +64,7 @@
           47
         ],
         "utils/call_llm.py": [
-          327
+          328
         ],
         "utils/contexto.py": [
           119
@@ -97,8 +97,8 @@
           160
         ],
         "utils/tracing.py": [
-          172,
-          191
+          194,
+          215
         ],
         "utils/websearch.py": [
           16
@@ -559,7 +559,7 @@
         "tests/test_laya.py": 6,
         "tests/test_laya_cache_reintento.py": 5,
         "tests/test_laya_routing.py": 38,
-        "tests/test_llm.py": 11,
+        "tests/test_llm.py": 13,
         "tests/test_mcp_laya.py": 11,
         "tests/test_memoria.py": 25,
         "tests/test_minar_errores.py": 16,
@@ -584,7 +584,7 @@
         "tests/test_supervisor_convergencia.py": 4,
         "tests/test_tablero.py": 2,
         "tests/test_thread_store.py": 26,
-        "tests/test_tokens_runs.py": 4,
+        "tests/test_tokens_runs.py": 5,
         "tests/test_twins_extractores.py": 5,
         "tests/test_ui.py": 6,
         "tests/test_utils_compartidos.py": 7,
@@ -597,7 +597,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1121
+      "metrica": 1124
     },
     "texto_de_prompt": {
       "detalle": {

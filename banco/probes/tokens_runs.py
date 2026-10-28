@@ -6,9 +6,15 @@ totales, max prompt y la SECUENCIA de prompt_tokens — la curva de contexto: ca
 llamada re-envía el historial, así que la secuencia es el costo marginal visible.
 Después, p50/p90/max de prompt por llamada sobre TODAS las llamadas.
 
-Límites declarados (exp/93): la traza no lleva cache hit ni modelo (exp/90), y
-las trazas pre-exp/89 no tienen usage: se ignoran en silencio. Puro: sin red,
-sin LLM, sin escribir nada.
+Desde X98 cada evento trae además `cache_hit` (tokens del prompt servidos del
+KV-cache; ausente si el proveedor no lo informa) y `llamador` (el nodo que hizo
+la llamada): `por_llamador` desglosa llamadas, prompt y cache hit por nodo — así
+se lee si la llamada de `Cierre` reusa caché (pre-registro de la fase 2d).
+
+Límites declarados: la traza no lleva el modelo (exp/90); las trazas pre-exp/89
+no tienen usage y las pre-X98 no tienen cache_hit ni llamador (cuentan como
+`?`, y su hit como desconocido, no como 0). Puro: sin red, sin LLM, sin
+escribir nada.
 
 Uso: python3 banco/probes/tokens_runs.py [--runs .runs]
 """
@@ -42,6 +48,21 @@ def usos(ruta):
     return filas
 
 
+def por_llamador(usos_traza):
+    """{nodo: {llamadas, prompt, con_hit, cache_hit}}. `con_hit` cuenta las
+    llamadas que INFORMAN cache_hit: un hit ausente es desconocido, no 0."""
+    tabla = {}
+    for u in usos_traza:
+        fila = tabla.setdefault(u.get("llamador") or "?",
+                                {"llamadas": 0, "prompt": 0, "con_hit": 0, "cache_hit": 0})
+        fila["llamadas"] += 1
+        fila["prompt"] += int(u.get("prompt_tokens") or 0)
+        if u.get("cache_hit") is not None:
+            fila["con_hit"] += 1
+            fila["cache_hit"] += int(u["cache_hit"])
+    return tabla
+
+
 def resumir_traza(usos_traza):
     prompts = [int(u.get("prompt_tokens") or 0) for u in usos_traza]
     return {
@@ -50,6 +71,7 @@ def resumir_traza(usos_traza):
         "completion_total": sum(int(u.get("completion_tokens") or 0) for u in usos_traza),
         "max_prompt": max(prompts),
         "secuencia": prompts,
+        "por_llamador": por_llamador(usos_traza),
     }
 
 
@@ -63,12 +85,23 @@ def _percentil(valores, p):
     return ordenados[max(posicion, 1) - 1]
 
 
+def _sumar_llamadores(trazas):
+    total = {}
+    for t in trazas:
+        for nodo, fila in t.get("por_llamador", {}).items():
+            acumulado = total.setdefault(nodo, dict.fromkeys(fila, 0))
+            for clave, valor in fila.items():
+                acumulado[clave] += valor
+    return total
+
+
 def agregados(trazas):
     prompts = [p for t in trazas for p in t["secuencia"]]
     if not prompts:
         return {"llamadas": 0, "traza": 0, "prompt_total": 0,
-                "completion_total": 0, "p50": 0, "p90": 0, "max": 0}
+                "completion_total": 0, "p50": 0, "p90": 0, "max": 0, "por_llamador": {}}
     return {
+        "por_llamador": _sumar_llamadores(trazas),
         "llamadas": len(prompts),
         "traza": len(trazas),
         "prompt_total": sum(t["prompt_total"] for t in trazas),
@@ -115,6 +148,11 @@ def main(argv=None):
     print(f"global: {a['traza']} trazas · {a['llamadas']} llamadas · "
           f"prompt {a['prompt_total']:,} · completion {a['completion_total']:,}")
     print(f"prompt por llamada: p50 {a['p50']:,} · p90 {a['p90']:,} · max {a['max']:,}")
+    for nodo, fila in sorted(a["por_llamador"].items()):
+        hit = (f"cache hit {fila['cache_hit']:,} ({fila['cache_hit'] / fila['prompt']:.0%} del prompt "
+               f"en {fila['con_hit']}/{fila['llamadas']} llamadas que lo informan)"
+               if fila["con_hit"] and fila["prompt"] else "cache hit sin dato")
+        print(f"  {nodo}: {fila['llamadas']} llamadas · prompt {fila['prompt']:,} · {hit}")
     return 0
 
 

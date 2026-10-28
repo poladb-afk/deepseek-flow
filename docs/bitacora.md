@@ -5369,3 +5369,43 @@ Dato que justificó las 5 seeds por sí solo: s18 parecía estable (1,1,1) y la
 seed 4 dio **0** — con 3 seeds se la creía determinista. Trazas nuevas en
 `.runs/` (ahora 634), resultados completos en
 `salidas/fable/resultados/fase2d-linea-base.jsonl`.
+
+---
+
+## El instrumento de la fase 2d y los dos pre-registros (2026-10-28, X98)
+
+Al escribir la 2d apareció que su criterio principal — ¿la llamada de
+`Cierre` reusa el KV-cache? — no tenía instrumento. `_contabilizar` recibe
+`prompt_cache_hit_tokens` de la API (exp/90) pero `evento_llm` escribía en
+`.runs` solo prompt y completion, y ningún evento decía qué nodo hizo la
+llamada. La línea de base de `012b92f` (16 corridas) no tiene caché.
+
+**Cambio (sin conducta)**: `evento_llm(pt, ct, cache_hit=None)` agrega
+`cache_hit` solo si el proveedor lo informa (ausente = desconocido, no 0: un
+0% no se confunde con "sin dato") y `llamador`: el nodo en curso, de una pila
+por hilo que llena `_run_trazado`. Un hilo de tools en paralelo del kernel no
+hereda la pila: su llamada sale sin llamador en vez de atribuírsela a otro.
+`tokens_runs` desglosa llamadas, prompt y hit por llamador. Probado contra la
+regresión: sin los dos campos cae el candado del evento.
+
+**Decisión del operador (opción b)**: la base se vuelve a correr sobre
+`012b92f` + X98 (16 corridas, con el instrumento): sin caché en la base, un
+cierre de 2d al 80% podría no mejorar nada si el viejo ya estaba al 90%. La
+base de `012b92f` queda como réplica de calidad y costo (pisos: s17 ≥ 4,
+s18 ≥ 3, s19 ≥ 5, s20 ≥ 5; vale el menor de las dos bases).
+
+**Dato que justificó las 5 seeds**: s18 dio 1, 1, 1 en las tres primeras
+seeds y 0 en la cuarta. Con 3 seeds se lo creía determinista.
+
+**Pre-registros**, fijados antes del código y de las corridas:
+[banco/specs/fase2d.md](../banco/specs/fase2d.md) (sirve: el hit de `Cierre`
+sube ≥ 20 pp sobre la base y ≥ 80% de los cierres con hit; no rompe: suma por
+escenario −1 como máximo, mediana de tokens ≤ 1,25×, debris ≤ base, 0 cierres
+que digan "no tengo tools") y [banco/specs/fase3.md](../banco/specs/fase3.md)
+(gate previo de 0 errores 400 contra la API; s17+s18 suben ≥ 2 puntos;
+ningún escenario baja; USD ≤ 1,5×; sin ganancia de calidad no entra).
+
+**Decisión del operador sobre el skill en 2d**: el subset pasa de recortar
+el esquema a una NOTA en el resultado de la tool fuera del subset — fiel a
+"guía, no sandbox" (`utils/skills.py`, `design.md`); un `ERROR:` lo habría
+vuelto una frontera sin decidirlo.
