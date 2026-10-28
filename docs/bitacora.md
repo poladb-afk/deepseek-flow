@@ -5477,3 +5477,17 @@ conservar el reasoning de las unidades con tool_calls que quedan; el resume
 de una sesión vieja, arrancar con thinking OFF). Escribirlo antes de la sonda
 sería adivinar el diseño — y sumaría un setting que el ratchet cuenta para
 nada.
+
+**Gate previo de fase 3 corrido: F da 400, el resto ok** (2026-10-28):
+`thinking_tools.py` contra la API real, con el builder del chat
+(`_kwargs_agente(pensar=True)`), 15 llamadas. **A–E ok**: rondas de tools
+con reasoning preservado, cierre sin tools (B), continuar tras un rechazo
+del HITL (C), pregunta nueva tras un turno con tools (D), y — dato clave —
+**la compacción (E) NO da 400**: la zona fría puede perder su reasoning
+si la caliente lo conserva. **F (flip OFF→ON) da 400**: un historial
+armado con thinking OFF (sesión vieja, resume) seguido de una ronda con
+thinking ON es rechazado por la API («reasoning_content in the thinking
+mode must be passed back»). GATE: NO PASA — tal como el desvío de X100
+anticipó, el cableado de la 3a es otro: E no obliga a nada, F sí (una
+sesión que arrancó con thinking OFF sigue OFF; el flip no existe).
+Artefacto: `salidas/evals/thinking_tools.json`.
