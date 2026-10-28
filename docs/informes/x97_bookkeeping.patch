@@ -1,0 +1,223 @@
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-28 17:44:11.971732343 +0000
++++ b/docs/bitacora.md	2026-10-28 17:43:24.134829460 +0000
+@@ -5301,3 +5301,34 @@
+ nueva reabre el presupuesto.
+ 
+ `./calidad.sh` verde, 1115 passed; `tests_definidos` 1115 → 1119.
++
++---
++
++## Los lectores de trazas contaban el bookkeeping como desconocido (2026-10-28, X97)
++
++El operador corrió `replay` sobre 615 trazas reales: nivel B en 0 (ninguna
++caminata vieja rota por `Contexto`), pero el banner decía REGRESIÓN con
+++2.194 desconocidos. Parte es historia legítima (nodos del supervisor v1,
++nodos de los escenarios de fable). Otra parte no: reproducido con una traza
++sintética, `nivel_a_desconocidos` marcaba `llm/usage`, `hitl_*/aprobado`,
++`hitl_*/rechazado` y `corte_sin_novedad/politica` — eventos que
++`utils/tracing.py` emite HOY (evento_llm, evento_hitl, evento_politica). Y el
++linter de `evals` marcaba los cinco, incluido `corte_no_progreso/politica`:
++desde exp/89 eso es una violación (c) falsa POR LLAMADA AL MODELO, en toda
++traza.
++
++Es la tercera vez en la fase 2 (X95 con PreFetch/VerificarCitas, X96 con
++Cierre) que un lector de trazas no se entera de lo que el código emite. La
++causa es la misma: cada lector mantenía su propia lista. El arreglo no es
++otra lista: `tracing.es_bookkeeping(nodo, accion)` define los eventos que no
++son ni nodo ni tool AL LADO de las funciones que los emiten, y los dos
++lectores la usan. Un nodo inventado con esas acciones fuera de su forma
++(`llm/aprobado`, `NodoViejo/usage`) sigue contando como desconocido.
++
++Probado contra la regresión: sin la llamada a `es_bookkeeping`, caen los dos
++candados. `./calidad.sh` verde, 1117 passed.
++
++**Consecuencia para el operador**: los informes de evals y replay anteriores
++sobrestiman (c) y A′. Recién con este parche aplicado tiene sentido
++`python3 main.py replay --actualizar-baseline`: antes, el baseline nuevo
++congelaría los falsos positivos.
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-28 17:44:11.971732343 +0000
++++ b/docs/estado.md	2026-10-28 17:43:24.134829460 +0000
+@@ -136,6 +136,7 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
++| X97 | — | Los dos lectores de trazas contaban como desconocidos los eventos que el código actual emite en cada sesión: `llm/usage` (exp/89, uno por llamada al modelo), `hitl_*/aprobado|rechazado` y `*/politica`. El linter de `evals` daba una violación (c) falsa por llamada al LLM; el nivel A′ de `replay`, miles (el baseline del 2026-10-13 los congeló adentro) | ✅ 2026-10-28 | `tracing.es_bookkeeping(nodo, accion)`: la definición vive junto a quien los emite y la usan los dos lectores. Los informes de evals y replay anteriores sobrestiman (c) y A′: refrescar el baseline de replay recién con esto aplicado | `test_los_eventos_de_bookkeeping_no_son_desconocidos`, `test_el_linter_no_cuenta_los_eventos_de_bookkeeping` |
+ | X96 | — | El cierre por presupuesto era un flag dentro de `AgentStep.prep` (`aviso_cierre` para no duplicar el aviso, `corte_novedad` consumible) y la cuenta de la ronda vivía en `ExecuteTools.post`: el grafo no mostraba cuándo se cerraba una pregunta. Además `evals` y `banco/probes/rondas.py` reconocían la respuesta solo en `AgentStep`/`DirectAnswer` | ✅ 2026-10-28 (fase 2b-2) | `Observar` cuenta la ronda; `Contexto` sale a `Cierre` cuando `motivo_de_cierre` (tope, no-progreso, sin novedad); `Cierre` llama sin tools con el aviso — los dos flags se borran y `resume` los descarta de checkpoints viejos. `evals`, `rondas` y `replay` reconocen los nodos nuevos. Ratchet `nodos_largos` 15 → 14. Caracterización intacta | `test_un_turno_cerrado_por_presupuesto_cuenta_como_respuesta`, `test_un_cierre_por_presupuesto_es_una_respuesta`, `test_resume_descarta_las_claves_que_reemplazo_la_estructura`, `test_el_corte_que_no_es_el_techo_deja_su_evento` |
+ | X95 | — | La compacción vivía dentro de `AgentStep.prep` (30 líneas) y la ruta directa la heredaba por `super().prep`: el grafo no la mostraba. Al moverla apareció un bug previo del linter de trazas: `PreFetch/continue` y `VerificarCitas/default` nunca entraron a `ACCIONES_CANONICAS`, así que toda traza real del chat desde exp/50 daba dos violaciones (c) falsas | ✅ 2026-10-28 (fase 2b-1) | nodo `Contexto` antes de cada llamada al modelo, sale por `turno["ruta"]`; `replay` lo trata como paso transparente (las trazas viejas siguen válidas) y `evals` lo reconoce junto con las dos acciones que faltaban. Caracterización intacta | `test_caminata_con_contexto_es_valida`, `test_el_linter_acepta_la_caminata_con_contexto` |
+ | X94 | — | El kernel guardaba objetos vivos en el shared (`ctx` con el LLM, `tools` con callables; el supervisor además la ley con su `Lock`) y llamaba al historial `mensajes` mientras el chat dice `messages`: el chat no podía correr sobre el kernel sin perder los checkpoints (F4) | ✅ 2026-10-28 (fase 2a) | `loop(ctx, tools)` fija lo vivo en los nodos; `semilla(system, pedido)` devuelve solo `{"messages": …}`; el supervisor arma una `Corrida` (ctx + tools + ley) por flujo. Sin cambio de conducta | `test_el_shared_del_loop_es_json_en_cada_paso`, `test_el_shared_del_supervisor_es_json` |
+diff -ruN a/evals.py b/evals.py
+--- a/evals.py	2026-10-28 17:44:11.959732107 +0000
++++ b/evals.py	2026-10-28 17:42:04.269408858 +0000
+@@ -37,6 +37,7 @@
+ from utils.formato import pct
+ from utils.git import sha_o_motivo
+ from utils.rutas import DIR_RUNS, DIR_SALIDA, tasks_dir
++from utils.tracing import es_bookkeeping
+ from utils.trazas import leer_eventos
+ 
+ TEST_ROUTER = tasks_dir() / "router_flow_test.jsonl"  # BMO_TASKS_DIR lo mueve
+@@ -334,7 +335,7 @@
+ 
+ 
+ def _accion_valida(nodo, accion):
+-    if (nodo, accion) in ACCIONES_CANONICAS:
++    if (nodo, accion) in ACCIONES_CANONICAS or es_bookkeeping(nodo, accion):
+         return True
+     # evento de tool individual
+     return nodo in TOOLS_CONOCIDAS and accion in ("ok", "error")
+diff -ruN a/ratchets/baseline.json b/ratchets/baseline.json
+--- a/ratchets/baseline.json	2026-10-28 17:44:11.995732815 +0000
++++ b/ratchets/baseline.json	2026-10-28 17:42:08.685485350 +0000
+@@ -25,7 +25,7 @@
+           104
+         ],
+         "evals.py": [
+-          138
++          139
+         ],
+         "heartbeat.py": [
+           81
+@@ -97,8 +97,8 @@
+           160
+         ],
+         "utils/tracing.py": [
+-          161,
+-          180
++          172,
++          191
+         ],
+         "utils/websearch.py": [
+           16
+@@ -540,7 +540,7 @@
+         "tests/test_estado_riesgo.py": 3,
+         "tests/test_estado_turno.py": 7,
+         "tests/test_estilo_humano.py": 9,
+-        "tests/test_evals.py": 17,
++        "tests/test_evals.py": 18,
+         "tests/test_f_prompt.py": 9,
+         "tests/test_fable.py": 29,
+         "tests/test_fable_dominios.py": 6,
+@@ -573,7 +573,7 @@
+         "tests/test_producto_router.py": 3,
+         "tests/test_ratchet.py": 35,
+         "tests/test_ratchet_elegancia.py": 15,
+-        "tests/test_replay.py": 17,
++        "tests/test_replay.py": 18,
+         "tests/test_riesgo.py": 19,
+         "tests/test_rondas.py": 6,
+         "tests/test_router.py": 12,
+@@ -597,7 +597,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 1119
++      "metrica": 1121
+     },
+     "texto_de_prompt": {
+       "detalle": {
+diff -ruN a/replay.py b/replay.py
+--- a/replay.py	2026-10-28 17:44:11.959732107 +0000
++++ b/replay.py	2026-10-28 17:42:04.269408858 +0000
+@@ -61,6 +61,7 @@
+ 
+ from utils.git import sha_corto
+ from utils.rutas import DIR_RUNS
++from utils.tracing import es_bookkeeping
+ from utils.trazas import leer_eventos
+ 
+ DIR_SALIDA = Path("salidas/evals")
+@@ -70,7 +71,9 @@
+ # Eventos que NO son ni nodo ni tool: marcas de incidente y alias históricos
+ # vistos en trazas viejas (la misma tolerancia que TOOLS_CONOCIDAS de evals).
+ NO_NODOS_TOLERADOS = {
+-    "corte_no_progreso": "marca de incidente (nodes.Contexto.post)",
++    # la forma vieja (accion ok, antes de evento_politica); la actual
++    # (accion politica) la reconoce tracing.es_bookkeeping
++    "corte_no_progreso": "marca de incidente histórica (hoy nodes.motivo_de_cierre)",
+     "bash": "alias histórica de run_command en trazas viejas",
+ }
+ 
+@@ -277,7 +280,7 @@
+         nodo, accion = e.get("nodo"), str(e.get("accion"))
+         if nodo in clases or nodo in herramientas or nodo in NO_NODOS_TOLERADOS:
+             continue
+-        if _es_error_trazado(accion) or accion in ("ok", "error"):
++        if _es_error_trazado(accion) or accion in ("ok", "error") or es_bookkeeping(nodo, accion):
+             continue
+         desconocidos.append((nodo, accion))
+     return desconocidos
+diff -ruN a/tests/test_evals.py b/tests/test_evals.py
+--- a/tests/test_evals.py	2026-10-28 17:44:11.971732343 +0000
++++ b/tests/test_evals.py	2026-10-28 17:42:02.209373176 +0000
+@@ -336,6 +336,23 @@
+     assert linter_traza(traza) == []
+ 
+ 
++def test_el_linter_no_cuenta_los_eventos_de_bookkeeping():
++    """X97: desde exp/89 cada llamada al LLM deja `llm/usage` en la traza, y
++    el HITL y las políticas dejan los suyos; el linter los contaba como
++    acción desconocida (c) — una violación falsa por llamada al modelo."""
++    from evals import linter_traza
++
++    traza = [{"nodo": n, "accion": a, "seg": 0.0} for n, a in (
++        ("GetQuestion", "continue"), ("PreFetch", "continue"), ("LayaRouter", "herramientas"),
++        ("Contexto", "herramientas"), ("llm", "usage"), ("AgentStep", "tool"),
++        ("hitl_comando", "aprobado"), ("run_command", "ok"), ("ExecuteTools", "default"),
++        ("Observar", "default"), ("corte_no_progreso", "politica"), ("Contexto", "cierre"),
++        ("llm", "usage"), ("Cierre", "answer"), ("VerificarCitas", "default"))]
++    assert linter_traza(traza) == []
++    assert linter_traza([{"nodo": "llm", "accion": "rechazado", "seg": 0.0}]) == [
++        ("c", 0, "acción desconocida: llm/rechazado")]
++
++
+ def test_un_turno_cerrado_por_presupuesto_cuenta_como_respuesta():
+     """X96: un turno que agota el presupuesto termina en Cierre/answer. El
+     linter tiene que reconocerlo como respuesta (invariante b) y como acción
+diff -ruN a/tests/test_replay.py b/tests/test_replay.py
+--- a/tests/test_replay.py	2026-10-28 17:44:11.963732186 +0000
++++ b/tests/test_replay.py	2026-10-28 17:42:02.209373176 +0000
+@@ -230,6 +230,21 @@
+         ("tool_fantasma", "ok")]
+ 
+ 
++def test_los_eventos_de_bookkeeping_no_son_desconocidos(vivos):
++    """X97: `evento_llm`, `evento_hitl` y `evento_politica` (utils/tracing)
++    los emite el código actual en cada sesión; contarlos como desconocidos
++    inflaba el nivel A′ con miles de falsos positivos (el baseline de replay
++    del 2026-10-13 los tiene adentro). Un nodo inventado con esas acciones
++    fuera de su forma sí sigue siendo desconocido."""
++    clases, _, herramientas = vivos
++    eventos = [_ev("llm", "usage"), _ev("hitl_comando", "aprobado"),
++               _ev("hitl_escritura", "rechazado"), _ev("corte_no_progreso", "politica"),
++               _ev("corte_sin_novedad", "politica"),
++               _ev("llm", "aprobado"), _ev("NodoViejo", "usage")]
++    assert replay.nivel_a_desconocidos(eventos, clases, herramientas) == [
++        ("llm", "aprobado"), ("NodoViejo", "usage")]
++
++
+ def test_nodo_desconocido_sin_clase_ni_tool(vivos):
+     """A′ es para huérfanos de grafo; los tool-shaped (ok/error) son del
+     nivel C — separación limpia, sin doble conteo (lección de la corrida)."""
+diff -ruN a/utils/tracing.py b/utils/tracing.py
+--- a/utils/tracing.py	2026-10-28 17:44:11.995732815 +0000
++++ b/utils/tracing.py	2026-10-28 17:40:57.220337949 +0000
+@@ -104,6 +104,17 @@
+     )
+ 
+ 
++def es_bookkeeping(nodo, accion):
++    """True si el evento lo emitió `evento_llm`, `evento_hitl` o
++    `evento_politica`: no es la acción de un nodo ni el resultado de una tool.
++    Una sola definición para quien LEE la traza (replay, evals) — fuera de
++    acá, los dos lectores contaban cada uno como desconocido (X97)."""
++    nodo = str(nodo)
++    return (accion == "politica"
++            or (nodo == "llm" and accion == "usage")
++            or (nodo.startswith("hitl_") and accion in ("aprobado", "rechazado")))
++
++
+ def thread_id():
+     """El id del thread del proceso (exp/48): idempotente — se resuelve UNA vez.
+ 

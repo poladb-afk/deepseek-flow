@@ -336,6 +336,23 @@ def test_el_linter_acepta_la_caminata_con_contexto():
     assert linter_traza(traza) == []
 
 
+def test_el_linter_no_cuenta_los_eventos_de_bookkeeping():
+    """X97: desde exp/89 cada llamada al LLM deja `llm/usage` en la traza, y
+    el HITL y las políticas dejan los suyos; el linter los contaba como
+    acción desconocida (c) — una violación falsa por llamada al modelo."""
+    from evals import linter_traza
+
+    traza = [{"nodo": n, "accion": a, "seg": 0.0} for n, a in (
+        ("GetQuestion", "continue"), ("PreFetch", "continue"), ("LayaRouter", "herramientas"),
+        ("Contexto", "herramientas"), ("llm", "usage"), ("AgentStep", "tool"),
+        ("hitl_comando", "aprobado"), ("run_command", "ok"), ("ExecuteTools", "default"),
+        ("Observar", "default"), ("corte_no_progreso", "politica"), ("Contexto", "cierre"),
+        ("llm", "usage"), ("Cierre", "answer"), ("VerificarCitas", "default"))]
+    assert linter_traza(traza) == []
+    assert linter_traza([{"nodo": "llm", "accion": "rechazado", "seg": 0.0}]) == [
+        ("c", 0, "acción desconocida: llm/rechazado")]
+
+
 def test_un_turno_cerrado_por_presupuesto_cuenta_como_respuesta():
     """X96: un turno que agota el presupuesto termina en Cierre/answer. El
     linter tiene que reconocerlo como respuesta (invariante b) y como acción

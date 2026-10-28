@@ -61,6 +61,7 @@ from pathlib import Path
 
 from utils.git import sha_corto
 from utils.rutas import DIR_RUNS
+from utils.tracing import es_bookkeeping
 from utils.trazas import leer_eventos
 
 DIR_SALIDA = Path("salidas/evals")
@@ -70,7 +71,9 @@ ROUTING_LOG = Path("salidas/routing.jsonl")
 # Eventos que NO son ni nodo ni tool: marcas de incidente y alias históricos
 # vistos en trazas viejas (la misma tolerancia que TOOLS_CONOCIDAS de evals).
 NO_NODOS_TOLERADOS = {
-    "corte_no_progreso": "marca de incidente (nodes.Contexto.post)",
+    # la forma vieja (accion ok, antes de evento_politica); la actual
+    # (accion politica) la reconoce tracing.es_bookkeeping
+    "corte_no_progreso": "marca de incidente histórica (hoy nodes.motivo_de_cierre)",
     "bash": "alias histórica de run_command en trazas viejas",
 }
 
@@ -277,7 +280,7 @@ def nivel_a_desconocidos(eventos, clases, herramientas):
         nodo, accion = e.get("nodo"), str(e.get("accion"))
         if nodo in clases or nodo in herramientas or nodo in NO_NODOS_TOLERADOS:
             continue
-        if _es_error_trazado(accion) or accion in ("ok", "error"):
+        if _es_error_trazado(accion) or accion in ("ok", "error") or es_bookkeeping(nodo, accion):
             continue
         desconocidos.append((nodo, accion))
     return desconocidos

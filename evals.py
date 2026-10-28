@@ -37,6 +37,7 @@ from pathlib import Path
 from utils.formato import pct
 from utils.git import sha_o_motivo
 from utils.rutas import DIR_RUNS, DIR_SALIDA, tasks_dir
+from utils.tracing import es_bookkeeping
 from utils.trazas import leer_eventos
 
 TEST_ROUTER = tasks_dir() / "router_flow_test.jsonl"  # BMO_TASKS_DIR lo mueve
@@ -334,7 +335,7 @@ TOOLS_CONOCIDAS = {
 
 
 def _accion_valida(nodo, accion):
-    if (nodo, accion) in ACCIONES_CANONICAS:
+    if (nodo, accion) in ACCIONES_CANONICAS or es_bookkeeping(nodo, accion):
         return True
     # evento de tool individual
     return nodo in TOOLS_CONOCIDAS and accion in ("ok", "error")

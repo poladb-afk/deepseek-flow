@@ -25,7 +25,7 @@
           104
         ],
         "evals.py": [
-          138
+          139
         ],
         "heartbeat.py": [
           81
@@ -97,8 +97,8 @@
           160
         ],
         "utils/tracing.py": [
-          161,
-          180
+          172,
+          191
         ],
         "utils/websearch.py": [
           16
@@ -540,7 +540,7 @@
         "tests/test_estado_riesgo.py": 3,
         "tests/test_estado_turno.py": 7,
         "tests/test_estilo_humano.py": 9,
-        "tests/test_evals.py": 17,
+        "tests/test_evals.py": 18,
         "tests/test_f_prompt.py": 9,
         "tests/test_fable.py": 29,
         "tests/test_fable_dominios.py": 6,
@@ -573,7 +573,7 @@
         "tests/test_producto_router.py": 3,
         "tests/test_ratchet.py": 35,
         "tests/test_ratchet_elegancia.py": 15,
-        "tests/test_replay.py": 17,
+        "tests/test_replay.py": 18,
         "tests/test_riesgo.py": 19,
         "tests/test_rondas.py": 6,
         "tests/test_router.py": 12,
@@ -597,7 +597,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1119
+      "metrica": 1121
     },
     "texto_de_prompt": {
       "detalle": {

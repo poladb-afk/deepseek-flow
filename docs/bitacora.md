@@ -5326,3 +5326,34 @@ no afirma el flag (no existe) sino que el aviso es efímero y la pregunta
 nueva reabre el presupuesto.
 
 `./calidad.sh` verde, 1115 passed; `tests_definidos` 1115 → 1119.
+
+---
+
+## Los lectores de trazas contaban el bookkeeping como desconocido (2026-10-28, X97)
+
+El operador corrió `replay` sobre 615 trazas reales: nivel B en 0 (ninguna
+caminata vieja rota por `Contexto`), pero el banner decía REGRESIÓN con
++2.194 desconocidos. Parte es historia legítima (nodos del supervisor v1,
+nodos de los escenarios de fable). Otra parte no: reproducido con una traza
+sintética, `nivel_a_desconocidos` marcaba `llm/usage`, `hitl_*/aprobado`,
+`hitl_*/rechazado` y `corte_sin_novedad/politica` — eventos que
+`utils/tracing.py` emite HOY (evento_llm, evento_hitl, evento_politica). Y el
+linter de `evals` marcaba los cinco, incluido `corte_no_progreso/politica`:
+desde exp/89 eso es una violación (c) falsa POR LLAMADA AL MODELO, en toda
+traza.
+
+Es la tercera vez en la fase 2 (X95 con PreFetch/VerificarCitas, X96 con
+Cierre) que un lector de trazas no se entera de lo que el código emite. La
+causa es la misma: cada lector mantenía su propia lista. El arreglo no es
+otra lista: `tracing.es_bookkeeping(nodo, accion)` define los eventos que no
+son ni nodo ni tool AL LADO de las funciones que los emiten, y los dos
+lectores la usan. Un nodo inventado con esas acciones fuera de su forma
+(`llm/aprobado`, `NodoViejo/usage`) sigue contando como desconocido.
+
+Probado contra la regresión: sin la llamada a `es_bookkeeping`, caen los dos
+candados. `./calidad.sh` verde, 1117 passed.
+
+**Consecuencia para el operador**: los informes de evals y replay anteriores
+sobrestiman (c) y A′. Recién con este parche aplicado tiene sentido
+`python3 main.py replay --actualizar-baseline`: antes, el baseline nuevo
+congelaría los falsos positivos.

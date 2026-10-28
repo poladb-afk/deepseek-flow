@@ -104,6 +104,17 @@ def evento_politica(nombre, detalle=""):
     )
 
 
+def es_bookkeeping(nodo, accion):
+    """True si el evento lo emitió `evento_llm`, `evento_hitl` o
+    `evento_politica`: no es la acción de un nodo ni el resultado de una tool.
+    Una sola definición para quien LEE la traza (replay, evals) — fuera de
+    acá, los dos lectores contaban cada uno como desconocido (X97)."""
+    nodo = str(nodo)
+    return (accion == "politica"
+            or (nodo == "llm" and accion == "usage")
+            or (nodo.startswith("hitl_") and accion in ("aprobado", "rechazado")))
+
+
 def thread_id():
     """El id del thread del proceso (exp/48): idempotente — se resuelve UNA vez.
 

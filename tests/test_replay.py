@@ -230,6 +230,21 @@ def test_tools_del_action_space_y_fantasmas(vivos):
         ("tool_fantasma", "ok")]
 
 
+def test_los_eventos_de_bookkeeping_no_son_desconocidos(vivos):
+    """X97: `evento_llm`, `evento_hitl` y `evento_politica` (utils/tracing)
+    los emite el código actual en cada sesión; contarlos como desconocidos
+    inflaba el nivel A′ con miles de falsos positivos (el baseline de replay
+    del 2026-10-13 los tiene adentro). Un nodo inventado con esas acciones
+    fuera de su forma sí sigue siendo desconocido."""
+    clases, _, herramientas = vivos
+    eventos = [_ev("llm", "usage"), _ev("hitl_comando", "aprobado"),
+               _ev("hitl_escritura", "rechazado"), _ev("corte_no_progreso", "politica"),
+               _ev("corte_sin_novedad", "politica"),
+               _ev("llm", "aprobado"), _ev("NodoViejo", "usage")]
+    assert replay.nivel_a_desconocidos(eventos, clases, herramientas) == [
+        ("llm", "aprobado"), ("NodoViejo", "usage")]
+
+
 def test_nodo_desconocido_sin_clase_ni_tool(vivos):
     """A′ es para huérfanos de grafo; los tool-shaped (ok/error) son del
     nivel C — separación limpia, sin doble conteo (lección de la corrida)."""
