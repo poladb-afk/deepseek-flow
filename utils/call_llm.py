@@ -176,7 +176,7 @@ def call_llm(messages):
     return response.choices[0].message.content
 
 
-def _kwargs_agente(messages, tools=None):
+def _kwargs_agente(messages, tools=None, pensar=False):
     """Contrato de modo thinking compartido por la versión clásica y la de
     streaming (MISMA lógica: no puede haber deriva entre las dos).
 
@@ -201,7 +201,20 @@ def _kwargs_agente(messages, tools=None):
 
     RESUMEN OPERATIVO: como este cliente NUNCA preserva reasoning_content,
     toda llamada con tools o con historial agéntico viaja con thinking
-    DISABLED; no existe acá una combinación tools+thinking activa."""
+    DISABLED; no existe acá una combinación tools+thinking activa.
+
+    `pensar=True` es esa combinación (fase 3, pre-registro
+    banco/specs/fase3.md): el `reasoning_content` que traigan los mensajes
+    VIAJA y el thinking va habilitado aunque haya tools. Hoy no lo usa el chat:
+    lo usa la sonda del gate (banco/probes/thinking_tools.py), que tiene que
+    dar 0 errores 400 antes de que el chat lo active — así la sonda prueba el
+    MISMO request que mandaría producción."""
+    if pensar:
+        kwargs = {"model": _model(), "messages": list(messages),
+                  "extra_body": {"thinking": {"type": "enabled"}}}
+        if tools:
+            kwargs["tools"] = tools
+        return kwargs
     # el reasoning_content del modo thinking no viaja (parte del mismo
     # contrato de consistencia de modo)
     limpio = [

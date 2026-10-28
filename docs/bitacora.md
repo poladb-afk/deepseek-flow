@@ -5443,3 +5443,37 @@ que registré mal en `c522546`: s19 piso **3** (suma mínima 4 menos 1), no
 HEAD); para el criterio de caché vale, para calidad/costo asume que la
 fase 2 no cambió conducta (cubierto por la caracterización, no medido por
 el banco).
+
+---
+
+## La fase 2d no entra, y el gate de la fase 3 (2026-10-28, X99, X100)
+
+**2d (X99)**: la base con el instrumento (X98, 16 corridas) tiene **2**
+cierres reales por presupuesto, ambos de 16 rondas (el tope AMPLIO de
+exp/86: s17–s20 son pedidos de alcance amplio) y ambos con 0% de hit porque
+llegan justo después de una compacción. El pre-registro pedía decidir sobre
+los cierres; con < 5 no se puede, y el beneficio tocaría 2 de 16 preguntas →
+no entra. La primera lectura usó el tope equivocado (8) y tomó como cierres
+cinco respuestas normales de 9–15 rondas con 96–99% de hit: de ahí salía un
+"refutada" que no estaba medido — no se sabe si DeepSeek mantiene la caché
+sin tools. Detalle y pisos corregidos (s19 ≥ 3) en `banco/specs/fase2d.md`.
+
+**Observación para la 4b**: en las auditorías largas el cierre por
+presupuesto llega pegado a una compacción y paga el prompt entero (0% de
+caché). Si el presupuesto pasa a novedad, ese acople puede cambiar.
+
+**Fase 3, gate previo (X100)**: `banco/probes/thinking_tools.py`, seis
+secuencias contra la API real con el reasoning preservado; cada request sale
+de `_kwargs_agente(..., pensar=True)`, el MISMO builder que usaría el chat
+(el camino de hoy no cambia: `pensar` es False por default y solo la sonda lo
+pasa). Probado contra la regresión: si `pensar` descarta el reasoning, cae
+el candado del builder.
+
+**Desvío declarado del plan**: estaba previsto entregar también el código de
+la 3a detrás de un setting en 0. Se difiere a propósito: las secuencias E
+(compacción) y F (resume de una sesión vieja) son las que pueden dar 400, y
+si lo dan, el cableado en el chat es otro (la compacción tendría que
+conservar el reasoning de las unidades con tool_calls que quedan; el resume
+de una sesión vieja, arrancar con thinking OFF). Escribirlo antes de la sonda
+sería adivinar el diseño — y sumaría un setting que el ratchet cuenta para
+nada.

@@ -61,3 +61,36 @@ como réplica de calidad/costo.
 - El subset de skill (pasa a una nota en el resultado, fiel a "guía, no
   sandbox"): con `SKILLS=0` en el brazo A no se ejercita; lo cubren los tests.
 - `VerificarCitas`, que también llama sin tools: fuera de 2d (pendiente).
+
+## Resultado (2026-10-28) — 2d NO ENTRA: casos insuficientes
+
+Agregado después de medir; los criterios de arriba no se tocaron.
+
+**La base corrió sobre `012b92f` + X98, no sobre HEAD** (desvío declarado):
+válida para el criterio de caché — en `012b92f`, el cierre por presupuesto es
+la última llamada de `AgentStep` con `tools=None`, lo mismo que 2d cambiaba.
+Para calidad y costo, compararla con 2d asumía que la fase 2 no cambió
+conducta (la caracterización lo cubre; el banco no lo midió).
+
+**Primera lectura, mal clasificada (corregida acá)**: un script marcó como
+cierre toda corrida con `rondas >= 8` (`MAX_TOOL_ROUNDS=8` del bench). Pero
+s17–s20 son pedidos de alcance amplio (exp/86) y su tope es
+`MAX_TOOL_ROUNDS_AMPLIO=16`: las corridas de 9 y 15 rondas con 96–99% de hit
+eran RESPUESTAS normales con tools ofrecidas, no cierres. No se reusa esa
+clasificación.
+
+**Lectura correcta**: 2 cierres reales por presupuesto en 16 corridas (las
+dos de 16 rondas), ambos con 0% de hit, ambos justo después de una
+compacción (el prefijo cambió: 0% lo tendría también el cierre de 2d).
+
+**Decisión**: con 2 cierres (< 5), el criterio "≥ 80% de los cierres con
+hit" no se puede decidir y el beneficio alcanzaría a 2 de 16 preguntas del
+bench → 2d no entra. **No queda probado** que DeepSeek mantenga la caché sin
+tools: eso no se midió. Si hace falta saberlo (la fase 3 depende del
+prefijo), la prueba directa es una sonda como `cache_tools.py` (exp/15): el
+mismo historial con la última llamada en `tools=None` vs. esquema completo +
+`tool_choice="none"`, dos llamadas cada una.
+
+**Pisos de calidad, el menor de las dos bases menos 1** (las dos corrieron el
+MISMO árbol: la diferencia es ruido puro — s19 pasó de 6 a 4): s17 ≥ 4,
+s18 ≥ 3, **s19 ≥ 3**, s20 ≥ 5.

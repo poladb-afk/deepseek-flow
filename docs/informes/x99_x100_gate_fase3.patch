@@ -1,0 +1,479 @@
+diff -ruN a/banco/probes/thinking_tools.py b/banco/probes/thinking_tools.py
+--- a/banco/probes/thinking_tools.py	1970-01-01 00:00:00.000000000 +0000
++++ b/banco/probes/thinking_tools.py	2026-10-28 20:37:17.680741034 +0000
+@@ -0,0 +1,171 @@
++"""Gate previo de la fase 3 (banco/specs/fase3.md): thinking en las rondas con
++tools, con el `reasoning_content` preservado. Llamadas REALES a la API.
++
++Pregunta: con el historial que mandaría el chat si activa la fase 3, ¿la API
++devuelve algún 400? Los de la bitácora (2026-10-05, "reasoning_content must be
++passed back") salían de flips de modo dentro de la conversación; la regla
++documentada es que, con tool calls en el turno, el reasoning de esos mensajes
++del asistente tiene que volver COMPLETO en todas las requests siguientes.
++
++Cada secuencia arma el request con `utils.call_llm._kwargs_agente(...,
++pensar=True)`: el MISMO builder que usaría producción, no una copia.
++
++Secuencias (cada una arranca de cero):
++  A  ronda de tools y respuesta, reasoning preservado
++  B  el cierre: tras las rondas, la última llamada SIN tools (Cierre)
++  C  el rechazo (s19-s3): el resultado de la tool es un RECHAZADO del HITL
++  D  pregunta nueva después de un turno con tools (el reasoning viejo viaja)
++  E  compacción: la zona fría pierde su reasoning, la caliente lo conserva
++  F  el flip: un historial armado con thinking OFF (sesión vieja, resume) y la
++     ronda siguiente con thinking ON
++
++Criterio del gate: 0 errores 400 en las seis. Otro error (red, 429) no cuenta
++como 400 pero deja la secuencia SIN veredicto: se repite.
++
++Costo: ~15 llamadas cortas (max_tokens bajo), centavos.
++Uso: python3 banco/probes/thinking_tools.py [--salida salidas/evals/thinking_tools.json]
++"""
++import argparse
++import json
++import sys
++from pathlib import Path
++
++RAIZ = Path(__file__).resolve().parents[2]
++sys.path.insert(0, str(RAIZ))
++
++from utils.call_llm import _client, _kwargs_agente  # noqa: E402
++from utils.fs_tools import TOOLS  # noqa: E402
++
++LEER = [t for t in TOOLS if t["function"]["name"] in ("read_file", "list_files")]
++SYSTEM = {"role": "system", "content": "Sos un agente. Usá las tools cuando haga falta; respondé breve."}
++PEDIDO = {"role": "user", "content": "Listá los archivos de la carpeta actual con list_files y decime cuántos hay."}
++RECHAZO = "RECHAZADO por el usuario: fuera del scope de la tarea"
++CIERRE = ("(presupuesto de herramientas agotado) Respondé AHORA con lo que tengas: "
++          "hallazgos, límites y qué falta. No emitas tool calls.")
++
++
++def asistente(msg, con_razonamiento=True):
++    """El mensaje del asistente como lo guardaría el historial de la fase 3."""
++    m = {"role": "assistant", "content": getattr(msg, "content", None)}
++    razon = getattr(msg, "reasoning_content", None)
++    if con_razonamiento and razon:
++        m["reasoning_content"] = razon
++    if getattr(msg, "tool_calls", None):
++        m["tool_calls"] = [{"id": tc.id, "type": "function",
++                            "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
++                           for tc in msg.tool_calls]
++    return m
++
++
++def resultados(msg, contenido="a.py\nb.py\nc.md"):
++    return [{"role": "tool", "tool_call_id": tc.id, "content": contenido} for tc in msg.tool_calls]
++
++
++class Sonda:
++    """Corre llamadas y anota cada una: paso, status y si volvió reasoning."""
++
++    def __init__(self, cliente, max_tokens=300):
++        self.cliente, self.max_tokens, self.pasos = cliente, max_tokens, []
++
++    def llamar(self, secuencia, paso, mensajes, tools=None, pensar=True):
++        kwargs = _kwargs_agente(mensajes, tools, pensar=pensar)
++        fila = {"secuencia": secuencia, "paso": paso, "pensar": pensar, "tools": bool(tools)}
++        try:
++            r = self.cliente.chat.completions.create(**kwargs, max_tokens=self.max_tokens)
++        except Exception as e:  # noqa: BLE001 (la sonda registra cualquier error de la API)
++            fila.update(ok=False, status=getattr(e, "status_code", None), error=str(e)[:300])
++            self.pasos.append(fila)
++            return None
++        msg = r.choices[0].message
++        fila.update(ok=True, status=200, tool_calls=len(msg.tool_calls or []),
++                    reasoning=bool(getattr(msg, "reasoning_content", None)))
++        self.pasos.append(fila)
++        return msg
++
++    def ronda(self, secuencia, mensajes, contenido=None, pensar=True):
++        """Una ronda de tools: el modelo pide, se agrega el resultado. None si
++        el modelo no pidió tools (la secuencia sigue sin ronda) o falló."""
++        msg = self.llamar(secuencia, "pide tools", mensajes, LEER, pensar)
++        if msg is None or not msg.tool_calls:
++            return None
++        mensajes.append(asistente(msg, con_razonamiento=pensar))
++        mensajes.extend(resultados(msg, *([contenido] if contenido else [])))
++        return msg
++
++
++def secuencias(s):
++    # A: ronda y respuesta
++    m = [SYSTEM, PEDIDO]
++    if s.ronda("A", m):
++        s.llamar("A", "responde con tools ofrecidas", m, LEER)
++    # B: el cierre sin tools tras dos rondas
++    m = [SYSTEM, PEDIDO]
++    if s.ronda("B", m):
++        m.append({"role": "user", "content": "Ahora leé el primero con read_file."})
++        s.ronda("B", m)
++        s.llamar("B", "cierre sin tools", m + [{"role": "user", "content": CIERRE}], None)
++    # C: el rechazo del HITL (s19-s3)
++    m = [SYSTEM, PEDIDO]
++    if s.ronda("C", m, contenido=RECHAZO):
++        s.llamar("C", "sigue tras el rechazo", m, LEER)
++    # D: pregunta nueva después de un turno con tools
++    m = [SYSTEM, PEDIDO]
++    if s.ronda("D", m):
++        final = s.llamar("D", "cierra el turno", m, LEER)
++        if final is not None:
++            m.append(asistente(final))
++            m.append({"role": "user", "content": "Gracias. ¿Y cuál es el más largo?"})
++            s.llamar("D", "pregunta nueva", m, LEER)
++    # E: compacción — la zona fría sin reasoning, la caliente con
++    m = [SYSTEM, PEDIDO]
++    if s.ronda("E", m):
++        m.append({"role": "user", "content": "Ahora leé el primero con read_file."})
++        if s.ronda("E", m):
++            frio = next(i for i, x in enumerate(m) if x.get("tool_calls"))
++            m[frio] = {k: v for k, v in m[frio].items() if k != "reasoning_content"}
++            s.llamar("E", "tras compactar la zona fría", m, LEER)
++    # F: historial con thinking OFF y la ronda siguiente con ON
++    m = [SYSTEM, PEDIDO]
++    if s.ronda("F", m, pensar=False):
++        s.llamar("F", "flip OFF→ON con tools", m, LEER, pensar=True)
++
++
++def veredicto(pasos):
++    """(pasa, resumen). Pasa con 0 errores 400 y cada secuencia con al menos
++    una llamada evaluada; otro error deja la secuencia sin veredicto."""
++    por_sec = {}
++    for p in pasos:
++        por_sec.setdefault(p["secuencia"], []).append(p)
++    resumen = {}
++    for sec in "ABCDEF":
++        filas = por_sec.get(sec, [])
++        if any(p["status"] == 400 for p in filas):
++            resumen[sec] = "400"
++        elif not filas or any(not p["ok"] for p in filas):
++            resumen[sec] = "sin veredicto"
++        else:
++            resumen[sec] = "ok"
++    return all(v == "ok" for v in resumen.values()), resumen
++
++
++def main(argv=None):
++    parser = argparse.ArgumentParser(prog="thinking_tools", description=__doc__.splitlines()[0])
++    parser.add_argument("--salida", default=str(RAIZ / "salidas" / "evals" / "thinking_tools.json"))
++    args = parser.parse_args(argv)
++    sonda = Sonda(_client())
++    secuencias(sonda)
++    pasa, resumen = veredicto(sonda.pasos)
++    for p in sonda.pasos:
++        estado = "ok" if p["ok"] else f"ERROR {p['status']}: {p['error']}"
++        print(f"{p['secuencia']} · {p['paso']:<30} pensar={p['pensar']!s:<5} tools={p['tools']!s:<5} {estado}")
++    print("veredicto: " + " · ".join(f"{k}={v}" for k, v in resumen.items()))
++    print("GATE: " + ("PASA (0 errores 400)" if pasa else "NO PASA"))
++    destino = Path(args.salida)
++    destino.parent.mkdir(parents=True, exist_ok=True)
++    destino.write_text(json.dumps({"pasa": pasa, "resumen": resumen, "pasos": sonda.pasos},
++                                  ensure_ascii=False, indent=2), encoding="utf-8")
++    return 0 if pasa else 1
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff -ruN a/banco/specs/fase2d.md b/banco/specs/fase2d.md
+--- a/banco/specs/fase2d.md	2026-10-28 20:39:45.417174785 +0000
++++ b/banco/specs/fase2d.md	2026-10-28 20:38:27.783105849 +0000
+@@ -61,3 +61,36 @@
+ - El subset de skill (pasa a una nota en el resultado, fiel a "guía, no
+   sandbox"): con `SKILLS=0` en el brazo A no se ejercita; lo cubren los tests.
+ - `VerificarCitas`, que también llama sin tools: fuera de 2d (pendiente).
++
++## Resultado (2026-10-28) — 2d NO ENTRA: casos insuficientes
++
++Agregado después de medir; los criterios de arriba no se tocaron.
++
++**La base corrió sobre `012b92f` + X98, no sobre HEAD** (desvío declarado):
++válida para el criterio de caché — en `012b92f`, el cierre por presupuesto es
++la última llamada de `AgentStep` con `tools=None`, lo mismo que 2d cambiaba.
++Para calidad y costo, compararla con 2d asumía que la fase 2 no cambió
++conducta (la caracterización lo cubre; el banco no lo midió).
++
++**Primera lectura, mal clasificada (corregida acá)**: un script marcó como
++cierre toda corrida con `rondas >= 8` (`MAX_TOOL_ROUNDS=8` del bench). Pero
++s17–s20 son pedidos de alcance amplio (exp/86) y su tope es
++`MAX_TOOL_ROUNDS_AMPLIO=16`: las corridas de 9 y 15 rondas con 96–99% de hit
++eran RESPUESTAS normales con tools ofrecidas, no cierres. No se reusa esa
++clasificación.
++
++**Lectura correcta**: 2 cierres reales por presupuesto en 16 corridas (las
++dos de 16 rondas), ambos con 0% de hit, ambos justo después de una
++compacción (el prefijo cambió: 0% lo tendría también el cierre de 2d).
++
++**Decisión**: con 2 cierres (< 5), el criterio "≥ 80% de los cierres con
++hit" no se puede decidir y el beneficio alcanzaría a 2 de 16 preguntas del
++bench → 2d no entra. **No queda probado** que DeepSeek mantenga la caché sin
++tools: eso no se midió. Si hace falta saberlo (la fase 3 depende del
++prefijo), la prueba directa es una sonda como `cache_tools.py` (exp/15): el
++mismo historial con la última llamada en `tools=None` vs. esquema completo +
++`tool_choice="none"`, dos llamadas cada una.
++
++**Pisos de calidad, el menor de las dos bases menos 1** (las dos corrieron el
++MISMO árbol: la diferencia es ruido puro — s19 pasó de 6 a 4): s17 ≥ 4,
++s18 ≥ 3, **s19 ≥ 3**, s20 ≥ 5.
+diff -ruN a/banco/specs/fase3.md b/banco/specs/fase3.md
+--- a/banco/specs/fase3.md	2026-10-28 20:39:45.413174872 +0000
++++ b/banco/specs/fase3.md	2026-10-28 20:38:27.783105849 +0000
+@@ -18,6 +18,28 @@
+ llamada del tope sin tools) con el historial NUEVO (reasoning preservado).
+ 0 errores 400 en las secuencias, o 3a no se corre.
+ 
++**La sonda** (agregado antes de correrla): `banco/probes/thinking_tools.py`,
++seis secuencias — A ronda y respuesta, B el cierre sin tools, C el rechazo
++del HITL (s19-s3: rechazo → error → respuesta), D pregunta nueva tras un
++turno con tools, E compacción (la zona fría pierde el reasoning), F el flip
++(historial armado con thinking OFF, la ronda siguiente con ON). Arma cada
++request con `_kwargs_agente(..., pensar=True)`, el mismo builder que usaría
++el chat. Un error que no es 400 deja la secuencia sin veredicto: se repite.
++
++**Por qué E y F importan**: si dan 400, el chat no puede activar la fase 3
++tal cual — la compacción tendría que conservar el reasoning de toda unidad
++con tool_calls que quede en la ventana (o compactar unidades enteras), y un
++`resume` de una sesión vieja (sin reasoning) tendría que arrancar con
++thinking OFF hasta la próxima pregunta. El diseño del cableado en el chat
++depende de este resultado: por eso se escribe DESPUÉS de la sonda.
++
++## Caso a seguir
++
++s19-s3 en la base de 2d (ca=0): pidió un comando fuera del scope, el HITL lo
++rechazó y escribió el informe sin verificar. Es el perfil donde razonar
++entre rondas podría cambiar la respuesta; queda como caso a mirar en el
++reporte de 3a (no es criterio: es una corrida).
++
+ ## Corridas
+ 
+ Brazo A, s17 ×5, s18 ×5, s19 ×3, s20 ×3, sobre el árbol de la última fase
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-28 20:39:45.385175477 +0000
++++ b/docs/bitacora.md	2026-10-28 20:38:27.783105849 +0000
+@@ -5372,3 +5372,37 @@
+ el esquema a una NOTA en el resultado de la tool fuera del subset — fiel a
+ "guía, no sandbox" (`utils/skills.py`, `design.md`); un `ERROR:` lo habría
+ vuelto una frontera sin decidirlo.
++
++---
++
++## La fase 2d no entra, y el gate de la fase 3 (2026-10-28, X99, X100)
++
++**2d (X99)**: la base con el instrumento (X98, 16 corridas) tiene **2**
++cierres reales por presupuesto, ambos de 16 rondas (el tope AMPLIO de
++exp/86: s17–s20 son pedidos de alcance amplio) y ambos con 0% de hit porque
++llegan justo después de una compacción. El pre-registro pedía decidir sobre
++los cierres; con < 5 no se puede, y el beneficio tocaría 2 de 16 preguntas →
++no entra. La primera lectura usó el tope equivocado (8) y tomó como cierres
++cinco respuestas normales de 9–15 rondas con 96–99% de hit: de ahí salía un
++"refutada" que no estaba medido — no se sabe si DeepSeek mantiene la caché
++sin tools. Detalle y pisos corregidos (s19 ≥ 3) en `banco/specs/fase2d.md`.
++
++**Observación para la 4b**: en las auditorías largas el cierre por
++presupuesto llega pegado a una compacción y paga el prompt entero (0% de
++caché). Si el presupuesto pasa a novedad, ese acople puede cambiar.
++
++**Fase 3, gate previo (X100)**: `banco/probes/thinking_tools.py`, seis
++secuencias contra la API real con el reasoning preservado; cada request sale
++de `_kwargs_agente(..., pensar=True)`, el MISMO builder que usaría el chat
++(el camino de hoy no cambia: `pensar` es False por default y solo la sonda lo
++pasa). Probado contra la regresión: si `pensar` descarta el reasoning, cae
++el candado del builder.
++
++**Desvío declarado del plan**: estaba previsto entregar también el código de
++la 3a detrás de un setting en 0. Se difiere a propósito: las secuencias E
++(compacción) y F (resume de una sesión vieja) son las que pueden dar 400, y
++si lo dan, el cableado en el chat es otro (la compacción tendría que
++conservar el reasoning de las unidades con tool_calls que quedan; el resume
++de una sesión vieja, arrancar con thinking OFF). Escribirlo antes de la sonda
++sería adivinar el diseño — y sumaría un setting que el ratchet cuenta para
++nada.
+diff -ruN a/docs/elegancia.md b/docs/elegancia.md
+--- a/docs/elegancia.md	2026-10-28 20:39:45.385175477 +0000
++++ b/docs/elegancia.md	2026-10-28 20:38:27.783105849 +0000
+@@ -70,7 +70,7 @@
+ | 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
+ | 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
+ | 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. ✅ 2b-2 (X96): `Observar` y `Cierre` (el presupuesto como arista). Falta: el chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
+-| 3 | `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
++| 3 | (2d no entró, X99.) Gate previo de 3a escrito (X100). `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
+ | 4 | Se borran reglas, voto, `alcance_amplio`, perfiles y directivas (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
+ | 5 | Política de comandos como datos (S10); skills por descripción; Laya 0.4.x | Mínimo | `test_policy_bypass.py` idéntico |
+ 
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-28 20:39:45.385175477 +0000
++++ b/docs/estado.md	2026-10-28 20:38:27.783105849 +0000
+@@ -136,6 +136,8 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
++| X100 | — | El gate previo de la fase 3 (thinking con tools, reasoning preservado) no tenía sonda | ✅ 2026-10-28 (sonda escrita; falta correrla) | `banco/probes/thinking_tools.py`, seis secuencias (A–F, incluido el rechazo de s19-s3 y la compacción); arma los requests con `_kwargs_agente(..., pensar=True)`, el builder de producción, que hoy solo usa la sonda. El cableado en el chat espera el resultado | `test_pensar_preserva_el_reasoning_y_habilita_thinking_con_tools`, `test_un_400_tumba_el_gate_y_se_ve_donde` |
++| X99 | — | La fase 2d (esquema de tools fijo + `tool_choice="none"` en `Cierre`) prometía que el cierre reusara el KV-cache | ❌ no entra (2026-10-28) | Medido con X98 sobre la base de 16 corridas: 2 cierres reales por presupuesto (tope amplio 16), ambos con 0% de hit por venir justo tras una compacción. Con < 5 cierres el criterio no se puede decidir y el beneficio alcanza 2 de 16 preguntas. Una primera lectura los confundió con respuestas de 9–15 rondas (tope 8 en vez de 16): NO quedó probado que DeepSeek mantenga la caché sin tools. Detalle en [fase2d.md](../banco/specs/fase2d.md) | [banco/specs/fase2d.md](../banco/specs/fase2d.md) |
+ | X98 | — | El pre-registro de la fase 2d pedía medir si la llamada de `Cierre` reusa caché, y la traza no podía decirlo: `_contabilizar` recibía `prompt_cache_hit_tokens` pero `evento_llm` escribía solo prompt/completion, y ningún evento decía QUÉ nodo hizo la llamada | ✅ 2026-10-28 | `evento_llm` suma `cache_hit` (solo si el proveedor lo informa: ausente = desconocido, no 0) y `llamador` (el nodo en curso, de una pila por hilo que llena `_run_trazado`; un hilo de tools en paralelo no hereda la pila, no se inventa un nodo). `tokens_runs` desglosa por llamador. Pre-registros escritos: [fase2d](../banco/specs/fase2d.md), [fase3](../banco/specs/fase3.md). Sin cambio de conducta | `test_el_evento_de_uso_lleva_cache_hit_y_quien_llamo`, `test_el_tracing_activo_registra_al_nodo_que_llama`, `test_desglose_por_llamador_y_cache_hit` |
+ | X97 | — | Los dos lectores de trazas contaban como desconocidos los eventos que el código actual emite en cada sesión: `llm/usage` (exp/89, uno por llamada al modelo), `hitl_*/aprobado|rechazado` y `*/politica`. El linter de `evals` daba una violación (c) falsa por llamada al LLM; el nivel A′ de `replay`, miles (el baseline del 2026-10-13 los congeló adentro) | ✅ 2026-10-28 | `tracing.es_bookkeeping(nodo, accion)`: la definición vive junto a quien los emite y la usan los dos lectores. Los informes de evals y replay anteriores sobrestiman (c) y A′: refrescar el baseline de replay recién con esto aplicado | `test_los_eventos_de_bookkeeping_no_son_desconocidos`, `test_el_linter_no_cuenta_los_eventos_de_bookkeeping` |
+ | X96 | — | El cierre por presupuesto era un flag dentro de `AgentStep.prep` (`aviso_cierre` para no duplicar el aviso, `corte_novedad` consumible) y la cuenta de la ronda vivía en `ExecuteTools.post`: el grafo no mostraba cuándo se cerraba una pregunta. Además `evals` y `banco/probes/rondas.py` reconocían la respuesta solo en `AgentStep`/`DirectAnswer` | ✅ 2026-10-28 (fase 2b-2) | `Observar` cuenta la ronda; `Contexto` sale a `Cierre` cuando `motivo_de_cierre` (tope, no-progreso, sin novedad); `Cierre` llama sin tools con el aviso — los dos flags se borran y `resume` los descarta de checkpoints viejos. `evals`, `rondas` y `replay` reconocen los nodos nuevos. Ratchet `nodos_largos` 15 → 14. Caracterización intacta | `test_un_turno_cerrado_por_presupuesto_cuenta_como_respuesta`, `test_un_cierre_por_presupuesto_es_una_respuesta`, `test_resume_descarta_las_claves_que_reemplazo_la_estructura`, `test_el_corte_que_no_es_el_techo_deja_su_evento` |
+diff -ruN a/docs/roadmap.md b/docs/roadmap.md
+--- a/docs/roadmap.md	2026-10-28 20:39:45.385175477 +0000
++++ b/docs/roadmap.md	2026-10-28 20:38:27.783105849 +0000
+@@ -13,8 +13,10 @@
+ revisado (incremental, cada PR verde y con sus tests migrados): **2b-2
+ cerrada** (X96: `Observar` cuenta la ronda y el presupuesto es la arista
+ `Contexto → Cierre`). **2d**: instrumento listo (X98, `cache_hit` y
+-`llamador` en la traza) y pre-registro en `banco/specs/fase2d.md`; falta la
+-base con el instrumento (16 corridas sobre `012b92f` + X98) y el código.
++`llamador` en la traza) y pre-registro en `banco/specs/fase2d.md`. **2d no
++entra** (X99: 2 cierres reales en 16 corridas, casos insuficientes). Fase 3:
++gate previo escrito (X100, `banco/probes/thinking_tools.py`); el cableado en
++el chat espera su resultado.
+ 2b-3 queda para después de la fase 4 (o se descarta si sigue sin haber
+ sub-agentes); 2b-3 `AgentStep`/`ExecuteTools` →
+ `Paso`/`Actuar` del kernel con renombre y alias en `replay`/`evals`. Sin
+diff -ruN a/ratchets/baseline.json b/ratchets/baseline.json
+--- a/ratchets/baseline.json	2026-10-28 20:39:45.409174958 +0000
++++ b/ratchets/baseline.json	2026-10-28 20:38:30.831017491 +0000
+@@ -64,7 +64,7 @@
+           47
+         ],
+         "utils/call_llm.py": [
+-          328
++          341
+         ],
+         "utils/contexto.py": [
+           119
+@@ -583,6 +583,7 @@
+         "tests/test_streaming.py": 11,
+         "tests/test_supervisor_convergencia.py": 4,
+         "tests/test_tablero.py": 2,
++        "tests/test_thinking_tools.py": 5,
+         "tests/test_thread_store.py": 26,
+         "tests/test_tokens_runs.py": 5,
+         "tests/test_twins_extractores.py": 5,
+@@ -597,7 +598,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 1124
++      "metrica": 1129
+     },
+     "texto_de_prompt": {
+       "detalle": {
+diff -ruN a/tests/test_thinking_tools.py b/tests/test_thinking_tools.py
+--- a/tests/test_thinking_tools.py	1970-01-01 00:00:00.000000000 +0000
++++ b/tests/test_thinking_tools.py	2026-10-28 20:37:17.680741034 +0000
+@@ -0,0 +1,84 @@
++"""Gate previo de la fase 3 (banco/specs/fase3.md): la sonda thinking_tools
++sin red. Clava que usa el MISMO builder que produccion, las seis secuencias y
++el veredicto (un 400 no pasa; otro error no es 400 pero deja la secuencia sin
++veredicto)."""
++from types import SimpleNamespace as NS
++
++import pytest
++
++from banco.probes import thinking_tools as tt
++from utils.call_llm import _kwargs_agente
++
++
++def test_pensar_preserva_el_reasoning_y_habilita_thinking_con_tools():
++    mensajes = [{"role": "user", "content": "x"},
++                {"role": "assistant", "content": None, "reasoning_content": "pienso",
++                 "tool_calls": [{"id": "1", "type": "function",
++                                 "function": {"name": "list_files", "arguments": "{}"}}]},
++                {"role": "tool", "tool_call_id": "1", "content": "a.py"}]
++    con = _kwargs_agente(mensajes, [{"function": {"name": "list_files"}}], pensar=True)
++    assert con["extra_body"] == {"thinking": {"type": "enabled"}}
++    assert con["messages"][1]["reasoning_content"] == "pienso"
++    # el camino de hoy no cambia: thinking OFF y el reasoning no viaja
++    hoy = _kwargs_agente(mensajes, [{"function": {"name": "list_files"}}])
++    assert hoy["extra_body"] == {"thinking": {"type": "disabled"}}
++    assert "reasoning_content" not in hoy["messages"][1]
++
++
++class ClienteFalso:
++    """Pide UNA tool la primera vez de cada secuencia; después responde.
++    Con `rechazar`, contesta 400 si el request arrastra un assistant con
++    tool_calls sin reasoning y thinking ON (la regla documentada)."""
++
++    def __init__(self, rechazar=False):
++        self.rechazar, self.requests = rechazar, []
++        self.chat = NS(completions=NS(create=self.create))
++
++    def create(self, **kwargs):
++        self.requests.append(kwargs)
++        mensajes = kwargs["messages"]
++        pensando = kwargs["extra_body"]["thinking"]["type"] == "enabled"
++        sin_razon = any(m.get("tool_calls") and not m.get("reasoning_content") for m in mensajes)
++        if self.rechazar and pensando and sin_razon:
++            raise _Error400()
++        ultimo = mensajes[-1]
++        pide = kwargs.get("tools") and ultimo["role"] == "user" and "Respondé AHORA" not in ultimo["content"]
++        calls = [NS(id=f"c{len(self.requests)}", function=NS(name="list_files", arguments="{}"))] if pide else None
++        return NS(choices=[NS(message=NS(content=None if pide else "listo", tool_calls=calls,
++                                         reasoning_content="razono"))])
++
++
++class _Error400(Exception):
++    status_code = 400
++
++
++def test_las_seis_secuencias_pasan_con_una_api_que_acepta():
++    sonda = tt.Sonda(ClienteFalso())
++    tt.secuencias(sonda)
++    pasa, resumen = tt.veredicto(sonda.pasos)
++    assert pasa and set(resumen) == set("ABCDEF")
++    # B: el cierre va sin tools; F: la primera ronda va con thinking OFF
++    assert any(p["secuencia"] == "B" and p["paso"] == "cierre sin tools" and not p["tools"]
++               for p in sonda.pasos)
++    assert any(p["secuencia"] == "F" and not p["pensar"] for p in sonda.pasos)
++
++
++def test_un_400_tumba_el_gate_y_se_ve_donde():
++    """Con la API exigiendo el reasoning, E (la zona fría compactada sin
++    reasoning) y F (historial armado con thinking OFF) dan 400: son
++    exactamente las dos secuencias que el chat tiene que resolver antes de
++    activar la fase 3 (la compacción y el resume de sesiones viejas)."""
++    sonda = tt.Sonda(ClienteFalso(rechazar=True))
++    tt.secuencias(sonda)
++    pasa, resumen = tt.veredicto(sonda.pasos)
++    assert not pasa
++    assert resumen["E"] == resumen["F"] == "400"
++    assert resumen["A"] == resumen["B"] == resumen["C"] == resumen["D"] == "ok"
++
++
++@pytest.mark.parametrize(("status", "esperado"), [(429, "sin veredicto"), (None, "sin veredicto")])
++def test_un_error_que_no_es_400_deja_la_secuencia_sin_veredicto(status, esperado):
++    pasos = [{"secuencia": s, "ok": True, "status": 200} for s in "ABCDE"]
++    pasos.append({"secuencia": "F", "ok": False, "status": status})
++    pasa, resumen = tt.veredicto(pasos)
++    assert not pasa and resumen["F"] == esperado
+diff -ruN a/utils/call_llm.py b/utils/call_llm.py
+--- a/utils/call_llm.py	2026-10-28 20:39:45.405175045 +0000
++++ b/utils/call_llm.py	2026-10-28 20:38:27.779105965 +0000
+@@ -176,7 +176,7 @@
+     return response.choices[0].message.content
+ 
+ 
+-def _kwargs_agente(messages, tools=None):
++def _kwargs_agente(messages, tools=None, pensar=False):
+     """Contrato de modo thinking compartido por la versión clásica y la de
+     streaming (MISMA lógica: no puede haber deriva entre las dos).
+ 
+@@ -201,7 +201,20 @@
+ 
+     RESUMEN OPERATIVO: como este cliente NUNCA preserva reasoning_content,
+     toda llamada con tools o con historial agéntico viaja con thinking
+-    DISABLED; no existe acá una combinación tools+thinking activa."""
++    DISABLED; no existe acá una combinación tools+thinking activa.
++
++    `pensar=True` es esa combinación (fase 3, pre-registro
++    banco/specs/fase3.md): el `reasoning_content` que traigan los mensajes
++    VIAJA y el thinking va habilitado aunque haya tools. Hoy no lo usa el chat:
++    lo usa la sonda del gate (banco/probes/thinking_tools.py), que tiene que
++    dar 0 errores 400 antes de que el chat lo active — así la sonda prueba el
++    MISMO request que mandaría producción."""
++    if pensar:
++        kwargs = {"model": _model(), "messages": list(messages),
++                  "extra_body": {"thinking": {"type": "enabled"}}}
++        if tools:
++            kwargs["tools"] = tools
++        return kwargs
+     # el reasoning_content del modo thinking no viaja (parte del mismo
+     # contrato de consistencia de modo)
+     limpio = [

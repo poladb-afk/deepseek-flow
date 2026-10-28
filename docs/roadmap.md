@@ -13,8 +13,10 @@ datos) y **2b-1** (X95, `Contexto`: la compacción como nodo). Plan de 2b
 revisado (incremental, cada PR verde y con sus tests migrados): **2b-2
 cerrada** (X96: `Observar` cuenta la ronda y el presupuesto es la arista
 `Contexto → Cierre`). **2d**: instrumento listo (X98, `cache_hit` y
-`llamador` en la traza) y pre-registro en `banco/specs/fase2d.md`; falta la
-base con el instrumento (16 corridas sobre `012b92f` + X98) y el código.
+`llamador` en la traza) y pre-registro en `banco/specs/fase2d.md`. **2d no
+entra** (X99: 2 cierres reales en 16 corridas, casos insuficientes). Fase 3:
+gate previo escrito (X100, `banco/probes/thinking_tools.py`); el cableado en
+el chat espera su resultado.
 2b-3 queda para después de la fase 4 (o se descarta si sigue sin haber
 sub-agentes); 2b-3 `AgentStep`/`ExecuteTools` →
 `Paso`/`Actuar` del kernel con renombre y alias en `replay`/`evals`. Sin
