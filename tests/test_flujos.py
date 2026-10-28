@@ -247,10 +247,10 @@ def test_supervisor_flujo_nuevo_guarda_antes_de_despachar(tmp_path, monkeypatch)
             return MsgFake(tool_calls=[tc_fake("read_file", '{"path": "a.py"}')])
         return MsgFake(content="cerrado")
 
-    shared = correr_supervisor(sup, tmp_path, monkeypatch, guion,
-                               {"fallos": {"read_file": sup.MAX_FALLOS_POR_HERRAMIENTA}})
+    shared, _ = correr_supervisor(sup, tmp_path, monkeypatch, guion,
+                                  {"fallos": {"read_file": sup.MAX_FALLOS_POR_HERRAMIENTA}})
     assert ejecuciones["n"] == 0  # la guarda cortó antes de run_tool_call
-    mensajes_tool = [m for m in shared["mensajes"] if m.get("role") == "tool"]
+    mensajes_tool = [m for m in shared["messages"] if m.get("role") == "tool"]
     assert mensajes_tool and mensajes_tool[0]["content"] == sup.TEXTO_VETO
     texto = (tmp_path / "sup.md").read_text(encoding="utf-8")
     assert "## Pasos" in texto  # Sintetizar escribió la auditoría
@@ -299,11 +299,11 @@ def test_supervisor_reutiliza_la_llamada_identica(tmp_path, monkeypatch):
             return MsgFake(tool_calls=[tc_fake("search_files", args_id, 3)])
         return MsgFake(content="cerrado")
 
-    shared = correr_supervisor(sup, tmp_path, monkeypatch, guion)
-    assert ejecuciones["n"] <= 2 and shared["ley"]["previas"][("search_files", args_id)]["resultado"]
-    tools = [m for m in shared["mensajes"] if m.get("role") == "tool"]
+    shared, corrida = correr_supervisor(sup, tmp_path, monkeypatch, guion)
+    assert ejecuciones["n"] <= 2 and corrida.ley["previas"][("search_files", args_id)]["resultado"]
+    tools = [m for m in shared["messages"] if m.get("role") == "tool"]
     assert [m["content"] for m in tools] == ["42 archivos"] * 3
-    assert any(c["repetida"] for c in shared["ley"]["llamadas"])  # la de la ronda 2, del caché
+    assert any(c["repetida"] for c in corrida.ley["llamadas"])  # la de la ronda 2, del caché
 
 
 def test_juez_lote_aisla_fallas(tmp_path, monkeypatch):

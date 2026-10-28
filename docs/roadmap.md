@@ -7,10 +7,13 @@
 Fase 0 cerrada (X91): la deuda quedó contada en siete ratchets. Siguen las
 fases 1–5 de [elegancia.md](elegancia.md), cada una con su gate de salida.
 Fase 1 cerrada: 1a (X92, `core_importa_modulos` 3 → 0) y 1b (X93,
-`producto_conoce_lab` 10 → 0). Próxima: **fase 2** — el chat como
-`kernel.loop` con las políticas como nodos y el esquema de tools fijo con
-cierre por arista. Cambia conducta (mínimo): antes de empezarla, una corrida
-de fable s17–s20 como línea de base (la pide el gate de salida).
+`producto_conoce_lab` 10 → 0). Fase 2 en curso (plan en
+`docs/elegancia.md`): **2a cerrada** (X94, el kernel con el shared solo de
+datos). Próximas: 2b (el chat sobre `kernel.loop`, caracterización sin
+cambios) y 2c (migración de los tests de `AgentStep`/`ExecuteTools`), sin
+cambio de conducta; 2d (esquema de tools fijo + `tool_choice="none"`) espera
+la línea de base de fable s17–s20 sobre `012b92f` y la prueba de que
+DeepSeek acepta `tool_choice="none"`.
 
 ## Refactor del harness (auditoría 2026-10-26) — la secuencia vigente
 

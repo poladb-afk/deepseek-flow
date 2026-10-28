@@ -77,57 +77,65 @@ def desde_fs(nombre, efecto="lectura"):
     return Tool(nombre, esquema, correr, efecto)
 
 
-class Paso(Node):
+class _DelLoop(Node):
+    """Un nodo del loop: el LLM, el saldo y las tools viven EN el nodo (se
+    fijan al armar el grafo), no en el shared — el shared queda solo con datos
+    y se puede checkpointear como JSON (X94)."""
+
+    def __init__(self, ctx, tools, **kwargs):
+        super().__init__(**kwargs)
+        self.ctx, self.tools = ctx, tools
+
+
+class Paso(_DelLoop):
     """Una llamada al modelo. Sin saldo, la llamada va SIN tools (cierre). Un
     sub-agente solo se ofrece si queda saldo para él Y para su loop (≥ 2): con
     1, arrancaría sin poder leer nada."""
 
     def prep(self, s):
-        saldo = s["ctx"].ledger.rondas
-        tools = [t.esquema for t in s["tools"] if saldo >= (2 if t.agente else 1)] or None
-        return s["ctx"].llm, s["mensajes"], tools
+        saldo = self.ctx.ledger.rondas
+        tools = [t.esquema for t in self.tools if saldo >= (2 if t.agente else 1)] or None
+        return s["messages"], tools
 
     def exec(self, entrada):
-        llm, mensajes, tools = entrada
-        msg, _ = normalizar(llm(mensajes, tools), tools)
+        mensajes, tools = entrada
+        msg, _ = normalizar(self.ctx.llm(mensajes, tools), tools)
         return msg
 
     def post(self, s, entrada, msg):
-        s["mensajes"].append(historiar(msg))
+        s["messages"].append(historiar(msg))
         if not msg.tool_calls:
             return "respuesta"
-        return "actuar" if s["ctx"].ledger.tomar() else "cerrar"
+        return "actuar" if self.ctx.ledger.tomar() else "cerrar"
 
 
-class Actuar(Node):
+class Actuar(_DelLoop):
     """Corre las tool calls del último mensaje. Si TODAS son de lectura van
     en paralelo; si alguna escribe, todas van en orden (un solo hilo)."""
 
     def prep(self, s):
-        return s
+        return [as_dict(tc) for tc in s["messages"][-1]["tool_calls"]]
 
-    def exec(self, s):
-        por_nombre = {t.nombre: t for t in s["tools"]}
-        llamadas = [as_dict(tc) for tc in s["mensajes"][-1]["tool_calls"]]
+    def exec(self, llamadas):
+        por_nombre = {t.nombre: t for t in self.tools}
 
         def una(llamada):
             tool = por_nombre.get(llamada["function"]["name"])
             if tool is None:
                 return f"ERROR: herramienta desconocida: {llamada['function']['name']}"
-            return str(tool.correr(llamada, s["ctx"]))
+            return str(tool.correr(llamada, self.ctx))
 
         lectura = all(getattr(por_nombre.get(c["function"]["name"]), "efecto", "") == "lectura"
                       for c in llamadas)
         if lectura and len(llamadas) > 1:
             with ThreadPoolExecutor(min(PARALELO_MAX, len(llamadas))) as hilos:
-                return llamadas, list(hilos.map(una, llamadas))
-        return llamadas, [una(c) for c in llamadas]
+                return list(hilos.map(una, llamadas))
+        return [una(c) for c in llamadas]
 
-    def post(self, s, _, resultado):
-        llamadas, contenidos = resultado
+    def post(self, s, llamadas, contenidos):
         for llamada, contenido in zip(llamadas, contenidos, strict=True):
-            s["ctx"].traza.append((s["ctx"].profundidad, llamada["function"]["name"]))
-            s["mensajes"].append({"role": "tool", "tool_call_id": llamada["id"], "content": contenido})
+            self.ctx.traza.append((self.ctx.profundidad, llamada["function"]["name"]))
+            s["messages"].append({"role": "tool", "tool_call_id": llamada["id"], "content": contenido})
         return "paso"
 
 
@@ -143,16 +151,16 @@ class Cerrar(Node):
     como no ejecutadas (el historial queda válido) y el modelo cierra sin tools."""
 
     def post(self, s, *_):
-        for tc in s["mensajes"][-1]["tool_calls"]:
-            s["mensajes"].append({"role": "tool", "tool_call_id": tc["id"], "content": NO_EJECUTADA})
+        for tc in s["messages"][-1]["tool_calls"]:
+            s["messages"].append({"role": "tool", "tool_call_id": tc["id"], "content": NO_EJECUTADA})
         return "paso"
 
 
-def loop(max_retries=3, wait=5):
+def loop(ctx, tools, max_retries=3, wait=5):
     """El grafo del agente. Es un Flow, así que también es un Node: otro flujo
     lo encadena como un paso más (el supervisor: loop >> Auditar >> Sintetizar).
-    Lee del shared `ctx` (el LLM y el saldo), `tools` y `mensajes`."""
-    paso, actuar, cerrar = Paso(max_retries=max_retries, wait=wait), Actuar(), Cerrar()
+    `ctx` y `tools` quedan en los nodos; del shared lee y escribe `messages`."""
+    paso, actuar, cerrar = Paso(ctx, tools, max_retries=max_retries, wait=wait), Actuar(ctx, tools), Cerrar()
     paso - "actuar" >> actuar
     paso - "cerrar" >> cerrar
     paso - "respuesta" >> Fin()
@@ -161,17 +169,17 @@ def loop(max_retries=3, wait=5):
     return Flow(start=paso)
 
 
-def semilla(system, pedido, tools, ctx):
-    """El shared de un agente: contexto FRESCO (system + pedido, nada del llamador)."""
-    return {"ctx": ctx, "tools": tools,
-            "mensajes": [{"role": "system", "content": system}, {"role": "user", "content": pedido}]}
+def semilla(system, pedido):
+    """El shared de un agente: contexto FRESCO (system + pedido, nada del
+    llamador). Solo datos: es JSON y viaja en un checkpoint."""
+    return {"messages": [{"role": "system", "content": system}, {"role": "user", "content": pedido}]}
 
 
 def correr(system, pedido, tools, ctx, max_retries=3, wait=5):
-    """Un agente de punta a punta. Devuelve (respuesta, mensajes)."""
-    s = semilla(system, pedido, tools, ctx)
-    loop(max_retries, wait).run(s)
-    return s["mensajes"][-1].get("content") or "", s["mensajes"]
+    """Un agente de punta a punta. Devuelve (respuesta, messages)."""
+    s = semilla(system, pedido)
+    loop(ctx, tools, max_retries, wait).run(s)
+    return s["messages"][-1].get("content") or "", s["messages"]
 
 
 def agente(nombre, descripcion, system, tools, parametro="pedido"):

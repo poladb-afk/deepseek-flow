@@ -13,9 +13,10 @@ def tc_fake(nombre, args, i=1):
                            "function": type("F", (), {"name": nombre, "arguments": args})()})()
 
 
-def correr_supervisor(sup, tmp_path, monkeypatch, guion, shared_extra=None):
+def correr_supervisor(sup, tmp_path, monkeypatch, guion, ley_extra=None):
     """El flujo REAL del supervisor (loop del kernel → Auditar → Sintetizar)
-    con un LLM guionado. `guion(n, messages, tools)` devuelve el mensaje."""
+    con un LLM guionado. `guion(n, messages, tools)` devuelve el mensaje.
+    Devuelve (shared, corrida): el estado de ley vive en la corrida (X94)."""
     pasos = {"n": 0}
 
     def llm(messages, tools=None):
@@ -23,11 +24,11 @@ def correr_supervisor(sup, tmp_path, monkeypatch, guion, shared_extra=None):
         return guion(pasos["n"], messages, tools)
 
     monkeypatch.setattr(sup, "call_llm", lambda *a, **k: "cierre de prueba")
-    shared = sup.semilla("tarea", str(tmp_path / "sup.md"), llm=llm)
-    for clave, valor in (shared_extra or {}).items():
-        shared["ley"][clave] = valor
-    sup.create_supervisor_flow().run(shared)
-    return shared
+    corrida = sup.Corrida(llm=llm)
+    corrida.ley.update(ley_extra or {})
+    shared = sup.shared_de("tarea", str(tmp_path / "sup.md"))
+    sup.create_supervisor_flow(corrida).run(shared)
+    return shared, corrida
 
 
 def test_supervisor_telemetria_seca_por_ronda(tmp_path, monkeypatch):
@@ -54,7 +55,7 @@ def test_supervisor_telemetria_seca_por_ronda(tmp_path, monkeypatch):
             return MsgFake(tool_calls=[tc_fake("search_files", f'{{"glob": "r{n}*.py"}}', n)])
         return MsgFake(content="cerrado")
 
-    shared = correr_supervisor(sup, tmp_path, monkeypatch, guion)
+    shared, _ = correr_supervisor(sup, tmp_path, monkeypatch, guion)
     assert shared["rondas"] == 3  # la telemetría NO corta nada (sin corte)
     assert ejecuciones["n"] == 3
     assert shared["secadas"] == [True, True]  # ronda 1 no compara
@@ -70,7 +71,7 @@ def test_supervisor_telemetria_ronda_distinta_no_es_seca(tmp_path, monkeypatch):
             return MsgFake(tool_calls=[tc_fake("read_file", f'{{"path": "f{n}.py"}}', n)])
         return MsgFake(content="cerrado")
 
-    shared = correr_supervisor(sup, tmp_path, monkeypatch, guion)
+    shared, _ = correr_supervisor(sup, tmp_path, monkeypatch, guion)
     assert shared["secadas"] == [False]
 
 
@@ -91,8 +92,7 @@ def test_supervisor_tanda_vacia_es_seca(tmp_path):
 def test_las_lecturas_del_supervisor_corren_en_paralelo_y_las_escrituras_no(monkeypatch):
     """El efecto lo decide el catálogo: las del CORE leen; el
     resto —run_command, write_file, tools de módulos— va en orden."""
-    shared = sup.semilla("tarea", "salidas/x.md", llm=lambda m, t: None)
-    efecto = {t.nombre: t.efecto for t in shared["tools"]}
+    efecto = {t.nombre: t.efecto for t in sup.Corrida(llm=lambda m, t: None).tools}
     assert {efecto[n] for n in ("list_files", "read_file", "search_files")} == {"lectura"}
     assert {efecto[n] for n in ("run_command", "write_file", "edit_file")} == {"escritura"}
     assert "run_supervisor" not in efecto                      # L1: anti-recursión

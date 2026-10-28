@@ -447,10 +447,10 @@ def test_supervisor_no_puede_saltear_el_denylist(monkeypatch):
     # v3: cada tool del catálogo es una Tool del kernel con las leyes
     # alrededor, y despacha por run_tool_call: el hook de la denylist corre
     # igual que en el chat (no hay camino que lo saltee).
-    shared = sup.semilla("tarea", "salidas/x.md", llm=lambda m, t: None)
-    run_command = next(t for t in shared["tools"] if t.nombre == "run_command")
+    corrida = sup.Corrida(llm=lambda m, t: None)
+    run_command = next(t for t in corrida.tools if t.nombre == "run_command")
     resultado = run_command.correr({"id": "c1", "type": "function", "function": {
-        "name": "run_command", "arguments": '{"command": "rm -rf /"}'}}, shared["ctx"])
+        "name": "run_command", "arguments": '{"command": "rm -rf /"}'}}, corrida.ctx)
     assert resultado.startswith("ERROR: comando prohibido")
     assert visto["comando"] == "rm -rf /"
     assert run_command.efecto == "escritura"  # nunca en paralelo

@@ -235,3 +235,41 @@ def test_chat_y_kernel_normalizan_igual():
         normalizado, _ = normalizar(mensaje, tools)
         assert normalizado.content == esperado and not normalizado.tool_calls
     assert nodes.normalizar is normalizar
+
+
+def test_el_shared_del_loop_es_json_en_cada_paso():
+    """X94 (fase 2a): el LLM, el saldo y las tools viven en los nodos, no en
+    el shared. Así el shared de cualquier loop —el del chat cuando corra sobre
+    el kernel— se checkpointea como JSON sin perder nada (F4 de la auditoría
+    2026-10-26: un objeto vivo hacía omitir el checkpoint en silencio)."""
+    from utils.kernel import loop, semilla
+
+    fotos = []
+
+    def llm(mensajes, tools=None):
+        fotos.append(json.dumps(shared))  # TypeError si hay un objeto vivo
+        return msg("fin") if mensajes[-1]["role"] == "tool" else msg(None, llamada("leer"))
+
+    shared = semilla("s", "q")
+    loop(Ctx(llm, Ledger(2)), [tool("leer")], wait=0).run(shared)
+    assert len(fotos) == 2 and json.loads(json.dumps(shared)) == shared
+    assert set(shared) == {"messages"}
+
+
+def test_el_shared_del_supervisor_es_json(tmp_path, monkeypatch):
+    """La misma ley para la instancia de producción: la ley (con su lock) y
+    las tools viven en la `Corrida`, no en el shared."""
+    from test_supervisor_convergencia import MsgFake, correr_supervisor, tc_fake
+
+    import supervisor as sup
+
+    monkeypatch.setitem(sup.REGISTRO, "read_file", lambda **k: "contenido")
+
+    def guion(n, messages, tools):
+        if n == 1:
+            return MsgFake(tool_calls=[tc_fake("read_file", '{"path": "a.py"}')])
+        return MsgFake(content="cerrado")
+
+    shared, corrida = correr_supervisor(sup, tmp_path, monkeypatch, guion)
+    assert json.loads(json.dumps(shared)) == shared
+    assert corrida.ley["llamadas"] and shared["rondas"] == 1

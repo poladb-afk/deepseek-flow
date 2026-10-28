@@ -462,8 +462,9 @@ flowchart TD
 el del kernel (`utils/kernel.loop`, un Flow usado como Node) y cada tool del
 catálogo es una `Tool` envuelta por `con_leyes`: las guardas puras
 (`guarda_vetada`, `guarda_repetida`) deciden ANTES de despachar y los
-contadores se actualizan DESPUÉS, con el estado de ley en el shared (no en
-globals) y un lock porque las lecturas corren en paralelo. `Auditar` arma la
+contadores se actualizan DESPUÉS, con el estado de ley en la `Corrida` (en
+los nodos: ni en globals ni en el shared, X94) y un lock porque las lecturas
+corren en paralelo. `Auditar` arma la
 sección "Pasos" y la telemetría de rondas secas desde el registro de
 llamadas. El saldo (`Ledger(MAX_PASOS)`) es UNO para el árbol: con
 `EXPLORAR=1` la exploración gastaba del mismo saldo (el explorador se borró en H3-B, X79: 0 llamadas en 24 corridas). Probado contra v2 con
@@ -923,6 +924,11 @@ Cerrar -paso-> Paso`, `Paso -respuesta-> Fin`) y `agente()`, que lo envuelve
 como una `Tool` que otro loop puede llamar. Leyes por construcción:
 
 - **Contexto fresco**: `correr()` arma `[system, pedido]`; nada del llamador.
+- **El shared es solo datos** (X94, fase 2a): `loop(ctx, tools)` fija el LLM,
+  el saldo y las tools EN los nodos al armar el grafo; el shared lleva
+  `messages` (el mismo nombre que el chat) y nada vivo, así que se
+  checkpointea como JSON. Antes `semilla()` metía `ctx` y `tools` en el
+  shared: un loop con checkpoint los habría omitido en silencio (F4).
 - **Un saldo por árbol** (`Ledger`): un sub-agente gasta del mismo saldo que
   su padre. Sin saldo, la llamada va SIN tools; si el saldo se acaba entre el
   prep y el post (otro agente del árbol lo gastó), la tool call no corre y va

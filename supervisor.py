@@ -11,8 +11,8 @@ supervisor.
 
 - **Las leyes envuelven cada Tool** (`con_leyes`): veto por fallos, caché de
   la llamada idéntica, veto de repetición. Las guardas siguen PURAS
-  (`guarda_vetada`, `guarda_repetida`) y el estado de ley vive en el shared
-  del supervisor, no en globals. Un lock serializa la consulta y el registro
+  (`guarda_vetada`, `guarda_repetida`) y el estado de ley vive en la
+  `Corrida` (en los nodos, no en globals ni en el shared). Un lock serializa la consulta y el registro
   (las lecturas del kernel pueden correr en paralelo).
 - **Un saldo** (`Ledger(MAX_PASOS)`): el tope de rondas es el del kernel.
   (Hasta H3-B tenía un sub-agente `explorar`; se borró por medición: 0
@@ -39,8 +39,7 @@ from utils.call_llm import call_llm, call_llm_agent
 from utils.convergencia import seco
 from utils.fs_tools import TOOLS as BASE_TOOLS
 from utils.fs_tools import escribir_salida
-from utils.kernel import Ctx, Ledger, Tool, loop
-from utils.kernel import semilla as semilla_agente
+from utils.kernel import Ctx, Ledger, Tool, loop, semilla
 
 MAX_PASOS = 5
 HECHO_LARGO = 160
@@ -216,15 +215,21 @@ def con_leyes(esquema, ley):
     return Tool(nombre, esquema, correr, efecto)
 
 
-def semilla(tarea, salida, llm=None):
-    """El shared del supervisor: el del kernel (contexto fresco, saldo del
-    árbol) + las tools con sus leyes + lo que necesita la síntesis."""
-    ley = {"fallos": {}, "exitosas": [], "previas": {}, "llamadas": [], "lock": threading.Lock()}
-    ctx = Ctx(llm or (lambda m, t: call_llm_agent(m, tools=t)), Ledger(MAX_PASOS))
-    tools = [con_leyes(t, ley) for t in _TODAS]
-    s = semilla_agente(system_prompt(tarea), tarea, tools, ctx)
-    s.update({"tarea": tarea, "salida": salida, "ley": ley})
-    return s
+class Corrida:
+    """Lo vivo de UNA corrida del supervisor: el contexto del kernel (LLM y
+    saldo), las tools con sus leyes y el estado de ley (con su lock). Vive en
+    los nodos, no en el shared: el shared queda con datos (X94)."""
+
+    def __init__(self, llm=None):
+        self.ley = {"fallos": {}, "exitosas": [], "previas": {}, "llamadas": [], "lock": threading.Lock()}
+        self.ctx = Ctx(llm or (lambda m, t: call_llm_agent(m, tools=t)), Ledger(MAX_PASOS))
+        self.tools = [con_leyes(t, self.ley) for t in _TODAS]
+
+
+def shared_de(tarea, salida):
+    """El shared del supervisor: el del kernel (contexto fresco) + lo que
+    necesita la síntesis."""
+    return {**semilla(system_prompt(tarea), tarea), "tarea": tarea, "salida": salida}
 
 
 class Auditar(Node):
@@ -232,8 +237,12 @@ class Auditar(Node):
     resultados para la síntesis y la telemetría de rondas secas (exp/96:
     la TANDA de una ronda contra la de la anterior, SIN corte)."""
 
+    def __init__(self, corrida):
+        super().__init__()
+        self.corrida = corrida
+
     def prep(self, s):
-        return [dict(c) for c in s["ley"]["llamadas"]]
+        return [dict(c) for c in self.corrida.ley["llamadas"]]
 
     def exec(self, llamadas):
         hechos, resultados, tandas = [], [], {}
@@ -249,7 +258,7 @@ class Auditar(Node):
 
     def post(self, s, _, auditoria):
         s["hechos"], s["resultados"], s["secadas"] = auditoria
-        s["rondas"] = MAX_PASOS - s["ctx"].ledger.rondas
+        s["rondas"] = MAX_PASOS - self.corrida.ctx.ledger.rondas
         for n, es_seca in enumerate(s["secadas"], 2):
             print(f"  [supervisor] ronda {n}: seca: {'sí' if es_seca else 'no'}")
 
@@ -282,17 +291,20 @@ class Sintetizar(Node):
         print(f"\n✅ síntesis escrita: {shared['informe']}\n\n{exec_res}")
 
 
-def create_supervisor_flow():
-    """El loop del kernel es un Node más del flujo (agente = Flow = Node)."""
-    agente = loop()
-    auditar = Auditar()
+def create_supervisor_flow(corrida=None):
+    """El loop del kernel es un Node más del flujo (agente = Flow = Node).
+    Una corrida nueva por flujo: el saldo y la ley no se comparten entre
+    tareas."""
+    corrida = corrida or Corrida()
+    agente = loop(corrida.ctx, corrida.tools)
+    auditar = Auditar(corrida)
     sintetizar = Sintetizar(max_retries=3, wait=5)
     agente >> auditar >> sintetizar
     return Flow(start=agente)
 
 
 def supervisar(tarea, salida="salidas/supervisor.md"):
-    shared = semilla(tarea, salida)
+    shared = shared_de(tarea, salida)
     create_supervisor_flow().run(shared)
     return shared["informe"]
 

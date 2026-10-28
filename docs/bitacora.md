@@ -5166,3 +5166,37 @@ eso le tapaba `~/.local` al proceso hijo.
 Ratchets: `producto_conoce_lab` **10 → 0**, `settings_leidos` 89 → 84
 (`BANCO`, `DELEGADO` y los tres perfiles fuera; nada entra). `./calidad.sh`
 verde, 1107 passed (en este entorno; 20 skipped por git/Laya/red).
+
+---
+
+## Fase 2a de elegancia — el kernel con el shared solo de datos (2026-10-28, X94)
+
+El primer obstáculo para que el chat corra sobre `kernel.loop` (propuesta de
+fase 2): `kernel.semilla()` metía en el shared el `ctx` (la función del LLM y
+el `Ledger`) y las `tools` (dataclasses con callables), y el supervisor
+además la ley con su `threading.Lock`. El chat checkpointea el shared entero
+como JSON (`thread_store.checkpoint`): con ese shared, cada checkpoint caería
+en `TypeError` y se omitiría — el F4 de la auditoría 2026-10-26, ahora por
+construcción.
+
+**Cambio**: `loop(ctx, tools)` recibe lo vivo y lo fija en los nodos al
+armar el grafo (`Paso`, `Actuar` heredan de `_DelLoop`); `semilla(system,
+pedido)` devuelve solo `{"messages": [...]}`. El vocabulario se unifica con
+el del chat: `messages`, no `mensajes`. El supervisor arma una `Corrida`
+(ctx + tools con leyes + ley) por flujo: `create_supervisor_flow(corrida)` la
+reparte entre el loop y `Auditar`; `shared_de(tarea, salida)` arma el shared.
+
+**Sin cambio de conducta**: los 15 tests del kernel pasan sin tocarlos (usan
+`correr()`, cuya firma no cambió); los del supervisor cambiaron solo dónde
+leen la ley y las tools (de `shared["ley"]` a `corrida.ley`), con las mismas
+aserciones. El grafo exportado del supervisor es el mismo.
+
+**Candado**: `test_el_shared_del_loop_es_json_en_cada_paso` serializa el
+shared en CADA llamada al LLM y exige que solo traiga `messages`;
+`test_el_shared_del_supervisor_es_json` hace lo mismo con la instancia de
+producción. Probado contra la regresión: volver a meter un `Ctx` en
+`semilla()` pone rojos a los dos con `TypeError`.
+
+`./calidad.sh` verde, 1109 passed (20 skipped por git/Laya/red en este
+entorno); `tests_definidos` 1111 → 1113. 2b y 2c tampoco cambian conducta;
+2d espera la línea de base de s17–s20 y la prueba de `tool_choice="none"`.
