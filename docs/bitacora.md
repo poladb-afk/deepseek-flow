@@ -5427,3 +5427,19 @@ tras una compacción (2/16: el prefijo cambió). Margen para la 2d: 69% →
 condición de "sirve" (≥80% Y +20 pp ⇒ ≥89% efectivo). Evidencia:
 `salidas/fable/resultados/fase2d-base-x98*`, desglose en
 `salidas/evals/fase2d-base-x98-tokens.txt`, 16 trazas con caché en `.runs/`.
+
+**Cierres reales separados de respuestas — la 2d cae en la fila 1 del autor** (2026-10-28):
+script del autor sobre las 16 trazas de la base con instrumento. 7 CIERRE
+reales (todos por presupuesto de rondas; ningún corte de política): cinco
+con **96–99% de hit** y dos en 0% — ambos tras una compacción (el prompt
+cayó de ~21K a ~10K: el prefijo cambió), lo que afectaría por igual al
+`Cierre` de la 2d. Es decir: **quitar las tools no rompe la caché de
+DeepSeek**. Con la base ya en ~97% en cierres reales, la condición de
+"sirve" del pre-registro (+20 pp) no tiene margen — la 2d queda en la
+fila 1 de la tabla de decisión del autor (refutada por su propio
+pre-registro; la anotación como X79 la escribe él). Corrección de pisos
+que registré mal en `c522546`: s19 piso **3** (suma mínima 4 menos 1), no
+4. Desvío declarado por el autor: la base corrió sobre `012b92f` (no
+HEAD); para el criterio de caché vale, para calidad/costo asume que la
+fase 2 no cambió conducta (cubierto por la caracterización, no medido por
+el banco).
