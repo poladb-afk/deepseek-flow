@@ -101,7 +101,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Clave | Contenido |
 |---|---|
 | `messages` | Historial completo: system (fijo) + user + assistant (con `tool_calls` cuando pidió herramientas) + tool (resultados). Es lo único que DeepSeek recibe en cada vuelta |
-| `turno` | **La caja de la pregunta en curso** (H2 PR 4a, `nodes.nuevo_turno()`): `rondas` (L8), `sin_progreso`/`huella` (exp/13), `huellas_vistas`/`racha_sin_novedad`/`corte_novedad` (exp/52-B), `aviso_cierre`, `skill` (exp/55), `router_pendiente` (exp/43) y `uso_inicio` (exp/90). `GetQuestion` la REEMPLAZA entera: no hay `pop` que olvidar. Es JSON y viaja en el checkpoint |
+| `turno` | **La caja de la pregunta en curso** (H2 PR 4a, `nodes.nuevo_turno()`): `rondas` (L8), `sin_progreso`/`huella` (exp/13), `huellas_vistas`/`racha_sin_novedad` (exp/52-B), `ruta` (X95), `skill` (exp/55), `router_pendiente` (exp/43) y `uso_inicio` (exp/90). `GetQuestion` la REEMPLAZA entera: no hay `pop` que olvidar. Es JSON y viaja en el checkpoint |
 | `_objetivo` / `tokens_por_pregunta` | De la SESIÓN, no de la pregunta: la tarea vigente (un "seguí" no la pisa) y el costo cerrado de cada pregunta |
 | `compacciones` / `_compaccion_huella` | Compactaciones aplicadas al historial y huella del historial ya compactado (evita re-compactar la misma ronda) |
 | `_respaldo_huella` / `_respaldo_ruta` | Huella de la última zona fría respaldada en `memoria/` y ruta de ese respaldo: si la siguiente compacción descarta la MISMA zona fría no se reescribe (exp/70; el marcador A17 sigue nombrando la ruta vigente) |
@@ -112,9 +112,11 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Nodo | Tipo | prep | exec | post |
 |---|---|---|---|---|
 | GetQuestion | Node | — | `input()` (ignora vacías; EOF → exit) | `salir/exit/quit` → `exit`; si no, resetea el presupuesto por pregunta (ley L8) y agrega el mensaje user → `continue`; `/aprobaciones` imprime el historial HITL y NO entra al historial |
-| Contexto | Node | si el historial supera `COMPACTION_CHARS`: respaldo de la zona fría (gancho `al_compactar`), compacción, recorte de tool results viejos y aviso de ventana caliente | — | sale por `turno["ruta"]` (`herramientas`/`directo`, la fija el router; tras una ronda de tools, `herramientas`) — X95 |
-| AgentStep | Node (max_retries=3, wait=5) | historial + tools (sin tools si ya gastó el límite) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
-| ExecuteTools | Node | último `tool_calls` | ejecuta cada llamada (`run_tool_call`) | agrega mensajes tool, suma `tool_rounds` → `default` |
+| Contexto | Node | si el historial supera `COMPACTION_CHARS`: respaldo de la zona fría (gancho `al_compactar`), compacción, recorte de tool results viejos y aviso de ventana caliente | — | sale por `cierre` si `motivo_de_cierre` (tope, no-progreso o sin novedad); si no, por `turno["ruta"]` (`herramientas`/`directo`, la fija el router; tras una ronda de tools, `herramientas`) — X95, X96 |
+| Observar | Node | la ronda recién ejecutada | — | cuenta la ronda, huella/no-progreso y novedad; agrega al último resultado el aviso de sin-progreso y la nota de presupuesto; checkpoint (punto seguro 2) → `default` — X96 |
+| Cierre | Node (max_retries=3, wait=5) | historial + `AVISO_CIERRE` efímero, **sin tools** | igual que AgentStep | la respuesta de un turno que agotó el presupuesto → `answer` — X96 |
+| AgentStep | Node (max_retries=3, wait=5) | historial + tools (el subset del skill si hay uno activo) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
+| ExecuteTools | Node | último `tool_calls` | ejecuta cada llamada (`run_tool_call`) | agrega los mensajes tool → `default` (la cuenta de la ronda es de Observar, X96) |
 | VerificarCitas | Node (max_retries=2, wait=2) | la última respuesta (si `CITAS_VERIFICAR=1` y no trae `tool_calls`) | verifica `ruta:línea` contra el disco; si alguna falla, UNA corrección sin tools (`exec_fallback`: si la corrección revienta, queda la respuesta) | reemplaza el contenido corregido → `default` (antes vivía en `AgentStep.post`, sin retry: auditoría F6) |
 | ExitChat | Node | — | — | imprime despedida |
 
@@ -153,7 +155,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Límite | Qué | Dónde |
 |---|---|---|
 | Contención | Ninguna ruta sale de `AGENT_ALLOWED_DIRS` (resueltas con `Path.resolve`) | `fs_tools._resolve` |
-| Rondas | `presupuesto(shared)` por pregunta (override > alcance amplio > `MAX_TOOL_ROUNDS`); al llegar, `AgentStep` retira las tools y el modelo debe responder. Se reinicia con cada pregunta nueva del usuario (el comando `/aprobaciones` incluido, que no agrega mensaje) | `nodes.presupuesto`, `AgentStep.prep` |
+| Rondas | `presupuesto(shared)` por pregunta (override > alcance amplio > `MAX_TOOL_ROUNDS`); al llegar, `Contexto` sale a `Cierre`, que llama sin tools y el modelo debe responder (X96: una arista, ya no un flag). Se reinicia con cada pregunta nueva del usuario (el comando `/aprobaciones` incluido, que no agrega mensaje) | `nodes.presupuesto`, `AgentStep.prep` |
 | No-progreso | Repeticiones idénticas de la ronda de tools (`fingerprint` de nombre+argumentos) a `UMBRAL_SIN_PROGRESO`: se retiran las tools sin esperar el techo, con el evento `corte_no_progreso` en la traza | `nodes.fingerprint`, `ExecuteTools.post`, `AgentStep.prep` |
 | Contexto | `READ_MAX_CHARS` por lectura, listados truncados | `fs_tools` |
 | Reglas duras del router | recencia (`regla_temporal`, exp/46) e imperativos de capacidad (`regla_imperativo_capacidad`, exp/54) mandan a herramientas ANTES de Laya; en shadow no cortan | `utils/laya_routing.py` |

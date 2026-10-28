@@ -10,9 +10,9 @@ Fase 1 cerrada: 1a (X92, `core_importa_modulos` 3 → 0) y 1b (X93,
 `producto_conoce_lab` 10 → 0). Fase 2 en curso (plan en
 `docs/elegancia.md`): **2a cerrada** (X94, el kernel con el shared solo de
 datos) y **2b-1** (X95, `Contexto`: la compacción como nodo). Plan de 2b
-revisado (incremental, cada PR verde y con sus tests migrados): 2b-2
-`Observar` (lo que `ExecuteTools.post` decide: no-progreso, novedad, nota de
-presupuesto) y el cierre del presupuesto; 2b-3 `AgentStep`/`ExecuteTools` →
+revisado (incremental, cada PR verde y con sus tests migrados): **2b-2
+cerrada** (X96: `Observar` cuenta la ronda y el presupuesto es la arista
+`Contexto → Cierre`); 2b-3 `AgentStep`/`ExecuteTools` →
 `Paso`/`Actuar` del kernel con renombre y alias en `replay`/`evals`. Sin
 cambio de conducta; 2d (esquema de tools fijo + `tool_choice="none"`) espera
 la línea de base de fable s17–s20 sobre `012b92f` y la prueba de que

@@ -280,6 +280,10 @@ ACCIONES_CANONICAS = {
     ("LayaRouter", "directo"), ("LayaRouter", "herramientas"),
     # X95: la compacción antes de cada llamada al modelo; sale por la ruta
     ("Contexto", "directo"), ("Contexto", "herramientas"),
+    # X96: el presupuesto se acabó (arista de Contexto), la ronda se cuenta y
+    # la última llamada va sin tools
+    ("Contexto", "cierre"), ("Observar", "default"),
+    ("Cierre", "answer"), ("Cierre", "tool"),
     ("AgentStep", "tool"), ("AgentStep", "answer"),
     ("DirectAnswer", "tool"), ("DirectAnswer", "answer"),
     ("ExecuteTools", "default"),
@@ -369,7 +373,8 @@ def _turno_del_chat(eventos, inicio):
             if e["accion"] == "answer":
                 respuesta = True
                 break
-        elif e["nodo"] == "DirectAnswer":
+        elif e["nodo"] in ("DirectAnswer", "Cierre"):
+            # X96: Cierre es la respuesta de un turno que agotó el presupuesto
             es_chat = respuesta = True
             break
     return hay_router, respuesta, es_chat

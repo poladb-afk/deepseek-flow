@@ -38,6 +38,20 @@ def test_ciclos_agrupa_rondas_por_pregunta():
     assert ciclos[1]["rondas"] == 0 and ciclos[1]["respondio"] is True
 
 
+def test_un_cierre_por_presupuesto_es_una_respuesta():
+    """X96: la respuesta de un turno que agotó el presupuesto la da Cierre,
+    no AgentStep. Sin contarla, la sonda lo daba por "sin responder"."""
+    eventos = [
+        _ev("GetQuestion", "continue"),
+        _ev("AgentStep", "tool", 1.0), _ev("ExecuteTools", "default", 2.0),
+        _ev("Observar", "default"), _ev("Contexto", "cierre"),
+        _ev("Cierre", "answer", 3.0),
+    ]
+    ciclos = rondas.ciclos(eventos)
+    assert ciclos[0]["respondio"] is True and ciclos[0]["rondas"] == 1
+    assert ciclos[0]["seg_agente"] == 6.0
+
+
 def test_ciclos_registran_pregunta_sin_answer():
     eventos = [_ev("GetQuestion", "continue"), _ev("AgentStep", "tool", 2.0)]
     ciclos = rondas.ciclos(eventos)

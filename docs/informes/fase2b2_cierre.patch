@@ -1,0 +1,913 @@
+diff -ruN a/README.md b/README.md
+--- a/README.md	2026-10-28 17:13:23.147558079 +0000
++++ b/README.md	2026-10-28 17:04:46.372407627 +0000
+@@ -20,12 +20,16 @@
+     DirectAnswer_4 -->|answer| VerificarCitas_5
+     VerificarCitas_5 -->|default| GetQuestion_0
+     DirectAnswer_4 -->|tool| ExecuteTools_6
+-    ExecuteTools_6 -->|default| Contexto_3
+-    Contexto_3 -->|herramientas| AgentStep_7
+-    AgentStep_7 -->|answer| VerificarCitas_5
+-    AgentStep_7 -->|tool| ExecuteTools_6
++    ExecuteTools_6 -->|default| Observar_7
++    Observar_7 -->|default| Contexto_3
++    Contexto_3 -->|herramientas| AgentStep_8
++    AgentStep_8 -->|answer| VerificarCitas_5
++    AgentStep_8 -->|tool| ExecuteTools_6
++    Contexto_3 -->|cierre| Cierre_9
++    Cierre_9 -->|answer| VerificarCitas_5
++    Cierre_9 -->|tool| ExecuteTools_6
+     LayaRouter_2 -->|herramientas| Contexto_3
+-    GetQuestion_0 -->|exit| ExitChat_8
++    GetQuestion_0 -->|exit| ExitChat_10
+ ```
+ 
+ ## Filosofía
+diff -ruN a/banco/probes/rondas.py b/banco/probes/rondas.py
+--- a/banco/probes/rondas.py	2026-10-28 17:13:23.203559224 +0000
++++ b/banco/probes/rondas.py	2026-10-28 17:07:41.372035434 +0000
+@@ -119,7 +119,9 @@
+         if actual is None:
+             continue
+         actual["eventos"] += 1
+-        if nodo == "AgentStep":
++        if nodo in ("AgentStep", "Cierre"):
++            # X96: Cierre es la última llamada (la respuesta del turno que
++            # agotó el presupuesto): sin esto quedaba como "sin responder"
+             actual["seg_agente"] += float(evento.get("seg") or 0.0)
+             if accion == "tool":
+                 actual["rondas"] += 1
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-28 17:13:23.159558324 +0000
++++ b/docs/bitacora.md	2026-10-28 17:12:06.345878461 +0000
+@@ -5246,3 +5246,58 @@
+ `./calidad.sh` verde, 1111 passed; `tests_definidos` 1113 → 1115.
+ `nodos_largos` sigue en 15: `AgentStep` (92) y `ExecuteTools` (60) bajan en
+ 2b-2.
++
++---
++
++## Fase 2b-2 de elegancia — el presupuesto como arista (2026-10-28, X96)
++
++**Antes**: el cierre por presupuesto era un FLAG. `AgentStep.prep` calculaba
++`agotado`/`sin_progreso`/`corte_novedad`, retiraba las tools, inyectaba
++`AVISO_CIERRE` y marcaba `turno["aviso_cierre"]` para no duplicarlo si el
++prep volvía a correr; `turno["corte_novedad"]` era un flag que se consumía.
++La cuenta de la ronda (no-progreso, novedad, notas, checkpoint) vivía en
++`ExecuteTools.post`. Nada de eso se veía en el grafo.
++
++**Ahora** (decisiones del operador: nodo `Cierre`, y ese nombre hasta
++unificar con el `Cerrar` del kernel en 2b-3):
++
++```
++ExecuteTools → Observar → Contexto ─herramientas→ AgentStep
++                             ├─directo→ DirectAnswer
++                             └─cierre─→ Cierre ─answer→ VerificarCitas
++```
++
++- `Observar` cuenta la ronda: huella/no-progreso, novedad, el aviso de
++  sin-progreso y la nota de presupuesto (en el último resultado: es lo que
++  el modelo lee) y el checkpoint del punto seguro 2.
++- `motivo_de_cierre(shared)` es la ley L8 en una función: tope, no-progreso
++  o sin novedad, recalculado del turno — nada que consumir. Los dos cortes
++  que no son el techo dejan su evento de política (como antes).
++- `Contexto` sale a `cierre` cuando hay motivo, venga de donde venga.
++- `Cierre` es la última llamada: sin tools y con el aviso efímero. Corre UNA
++  vez por construcción: el flag que evitaba duplicar el aviso sobraba.
++
++**Se borra**: `aviso_cierre` y `corte_novedad` del turno. `resume.migrar` los
++descarta de checkpoints viejos (también de las claves de antes de la caja).
++`AgentStep` 92 → 72 líneas, `ExecuteTools` 60 → 26; `nodos_largos` 15 → 14.
++`Contexto` quedaba en 41 líneas con los eventos de política adentro: se
++mudaron a `motivo_de_cierre`, que es donde se decide el corte.
++
++**Conducta**: ninguna. `test_caracterizacion_chat.py` intacto. Probado
++contra la regresión: sin la arista `contexto - "cierre" >> cierre` caen tres
++tests de la caracterización (el presupuesto deja de cortar) y el guard de
++calles muertas.
++
++**El punto ciego que se cerró en el mismo PR**: `evals._turno_del_chat` y
++`banco/probes/rondas.ciclos` reconocían la respuesta solo en
++`AgentStep`/`DirectAnswer`. Sin sumar `Cierre`, todo turno que agotara el
++presupuesto habría quedado "sin respuesta" en el linter y en la sonda de
++rondas — el mismo tipo de bug que X95 encontró con `PreFetch`. Los dos
++candados nuevos fallan sin el cambio (probado), igual que el de `resume`.
++
++Los 9 tests que fijaban la forma vieja migraron al nodo que hoy hace cada
++cosa, con las mismas aserciones; `test_agotado_fuerza_respuesta_sin_tools` ya
++no afirma el flag (no existe) sino que el aviso es efímero y la pregunta
++nueva reabre el presupuesto.
++
++`./calidad.sh` verde, 1115 passed; `tests_definidos` 1115 → 1119.
+diff -ruN a/docs/design.md b/docs/design.md
+--- a/docs/design.md	2026-10-28 17:13:23.159558324 +0000
++++ b/docs/design.md	2026-10-28 17:12:06.341878368 +0000
+@@ -101,7 +101,7 @@
+ | Clave | Contenido |
+ |---|---|
+ | `messages` | Historial completo: system (fijo) + user + assistant (con `tool_calls` cuando pidió herramientas) + tool (resultados). Es lo único que DeepSeek recibe en cada vuelta |
+-| `turno` | **La caja de la pregunta en curso** (H2 PR 4a, `nodes.nuevo_turno()`): `rondas` (L8), `sin_progreso`/`huella` (exp/13), `huellas_vistas`/`racha_sin_novedad`/`corte_novedad` (exp/52-B), `aviso_cierre`, `skill` (exp/55), `router_pendiente` (exp/43) y `uso_inicio` (exp/90). `GetQuestion` la REEMPLAZA entera: no hay `pop` que olvidar. Es JSON y viaja en el checkpoint |
++| `turno` | **La caja de la pregunta en curso** (H2 PR 4a, `nodes.nuevo_turno()`): `rondas` (L8), `sin_progreso`/`huella` (exp/13), `huellas_vistas`/`racha_sin_novedad` (exp/52-B), `ruta` (X95), `skill` (exp/55), `router_pendiente` (exp/43) y `uso_inicio` (exp/90). `GetQuestion` la REEMPLAZA entera: no hay `pop` que olvidar. Es JSON y viaja en el checkpoint |
+ | `_objetivo` / `tokens_por_pregunta` | De la SESIÓN, no de la pregunta: la tarea vigente (un "seguí" no la pisa) y el costo cerrado de cada pregunta |
+ | `compacciones` / `_compaccion_huella` | Compactaciones aplicadas al historial y huella del historial ya compactado (evita re-compactar la misma ronda) |
+ | `_respaldo_huella` / `_respaldo_ruta` | Huella de la última zona fría respaldada en `memoria/` y ruta de ese respaldo: si la siguiente compacción descarta la MISMA zona fría no se reescribe (exp/70; el marcador A17 sigue nombrando la ruta vigente) |
+@@ -112,9 +112,11 @@
+ | Nodo | Tipo | prep | exec | post |
+ |---|---|---|---|---|
+ | GetQuestion | Node | — | `input()` (ignora vacías; EOF → exit) | `salir/exit/quit` → `exit`; si no, resetea el presupuesto por pregunta (ley L8) y agrega el mensaje user → `continue`; `/aprobaciones` imprime el historial HITL y NO entra al historial |
+-| Contexto | Node | si el historial supera `COMPACTION_CHARS`: respaldo de la zona fría (gancho `al_compactar`), compacción, recorte de tool results viejos y aviso de ventana caliente | — | sale por `turno["ruta"]` (`herramientas`/`directo`, la fija el router; tras una ronda de tools, `herramientas`) — X95 |
+-| AgentStep | Node (max_retries=3, wait=5) | historial + tools (sin tools si ya gastó el límite) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
+-| ExecuteTools | Node | último `tool_calls` | ejecuta cada llamada (`run_tool_call`) | agrega mensajes tool, suma `tool_rounds` → `default` |
++| Contexto | Node | si el historial supera `COMPACTION_CHARS`: respaldo de la zona fría (gancho `al_compactar`), compacción, recorte de tool results viejos y aviso de ventana caliente | — | sale por `cierre` si `motivo_de_cierre` (tope, no-progreso o sin novedad); si no, por `turno["ruta"]` (`herramientas`/`directo`, la fija el router; tras una ronda de tools, `herramientas`) — X95, X96 |
++| Observar | Node | la ronda recién ejecutada | — | cuenta la ronda, huella/no-progreso y novedad; agrega al último resultado el aviso de sin-progreso y la nota de presupuesto; checkpoint (punto seguro 2) → `default` — X96 |
++| Cierre | Node (max_retries=3, wait=5) | historial + `AVISO_CIERRE` efímero, **sin tools** | igual que AgentStep | la respuesta de un turno que agotó el presupuesto → `answer` — X96 |
++| AgentStep | Node (max_retries=3, wait=5) | historial + tools (el subset del skill si hay uno activo) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
++| ExecuteTools | Node | último `tool_calls` | ejecuta cada llamada (`run_tool_call`) | agrega los mensajes tool → `default` (la cuenta de la ronda es de Observar, X96) |
+ | VerificarCitas | Node (max_retries=2, wait=2) | la última respuesta (si `CITAS_VERIFICAR=1` y no trae `tool_calls`) | verifica `ruta:línea` contra el disco; si alguna falla, UNA corrección sin tools (`exec_fallback`: si la corrección revienta, queda la respuesta) | reemplaza el contenido corregido → `default` (antes vivía en `AgentStep.post`, sin retry: auditoría F6) |
+ | ExitChat | Node | — | — | imprime despedida |
+ 
+@@ -153,7 +155,7 @@
+ | Límite | Qué | Dónde |
+ |---|---|---|
+ | Contención | Ninguna ruta sale de `AGENT_ALLOWED_DIRS` (resueltas con `Path.resolve`) | `fs_tools._resolve` |
+-| Rondas | `presupuesto(shared)` por pregunta (override > alcance amplio > `MAX_TOOL_ROUNDS`); al llegar, `AgentStep` retira las tools y el modelo debe responder. Se reinicia con cada pregunta nueva del usuario (el comando `/aprobaciones` incluido, que no agrega mensaje) | `nodes.presupuesto`, `AgentStep.prep` |
++| Rondas | `presupuesto(shared)` por pregunta (override > alcance amplio > `MAX_TOOL_ROUNDS`); al llegar, `Contexto` sale a `Cierre`, que llama sin tools y el modelo debe responder (X96: una arista, ya no un flag). Se reinicia con cada pregunta nueva del usuario (el comando `/aprobaciones` incluido, que no agrega mensaje) | `nodes.presupuesto`, `AgentStep.prep` |
+ | No-progreso | Repeticiones idénticas de la ronda de tools (`fingerprint` de nombre+argumentos) a `UMBRAL_SIN_PROGRESO`: se retiran las tools sin esperar el techo, con el evento `corte_no_progreso` en la traza | `nodes.fingerprint`, `ExecuteTools.post`, `AgentStep.prep` |
+ | Contexto | `READ_MAX_CHARS` por lectura, listados truncados | `fs_tools` |
+ | Reglas duras del router | recencia (`regla_temporal`, exp/46) e imperativos de capacidad (`regla_imperativo_capacidad`, exp/54) mandan a herramientas ANTES de Laya; en shadow no cortan | `utils/laya_routing.py` |
+diff -ruN a/docs/elegancia.md b/docs/elegancia.md
+--- a/docs/elegancia.md	2026-10-28 17:13:23.159558324 +0000
++++ b/docs/elegancia.md	2026-10-28 17:12:06.345878461 +0000
+@@ -60,7 +60,7 @@
+ | `vocabulario_hardcodeado` | 8 | ≤ 2 (fases 3–4; quedan los sí/no del HITL) |
+ | `settings_leidos` | 89 → 84 (X93) | ≤ 45 (fases 1–5, ver inventario) |
+ | `imports_perezosos` | 137 → 126 (X92) | ≤ 40 |
+-| `nodos_largos` | 15 | ≤ 3 |
++| `nodos_largos` | 15 → 14 (X96) | ≤ 3 |
+ | `texto_de_prompt` | 2748 chars | ≤ 800 |
+ 
+ ## Plan
+@@ -69,7 +69,7 @@
+ |---|---|---|---|
+ | 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
+ | 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
+-| 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. Falta: el chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
++| 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. ✅ 2b-2 (X96): `Observar` y `Cierre` (el presupuesto como arista). Falta: el chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
+ | 3 | `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
+ | 4 | Se borran reglas, voto, `alcance_amplio`, perfiles y directivas (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
+ | 5 | Política de comandos como datos (S10); skills por descripción; Laya 0.4.x | Mínimo | `test_policy_bypass.py` idéntico |
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-28 17:13:23.159558324 +0000
++++ b/docs/estado.md	2026-10-28 17:12:06.345878461 +0000
+@@ -136,6 +136,7 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
++| X96 | — | El cierre por presupuesto era un flag dentro de `AgentStep.prep` (`aviso_cierre` para no duplicar el aviso, `corte_novedad` consumible) y la cuenta de la ronda vivía en `ExecuteTools.post`: el grafo no mostraba cuándo se cerraba una pregunta. Además `evals` y `banco/probes/rondas.py` reconocían la respuesta solo en `AgentStep`/`DirectAnswer` | ✅ 2026-10-28 (fase 2b-2) | `Observar` cuenta la ronda; `Contexto` sale a `Cierre` cuando `motivo_de_cierre` (tope, no-progreso, sin novedad); `Cierre` llama sin tools con el aviso — los dos flags se borran y `resume` los descarta de checkpoints viejos. `evals`, `rondas` y `replay` reconocen los nodos nuevos. Ratchet `nodos_largos` 15 → 14. Caracterización intacta | `test_un_turno_cerrado_por_presupuesto_cuenta_como_respuesta`, `test_un_cierre_por_presupuesto_es_una_respuesta`, `test_resume_descarta_las_claves_que_reemplazo_la_estructura`, `test_el_corte_que_no_es_el_techo_deja_su_evento` |
+ | X95 | — | La compacción vivía dentro de `AgentStep.prep` (30 líneas) y la ruta directa la heredaba por `super().prep`: el grafo no la mostraba. Al moverla apareció un bug previo del linter de trazas: `PreFetch/continue` y `VerificarCitas/default` nunca entraron a `ACCIONES_CANONICAS`, así que toda traza real del chat desde exp/50 daba dos violaciones (c) falsas | ✅ 2026-10-28 (fase 2b-1) | nodo `Contexto` antes de cada llamada al modelo, sale por `turno["ruta"]`; `replay` lo trata como paso transparente (las trazas viejas siguen válidas) y `evals` lo reconoce junto con las dos acciones que faltaban. Caracterización intacta | `test_caminata_con_contexto_es_valida`, `test_el_linter_acepta_la_caminata_con_contexto` |
+ | X94 | — | El kernel guardaba objetos vivos en el shared (`ctx` con el LLM, `tools` con callables; el supervisor además la ley con su `Lock`) y llamaba al historial `mensajes` mientras el chat dice `messages`: el chat no podía correr sobre el kernel sin perder los checkpoints (F4) | ✅ 2026-10-28 (fase 2a) | `loop(ctx, tools)` fija lo vivo en los nodos; `semilla(system, pedido)` devuelve solo `{"messages": …}`; el supervisor arma una `Corrida` (ctx + tools + ley) por flujo. Sin cambio de conducta | `test_el_shared_del_loop_es_json_en_cada_paso`, `test_el_shared_del_supervisor_es_json` |
+ | X93 | — | El producto conocía al laboratorio (`producto_conoce_lab` 10): perfiles de presupuesto `banco` sin invocador, `delegar` importaba el driver de `banco.banco`, `riesgo.origen*` leía `BANCO`/`DELEGADO`, los adapters de fable vivían en `banco/material/` y el juez y `_lineas_de` excluían `GROUND-TRUTH.md` por nombre | ✅ 2026-10-28 (fase 1b) | perfiles borrados; driver PTY en `utils/conductor.py`; el banco manda sus logs a `salidas/banco/` (el sintético no se marca: no llega) y la etiqueta de riesgo decidida por `HITL_SCOPE` sale `scope`; adapters en `fable/dominios/`; `fable_judge --ignorar NOMBRE` genérico. Ratchet `producto_conoce_lab` **10 → 0**, `settings_leidos` 89 → 84 | `test_la_etiqueta_delegada_no_cuenta_como_humana`, `test_env_del_chat_aisla_la_memoria_y_marca_procedencia`, `test_la_answer_sheet_nunca_es_evidencia` |
+diff -ruN a/docs/roadmap.md b/docs/roadmap.md
+--- a/docs/roadmap.md	2026-10-28 17:13:23.159558324 +0000
++++ b/docs/roadmap.md	2026-10-28 17:12:06.345878461 +0000
+@@ -10,9 +10,9 @@
+ `producto_conoce_lab` 10 → 0). Fase 2 en curso (plan en
+ `docs/elegancia.md`): **2a cerrada** (X94, el kernel con el shared solo de
+ datos) y **2b-1** (X95, `Contexto`: la compacción como nodo). Plan de 2b
+-revisado (incremental, cada PR verde y con sus tests migrados): 2b-2
+-`Observar` (lo que `ExecuteTools.post` decide: no-progreso, novedad, nota de
+-presupuesto) y el cierre del presupuesto; 2b-3 `AgentStep`/`ExecuteTools` →
++revisado (incremental, cada PR verde y con sus tests migrados): **2b-2
++cerrada** (X96: `Observar` cuenta la ronda y el presupuesto es la arista
++`Contexto → Cierre`); 2b-3 `AgentStep`/`ExecuteTools` →
+ `Paso`/`Actuar` del kernel con renombre y alias en `replay`/`evals`. Sin
+ cambio de conducta; 2d (esquema de tools fijo + `tool_choice="none"`) espera
+ la línea de base de fable s17–s20 sobre `012b92f` y la prueba de que
+diff -ruN a/evals.py b/evals.py
+--- a/evals.py	2026-10-28 17:13:23.147558079 +0000
++++ b/evals.py	2026-10-28 17:07:41.372035434 +0000
+@@ -280,6 +280,10 @@
+     ("LayaRouter", "directo"), ("LayaRouter", "herramientas"),
+     # X95: la compacción antes de cada llamada al modelo; sale por la ruta
+     ("Contexto", "directo"), ("Contexto", "herramientas"),
++    # X96: el presupuesto se acabó (arista de Contexto), la ronda se cuenta y
++    # la última llamada va sin tools
++    ("Contexto", "cierre"), ("Observar", "default"),
++    ("Cierre", "answer"), ("Cierre", "tool"),
+     ("AgentStep", "tool"), ("AgentStep", "answer"),
+     ("DirectAnswer", "tool"), ("DirectAnswer", "answer"),
+     ("ExecuteTools", "default"),
+@@ -369,7 +373,8 @@
+             if e["accion"] == "answer":
+                 respuesta = True
+                 break
+-        elif e["nodo"] == "DirectAnswer":
++        elif e["nodo"] in ("DirectAnswer", "Cierre"):
++            # X96: Cierre es la respuesta de un turno que agotó el presupuesto
+             es_chat = respuesta = True
+             break
+     return hay_router, respuesta, es_chat
+diff -ruN a/flow.py b/flow.py
+--- a/flow.py	2026-10-28 17:13:23.143557997 +0000
++++ b/flow.py	2026-10-28 17:07:42.988068904 +0000
+@@ -2,12 +2,14 @@
+ 
+ from nodes import (
+     AgentStep,
++    Cierre,
+     Contexto,
+     DirectAnswer,
+     ExecuteTools,
+     ExitChat,
+     GetQuestion,
+     LayaRouter,
++    Observar,
+     PreFetch,
+     VerificarCitas,
+ )
+@@ -19,6 +21,8 @@
+     contexto = Contexto()  # compacta antes de CADA llamada al modelo
+     step = AgentStep(max_retries=3, wait=5)
+     tools = ExecuteTools()
++    observar = Observar()  # cuenta la ronda: no-progreso, novedad, notas
++    cierre = Cierre(max_retries=3, wait=5)  # la última llamada, sin tools
+     bye = ExitChat()
+     # la respuesta pasa por la verificación de citas antes de la próxima
+     # pregunta: un nodo propio (con retry), no un paso escondido en post
+@@ -49,8 +53,14 @@
+     step - "answer" >> citas  # respuesta entregada: se verifican sus citas
+     citas >> ask              # y vuelve a la siguiente pregunta
+     contexto - "herramientas" >> step
++    contexto - "cierre" >> cierre  # el presupuesto se acabó: la última llamada
++    cierre - "answer" >> citas
++    # Cierre hereda el post de AgentStep, que puede devolver "tool": nunca
++    # pasa (las tools van retiradas) pero la arista existe, como en DirectAnswer
++    cierre - "tool" >> tools
+     step - "tool" >> tools  # pidió herramientas: ejecutarlas y volver a pensar
+-    tools >> contexto       # y antes de pensar, el contexto otra vez
++    tools >> observar       # la ronda se cuenta
++    observar >> contexto    # y antes de pensar, el contexto otra vez
+     ask - "exit" >> bye
+ 
+     return Flow(start=ask)
+diff -ruN a/nodes.py b/nodes.py
+--- a/nodes.py	2026-10-28 17:13:23.147558079 +0000
++++ b/nodes.py	2026-10-28 17:10:21.279462927 +0000
+@@ -168,8 +168,6 @@
+         "huella": None,          # huella de la última ronda
+         "huellas_vistas": [],    # novedad acumulada (exp/52-B)
+         "racha_sin_novedad": 0,
+-        "corte_novedad": False,
+-        "aviso_cierre": False,   # el aviso efímero de cierre ya se mandó
+         "skill": None,           # id del skill activo (exp/55)
+         "router_pendiente": None,  # id de la decisión shadow a etiquetar (exp/43)
+         "uso_inicio": None,      # desglose de tokens al empezar (exp/90)
+@@ -252,6 +250,24 @@
+     return t["rondas"] >= minimo and t["racha_sin_novedad"] >= k
+ 
+ 
++def motivo_de_cierre(shared):
++    """Por qué se acabó el presupuesto de ESTA pregunta (ley L8), o None si
++    sigue: el tope de rondas, la misma ronda repetida (no-progreso, exp/13) o,
++    con CORTE_NOVEDAD, rondas sin llamadas nuevas (exp/52-B). Lo evalúa
++    Contexto antes de cada llamada al modelo (X96). Un corte que NO es el
++    techo deja su evento de política: visible desde .runs."""
++    t = turno(shared)
++    if t["rondas"] >= presupuesto(shared):
++        return "tope"
++    if t["sin_progreso"] >= UMBRAL_SIN_PROGRESO:
++        evento_politica("corte_no_progreso")
++        return "sin_progreso"
++    if corte_por_novedad_activo(shared):
++        evento_politica("corte_sin_novedad", f"{t['racha_sin_novedad']} rondas sin llamadas nuevas")
++        return "sin_novedad"
++    return None
++
++
+ AVISO_CIERRE = (
+     "(presupuesto de herramientas agotado) Respondé AHORA con lo que tengas: "
+     "hallazgos, límites y qué falta. No emitas tool calls; si te falta "
+@@ -419,7 +435,9 @@
+     reemplaza por un marcador (código puro, sin LLM; los invariantes del modo
+     thinking los da utils/compaccion.compactar); si ni así baja, se recortan
+     los tool results viejos (exp/91) y se avisa una vez (X51). La huella evita
+-    re-compactar la misma ronda. Sale por la ruta que eligió el router."""
++    re-compactar la misma ronda. Sale por la ruta que eligió el router, o por
++    `cierre` si el presupuesto de la pregunta se acabó (X96): venga de donde
++    venga, la próxima llamada es la última y va sin tools."""
+ 
+     def prep(self, shared):
+         tope = _entero("COMPACTION_CHARS", 60000)
+@@ -440,6 +458,8 @@
+         _aviso_ventana_caliente(shared, len(serializar(shared["messages"])), tope)
+ 
+     def post(self, shared, prep_res, exec_res):
++        if motivo_de_cierre(shared):
++            return "cierre"
+         if turno(shared).get("ruta") == "directo":
+             return "directo"
+         return "herramientas"
+@@ -447,39 +467,19 @@
+ 
+ class AgentStep(Node):
+     def prep(self, shared):
+-        # Techo adaptativo por operación (exp/13) + escape por no-progreso:
+-        # si el modelo repite la MISMA ronda de tools demasiadas veces, se
+-        # retiran las tools sin esperar el techo — el loop no se paga hasta
+-        # el máximo. presupuesto() lee MAX_TOOL_ROUNDS en runtime.
+-        tope = presupuesto(shared)
+-        t = turno(shared)
+-        agotado = t["rondas"] >= tope
+-        sin_progreso = t["sin_progreso"] >= UMBRAL_SIN_PROGRESO
+-        corte_novedad, t["corte_novedad"] = t["corte_novedad"], False
+-        if sin_progreso and not agotado:
+-            # incidente visible desde .runs: el corte NO fue por techo
+-            evento_politica("corte_no_progreso")
+-        elif corte_novedad and not agotado:
+-            evento_politica(
+-                "corte_sin_novedad",
+-                f"{t['racha_sin_novedad']} rondas sin llamadas nuevas",
+-            )
+-        # Al llegar al límite de rondas se retiran las tools: el modelo debe responder ya.
+-        tools = None if (agotado or sin_progreso or corte_novedad) else TOOLS
+-        if tools is not None and t["skill"]:
++        # El cierre por presupuesto ya no pasa por acá: Contexto lo decide y
++        # sale a Cierre (X96). AgentStep siempre ofrece tools.
++        tools = TOOLS
++        skill_id = turno(shared)["skill"]
++        if skill_id:
+             # exp/55: mientras el skill está activo se anuncia SOLO su subset
+             # (guía, no sandbox: el action space completo sigue existiendo).
+             # En shared viaja el ID (JSON): el objeto Skill se guardaba como su
+             # repr y un resume lo cargaba roto (auditoría 2026-10-26, F4).
+             from utils.skills import disponibles, filtrar_tools
+ 
+-            skill = next((h for h in disponibles() if h.id == t["skill"]), None)
++            skill = next((h for h in disponibles() if h.id == skill_id), None)
+             tools = filtrar_tools(tools, skill) if skill else tools
+-        if tools is None and not t["aviso_cierre"]:
+-            t["aviso_cierre"] = True
+-            # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
+-            # el modelo sigue emitiendo tool calls en vez de cerrar la respuesta.
+-            return list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None
+         return shared["messages"], tools
+ 
+     def exec(self, inputs):
+@@ -591,41 +591,40 @@
+         return resultados
+ 
+     def post(self, shared, prep_res, exec_res):
++        shared["messages"].extend(exec_res)
++        return "default"
++
++
++class Observar(Node):
++    """Lo que deja una ronda de tools, contado por código (X96): la ronda, su
++    huella (no-progreso, exp/13), la novedad acumulada (exp/52-B) y lo que el
++    MODELO tiene que leer — el aviso de sin-progreso y la nota de presupuesto
++    viajan en el último resultado, porque la terminal no le llega. Después el
++    checkpoint (exp/48, punto seguro 2: la ronda quedó registrada). Si el
++    presupuesto se acabó lo decide Contexto, antes de la próxima llamada."""
++
++    def prep(self, shared):
++        return next((m["tool_calls"] for m in reversed(shared["messages"])
++                     if m.get("role") == "assistant" and m.get("tool_calls")), [])
++
++    def post(self, shared, llamadas, _):
+         t = turno(shared)
+         t["ruta"] = "herramientas"  # tras una ronda de tools se vuelve a AgentStep
+         t["rondas"] += 1
+-        ronda = t["rondas"]
+         tope = presupuesto(shared)
+-        # No-progreso (exp/13, opción D): se compara la HUELLA de esta ronda
+-        # de tools con la anterior. Igual → acumula; distinta → resetea. El
+-        # warning viaja en la conversación (misma vía que la nota), no en la
+-        # terminal: es lo único que el modelo lee.
+-        fp = fingerprint(prep_res)
+-        t["sin_progreso"] = t["sin_progreso"] + 1 if fp == t["huella"] else 0
+-        t["huella"] = fp
+-        # exp/52-B: novedad acumulada (tool+argumentos). Con CORTE_NOVEDAD=k
+-        # (default 0=off) el loop se corta tras k rondas sin ninguna llamada
+-        # nueva; la calidad se valida en el A/B del banco, no acá.
+-        sin_novedad = actualizar_novedad(shared, prep_res or [])
+-        if sin_novedad and corte_por_novedad_activo(shared):
+-            t["corte_novedad"] = True
+-        if t["sin_progreso"] >= 1 and exec_res:
+-            exec_res[-1]["content"] = (
+-                f"{exec_res[-1]['content']}\n⚠ Sin progreso: repetiste la "
+-                f"misma llamada {t['sin_progreso'] + 1}ª vez — cambiá de "
+-                "estrategia o cerrá el estado."
+-            )
+-        # la nota de presupuesto viaja en la conversación (no en la
+-        # terminal): es la única vista del tope que tiene el modelo.
+-        nota = nota_presupuesto(ronda, tope)
+-        if nota and exec_res:
+-            exec_res[-1]["content"] = f"{exec_res[-1]['content']}\n{nota}"
+-        shared["messages"].extend(exec_res)
+-        # pulido de terminal (mesa 8): la ronda consumida se etiqueta para
+-        # que una secuencia de varias rondas muestre su avance (n/MAX).
+-        print(colorear("  " + progreso_ronda(ronda, tope), "info"), flush=True)
+-        # exp/48: punto seguro 2 — la ronda de tools quedó registrada.
+-        checkpoint(thread_id(), "ExecuteTools", "default", shared)
++        huella_ronda = fingerprint(llamadas)
++        t["sin_progreso"] = t["sin_progreso"] + 1 if huella_ronda == t["huella"] else 0
++        t["huella"] = huella_ronda
++        actualizar_novedad(shared, llamadas)
++        notas = [nota_presupuesto(t["rondas"], tope)]
++        if t["sin_progreso"]:
++            notas.insert(0, f"⚠ Sin progreso: repetiste la misma llamada {t['sin_progreso'] + 1}ª vez "
++                            "— cambiá de estrategia o cerrá el estado.")
++        ultimo = shared["messages"][-1] if shared["messages"] else {}
++        if ultimo.get("role") == "tool":
++            ultimo["content"] = "\n".join([ultimo["content"], *filter(None, notas)])
++        print(colorear("  " + progreso_ronda(t["rondas"], tope), "info"), flush=True)
++        checkpoint(thread_id(), "Observar", "default", shared)
+         return "default"
+ 
+ 
+@@ -913,6 +912,19 @@
+         return "directo"
+ 
+ 
++class Cierre(AgentStep):
++    """La última llamada de la pregunta: sin tools y con el aviso de cierre
++    (X96). Antes era un flag dentro de AgentStep.prep (`aviso_cierre`) para que
++    el aviso no se duplicara; ahora corre UNA vez por construcción — después
++    viene la respuesta. Las tool calls que el modelo emita igual se descartan
++    (normalizar con las tools retiradas, L8)."""
++
++    def prep(self, shared):
++        # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
++        # el modelo sigue emitiendo tool calls en vez de cerrar la respuesta.
++        return list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None
++
++
+ class DirectAnswer(AgentStep):
+     """AgentStep sin herramientas: la pregunta se responde de una."""
+ 
+@@ -920,7 +932,5 @@
+ 
+     def prep(self, shared):
+         # La compacción ya corrió en Contexto (la ruta directa mandaba el
+-        # historial entero sin techo, exp/36); acá el prep de AgentStep y
+-        # sin tools.
+-        mensajes, _ = super().prep(shared)
+-        return mensajes, None
++        # historial entero sin techo, exp/36). Sin tools.
++        return shared["messages"], None
+diff -ruN a/ratchets/baseline.json b/ratchets/baseline.json
+--- a/ratchets/baseline.json	2026-10-28 17:13:23.179558733 +0000
++++ b/ratchets/baseline.json	2026-10-28 17:12:09.089942152 +0000
+@@ -51,8 +51,8 @@
+         ],
+         "nodes.py": [
+           59,
+-          807,
+-          879
++          806,
++          878
+         ],
+         "research.py": [
+           78
+@@ -239,14 +239,13 @@
+         "juez.py:Judge": 144,
+         "juez_lote.py:CorrerJuez": 51,
+         "juez_lote.py:JuezLoteFlow": 108,
+-        "nodes.py:AgentStep": 92,
+-        "nodes.py:ExecuteTools": 60,
++        "nodes.py:AgentStep": 72,
+         "nodes.py:GetQuestion": 56,
+         "nodes.py:LayaRouter": 155,
+         "nodes.py:VerificarCitas": 53,
+         "research.py:Synthesizer": 60
+       },
+-      "metrica": 15
++      "metrica": 14
+     },
+     "producto_conoce_lab": {
+       "detalle": {},
+@@ -539,9 +538,9 @@
+         "tests/test_docs_sin_deriva.py": 5,
+         "tests/test_estado_flywheel.py": 3,
+         "tests/test_estado_riesgo.py": 3,
+-        "tests/test_estado_turno.py": 6,
++        "tests/test_estado_turno.py": 7,
+         "tests/test_estilo_humano.py": 9,
+-        "tests/test_evals.py": 16,
++        "tests/test_evals.py": 17,
+         "tests/test_f_prompt.py": 9,
+         "tests/test_fable.py": 29,
+         "tests/test_fable_dominios.py": 6,
+@@ -565,7 +564,7 @@
+         "tests/test_memoria.py": 25,
+         "tests/test_minar_errores.py": 16,
+         "tests/test_modulos.py": 19,
+-        "tests/test_novedad.py": 6,
++        "tests/test_novedad.py": 7,
+         "tests/test_pendientes.py": 39,
+         "tests/test_policy.py": 26,
+         "tests/test_policy_bypass.py": 35,
+@@ -576,7 +575,7 @@
+         "tests/test_ratchet_elegancia.py": 15,
+         "tests/test_replay.py": 17,
+         "tests/test_riesgo.py": 19,
+-        "tests/test_rondas.py": 5,
++        "tests/test_rondas.py": 6,
+         "tests/test_router.py": 12,
+         "tests/test_skills.py": 8,
+         "tests/test_smoke.py": 5,
+@@ -598,7 +597,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 1115
++      "metrica": 1119
+     },
+     "texto_de_prompt": {
+       "detalle": {
+diff -ruN a/replay.py b/replay.py
+--- a/replay.py	2026-10-28 17:13:23.147558079 +0000
++++ b/replay.py	2026-10-28 17:04:45.680393269 +0000
+@@ -70,7 +70,7 @@
+ # Eventos que NO son ni nodo ni tool: marcas de incidente y alias históricos
+ # vistos en trazas viejas (la misma tolerancia que TOOLS_CONOCIDAS de evals).
+ NO_NODOS_TOLERADOS = {
+-    "corte_no_progreso": "marca de incidente (nodes.ExecuteTools.prep)",
++    "corte_no_progreso": "marca de incidente (nodes.Contexto.post)",
+     "bash": "alias histórica de run_command en trazas viejas",
+ }
+ 
+@@ -79,7 +79,7 @@
+ # (supervisor, debate, juez...) dejan SUS eventos en el mismo archivo — son
+ # corridas de OTROS grafos, no caminatas del chat.
+ NODOS_CHAT = {"GetQuestion", "LayaRouter", "Contexto", "DirectAnswer", "AgentStep",
+-              "ExecuteTools", "ExitChat", "VerificarCitas"}
++              "ExecuteTools", "Observar", "Cierre", "ExitChat", "VerificarCitas"}
+ 
+ 
+ # 1) GRAFOS VIVOS: clases, acciones cableadas y aristas del chat
+@@ -181,6 +181,17 @@
+         for nodo in _nodos_alcanzables(start):
+             for accion, siguiente in nodo.successors.items():
+                 aristas_chat.add((type(nodo).__name__, accion, type(siguiente).__name__))
++    # X96: Observar cuenta la ronda entre ExecuteTools y Contexto: paso
++    # transparente (las caminatas previas iban ExecuteTools → Contexto o, antes
++    # de X95, ExecuteTools → AgentStep). Va PRIMERO: la regla de Contexto de
++    # abajo necesita ver ExecuteTools → Contexto para resolver la de X95.
++    aristas_chat |= {
++        (a, accion, c)
++        for (a, accion, b) in aristas_chat
++        if b == "Observar"
++        for (b2, accion2, c) in aristas_chat
++        if b2 == "Observar" and accion2 == "default"
++    }
+     # X95: Contexto (la compacción) corre antes de cada llamada al modelo y
+     # sale por la misma ruta por la que entró (o "herramientas" si entró por
+     # una arista que no es de ruta: PreFetch sin router, ExecuteTools). Las
+diff -ruN a/resume.py b/resume.py
+--- a/resume.py	2026-10-28 17:13:23.147558079 +0000
++++ b/resume.py	2026-10-28 17:07:41.372035434 +0000
+@@ -33,6 +33,10 @@
+     viejas = {nueva: shared.pop(vieja) for vieja, nueva in CLAVES_VIEJAS.items() if vieja in shared}
+     if "turno" not in shared:
+         shared["turno"] = {**nuevo_turno(), **viejas}
++    # X96: `aviso_cierre` y `corte_novedad` los reemplazó la estructura (el
++    # nodo Cierre, motivo_de_cierre): un checkpoint anterior los trae y sobran
++    for clave in ("aviso_cierre", "corte_novedad"):
++        shared["turno"].pop(clave, None)
+     return shared
+ 
+ 
+diff -ruN a/tests/test_chat_flujo.py b/tests/test_chat_flujo.py
+--- a/tests/test_chat_flujo.py	2026-10-28 17:13:23.151558161 +0000
++++ b/tests/test_chat_flujo.py	2026-10-28 17:05:43.501592955 +0000
+@@ -151,8 +151,9 @@
+     # el anuncio precede al resultado: aparece aunque el resultado viniera ok
+     assert len(resultados) == 2
+ 
+-    # la ronda se etiqueta con el avance sobre el tope
++    # la ronda se etiqueta con el avance sobre el tope (la cuenta Observar, X96)
+     et.post(shared, None, resultados)
++    nodes.Observar().post(shared, tool_calls, None)
+     salida = capsys.readouterr().out
+     assert f"⚙ ronda 1/{nodes.MAX_TOOL_ROUNDS}" in salida
+ 
+@@ -269,63 +270,68 @@
+     assert nodes.fingerprint(dos) == nodes.fingerprint(list(reversed(dos)))
+ 
+ def test_execute_tools_post_acumula_y_resetea_no_progress():
+-    """exp/13: ExecuteTools.post incrementa no_progress ante ronda idéntica y
+-    lo resetea cuando hay progreso real (huella distinta). El warning viaja
+-    en la conversación (último resultado), no en la terminal."""
++    """exp/13: la ronda incrementa no_progress ante ronda idéntica y lo
++    resetea cuando hay progreso real (huella distinta). El warning viaja en la
++    conversación (último resultado), no en la terminal. Desde X96 lo cuenta
++    Observar, tras ExecuteTools."""
+     import json as _json
+ 
+-    from nodes import ExecuteTools, fingerprint
++    from nodes import ExecuteTools, Observar, fingerprint
+ 
+     def tc(path):
+         return [{"function": {"name": "read_file",
+                               "arguments": _json.dumps({"path": path})}}]
+ 
+-    nodo = ExecuteTools()
++    ejecutar, observar = ExecuteTools(), Observar()
+     shared = {"messages": []}
++
++    def ronda(llamadas, resultado):
++        ejecutar.post(shared, llamadas, [{"role": "tool", "content": resultado}])
++        observar.post(shared, llamadas, None)
++
+     # ronda 1: mismo path → sin_progress 0 (primera vez)
+-    nodo.post(shared, tc("a"), [{"content": "r1"}])
++    ronda(tc("a"), "r1")
+     assert shared["turno"]["sin_progreso"] == 0
+     # ronda 2: idéntica → 1 y warning en el contenido
+-    nodo.post(shared, tc("a"), [{"content": "r2"}])
++    ronda(tc("a"), "r2")
+     assert shared["turno"]["sin_progreso"] == 1
+     assert "Sin progreso" in shared["messages"][-1]["content"]
+     # ronda 3: distinta → reset
+-    nodo.post(shared, tc("b"), [{"content": "r3"}])
++    ronda(tc("b"), "r3")
+     assert shared["turno"]["sin_progreso"] == 0
+     assert shared["turno"]["huella"] == fingerprint(tc("b"))
+ 
+ def _corte_por_no_progreso():
+-    """Deja la sesión en el estado del corte: contador en el umbral y tools
+-    retiradas. Devuelve (shared, step, ask) listos para postear la pregunta.
+-    Lo comparten los dos tests del reset (pregunta normal y /aprobaciones)."""
++    """Deja la sesión en el estado del corte: contador en el umbral y el
++    presupuesto cerrado (Contexto sale a `cierre`, X96). Devuelve (shared,
++    contexto, ask) listos para postear la pregunta."""
+     import json as _json
+ 
+-    from nodes import UMBRAL_SIN_PROGRESO, AgentStep, ExecuteTools, GetQuestion
++    from nodes import UMBRAL_SIN_PROGRESO, Contexto, ExecuteTools, GetQuestion, Observar
+ 
+     def tc(path):
+         return [{"function": {"name": "read_file",
+                               "arguments": _json.dumps({"path": path})}}]
+ 
+-    step, tools_node, ask = AgentStep(), ExecuteTools(), GetQuestion()
++    tools_node, observar, contexto, ask = ExecuteTools(), Observar(), Contexto(), GetQuestion()
+     shared = {"messages": [{"role": "system", "content": "s"}]}
+     for i in range(UMBRAL_SIN_PROGRESO + 1):
+         tools_node.post(shared, tc("a.py"),
+                         [{"role": "tool", "tool_call_id": f"t{i}", "content": "r"}])
++        observar.post(shared, tc("a.py"), None)
+     assert shared["turno"]["sin_progreso"] == UMBRAL_SIN_PROGRESO
+-    _, tools = step.prep(shared)
+-    assert tools is None                       # corte: se retiran las tools
+-    return shared, step, ask
++    assert contexto._run(shared) == "cierre"   # corte: la próxima llamada cierra
++    return shared, contexto, ask
+ 
+ def test_no_progress_se_resetea_con_la_pregunta_nueva():
+     """exp/13 (opción D): el corte por no-progreso es POR PREGUNTA (ley L8).
+     Sin el reset en GetQuestion.post el contador quedaba pegado, AgentStep
+     retiraba las tools para siempre y el protocolo de continuación de exp/4
+     ('un mensaje nuevo reinicia el presupuesto') era falso."""
+-    shared, step, ask = _corte_por_no_progreso()
++    shared, contexto, ask = _corte_por_no_progreso()
+     ask.post(shared, None, "otra pregunta")    # mensaje nuevo del usuario
+     assert shared["turno"]["sin_progreso"] == 0
+-    _, tools = step.prep(shared)
+-    assert tools is not None                   # el presupuesto se reinició
++    assert contexto._run(shared) == "herramientas"   # el presupuesto se reinició
+ 
+ 
+ def test_run_tool_call_devuelve_error_como_feedback():
+@@ -368,27 +374,27 @@
+ 
+ 
+ def test_agotado_fuerza_respuesta_sin_tools():
+-    """Al retirar las tools se agrega un aviso efímero de cierre: medido en
+-    vivo, sin él el modelo sigue emitiendo tool calls en vez de responder
+-    (auditoría de sesión real, A38). El aviso no se duplica y se resetea con
+-    la pregunta nueva."""
+-    from nodes import AVISO_CIERRE, AgentStep, GetQuestion, nuevo_turno
++    """Al agotarse el presupuesto la última llamada va sin tools y con un aviso
++    efímero de cierre: medido en vivo, sin él el modelo sigue emitiendo tool
++    calls en vez de responder (A38). Desde X96 lo garantiza la ESTRUCTURA:
++    Contexto sale a `cierre` y el nodo Cierre corre una vez — el flag
++    `aviso_cierre` que evitaba duplicarlo ya no existe. La pregunta nueva
++    reabre el presupuesto."""
++    from nodes import AVISO_CIERRE, Cierre, Contexto, GetQuestion, nuevo_turno
+ 
+     shared = {"messages": [{"role": "system", "content": "s"},
+                              {"role": "user", "content": "auditá el repo"}],
+               "turno": {**nuevo_turno(), "rondas": 8}}
+-    mensajes, tools = AgentStep().prep(shared)
++    assert Contexto()._run(shared) == "cierre"
++    mensajes, tools = Cierre().prep(shared)
+     assert tools is None
+     assert mensajes[-1]["content"] == AVISO_CIERRE
+-    assert shared["turno"]["aviso_cierre"] is True
+-
+-    mensajes2, tools2 = AgentStep().prep(shared)
+-    assert tools2 is None
+-    # el aviso es EFÍMERO: se inyecta una vez; una segunda prep no lo duplica
+-    assert all(m.get("content") != AVISO_CIERRE for m in mensajes2)
++    # el aviso es EFÍMERO: no entra al historial
++    assert all(m.get("content") != AVISO_CIERRE for m in shared["messages"])
++    assert "aviso_cierre" not in shared["turno"]
+ 
+     GetQuestion().post(shared, None, "otra pregunta")
+-    assert shared["turno"]["aviso_cierre"] is False
++    assert Contexto()._run(shared) == "herramientas"
+ 
+ 
+ def test_getquestion_cierra_el_costo_de_la_pregunta_anterior(monkeypatch):
+diff -ruN a/tests/test_consolidacion.py b/tests/test_consolidacion.py
+--- a/tests/test_consolidacion.py	2026-10-28 17:13:23.155558242 +0000
++++ b/tests/test_consolidacion.py	2026-10-28 17:05:43.505593038 +0000
+@@ -123,7 +123,9 @@
+     monkeypatch.setattr(nodes, "call_llm_agent", lambda m, t: msg)
+     shared = {"messages": [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}],
+               "turno": {**nodes.nuevo_turno(), "rondas": 99}}
+-    accion = nodes.AgentStep()._run(shared)
++    # X96: con el presupuesto agotado Contexto sale a Cierre, que va sin tools
++    assert nodes.Contexto()._run(shared) == "cierre"
++    accion = nodes.Cierre()._run(shared)
+     assert accion == "answer"
+     ultimo = shared["messages"][-1]
+     assert "tool_calls" not in ultimo
+diff -ruN a/tests/test_estado_turno.py b/tests/test_estado_turno.py
+--- a/tests/test_estado_turno.py	2026-10-28 17:13:23.151558161 +0000
++++ b/tests/test_estado_turno.py	2026-10-28 17:07:10.147388744 +0000
+@@ -87,3 +87,17 @@
+     estado_sesion.restaurar(None)
+     estado_sesion.restaurar({})
+     assert call_llm.uso_de_sesion() == antes
++
++
++def test_resume_descarta_las_claves_que_reemplazo_la_estructura():
++    """X96: `aviso_cierre` y `corte_novedad` eran flags del turno; los
++    reemplazó la estructura (el nodo Cierre y motivo_de_cierre). Un checkpoint
++    anterior los trae: resume los descarta y el turno queda como uno nuevo."""
++    viejo = {"messages": [], "turno": {**nodes.nuevo_turno(), "aviso_cierre": True,
++                                       "corte_novedad": True, "rondas": 2}}
++    migrado = resume.migrar(viejo)
++    assert "aviso_cierre" not in migrado["turno"] and "corte_novedad" not in migrado["turno"]
++    assert migrado["turno"]["rondas"] == 2
++    # y desde las claves de antes de la caja (`_aviso_cierre`), igual
++    anterior = resume.migrar({"messages": [], "_aviso_cierre": True, "_corte_novedad": True})
++    assert set(anterior["turno"]) == set(nodes.nuevo_turno())
+diff -ruN a/tests/test_evals.py b/tests/test_evals.py
+--- a/tests/test_evals.py	2026-10-28 17:13:23.159558324 +0000
++++ b/tests/test_evals.py	2026-10-28 17:07:10.143388661 +0000
+@@ -336,6 +336,22 @@
+     assert linter_traza(traza) == []
+ 
+ 
++def test_un_turno_cerrado_por_presupuesto_cuenta_como_respuesta():
++    """X96: un turno que agota el presupuesto termina en Cierre/answer. El
++    linter tiene que reconocerlo como respuesta (invariante b) y como acción
++    canónica (c); sin eso el turno quedaba "sin respuesta" — el mismo punto
++    ciego que X95 encontró con PreFetch y VerificarCitas."""
++    from evals import _turno_del_chat, linter_traza
++
++    traza = [{"nodo": n, "accion": a, "seg": 0.1} for n, a in (
++        ("GetQuestion", "continue"), ("PreFetch", "continue"), ("LayaRouter", "herramientas"),
++        ("Contexto", "herramientas"), ("AgentStep", "tool"), ("read_file", "ok"),
++        ("ExecuteTools", "default"), ("Observar", "default"), ("Contexto", "cierre"),
++        ("Cierre", "answer"), ("VerificarCitas", "default"))]
++    assert linter_traza(traza) == []
++    assert _turno_del_chat(traza, 0) == (True, True, True)
++
++
+ def test_el_linter_reconoce_las_acciones_y_tools_que_faltaban():
+     """exp/37: el linter marcaba como desconocidas una arista real del juez
+     (Judge/retry, juez.py:233) y cuatro tools de módulos (visión y a2a), lo que
+diff -ruN a/tests/test_novedad.py b/tests/test_novedad.py
+--- a/tests/test_novedad.py	2026-10-28 17:13:23.151558161 +0000
++++ b/tests/test_novedad.py	2026-10-28 17:12:04.833843366 +0000
+@@ -56,14 +56,19 @@
+     assert nodes.corte_por_novedad_activo(_con_turno(rondas=3, racha_sin_novedad=2)) is True
+ 
+ 
+-def test_agent_step_retira_tools_con_corte_de_novedad():
++def test_agent_step_retira_tools_con_corte_de_novedad(monkeypatch):
++    """Con CORTE_NOVEDAD activo y la racha cumplida, Contexto sale a `cierre`
++    (X96): el motivo se recalcula del turno, ya no es un flag que se consume."""
++    monkeypatch.setenv("CORTE_NOVEDAD", "2")
++    monkeypatch.setenv("CORTE_NOVEDAD_MIN", "3")
+     shared = {"messages": [{"role": "user", "content": "hola"}],
+-              **_con_turno(rondas=4, racha_sin_novedad=2, corte_novedad=True)}
+-    mensajes, tools = nodes.AgentStep().prep(shared)
++              **_con_turno(rondas=4, racha_sin_novedad=2)}
++    assert nodes.motivo_de_cierre(shared) == "sin_novedad"
++    assert nodes.Contexto()._run(shared) == "cierre"
++    mensajes, tools = nodes.Cierre().prep(shared)
+     assert tools is None
+-    assert shared["turno"]["aviso_cierre"] is True
+     assert mensajes[-1]["content"] == nodes.AVISO_CIERRE
+-    assert shared["turno"]["corte_novedad"] is False  # el flag se consume una vez
++    assert "corte_novedad" not in shared["turno"]
+ 
+ 
+ def test_evento_tool_guarda_la_huella_sin_contenido(monkeypatch):
+@@ -72,3 +77,18 @@
+     tracing.evento_tool("read_file", True, 0.1, huella="ab12cd34")
+     assert capturado["nodo"] == "read_file" and capturado["accion"] == "ok"
+     assert capturado["huella"] == "ab12cd34"
++
++
++def test_el_corte_que_no_es_el_techo_deja_su_evento(monkeypatch):
++    """X96: el evento de política de un corte (no-progreso o sin-novedad) lo
++    emite motivo_de_cierre — antes AgentStep.prep. El techo no deja evento
++    propio (la traza ya muestra las rondas); los otros dos sí, una vez cada
++    vez que Contexto los evalúa."""
++    eventos = []
++    monkeypatch.setattr(nodes, "evento_politica", lambda nombre, detalle="": eventos.append(nombre))
++    assert nodes.motivo_de_cierre(_con_turno(rondas=99)) == "tope"
++    assert nodes.motivo_de_cierre(_con_turno(sin_progreso=nodes.UMBRAL_SIN_PROGRESO)) == "sin_progreso"
++    monkeypatch.setenv("CORTE_NOVEDAD", "2")
++    assert nodes.motivo_de_cierre(_con_turno(rondas=4, racha_sin_novedad=2)) == "sin_novedad"
++    assert nodes.motivo_de_cierre(_con_turno(rondas=1)) is None
++    assert eventos == ["corte_no_progreso", "corte_sin_novedad"]
+diff -ruN a/tests/test_replay.py b/tests/test_replay.py
+--- a/tests/test_replay.py	2026-10-28 17:13:23.151558161 +0000
++++ b/tests/test_replay.py	2026-10-28 17:07:10.143388661 +0000
+@@ -105,7 +105,7 @@
+         _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"),
+         _ev("LayaRouter", "herramientas"), _ev("Contexto", "herramientas"),
+         _ev("AgentStep", "tool"), _ev("read_file", "ok", 0.3), _ev("ExecuteTools", "default"),
+-        _ev("Contexto", "herramientas"), _ev("AgentStep", "answer"),
++        _ev("Observar", "default"), _ev("Contexto", "herramientas"), _ev("AgentStep", "answer"),
+         _ev("VerificarCitas", "default"), _ev("GetQuestion", "continue"),
+         _ev("PreFetch", "continue"), _ev("LayaRouter", "directo"),
+         _ev("Contexto", "directo"), _ev("DirectAnswer", "answer"),
+@@ -113,6 +113,14 @@
+     ]
+     assert replay.nivel_b_chat(nueva, clases, aristas) == []
+     assert replay.nivel_a(nueva, clases) == []
++    # X96: un turno que agota el presupuesto termina en Cierre
++    cerrado = [_ev("GetQuestion", "continue"), _ev("PreFetch", "continue"),
++               _ev("LayaRouter", "herramientas"), _ev("Contexto", "herramientas"),
++               _ev("AgentStep", "tool"), _ev("ExecuteTools", "default"), _ev("Observar", "default"),
++               _ev("Contexto", "cierre"), _ev("Cierre", "answer"), _ev("VerificarCitas", "default"),
++               _ev("GetQuestion", "exit"), _ev("ExitChat", "None")]
++    assert replay.nivel_b_chat(cerrado, clases, aristas) == []
++    assert replay.nivel_a(cerrado, clases) == []
+     # una ruta cruzada NO vale: Contexto sale por la arista por la que entró
+     cruzada = [_ev("LayaRouter", "directo"), _ev("Contexto", "directo"), _ev("AgentStep", "answer")]
+     assert replay.nivel_b_chat(cruzada, clases, aristas) == [("Contexto", "directo", "AgentStep")]
+diff -ruN a/tests/test_rondas.py b/tests/test_rondas.py
+--- a/tests/test_rondas.py	2026-10-28 17:13:23.155558242 +0000
++++ b/tests/test_rondas.py	2026-10-28 17:07:10.143388661 +0000
+@@ -38,6 +38,20 @@
+     assert ciclos[1]["rondas"] == 0 and ciclos[1]["respondio"] is True
+ 
+ 
++def test_un_cierre_por_presupuesto_es_una_respuesta():
++    """X96: la respuesta de un turno que agotó el presupuesto la da Cierre,
++    no AgentStep. Sin contarla, la sonda lo daba por "sin responder"."""
++    eventos = [
++        _ev("GetQuestion", "continue"),
++        _ev("AgentStep", "tool", 1.0), _ev("ExecuteTools", "default", 2.0),
++        _ev("Observar", "default"), _ev("Contexto", "cierre"),
++        _ev("Cierre", "answer", 3.0),
++    ]
++    ciclos = rondas.ciclos(eventos)
++    assert ciclos[0]["respondio"] is True and ciclos[0]["rondas"] == 1
++    assert ciclos[0]["seg_agente"] == 6.0
++
++
+ def test_ciclos_registran_pregunta_sin_answer():
+     eventos = [_ev("GetQuestion", "continue"), _ev("AgentStep", "tool", 2.0)]
+     ciclos = rondas.ciclos(eventos)
+diff -ruN a/tests/test_thread_store.py b/tests/test_thread_store.py
+--- a/tests/test_thread_store.py	2026-10-28 17:13:23.155558242 +0000
++++ b/tests/test_thread_store.py	2026-10-28 17:05:43.505593038 +0000
+@@ -3,8 +3,9 @@
+ Cubre las funciones PURAS de utils.thread_store (roundtrip, cola cortada,
+ apagado por setting, bookkeeping ante fallos, validador reusado, reparación de
+ pendientes de exp/49) y los CUATRO puntos seguros del chat: GetQuestion.post,
+-ExecuteTools.post, AgentStep.post(answer) y AgentStep.post(tool: la SELECCIÓN,
+-exp/49) escriben un checkpoint (contador de líneas).
++Observar.post (la ronda registrada; era ExecuteTools.post hasta X96),
++AgentStep.post(answer) y AgentStep.post(tool: la SELECCIÓN, exp/49) escriben
++un checkpoint (contador de líneas).
+ """
+ import json
+ from types import SimpleNamespace
+@@ -214,11 +215,13 @@
+     # ejecución de tools simulada: el post solo mira los resultados y el fingerprint
+     shared = {"messages": [], "tool_rounds": 0}
+     prep_res = [{"function": {"name": "read_file", "arguments": "{}"}}]
+-    exec_res = [{"tool_call_id": "a", "content": "ok"}]
++    exec_res = [{"role": "tool", "tool_call_id": "a", "content": "ok"}]
+     assert nodes.ExecuteTools().post(shared, prep_res, exec_res) == "default"
++    assert _contar(tmp_path, "chat2") == 0  # X96: el punto seguro es Observar
++    assert nodes.Observar().post(shared, prep_res, None) == "default"
+     assert _contar(tmp_path, "chat2") == 1
+     linea = json.loads(_lineas(tmp_path / "chat2.jsonl")[0])
+-    assert linea["nodo"] == "ExecuteTools" and linea["accion"] == "default"
++    assert linea["nodo"] == "Observar" and linea["accion"] == "default"
+     assert linea["shared"]["turno"]["rondas"] == 1  # la caja de la pregunta viaja en el checkpoint
+ 
+ 

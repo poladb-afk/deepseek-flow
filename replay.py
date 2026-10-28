@@ -70,7 +70,7 @@ ROUTING_LOG = Path("salidas/routing.jsonl")
 # Eventos que NO son ni nodo ni tool: marcas de incidente y alias históricos
 # vistos en trazas viejas (la misma tolerancia que TOOLS_CONOCIDAS de evals).
 NO_NODOS_TOLERADOS = {
-    "corte_no_progreso": "marca de incidente (nodes.ExecuteTools.prep)",
+    "corte_no_progreso": "marca de incidente (nodes.Contexto.post)",
     "bash": "alias histórica de run_command en trazas viejas",
 }
 
@@ -79,7 +79,7 @@ NO_NODOS_TOLERADOS = {
 # (supervisor, debate, juez...) dejan SUS eventos en el mismo archivo — son
 # corridas de OTROS grafos, no caminatas del chat.
 NODOS_CHAT = {"GetQuestion", "LayaRouter", "Contexto", "DirectAnswer", "AgentStep",
-              "ExecuteTools", "ExitChat", "VerificarCitas"}
+              "ExecuteTools", "Observar", "Cierre", "ExitChat", "VerificarCitas"}
 
 
 # 1) GRAFOS VIVOS: clases, acciones cableadas y aristas del chat
@@ -181,6 +181,17 @@ def _grafos_vivos():
         for nodo in _nodos_alcanzables(start):
             for accion, siguiente in nodo.successors.items():
                 aristas_chat.add((type(nodo).__name__, accion, type(siguiente).__name__))
+    # X96: Observar cuenta la ronda entre ExecuteTools y Contexto: paso
+    # transparente (las caminatas previas iban ExecuteTools → Contexto o, antes
+    # de X95, ExecuteTools → AgentStep). Va PRIMERO: la regla de Contexto de
+    # abajo necesita ver ExecuteTools → Contexto para resolver la de X95.
+    aristas_chat |= {
+        (a, accion, c)
+        for (a, accion, b) in aristas_chat
+        if b == "Observar"
+        for (b2, accion2, c) in aristas_chat
+        if b2 == "Observar" and accion2 == "default"
+    }
     # X95: Contexto (la compacción) corre antes de cada llamada al modelo y
     # sale por la misma ruta por la que entró (o "herramientas" si entró por
     # una arista que no es de ruta: PreFetch sin router, ExecuteTools). Las

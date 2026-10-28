@@ -105,7 +105,7 @@ def test_caminata_con_contexto_es_valida(vivos):
         _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"),
         _ev("LayaRouter", "herramientas"), _ev("Contexto", "herramientas"),
         _ev("AgentStep", "tool"), _ev("read_file", "ok", 0.3), _ev("ExecuteTools", "default"),
-        _ev("Contexto", "herramientas"), _ev("AgentStep", "answer"),
+        _ev("Observar", "default"), _ev("Contexto", "herramientas"), _ev("AgentStep", "answer"),
         _ev("VerificarCitas", "default"), _ev("GetQuestion", "continue"),
         _ev("PreFetch", "continue"), _ev("LayaRouter", "directo"),
         _ev("Contexto", "directo"), _ev("DirectAnswer", "answer"),
@@ -113,6 +113,14 @@ def test_caminata_con_contexto_es_valida(vivos):
     ]
     assert replay.nivel_b_chat(nueva, clases, aristas) == []
     assert replay.nivel_a(nueva, clases) == []
+    # X96: un turno que agota el presupuesto termina en Cierre
+    cerrado = [_ev("GetQuestion", "continue"), _ev("PreFetch", "continue"),
+               _ev("LayaRouter", "herramientas"), _ev("Contexto", "herramientas"),
+               _ev("AgentStep", "tool"), _ev("ExecuteTools", "default"), _ev("Observar", "default"),
+               _ev("Contexto", "cierre"), _ev("Cierre", "answer"), _ev("VerificarCitas", "default"),
+               _ev("GetQuestion", "exit"), _ev("ExitChat", "None")]
+    assert replay.nivel_b_chat(cerrado, clases, aristas) == []
+    assert replay.nivel_a(cerrado, clases) == []
     # una ruta cruzada NO vale: Contexto sale por la arista por la que entró
     cruzada = [_ev("LayaRouter", "directo"), _ev("Contexto", "directo"), _ev("AgentStep", "answer")]
     assert replay.nivel_b_chat(cruzada, clases, aristas) == [("Contexto", "directo", "AgentStep")]

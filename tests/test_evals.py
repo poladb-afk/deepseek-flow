@@ -336,6 +336,22 @@ def test_el_linter_acepta_la_caminata_con_contexto():
     assert linter_traza(traza) == []
 
 
+def test_un_turno_cerrado_por_presupuesto_cuenta_como_respuesta():
+    """X96: un turno que agota el presupuesto termina en Cierre/answer. El
+    linter tiene que reconocerlo como respuesta (invariante b) y como acción
+    canónica (c); sin eso el turno quedaba "sin respuesta" — el mismo punto
+    ciego que X95 encontró con PreFetch y VerificarCitas."""
+    from evals import _turno_del_chat, linter_traza
+
+    traza = [{"nodo": n, "accion": a, "seg": 0.1} for n, a in (
+        ("GetQuestion", "continue"), ("PreFetch", "continue"), ("LayaRouter", "herramientas"),
+        ("Contexto", "herramientas"), ("AgentStep", "tool"), ("read_file", "ok"),
+        ("ExecuteTools", "default"), ("Observar", "default"), ("Contexto", "cierre"),
+        ("Cierre", "answer"), ("VerificarCitas", "default"))]
+    assert linter_traza(traza) == []
+    assert _turno_del_chat(traza, 0) == (True, True, True)
+
+
 def test_el_linter_reconoce_las_acciones_y_tools_que_faltaban():
     """exp/37: el linter marcaba como desconocidas una arista real del juez
     (Judge/retry, juez.py:233) y cuatro tools de módulos (visión y a2a), lo que

@@ -56,14 +56,19 @@ def test_corte_por_novedad_respeta_k_y_minimo(monkeypatch):
     assert nodes.corte_por_novedad_activo(_con_turno(rondas=3, racha_sin_novedad=2)) is True
 
 
-def test_agent_step_retira_tools_con_corte_de_novedad():
+def test_agent_step_retira_tools_con_corte_de_novedad(monkeypatch):
+    """Con CORTE_NOVEDAD activo y la racha cumplida, Contexto sale a `cierre`
+    (X96): el motivo se recalcula del turno, ya no es un flag que se consume."""
+    monkeypatch.setenv("CORTE_NOVEDAD", "2")
+    monkeypatch.setenv("CORTE_NOVEDAD_MIN", "3")
     shared = {"messages": [{"role": "user", "content": "hola"}],
-              **_con_turno(rondas=4, racha_sin_novedad=2, corte_novedad=True)}
-    mensajes, tools = nodes.AgentStep().prep(shared)
+              **_con_turno(rondas=4, racha_sin_novedad=2)}
+    assert nodes.motivo_de_cierre(shared) == "sin_novedad"
+    assert nodes.Contexto()._run(shared) == "cierre"
+    mensajes, tools = nodes.Cierre().prep(shared)
     assert tools is None
-    assert shared["turno"]["aviso_cierre"] is True
     assert mensajes[-1]["content"] == nodes.AVISO_CIERRE
-    assert shared["turno"]["corte_novedad"] is False  # el flag se consume una vez
+    assert "corte_novedad" not in shared["turno"]
 
 
 def test_evento_tool_guarda_la_huella_sin_contenido(monkeypatch):
@@ -72,3 +77,18 @@ def test_evento_tool_guarda_la_huella_sin_contenido(monkeypatch):
     tracing.evento_tool("read_file", True, 0.1, huella="ab12cd34")
     assert capturado["nodo"] == "read_file" and capturado["accion"] == "ok"
     assert capturado["huella"] == "ab12cd34"
+
+
+def test_el_corte_que_no_es_el_techo_deja_su_evento(monkeypatch):
+    """X96: el evento de política de un corte (no-progreso o sin-novedad) lo
+    emite motivo_de_cierre — antes AgentStep.prep. El techo no deja evento
+    propio (la traza ya muestra las rondas); los otros dos sí, una vez cada
+    vez que Contexto los evalúa."""
+    eventos = []
+    monkeypatch.setattr(nodes, "evento_politica", lambda nombre, detalle="": eventos.append(nombre))
+    assert nodes.motivo_de_cierre(_con_turno(rondas=99)) == "tope"
+    assert nodes.motivo_de_cierre(_con_turno(sin_progreso=nodes.UMBRAL_SIN_PROGRESO)) == "sin_progreso"
+    monkeypatch.setenv("CORTE_NOVEDAD", "2")
+    assert nodes.motivo_de_cierre(_con_turno(rondas=4, racha_sin_novedad=2)) == "sin_novedad"
+    assert nodes.motivo_de_cierre(_con_turno(rondas=1)) is None
+    assert eventos == ["corte_no_progreso", "corte_sin_novedad"]

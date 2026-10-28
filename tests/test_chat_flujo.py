@@ -151,8 +151,9 @@ def test_execute_tools_anuncia_y_etiqueta(monkeypatch, capsys):
     # el anuncio precede al resultado: aparece aunque el resultado viniera ok
     assert len(resultados) == 2
 
-    # la ronda se etiqueta con el avance sobre el tope
+    # la ronda se etiqueta con el avance sobre el tope (la cuenta Observar, X96)
     et.post(shared, None, resultados)
+    nodes.Observar().post(shared, tool_calls, None)
     salida = capsys.readouterr().out
     assert f"⚙ ronda 1/{nodes.MAX_TOOL_ROUNDS}" in salida
 
@@ -269,63 +270,68 @@ def test_fingerprint_paginado_no_dispara_y_repetido_si():
     assert nodes.fingerprint(dos) == nodes.fingerprint(list(reversed(dos)))
 
 def test_execute_tools_post_acumula_y_resetea_no_progress():
-    """exp/13: ExecuteTools.post incrementa no_progress ante ronda idéntica y
-    lo resetea cuando hay progreso real (huella distinta). El warning viaja
-    en la conversación (último resultado), no en la terminal."""
+    """exp/13: la ronda incrementa no_progress ante ronda idéntica y lo
+    resetea cuando hay progreso real (huella distinta). El warning viaja en la
+    conversación (último resultado), no en la terminal. Desde X96 lo cuenta
+    Observar, tras ExecuteTools."""
     import json as _json
 
-    from nodes import ExecuteTools, fingerprint
+    from nodes import ExecuteTools, Observar, fingerprint
 
     def tc(path):
         return [{"function": {"name": "read_file",
                               "arguments": _json.dumps({"path": path})}}]
 
-    nodo = ExecuteTools()
+    ejecutar, observar = ExecuteTools(), Observar()
     shared = {"messages": []}
+
+    def ronda(llamadas, resultado):
+        ejecutar.post(shared, llamadas, [{"role": "tool", "content": resultado}])
+        observar.post(shared, llamadas, None)
+
     # ronda 1: mismo path → sin_progress 0 (primera vez)
-    nodo.post(shared, tc("a"), [{"content": "r1"}])
+    ronda(tc("a"), "r1")
     assert shared["turno"]["sin_progreso"] == 0
     # ronda 2: idéntica → 1 y warning en el contenido
-    nodo.post(shared, tc("a"), [{"content": "r2"}])
+    ronda(tc("a"), "r2")
     assert shared["turno"]["sin_progreso"] == 1
     assert "Sin progreso" in shared["messages"][-1]["content"]
     # ronda 3: distinta → reset
-    nodo.post(shared, tc("b"), [{"content": "r3"}])
+    ronda(tc("b"), "r3")
     assert shared["turno"]["sin_progreso"] == 0
     assert shared["turno"]["huella"] == fingerprint(tc("b"))
 
 def _corte_por_no_progreso():
-    """Deja la sesión en el estado del corte: contador en el umbral y tools
-    retiradas. Devuelve (shared, step, ask) listos para postear la pregunta.
-    Lo comparten los dos tests del reset (pregunta normal y /aprobaciones)."""
+    """Deja la sesión en el estado del corte: contador en el umbral y el
+    presupuesto cerrado (Contexto sale a `cierre`, X96). Devuelve (shared,
+    contexto, ask) listos para postear la pregunta."""
     import json as _json
 
-    from nodes import UMBRAL_SIN_PROGRESO, AgentStep, ExecuteTools, GetQuestion
+    from nodes import UMBRAL_SIN_PROGRESO, Contexto, ExecuteTools, GetQuestion, Observar
 
     def tc(path):
         return [{"function": {"name": "read_file",
                               "arguments": _json.dumps({"path": path})}}]
 
-    step, tools_node, ask = AgentStep(), ExecuteTools(), GetQuestion()
+    tools_node, observar, contexto, ask = ExecuteTools(), Observar(), Contexto(), GetQuestion()
     shared = {"messages": [{"role": "system", "content": "s"}]}
     for i in range(UMBRAL_SIN_PROGRESO + 1):
         tools_node.post(shared, tc("a.py"),
                         [{"role": "tool", "tool_call_id": f"t{i}", "content": "r"}])
+        observar.post(shared, tc("a.py"), None)
     assert shared["turno"]["sin_progreso"] == UMBRAL_SIN_PROGRESO
-    _, tools = step.prep(shared)
-    assert tools is None                       # corte: se retiran las tools
-    return shared, step, ask
+    assert contexto._run(shared) == "cierre"   # corte: la próxima llamada cierra
+    return shared, contexto, ask
 
 def test_no_progress_se_resetea_con_la_pregunta_nueva():
     """exp/13 (opción D): el corte por no-progreso es POR PREGUNTA (ley L8).
     Sin el reset en GetQuestion.post el contador quedaba pegado, AgentStep
     retiraba las tools para siempre y el protocolo de continuación de exp/4
     ('un mensaje nuevo reinicia el presupuesto') era falso."""
-    shared, step, ask = _corte_por_no_progreso()
+    shared, contexto, ask = _corte_por_no_progreso()
     ask.post(shared, None, "otra pregunta")    # mensaje nuevo del usuario
     assert shared["turno"]["sin_progreso"] == 0
-    _, tools = step.prep(shared)
-    assert tools is not None                   # el presupuesto se reinició
+    assert contexto._run(shared) == "herramientas"   # el presupuesto se reinició
 
 
 def test_run_tool_call_devuelve_error_como_feedback():
@@ -368,27 +374,27 @@ def test_codigo_error_discrimina_sin_contenido():
 
 
 def test_agotado_fuerza_respuesta_sin_tools():
-    """Al retirar las tools se agrega un aviso efímero de cierre: medido en
-    vivo, sin él el modelo sigue emitiendo tool calls en vez de responder
-    (auditoría de sesión real, A38). El aviso no se duplica y se resetea con
-    la pregunta nueva."""
-    from nodes import AVISO_CIERRE, AgentStep, GetQuestion, nuevo_turno
+    """Al agotarse el presupuesto la última llamada va sin tools y con un aviso
+    efímero de cierre: medido en vivo, sin él el modelo sigue emitiendo tool
+    calls en vez de responder (A38). Desde X96 lo garantiza la ESTRUCTURA:
+    Contexto sale a `cierre` y el nodo Cierre corre una vez — el flag
+    `aviso_cierre` que evitaba duplicarlo ya no existe. La pregunta nueva
+    reabre el presupuesto."""
+    from nodes import AVISO_CIERRE, Cierre, Contexto, GetQuestion, nuevo_turno
 
     shared = {"messages": [{"role": "system", "content": "s"},
                              {"role": "user", "content": "auditá el repo"}],
               "turno": {**nuevo_turno(), "rondas": 8}}
-    mensajes, tools = AgentStep().prep(shared)
+    assert Contexto()._run(shared) == "cierre"
+    mensajes, tools = Cierre().prep(shared)
     assert tools is None
     assert mensajes[-1]["content"] == AVISO_CIERRE
-    assert shared["turno"]["aviso_cierre"] is True
-
-    mensajes2, tools2 = AgentStep().prep(shared)
-    assert tools2 is None
-    # el aviso es EFÍMERO: se inyecta una vez; una segunda prep no lo duplica
-    assert all(m.get("content") != AVISO_CIERRE for m in mensajes2)
+    # el aviso es EFÍMERO: no entra al historial
+    assert all(m.get("content") != AVISO_CIERRE for m in shared["messages"])
+    assert "aviso_cierre" not in shared["turno"]
 
     GetQuestion().post(shared, None, "otra pregunta")
-    assert shared["turno"]["aviso_cierre"] is False
+    assert Contexto()._run(shared) == "herramientas"
 
 
 def test_getquestion_cierra_el_costo_de_la_pregunta_anterior(monkeypatch):

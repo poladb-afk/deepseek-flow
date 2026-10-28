@@ -20,12 +20,16 @@ flowchart TD
     DirectAnswer_4 -->|answer| VerificarCitas_5
     VerificarCitas_5 -->|default| GetQuestion_0
     DirectAnswer_4 -->|tool| ExecuteTools_6
-    ExecuteTools_6 -->|default| Contexto_3
-    Contexto_3 -->|herramientas| AgentStep_7
-    AgentStep_7 -->|answer| VerificarCitas_5
-    AgentStep_7 -->|tool| ExecuteTools_6
+    ExecuteTools_6 -->|default| Observar_7
+    Observar_7 -->|default| Contexto_3
+    Contexto_3 -->|herramientas| AgentStep_8
+    AgentStep_8 -->|answer| VerificarCitas_5
+    AgentStep_8 -->|tool| ExecuteTools_6
+    Contexto_3 -->|cierre| Cierre_9
+    Cierre_9 -->|answer| VerificarCitas_5
+    Cierre_9 -->|tool| ExecuteTools_6
     LayaRouter_2 -->|herramientas| Contexto_3
-    GetQuestion_0 -->|exit| ExitChat_8
+    GetQuestion_0 -->|exit| ExitChat_10
 ```
 
 ## Filosofía

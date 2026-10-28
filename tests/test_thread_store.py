@@ -3,8 +3,9 @@
 Cubre las funciones PURAS de utils.thread_store (roundtrip, cola cortada,
 apagado por setting, bookkeeping ante fallos, validador reusado, reparación de
 pendientes de exp/49) y los CUATRO puntos seguros del chat: GetQuestion.post,
-ExecuteTools.post, AgentStep.post(answer) y AgentStep.post(tool: la SELECCIÓN,
-exp/49) escriben un checkpoint (contador de líneas).
+Observar.post (la ronda registrada; era ExecuteTools.post hasta X96),
+AgentStep.post(answer) y AgentStep.post(tool: la SELECCIÓN, exp/49) escriben
+un checkpoint (contador de líneas).
 """
 import json
 from types import SimpleNamespace
@@ -214,11 +215,13 @@ def test_punto_seguro_executetools_post(tmp_path, monkeypatch):
     # ejecución de tools simulada: el post solo mira los resultados y el fingerprint
     shared = {"messages": [], "tool_rounds": 0}
     prep_res = [{"function": {"name": "read_file", "arguments": "{}"}}]
-    exec_res = [{"tool_call_id": "a", "content": "ok"}]
+    exec_res = [{"role": "tool", "tool_call_id": "a", "content": "ok"}]
     assert nodes.ExecuteTools().post(shared, prep_res, exec_res) == "default"
+    assert _contar(tmp_path, "chat2") == 0  # X96: el punto seguro es Observar
+    assert nodes.Observar().post(shared, prep_res, None) == "default"
     assert _contar(tmp_path, "chat2") == 1
     linea = json.loads(_lineas(tmp_path / "chat2.jsonl")[0])
-    assert linea["nodo"] == "ExecuteTools" and linea["accion"] == "default"
+    assert linea["nodo"] == "Observar" and linea["accion"] == "default"
     assert linea["shared"]["turno"]["rondas"] == 1  # la caja de la pregunta viaja en el checkpoint
 
 

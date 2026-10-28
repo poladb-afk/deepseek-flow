@@ -87,3 +87,17 @@ def test_restaurar_tolera_checkpoints_sin_sesion():
     estado_sesion.restaurar(None)
     estado_sesion.restaurar({})
     assert call_llm.uso_de_sesion() == antes
+
+
+def test_resume_descarta_las_claves_que_reemplazo_la_estructura():
+    """X96: `aviso_cierre` y `corte_novedad` eran flags del turno; los
+    reemplazó la estructura (el nodo Cierre y motivo_de_cierre). Un checkpoint
+    anterior los trae: resume los descarta y el turno queda como uno nuevo."""
+    viejo = {"messages": [], "turno": {**nodes.nuevo_turno(), "aviso_cierre": True,
+                                       "corte_novedad": True, "rondas": 2}}
+    migrado = resume.migrar(viejo)
+    assert "aviso_cierre" not in migrado["turno"] and "corte_novedad" not in migrado["turno"]
+    assert migrado["turno"]["rondas"] == 2
+    # y desde las claves de antes de la caja (`_aviso_cierre`), igual
+    anterior = resume.migrar({"messages": [], "_aviso_cierre": True, "_corte_novedad": True})
+    assert set(anterior["turno"]) == set(nodes.nuevo_turno())

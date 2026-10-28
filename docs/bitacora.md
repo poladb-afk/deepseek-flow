@@ -5271,3 +5271,58 @@ Decisiones del operador para 2b-2 (selección explícita con las
 recomendaciones a la vista): **nodo `Cierre`** (se borra el flag
 `aviso_cierre`) y se llama **`Cierre`**, unificación con el `Cerrar` del
 kernel en 2b-3.
+
+---
+
+## Fase 2b-2 de elegancia — el presupuesto como arista (2026-10-28, X96)
+
+**Antes**: el cierre por presupuesto era un FLAG. `AgentStep.prep` calculaba
+`agotado`/`sin_progreso`/`corte_novedad`, retiraba las tools, inyectaba
+`AVISO_CIERRE` y marcaba `turno["aviso_cierre"]` para no duplicarlo si el
+prep volvía a correr; `turno["corte_novedad"]` era un flag que se consumía.
+La cuenta de la ronda (no-progreso, novedad, notas, checkpoint) vivía en
+`ExecuteTools.post`. Nada de eso se veía en el grafo.
+
+**Ahora** (decisiones del operador: nodo `Cierre`, y ese nombre hasta
+unificar con el `Cerrar` del kernel en 2b-3):
+
+```
+ExecuteTools → Observar → Contexto ─herramientas→ AgentStep
+                             ├─directo→ DirectAnswer
+                             └─cierre─→ Cierre ─answer→ VerificarCitas
+```
+
+- `Observar` cuenta la ronda: huella/no-progreso, novedad, el aviso de
+  sin-progreso y la nota de presupuesto (en el último resultado: es lo que
+  el modelo lee) y el checkpoint del punto seguro 2.
+- `motivo_de_cierre(shared)` es la ley L8 en una función: tope, no-progreso
+  o sin novedad, recalculado del turno — nada que consumir. Los dos cortes
+  que no son el techo dejan su evento de política (como antes).
+- `Contexto` sale a `cierre` cuando hay motivo, venga de donde venga.
+- `Cierre` es la última llamada: sin tools y con el aviso efímero. Corre UNA
+  vez por construcción: el flag que evitaba duplicar el aviso sobraba.
+
+**Se borra**: `aviso_cierre` y `corte_novedad` del turno. `resume.migrar` los
+descarta de checkpoints viejos (también de las claves de antes de la caja).
+`AgentStep` 92 → 72 líneas, `ExecuteTools` 60 → 26; `nodos_largos` 15 → 14.
+`Contexto` quedaba en 41 líneas con los eventos de política adentro: se
+mudaron a `motivo_de_cierre`, que es donde se decide el corte.
+
+**Conducta**: ninguna. `test_caracterizacion_chat.py` intacto. Probado
+contra la regresión: sin la arista `contexto - "cierre" >> cierre` caen tres
+tests de la caracterización (el presupuesto deja de cortar) y el guard de
+calles muertas.
+
+**El punto ciego que se cerró en el mismo PR**: `evals._turno_del_chat` y
+`banco/probes/rondas.ciclos` reconocían la respuesta solo en
+`AgentStep`/`DirectAnswer`. Sin sumar `Cierre`, todo turno que agotara el
+presupuesto habría quedado "sin respuesta" en el linter y en la sonda de
+rondas — el mismo tipo de bug que X95 encontró con `PreFetch`. Los dos
+candados nuevos fallan sin el cambio (probado), igual que el de `resume`.
+
+Los 9 tests que fijaban la forma vieja migraron al nodo que hoy hace cada
+cosa, con las mismas aserciones; `test_agotado_fuerza_respuesta_sin_tools` ya
+no afirma el flag (no existe) sino que el aviso es efímero y la pregunta
+nueva reabre el presupuesto.
+
+`./calidad.sh` verde, 1115 passed; `tests_definidos` 1115 → 1119.

@@ -119,7 +119,9 @@ def ciclos(eventos):
         if actual is None:
             continue
         actual["eventos"] += 1
-        if nodo == "AgentStep":
+        if nodo in ("AgentStep", "Cierre"):
+            # X96: Cierre es la última llamada (la respuesta del turno que
+            # agotó el presupuesto): sin esto quedaba como "sin responder"
             actual["seg_agente"] += float(evento.get("seg") or 0.0)
             if accion == "tool":
                 actual["rondas"] += 1

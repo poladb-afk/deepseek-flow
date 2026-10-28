@@ -168,8 +168,6 @@ def nuevo_turno():
         "huella": None,          # huella de la última ronda
         "huellas_vistas": [],    # novedad acumulada (exp/52-B)
         "racha_sin_novedad": 0,
-        "corte_novedad": False,
-        "aviso_cierre": False,   # el aviso efímero de cierre ya se mandó
         "skill": None,           # id del skill activo (exp/55)
         "router_pendiente": None,  # id de la decisión shadow a etiquetar (exp/43)
         "uso_inicio": None,      # desglose de tokens al empezar (exp/90)
@@ -250,6 +248,24 @@ def corte_por_novedad_activo(shared):
     minimo = _entero("CORTE_NOVEDAD_MIN", 3)
     t = turno(shared)
     return t["rondas"] >= minimo and t["racha_sin_novedad"] >= k
+
+
+def motivo_de_cierre(shared):
+    """Por qué se acabó el presupuesto de ESTA pregunta (ley L8), o None si
+    sigue: el tope de rondas, la misma ronda repetida (no-progreso, exp/13) o,
+    con CORTE_NOVEDAD, rondas sin llamadas nuevas (exp/52-B). Lo evalúa
+    Contexto antes de cada llamada al modelo (X96). Un corte que NO es el
+    techo deja su evento de política: visible desde .runs."""
+    t = turno(shared)
+    if t["rondas"] >= presupuesto(shared):
+        return "tope"
+    if t["sin_progreso"] >= UMBRAL_SIN_PROGRESO:
+        evento_politica("corte_no_progreso")
+        return "sin_progreso"
+    if corte_por_novedad_activo(shared):
+        evento_politica("corte_sin_novedad", f"{t['racha_sin_novedad']} rondas sin llamadas nuevas")
+        return "sin_novedad"
+    return None
 
 
 AVISO_CIERRE = (
@@ -419,7 +435,9 @@ class Contexto(Node):
     reemplaza por un marcador (código puro, sin LLM; los invariantes del modo
     thinking los da utils/compaccion.compactar); si ni así baja, se recortan
     los tool results viejos (exp/91) y se avisa una vez (X51). La huella evita
-    re-compactar la misma ronda. Sale por la ruta que eligió el router."""
+    re-compactar la misma ronda. Sale por la ruta que eligió el router, o por
+    `cierre` si el presupuesto de la pregunta se acabó (X96): venga de donde
+    venga, la próxima llamada es la última y va sin tools."""
 
     def prep(self, shared):
         tope = _entero("COMPACTION_CHARS", 60000)
@@ -440,6 +458,8 @@ class Contexto(Node):
         _aviso_ventana_caliente(shared, len(serializar(shared["messages"])), tope)
 
     def post(self, shared, prep_res, exec_res):
+        if motivo_de_cierre(shared):
+            return "cierre"
         if turno(shared).get("ruta") == "directo":
             return "directo"
         return "herramientas"
@@ -447,39 +467,19 @@ class Contexto(Node):
 
 class AgentStep(Node):
     def prep(self, shared):
-        # Techo adaptativo por operación (exp/13) + escape por no-progreso:
-        # si el modelo repite la MISMA ronda de tools demasiadas veces, se
-        # retiran las tools sin esperar el techo — el loop no se paga hasta
-        # el máximo. presupuesto() lee MAX_TOOL_ROUNDS en runtime.
-        tope = presupuesto(shared)
-        t = turno(shared)
-        agotado = t["rondas"] >= tope
-        sin_progreso = t["sin_progreso"] >= UMBRAL_SIN_PROGRESO
-        corte_novedad, t["corte_novedad"] = t["corte_novedad"], False
-        if sin_progreso and not agotado:
-            # incidente visible desde .runs: el corte NO fue por techo
-            evento_politica("corte_no_progreso")
-        elif corte_novedad and not agotado:
-            evento_politica(
-                "corte_sin_novedad",
-                f"{t['racha_sin_novedad']} rondas sin llamadas nuevas",
-            )
-        # Al llegar al límite de rondas se retiran las tools: el modelo debe responder ya.
-        tools = None if (agotado or sin_progreso or corte_novedad) else TOOLS
-        if tools is not None and t["skill"]:
+        # El cierre por presupuesto ya no pasa por acá: Contexto lo decide y
+        # sale a Cierre (X96). AgentStep siempre ofrece tools.
+        tools = TOOLS
+        skill_id = turno(shared)["skill"]
+        if skill_id:
             # exp/55: mientras el skill está activo se anuncia SOLO su subset
             # (guía, no sandbox: el action space completo sigue existiendo).
             # En shared viaja el ID (JSON): el objeto Skill se guardaba como su
             # repr y un resume lo cargaba roto (auditoría 2026-10-26, F4).
             from utils.skills import disponibles, filtrar_tools
 
-            skill = next((h for h in disponibles() if h.id == t["skill"]), None)
+            skill = next((h for h in disponibles() if h.id == skill_id), None)
             tools = filtrar_tools(tools, skill) if skill else tools
-        if tools is None and not t["aviso_cierre"]:
-            t["aviso_cierre"] = True
-            # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
-            # el modelo sigue emitiendo tool calls en vez de cerrar la respuesta.
-            return list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None
         return shared["messages"], tools
 
     def exec(self, inputs):
@@ -591,41 +591,40 @@ class ExecuteTools(Node):
         return resultados
 
     def post(self, shared, prep_res, exec_res):
+        shared["messages"].extend(exec_res)
+        return "default"
+
+
+class Observar(Node):
+    """Lo que deja una ronda de tools, contado por código (X96): la ronda, su
+    huella (no-progreso, exp/13), la novedad acumulada (exp/52-B) y lo que el
+    MODELO tiene que leer — el aviso de sin-progreso y la nota de presupuesto
+    viajan en el último resultado, porque la terminal no le llega. Después el
+    checkpoint (exp/48, punto seguro 2: la ronda quedó registrada). Si el
+    presupuesto se acabó lo decide Contexto, antes de la próxima llamada."""
+
+    def prep(self, shared):
+        return next((m["tool_calls"] for m in reversed(shared["messages"])
+                     if m.get("role") == "assistant" and m.get("tool_calls")), [])
+
+    def post(self, shared, llamadas, _):
         t = turno(shared)
         t["ruta"] = "herramientas"  # tras una ronda de tools se vuelve a AgentStep
         t["rondas"] += 1
-        ronda = t["rondas"]
         tope = presupuesto(shared)
-        # No-progreso (exp/13, opción D): se compara la HUELLA de esta ronda
-        # de tools con la anterior. Igual → acumula; distinta → resetea. El
-        # warning viaja en la conversación (misma vía que la nota), no en la
-        # terminal: es lo único que el modelo lee.
-        fp = fingerprint(prep_res)
-        t["sin_progreso"] = t["sin_progreso"] + 1 if fp == t["huella"] else 0
-        t["huella"] = fp
-        # exp/52-B: novedad acumulada (tool+argumentos). Con CORTE_NOVEDAD=k
-        # (default 0=off) el loop se corta tras k rondas sin ninguna llamada
-        # nueva; la calidad se valida en el A/B del banco, no acá.
-        sin_novedad = actualizar_novedad(shared, prep_res or [])
-        if sin_novedad and corte_por_novedad_activo(shared):
-            t["corte_novedad"] = True
-        if t["sin_progreso"] >= 1 and exec_res:
-            exec_res[-1]["content"] = (
-                f"{exec_res[-1]['content']}\n⚠ Sin progreso: repetiste la "
-                f"misma llamada {t['sin_progreso'] + 1}ª vez — cambiá de "
-                "estrategia o cerrá el estado."
-            )
-        # la nota de presupuesto viaja en la conversación (no en la
-        # terminal): es la única vista del tope que tiene el modelo.
-        nota = nota_presupuesto(ronda, tope)
-        if nota and exec_res:
-            exec_res[-1]["content"] = f"{exec_res[-1]['content']}\n{nota}"
-        shared["messages"].extend(exec_res)
-        # pulido de terminal (mesa 8): la ronda consumida se etiqueta para
-        # que una secuencia de varias rondas muestre su avance (n/MAX).
-        print(colorear("  " + progreso_ronda(ronda, tope), "info"), flush=True)
-        # exp/48: punto seguro 2 — la ronda de tools quedó registrada.
-        checkpoint(thread_id(), "ExecuteTools", "default", shared)
+        huella_ronda = fingerprint(llamadas)
+        t["sin_progreso"] = t["sin_progreso"] + 1 if huella_ronda == t["huella"] else 0
+        t["huella"] = huella_ronda
+        actualizar_novedad(shared, llamadas)
+        notas = [nota_presupuesto(t["rondas"], tope)]
+        if t["sin_progreso"]:
+            notas.insert(0, f"⚠ Sin progreso: repetiste la misma llamada {t['sin_progreso'] + 1}ª vez "
+                            "— cambiá de estrategia o cerrá el estado.")
+        ultimo = shared["messages"][-1] if shared["messages"] else {}
+        if ultimo.get("role") == "tool":
+            ultimo["content"] = "\n".join([ultimo["content"], *filter(None, notas)])
+        print(colorear("  " + progreso_ronda(t["rondas"], tope), "info"), flush=True)
+        checkpoint(thread_id(), "Observar", "default", shared)
         return "default"
 
 
@@ -913,6 +912,19 @@ class LayaRouter(Node):
         return "directo"
 
 
+class Cierre(AgentStep):
+    """La última llamada de la pregunta: sin tools y con el aviso de cierre
+    (X96). Antes era un flag dentro de AgentStep.prep (`aviso_cierre`) para que
+    el aviso no se duplicara; ahora corre UNA vez por construcción — después
+    viene la respuesta. Las tool calls que el modelo emita igual se descartan
+    (normalizar con las tools retiradas, L8)."""
+
+    def prep(self, shared):
+        # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
+        # el modelo sigue emitiendo tool calls en vez de cerrar la respuesta.
+        return list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None
+
+
 class DirectAnswer(AgentStep):
     """AgentStep sin herramientas: la pregunta se responde de una."""
 
@@ -920,7 +932,5 @@ class DirectAnswer(AgentStep):
 
     def prep(self, shared):
         # La compacción ya corrió en Contexto (la ruta directa mandaba el
-        # historial entero sin techo, exp/36); acá el prep de AgentStep y
-        # sin tools.
-        mensajes, _ = super().prep(shared)
-        return mensajes, None
+        # historial entero sin techo, exp/36). Sin tools.
+        return shared["messages"], None

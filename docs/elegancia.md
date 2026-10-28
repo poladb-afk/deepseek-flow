@@ -60,7 +60,7 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91).
 | `vocabulario_hardcodeado` | 8 | ≤ 2 (fases 3–4; quedan los sí/no del HITL) |
 | `settings_leidos` | 89 → 84 (X93) | ≤ 45 (fases 1–5, ver inventario) |
 | `imports_perezosos` | 137 → 126 (X92) | ≤ 40 |
-| `nodos_largos` | 15 | ≤ 3 |
+| `nodos_largos` | 15 → 14 (X96) | ≤ 3 |
 | `texto_de_prompt` | 2748 chars | ≤ 800 |
 
 ## Plan
@@ -69,7 +69,7 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91).
 |---|---|---|---|
 | 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
 | 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
-| 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. Falta: el chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
+| 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. ✅ 2b-2 (X96): `Observar` y `Cierre` (el presupuesto como arista). Falta: el chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
 | 3 | `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
 | 4 | Se borran reglas, voto, `alcance_amplio`, perfiles y directivas (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
 | 5 | Política de comandos como datos (S10); skills por descripción; Laya 0.4.x | Mínimo | `test_policy_bypass.py` idéntico |

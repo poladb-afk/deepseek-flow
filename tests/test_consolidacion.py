@@ -123,7 +123,9 @@ def test_presupuesto_agotado_ignora_tool_calls_nativos(monkeypatch, contenido):
     monkeypatch.setattr(nodes, "call_llm_agent", lambda m, t: msg)
     shared = {"messages": [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}],
               "turno": {**nodes.nuevo_turno(), "rondas": 99}}
-    accion = nodes.AgentStep()._run(shared)
+    # X96: con el presupuesto agotado Contexto sale a Cierre, que va sin tools
+    assert nodes.Contexto()._run(shared) == "cierre"
+    accion = nodes.Cierre()._run(shared)
     assert accion == "answer"
     ultimo = shared["messages"][-1]
     assert "tool_calls" not in ultimo

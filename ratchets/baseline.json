@@ -51,8 +51,8 @@
         ],
         "nodes.py": [
           59,
-          807,
-          879
+          806,
+          878
         ],
         "research.py": [
           78
@@ -239,14 +239,13 @@
         "juez.py:Judge": 144,
         "juez_lote.py:CorrerJuez": 51,
         "juez_lote.py:JuezLoteFlow": 108,
-        "nodes.py:AgentStep": 92,
-        "nodes.py:ExecuteTools": 60,
+        "nodes.py:AgentStep": 72,
         "nodes.py:GetQuestion": 56,
         "nodes.py:LayaRouter": 155,
         "nodes.py:VerificarCitas": 53,
         "research.py:Synthesizer": 60
       },
-      "metrica": 15
+      "metrica": 14
     },
     "producto_conoce_lab": {
       "detalle": {},
@@ -539,9 +538,9 @@
         "tests/test_docs_sin_deriva.py": 5,
         "tests/test_estado_flywheel.py": 3,
         "tests/test_estado_riesgo.py": 3,
-        "tests/test_estado_turno.py": 6,
+        "tests/test_estado_turno.py": 7,
         "tests/test_estilo_humano.py": 9,
-        "tests/test_evals.py": 16,
+        "tests/test_evals.py": 17,
         "tests/test_f_prompt.py": 9,
         "tests/test_fable.py": 29,
         "tests/test_fable_dominios.py": 6,
@@ -565,7 +564,7 @@
         "tests/test_memoria.py": 25,
         "tests/test_minar_errores.py": 16,
         "tests/test_modulos.py": 19,
-        "tests/test_novedad.py": 6,
+        "tests/test_novedad.py": 7,
         "tests/test_pendientes.py": 39,
         "tests/test_policy.py": 26,
         "tests/test_policy_bypass.py": 35,
@@ -576,7 +575,7 @@
         "tests/test_ratchet_elegancia.py": 15,
         "tests/test_replay.py": 17,
         "tests/test_riesgo.py": 19,
-        "tests/test_rondas.py": 5,
+        "tests/test_rondas.py": 6,
         "tests/test_router.py": 12,
         "tests/test_skills.py": 8,
         "tests/test_smoke.py": 5,
@@ -598,7 +597,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1115
+      "metrica": 1119
     },
     "texto_de_prompt": {
       "detalle": {

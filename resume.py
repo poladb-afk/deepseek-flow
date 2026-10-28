@@ -33,6 +33,10 @@ def migrar(shared):
     viejas = {nueva: shared.pop(vieja) for vieja, nueva in CLAVES_VIEJAS.items() if vieja in shared}
     if "turno" not in shared:
         shared["turno"] = {**nuevo_turno(), **viejas}
+    # X96: `aviso_cierre` y `corte_novedad` los reemplazó la estructura (el
+    # nodo Cierre, motivo_de_cierre): un checkpoint anterior los trae y sobran
+    for clave in ("aviso_cierre", "corte_novedad"):
+        shared["turno"].pop(clave, None)
     return shared
 
 
