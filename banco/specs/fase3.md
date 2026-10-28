@@ -33,6 +33,44 @@ con tool_calls que quede en la ventana (o compactar unidades enteras), y un
 thinking OFF hasta la próxima pregunta. El diseño del cableado en el chat
 depende de este resultado: por eso se escribe DESPUÉS de la sonda.
 
+## Resultado de la primera corrida y gate redefinido (2026-10-28)
+
+**Primera corrida (operador, en vivo)**: A, B, C, D, E ok; **F 400**
+(`reasoning_content in the thinking mode must be passed back`). El gate
+original NO PASÓ y así queda registrado.
+
+**Lectura**: en E el mensaje sin reasoning era de un turno ANTERIOR (antes
+del último `user`) y pasó; en F estaba en el turno EN CURSO y dio 400.
+Hipótesis: la API exige el reasoning solo en los assistant con tool_calls
+posteriores al último mensaje del usuario (coincide con cómo lo resolvió
+LangChain: preservar desde el último mensaje humano). Dos datos no alcanzan:
+la doc dice "todas las requests subsiguientes", que es más estricto.
+
+**Gate redefinido, fijado ANTES de correr las secuencias nuevas**:
+- **G** (turno entero con thinking OFF y tools; la pregunta siguiente con ON
+  y tools) tiene que dar ok. Si da 400 la regla es la estricta: el reasoning
+  tendría que conservarse para siempre (compacción y `resume`) y la fase 3
+  se reconsidera.
+- A–E siguen teniendo que dar ok.
+- **F** queda como informativa: documenta la restricción del proveedor. El
+  chat de 3a la hace imposible por construcción (el modo se fija una vez por
+  pregunta en `turno["pensar"]`) y un test lo clava.
+- **H** (rondas ON y el cierre de ese turno OFF) es informativa y sin
+  predicción: si da ok, `Cierre` y `VerificarCitas` pueden quedar OFF; si da
+  400, el modo es fijo para TODA la pregunta, cierre incluido.
+
+**Diseño de 3a si G pasa** (lo escribe el autor después de la segunda
+corrida):
+- `turno["pensar"]` fijado al empezar la pregunta; todas sus llamadas lo usan.
+- `historiar` conserva el reasoning del turno en curso; `GetQuestion` lo
+  descarta de los anteriores (respeta la regla y ahorra tokens).
+- Invariante 1 de la compacción: de "sin reasoning en ningún mensaje" a
+  "reasoning solo después del último `user`"; `validar_historial` y
+  `thread_store.valido` igual (si no, `resume` rechazaría los checkpoints).
+- Un setting TEMPORAL para prender 3a en el A/B (decisión del operador:
+  `settings_leidos` 78 → 79 con su clave del ratchet; en el inventario como
+  "borrar en 3b", cuando el modo lo elija Laya).
+
 ## Caso a seguir
 
 s19-s3 en la base de 2d (ca=0): pidió un comando fuera del scope, el HITL lo

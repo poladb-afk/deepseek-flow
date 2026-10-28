@@ -5524,3 +5524,44 @@ mismas aserciones. Candado: `test_los_tunables_de_x101_no_se_leen_del_entorno`
 (probado: volver a leer `JUEZ_LOTE_CONCURRENCIA` con `_entero` lo pone rojo).
 `settings_leidos` 84 → 78; inventario 78 (42 contrato · 19 revisar · 17
 borrar). `./calidad.sh` verde, 1126 passed.
+
+---
+
+## El gate de la fase 3 no pasó, y lo que enseñó (2026-10-28, X102)
+
+Primera corrida en vivo (operador): A–E ok, **F 400** — el mismo mensaje del
+2026-10-05. El gate original no pasó y queda así.
+
+Lo que dicen E y F juntas: en E el assistant sin reasoning era de un turno
+ANTERIOR y pasó; en F era del turno EN CURSO y dio 400. La hipótesis — la API
+exige el reasoning solo después del último `user` — cambia dos predicciones
+que había escrito el autor: `resume` NO necesita arrancar con thinking OFF
+(vuelve por `GetQuestion`: lo viejo queda como turno anterior) y el modo SÍ
+puede cambiar entre preguntas (buena noticia para 3b: Laya eligiendo el modo
+por pregunta no rompería la API).
+
+Dos datos no prueban la regla, y la doc dice "todas las requests
+subsiguientes". Por eso la sonda suma **G** (un turno entero OFF y la
+pregunta siguiente ON; si da 400 la regla es la estricta y la fase 3 se
+reconsidera) y **H** (rondas ON y el cierre del mismo turno OFF; sin
+predicción: decide si `Cierre` puede ir apagado). El gate se redefine ANTES
+de correrlas: A–E + G deciden; F y H informan. Tres APIs falsas en los tests
+fijan el veredicto para las tres reglas posibles (acepta todo, regla del
+turno, regla estricta); si F volviera a decidir, la corrida real no pasaría
+y un test cae (probado).
+
+Decisión del operador para 3a: un setting temporal para el A/B, con su clave
+del ratchet (78 → 79), marcado "borrar en 3b".
+
+**Gate de fase 3 redefinido y corrido: PASA (G=ok confirma la regla del turno)** (2026-10-28):
+con las secuencias nuevas de X102, en vivo. **G ok**: un turno entero con
+thinking OFF y la pregunta SIGUIENTE con ON — aceptado. La regla de la API
+es la del TURNO (el reasoning se exige solo tras el último `user`), no la
+estricta: el modo puede cambiar entre preguntas — resume no necesita
+arrancar OFF y la 3b (Laya eligiendo el modo por pregunta) no rompe la API.
+**H ok** (informativa): rondas ON y cierre del MISMO turno en OFF — también
+aceptado; solo el flip OFF→ON dentro del turno (F) da 400. Veredicto:
+A=ok B=ok C=ok D=ok E=ok G=ok · informativas F=400, H=ok. **GATE PASA** —
+la 3a puede escribirse con el setting temporal del A/B (decisión del
+operador, ratchet 78→79, borrar en 3b). Artefacto actualizado:
+`salidas/evals/thinking_tools.json`.

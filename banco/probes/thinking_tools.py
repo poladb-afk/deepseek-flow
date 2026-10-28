@@ -18,11 +18,19 @@ Secuencias (cada una arranca de cero):
   E  compacción: la zona fría pierde su reasoning, la caliente lo conserva
   F  el flip: un historial armado con thinking OFF (sesión vieja, resume) y la
      ronda siguiente con thinking ON
+  G  un turno ENTERO con thinking OFF y tools (sin reasoning en ningún
+     mensaje) y la pregunta SIGUIENTE con thinking ON y tools
+  H  rondas con thinking ON y reasoning, y el cierre de ESE turno con
+     thinking OFF (como lo mandaría Cierre si quedara apagado)
 
-Criterio del gate: 0 errores 400 en las seis. Otro error (red, 429) no cuenta
-como 400 pero deja la secuencia SIN veredicto: se repite.
+Criterio (redefinido el 2026-10-28 tras la primera corrida, ANTES de correr
+G y H — banco/specs/fase3.md): A–E y G sin 400. F dio 400 en la primera
+corrida: documenta la restricción del proveedor (el reasoning del turno EN
+CURSO tiene que volver) y queda como informativa, igual que H, que no tiene
+predicción. Otro error (red, 429) no es 400 pero deja la secuencia SIN
+veredicto: se repite.
 
-Costo: ~15 llamadas cortas (max_tokens bajo), centavos.
+Costo: ~21 llamadas cortas (max_tokens bajo), centavos.
 Uso: python3 banco/probes/thinking_tools.py [--salida salidas/evals/thinking_tools.json]
 """
 import argparse
@@ -128,16 +136,37 @@ def secuencias(s):
     m = [SYSTEM, PEDIDO]
     if s.ronda("F", m, pensar=False):
         s.llamar("F", "flip OFF→ON con tools", m, LEER, pensar=True)
+    # G: el turno anterior entero sin reasoning; la pregunta nueva, con
+    m = [SYSTEM, PEDIDO]
+    if s.ronda("G", m, pensar=False):
+        final = s.llamar("G", "cierra el turno OFF", m, LEER, pensar=False)
+        if final is not None:
+            m.append(asistente(final, con_razonamiento=False))
+            m.append({"role": "user", "content": "Ahora leé el primero con read_file."})
+            if s.ronda("G", m):
+                s.llamar("G", "responde con thinking ON", m, LEER)
+    # H: el mismo turno, rondas ON y el cierre OFF
+    m = [SYSTEM, PEDIDO]
+    if s.ronda("H", m):
+        s.llamar("H", "cierre OFF tras rondas ON", m + [{"role": "user", "content": CIERRE}],
+                 None, pensar=False)
+
+
+# Las que deciden el gate y las que solo informan (F: la restricción ya medida;
+# H: sin predicción, decide si Cierre puede ir con thinking OFF).
+GATE = "ABCDEG"
+INFORMATIVAS = "FH"
 
 
 def veredicto(pasos):
-    """(pasa, resumen). Pasa con 0 errores 400 y cada secuencia con al menos
-    una llamada evaluada; otro error deja la secuencia sin veredicto."""
+    """(pasa, resumen). Pasa si cada secuencia de GATE tiene llamadas y
+    ninguna falló; un 400 en cualquiera la marca "400", otro error "sin
+    veredicto". Las INFORMATIVAS se reportan y no deciden."""
     por_sec = {}
     for p in pasos:
         por_sec.setdefault(p["secuencia"], []).append(p)
     resumen = {}
-    for sec in "ABCDEF":
+    for sec in GATE + INFORMATIVAS:
         filas = por_sec.get(sec, [])
         if any(p["status"] == 400 for p in filas):
             resumen[sec] = "400"
@@ -145,7 +174,7 @@ def veredicto(pasos):
             resumen[sec] = "sin veredicto"
         else:
             resumen[sec] = "ok"
-    return all(v == "ok" for v in resumen.values()), resumen
+    return all(resumen[s] == "ok" for s in GATE), resumen
 
 
 def main(argv=None):
@@ -159,7 +188,8 @@ def main(argv=None):
         estado = "ok" if p["ok"] else f"ERROR {p['status']}: {p['error']}"
         print(f"{p['secuencia']} · {p['paso']:<30} pensar={p['pensar']!s:<5} tools={p['tools']!s:<5} {estado}")
     print("veredicto: " + " · ".join(f"{k}={v}" for k, v in resumen.items()))
-    print("GATE: " + ("PASA (0 errores 400)" if pasa else "NO PASA"))
+    print("informativas: " + " · ".join(f"{s}={resumen[s]}" for s in INFORMATIVAS))
+    print(f"GATE ({', '.join(GATE)}): " + ("PASA" if pasa else "NO PASA"))
     destino = Path(args.salida)
     destino.parent.mkdir(parents=True, exist_ok=True)
     destino.write_text(json.dumps({"pasa": pasa, "resumen": resumen, "pasos": sonda.pasos},

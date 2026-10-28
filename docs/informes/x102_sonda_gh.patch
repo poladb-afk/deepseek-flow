@@ -1,0 +1,335 @@
+diff -ruN a/banco/probes/thinking_tools.py b/banco/probes/thinking_tools.py
+--- a/banco/probes/thinking_tools.py	2026-10-28 20:57:14.214612172 +0000
++++ b/banco/probes/thinking_tools.py	2026-10-28 20:56:24.711595739 +0000
+@@ -18,11 +18,19 @@
+   E  compacción: la zona fría pierde su reasoning, la caliente lo conserva
+   F  el flip: un historial armado con thinking OFF (sesión vieja, resume) y la
+      ronda siguiente con thinking ON
++  G  un turno ENTERO con thinking OFF y tools (sin reasoning en ningún
++     mensaje) y la pregunta SIGUIENTE con thinking ON y tools
++  H  rondas con thinking ON y reasoning, y el cierre de ESE turno con
++     thinking OFF (como lo mandaría Cierre si quedara apagado)
++
++Criterio (redefinido el 2026-10-28 tras la primera corrida, ANTES de correr
++G y H — banco/specs/fase3.md): A–E y G sin 400. F dio 400 en la primera
++corrida: documenta la restricción del proveedor (el reasoning del turno EN
++CURSO tiene que volver) y queda como informativa, igual que H, que no tiene
++predicción. Otro error (red, 429) no es 400 pero deja la secuencia SIN
++veredicto: se repite.
+ 
+-Criterio del gate: 0 errores 400 en las seis. Otro error (red, 429) no cuenta
+-como 400 pero deja la secuencia SIN veredicto: se repite.
+-
+-Costo: ~15 llamadas cortas (max_tokens bajo), centavos.
++Costo: ~21 llamadas cortas (max_tokens bajo), centavos.
+ Uso: python3 banco/probes/thinking_tools.py [--salida salidas/evals/thinking_tools.json]
+ """
+ import argparse
+@@ -128,16 +136,37 @@
+     m = [SYSTEM, PEDIDO]
+     if s.ronda("F", m, pensar=False):
+         s.llamar("F", "flip OFF→ON con tools", m, LEER, pensar=True)
++    # G: el turno anterior entero sin reasoning; la pregunta nueva, con
++    m = [SYSTEM, PEDIDO]
++    if s.ronda("G", m, pensar=False):
++        final = s.llamar("G", "cierra el turno OFF", m, LEER, pensar=False)
++        if final is not None:
++            m.append(asistente(final, con_razonamiento=False))
++            m.append({"role": "user", "content": "Ahora leé el primero con read_file."})
++            if s.ronda("G", m):
++                s.llamar("G", "responde con thinking ON", m, LEER)
++    # H: el mismo turno, rondas ON y el cierre OFF
++    m = [SYSTEM, PEDIDO]
++    if s.ronda("H", m):
++        s.llamar("H", "cierre OFF tras rondas ON", m + [{"role": "user", "content": CIERRE}],
++                 None, pensar=False)
++
++
++# Las que deciden el gate y las que solo informan (F: la restricción ya medida;
++# H: sin predicción, decide si Cierre puede ir con thinking OFF).
++GATE = "ABCDEG"
++INFORMATIVAS = "FH"
+ 
+ 
+ def veredicto(pasos):
+-    """(pasa, resumen). Pasa con 0 errores 400 y cada secuencia con al menos
+-    una llamada evaluada; otro error deja la secuencia sin veredicto."""
++    """(pasa, resumen). Pasa si cada secuencia de GATE tiene llamadas y
++    ninguna falló; un 400 en cualquiera la marca "400", otro error "sin
++    veredicto". Las INFORMATIVAS se reportan y no deciden."""
+     por_sec = {}
+     for p in pasos:
+         por_sec.setdefault(p["secuencia"], []).append(p)
+     resumen = {}
+-    for sec in "ABCDEF":
++    for sec in GATE + INFORMATIVAS:
+         filas = por_sec.get(sec, [])
+         if any(p["status"] == 400 for p in filas):
+             resumen[sec] = "400"
+@@ -145,7 +174,7 @@
+             resumen[sec] = "sin veredicto"
+         else:
+             resumen[sec] = "ok"
+-    return all(v == "ok" for v in resumen.values()), resumen
++    return all(resumen[s] == "ok" for s in GATE), resumen
+ 
+ 
+ def main(argv=None):
+@@ -159,7 +188,8 @@
+         estado = "ok" if p["ok"] else f"ERROR {p['status']}: {p['error']}"
+         print(f"{p['secuencia']} · {p['paso']:<30} pensar={p['pensar']!s:<5} tools={p['tools']!s:<5} {estado}")
+     print("veredicto: " + " · ".join(f"{k}={v}" for k, v in resumen.items()))
+-    print("GATE: " + ("PASA (0 errores 400)" if pasa else "NO PASA"))
++    print("informativas: " + " · ".join(f"{s}={resumen[s]}" for s in INFORMATIVAS))
++    print(f"GATE ({', '.join(GATE)}): " + ("PASA" if pasa else "NO PASA"))
+     destino = Path(args.salida)
+     destino.parent.mkdir(parents=True, exist_ok=True)
+     destino.write_text(json.dumps({"pasa": pasa, "resumen": resumen, "pasos": sonda.pasos},
+diff -ruN a/banco/specs/fase3.md b/banco/specs/fase3.md
+--- a/banco/specs/fase3.md	2026-10-28 20:57:14.198612490 +0000
++++ b/banco/specs/fase3.md	2026-10-28 20:56:24.711595739 +0000
+@@ -33,6 +33,44 @@
+ thinking OFF hasta la próxima pregunta. El diseño del cableado en el chat
+ depende de este resultado: por eso se escribe DESPUÉS de la sonda.
+ 
++## Resultado de la primera corrida y gate redefinido (2026-10-28)
++
++**Primera corrida (operador, en vivo)**: A, B, C, D, E ok; **F 400**
++(`reasoning_content in the thinking mode must be passed back`). El gate
++original NO PASÓ y así queda registrado.
++
++**Lectura**: en E el mensaje sin reasoning era de un turno ANTERIOR (antes
++del último `user`) y pasó; en F estaba en el turno EN CURSO y dio 400.
++Hipótesis: la API exige el reasoning solo en los assistant con tool_calls
++posteriores al último mensaje del usuario (coincide con cómo lo resolvió
++LangChain: preservar desde el último mensaje humano). Dos datos no alcanzan:
++la doc dice "todas las requests subsiguientes", que es más estricto.
++
++**Gate redefinido, fijado ANTES de correr las secuencias nuevas**:
++- **G** (turno entero con thinking OFF y tools; la pregunta siguiente con ON
++  y tools) tiene que dar ok. Si da 400 la regla es la estricta: el reasoning
++  tendría que conservarse para siempre (compacción y `resume`) y la fase 3
++  se reconsidera.
++- A–E siguen teniendo que dar ok.
++- **F** queda como informativa: documenta la restricción del proveedor. El
++  chat de 3a la hace imposible por construcción (el modo se fija una vez por
++  pregunta en `turno["pensar"]`) y un test lo clava.
++- **H** (rondas ON y el cierre de ese turno OFF) es informativa y sin
++  predicción: si da ok, `Cierre` y `VerificarCitas` pueden quedar OFF; si da
++  400, el modo es fijo para TODA la pregunta, cierre incluido.
++
++**Diseño de 3a si G pasa** (lo escribe el autor después de la segunda
++corrida):
++- `turno["pensar"]` fijado al empezar la pregunta; todas sus llamadas lo usan.
++- `historiar` conserva el reasoning del turno en curso; `GetQuestion` lo
++  descarta de los anteriores (respeta la regla y ahorra tokens).
++- Invariante 1 de la compacción: de "sin reasoning en ningún mensaje" a
++  "reasoning solo después del último `user`"; `validar_historial` y
++  `thread_store.valido` igual (si no, `resume` rechazaría los checkpoints).
++- Un setting TEMPORAL para prender 3a en el A/B (decisión del operador:
++  `settings_leidos` 78 → 79 con su clave del ratchet; en el inventario como
++  "borrar en 3b", cuando el modo lo elija Laya).
++
+ ## Caso a seguir
+ 
+ s19-s3 en la base de 2d (ca=0): pidió un comando fuera del scope, el HITL lo
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-28 20:57:14.170613046 +0000
++++ b/docs/bitacora.md	2026-10-28 20:56:24.715595660 +0000
+@@ -5439,3 +5439,31 @@
+ (probado: volver a leer `JUEZ_LOTE_CONCURRENCIA` con `_entero` lo pone rojo).
+ `settings_leidos` 84 → 78; inventario 78 (42 contrato · 19 revisar · 17
+ borrar). `./calidad.sh` verde, 1126 passed.
++
++---
++
++## El gate de la fase 3 no pasó, y lo que enseñó (2026-10-28, X102)
++
++Primera corrida en vivo (operador): A–E ok, **F 400** — el mismo mensaje del
++2026-10-05. El gate original no pasó y queda así.
++
++Lo que dicen E y F juntas: en E el assistant sin reasoning era de un turno
++ANTERIOR y pasó; en F era del turno EN CURSO y dio 400. La hipótesis — la API
++exige el reasoning solo después del último `user` — cambia dos predicciones
++que había escrito el autor: `resume` NO necesita arrancar con thinking OFF
++(vuelve por `GetQuestion`: lo viejo queda como turno anterior) y el modo SÍ
++puede cambiar entre preguntas (buena noticia para 3b: Laya eligiendo el modo
++por pregunta no rompería la API).
++
++Dos datos no prueban la regla, y la doc dice "todas las requests
++subsiguientes". Por eso la sonda suma **G** (un turno entero OFF y la
++pregunta siguiente ON; si da 400 la regla es la estricta y la fase 3 se
++reconsidera) y **H** (rondas ON y el cierre del mismo turno OFF; sin
++predicción: decide si `Cierre` puede ir apagado). El gate se redefine ANTES
++de correrlas: A–E + G deciden; F y H informan. Tres APIs falsas en los tests
++fijan el veredicto para las tres reglas posibles (acepta todo, regla del
++turno, regla estricta); si F volviera a decidir, la corrida real no pasaría
++y un test cae (probado).
++
++Decisión del operador para 3a: un setting temporal para el A/B, con su clave
++del ratchet (78 → 79), marcado "borrar en 3b".
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-28 20:57:14.170613046 +0000
++++ b/docs/estado.md	2026-10-28 20:56:24.711595739 +0000
+@@ -136,6 +136,7 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
++| X102 | — | El gate previo de la fase 3 no pasó en vivo: A–E ok, F 400 (`reasoning_content ... must be passed back`). E ok y F 400 sugieren que la API exige el reasoning solo en el turno EN CURSO, pero dos datos no lo prueban y la doc dice algo más estricto | ✅ 2026-10-28 (sonda ampliada; falta la segunda corrida) | `thinking_tools` suma G (turno entero OFF → pregunta siguiente ON, decide) y H (rondas ON → cierre OFF, informativa); el gate pasa a A–E + G, con F informativa. Redefinido ANTES de correr G y H; diseño de 3a condicionado en [fase3.md](../banco/specs/fase3.md) | `test_la_regla_del_turno_reproduce_la_primera_corrida_y_el_gate_pasa`, `test_un_400_tumba_el_gate_y_se_ve_donde`, `test_las_informativas_no_deciden_el_gate` |
+ | X101 | — | Seis settings eran tunables que nadie fijaba (ningún escenario del banco, ningún test por entorno salvo dos) y uno, `LAYA_MAX_EN_PROCESO`, se leía con `int()` a secas: un typo en el `.env` tiraba el import de `utils.laya` | ✅ 2026-10-28 | `MAPA_CONCURRENCIA`, `JUEZ_LOTE_CONCURRENCIA`, `PREFETCH_MAX_ARCHIVOS`, `PREFETCH_MAX_LINEAS`, `LAYA_ERROR_COOLDOWN` y `LAYA_MAX_EN_PROCESO` pasan a constantes con el MISMO valor (el bug del `int()` deja de existir: no queda lectura que falle). `LAYA_BATCH_SIZE` NO: su `0` es un modo (el lote no se parte), no un número — pasa a contrato en el inventario. Ratchet `settings_leidos` **84 → 78**. Sin cambio de conducta | `test_los_tunables_de_x101_no_se_leen_del_entorno` |
+ | X100 | — | El gate previo de la fase 3 (thinking con tools, reasoning preservado) no tenía sonda | ✅ 2026-10-28 (sonda escrita; falta correrla) | `banco/probes/thinking_tools.py`, seis secuencias (A–F, incluido el rechazo de s19-s3 y la compacción); arma los requests con `_kwargs_agente(..., pensar=True)`, el builder de producción, que hoy solo usa la sonda. El cableado en el chat espera el resultado | `test_pensar_preserva_el_reasoning_y_habilita_thinking_con_tools`, `test_un_400_tumba_el_gate_y_se_ve_donde` |
+ | X99 | — | La fase 2d (esquema de tools fijo + `tool_choice="none"` en `Cierre`) prometía que el cierre reusara el KV-cache | ❌ no entra (2026-10-28) | Medido con X98 sobre la base de 16 corridas: 2 cierres reales por presupuesto (tope amplio 16), ambos con 0% de hit por venir justo tras una compacción. Con < 5 cierres el criterio no se puede decidir y el beneficio alcanza 2 de 16 preguntas. Una primera lectura los confundió con respuestas de 9–15 rondas (tope 8 en vez de 16): NO quedó probado que DeepSeek mantenga la caché sin tools. Detalle en [fase2d.md](../banco/specs/fase2d.md) | [banco/specs/fase2d.md](../banco/specs/fase2d.md) |
+diff -ruN a/docs/roadmap.md b/docs/roadmap.md
+--- a/docs/roadmap.md	2026-10-28 20:57:14.170613046 +0000
++++ b/docs/roadmap.md	2026-10-28 20:56:24.715595660 +0000
+@@ -15,8 +15,8 @@
+ `Contexto → Cierre`). **2d**: instrumento listo (X98, `cache_hit` y
+ `llamador` en la traza) y pre-registro en `banco/specs/fase2d.md`. **2d no
+ entra** (X99: 2 cierres reales en 16 corridas, casos insuficientes). Fase 3:
+-gate previo escrito (X100, `banco/probes/thinking_tools.py`); el cableado en
+-el chat espera su resultado.
++gate previo corrido (F 400, X102): la sonda suma G y H y el gate se
++redefine a A–E + G; el cableado en el chat espera la segunda corrida.
+ 2b-3 queda para después de la fase 4 (o se descarta si sigue sin haber
+ sub-agentes); 2b-3 `AgentStep`/`ExecuteTools` →
+ `Paso`/`Actuar` del kernel con renombre y alias en `replay`/`evals`. Sin
+diff -ruN a/ratchets/baseline.json b/ratchets/baseline.json
+--- a/ratchets/baseline.json	2026-10-28 20:57:14.190612649 +0000
++++ b/ratchets/baseline.json	2026-10-28 20:56:27.359543128 +0000
+@@ -565,7 +565,7 @@
+         "tests/test_streaming.py": 11,
+         "tests/test_supervisor_convergencia.py": 4,
+         "tests/test_tablero.py": 2,
+-        "tests/test_thinking_tools.py": 5,
++        "tests/test_thinking_tools.py": 7,
+         "tests/test_thread_store.py": 26,
+         "tests/test_tokens_runs.py": 5,
+         "tests/test_twins_extractores.py": 5,
+@@ -580,7 +580,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 1130
++      "metrica": 1132
+     },
+     "texto_de_prompt": {
+       "detalle": {
+diff -ruN a/tests/test_thinking_tools.py b/tests/test_thinking_tools.py
+--- a/tests/test_thinking_tools.py	2026-10-28 20:57:14.162613205 +0000
++++ b/tests/test_thinking_tools.py	2026-10-28 20:56:23.435621091 +0000
+@@ -1,7 +1,6 @@
+ """Gate previo de la fase 3 (banco/specs/fase3.md): la sonda thinking_tools
+-sin red. Clava que usa el MISMO builder que produccion, las seis secuencias y
+-el veredicto (un 400 no pasa; otro error no es 400 pero deja la secuencia sin
+-veredicto)."""
++sin red. Clava que usa el MISMO builder que produccion, las ocho secuencias y
++el veredicto redefinido (A–E y G deciden; F y H informan)."""
+ from types import SimpleNamespace as NS
+ 
+ import pytest
+@@ -25,21 +24,30 @@
+     assert "reasoning_content" not in hoy["messages"][1]
+ 
+ 
++def _ultimo_usuario(mensajes):
++    return max((i for i, m in enumerate(mensajes) if m.get("role") == "user"), default=-1)
++
++
+ class ClienteFalso:
+-    """Pide UNA tool la primera vez de cada secuencia; después responde.
+-    Con `rechazar`, contesta 400 si el request arrastra un assistant con
+-    tool_calls sin reasoning y thinking ON (la regla documentada)."""
++    """Pide UNA tool cuando el último mensaje es del usuario; si no, responde.
++    `regla` modela qué exige la API con thinking ON:
++      None      — nada (acepta todo)
++      "turno"   — el reasoning de los assistant con tool_calls POSTERIORES al
++                  último user (la hipótesis que sale de E ok + F 400)
++      "siempre" — el de TODOS los assistant con tool_calls (la lectura literal
++                  de la doc: "todas las requests subsiguientes")"""
+ 
+-    def __init__(self, rechazar=False):
+-        self.rechazar, self.requests = rechazar, []
++    def __init__(self, regla=None):
++        self.regla, self.requests = regla, []
+         self.chat = NS(completions=NS(create=self.create))
+ 
+     def create(self, **kwargs):
+         self.requests.append(kwargs)
+         mensajes = kwargs["messages"]
+         pensando = kwargs["extra_body"]["thinking"]["type"] == "enabled"
+-        sin_razon = any(m.get("tool_calls") and not m.get("reasoning_content") for m in mensajes)
+-        if self.rechazar and pensando and sin_razon:
++        desde = _ultimo_usuario(mensajes) + 1 if self.regla == "turno" else 0
++        sin_razon = any(m.get("tool_calls") and not m.get("reasoning_content") for m in mensajes[desde:])
++        if self.regla and pensando and sin_razon:
+             raise _Error400()
+         ultimo = mensajes[-1]
+         pide = kwargs.get("tools") and ultimo["role"] == "user" and "Respondé AHORA" not in ultimo["content"]
+@@ -52,33 +60,54 @@
+     status_code = 400
+ 
+ 
+-def test_las_seis_secuencias_pasan_con_una_api_que_acepta():
++def test_las_ocho_secuencias_pasan_con_una_api_que_acepta():
++    """Las ocho (A–H): con una API que acepta todo, todas ok y el gate pasa.
++    B y H cierran sin tools; F y la primera parte de G van con thinking OFF."""
+     sonda = tt.Sonda(ClienteFalso())
+     tt.secuencias(sonda)
+     pasa, resumen = tt.veredicto(sonda.pasos)
+-    assert pasa and set(resumen) == set("ABCDEF")
+-    # B: el cierre va sin tools; F: la primera ronda va con thinking OFF
++    assert pasa and set(resumen) == set("ABCDEFGH")
++    assert all(v == "ok" for v in resumen.values())
+     assert any(p["secuencia"] == "B" and p["paso"] == "cierre sin tools" and not p["tools"]
+                for p in sonda.pasos)
+-    assert any(p["secuencia"] == "F" and not p["pensar"] for p in sonda.pasos)
++    cierre_h = next(p for p in sonda.pasos if p["secuencia"] == "H" and not p["tools"])
++    assert cierre_h["pensar"] is False
++    assert [p["pensar"] for p in sonda.pasos if p["secuencia"] == "G"] == [False, False, True, True]
++
++
++def test_la_regla_del_turno_reproduce_la_primera_corrida_y_el_gate_pasa():
++    """La hipótesis (E ok + F 400 en vivo): el reasoning se exige solo en el
++    turno en curso. Con esa API, F da 400 — informativa — y G pasa: el modo
++    puede cambiar ENTRE preguntas. El gate redefinido pasa."""
++    sonda = tt.Sonda(ClienteFalso(regla="turno"))
++    tt.secuencias(sonda)
++    pasa, resumen = tt.veredicto(sonda.pasos)
++    assert resumen["F"] == "400" and resumen["E"] == resumen["G"] == "ok"
++    assert pasa
+ 
+ 
+ def test_un_400_tumba_el_gate_y_se_ve_donde():
+-    """Con la API exigiendo el reasoning, E (la zona fría compactada sin
+-    reasoning) y F (historial armado con thinking OFF) dan 400: son
+-    exactamente las dos secuencias que el chat tiene que resolver antes de
+-    activar la fase 3 (la compacción y el resume de sesiones viejas)."""
+-    sonda = tt.Sonda(ClienteFalso(rechazar=True))
++    """Con la regla literal (el reasoning de TODA la conversación), E y G dan
++    400: la fase 3 tendría que conservar el reasoning para siempre
++    (compacción y resume) — el gate no pasa y dice dónde."""
++    sonda = tt.Sonda(ClienteFalso(regla="siempre"))
+     tt.secuencias(sonda)
+     pasa, resumen = tt.veredicto(sonda.pasos)
+     assert not pasa
+-    assert resumen["E"] == resumen["F"] == "400"
++    assert resumen["E"] == resumen["F"] == resumen["G"] == "400"
+     assert resumen["A"] == resumen["B"] == resumen["C"] == resumen["D"] == "ok"
+ 
+ 
+ @pytest.mark.parametrize(("status", "esperado"), [(429, "sin veredicto"), (None, "sin veredicto")])
+ def test_un_error_que_no_es_400_deja_la_secuencia_sin_veredicto(status, esperado):
+-    pasos = [{"secuencia": s, "ok": True, "status": 200} for s in "ABCDE"]
+-    pasos.append({"secuencia": "F", "ok": False, "status": status})
++    pasos = [{"secuencia": s, "ok": True, "status": 200} for s in "ABCDEFH"]
++    pasos.append({"secuencia": "G", "ok": False, "status": status})
++    pasa, resumen = tt.veredicto(pasos)
++    assert not pasa and resumen["G"] == esperado
++
++
++def test_las_informativas_no_deciden_el_gate():
++    pasos = [{"secuencia": s, "ok": True, "status": 200} for s in "ABCDEG"]
++    pasos += [{"secuencia": s, "ok": False, "status": 400} for s in "FH"]
+     pasa, resumen = tt.veredicto(pasos)
+-    assert not pasa and resumen["F"] == esperado
++    assert pasa and resumen["F"] == resumen["H"] == "400"
