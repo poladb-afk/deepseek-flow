@@ -5675,3 +5675,44 @@ en s17/s18/s19, USD por escenario 2,2×–6,9× (tope 1,5×), y s17+s18 −2
 trazas por mtime de última escritura mete el piloto en la tanda A (su
 escritura final cae en plena tanda); el nombre de la traza lleva la hora
 de inicio y es la referencia correcta.
+
+---
+
+## La fase 3a no entra; pre-registro de la 3b + 4a (2026-10-28, X105)
+
+**Veredicto del A/B** (comparador de X104, 16 + 16): NO PASA, lejos del
+borde. El costo solo ya alcanza para rechazarla (2,2×–6,9× contra 1,5×); la
+calidad baja en s17/s18/s19 pero puede ser ruido. Lo concluyente: s17+s18
+−2 cuando hacía falta +2. Pensar en las rondas con tools cuesta varias
+veces más y no mejora estas auditorías.
+
+**Nota abierta (opcional, no cambia la decisión)**: s18 a 6,9× es más de lo
+que explican los tokens de razonamiento. Separar el USD del brazo E en
+completion vs prompt sin caché diría si el thinking también bajó el
+porcentaje de caché.
+
+**Método**: el comparador ordena por nombre y no tuvo el problema; lo que se
+mezcló fue la reconstrucción de los directorios por brazo (por mtime). La
+regla queda en el pre-registro de 3b: cada brazo con su `.runs` desde el
+principio.
+
+**Reversión**: fuera `turno["pensar"]`, `PENSAR_TOOLS`, el parámetro
+`pensar` de `call_llm_agent(_stream)`, la acumulación del reasoning en el
+stream, `historiar(msg, pensar)` y `compaccion.sin_razonamiento_previo`; el
+invariante 1 vuelve a ser estricto (sin reasoning en ningún mensaje). El
+docstring de `_kwargs_agente` registra lo medido: la combinación es válida
+si el reasoning del turno vuelve, y el A/B la rechazó. Fuera también
+`comparar_fase3.py` y su test (cumplieron: el veredicto queda acá y en
+`salidas/evals`). El brazo E nunca entró al árbol de este repo (commit del
+operador): no hay nada que borrar en `ENV_POR_BRAZO`; si está en el tuyo, va
+fuera. La sonda `thinking_tools` se queda y arma sus requests con thinking
+ON ella misma (`pedido`); el OFF sigue saliendo del builder de producción.
+Ratchet: `settings_leidos` 79 → 78 (mejora, sin clave).
+
+**Pre-registro de 3b + 4a** en `banco/specs/fase3b_4a.md`: el router sale
+del chat; los skills pasan a un nodo a la entrada; se mide con el escenario
+nuevo `fase3b-directas` (las 12 preguntas directas de `producto_router`)
+tools de más, USD y descarrilos — este último porque con tools ofrecidas el
+thinking va apagado, y la bitácora ya midió descarrilos en directo sin
+thinking.
+

@@ -1,0 +1,46 @@
+id: fase3b-directas
+descripcion: "fase 3b (pre-registro): las 12 preguntas `directo` de producto_router por el camino del chat; base = router, 3b = un solo camino con tools"
+env:
+  PREGUNTAS_LOG: "0"
+  LAYA_LOG_ARCHIVO: "salidas/fase3b/routing.jsonl"
+  COMPACTION_CHARS: "120000"
+turnos:
+  - id: d01
+    linea: "escribime un haiku sobre el mar."
+    timeout: 180
+  - id: d02
+    linea: "¿qué es un closure en Python?"
+    timeout: 180
+  - id: d03
+    linea: "explicá brevemente la diferencia entre lista y tupla en Python."
+    timeout: 180
+  - id: d04
+    linea: "¿cuál es la fórmula del área de un círculo?"
+    timeout: 180
+  - id: d05
+    linea: "resumí en una frase qué es un LLM."
+    timeout: 180
+  - id: d06
+    linea: "¿qué significa REST en el contexto de APIs?"
+    timeout: 180
+  - id: t01
+    linea: "explicame qué es la recursión con una analogía, sin código"
+    timeout: 180
+  - id: t02
+    linea: "¿qué es una condición de carrera en programación? definila en dos frases"
+    timeout: 180
+  - id: t03
+    linea: "¿quién escribió Cien años de soledad?"
+    timeout: 180
+  - id: t04
+    linea: "definí qué es un endpoint idempotente"
+    timeout: 180
+  - id: t05
+    linea: "explicá la diferencia entre HTTP GET y POST"
+    timeout: 180
+  - id: t06
+    linea: "pasame tres ideas de nombres para una variable que guarda un conteo"
+    timeout: 180
+  - id: salir
+    linea: "salir"
+    timeout: 60

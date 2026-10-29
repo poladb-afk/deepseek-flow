@@ -58,7 +58,7 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91).
 | `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
 | `producto_conoce_lab` | 10 → **0** (X93) | 0 ✅ |
 | `vocabulario_hardcodeado` | 8 → 7 (X104) | ≤ 2 (fases 3–4; quedan los sí/no del HITL) |
-| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) | ≤ 45 (fases 1–5, ver inventario) |
+| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) | ≤ 45 (fases 1–5, ver inventario) |
 | `imports_perezosos` | 137 → 126 (X92) | ≤ 40 |
 | `nodos_largos` | 15 → 14 (X96) | ≤ 3 |
 | `texto_de_prompt` | 2748 chars | ≤ 800 |
@@ -70,19 +70,18 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91).
 | 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
 | 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
 | 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. ✅ 2b-2 (X96): `Observar` y `Cierre` (el presupuesto como arista). Falta: el chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
-| 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a cableada, apagada (X103). `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
+| 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a NO PASA (X105, cableado borrado). 3b por la opción (b): el router sale del chat, pre-registro en `banco/specs/fase3b_4a.md`. `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
 | 4 | ✅ 4b-mín (X104): sin la regex de palabras. Falta 4a: se borran reglas y voto con la 3b; directivas en la 5b (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
 | 5 | Política de comandos como datos (S10); skills por descripción; Laya 0.4.x | Mínimo | `test_policy_bypass.py` idéntico |
 | 6 | Limpieza de piezas sueltas (`juez`, `effective_n`, `juez_lote`, `research`, `informe`, `fable_judge`): nodos largos e imports perezosos (decisión del operador, X103) | No | `nodos_largos` ≤ 3, `imports_perezosos` ≤ 40 |
 
-## Inventario de settings (79 tras X103: 42 contrato · 19 revisar · 18 borrar)
+## Inventario de settings (78 tras X105: 42 contrato · 19 revisar · 17 borrar)
 
 `contrato` = decisión del operador que se queda; `revisar` = se decide en la
 fase indicada; `borrar` = se va con su rama en esa fase.
 
 | Setting | Veredicto | Fase | Motivo | Lo lee |
 |---|---|---|---|---|
-| `PENSAR_TOOLS` | borrar | 3 | 3b: TEMPORAL para el A/B de 3a (decisión del operador, con su clave del ratchet); se borra cuando el modo lo elija Laya por pregunta | `nodes.py` |
 | `BMO_TASKS_DIR` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/rutas.py` |
 | `LEER_BMO_ENV` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/call_llm.py` |
 | `LAYA_ALPHA_VOTO` | borrar | 3 | S2: el voto existe para tapar el directo sin tools | `utils/laya_routing.py` |
@@ -161,3 +160,4 @@ fase indicada; `borrar` = se va con su rama en esa fase.
 | `WEBHOOK_MAX_BYTES` | contrato | — | seguridad y HITL: decisión del operador | `utils/hitl_web.py` |
 | `WEBHOOK_MAX_POR_MINUTO` | contrato | — | seguridad y HITL: decisión del operador | `utils/hitl_web.py` |
 | `WEBHOOK_TOKEN` | contrato | — | seguridad y HITL: decisión del operador | `utils/hitl_web.py` |
+

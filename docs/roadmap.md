@@ -15,9 +15,9 @@ cerrada** (X96: `Observar` cuenta la ronda y el presupuesto es la arista
 `Contexto → Cierre`). **2d**: instrumento listo (X98, `cache_hit` y
 `llamador` en la traza) y pre-registro en `banco/specs/fase2d.md`. **2d no
 entra** (X99: 2 cierres reales en 16 corridas, casos insuficientes). Fase 3:
-gate previo PASA (X102). **3a cableada detrás de `PENSAR_TOOLS=0`** (X103);
-el A/B (brazo A vs brazo E, 16 + 16 sobre `bc5e8d0`) está corriendo; el
-veredicto lo da `banco/probes/comparar_fase3.py`. **4b-mín cerrada** (X104:
+gate previo PASA (X102). **3a NO PASA** (X105: el A/B dio 2,2×–6,9× el USD y s17+s18 −2; cableado
+borrado). **3b + 4a pre-registradas** (`banco/specs/fase3b_4a.md`: el router
+sale del chat; corre el operador `fase3b-directas` ×3 por brazo). **4b-mín cerrada** (X104:
 la regex de palabras se borró, 0 cambios en 36 preguntas reales). Fase 6 (limpieza de las piezas sueltas) aprobada, después de la 5.
 2b-3 queda para después de la fase 4 (o se descarta si sigue sin haber
 sub-agentes); 2b-3 `AgentStep`/`ExecuteTools` →

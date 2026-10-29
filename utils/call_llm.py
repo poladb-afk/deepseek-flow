@@ -176,7 +176,7 @@ def call_llm(messages):
     return response.choices[0].message.content
 
 
-def _kwargs_agente(messages, tools=None, pensar=False):
+def _kwargs_agente(messages, tools=None):
     """Contrato de modo thinking compartido por la versión clásica y la de
     streaming (MISMA lógica: no puede haber deriva entre las dos).
 
@@ -203,18 +203,10 @@ def _kwargs_agente(messages, tools=None, pensar=False):
     toda llamada con tools o con historial agéntico viaja con thinking
     DISABLED; no existe acá una combinación tools+thinking activa.
 
-    `pensar=True` es esa combinación (fase 3, pre-registro
-    banco/specs/fase3.md): el `reasoning_content` que traigan los mensajes
-    VIAJA y el thinking va habilitado aunque haya tools. Hoy no lo usa el chat:
-    lo usa la sonda del gate (banco/probes/thinking_tools.py), que tiene que
-    dar 0 errores 400 antes de que el chat lo active — así la sonda prueba el
-    MISMO request que mandaría producción."""
-    if pensar:
-        kwargs = {"model": _model(), "messages": list(messages),
-                  "extra_body": {"thinking": {"type": "enabled"}}}
-        if tools:
-            kwargs["tools"] = tools
-        return kwargs
+    Medido (fase 3, banco/specs/fase3.md): la combinación es VÁLIDA si el
+    reasoning del turno en curso vuelve (sonda banco/probes/thinking_tools.py),
+    pero el A/B la rechazó — 2,2×–6,9× el USD por escenario y sin mejora en
+    s17/s18. Por eso este builder no la ofrece."""
     # el reasoning_content del modo thinking no viaja (parte del mismo
     # contrato de consistencia de modo)
     limpio = [
@@ -234,10 +226,10 @@ def _kwargs_agente(messages, tools=None, pensar=False):
     return kwargs
 
 
-def call_llm_agent(messages, tools=None, pensar=False):
+def call_llm_agent(messages, tools=None):
     """Una vuelta del agente: devuelve el mensaje del asistente
-    (con .tool_calls si pidió herramientas). `pensar`: ver _kwargs_agente."""
-    kwargs = _kwargs_agente(messages, tools, pensar)
+    (con .tool_calls si pidió herramientas)."""
+    kwargs = _kwargs_agente(messages, tools)
     response = _client().chat.completions.create(**kwargs)
     _contabilizar(getattr(response, "usage", None), kwargs.get("model"))
     return response.choices[0].message
@@ -259,17 +251,12 @@ def _acumular_fragmento(frag, por_indice):
         acumulado["arguments"] += funcion.arguments
 
 
-def _acumular_delta(delta, contenido, por_indice, razonamiento):
-    """Texto de content (se imprime en vivo) + fragmentos de tool_calls. El
-    reasoning NO se imprime ni se mezcla con content: se junta aparte, porque
-    con thinking en las rondas con tools (fase 3) tiene que volver a la API."""
+def _acumular_delta(delta, contenido, por_indice):
+    """Texto de content (se imprime en vivo) + fragmentos de tool_calls."""
     texto = getattr(delta, "content", None)
     if texto:
         print(texto, end="", flush=True)
         contenido.append(texto)
-    razon = getattr(delta, "reasoning_content", None)
-    if razon:
-        razonamiento.append(razon)
     for frag in getattr(delta, "tool_calls", None) or []:
         _acumular_fragmento(frag, por_indice)
 
@@ -297,7 +284,7 @@ def _tool_calls_finales(por_indice, cortado):
     ]
 
 
-def call_llm_agent_stream(messages, tools=None, pensar=False):
+def call_llm_agent_stream(messages, tools=None):
     """Igual contrato que call_llm_agent (mismo modo thinking pegajoso,
     mismo filtro de reasoning_content) pero con stream=True: imprime EN
     VIVO cada delta de CONTENT a medida que llega (flush, sin saltos de
@@ -316,12 +303,12 @@ def call_llm_agent_stream(messages, tools=None, pensar=False):
     stream y se devuelve lo acumulado (el chat sigue, no se cae); se imprime
     un aviso "[interrumpido]". Con 0, el Ctrl+C se propaga como siempre
     (main lo toma como salida). El Ctrl+C fuera del stream no se toca."""
-    kwargs = _kwargs_agente(messages, tools, pensar)
+    kwargs = _kwargs_agente(messages, tools)
     # exp/89: el último chunk trae usage solo si se pide (OpenAI-compat)
     kwargs["stream_options"] = {"include_usage": True}
     stream = _client().chat.completions.create(**kwargs, stream=True)
     interrumpible = _setting("CHAT_STREAM_INTERRUPT", "1") == "1"
-    contenido, razonamiento = [], []
+    contenido = []
     por_indice = {}  # index -> {"id", "name", "arguments"}
     cortado = False
     uso = None
@@ -334,7 +321,7 @@ def call_llm_agent_stream(messages, tools=None, pensar=False):
             if not chunk.choices:
                 continue
             # los deltas de reasoning_content NO se imprimen (se descartan)
-            _acumular_delta(chunk.choices[0].delta, contenido, por_indice, razonamiento)
+            _acumular_delta(chunk.choices[0].delta, contenido, por_indice)
     except KeyboardInterrupt:
         # Ctrl+C durante la generación: si la interrupción está activa se
         # corta acá y se devuelve lo acumulado (el chat sigue vivo); si no,
@@ -365,7 +352,6 @@ def call_llm_agent_stream(messages, tools=None, pensar=False):
     return SimpleNamespace(
         content="".join(contenido) or None,
         tool_calls=tool_calls or None,
-        reasoning_content="".join(razonamiento) or None,
     )
 
 

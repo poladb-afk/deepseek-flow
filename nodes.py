@@ -8,14 +8,7 @@ from pocketflow import Node
 
 from modules import discover, ganchos
 from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_stream
-from utils.compaccion import (
-    PREFIJO_COMPACCION,
-    compactar,
-    huella,
-    recortar_tools_viejos,
-    serializar,
-    sin_razonamiento_previo,
-)
+from utils.compaccion import PREFIJO_COMPACCION, compactar, huella, recortar_tools_viejos, serializar
 from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
 from utils.fs_tools import TOOLS as CORE_TOOLS
 from utils.proveedor import (  # noqa: F401  (re-export: tests y banco los importan de nodes)
@@ -171,9 +164,6 @@ def nuevo_turno():
         "router_pendiente": None,  # id de la decisión shadow a etiquetar (exp/43)
         "uso_inicio": None,      # desglose de tokens al empezar (exp/90)
         "ruta": "herramientas",  # la arista que toma Contexto (la fija el router)
-        # fase 3: thinking en las rondas con tools, fijado UNA vez por pregunta
-        # (la API no tolera cambiar de modo dentro del turno: X102, secuencia F)
-        "pensar": _setting("PENSAR_TOOLS", "0") == "1",
     }
 
 
@@ -277,15 +267,12 @@ AVISO_CIERRE = (
 )
 
 
-def historiar(msg, pensar=False):
-    """El mensaje del asistente en forma canónica para el historial:
-    role/content/tool_calls. El reasoning_content queda solo si la pregunta
-    piensa (fase 3): ahí la API lo exige de vuelta en el turno en curso; sin
-    thinking, arrastrarlo rompe la API (400 medido en producción)."""
+def historiar(msg):
+    """El mensaje del asistente en forma canónica para el historial: solo
+    role/content/tool_calls. El reasoning_content del modo thinking NO
+    viaja — arrastrarlo a una vuelta sin thinking rompe la API (400
+    'reasoning_content must be passed back', medido en producción)."""
     m = {"role": "assistant", "content": msg.content}
-    razon = getattr(msg, "reasoning_content", None)
-    if pensar and isinstance(razon, str) and razon:
-        m["reasoning_content"] = razon
     if getattr(msg, "tool_calls", None):
         m["tool_calls"] = [
             {"id": tc.id, "type": "function",
@@ -339,10 +326,7 @@ class GetQuestion(Node):
         # Tarea vigente para la compacción: una continuación no pisa el objetivo.
         if exec_res.strip().lower() not in {"seguí", "segui", "continúa", "continua", "continue"}:
             shared["_objetivo"] = exec_res
-        # fase 3: el reasoning de los turnos anteriores no vuelve a la API
-        # (X102: solo lo exige en el turno en curso) — se descarta acá.
-        shared["messages"] = sin_razonamiento_previo(shared["messages"] + [
-            {"role": "user", "content": exec_res}])
+        shared["messages"].append({"role": "user", "content": exec_res})
         # exp/90: el costo POR PREGUNTA se cierra acá — se vuelve por
         # "answer", así que la pregunta anterior ya respondió: su costo es
         # el delta del desglose desde su propio arranque. La última nunca
@@ -488,22 +472,18 @@ class AgentStep(Node):
 
             skill = next((h for h in disponibles() if h.id == skill_id), None)
             tools = filtrar_tools(tools, skill) if skill else tools
-        return shared["messages"], tools, turno(shared)["pensar"]
+        return shared["messages"], tools
 
     def exec(self, inputs):
-        messages, tools, *resto = inputs
-        pensar = bool(resto and resto[0])
+        messages, tools = inputs
         stream = _setting("CHAT_STREAM", "1") == "1"
-        # sin `pensar` la llamada es la de siempre (la firma vieja: los tests
-        # y fakes que reemplazan el cliente no se enteran de la fase 3)
-        extra = {"pensar": True} if pensar else {}
         if stream:
             # etiqueta antes del primer delta: sin ella las respuestas
             # llegan sin rótulo (nit de UX de la mesa 8, medido en prod)
             print("\nDeepSeek: ", end="", flush=True)
-            exec_res = call_llm_agent_stream(messages, tools, **extra)
+            exec_res = call_llm_agent_stream(messages, tools)
         else:
-            exec_res = call_llm_agent(messages, tools, **extra)
+            exec_res = call_llm_agent(messages, tools)
         # La normalización va en exec, NO en post: los max_retries de
         # PocketFlow envuelven exec(), así que un raise acá SÍ re-pregunta; en
         # post() cortaría el chat (bug medido). Es la misma del kernel.
@@ -522,7 +502,7 @@ class AgentStep(Node):
         return exec_res
 
     def post(self, shared, prep_res, exec_res):
-        shared["messages"].append(historiar(exec_res, turno(shared)["pensar"]))
+        shared["messages"].append(historiar(exec_res))
         if getattr(exec_res, "tool_calls", None):
             # exp/49: punto seguro 4 — la SELECCIÓN: las llamadas quedaron
             # elegidas pero no ejecutadas (la pausa exacta del factor 8).
@@ -934,10 +914,7 @@ class Cierre(AgentStep):
     def prep(self, shared):
         # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
         # el modelo sigue emitiendo tool calls en vez de cerrar la respuesta.
-        # El cierre hereda el modo de la pregunta (no se apaga: X102 H dio ok,
-        # pero cambiar dos cosas en el A/B de 3a las mezclaría).
-        return (list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None,
-                turno(shared)["pensar"])
+        return list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None
 
 
 class DirectAnswer(AgentStep):
@@ -947,6 +924,5 @@ class DirectAnswer(AgentStep):
 
     def prep(self, shared):
         # La compacción ya corrió en Contexto (la ruta directa mandaba el
-        # historial entero sin techo, exp/36). Sin tools y sin la fase 3: sin
-        # tools en el turno, la regla de la API no aplica.
-        return shared["messages"], None, False
+        # historial entero sin techo, exp/36). Sin tools.
+        return shared["messages"], None

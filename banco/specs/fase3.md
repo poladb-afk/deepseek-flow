@@ -135,3 +135,18 @@ base — el setting llega.
 JSONL de resultados y el directorio de trazas de cada brazo, calcula USD con
 el split de caché de la traza y aplica los criterios de arriba. Se niega a
 decidir si resultados y trazas de chat no se emparejan uno a uno.
+
+## Veredicto (2026-10-28, X104–X105): NO PASA
+
+`comparar_fase3.py` sobre 16 + 16 corridas emparejadas por nombre de traza
+(hora de inicio): calidad s17 6→5, s18 5→4, s19 6→4; USD por escenario
+2,21× / 6,87× / 4,18× / 3,90× (tope 1,5×); s17+s18 −2 (hacía falta +2).
+Fallan los criterios 1, 2 y 3. La caída de calidad puede ser ruido (dos
+bases sobre el mismo árbol ya movieron s19 6→4); lo concluyente es el costo
+y que la mejora no aparece. Salida completa en
+`salidas/evals/fase3a-ab-comparador.txt`.
+
+Consecuencia (X105): se borra el cableado de la 3a, el setting y el
+comparador; la sonda `thinking_tools` se queda como documento de la
+restricción del proveedor y arma sus propios requests. La 3b va por la
+opción (b): [fase3b_4a.md](fase3b_4a.md).

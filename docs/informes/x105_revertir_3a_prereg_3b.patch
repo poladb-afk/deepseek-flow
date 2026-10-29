@@ -1,0 +1,2885 @@
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/.env.example deepseek-flow-main/.env.example
+--- /tmp/orig/.env.example	2026-10-29 19:17:38.411244133 +0000
++++ deepseek-flow-main/.env.example	2026-10-29 19:18:59.357489512 +0000
+@@ -36,11 +36,6 @@
+ # Vacío (default) = pregunta real por terminal.
+ # HUMANO_RESPUESTA=
+ # MAX_TOOL_ROUNDS=8
+-# Fase 3 (banco/specs/fase3.md): 1 = thinking también en las rondas con tools,
+-# con el reasoning del turno en curso preservado (la API lo exige ahí). El modo
+-# se fija UNA vez por pregunta. Default 0 hasta que el A/B lo apruebe; TEMPORAL:
+-# se borra en 3b, cuando el modo lo elija Laya por pregunta.
+-# PENSAR_TOOLS=0
+ # Presupuesto dinámico determinista (exp/86): un pedido de alcance amplio
+ # (un directorio mencionado con >=10 archivos de código, o masa mencionada
+ # >=300 líneas — lo cuenta el código contra el disco) sube el tope a
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/.env.example.orig deepseek-flow-main/.env.example.orig
+--- /tmp/orig/.env.example.orig	1970-01-01 00:00:00.000000000 +0000
++++ deepseek-flow-main/.env.example.orig	2026-10-29 18:19:40.000000000 +0000
+@@ -0,0 +1,280 @@
++# Copia este archivo a .env y ajusta lo que necesites.
++# La API key de DeepSeek NO vive aquí: se resuelve desde la variable de
++# entorno DEEPSEEK_API_KEY, o LLM_API_KEY en este .env.
++
++# LLM_API_KEY=sk-...
++# LLM_MODEL=deepseek-flash
++# LLM_BASE_URL=https://api.deepseek.com
++
++# Precios por 1M tokens (USD, off-peak) para el costo en dinero del reporte
++# [tokens] (exp/90): JSON {modelo: [cache_hit, cache_miss, completion]}.
++# Defaults en utils/costos.py (tabla DeepSeek al 2026-10-23; pico = el doble;
++# deepseek-chat/reasoner facturan a precio Flash). Pisalos acá si cambian.
++#PRECIO_TOKENS=
++
++# Directorios que el agente puede listar/leer/escribir, separados por ':'
++# (default: el directorio actual)
++# AGENT_ALLOWED_DIRS=/home/usuario/documentos
++
++# Carpeta por defecto del informe map-reduce (default: directorio actual)
++# INFORME_CARPETA=/ruta/a/trazas
++
++# Tope de rondas de herramientas por pregunta del chat (default 8)
++# Directiva de forma del código que genera el chat (exp/51): 1 = pide el
++# mínimo código que funciona (default); 0 = la apaga (solo para el A/B del
++# banco). El efecto está medido: −79%/−67% de líneas según modelo.
++# PROMPT_FORMA=1
++# Directiva del método Fable (exp/72 F0, brazo prosa del A/B): 0 = apagada
++# (default, producción sin cambios); 1 = inyecta la directiva del método.
++# PROMPT_FABLE=0
++# Checklist de auditoría de seguridad (exp/78, brazo D): 1 = agrega la directiva
++# de buscar controles por AUSENCIA (flags que faltan, envoltorios, normalización).
++# 0 = apagada (default, producción sin cambios).
++# PROMPT_AUDITORIA=0
++# Respuesta canned para request_human_input en corridas headless (banco):
++# simula un usuario offline y evita que el pedido al humano bloquee el turno.
++# Vacío (default) = pregunta real por terminal.
++# HUMANO_RESPUESTA=
++# MAX_TOOL_ROUNDS=8
++# Fase 3 (banco/specs/fase3.md): 1 = thinking también en las rondas con tools,
++# con el reasoning del turno en curso preservado (la API lo exige ahí). El modo
++# se fija UNA vez por pregunta. Default 0 hasta que el A/B lo apruebe; TEMPORAL:
++# se borra en 3b, cuando el modo lo elija Laya por pregunta.
++# PENSAR_TOOLS=0
++# Presupuesto dinámico determinista (exp/86): un pedido de alcance amplio
++# (un directorio mencionado con >=10 archivos de código, o masa mencionada
++# >=300 líneas — lo cuenta el código contra el disco) sube el tope a
++# MAX_TOOL_ROUNDS_AMPLIO. La regla solo puede SUBIR
++# (el tope es un cap, no un gasto); override y perfil siguen ganando.
++# MAX_TOOL_ROUNDS_AMPLIO=16
++# Convergencia del loop (exp/52-B): con CORTE_NOVEDAD=k (0 = off, default) se
++# retiran las tools tras k rondas SEGUIDAS que no estrenan ninguna llamada
++# (tool+argumentos) en la pregunta, con mínimo CORTE_NOVEDAD_MIN rondas.
++# Default off: la regla se activa recién si el A/B del banco la valida
++# (exp/52-A midió que la cola gasta 85% de las rondas; falta el A/B real).
++# CORTE_NOVEDAD=0
++# CORTE_NOVEDAD_MIN=3
++# Skills declarativas (exp/55, Mesa 7): un YAML en skills/ con condición regex,
++# prompt y subset de tools. En enforce, el disparo fuerza herramientas, inyecta
++# el prompt y el loop anuncia solo ese subset (guía, no sandbox). 0 = apagado.
++# SKILLS=1
++# Webhook autenticado (Mesa 7, exp/57) sobre el server HITL web. Con
++# WEBHOOK_TOKEN vacío el endpoint POST /webhook queda DESHABILITADO (503);
++# el token se compara en tiempo constante y nunca se loguea. Los eventos se
++# persisten en WEBHOOK_LOG (JSONL, gitignored). Límites: cuerpo y por minuto.
++# Arranque del servicio: python3 main.py webhook
++# WEBHOOK_TOKEN=
++# WEBHOOK_LOG=salidas/webhooks.jsonl
++# WEBHOOK_MAX_BYTES=65536
++# WEBHOOK_MAX_POR_MINUTO=60
++# Chat web MVP (Mesa 8, exp/59): SSE con stdlib sobre el mismo server. Cada
++# sesión corre el chat real en un subproceso aislado; el texto no se persiste
++# (el hijo usa PREGUNTAS_LOG=0). Con WEBCHAT=0 las rutas /chat dan 404.
++# Servicio: WEBCHAT=1 python3 main.py webhook
++# WEBCHAT=0
++# WEBCHAT_MAX_SESIONES=3
++# WEBCHAT_TTL=900
++# Escape por no-progreso (exp/13, opción D): repeticiones IDÉNTICAS de la
++# misma ronda de tools (mismo nombre y argumentos) antes de retirar las tools
++# sin esperar el techo. El contador es por pregunta (lo reinicia cada mensaje
++# nuevo del usuario). Se lee al importar: cambiarlo exige reiniciar.
++# UMBRAL_SIN_PROGRESO=3
++# Log de preguntas del usuario (exp/34): una línea JSON por pregunta en
++# salidas/preguntas.jsonl (gitignored). Es lo que permite calibrar el router
++# con tráfico REAL — el trace no guarda texto y los logs del banco van con
++# echo off. Cualquier fallo de escritura se traga: nunca corta el chat.
++# PREGUNTAS_LOG=1
++# PREGUNTAS_ARCHIVO=salidas/preguntas.jsonl
++# Compacción de contexto (12-factor #5): si el historial serializado del
++# chat supera este tope de caracteres, la zona fría se reemplaza por un
++# resumen [compacción] (código puro, sin LLM) y solo queda la ventana
++# caliente (system + últimos 6 mensajes, con assistant+tools como unidad
++# indivisible). El costo se paga una vez por ronda. 0 lo apaga.
++# COMPACTION_CHARS=60000
++# Máximo de caracteres que devuelve read_file (corta el medio)
++# READ_MAX_CHARS=24000
++
++# Servidores MCP que el agente consume: nombre::comando ; otro::comando2
++# MCP_SERVERS=matematica::python3 /ruta/a/servidor.py
++# Capabilities que main.py mcp-server expone a otros agentes
++# (juicio_laya: juicio local tipado y calibrado de Laya como tool MCP)
++# MCP_EXPOSE=list_files,read_file,search_files,rag_search,rag_index,answer_verified,juicio_laya
++
++# Agentes remotos A2A (protocolo agent2agent) que el agente consume:
++# JSON {"nombre": "http://host:puerto"}. Las tools agentes_remotos/a2a_tarea
++# listan su agent card (/ .well-known/agent.json) y les envían tareas
++# (JSON-RPC 2.0 message/send). Sin setting, las tools lo dicen y no tocan
++# la red; un agente caído se reporta 'inaccesible' sin romper el listado.
++# A2A_AGENTS={"eco": "http://127.0.0.1:9000"}
++
++# Router Laya (if inteligente local): activo por defecto; 0 lo apaga
++# (sin checkpoint disponible, degrada a herramientas: el chat no se rompe)
++# USE_LAYA_ROUTER=1
++
++# Streaming de respuestas del chat: con 1 (default) la respuesta se imprime
++# token a token mientras se genera; 0 vuelve a la versión clásica (completa
++# al final). Aplica al chat (AgentStep/DirectAnswer), no al supervisor.
++# CHAT_STREAM=1
++# Interrupción del stream: con 1 (default), Ctrl+C mientras se genera corta
++# la respuesta y el chat sigue (se conserva lo parcial); 0 propaga el Ctrl+C
++# (salida del chat). Solo aplica con CHAT_STREAM=1.
++# CHAT_STREAM_INTERRUPT=1
++# Checkpoint afinado para el router (task router_flow de bmo; 27/30 crudo ECE 0.066 con
++# compuerta). Copia el checkpoint a .modelos/ o apunta al path de bmo:
++# LAYA_MODEL=.modelos/router_flow-1k
++# JUBILADOS por el bench del supervisor (2026-10-13): el Choose local y la
++# mayoría 2-de-3 se retiraron — un paso = UNA llamada (tool+args juntos) y
++# las leyes L8 viven como guardas de código. El checkpoint queda como
++# evidencia histórica: se mide con sonda_supervisor.py pasándolo por args.
++# LAYA_MODEL_SUPERVISOR=.modelos/supervisor_dispatch-1k
++# LAYA_UNSURE_HIGH_SUPERVISOR=0.9
++# LAYA_MODEL_VOTO=.modelos/router_voto  # Mesa 3: voto local; sin él, arbitra DeepSeek
++# Mayoría 2-de-3 del VOTO del router (no del supervisor, jubilado):
++# USE_VOTACION=1
++# Compuerta del router (veredicto "met" del lado directo). 0.85 = rodilla de
++# la curva medida (exp/8): bloquea el falso-directo "mundial" (0.83) sin
++# perder ningún directo-correcto en la banda 0.7-0.85.
++# LAYA_UNSURE_HIGH=0.85
++# Umbral propio del voto (segunda capa): su curva está bien a 0.7 (96%
++# precisión, 83% cobertura local) — separado para no arrastrarlo al router.
++# LAYA_UNSURE_HIGH_VOTO=0.7
++# LAYA_UNSURE_LOW=0.3
++# Compuerta conformal del router (exp/30/31): con LAYA_CALIBRACION_ROUTER
++# apuntando a un JSONL {"conf", "correcto"} etiquetado APARTE del test, el
++# umbral del router SALE de esos datos para el riesgo LAYA_ALPHA (cobertura
++# marginal >= 1-alpha) y una decisión local se acepta solo si el conjunto de
++# etiquetas plausibles colapsa a una. Sin archivo, o si con ese n no hay cota,
++# rige el umbral fijo de arriba (degradación por default). El archivo se lee en
++# cada decisión: no hay estado que quede viejo.
++# LAYA_CALIBRACION_ROUTER=salidas/evals/conformal_calibracion_router.jsonl
++# LAYA_ALPHA=0.10
++# Modo del router (exp/35). enforce (default) aplica la decisión — el
++# comportamiento de siempre; shadow la REGISTRA pero conserva herramientas
++# (mide sin cambiar la conducta y ahorra el voto de DeepSeek); off no ejecuta
++# exp/43: en shadow cada decisión con probabilidades gana un id y, cuando
++# DeepSeek responde la pregunta, una línea "resultado" registra si usó tools
++# (uso_tools) — la ETIQUETA AMBIENTAL. banco/probes/etiquetar_ambiental.py
++# une decisión↔resultado por id y produce el JSONL de calibración (conf +
++# correcto) con tráfico real; con LAYA_LOG_PREGUNTA=1 la etiqueta lleva la
++# pregunta (default 0: sin texto del usuario).
++# Laya. La política vive en utils/laya_routing.py, separada de la inferencia.
++# LAYA_MODO=enforce
++# ACUMULAR pares de calibración (flywheel exp/43): ventanas de uso con la
++# política en shadow; en enforce el resultado no se etiqueta. Progreso:
++# python3 banco/probes/estado_flywheel.py (read-only; no pisar el artefacto).
++# Registro de decisiones: una línea JSON por turno con propuesta, ruta
++# aplicada, causa, p(directo), q, umbral y versión de laya. Bookkeeping: si
++# falla no rompe el chat. LAYA_LOG_DECISIONES=0 lo apaga.
++# LAYA_LOG_DECISIONES=1
++# LAYA_LOG_ARCHIVO=salidas/routing.jsonl
++# exp/46: la regla temporal manda al lado seguro (herramientas) las preguntas
++# con recencia (último/hoy/2026...) SIN gastar a Laya — la familia no juzga
++# fechas. En shadow Laya sigue consultando para juntar la etiqueta de esa clase.
++# Con LAYA_LOG_PREGUNTA=1 el evento agrega los primeros 200 caracteres de la
++# pregunta: es lo que permite etiquetar el registro con
++# banco/probes/etiquetar_router.py --extra salidas/routing.jsonl y elegir alpha
++# con tráfico real. Default 0: el registro no guarda texto del usuario.
++# LAYA_LOG_PREGUNTA=0
++# Tamaño de lote de la inferencia en lote (prefiltro de memoria/RAG). Sin
++# definir, TODOS los estados viajan en un solo forward y el pico de memoria
++# crece con la cantidad de candidatos; con un N positivo se parte en lotes.
++# LAYA_BATCH_SIZE=0
++
++# Autonomía del harness: con 0 (default) los settings salen SOLO del entorno y
++# del .env de ESTE proyecto. Con 1 se lee además ~/Documentos/00_IA/bmo/.env, el
++# comportamiento viejo (dependencia invisible: de ahí salían la API key y el
++# modelo). Si lo activás, un cambio en el otro proyecto te cambia este.
++# LEER_BMO_ENV=0
++
++# HITL web: con 1, las aprobaciones de write_file/edit_file/run_command se
++# responden desde el navegador (http://127.0.0.1:8765) en vez de 's/n' por
++# terminal. Puerto y timeout (segundos) configurables; timeout => rechazo.
++# HITL_WEB=0
++# HITL_WEB_PORT=8765
++# HITL_WEB_TIMEOUT=300
++
++# HITL graduado + hooks: con 1 (default), run_command clasifica cada comando
++# por riesgo ANTES de preguntar (utils/policy.py, determinista, sin LLM):
++#   - 'auto'            solo-lectura verificado (pytest/grep/ls/git status…)
++#                       se ejecuta sin s/n, imprimiendo igual el comando.
++#   - 'preguntar'       todo lo no reconocido (default) — un s/n como hoy.
++#   - 'confirmar_doble' git push y rm -rf piden DOS s/n seguidos.
++# Con 0, todo comando pregunta como siempre (compatibilidad).
++# HITL_AUTO=1
++
++# Aprobador sin humano (banco y conductor de delegar): ruta a un JSON de scope
++# {rutas, comandos, max, eventos, aprobar}. Cada pedido HITL se decide contra
++# sus DATOS (ruta resuelta, comando por segmentos) en el propio chat y queda
++# en el JSONL de eventos; git push, rm -rf, .env, .git y memoria/ nunca pasan.
++# Lo escriben banco.py y delegar.py; a mano no hace falta.
++# HITL_SCOPE=
++
++# Memoria entre sesiones: la biblioteca consultable en memoria/ (tools
++# memory_search / memory_save). Con 1 (default) al salir el chat guarda un
++# resumen automático en memoria/sesion_FECHA.md (bookkeeping, sin HITL);
++# 0 lo apaga. La memoria NO se inyecta al inicio: el agente la consulta.
++# MEMORIA=1
++# Carpeta de la biblioteca de memoria (default: memoria/)
++# MEMORIA_DIR=memoria
++# Pre-filtro de contexto por Laya (Mesa 6, 12-factor #5): con 1 (default),
++# un juicio local elige qué archivos/notas de memoria entran ANTES de
++# leerlos (memory_search) y qué fragmentos del RAG van al prompt
++# (rag_search), recortando a *_N. Sin checkpoint entrenado (LAYA_MODEL_PREFILTRO),
++# el filtro es no-op: entran todos, como siempre (no se pierde recall).
++# MEMORIA_PREFILTRO=1
++# MEMORIA_PREFILTRO_N=8
++# RAG_PREFILTRO=1
++# RAG_PREFILTRO_N=4
++# Checkpoint de Laya para el pre-filtro (sin él, no-op)
++# LAYA_MODEL_PREFILTRO=.modelos/router_prefiltro
++
++# Directorio de los tests a mano de bmo que leen las sondas (sonda_laya,
++# sonda_router, sonda_supervisor). Default: ~/Documentos/00_IA/bmo/train/tasks
++# BMO_TASKS_DIR=/ruta/a/bmo/train/tasks
++
++# ---------------------------------------------------------------------------
++# Settings que el código ya leía y no estaban documentados (consolidación
++# 2026-10-15). Todos opcionales; el valor mostrado es el default del código.
++# ---------------------------------------------------------------------------
++
++# Router/voto: calibración conformal del VOTO local (mismo patrón que
++# LAYA_CALIBRACION_ROUTER, una capa abajo; artefacto de banco/probes/calibrar_voto.py)
++# LAYA_CALIBRACION_VOTO=salidas/evals/conformal_calibracion_voto.jsonl
++# LAYA_ALPHA_VOTO=0.10
++# Los umbrales LAYA_UNSURE_HIGH* deben estar en [0, 1]: NaN, inf o fuera de
++# rango se ignoran con aviso y rige el default.
++
++# Juez de riesgo en observación (exp/44): sin checkpoint, no-op total
++# LAYA_MODEL_RIESGO=.modelos/riesgo
++# RIESGO_LOG=1
++# RIESGO_ARCHIVO=salidas/riesgo.jsonl
++
++# Pre-fetch declarativo (exp/50): si la pregunta menciona archivos existentes
++# dentro de las raíces, se leen antes de la primera llamada. 0 lo apaga.
++# PREFETCH=1
++
++# Persistencia del thread (exp/48): checkpoint del shared por ciclo, para
++# `main.py resume <id>`. 0 apaga todo (ni crea el directorio).
++# THREAD_PERSIST=1
++# THREADS_DIR=salidas/threads
++
++# Base SQLite de trazas para las tools sql/db_schema (se abre en solo lectura)
++# DB_PATH=trazas.db
++
++# Proveedor de búsqueda web (hoy solo ddgs está implementado)
++# SEARCH_PROVIDER=ddgs
++
++# Traza por nodo en .runs/ (0 la apaga)
++# TRACE=1
++
++# Color de terminal: NO_COLOR (estándar) o COLOR=0 lo apagan
++# NO_COLOR=1
++# COLOR=0
++
++# Interno de sonda_laya.py (lo setea la sonda; no hace falta tocarlo)
++# SONDA_LAYA_CKPT=
++
++# Verificación de citas archivo:línea en la respuesta final: comprueba que la
++# línea exista y muestre su contenido; si no coincide, pide una segunda pasada
++# de corrección al modelo. 0 la apaga.
++# CITAS_VERIFICAR=1
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/banco/escenarios/fase3b-directas.yaml deepseek-flow-main/banco/escenarios/fase3b-directas.yaml
+--- /tmp/orig/banco/escenarios/fase3b-directas.yaml	1970-01-01 00:00:00.000000000 +0000
++++ deepseek-flow-main/banco/escenarios/fase3b-directas.yaml	2026-10-29 19:29:47.876443042 +0000
+@@ -0,0 +1,46 @@
++id: fase3b-directas
++descripcion: "fase 3b (pre-registro): las 12 preguntas `directo` de producto_router por el camino del chat; base = router, 3b = un solo camino con tools"
++env:
++  PREGUNTAS_LOG: "0"
++  LAYA_LOG_ARCHIVO: "salidas/fase3b/routing.jsonl"
++  COMPACTION_CHARS: "120000"
++turnos:
++  - id: d01
++    linea: "escribime un haiku sobre el mar."
++    timeout: 180
++  - id: d02
++    linea: "¿qué es un closure en Python?"
++    timeout: 180
++  - id: d03
++    linea: "explicá brevemente la diferencia entre lista y tupla en Python."
++    timeout: 180
++  - id: d04
++    linea: "¿cuál es la fórmula del área de un círculo?"
++    timeout: 180
++  - id: d05
++    linea: "resumí en una frase qué es un LLM."
++    timeout: 180
++  - id: d06
++    linea: "¿qué significa REST en el contexto de APIs?"
++    timeout: 180
++  - id: t01
++    linea: "explicame qué es la recursión con una analogía, sin código"
++    timeout: 180
++  - id: t02
++    linea: "¿qué es una condición de carrera en programación? definila en dos frases"
++    timeout: 180
++  - id: t03
++    linea: "¿quién escribió Cien años de soledad?"
++    timeout: 180
++  - id: t04
++    linea: "definí qué es un endpoint idempotente"
++    timeout: 180
++  - id: t05
++    linea: "explicá la diferencia entre HTTP GET y POST"
++    timeout: 180
++  - id: t06
++    linea: "pasame tres ideas de nombres para una variable que guarda un conteo"
++    timeout: 180
++  - id: salir
++    linea: "salir"
++    timeout: 60
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/banco/probes/comparar_fase3.py deepseek-flow-main/banco/probes/comparar_fase3.py
+--- /tmp/orig/banco/probes/comparar_fase3.py	2026-10-29 19:17:38.387243466 +0000
++++ deepseek-flow-main/banco/probes/comparar_fase3.py	1970-01-01 00:00:00.000000000 +0000
+@@ -1,127 +0,0 @@
+-"""Veredicto del A/B de la fase 3 (banco/specs/fase3.md), sin juicio a mano.
+-
+-Entrada: por brazo, el JSONL de resultados de bench_fable y el directorio de
+-trazas de ESE brazo (uno por worktree, para que no se mezclen). Las trazas de
+-chat se emparejan con las filas de resultados por ORDEN de ejecución (el bench
+-corre secuencial y `guardar_resultado` conserva el orden); si las cuentas no
+-coinciden, la sonda se niega a decidir.
+-
+-USD por corrida con las tarifas de `utils.costos` y el split de caché de la
+-traza (X98): hit × tarifa_hit + (prompt − hit) × tarifa_miss + completion ×
+-tarifa_completion. Una llamada sin `cache_hit` cuenta como miss entero (techo
+-conservador, como `_contabilizar`).
+-
+-Criterios (todos, por escenario contra la base):
+-  1. s17 + s18: la suma de correct_action sube ≥ 2 puntos;
+-  2. ningún escenario baja su suma;
+-  3. mediana de USD por corrida ≤ 1,5 × la de la base;
+-  4. sin ganancia de calidad no entra (lo cubre 1).
+-
+-Uso: python3 banco/probes/comparar_fase3.py \
+-       --base RES_A.jsonl --runs-base DIR_A --pensar RES_E.jsonl --runs-pensar DIR_E \
+-       [--modelo deepseek-flash]
+-"""
+-import argparse
+-import json
+-import statistics
+-import sys
+-from pathlib import Path
+-
+-RAIZ = Path(__file__).resolve().parents[2]
+-sys.path.insert(0, str(RAIZ))
+-
+-from utils.costos import PRECIOS_MILLON  # noqa: E402
+-from utils.trazas import leer_eventos  # noqa: E402
+-
+-MEJORAN = ("s17-scale-audit", "s18-real-audit")
+-SUBA_MINIMA = 2
+-USD_MAX = 1.5
+-
+-
+-def resultados(ruta):
+-    return [json.loads(linea) for linea in Path(ruta).read_text(encoding="utf-8").splitlines()
+-            if linea.strip()]
+-
+-
+-def trazas_de_chat(directorio):
+-    """Las trazas de chat del directorio, en orden de ejecución (el nombre
+-    lleva el timestamp de inicio)."""
+-    trazas = []
+-    for ruta in sorted(Path(directorio).glob("*.jsonl")):
+-        eventos = leer_eventos(ruta)
+-        if any(e.get("nodo") == "GetQuestion" for e in eventos):
+-            trazas.append(eventos)
+-    return trazas
+-
+-
+-def usd(eventos, tarifa):
+-    hit_t, miss_t, comp_t = tarifa
+-    total = 0.0
+-    for e in eventos:
+-        if e.get("accion") != "usage":
+-            continue
+-        prompt = int(e.get("prompt_tokens") or 0)
+-        hit = int(e.get("cache_hit") or 0)
+-        total += hit * hit_t + (prompt - hit) * miss_t + int(e.get("completion_tokens") or 0) * comp_t
+-    return total / 1_000_000
+-
+-
+-def por_escenario(filas, trazas, tarifa):
+-    if len(filas) != len(trazas):
+-        raise ValueError(f"{len(filas)} resultados y {len(trazas)} trazas de chat: no se emparejan")
+-    tabla = {}
+-    for fila, eventos in zip(filas, trazas, strict=True):
+-        celda = tabla.setdefault(fila["escenario"], {"ca": [], "usd": []})
+-        celda["ca"].append(int(fila["correct_action"]))
+-        celda["usd"].append(usd(eventos, tarifa))
+-    return tabla
+-
+-
+-def veredicto(base, pensar):
+-    """(pasa, filas, motivos)."""
+-    filas, motivos = [], []
+-    for esc in sorted(set(base) | set(pensar)):
+-        b, p = base.get(esc), pensar.get(esc)
+-        if not b or not p:
+-            motivos.append(f"{esc}: falta en un brazo")
+-            continue
+-        fila = {"escenario": esc, "suma_base": sum(b["ca"]), "suma_pensar": sum(p["ca"]),
+-                "seeds": (len(b["ca"]), len(p["ca"])),
+-                "usd_base": statistics.median(b["usd"]), "usd_pensar": statistics.median(p["usd"])}
+-        fila["razon_usd"] = fila["usd_pensar"] / fila["usd_base"] if fila["usd_base"] else float("inf")
+-        filas.append(fila)
+-        if fila["suma_pensar"] < fila["suma_base"]:
+-            motivos.append(f"{esc}: la calidad baja ({fila['suma_base']} → {fila['suma_pensar']})")
+-        if fila["razon_usd"] > USD_MAX:
+-            motivos.append(f"{esc}: USD {fila['razon_usd']:.2f}× > {USD_MAX}×")
+-    suba = sum(f["suma_pensar"] - f["suma_base"] for f in filas if f["escenario"] in MEJORAN)
+-    if suba < SUBA_MINIMA:
+-        motivos.append(f"s17+s18 suben {suba} (hace falta ≥ {SUBA_MINIMA})")
+-    return not motivos, filas, motivos
+-
+-
+-def main(argv=None):
+-    parser = argparse.ArgumentParser(prog="comparar_fase3", description=__doc__.splitlines()[0])
+-    parser.add_argument("--base", required=True)
+-    parser.add_argument("--runs-base", required=True)
+-    parser.add_argument("--pensar", required=True)
+-    parser.add_argument("--runs-pensar", required=True)
+-    parser.add_argument("--modelo", default="deepseek-flash")
+-    args = parser.parse_args(argv)
+-    tarifa = PRECIOS_MILLON[args.modelo]
+-    base = por_escenario(resultados(args.base), trazas_de_chat(args.runs_base), tarifa)
+-    pensar = por_escenario(resultados(args.pensar), trazas_de_chat(args.runs_pensar), tarifa)
+-    pasa, filas, motivos = veredicto(base, pensar)
+-    print("| escenario | seeds | suma base | suma pensar | USD base (mediana) | USD pensar | × |")
+-    print("|---|---|---|---|---|---|---|")
+-    for f in filas:
+-        print(f"| {f['escenario']} | {f['seeds'][0]}/{f['seeds'][1]} | {f['suma_base']} | "
+-              f"{f['suma_pensar']} | {f['usd_base']:.4f} | {f['usd_pensar']:.4f} | {f['razon_usd']:.2f} |")
+-    for m in motivos:
+-        print(f"- {m}")
+-    print("FASE 3a: " + ("PASA" if pasa else "NO PASA"))
+-    return 0 if pasa else 1
+-
+-
+-if __name__ == "__main__":
+-    sys.exit(main())
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/banco/probes/thinking_tools.py deepseek-flow-main/banco/probes/thinking_tools.py
+--- /tmp/orig/banco/probes/thinking_tools.py	2026-10-29 19:17:38.387243466 +0000
++++ deepseek-flow-main/banco/probes/thinking_tools.py	2026-10-29 19:19:35.414247489 +0000
+@@ -7,8 +7,11 @@
+ documentada es que, con tool calls en el turno, el reasoning de esos mensajes
+ del asistente tiene que volver COMPLETO en todas las requests siguientes.
+ 
+-Cada secuencia arma el request con `utils.call_llm._kwargs_agente(...,
+-pensar=True)`: el MISMO builder que usaría producción, no una copia.
++Los requests con thinking ON los arma la sonda (`pedido`): la fase 3 se
++rechazó en el A/B (banco/specs/fase3.md) y el producto ya no ofrece esa
++combinación. Los de thinking OFF salen de `utils.call_llm._kwargs_agente`, el
++builder de producción. La sonda queda como documento ejecutable de la
++restricción del proveedor (la regla es por pregunta: F da 400, G pasa).
+ 
+ Secuencias (cada una arranca de cero):
+   A  ronda de tools y respuesta, reasoning preservado
+@@ -41,7 +44,7 @@
+ RAIZ = Path(__file__).resolve().parents[2]
+ sys.path.insert(0, str(RAIZ))
+ 
+-from utils.call_llm import _client, _kwargs_agente  # noqa: E402
++from utils.call_llm import _client, _kwargs_agente, _model  # noqa: E402
+ from utils.fs_tools import TOOLS  # noqa: E402
+ 
+ LEER = [t for t in TOOLS if t["function"]["name"] in ("read_file", "list_files")]
+@@ -52,6 +55,18 @@
+           "hallazgos, límites y qué falta. No emitas tool calls.")
+ 
+ 
++def pedido(mensajes, tools=None, pensar=True):
++    """El request de una llamada. ON: thinking habilitado y el reasoning que
++    traigan los mensajes viaja tal cual. OFF: el de producción."""
++    if not pensar:
++        return _kwargs_agente(mensajes, tools)
++    kwargs = {"model": _model(), "messages": list(mensajes),
++              "extra_body": {"thinking": {"type": "enabled"}}}
++    if tools:
++        kwargs["tools"] = tools
++    return kwargs
++
++
+ def asistente(msg, con_razonamiento=True):
+     """El mensaje del asistente como lo guardaría el historial de la fase 3."""
+     m = {"role": "assistant", "content": getattr(msg, "content", None)}
+@@ -76,7 +91,7 @@
+         self.cliente, self.max_tokens, self.pasos = cliente, max_tokens, []
+ 
+     def llamar(self, secuencia, paso, mensajes, tools=None, pensar=True):
+-        kwargs = _kwargs_agente(mensajes, tools, pensar=pensar)
++        kwargs = pedido(mensajes, tools, pensar)
+         fila = {"secuencia": secuencia, "paso": paso, "pensar": pensar, "tools": bool(tools)}
+         try:
+             r = self.cliente.chat.completions.create(**kwargs, max_tokens=self.max_tokens)
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/banco/specs/fase3.md deepseek-flow-main/banco/specs/fase3.md
+--- /tmp/orig/banco/specs/fase3.md	2026-10-29 19:17:38.387243466 +0000
++++ deepseek-flow-main/banco/specs/fase3.md	2026-10-29 19:30:54.613193128 +0000
+@@ -135,3 +135,18 @@
+ JSONL de resultados y el directorio de trazas de cada brazo, calcula USD con
+ el split de caché de la traza y aplica los criterios de arriba. Se niega a
+ decidir si resultados y trazas de chat no se emparejan uno a uno.
++
++## Veredicto (2026-10-28, X104–X105): NO PASA
++
++`comparar_fase3.py` sobre 16 + 16 corridas emparejadas por nombre de traza
++(hora de inicio): calidad s17 6→5, s18 5→4, s19 6→4; USD por escenario
++2,21× / 6,87× / 4,18× / 3,90× (tope 1,5×); s17+s18 −2 (hacía falta +2).
++Fallan los criterios 1, 2 y 3. La caída de calidad puede ser ruido (dos
++bases sobre el mismo árbol ya movieron s19 6→4); lo concluyente es el costo
++y que la mejora no aparece. Salida completa en
++`salidas/evals/fase3a-ab-comparador.txt`.
++
++Consecuencia (X105): se borra el cableado de la 3a, el setting y el
++comparador; la sonda `thinking_tools` se queda como documento de la
++restricción del proveedor y arma sus propios requests. La 3b va por la
++opción (b): [fase3b_4a.md](fase3b_4a.md).
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/banco/specs/fase3b_4a.md deepseek-flow-main/banco/specs/fase3b_4a.md
+--- /tmp/orig/banco/specs/fase3b_4a.md	1970-01-01 00:00:00.000000000 +0000
++++ deepseek-flow-main/banco/specs/fase3b_4a.md	2026-10-29 19:30:54.613193128 +0000
+@@ -0,0 +1,98 @@
++# Pre-registro — fases 3b + 4a de elegancia: un solo camino, sin router
++
++**Estado:** pre-registrado el 2026-10-28 (X105), ANTES de escribir el código.
++Consecuencia de la 3a (`fase3.md`): NO PASÓ, así que la 3b va por la opción
++(b) — el router sale del camino del chat. No se retoca después de ver
++resultados (un cambio va como desvío declarado en la bitácora).
++
++## Hipótesis
++
++Con el router fuera, toda pregunta va por `Contexto → AgentStep` con las
++tools ofrecidas y el modelo decide si usarlas. Las preguntas que hoy van
++directo (conocimiento puro, conversación) se responden igual de bien, sin
++llamar tools y a un costo comparable. Si es así, el router, el voto y las
++reglas de palabras no deciden nada que el modelo no decida solo.
++
++## Qué se borra
++
++- `LayaRouter` (155 líneas, el nodo largo más grande), `DirectAnswer`,
++  `voto_confirmacion_router` y sus aristas en `flow.py`.
++- En `utils/laya_routing.py`: la política del router y del voto, las dos
++  reglas (`regla_temporal`, `regla_imperativo_capacidad`) y su vocabulario
++  (`RE_TEMPORAL`, `_IMPERATIVOS_CAPACIDAD`, `_RELLENOS`,
++  `_RE_OBJETO_CAPACIDAD`).
++- El log de routing y la flywheel del router (`registrar_decision`,
++  `registrar_resultado`, `turno["router_pendiente"]`, la etiqueta
++  ambiental): sin router no hay decisión que etiquetar.
++- Los settings del router y del voto (inventario de `elegancia.md`, fase 3):
++  `USE_LAYA_ROUTER`, `USE_VOTACION`, `LAYA_MODO`, `LAYA_MODEL_VOTO`,
++  `LAYA_ALPHA(_VOTO)`, `LAYA_CALIBRACION_ROUTER/VOTO`,
++  `LAYA_UNSURE_HIGH_VOTO`, `LAYA_LOG_*`. El número exacto lo da el ratchet.
++- Las sondas y benches que solo miden al router o al voto se retiran con él
++  (lista cerrada en el PR, cada una con su motivo en la bitácora).
++
++`LAYA_MODEL` y `utils/laya.py` se quedan: los usan el servidor MCP, el
++prefiltro de memoria y el juez de riesgo.
++
++## Qué se mueve
++
++**Los skills.** Hoy se activan dentro de `LayaRouter.post` (solo en
++enforce). Pasan a un nodo propio a la entrada de la pregunta (después de
++`PreFetch`, antes de `Contexto`), con la misma regla `skill_para` hasta la
++5b, que la cambia por activación por descripción. Gate: `exp55-skills`
++(revisión dispara y recorta tools; el control no dispara) y
++`test_skills.py`.
++
++## Riesgos que el banco tiene que medir
++
++1. **Costo**: que una pregunta simple ahora llame tools sin necesidad.
++2. **Descarrilos**: con tools en el request, `_kwargs_agente` apaga el
++   thinking. La bitácora midió descarrilos en directo con thinking apagado
++   (prompts ajenos, tags que parten palabras). Hoy `DirectAnswer` va SIN
++   tools, o sea con thinking; en 3b ya no.
++
++## Instrumento
++
++Escenario `banco/escenarios/fase3b-directas.yaml`: las 12 preguntas
++`esperado: directo` de `producto_router` (`voto_casos` d01–d06 y
++`voto_control` t01–t06), una por turno. Ninguna dispara skill ni regla
++(verificado al escribirlo), así que en la base las decide el router.
++
++Por turno: marcadores del banco (`ronda`, `sanitizado`, `dsml_ignorado`) y,
++de la traza (`.runs`, eventos `usage` de X98), prompt, completion y
++`cache_hit`. USD con las tarifas de `utils.costos` (sin dato de caché = miss).
++**Cada brazo con su propio `.runs` desde el principio** (worktree propio):
++nada de reconstruir directorios por mtime (lección del A/B de 3a).
++
++## Corridas
++
++| brazo | árbol | corridas |
++|---|---|---|
++| base | HEAD de X105 (router encendido, el default) | `fase3b-directas` × 3 |
++| 3b | el PR de 3b+4a | `fase3b-directas` × 3 |
++
++Las auditorías de fable (s17–s20) no se re-corren si en las 16 trazas del
++brazo A del A/B de 3a `LayaRouter` devolvió `herramientas` en todas: ahí el
++camino no cambia. Si alguna fue `directo`, se corre ese escenario ×3 en los
++dos brazos.
++
++## Criterios (todos)
++
++1. **Sin tools de más**: en 3b, al menos 10 de las 12 preguntas con 0 rondas
++   de tools en las 3 corridas, y ninguna con más de 1 ronda.
++2. **Costo**: USD total del escenario en 3b ≤ **1,5 ×** la base (mediana de
++   las 3 corridas). La base incluye lo que hoy cuesta decidir: el árbitro
++   DeepSeek del voto cuando Laya duda.
++3. **Sin descarrilos de más**: `sanitizado` + `dsml_ignorado` en 3b ≤ base,
++   sumados en las 3 corridas.
++4. **Todos los turnos ok** (sin timeouts) en los dos brazos.
++5. **Skills**: `exp55-skills` igual que hoy.
++
++Si 1, 2 o 3 fallan, la 3b no entra y se registra cuál falló. El remedio NO
++es una regla de palabras ni texto en el prompt (R-elegancia C1/C5): se
++vuelve a este documento con el dato.
++
++## Efecto esperado en los ratchets (no es criterio)
++
++`vocabulario_hardcodeado` 7 → 3, `settings_leidos` 78 → ~66, `nodos_largos`
++14 → 13. Además el chat deja de cargar el checkpoint del router.
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/docs/bitacora.md deepseek-flow-main/docs/bitacora.md
+--- /tmp/orig/docs/bitacora.md	2026-10-29 19:17:38.399243800 +0000
++++ deepseek-flow-main/docs/bitacora.md	2026-10-29 19:30:54.613193128 +0000
+@@ -5535,3 +5535,44 @@
+ `fase3.md` y dice cuál falló. Registrado también el brazo E del operador
+ (`ENV_POR_BRAZO` no hereda la shell: sin él, el A/B habría corrido dos veces
+ el brazo base).
++
++---
++
++## La fase 3a no entra; pre-registro de la 3b + 4a (2026-10-28, X105)
++
++**Veredicto del A/B** (comparador de X104, 16 + 16): NO PASA, lejos del
++borde. El costo solo ya alcanza para rechazarla (2,2×–6,9× contra 1,5×); la
++calidad baja en s17/s18/s19 pero puede ser ruido. Lo concluyente: s17+s18
++−2 cuando hacía falta +2. Pensar en las rondas con tools cuesta varias
++veces más y no mejora estas auditorías.
++
++**Nota abierta (opcional, no cambia la decisión)**: s18 a 6,9× es más de lo
++que explican los tokens de razonamiento. Separar el USD del brazo E en
++completion vs prompt sin caché diría si el thinking también bajó el
++porcentaje de caché.
++
++**Método**: el comparador ordena por nombre y no tuvo el problema; lo que se
++mezcló fue la reconstrucción de los directorios por brazo (por mtime). La
++regla queda en el pre-registro de 3b: cada brazo con su `.runs` desde el
++principio.
++
++**Reversión**: fuera `turno["pensar"]`, `PENSAR_TOOLS`, el parámetro
++`pensar` de `call_llm_agent(_stream)`, la acumulación del reasoning en el
++stream, `historiar(msg, pensar)` y `compaccion.sin_razonamiento_previo`; el
++invariante 1 vuelve a ser estricto (sin reasoning en ningún mensaje). El
++docstring de `_kwargs_agente` registra lo medido: la combinación es válida
++si el reasoning del turno vuelve, y el A/B la rechazó. Fuera también
++`comparar_fase3.py` y su test (cumplieron: el veredicto queda acá y en
++`salidas/evals`). El brazo E nunca entró al árbol de este repo (commit del
++operador): no hay nada que borrar en `ENV_POR_BRAZO`; si está en el tuyo, va
++fuera. La sonda `thinking_tools` se queda y arma sus requests con thinking
++ON ella misma (`pedido`); el OFF sigue saliendo del builder de producción.
++Ratchet: `settings_leidos` 79 → 78 (mejora, sin clave).
++
++**Pre-registro de 3b + 4a** en `banco/specs/fase3b_4a.md`: el router sale
++del chat; los skills pasan a un nodo a la entrada; se mide con el escenario
++nuevo `fase3b-directas` (las 12 preguntas directas de `producto_router`)
++tools de más, USD y descarrilos — este último porque con tools ofrecidas el
++thinking va apagado, y la bitácora ya midió descarrilos en directo sin
++thinking.
++
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/docs/elegancia.md deepseek-flow-main/docs/elegancia.md
+--- /tmp/orig/docs/elegancia.md	2026-10-29 19:17:38.399243800 +0000
++++ deepseek-flow-main/docs/elegancia.md	2026-10-29 19:30:54.617193173 +0000
+@@ -58,7 +58,7 @@
+ | `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
+ | `producto_conoce_lab` | 10 → **0** (X93) | 0 ✅ |
+ | `vocabulario_hardcodeado` | 8 → 7 (X104) | ≤ 2 (fases 3–4; quedan los sí/no del HITL) |
+-| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) | ≤ 45 (fases 1–5, ver inventario) |
++| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) | ≤ 45 (fases 1–5, ver inventario) |
+ | `imports_perezosos` | 137 → 126 (X92) | ≤ 40 |
+ | `nodos_largos` | 15 → 14 (X96) | ≤ 3 |
+ | `texto_de_prompt` | 2748 chars | ≤ 800 |
+@@ -70,19 +70,18 @@
+ | 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
+ | 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
+ | 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. ✅ 2b-2 (X96): `Observar` y `Cierre` (el presupuesto como arista). Falta: el chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
+-| 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a cableada, apagada (X103). `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
++| 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a NO PASA (X105, cableado borrado). 3b por la opción (b): el router sale del chat, pre-registro en `banco/specs/fase3b_4a.md`. `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
+ | 4 | ✅ 4b-mín (X104): sin la regex de palabras. Falta 4a: se borran reglas y voto con la 3b; directivas en la 5b (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
+ | 5 | Política de comandos como datos (S10); skills por descripción; Laya 0.4.x | Mínimo | `test_policy_bypass.py` idéntico |
+ | 6 | Limpieza de piezas sueltas (`juez`, `effective_n`, `juez_lote`, `research`, `informe`, `fable_judge`): nodos largos e imports perezosos (decisión del operador, X103) | No | `nodos_largos` ≤ 3, `imports_perezosos` ≤ 40 |
+ 
+-## Inventario de settings (79 tras X103: 42 contrato · 19 revisar · 18 borrar)
++## Inventario de settings (78 tras X105: 42 contrato · 19 revisar · 17 borrar)
+ 
+ `contrato` = decisión del operador que se queda; `revisar` = se decide en la
+ fase indicada; `borrar` = se va con su rama en esa fase.
+ 
+ | Setting | Veredicto | Fase | Motivo | Lo lee |
+ |---|---|---|---|---|
+-| `PENSAR_TOOLS` | borrar | 3 | 3b: TEMPORAL para el A/B de 3a (decisión del operador, con su clave del ratchet); se borra cuando el modo lo elija Laya por pregunta | `nodes.py` |
+ | `BMO_TASKS_DIR` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/rutas.py` |
+ | `LEER_BMO_ENV` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/call_llm.py` |
+ | `LAYA_ALPHA_VOTO` | borrar | 3 | S2: el voto existe para tapar el directo sin tools | `utils/laya_routing.py` |
+@@ -161,3 +160,4 @@
+ | `WEBHOOK_MAX_BYTES` | contrato | — | seguridad y HITL: decisión del operador | `utils/hitl_web.py` |
+ | `WEBHOOK_MAX_POR_MINUTO` | contrato | — | seguridad y HITL: decisión del operador | `utils/hitl_web.py` |
+ | `WEBHOOK_TOKEN` | contrato | — | seguridad y HITL: decisión del operador | `utils/hitl_web.py` |
++
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/docs/estado.md deepseek-flow-main/docs/estado.md
+--- /tmp/orig/docs/estado.md	2026-10-29 19:17:38.399243800 +0000
++++ deepseek-flow-main/docs/estado.md	2026-10-29 19:26:33.084285168 +0000
+@@ -136,11 +136,12 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
+-| X104 | — | `alcance_amplio` decidía también por una regex de palabras de totalidad (`_PALABRAS_AMPLIAS`, vocabulario hardcodeado) | ✅ 2026-10-28 (fase 4b-mín) | Contrafácticos del pre-registro: los 14 escenarios de fable clasifican igual sin la regex (los 6 amplios lo son por el conteo en disco) y, sobre 36 preguntas reales del operador, 12 amplias con la regex y **0** dejan de serlo sin ella. Se borra la regex; quedan las dos señales que cuenta el disco. La sonda del contrafáctico se borra con ella (no queda qué comparar). Ratchet `vocabulario_hardcodeado` **8 → 7**. Además: `banco/probes/comparar_fase3.py`, el veredicto del A/B de la fase 3 sin juicio a mano | `test_alcance_amplio_por_palabras_directorio_y_masa`, `test_todos_los_tests_pasa_no_es_totalidad`, `test_no_pasa_y_dice_por_que` |
+-| X103 | — | La fase 3 (thinking en rondas con tools) no tenía cableado en el chat; además el stream descartaba el `reasoning_content` de los deltas, así que encenderla tal cual daba la secuencia F (400) en la primera ronda del banco | ✅ 2026-10-28 (cableado detrás de `PENSAR_TOOLS=0`; falta el A/B) | `turno["pensar"]` fijo por pregunta; el stream junta el reasoning aparte; `historiar` lo conserva y `GetQuestion` descarta el de turnos anteriores; invariante 1 de la compacción → "reasoning solo después del último user". Pre-registro de la 4b-mín ([fase4b_min.md](../banco/specs/fase4b_min.md)): contrafáctico 1 sin cambios en los 14 escenarios | `test_con_pensar_el_modo_no_cambia_dentro_de_la_pregunta`, `test_el_stream_junta_el_reasoning_sin_imprimirlo`, `test_el_reasoning_vive_solo_en_el_turno_en_curso`, `test_sin_pensar_el_chat_es_el_de_siempre` |
++| X105 | — | La fase 3a (thinking en las rondas con tools) se midió en el A/B pre-registrado (16 + 16 corridas, s17–s20) y **no pasó**: costo 2,21× / 6,87× / 4,18× / 3,90× la base por escenario (tope 1,5×) y s17+s18 −2 (hacía falta +2) | ✅ 2026-10-28 (decisión pre-registrada) | Se borra el cableado: `turno["pensar"]`, `PENSAR_TOOLS`, el parámetro `pensar` del cliente, la acumulación del reasoning en el stream y `sin_razonamiento_previo`; el invariante 1 vuelve a "sin reasoning en ningún mensaje". El comparador del A/B y su test se retiran (veredicto en `salidas/evals` y en la bitácora). La sonda `thinking_tools` se queda como documento de la restricción del proveedor y arma sus propios requests con thinking ON. Ratchet `settings_leidos` **79 → 78**. Pre-registro de la 3b+4a en [fase3b_4a.md](../banco/specs/fase3b_4a.md) | `test_historial_canonico_sin_reasoning`, `test_la_sonda_arma_el_on_y_el_off_es_el_de_produccion` |
++| X104 | — | `alcance_amplio` decidía también por una regex de palabras de totalidad (`_PALABRAS_AMPLIAS`, vocabulario hardcodeado) | ✅ 2026-10-28 (fase 4b-mín) | Contrafácticos del pre-registro: los 14 escenarios de fable clasifican igual sin la regex (los 6 amplios lo son por el conteo en disco) y, sobre 36 preguntas reales del operador, 12 amplias con la regex y **0** dejan de serlo sin ella. Se borra la regex; quedan las dos señales que cuenta el disco. La sonda del contrafáctico se borra con ella (no queda qué comparar). Ratchet `vocabulario_hardcodeado` **8 → 7**. Además: `comparar_fase3.py`, el veredicto del A/B de la fase 3 sin juicio a mano (retirado en X105, cumplido) | `test_alcance_amplio_por_palabras_directorio_y_masa`, `test_todos_los_tests_pasa_no_es_totalidad` |
++| X103 | — | La fase 3 (thinking en rondas con tools) no tenía cableado en el chat; además el stream descartaba el `reasoning_content` de los deltas, así que encenderla tal cual daba la secuencia F (400) en la primera ronda del banco | ✅ 2026-10-28 (cableado detrás de `PENSAR_TOOLS=0`; falta el A/B) | `turno["pensar"]` fijo por pregunta; el stream junta el reasoning aparte; `historiar` lo conserva y `GetQuestion` descarta el de turnos anteriores; invariante 1 de la compacción → "reasoning solo después del último user". Pre-registro de la 4b-mín ([fase4b_min.md](../banco/specs/fase4b_min.md)): contrafáctico 1 sin cambios en los 14 escenarios | Retirados con el cableado (X105: la 3a no pasó el A/B); el invariante 1 estricto vuelve a cubrirlo `test_historial_canonico_sin_reasoning` |
+ | X102 | — | El gate previo de la fase 3 no pasó en vivo: A–E ok, F 400 (`reasoning_content ... must be passed back`). E ok y F 400 sugieren que la API exige el reasoning solo en el turno EN CURSO, pero dos datos no lo prueban y la doc dice algo más estricto | ✅ 2026-10-28 (sonda ampliada; falta la segunda corrida) | `thinking_tools` suma G (turno entero OFF → pregunta siguiente ON, decide) y H (rondas ON → cierre OFF, informativa); el gate pasa a A–E + G, con F informativa. Redefinido ANTES de correr G y H; diseño de 3a condicionado en [fase3.md](../banco/specs/fase3.md) | `test_la_regla_del_turno_reproduce_la_primera_corrida_y_el_gate_pasa`, `test_un_400_tumba_el_gate_y_se_ve_donde`, `test_las_informativas_no_deciden_el_gate` |
+ | X101 | — | Seis settings eran tunables que nadie fijaba (ningún escenario del banco, ningún test por entorno salvo dos) y uno, `LAYA_MAX_EN_PROCESO`, se leía con `int()` a secas: un typo en el `.env` tiraba el import de `utils.laya` | ✅ 2026-10-28 | `MAPA_CONCURRENCIA`, `JUEZ_LOTE_CONCURRENCIA`, `PREFETCH_MAX_ARCHIVOS`, `PREFETCH_MAX_LINEAS`, `LAYA_ERROR_COOLDOWN` y `LAYA_MAX_EN_PROCESO` pasan a constantes con el MISMO valor (el bug del `int()` deja de existir: no queda lectura que falle). `LAYA_BATCH_SIZE` NO: su `0` es un modo (el lote no se parte), no un número — pasa a contrato en el inventario. Ratchet `settings_leidos` **84 → 78**. Sin cambio de conducta | `test_los_tunables_de_x101_no_se_leen_del_entorno` |
+-| X100 | — | El gate previo de la fase 3 (thinking con tools, reasoning preservado) no tenía sonda | ✅ 2026-10-28 (sonda escrita; falta correrla) | `banco/probes/thinking_tools.py`, seis secuencias (A–F, incluido el rechazo de s19-s3 y la compacción); arma los requests con `_kwargs_agente(..., pensar=True)`, el builder de producción, que hoy solo usa la sonda. El cableado en el chat espera el resultado | `test_pensar_preserva_el_reasoning_y_habilita_thinking_con_tools`, `test_un_400_tumba_el_gate_y_se_ve_donde` |
++| X100 | — | El gate previo de la fase 3 (thinking con tools, reasoning preservado) no tenía sonda | ✅ 2026-10-28 (sonda escrita; falta correrla) | `banco/probes/thinking_tools.py`, seis secuencias (A–F, incluido el rechazo de s19-s3 y la compacción); arma los requests con `_kwargs_agente(..., pensar=True)`, el builder de producción, que hoy solo usa la sonda. El cableado en el chat espera el resultado | `test_la_sonda_arma_el_on_y_el_off_es_el_de_produccion`, `test_un_400_tumba_el_gate_y_se_ve_donde` |
+ | X99 | — | La fase 2d (esquema de tools fijo + `tool_choice="none"` en `Cierre`) prometía que el cierre reusara el KV-cache | ❌ no entra (2026-10-28) | Medido con X98 sobre la base de 16 corridas: 2 cierres reales por presupuesto (tope amplio 16), ambos con 0% de hit por venir justo tras una compacción. Con < 5 cierres el criterio no se puede decidir y el beneficio alcanza 2 de 16 preguntas. Una primera lectura los confundió con respuestas de 9–15 rondas (tope 8 en vez de 16): NO quedó probado que DeepSeek mantenga la caché sin tools. Detalle en [fase2d.md](../banco/specs/fase2d.md) | [banco/specs/fase2d.md](../banco/specs/fase2d.md) |
+ | X98 | — | El pre-registro de la fase 2d pedía medir si la llamada de `Cierre` reusa caché, y la traza no podía decirlo: `_contabilizar` recibía `prompt_cache_hit_tokens` pero `evento_llm` escribía solo prompt/completion, y ningún evento decía QUÉ nodo hizo la llamada | ✅ 2026-10-28 | `evento_llm` suma `cache_hit` (solo si el proveedor lo informa: ausente = desconocido, no 0) y `llamador` (el nodo en curso, de una pila por hilo que llena `_run_trazado`; un hilo de tools en paralelo no hereda la pila, no se inventa un nodo). `tokens_runs` desglosa por llamador. Pre-registros escritos: [fase2d](../banco/specs/fase2d.md), [fase3](../banco/specs/fase3.md). Sin cambio de conducta | `test_el_evento_de_uso_lleva_cache_hit_y_quien_llamo`, `test_el_tracing_activo_registra_al_nodo_que_llama`, `test_desglose_por_llamador_y_cache_hit` |
+ | X97 | — | Los dos lectores de trazas contaban como desconocidos los eventos que el código actual emite en cada sesión: `llm/usage` (exp/89, uno por llamada al modelo), `hitl_*/aprobado|rechazado` y `*/politica`. El linter de `evals` daba una violación (c) falsa por llamada al LLM; el nivel A′ de `replay`, miles (el baseline del 2026-10-13 los congeló adentro) | ✅ 2026-10-28 | `tracing.es_bookkeeping(nodo, accion)`: la definición vive junto a quien los emite y la usan los dos lectores. Los informes de evals y replay anteriores sobrestiman (c) y A′: refrescar el baseline de replay recién con esto aplicado | `test_los_eventos_de_bookkeeping_no_son_desconocidos`, `test_el_linter_no_cuenta_los_eventos_de_bookkeeping` |
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/docs/roadmap.md deepseek-flow-main/docs/roadmap.md
+--- /tmp/orig/docs/roadmap.md	2026-10-29 19:17:38.399243800 +0000
++++ deepseek-flow-main/docs/roadmap.md	2026-10-29 19:30:54.613193128 +0000
+@@ -15,9 +15,9 @@
+ `Contexto → Cierre`). **2d**: instrumento listo (X98, `cache_hit` y
+ `llamador` en la traza) y pre-registro en `banco/specs/fase2d.md`. **2d no
+ entra** (X99: 2 cierres reales en 16 corridas, casos insuficientes). Fase 3:
+-gate previo PASA (X102). **3a cableada detrás de `PENSAR_TOOLS=0`** (X103);
+-el A/B (brazo A vs brazo E, 16 + 16 sobre `bc5e8d0`) está corriendo; el
+-veredicto lo da `banco/probes/comparar_fase3.py`. **4b-mín cerrada** (X104:
++gate previo PASA (X102). **3a NO PASA** (X105: el A/B dio 2,2×–6,9× el USD y s17+s18 −2; cableado
++borrado). **3b + 4a pre-registradas** (`banco/specs/fase3b_4a.md`: el router
++sale del chat; corre el operador `fase3b-directas` ×3 por brazo). **4b-mín cerrada** (X104:
+ la regex de palabras se borró, 0 cambios en 36 preguntas reales). Fase 6 (limpieza de las piezas sueltas) aprobada, después de la 5.
+ 2b-3 queda para después de la fase 4 (o se descarta si sigue sin haber
+ sub-agentes); 2b-3 `AgentStep`/`ExecuteTools` →
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/nodes.py deepseek-flow-main/nodes.py
+--- /tmp/orig/nodes.py	2026-10-29 19:17:38.407244022 +0000
++++ deepseek-flow-main/nodes.py	2026-10-29 19:18:59.357489512 +0000
+@@ -8,14 +8,7 @@
+ 
+ from modules import discover, ganchos
+ from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_stream
+-from utils.compaccion import (
+-    PREFIJO_COMPACCION,
+-    compactar,
+-    huella,
+-    recortar_tools_viejos,
+-    serializar,
+-    sin_razonamiento_previo,
+-)
++from utils.compaccion import PREFIJO_COMPACCION, compactar, huella, recortar_tools_viejos, serializar
+ from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
+ from utils.fs_tools import TOOLS as CORE_TOOLS
+ from utils.proveedor import (  # noqa: F401  (re-export: tests y banco los importan de nodes)
+@@ -171,9 +164,6 @@
+         "router_pendiente": None,  # id de la decisión shadow a etiquetar (exp/43)
+         "uso_inicio": None,      # desglose de tokens al empezar (exp/90)
+         "ruta": "herramientas",  # la arista que toma Contexto (la fija el router)
+-        # fase 3: thinking en las rondas con tools, fijado UNA vez por pregunta
+-        # (la API no tolera cambiar de modo dentro del turno: X102, secuencia F)
+-        "pensar": _setting("PENSAR_TOOLS", "0") == "1",
+     }
+ 
+ 
+@@ -277,15 +267,12 @@
+ )
+ 
+ 
+-def historiar(msg, pensar=False):
+-    """El mensaje del asistente en forma canónica para el historial:
+-    role/content/tool_calls. El reasoning_content queda solo si la pregunta
+-    piensa (fase 3): ahí la API lo exige de vuelta en el turno en curso; sin
+-    thinking, arrastrarlo rompe la API (400 medido en producción)."""
++def historiar(msg):
++    """El mensaje del asistente en forma canónica para el historial: solo
++    role/content/tool_calls. El reasoning_content del modo thinking NO
++    viaja — arrastrarlo a una vuelta sin thinking rompe la API (400
++    'reasoning_content must be passed back', medido en producción)."""
+     m = {"role": "assistant", "content": msg.content}
+-    razon = getattr(msg, "reasoning_content", None)
+-    if pensar and isinstance(razon, str) and razon:
+-        m["reasoning_content"] = razon
+     if getattr(msg, "tool_calls", None):
+         m["tool_calls"] = [
+             {"id": tc.id, "type": "function",
+@@ -339,10 +326,7 @@
+         # Tarea vigente para la compacción: una continuación no pisa el objetivo.
+         if exec_res.strip().lower() not in {"seguí", "segui", "continúa", "continua", "continue"}:
+             shared["_objetivo"] = exec_res
+-        # fase 3: el reasoning de los turnos anteriores no vuelve a la API
+-        # (X102: solo lo exige en el turno en curso) — se descarta acá.
+-        shared["messages"] = sin_razonamiento_previo(shared["messages"] + [
+-            {"role": "user", "content": exec_res}])
++        shared["messages"].append({"role": "user", "content": exec_res})
+         # exp/90: el costo POR PREGUNTA se cierra acá — se vuelve por
+         # "answer", así que la pregunta anterior ya respondió: su costo es
+         # el delta del desglose desde su propio arranque. La última nunca
+@@ -488,22 +472,18 @@
+ 
+             skill = next((h for h in disponibles() if h.id == skill_id), None)
+             tools = filtrar_tools(tools, skill) if skill else tools
+-        return shared["messages"], tools, turno(shared)["pensar"]
++        return shared["messages"], tools
+ 
+     def exec(self, inputs):
+-        messages, tools, *resto = inputs
+-        pensar = bool(resto and resto[0])
++        messages, tools = inputs
+         stream = _setting("CHAT_STREAM", "1") == "1"
+-        # sin `pensar` la llamada es la de siempre (la firma vieja: los tests
+-        # y fakes que reemplazan el cliente no se enteran de la fase 3)
+-        extra = {"pensar": True} if pensar else {}
+         if stream:
+             # etiqueta antes del primer delta: sin ella las respuestas
+             # llegan sin rótulo (nit de UX de la mesa 8, medido en prod)
+             print("\nDeepSeek: ", end="", flush=True)
+-            exec_res = call_llm_agent_stream(messages, tools, **extra)
++            exec_res = call_llm_agent_stream(messages, tools)
+         else:
+-            exec_res = call_llm_agent(messages, tools, **extra)
++            exec_res = call_llm_agent(messages, tools)
+         # La normalización va en exec, NO en post: los max_retries de
+         # PocketFlow envuelven exec(), así que un raise acá SÍ re-pregunta; en
+         # post() cortaría el chat (bug medido). Es la misma del kernel.
+@@ -522,7 +502,7 @@
+         return exec_res
+ 
+     def post(self, shared, prep_res, exec_res):
+-        shared["messages"].append(historiar(exec_res, turno(shared)["pensar"]))
++        shared["messages"].append(historiar(exec_res))
+         if getattr(exec_res, "tool_calls", None):
+             # exp/49: punto seguro 4 — la SELECCIÓN: las llamadas quedaron
+             # elegidas pero no ejecutadas (la pausa exacta del factor 8).
+@@ -934,10 +914,7 @@
+     def prep(self, shared):
+         # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
+         # el modelo sigue emitiendo tool calls en vez de cerrar la respuesta.
+-        # El cierre hereda el modo de la pregunta (no se apaga: X102 H dio ok,
+-        # pero cambiar dos cosas en el A/B de 3a las mezclaría).
+-        return (list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None,
+-                turno(shared)["pensar"])
++        return list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None
+ 
+ 
+ class DirectAnswer(AgentStep):
+@@ -947,6 +924,5 @@
+ 
+     def prep(self, shared):
+         # La compacción ya corrió en Contexto (la ruta directa mandaba el
+-        # historial entero sin techo, exp/36). Sin tools y sin la fase 3: sin
+-        # tools en el turno, la regla de la API no aplica.
+-        return shared["messages"], None, False
++        # historial entero sin techo, exp/36). Sin tools.
++        return shared["messages"], None
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/nodes.py.orig deepseek-flow-main/nodes.py.orig
+--- /tmp/orig/nodes.py.orig	1970-01-01 00:00:00.000000000 +0000
++++ deepseek-flow-main/nodes.py.orig	2026-10-29 18:19:40.000000000 +0000
+@@ -0,0 +1,952 @@
++import hashlib
++import json
++import re
++import time
++from pathlib import Path
++
++from pocketflow import Node
++
++from modules import discover, ganchos
++from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_stream
++from utils.compaccion import (
++    PREFIJO_COMPACCION,
++    compactar,
++    huella,
++    recortar_tools_viejos,
++    serializar,
++    sin_razonamiento_previo,
++)
++from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
++from utils.fs_tools import TOOLS as CORE_TOOLS
++from utils.proveedor import (  # noqa: F401  (re-export: tests y banco los importan de nodes)
++    AVISOS,
++    MENSAJE_DSML_AGOTADO,
++    MENSAJE_DSML_SIN_TOOLS,
++    MENSAJE_SIN_RESPUESTA,
++    RE_DSML,
++    dsml_a_tool_calls,
++    dsml_con_presupuesto_agotado,
++    normalizar,
++    sanitizar,
++)
++from utils.terminal import colorear, progreso_ronda
++from utils.thread_store import checkpoint
++from utils.tracing import evento_politica, evento_tool, thread_id
++
++EXIT_WORDS = {"salir", "exit", "quit"}
++
++
++def registrar_pregunta(texto, ruta=None):
++    """Guarda la pregunta del usuario en un JSONL local (exp/34).
++
++    Para qué: el trace (.runs) guarda nodo/acción/segundos pero NUNCA el texto,
++    y los logs del banco corren con echo off — sin esto no hay forma de armar
++    un set de calibración con el tráfico REAL (exp/33 tuvo que usar escenarios,
++    y salió sesgado a "herramientas"). Una línea acá y en una semana hay
++    muestra natural para recalibrar el α del router.
++
++    Es bookkeeping: la ruta la fija el operador (no el modelo) y cualquier
++    fallo —disco, permisos— se traga para no romper el chat. PREGUNTAS_LOG=0
++    lo apaga y PREGUNTAS_ARCHIVO elige el destino (default
++    salidas/preguntas.jsonl, que está en .gitignore). Cada línea lleva
++    `origen` (web/terminal, exp/71b); el banco escribe este log aparte
++    (`salidas/banco/`, X93) y no se mezcla con el humano."""
++    if _setting("PREGUNTAS_LOG", "1") != "1":
++        return
++    from utils.riesgo import origen
++
++    try:
++        destino = Path(ruta or _setting("PREGUNTAS_ARCHIVO", "salidas/preguntas.jsonl"))
++        destino.parent.mkdir(parents=True, exist_ok=True)
++        with open(destino, "a", encoding="utf-8") as f:
++            f.write(json.dumps(
++                {"ts": round(time.time(), 3), "origen": origen(), "pregunta": texto[:4000]},
++                ensure_ascii=False,
++            ) + "\n")
++    except Exception:  # bookkeeping: nunca corta el chat  # noqa: BLE001 (bookkeeping de traza: nunca corta el chat)
++        pass
++
++def nota_presupuesto(ronda, maximo):
++    """La nota que ve el MODELO al entrar a la anteúltima ronda: su única
++    vista del presupuesto (el ⚙ de la terminal no llega a la conversación).
++    None en toda otra ronda — una nota por pregunta alcanza."""
++    if ronda == maximo - 1:
++        return (
++            f"⚙ ronda {ronda}/{maximo} completada — la próxima es tu ÚLTIMA "
++            "con tools (después se retiran): si no te alcanza, usala para "
++            "cerrar el estado y pedí continuación — un mensaje nuevo del "
++            "usuario reinicia el presupuesto."
++        )
++    return None
++
++
++# repeticiones idénticas de una ronda de tools antes de cortar por inanición
++UMBRAL_SIN_PROGRESO = _entero("UMBRAL_SIN_PROGRESO", 3)
++
++# exp/86 — presupuesto dinámico determinista: un pedido AMPLIO sube el tope.
++# El tope es un CAP, no un gasto (X21: p50 2 rondas): bajarlo no ahorra nada
++# y solo arriesga cortar; el hueco real era el contrario (A37: el alcance
++# amplio agota 8 y queda corto). Por eso la regla solo puede SUBIR.
++MAX_TOOL_ROUNDS_AMPLIO = _entero("MAX_TOOL_ROUNDS_AMPLIO", 16)
++AMPLIO_ARCHIVOS = 10  # un directorio mencionado con esta cantidad ya es amplio
++# 300 calibrado por el contrafáctico de exp/86 sobre la masa que el agente
++# ve (el banco copia los fixtures sin la answer sheet): las familias que agotaban el cap quedan arriba
++# con margen (s18 347 · s19 587 · s20 930) y las cómodas muy abajo (máx 111).
++AMPLIO_LINEAS = 300
++# todo token del pedido que trae al menos una barra (archivo o directorio)...
++_TOKEN_RUTA = re.compile(r"[\w./~-]*/[\w./~-]+")
++# ...y también un nombre de archivo CON EXTENSIÓN a secas, sin barra (dogfood
++# exp/87: "auditá fable_judge.py" mencionaba 872 líneas y no resolvía)
++_TOKEN_ARCHIVO = re.compile(r"\b[\w.-]+\.(?:py|md|json|csv|js|yaml|jsonl|txt|sh)\b")
++_EXTS_ALCANCE = {".py", ".md", ".json", ".csv", ".js", ".yaml", ".jsonl", ".txt", ".sh"}
++
++
++def _lineas_de(ruta):
++    """La masa de los archivos de código mencionados. Corta al cruzar los
++    umbrales: la respuesta es amplio sí/no, no el conteo exacto, y
++    un directorio enorme se recorría entero en CADA ronda (auditoría F3)."""
++    total, archivos = 0, 0
++    for f in ruta.rglob("*"):
++        if archivos >= AMPLIO_ARCHIVOS or total >= AMPLIO_LINEAS:
++            break
++        if f.is_file() and f.suffix in _EXTS_ALCANCE:
++            archivos += 1
++            try:
++                total += len(f.read_text(errors="replace").splitlines())
++            except OSError:
++                continue
++    return archivos, total
++
++
++def alcance_amplio(pregunta, raiz=None):
++    """True si el pedido es de alcance amplio — DETERMINISTA, sin LLM: los
++    datos exactos (cuántos archivos, cuántas líneas) los cuenta el código
++    contra el disco. Dos señales: un directorio mencionado con
++    >=AMPLIO_ARCHIVOS archivos de código, o masa mencionada >=AMPLIO_LINEAS.
++    (Hasta X104 había una tercera, una regex de palabras de totalidad: el
++    contrafáctico de la fase 4b-mín midió que no decidía ningún caso.) Contrafáctico contra las corridas de exp/72-80 (bitácora
++    exp/86): las tareas que agotaban el cap clasifican amplio; las cómodas
++    no; y como la regla solo sube el tope, no puede cortar nada."""
++    raiz = Path(raiz) if raiz else Path.cwd()
++    texto = str(pregunta or "")
++    masa = 0  # suma de líneas de los ARCHIVOS mencionados (spec: la masa, no cada uno)
++    tokens = _TOKEN_RUTA.findall(texto) + _TOKEN_ARCHIVO.findall(texto)
++    from utils.fs_tools import allowed_roots
++
++    roots = allowed_roots()
++    for token in dict.fromkeys(tokens):  # único: un nombre puede aparecer dos veces
++        p = (raiz / token.rstrip(".,;:)")).resolve()
++        # solo la masa que el agente PUEDE leer: `/usr` no es alcance del pedido
++        # (y recorrerlo costaba ~3 s por ronda, auditoría F3)
++        if not p.exists() or not any(p == r or r in p.parents for r in roots):
++            continue
++        if p.is_dir():
++            archivos, lineas = _lineas_de(p)
++            if archivos >= AMPLIO_ARCHIVOS or (archivos and lineas >= AMPLIO_LINEAS):
++                return True
++        elif p.suffix in _EXTS_ALCANCE:
++            try:
++                masa += len(p.read_text(errors="replace").splitlines())
++            except OSError:
++                continue
++    return masa >= AMPLIO_LINEAS
++
++
++def nuevo_turno():
++    """El estado de UNA pregunta: todo lo que vale hasta la próxima.
++
++    GetQuestion lo reemplaza ENTERO al recibir una pregunta. Antes eran diez
++    claves sueltas en `shared` y un `pop` por cada una: una clave nueva sin su
++    `pop` se filtraba a la pregunta siguiente y nada lo detectaba (auditoría
++    de elegancia, 2026-10-26). Lo de la sesión (`messages`, compacción,
++    respaldo) y lo de la tarea (`_objetivo`, que sobrevive a un "seguí")
++    quedan fuera de la caja a propósito. Todo es JSON: viaja en el checkpoint."""
++    return {
++        "rondas": 0,             # rondas de tools gastadas (ley L8)
++        "sin_progreso": 0,       # repeticiones de la MISMA ronda (exp/13)
++        "huella": None,          # huella de la última ronda
++        "huellas_vistas": [],    # novedad acumulada (exp/52-B)
++        "racha_sin_novedad": 0,
++        "skill": None,           # id del skill activo (exp/55)
++        "router_pendiente": None,  # id de la decisión shadow a etiquetar (exp/43)
++        "uso_inicio": None,      # desglose de tokens al empezar (exp/90)
++        "ruta": "herramientas",  # la arista que toma Contexto (la fija el router)
++        # fase 3: thinking en las rondas con tools, fijado UNA vez por pregunta
++        # (la API no tolera cambiar de modo dentro del turno: X102, secuencia F)
++        "pensar": _setting("PENSAR_TOOLS", "0") == "1",
++    }
++
++
++def turno(shared):
++    """La caja de la pregunta en curso (la crea si el shared no la trae)."""
++    return shared.setdefault("turno", nuevo_turno())
++
++
++def presupuesto(shared):
++    """Techo de rondas de tools para ESTA pregunta: el override explícito de
++    shared['max_tool_rounds'] si lo hay; si no, un pedido de alcance amplio
++    sube a MAX_TOOL_ROUNDS_AMPLIO (exp/86); si no, MAX_TOOL_ROUNDS, leído EN
++    RUNTIME del global del módulo (patch('nodes.MAX_TOOL_ROUNDS') se respeta)."""
++    override = shared.get("max_tool_rounds")
++    if override is not None:
++        return int(override)
++    # _objetivo es la tarea VIGENTE (GetQuestion; una continuación "seguí"
++    # no la pisa): el presupuesto amplio sobrevive a la continuación, que es
++    # justo cuando más rondas hacen falta.
++    if alcance_amplio(shared.get("_objetivo")):
++        # max(): si el default ya sube más que el tope amplio, se respeta
++        return max(MAX_TOOL_ROUNDS, MAX_TOOL_ROUNDS_AMPLIO)
++    return MAX_TOOL_ROUNDS
++
++
++def fingerprint(tool_calls):
++    """Hash estable de (nombre, argumentos) de una ronda de tools. NO mira
++    el resultado: el resultado cambia aunque la llamada sea idéntica. Al
++    incluir arguments, la paginación legítima (offset=1,2,3) da hashes
++    distintos y NO dispara el no-progreso."""
++    pares = sorted(
++        (tc["function"]["name"], tc["function"].get("arguments") or "")
++        for tc in (tool_calls or [])
++    )
++    return hashlib.sha1(
++        json.dumps(pares, ensure_ascii=False).encode()
++    ).hexdigest()
++
++
++def huella_llamada(tc):
++    """Hash corto (sin contenido) de (nombre, argumentos) de UNA tool."""
++    funcion = tc.get("function") or {}
++    clave = json.dumps([funcion.get("name") or "?", funcion.get("arguments") or ""],
++                       ensure_ascii=False)
++    return hashlib.sha1(clave.encode()).hexdigest()[:8]
++
++
++def actualizar_novedad(shared, tool_calls):
++    """exp/52-B: novedad ACUMULADA por pregunta (tool+argumentos).
++
++    A diferencia del no-progreso (misma ronda repetida), acá una ronda sin
++    NINGUNA llamada nueva (p. ej. A, B, A, B) también cuenta como sin novedad.
++    Devuelve True si la ronda no estrenó ninguna llamada.
++    """
++    t = turno(shared)
++    nuevas = [h for h in dict.fromkeys(huella_llamada(tc) for tc in tool_calls or [])
++              if h not in t["huellas_vistas"]]
++    t["huellas_vistas"].extend(nuevas)
++    t["racha_sin_novedad"] = 0 if nuevas else t["racha_sin_novedad"] + 1
++    return not nuevas
++
++
++def corte_por_novedad_activo(shared):
++    """exp/52-B: `CORTE_NOVEDAD=k` (default 0 = off) corta tras k rondas
++    consecutivas sin llamadas nuevas, con mínimo `CORTE_NOVEDAD_MIN` rondas.
++
++    Default OFF a propósito: la regla se activa recién cuando el A/B del banco
++    valide que baja rondas sin bajar turnos OK. Se lee en runtime para que el
++    banco la prenda por escenario.
++    """
++    k = _entero("CORTE_NOVEDAD", 0)
++    if k <= 0:
++        return False
++    minimo = _entero("CORTE_NOVEDAD_MIN", 3)
++    t = turno(shared)
++    return t["rondas"] >= minimo and t["racha_sin_novedad"] >= k
++
++
++def motivo_de_cierre(shared):
++    """Por qué se acabó el presupuesto de ESTA pregunta (ley L8), o None si
++    sigue: el tope de rondas, la misma ronda repetida (no-progreso, exp/13) o,
++    con CORTE_NOVEDAD, rondas sin llamadas nuevas (exp/52-B). Lo evalúa
++    Contexto antes de cada llamada al modelo (X96). Un corte que NO es el
++    techo deja su evento de política: visible desde .runs."""
++    t = turno(shared)
++    if t["rondas"] >= presupuesto(shared):
++        return "tope"
++    if t["sin_progreso"] >= UMBRAL_SIN_PROGRESO:
++        evento_politica("corte_no_progreso")
++        return "sin_progreso"
++    if corte_por_novedad_activo(shared):
++        evento_politica("corte_sin_novedad", f"{t['racha_sin_novedad']} rondas sin llamadas nuevas")
++        return "sin_novedad"
++    return None
++
++
++AVISO_CIERRE = (
++    "(presupuesto de herramientas agotado) Respondé AHORA con lo que tengas: "
++    "hallazgos, límites y qué falta. No emitas tool calls; si te falta "
++    "información, decilo como límite."
++)
++
++
++def historiar(msg, pensar=False):
++    """El mensaje del asistente en forma canónica para el historial:
++    role/content/tool_calls. El reasoning_content queda solo si la pregunta
++    piensa (fase 3): ahí la API lo exige de vuelta en el turno en curso; sin
++    thinking, arrastrarlo rompe la API (400 medido en producción)."""
++    m = {"role": "assistant", "content": msg.content}
++    razon = getattr(msg, "reasoning_content", None)
++    if pensar and isinstance(razon, str) and razon:
++        m["reasoning_content"] = razon
++    if getattr(msg, "tool_calls", None):
++        m["tool_calls"] = [
++            {"id": tc.id, "type": "function",
++             "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
++            for tc in msg.tool_calls
++        ]
++    return m
++
++# Action space = capacidades base del CORE + lo que aporten los módulos.
++MODULE_TOOLS, MODULE_IMPLS = discover()
++TOOLS = CORE_TOOLS + MODULE_TOOLS
++
++
++class GetQuestion(Node):
++    def exec(self, _):
++        while True:
++            try:
++                text = input("\nTú: ").strip()
++            except EOFError:
++                return "exit"
++            # UX (mesa 8): /aprobaciones es un comando de TERMINAL. Se atiende
++            # acá, en el bucle de entrada: devolverlo por post() lo mandaba al
++            # modelo con el historial intacto y sin reiniciar el presupuesto
++            # (medido en la barrida: una llamada extra no pedida).
++            if text.strip().lower() == "/aprobaciones":
++                from utils.aprobaciones import resumen
++
++                print("\n" + resumen())
++                continue
++            if text:
++                return text
++
++    def post(self, shared, prep_res, exec_res):
++        if exec_res.lower() in EXIT_WORDS:
++            return "exit"
++        # exp/34: la pregunta real queda registrada para calibrar el router con
++        # tráfico natural (bookkeeping; nunca corta el chat).
++        registrar_pregunta(exec_res)
++        # Todo lo de la pregunta anterior muere acá, de una vez: presupuesto
++        # (L8), no-progreso, novedad, skill, aviso de cierre y la decisión del
++        # router. El costo de la anterior se cierra con su `uso_inicio`.
++        # (/aprobaciones no llega hasta acá: lo atiende exec(), sin gastar turno.)
++        anterior = turno(shared)
++        shared["turno"] = nuevo_turno()
++        # exp/44: el último mensaje del usuario queda como EVIDENCIA DE
++        # INTENCIÓN para el juez de riesgo (import perezoso; los módulos no
++        # ven `shared`). Plumbing, no decide nada.
++        from utils.estado_sesion import recordar_usuario
++
++        recordar_usuario(exec_res)
++        # Tarea vigente para la compacción: una continuación no pisa el objetivo.
++        if exec_res.strip().lower() not in {"seguí", "segui", "continúa", "continua", "continue"}:
++            shared["_objetivo"] = exec_res
++        # fase 3: el reasoning de los turnos anteriores no vuelve a la API
++        # (X102: solo lo exige en el turno en curso) — se descarta acá.
++        shared["messages"] = sin_razonamiento_previo(shared["messages"] + [
++            {"role": "user", "content": exec_res}])
++        # exp/90: el costo POR PREGUNTA se cierra acá — se vuelve por
++        # "answer", así que la pregunta anterior ya respondió: su costo es
++        # el delta del desglose desde su propio arranque. La última nunca
++        # pasa de nuevo por acá: la cierra el reporte de salida.
++        from utils.call_llm import desglose_de_sesion
++        from utils.costos import delta_desglose
++
++        if anterior["uso_inicio"] is not None:
++            shared.setdefault("tokens_por_pregunta", []).append(
++                delta_desglose(anterior["uso_inicio"], desglose_de_sesion()))
++        shared["turno"]["uso_inicio"] = desglose_de_sesion()
++        # exp/48: punto seguro 1 — la pregunta del usuario quedó registrada.
++        # Checkpoint del shared COMPLETO (bookkeeping: jamás corta el chat).
++        checkpoint(thread_id(), "GetQuestion", "continue", shared)
++        return "continue"
++
++
++class PreFetch(Node):
++    """exp/50: pre-fetch como POLÍTICA declarativa del chat (apéndice 13).
++
++    Corre una vez por mensaje user NUEVO (está entre GetQuestion y el paso —
++    la estructura del grafo ya lo garantiza) y lee, DETERMINÍSTICAMENTE, los
++    archivos que la pregunta menciona: si el modelo casi seguro va a pedirlos,
++    se los damos ya leídos en el contexto (utils/prefetch, PURO).
++
++    Ley de ausencia: sin match no appendea nada (no-op). El mensaje prefetch
++    es un user normal del historial — la compacción lo compacta como a
++    cualquiera, y user-tras-user es legal para la API (validar_historial verde
++    antes y después: candado de este nodo). Siempre devuelve "continue" (una
++    arista, sin decisión)."""
++
++    def prep(self, shared):
++        # La última pregunta del usuario en el historial (el último user que
++        # no sea un mensaje prefetch de una vuelta anterior, si lo hubiera).
++        from utils.prefetch import PREFIJO_PREFETCH
++
++        for m in reversed(shared.get("messages", [])):
++            if m.get("role") == "user" and not str(m.get("content", "")).startswith(PREFIJO_PREFETCH):
++                return str(m.get("content", ""))
++        return ""
++
++    def exec(self, pregunta):
++        from utils.prefetch import decidir
++
++        return decidir(pregunta)
++
++    def post(self, shared, prep_res, exec_res):
++        from utils.prefetch import mensaje
++
++        texto = mensaje(exec_res)
++        if texto:
++            shared["messages"].append({"role": "user", "content": texto})
++            for path, _ in exec_res:
++                print(colorear(f"  [pre-fetch] {path}", "info"))
++        return "continue"
++
++
++def _aviso_ventana_caliente(shared, tamano, tope):
++    """exp/88: si ni compactando se baja del tope, la masa está en la
++    ventana caliente — decílo UNA vez por sesión: el marcador de compacción
++    repitiéndose sin esta línea era indescifrable (kill del operador)."""
++    if tamano <= tope or shared.get("_aviso_ventana_caliente"):
++        return
++    shared["_aviso_ventana_caliente"] = True
++    print(colorear(
++        "[compacción] la ventana caliente sola supera el tope "
++        f"({tamano} > {tope} chars): la compacción no puede bajarlo — "
++        "recortá lecturas o subí COMPACTION_CHARS", "aviso"), flush=True)
++
++
++def _recortar_si_sigue_sobre_el_tope(shared, tope):
++    """exp/91: si tras compactar (exitosa o no-op) el historial sigue sobre el
++    tope, la masa está en el CONTENIDO de la ventana caliente — recortá el de
++    los tool results VIEJOS (estructura intacta). La línea de terminal es
++    propia y visible: la causa invisible mató la sesión de exp/88.
++
++    Se evalúa DESPUÉS del respaldo de zona fría (A17) y no genera respaldo
++    propio: un tool result se re-obtiene re-corriendo la tool."""
++    mensajes = shared["messages"]
++    if len(serializar(mensajes)) <= tope:
++        return
++    nuevo = recortar_tools_viejos(mensajes)
++    if nuevo == mensajes:
++        return
++    recortados = sum(1 for a, b in zip(mensajes, nuevo, strict=True) if a is not b)
++    print(
++        f"{PREFIJO_COMPACCION} recorte: {recortados} resultados viejos → marcadores",
++        flush=True,
++    )
++    shared["messages"] = nuevo
++    shared["_compaccion_huella"] = huella(nuevo)
++
++
++class Contexto(Node):
++    """El contexto que viaja al modelo, una vez antes de CADA llamada (al
++    entrar por el router y tras cada ronda de tools). Si el historial supera
++    COMPACTION_CHARS: la zona fría se respalda (gancho `al_compactar`) y se
++    reemplaza por un marcador (código puro, sin LLM; los invariantes del modo
++    thinking los da utils/compaccion.compactar); si ni así baja, se recortan
++    los tool results viejos (exp/91) y se avisa una vez (X51). La huella evita
++    re-compactar la misma ronda. Sale por la ruta que eligió el router, o por
++    `cierre` si el presupuesto de la pregunta se acabó (X96): venga de donde
++    venga, la próxima llamada es la última y va sin tools."""
++
++    def prep(self, shared):
++        tope = _entero("COMPACTION_CHARS", 60000)
++        mensajes = shared["messages"]
++        if tope <= 0 or len(serializar(mensajes)) <= tope:
++            return
++        if shared.get("_compaccion_huella") != huella(mensajes):
++            respaldo = next(filter(None, (g(mensajes, shared) for g in ganchos("al_compactar"))), None)
++            nuevo = compactar(mensajes, tope, respaldo=respaldo, objetivo=shared.get("_objetivo"))
++            if nuevo is not mensajes and len(nuevo) < len(mensajes):
++                frios = len(mensajes) - len(nuevo) + 1  # +1: el propio resumen
++                print(f"{PREFIJO_COMPACCION} zona fría: {frios} mensajes → "
++                      f"resumen; ventana caliente: {len(nuevo) - 1}")
++                shared["messages"] = nuevo
++                shared["compacciones"] = shared.get("compacciones", 0) + 1
++                shared["_compaccion_huella"] = huella(nuevo)
++        _recortar_si_sigue_sobre_el_tope(shared, tope)
++        _aviso_ventana_caliente(shared, len(serializar(shared["messages"])), tope)
++
++    def post(self, shared, prep_res, exec_res):
++        if motivo_de_cierre(shared):
++            return "cierre"
++        if turno(shared).get("ruta") == "directo":
++            return "directo"
++        return "herramientas"
++
++
++class AgentStep(Node):
++    def prep(self, shared):
++        # El cierre por presupuesto ya no pasa por acá: Contexto lo decide y
++        # sale a Cierre (X96). AgentStep siempre ofrece tools.
++        tools = TOOLS
++        skill_id = turno(shared)["skill"]
++        if skill_id:
++            # exp/55: mientras el skill está activo se anuncia SOLO su subset
++            # (guía, no sandbox: el action space completo sigue existiendo).
++            # En shared viaja el ID (JSON): el objeto Skill se guardaba como su
++            # repr y un resume lo cargaba roto (auditoría 2026-10-26, F4).
++            from utils.skills import disponibles, filtrar_tools
++
++            skill = next((h for h in disponibles() if h.id == skill_id), None)
++            tools = filtrar_tools(tools, skill) if skill else tools
++        return shared["messages"], tools, turno(shared)["pensar"]
++
++    def exec(self, inputs):
++        messages, tools, *resto = inputs
++        pensar = bool(resto and resto[0])
++        stream = _setting("CHAT_STREAM", "1") == "1"
++        # sin `pensar` la llamada es la de siempre (la firma vieja: los tests
++        # y fakes que reemplazan el cliente no se enteran de la fase 3)
++        extra = {"pensar": True} if pensar else {}
++        if stream:
++            # etiqueta antes del primer delta: sin ella las respuestas
++            # llegan sin rótulo (nit de UX de la mesa 8, medido en prod)
++            print("\nDeepSeek: ", end="", flush=True)
++            exec_res = call_llm_agent_stream(messages, tools, **extra)
++        else:
++            exec_res = call_llm_agent(messages, tools, **extra)
++        # La normalización va en exec, NO en post: los max_retries de
++        # PocketFlow envuelven exec(), así que un raise acá SÍ re-pregunta; en
++        # post() cortaría el chat (bug medido). Es la misma del kernel.
++        exec_res, avisos = normalizar(exec_res, tools, getattr(self, "ofrece_tools", True))
++        for aviso in avisos:
++            if aviso in AVISOS:
++                print(colorear(AVISOS[aviso], "aviso"))
++        if stream and "sanitizado" in avisos:
++            # con streaming el crudo ya se imprimió en vivo (a veces con el
++            # descarrilo incluido): se imprime también la versión limpia
++            print(f"\nDeepSeek (limpio): {exec_res.content}")
++        if stream and "reemplazado" in avisos:
++            # con streaming el crudo ya se imprimió; si exec() lo REEMPLAZÓ
++            # (fallback/aviso), el usuario tiene que verlo o queda sin respuesta.
++            print(f"\nDeepSeek (aviso): {exec_res.content}")
++        return exec_res
++
++    def post(self, shared, prep_res, exec_res):
++        shared["messages"].append(historiar(exec_res, turno(shared)["pensar"]))
++        if getattr(exec_res, "tool_calls", None):
++            # exp/49: punto seguro 4 — la SELECCIÓN: las llamadas quedaron
++            # elegidas pero no ejecutadas (la pausa exacta del factor 8).
++            # Con el cierre de ronda de exp/48 son dos checkpoints por ronda.
++            checkpoint(thread_id(), type(self).__name__, "tool", shared)
++            return "tool"
++        if _setting("CHAT_STREAM", "1") == "1":
++            # con streaming el contenido ya se imprimió en vivo (deltas sin
++            # salto): acá solo se cierra la línea, sin repetir la respuesta.
++            print()
++        else:
++            print(f"\nDeepSeek: {exec_res.content}")
++        t = turno(shared)
++        pendiente, t["router_pendiente"] = t["router_pendiente"], None
++        if pendiente is not None:
++            from utils.laya_routing import registrar_resultado
++
++            rondas = t["rondas"]
++            registrar_resultado(pendiente, rondas)
++            etiqueta = "herramientas" if rondas else "directo"
++            print(colorear(f"  [router] etiqueta ambiental: {etiqueta} ({rondas} rondas)", "info"))
++        # exp/48: punto seguro 3 — la respuesta quedó registrada. El nodo es
++        # AgentStep (DirectAnswer hereda este post y su checkpoint usa el
++        # nombre de la clase real).
++        checkpoint(thread_id(), type(self).__name__, "answer", shared)
++        return "answer"
++
++
++_EXIT_NO_CERO = re.compile(r"^exit (?!0\b)-?\d+")
++
++
++def resultado_ok(contenido):
++    """Lo que la traza registra como ok/error de una tool. Un RECHAZADO del
++    humano o un comando con exit != 0 NO son éxitos (medido: los dos quedaban
++    'ok' en .runs y el linter/costos los contaban como sanos)."""
++    contenido = contenido or ""
++    return not (contenido.startswith(("ERROR", "RECHAZADO")) or _EXIT_NO_CERO.match(contenido))
++
++
++def codigo_error(contenido):
++    """Discriminador CORTO y sin contenido para la traza (F4: las trazas no
++    podían atribuir causas). Se guarda con la tool en .runs: `ERROR:TypeError`,
++    `ERROR:JSONDecodeError`, `ERROR:herramienta`, `RECHAZADO`, `exit_1`, o ""."""
++    contenido = (contenido or "").strip()
++    if contenido.startswith("RECHAZADO"):
++        return "RECHAZADO"
++    if contenido.startswith("ERROR"):
++        resto = contenido[5:].lstrip(": ").strip()
++        palabra = re.split(r"[:\s]", resto, maxsplit=1)[0] if resto else "?"
++        return "ERROR:" + (palabra[:40] or "?")
++    golpe = _EXIT_NO_CERO.match(contenido)
++    if golpe:
++        return golpe.group(0).strip().replace(" ", "_")
++    return ""
++
++
++class ExecuteTools(Node):
++    def prep(self, shared):
++        return shared["messages"][-1]["tool_calls"]
++
++    def exec(self, tool_calls):
++        # cada tool deja su evento propio en la traza (nombre + ok/error +
++        # código de causa; ver evento_tool): sin eso, una ronda larga es
++        # inatribuible desde .runs (auditoría)
++        resultados = []
++        for tc in tool_calls:
++            inicio = time.time()
++            nombre = (tc.get("function") or {}).get("name") or "?"  # A27: sin KeyError
++            # pulido de terminal (mesa 8): una ronda larga no debe parecer
++            # colgada, así que la tool EN CURSO se anuncia antes de correr.
++            print(colorear(f"  → {nombre}", "tool"), flush=True)
++            r = run_tool_call(tc, MODULE_IMPLS)
++            ok = resultado_ok(r["content"])
++            evento_tool(nombre, ok, time.time() - inicio,
++                        codigo=codigo_error(r["content"]),
++                        huella=huella_llamada(tc))
++            resultados.append(r)
++        return resultados
++
++    def post(self, shared, prep_res, exec_res):
++        shared["messages"].extend(exec_res)
++        return "default"
++
++
++class Observar(Node):
++    """Lo que deja una ronda de tools, contado por código (X96): la ronda, su
++    huella (no-progreso, exp/13), la novedad acumulada (exp/52-B) y lo que el
++    MODELO tiene que leer — el aviso de sin-progreso y la nota de presupuesto
++    viajan en el último resultado, porque la terminal no le llega. Después el
++    checkpoint (exp/48, punto seguro 2: la ronda quedó registrada). Si el
++    presupuesto se acabó lo decide Contexto, antes de la próxima llamada."""
++
++    def prep(self, shared):
++        return next((m["tool_calls"] for m in reversed(shared["messages"])
++                     if m.get("role") == "assistant" and m.get("tool_calls")), [])
++
++    def post(self, shared, llamadas, _):
++        t = turno(shared)
++        t["ruta"] = "herramientas"  # tras una ronda de tools se vuelve a AgentStep
++        t["rondas"] += 1
++        tope = presupuesto(shared)
++        huella_ronda = fingerprint(llamadas)
++        t["sin_progreso"] = t["sin_progreso"] + 1 if huella_ronda == t["huella"] else 0
++        t["huella"] = huella_ronda
++        actualizar_novedad(shared, llamadas)
++        notas = [nota_presupuesto(t["rondas"], tope)]
++        if t["sin_progreso"]:
++            notas.insert(0, f"⚠ Sin progreso: repetiste la misma llamada {t['sin_progreso'] + 1}ª vez "
++                            "— cambiá de estrategia o cerrá el estado.")
++        ultimo = shared["messages"][-1] if shared["messages"] else {}
++        if ultimo.get("role") == "tool":
++            ultimo["content"] = "\n".join([ultimo["content"], *filter(None, notas)])
++        print(colorear("  " + progreso_ronda(t["rondas"], tope), "info"), flush=True)
++        checkpoint(thread_id(), "Observar", "default", shared)
++        return "default"
++
++
++class VerificarCitas(Node):
++    """Cita archivo:línea → se comprueba contra el disco; si alguna no
++    coincide, UNA corrección sin tools reemplaza la respuesta (A40).
++
++    Es un nodo del grafo (answer → citas → ask) y no un paso dentro de
++    AgentStep.post: post no tiene retry en PocketFlow y la llamada de
++    corrección corría ahí envuelta en un except amplio (auditoría F6). Acá la
++    llamada vive en exec (con reintentos) y el "best effort" es el
++    exec_fallback explícito: si no se pudo corregir, queda la respuesta."""
++
++    def prep(self, shared):
++        ultimo = shared["messages"][-1] if shared.get("messages") else {}
++        contenido = (ultimo.get("content") or "").strip()
++        if (_setting("CITAS_VERIFICAR", "1") != "1" or ultimo.get("role") != "assistant"
++                or ultimo.get("tool_calls") or not contenido):
++            return None
++        return shared["messages"][:-1], contenido
++
++    def exec(self, entrada):
++        if entrada is None:
++            return None
++        from utils.citas import reporte, verificar_citas
++
++        mensajes, contenido = entrada
++        resultado = verificar_citas(contenido)
++        if not resultado["total"]:
++            return None
++        print(colorear(f"  [citas] {resultado['ok']}/{resultado['total']} verificadas", "info"), flush=True)
++        if not resultado["mal"]:
++            return None
++        detalle = reporte(resultado)
++        print(colorear(detalle, "aviso"), flush=True)
++        corregido = call_llm_agent(list(mensajes) + [
++            {"role": "assistant", "content": contenido},
++            {"role": "user", "content": (
++                "Verificá y corregí la respuesta. Estas citas NO coinciden con "
++                "el archivo real:\n" + detalle + "\n\nReescribí la respuesta "
++                "usando solo citas verificadas (o marcá como no verificado lo "
++                "que no puedas verificar). No agregues hallazgos nuevos; "
++                "devolvé solo la respuesta final.")},
++        ])
++        return (getattr(corregido, "content", None) or "").strip() or None
++
++    def exec_fallback(self, prep_res, exc):
++        print(colorear(f"  [citas] la corrección falló ({type(exc).__name__}): queda la respuesta",
++                       "aviso"), flush=True)
++        return None
++
++    def post(self, shared, prep_res, exec_res):
++        if exec_res:
++            shared["messages"][-1]["content"] = exec_res
++            print(f"\nDeepSeek (citas corregidas): {exec_res}", flush=True)
++            checkpoint(thread_id(), "VerificarCitas", "default", shared)
++
++
++class ExitChat(Node):
++    def post(self, shared, prep_res, exec_res):
++        print("\n¡Chao! 👋")
++
++
++PREGUNTA_ROUTER = {
++    "necesita_herramientas": {
++        "type": "choice",
++        "instructions": "Does answering the request require tools (search/reading files, web, computation) or can it be answered directly?",
++        "criteria": {
++            "herramientas": "needs local files, documents, current data, or exact computation",
++            "directo": "general knowledge, conversation, creativity; no external data needed",
++        },
++    }
++}
++
++
++PREGUNTA_VOTO = {
++    "confirma_herramientas": {
++        "type": "choice",
++        "instructions": "Second opinion before answering directly — does this request truly require running tools (reading or searching files, web, or executing a capability) — action imperatives almost always do — or is it answerable from knowledge alone?",
++        "criteria": {
++            "herramientas": "needs local files, web data, or running a capability; imperatives of action included",
++            "directo": "pure knowledge, conversation or creativity; nothing to run or look up",
++        },
++    }
++}
++
++
++PROMPT_ARBITRO_VOTO = (
++    "Pregunta del usuario:\n{pregunta}\n\n"
++    "¿Responderla requiere USAR HERRAMIENTAS (leer/buscar archivos, web, "
++    "ejecutar una capacidad: debate, investigación, informe, sql...) o se "
++    "responde DIRECTO de conocimiento? Un imperativo de acción (debatá, "
++    "investigá, generá, medí...) casi siempre es herramientas.\n\n"
++    "Responde SOLO yaml:\n```yaml\nveredicto: herramientas|directo\n```"
++)
++
++
++def voto_confirmacion_router(pregunta):
++    """El segundo voto del router, en tres niveles (Mesa 3): Laya-voto
++    local decide los acuerdos Y desacuerdos confiables (costo 0, ms);
++    DeepSeek queda como ÁRBITRO de la banda incierta. La independencia de
++    errores es el recurso escaso — si ambos checkpoints fallan juntos el
++    voto es eco, no voto — así que la promoción del voto local pasó por la
++    puerta de correlación del bench (design.md, Mesa 3). Sin
++    LAYA_MODEL_VOTO, el voto de DeepSeek de siempre."""
++    from utils.call_llm import _setting, call_llm
++    from utils.estructura import extraer_yaml
++    from utils.laya import disponible, preguntar
++    from utils.laya_routing import config_voto, decide_voto
++
++    if _setting("USE_VOTACION", "1") != "1":
++        return "directo"  # apagado: la palabra de Laya es final
++    if disponible("LAYA_MODEL_VOTO"):
++        estado = {"pregunta": str(pregunta)[:1000]}
++        resp, conf = preguntar(estado, PREGUNTA_VOTO, setting="LAYA_MODEL_VOTO")["confirma_herramientas"]
++        # el umbral del voto es propio (0.7 por defecto): la curva del veto da
++        # 96% de precisión con 83% de cobertura a 0.7. Con LAYA_CALIBRACION_VOTO
++        # el umbral sale de los datos (cota conformal), igual que el router.
++        config = config_voto()
++        confiable, causa = decide_voto(resp, conf, config)
++        if resp in ("herramientas", "directo") and confiable:
++            # acuerdo confiable (directo→directo, el ahorro) o desacuerdo
++            # confiable (herramientas→lado seguro): DeepSeek no hace falta
++            print(f"  [voto] laya local: {resp} (conf {conf:.2f}) — {causa}")
++            return resp
++        print(f"  [voto] laya local duda ({resp}, conf {conf:.2f}; {causa}) → arbitra DeepSeek")
++    r = extraer_yaml(call_llm(PROMPT_ARBITRO_VOTO.format(pregunta=pregunta)))
++    return r.get("veredicto", "herramientas")
++
++
++class LayaRouter(Node):
++    """If inteligente: Laya (local, ms) decide si la pregunta necesita
++    herramientas o se responde directa. La confianza aplica los umbrales
++    de bmo; 'uncertain' cae al lado SEGURO (herramientas). Si laya no está
++    disponible, también cae a herramientas: degrada, no rompe.
++
++    El estado {"pregunta": ...} y PREGUNTA_ROUTER son el contrato del
++    fine-tune (task router_flow de bmo): entrenamiento y producción leen
++    lo mismo byte a byte."""
++
++    def prep(self, shared):
++        # exp/50: el mensaje `[pre-fetch]` entra ANTES del router (user tras
++        # user), así que `messages[-1]` puede ser el PREFETCH y no la pregunta.
++        # Saltamos los mensajes de pre-fetch para leer la PREGUNTA real: el
++        # router decide y el voto se confirman sobre la pregunta, no sobre el
++        # contexto que la política le inyectó.
++        from utils.prefetch import PREFIJO_PREFETCH
++
++        pregunta = ""
++        for m in reversed(shared["messages"]):
++            if m.get("role") != "user":
++                continue
++            contenido = str(m.get("content", ""))
++            if contenido.startswith(PREFIJO_PREFETCH):
++                continue  # pre-fetch: no es la pregunta
++            pregunta = contenido
++            break
++        return {"pregunta": pregunta[:1000]}
++
++    def exec(self, estado):
++        from utils.laya import disponible, preguntar_detalle
++        from utils.laya_routing import config_router, regla_imperativo_capacidad, regla_temporal
++
++        # exp/46: la recencia no la juzga Laya (límite de familia: sin fechas).
++        # La regla dura va ANTES del modelo. En enforce corta acá sin gastar a
++        # Laya; en shadow NO corta: Laya corre igual para que la flywheel junte
++        # la etiqueta de esta clase y la regla se valide contra realidad.
++        modo = config_router().modo
++        if modo == "enforce" and regla_temporal(estado.get("pregunta")):
++            return "regla:temporal"
++        # exp/54: la orden de capacidad tampoco la decide el modelo: es el
++        # hueco medido por el bench del voto (c01: voto local directo 0,94).
++        if modo == "enforce" and regla_imperativo_capacidad(estado.get("pregunta")):
++            return "regla:imperativo"
++        if modo == "off" or not disponible():
++            return None
++        try:
++            return preguntar_detalle(estado, PREGUNTA_ROUTER).get("necesita_herramientas")
++        except Exception as e:  # noqa: BLE001 (frontera de integracion Laya: degrada al router DeepSeek)
++            # Frontera de integración (exp/25): una excepción de inferencia no
++            # puede matar el chat; la política la lee como abstención.
++            print(f"  [laya] falló ({type(e).__name__}) → herramientas")
++            return None
++
++    def post(self, shared, prep_res, exec_res):
++        from utils.laya_routing import (
++            config_router,
++            decide,
++            registrar_decision,
++            ruta_aplicada,
++        )
++
++        # La POLÍTICA vive en utils/laya_routing (exp/35): acá solo se ejecuta
++        # su resultado. La clasificación (Laya) y la decisión (Python) están
++        # separadas y la segunda se testea sin modelo.
++        config = config_router()
++        pregunta = prep_res.get("pregunta") if isinstance(prep_res, dict) else None
++        # exp/55: skills declarativas. En enforce, un disparo declarativo manda
++        # al lado seguro, inyecta el prompt del skill y anuncia el recorte de
++        # tools. En shadow NO cambia conducta (solo observa), igual que las reglas.
++        skill = None
++        if config.modo == "enforce" and _setting("SKILLS", "1") != "0" and pregunta:
++            from utils.skills import disponibles, mensaje, skill_para
++
++            skill = skill_para(pregunta, disponibles())
++        if skill is not None:
++            propuesta, causa, p_directo = (
++                "herramientas",
++                f"skill {skill.id}: disparo declarativo",
++                None,
++            )
++            turno(shared)["skill"] = skill.id
++            shared["messages"].append({"role": "user", "content": mensaje(skill)})
++            print(colorear(f"  [skill] {skill.id} activo — {skill.descripcion}", "info"),
++                  flush=True)
++        elif exec_res == "regla:temporal":
++            # exp/46: la regla dura ya decidió ANTES del modelo (Laya no se
++            # llamó en enforce). Causa explícita, sin p_directo (no hay par
++            # (p, etiqueta) calibrable → sin pendiente que etiquetar).
++            propuesta, causa, p_directo = (
++                "herramientas",
++                "regla temporal (exp/46): recencia no la juzga Laya",
++                None,
++            )
++        elif exec_res == "regla:imperativo":
++            # exp/54: misma vía que la temporal, para órdenes de capacidad.
++            propuesta, causa, p_directo = (
++                "herramientas",
++                "regla imperativo (exp/54): orden de capacidad no la juzga Laya",
++                None,
++            )
++        else:
++            propuesta, causa, p_directo = decide(exec_res, config)
++        aplicada = ruta_aplicada(propuesta, config)
++        from uuid import uuid4
++
++        id_decision = uuid4().hex[:8]
++        print(f"  [laya] {propuesta} — {causa} (modo {config.modo})")
++
++        # A04/A05: el voto corre ANTES de registrar y recibe la PREGUNTA, no el
++        # dict del prep (que se re-serializaba como "{'pregunta': '...'}" y le
++        # cambiaba la entrada al checkpoint). El log guarda la ruta FINAL, con
++        # el voto y el veto como campos propios: antes decía "aplicada: directo"
++        # aunque el voto la vetara dos líneas después.
++        voto, veto = None, None
++        if aplicada == "directo":
++            # post() NO tiene retry en PocketFlow: si el voto revienta (YAML
++            # roto del modelo), caemos al lado seguro en vez de cortar el chat.
++            try:
++                voto = voto_confirmacion_router(pregunta)
++            except Exception as e:  # noqa: BLE001 (frontera del voto Laya: degrada al voto DeepSeek)
++                voto, veto = "herramientas", f"el voto falló ({type(e).__name__})"
++                print(f"  [voto] falló ({type(e).__name__}) → herramientas")
++            if voto != "directo":  # 2-de-2: desacuerdo → lado seguro
++                veto = veto or f"el voto dijo {voto}"
++                print(f"  [voto] deepseek dice {voto} → herramientas")
++                aplicada = "herramientas"
++
++        registrar_decision(
++            {
++                "modo": config.modo,
++                "id": id_decision,
++                "propuesta": propuesta,
++                "aplicada": aplicada,
++                "causa": causa,
++                "voto": voto,
++                "veto": veto,
++                "p_directo": p_directo,
++                "q": config.q,
++                "umbral": config.umbral,
++                "laya": config.version,
++            },
++            pregunta=pregunta,
++        )
++        if (
++            config.modo == "shadow"
++            and p_directo is not None
++            and _setting("LAYA_LOG_DECISIONES", "1") == "1"
++        ):
++            turno(shared)["router_pendiente"] = id_decision
++        # la ruta viaja en el turno: Contexto la lee después de compactar
++        turno(shared)["ruta"] = "herramientas" if aplicada != "directo" else "directo"
++        if aplicada != "directo":
++            return "herramientas"  # off, shadow y veto conservan las herramientas
++        return "directo"
++
++
++class Cierre(AgentStep):
++    """La última llamada de la pregunta: sin tools y con el aviso de cierre
++    (X96). Antes era un flag dentro de AgentStep.prep (`aviso_cierre`) para que
++    el aviso no se duplicara; ahora corre UNA vez por construcción — después
++    viene la respuesta. Las tool calls que el modelo emita igual se descartan
++    (normalizar con las tools retiradas, L8)."""
++
++    def prep(self, shared):
++        # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
++        # el modelo sigue emitiendo tool calls en vez de cerrar la respuesta.
++        # El cierre hereda el modo de la pregunta (no se apaga: X102 H dio ok,
++        # pero cambiar dos cosas en el A/B de 3a las mezclaría).
++        return (list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None,
++                turno(shared)["pensar"])
++
++
++class DirectAnswer(AgentStep):
++    """AgentStep sin herramientas: la pregunta se responde de una."""
++
++    ofrece_tools = False  # el DSML acá es texto: nunca se ofrecieron tools
++
++    def prep(self, shared):
++        # La compacción ya corrió en Contexto (la ruta directa mandaba el
++        # historial entero sin techo, exp/36). Sin tools y sin la fase 3: sin
++        # tools en el turno, la regla de la API no aplica.
++        return shared["messages"], None, False
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/ratchets/baseline.json deepseek-flow-main/ratchets/baseline.json
+--- /tmp/orig/ratchets/baseline.json	2026-10-29 19:17:38.399243800 +0000
++++ deepseek-flow-main/ratchets/baseline.json	2026-10-29 19:22:35.730584774 +0000
+@@ -51,8 +51,8 @@
+         ],
+         "nodes.py": [
+           59,
+-          806,
+-          878
++          798,
++          870
+         ],
+         "research.py": [
+           78
+@@ -64,7 +64,7 @@
+           47
+         ],
+         "utils/call_llm.py": [
+-          341
++          333
+         ],
+         "utils/contexto.py": [
+           119
+@@ -595,14 +595,13 @@
+       "detalle": {
+         "juez.py:TOOL_CONTEXTO_RE": 1,
+         "nodes.py:GetQuestion": 1,
+-        "nodes.py:_PALABRAS_AMPLIAS": 1,
+         "utils/aprobaciones.py:YES": 1,
+         "utils/laya_routing.py:RE_TEMPORAL": 1,
+         "utils/laya_routing.py:_IMPERATIVOS_CAPACIDAD": 1,
+         "utils/laya_routing.py:_RELLENOS": 1,
+         "utils/laya_routing.py:_RE_OBJETO_CAPACIDAD": 1
+       },
+-      "metrica": 8
++      "metrica": 7
+     }
+   },
+   "version": 1
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/tests/conftest.py deepseek-flow-main/tests/conftest.py
+--- /tmp/orig/tests/conftest.py	2026-10-29 19:17:38.407244022 +0000
++++ deepseek-flow-main/tests/conftest.py	2026-10-29 19:18:59.357489512 +0000
+@@ -99,9 +99,6 @@
+     prueban el scope o el HITL web lo fijan ellos (monkeypatch: gana el último)."""
+     monkeypatch.delenv("HITL_SCOPE", raising=False)
+     monkeypatch.setenv("HITL_WEB", "0")
+-    # X103: la fase 3 la prende el A/B, no la suite (los fakes del cliente
+-    # usan la firma de siempre; los tests de la 3a la fijan ellos)
+-    monkeypatch.setenv("PENSAR_TOOLS", "0")
+ 
+ 
+ def tc(nombre, args):
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/tests/test_chat_flujo.py deepseek-flow-main/tests/test_chat_flujo.py
+--- /tmp/orig/tests/test_chat_flujo.py	2026-10-29 19:17:38.403243911 +0000
++++ deepseek-flow-main/tests/test_chat_flujo.py	2026-10-29 19:18:59.357489512 +0000
+@@ -392,7 +392,7 @@
+                              {"role": "user", "content": "auditá el repo"}],
+               "turno": {**nuevo_turno(), "rondas": 8}}
+     assert Contexto()._run(shared) == "cierre"
+-    mensajes, tools, _ = Cierre().prep(shared)
++    mensajes, tools = Cierre().prep(shared)
+     assert tools is None
+     assert mensajes[-1]["content"] == AVISO_CIERRE
+     # el aviso es EFÍMERO: no entra al historial
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/tests/test_chat_flujo.py.orig deepseek-flow-main/tests/test_chat_flujo.py.orig
+--- /tmp/orig/tests/test_chat_flujo.py.orig	1970-01-01 00:00:00.000000000 +0000
++++ deepseek-flow-main/tests/test_chat_flujo.py.orig	2026-10-29 18:20:34.000000000 +0000
+@@ -0,0 +1,518 @@
++"""El bucle del chat: AgentStep/ExecuteTools, DSML, sanitizado, presupuesto y no-progreso (PR 4)."""
++import pytest
++
++
++def test_dsml_a_tool_calls():
++    from nodes import dsml_a_tool_calls
++
++    # formato real medido en producción: separador DOBLE barra fullwidth
++    # (la primera versión del fix usaba una sola y jamás disparó)
++    contenido = """<｜｜DSML｜｜ calls>
++<｜｜DSML｜｜ invoke name="read_file">
++<｜｜DSML｜｜ parameter name="path" string="true">/tmp/proyecto/utils/laya.py</｜｜DSML｜｜ parameter>
++</｜｜DSML｜｜ invoke>
++<｜｜DSML｜｜ invoke name="deep_research">
++<｜｜DSML｜｜ parameter name="tema" string="true">PocketFlow</｜｜DSML｜｜ parameter>
++<｜｜DSML｜｜ parameter name="max_iteraciones" string="false">3</｜｜DSML｜｜ parameter>
++</｜｜DSML｜｜ invoke>
++</｜｜DSML｜｜ calls>"""
++    calls = dsml_a_tool_calls(contenido)
++    assert [c.function.name for c in calls] == ["read_file", "deep_research"]
++    import json
++    args = json.loads(calls[1].function.arguments)
++    assert args["tema"] == "PocketFlow" and args["max_iteraciones"] == "3"
++    assert calls[0].id == "dsml-0"
++
++    # y el de una barra (el transcript pegado a mano la colapsa) también parsea
++    una = contenido.replace("｜｜", "｜")
++    assert [c.function.name for c in dsml_a_tool_calls(una)] == ["read_file", "deep_research"]
++
++def test_agent_step_recupera_dsml_como_tool(monkeypatch):
++    from types import SimpleNamespace
++
++    import nodes
++
++    mensaje = SimpleNamespace(content="<｜DSML｜｜ invoke name=\"db_schema\">\n</｜DSML｜｜ invoke>", tool_calls=None)
++    monkeypatch.setattr(nodes, "call_llm_agent", lambda msgs, tools=None: mensaje)
++    shared = {"messages": [{"role": "user", "content": "esquema"}], "tool_rounds": 0}
++    # camino completo: la recuperación DSML vive en exec() (reintenta PocketFlow)
++    monkeypatch.setenv("CHAT_STREAM", "0")  # camino clásico
++    accion = nodes.AgentStep()._run(shared)
++    assert accion == "tool"
++    m = shared["messages"][-1]
++    # el historial queda canónico (dict, forma de la API) y sin el markup crudo
++    assert m["tool_calls"][0]["function"]["name"] == "db_schema"
++    assert m["content"] is None
++
++def test_sanitizar_markers_y_tags():
++    """Dos descarrilos medidos en producción: un marker de rol ajeno corta
++    (lo que sigue es basura) y los tags HTML que parten palabras se quitan
++    (el texto sigue siendo la respuesta)."""
++    from nodes import sanitizar
++
++    # marker de rol: corta desde ahí; el contenido previo sobrevive
++    limpio, modificado = sanitizar("¡Hola! <|im_start|>system eres un agente genérico")
++    assert modificado is True and limpio == "¡Hola!"
++
++    # <<SYS>> y <system> también son markers de rol
++    assert sanitizar("buenas <<SYS>> ahora eres otro")[0] == "buenas"
++    assert sanitizar("ok <system>instrucción ajena")[0] == "ok"
++
++    # marker al inicio: no queda nada utilizable
++    limpio, modificado = sanitizar("<system>solo basura")
++    assert modificado is True and limpio == ""
++
++    # tags HTML que parten palabras: se quitan y el texto se recompone
++    limpio, modificado = sanitizar("S<small>oy</small> DeepSeek")
++    assert modificado is True and limpio == "Soy DeepSeek"
++
++    # texto sano: intacto
++    limpio, modificado = sanitizar("respuesta normal, sin ruido")
++    assert modificado is False and limpio == "respuesta normal, sin ruido"
++
++def test_agent_step_sanitiza_y_reintenta(monkeypatch):
++    """El sanitizado vive en exec(): si quedó algo se imprime limpio, y si no
++    quedó nada el retry de PocketFlow re-pregunta (raise)."""
++    from types import SimpleNamespace
++
++    import nodes
++
++    monkeypatch.setenv("CHAT_STREAM", "0")  # camino clásico, sin stream
++
++    # caso 1: descarrilo parcial → el historial guarda solo lo limpio
++    mensaje = SimpleNamespace(content="¡Hola! <|im_start|>system ajeno", tool_calls=None)
++    monkeypatch.setattr(nodes, "call_llm_agent", lambda msgs, tools=None: mensaje)
++    shared = {"messages": [{"role": "user", "content": "hola"}], "tool_rounds": 0}
++    accion = nodes.AgentStep()._run(shared)
++    assert accion == "answer"
++    assert shared["messages"][-1]["content"] == "¡Hola!"
++
++    # caso 2: solo markup de rol → raise (PocketFlow reintenta en exec)
++    vacio = SimpleNamespace(content="<system>nada útil", tool_calls=None)
++    monkeypatch.setattr(nodes, "call_llm_agent", lambda msgs, tools=None: vacio)
++    shared = {"messages": [{"role": "user", "content": "hola"}], "tool_rounds": 0}
++    with pytest.raises(ValueError):
++        nodes.AgentStep()._run(shared)
++
++def test_sanitizar_prompt_ajeno():
++    from nodes import sanitizar
++
++    # transcript real (2026-10-05): el saludo se corta y arranca un system
++    # prompt ajeno de "file exploration agent"
++    texto = "¡Hola! 👋 Soy tu ag<system>You are a file exploration agent.\n# Tools\n## `list_directory`"
++    limpio, cortado = sanitizar(texto)
++    assert cortado and limpio == "¡Hola! 👋 Soy tu ag"
++    assert sanitizar("respuesta normal sin markers") == ("respuesta normal sin markers", False)
++    assert sanitizar("<system>solo basura") == ("", True)
++    # segunda variante medida: tag HTML que parte una palabra
++    texto2 = "¡Hola! 👋\n\nS<small>oy un agente de exploración de archivos.</small> Puedo ayudar."
++    limpio2, cambio2 = sanitizar(texto2)
++    assert cambio2 and limpio2 == "¡Hola! 👋\n\nSoy un agente de exploración de archivos. Puedo ayudar."
++    # el markdown legítimo (negritas, listas) NO se toca
++    ok = "- **Listar** el contenido\n- 📁 `/ruta`\n## título"
++    assert sanitizar(ok) == (ok, False)
++
++def test_system_prompt_estable_y_trae_entorno():
++    import main
++    from utils.fs_tools import allowed_roots
++
++    a, b = main.system_prompt(), main.system_prompt()
++    assert a == b  # byte-estable: nada dinámico puede entrar (KV-cache)
++    # rol: resolución de pedidos, alcance anclado al CWD
++    assert "tools disponibles" in a
++    assert f"Trabajás en {main.Path.cwd()} y sus subdirectorios" in a
++    # el perímetro duro (allowed roots) sigue declarado
++    assert any(str(r) in a for r in allowed_roots())
++    # el idioma se espeja (español o inglés), no se fija a uno
++    assert "español o inglés" in a
++
++def test_execute_tools_anuncia_y_etiqueta(monkeypatch, capsys):
++    """Una ronda larga no parece colgada: cada tool se anuncia ANTES de
++    correr y la ronda consumida se etiqueta con su avance (n/MAX)."""
++    import nodes
++
++    # sin tty → texto plano (así lo ve un pipe; los tests no ven ANSI)
++    monkeypatch.setattr("sys.stdout.isatty", lambda: False, raising=False)
++    monkeypatch.setattr(nodes, "MODULE_IMPLS", {})
++    monkeypatch.setattr(
++        nodes, "run_tool_call",
++        lambda tc, impls: {"role": "tool", "tool_call_id": tc["id"], "content": "ok"},
++    )
++
++    et = nodes.ExecuteTools()
++    shared = {"messages": [], "tool_rounds": 0}
++    tool_calls = [
++        {"id": "a", "function": {"name": "read_file", "arguments": "{}"}},
++        {"id": "b", "function": {"name": "list_files", "arguments": "{}"}},
++    ]
++    resultados = et.exec(tool_calls)
++    salida = capsys.readouterr().out
++    assert "→ read_file" in salida and "→ list_files" in salida
++    # el anuncio precede al resultado: aparece aunque el resultado viniera ok
++    assert len(resultados) == 2
++
++    # la ronda se etiqueta con el avance sobre el tope (la cuenta Observar, X96)
++    et.post(shared, None, resultados)
++    nodes.Observar().post(shared, tool_calls, None)
++    salida = capsys.readouterr().out
++    assert f"⚙ ronda 1/{nodes.MAX_TOOL_ROUNDS}" in salida
++
++def test_nota_presupuesto_solo_en_la_anteultima_ronda():
++    """exp/4: el modelo no veía su presupuesto (el ⚙ iba solo a la terminal)
++    y el tope lo cortaba en mudo — tres sesiones de aplicación muertas así.
++    La nota viaja en el resultado de la última tool de la anteúltima ronda."""
++    from nodes import nota_presupuesto
++
++    assert nota_presupuesto(2, 4) is None
++    assert nota_presupuesto(4, 4) is None
++    nota = nota_presupuesto(3, 4)
++    assert nota and "3/4" in nota and "ÚLTIMA" in nota and "reinicia" in nota
++    # máximo degenerado: la única ronda es también la anteúltima
++    assert nota_presupuesto(0, 1) is not None
++
++def test_dsml_con_presupuesto_agotado_no_rearma_lo_retirado():
++    """exp/12: medido en exp/4 — el modelo emitía tool-calls como texto
++    DSML DESPUÉS del retiro por el tope y la recuperación las ejecutaba:
++    la ley L8 quedaba by-paseada. Ahora sin tools el markup se corta; con
++    tools, la recuperación de siempre."""
++    from nodes import MENSAJE_DSML_AGOTADO, dsml_con_presupuesto_agotado
++
++    content = "Cerrando el estado.<｜｜DSML｜｜ calls> <｜｜DSML｜｜ invoke name=\"write_file\">..."
++    # tools presentes: intacto, sin aviso (la recuperación corre aparte)
++    nuevo, avisar = dsml_con_presupuesto_agotado(content, ["x"], TOOLS_PRESENTES := ["t"])
++    assert nuevo == content and avisar is False
++    # tools retiradas: corta antes del markup
++    nuevo, avisar = dsml_con_presupuesto_agotado(content, ["x"], None)
++    assert nuevo == "Cerrando el estado." and avisar is True
++    # solo markup: mensaje honesto y accionable
++    solo = "<｜｜DSML｜｜ calls> todo markup"
++    nuevo, avisar = dsml_con_presupuesto_agotado(solo, ["x"], None)
++    assert nuevo == MENSAJE_DSML_AGOTADO and "seguí" in nuevo and avisar is True
++
++def test_presupuesto_perfiles_por_operacion_y_precedencia(monkeypatch):
++    """Precedencia del techo: override explícito > MAX_TOOL_ROUNDS, leído EN
++    RUNTIME del global del módulo. Los perfiles por `operacion` (exp/13) se
++    borraron en X93: ningún invocador los declaraba; una `operacion` que
++    llegue en shared ya no cambia nada."""
++    import nodes
++
++    assert nodes.presupuesto({}) == nodes.MAX_TOOL_ROUNDS
++    assert nodes.presupuesto({"operacion": "aplicacion"}) == nodes.MAX_TOOL_ROUNDS
++    assert nodes.presupuesto({"max_tool_rounds": 99}) == 99
++    monkeypatch.setattr(nodes, "MAX_TOOL_ROUNDS", 42)
++    assert nodes.presupuesto({}) == 42
++
++def test_alcance_amplio_por_palabras_directorio_y_masa(tmp_path):
++    """exp/86: la regla es determinista (los datos exactos los cuenta el
++    código contra el disco). Desde X104 (fase 4b-mín) sin vocabulario: las
++    palabras de totalidad solas ya no deciden — el contrafáctico sobre los 14
++    escenarios y 36 preguntas reales midió que no decidían ningún caso."""
++    import nodes
++
++    # palabras de totalidad SIN ruta: ya no suben el tope (X104)
++    assert not nodes.alcance_amplio("revisá todo el repo buscando bugs", raiz=tmp_path)
++    assert not nodes.alcance_amplio("auditoría del proyecto completa", raiz=tmp_path)
++    # directorio mencionado con muchos archivos de código (s13: árbol exports)
++    arbol = tmp_path / "exports"
++    arbol.mkdir()
++    for i in range(12):
++        (arbol / f"mod_{i}.py").write_text("x = 1\n")
++    assert nodes.alcance_amplio(f"arreglá el bug en {arbol}", raiz=tmp_path)
++    # masa mencionada: 2 archivos pero ~600 líneas (s18: auditoría real)
++    denso = tmp_path / "policy.py"
++    denso.write_text("x = 1\n" * 300)
++    par = tmp_path / "votacion.py"
++    par.write_text("y = 2\n" * 300)
++    assert nodes.alcance_amplio(
++        f"revisá {tmp_path / 'policy.py'} y {tmp_path / 'votacion.py'}", raiz=tmp_path)
++    # acotado: un archivo chico (s1: una pregunta sobre cart.js)
++    chico = tmp_path / "cart.js"
++    chico.write_text("total += 1\n")
++    assert not nodes.alcance_amplio(f"qué pasa con el descuento en {chico}", raiz=tmp_path)
++    # ruta mencionada inexistente no opina
++    assert not nodes.alcance_amplio("mirá no/existe/dir y decime", raiz=tmp_path)
++
++
++def test_presupuesto_amplio_sube_el_tope_sin_tocar_la_precedencia(tmp_path, monkeypatch):
++    """exp/86: el tope amplio se aplica solo cuando no hay override (y como
++    la regla solo sube, no puede cortar nada: cap, no gasto). El pedido
++    amplio es uno que menciona un árbol grande (X104: sin palabras)."""
++    import nodes
++
++    arbol = tmp_path / "exports"
++    arbol.mkdir()
++    for i in range(12):
++        (arbol / f"mod_{i}.py").write_text("x = 1\n")
++    monkeypatch.chdir(tmp_path)
++    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
++    amplio = f"auditá {arbol}"
++    assert nodes.presupuesto({"_objetivo": amplio}) == nodes.MAX_TOOL_ROUNDS_AMPLIO
++    # el override sigue ganando
++    assert nodes.presupuesto({"_objetivo": amplio, "max_tool_rounds": 3}) == 3
++    # pregunta acotada: default de siempre
++    assert nodes.presupuesto({"_objetivo": "qué hace esta línea?"}) == nodes.MAX_TOOL_ROUNDS
++    # el tope amplio nunca BAJA del default si alguien lo configuró más alto
++    monkeypatch.setattr(nodes, "MAX_TOOL_ROUNDS", 20)
++    assert nodes.presupuesto({"_objetivo": amplio}) == 20
++
++
++def test_fingerprint_paginado_no_dispara_y_repetido_si():
++    """exp/13 (opción D): la huella de la ronda incluye los argumentos, así
++    la paginación legítima (offset distinto) da huella distinta y NO cuenta
++    como no-progreso; repetir la misma llamada SÍ."""
++    import nodes
++
++    def tc(path, offset=None):
++        args = {"path": path}
++        if offset is not None:
++            args["offset"] = offset
++        import json as _json
++        return [{"function": {"name": "read_file", "arguments": _json.dumps(args)}}]
++
++    assert nodes.fingerprint(tc("a", 1)) != nodes.fingerprint(tc("a", 2))
++    assert nodes.fingerprint(tc("a", 1)) == nodes.fingerprint(tc("a", 1))
++    # el orden de los tool_calls no altera la huella (misma ronda lógica)
++    dos = tc("a") + tc("b")
++    assert nodes.fingerprint(dos) == nodes.fingerprint(list(reversed(dos)))
++
++def test_execute_tools_post_acumula_y_resetea_no_progress():
++    """exp/13: la ronda incrementa no_progress ante ronda idéntica y lo
++    resetea cuando hay progreso real (huella distinta). El warning viaja en la
++    conversación (último resultado), no en la terminal. Desde X96 lo cuenta
++    Observar, tras ExecuteTools."""
++    import json as _json
++
++    from nodes import ExecuteTools, Observar, fingerprint
++
++    def tc(path):
++        return [{"function": {"name": "read_file",
++                              "arguments": _json.dumps({"path": path})}}]
++
++    ejecutar, observar = ExecuteTools(), Observar()
++    shared = {"messages": []}
++
++    def ronda(llamadas, resultado):
++        ejecutar.post(shared, llamadas, [{"role": "tool", "content": resultado}])
++        observar.post(shared, llamadas, None)
++
++    # ronda 1: mismo path → sin_progress 0 (primera vez)
++    ronda(tc("a"), "r1")
++    assert shared["turno"]["sin_progreso"] == 0
++    # ronda 2: idéntica → 1 y warning en el contenido
++    ronda(tc("a"), "r2")
++    assert shared["turno"]["sin_progreso"] == 1
++    assert "Sin progreso" in shared["messages"][-1]["content"]
++    # ronda 3: distinta → reset
++    ronda(tc("b"), "r3")
++    assert shared["turno"]["sin_progreso"] == 0
++    assert shared["turno"]["huella"] == fingerprint(tc("b"))
++
++def _corte_por_no_progreso():
++    """Deja la sesión en el estado del corte: contador en el umbral y el
++    presupuesto cerrado (Contexto sale a `cierre`, X96). Devuelve (shared,
++    contexto, ask) listos para postear la pregunta."""
++    import json as _json
++
++    from nodes import UMBRAL_SIN_PROGRESO, Contexto, ExecuteTools, GetQuestion, Observar
++
++    def tc(path):
++        return [{"function": {"name": "read_file",
++                              "arguments": _json.dumps({"path": path})}}]
++
++    tools_node, observar, contexto, ask = ExecuteTools(), Observar(), Contexto(), GetQuestion()
++    shared = {"messages": [{"role": "system", "content": "s"}]}
++    for i in range(UMBRAL_SIN_PROGRESO + 1):
++        tools_node.post(shared, tc("a.py"),
++                        [{"role": "tool", "tool_call_id": f"t{i}", "content": "r"}])
++        observar.post(shared, tc("a.py"), None)
++    assert shared["turno"]["sin_progreso"] == UMBRAL_SIN_PROGRESO
++    assert contexto._run(shared) == "cierre"   # corte: la próxima llamada cierra
++    return shared, contexto, ask
++
++def test_no_progress_se_resetea_con_la_pregunta_nueva():
++    """exp/13 (opción D): el corte por no-progreso es POR PREGUNTA (ley L8).
++    Sin el reset en GetQuestion.post el contador quedaba pegado, AgentStep
++    retiraba las tools para siempre y el protocolo de continuación de exp/4
++    ('un mensaje nuevo reinicia el presupuesto') era falso."""
++    shared, contexto, ask = _corte_por_no_progreso()
++    ask.post(shared, None, "otra pregunta")    # mensaje nuevo del usuario
++    assert shared["turno"]["sin_progreso"] == 0
++    assert contexto._run(shared) == "herramientas"   # el presupuesto se reinició
++
++
++def test_run_tool_call_devuelve_error_como_feedback():
++    """Los fallos del lado del modelo no rompen el lote: tool inexistente
++    (objeto alucinado), argumentos JSON inválidos (generación incompleta) y
++    argumento de tipo equivocado (wrong input type) vuelven como texto
++    ERROR, no excepción. Evidencia de F3: 255 runs de .runs muestran 68
++    errores de tool y 3 llamadas a tools inexistentes (`grep`, `bash`); el
++    patrón de Tambon dice que son los fallos típicos de código LLM."""
++    import json
++
++    from utils.fs_tools import run_tool_call
++
++    def tc(nombre, args):
++        return {"id": "c1", "type": "function",
++                "function": {"name": nombre, "arguments": args}}
++
++    r = run_tool_call(tc("herramienta_fantasma", "{}"))
++    assert r["content"].startswith("ERROR: herramienta desconocida")
++
++    r = run_tool_call(tc("read_file", "{no-json"))
++    assert r["content"].startswith("ERROR:")
++
++    r = run_tool_call(tc("read_file", json.dumps({"inventado": 1})))
++    assert r["content"].startswith("ERROR:")
++
++
++def test_codigo_error_discrimina_sin_contenido():
++    """La traza guarda un código corto de la causa, no el texto del error
++    (F4/A32: sin esto las causas eran inatribuibles)."""
++    from nodes import codigo_error
++
++    assert codigo_error("ERROR: JSONDecodeError: bad") == "ERROR:JSONDecodeError"
++    assert codigo_error("ERROR: herramienta desconocida: grep") == "ERROR:herramienta"
++    assert codigo_error("ERROR: ruta fuera de los directorios") == "ERROR:ruta"
++    assert codigo_error("RECHAZADO por el usuario") == "RECHAZADO"
++    assert codigo_error("exit 1\n[stderr] x") == "exit_1"
++    assert codigo_error("exit 0\nbien") == ""
++    assert codigo_error("hola") == ""
++
++
++def test_agotado_fuerza_respuesta_sin_tools():
++    """Al agotarse el presupuesto la última llamada va sin tools y con un aviso
++    efímero de cierre: medido en vivo, sin él el modelo sigue emitiendo tool
++    calls en vez de responder (A38). Desde X96 lo garantiza la ESTRUCTURA:
++    Contexto sale a `cierre` y el nodo Cierre corre una vez — el flag
++    `aviso_cierre` que evitaba duplicarlo ya no existe. La pregunta nueva
++    reabre el presupuesto."""
++    from nodes import AVISO_CIERRE, Cierre, Contexto, GetQuestion, nuevo_turno
++
++    shared = {"messages": [{"role": "system", "content": "s"},
++                             {"role": "user", "content": "auditá el repo"}],
++              "turno": {**nuevo_turno(), "rondas": 8}}
++    assert Contexto()._run(shared) == "cierre"
++    mensajes, tools, _ = Cierre().prep(shared)
++    assert tools is None
++    assert mensajes[-1]["content"] == AVISO_CIERRE
++    # el aviso es EFÍMERO: no entra al historial
++    assert all(m.get("content") != AVISO_CIERRE for m in shared["messages"])
++    assert "aviso_cierre" not in shared["turno"]
++
++    GetQuestion().post(shared, None, "otra pregunta")
++    assert Contexto()._run(shared) == "herramientas"
++
++
++def test_getquestion_cierra_el_costo_de_la_pregunta_anterior(monkeypatch):
++    """exp/90: la pregunta nueva cierra la ANTERIOR con el delta del
++    desglose (volvió por "answer"); la primera solo deja el snapshot."""
++    import utils.call_llm as c
++    from nodes import GetQuestion
++
++    def _fila(prompt):
++        return {"llamadas": 1, "prompt": prompt, "completion": 0,
++                "cache_hit": 0, "cache_miss": prompt}
++
++    uso = {"deepseek-flash": _fila(100)}
++    monkeypatch.setattr(c, "USO_POR_MODELO", uso)
++    shared = {"messages": [{"role": "system", "content": "s"}]}
++
++    GetQuestion().post(shared, None, "primera")
++    assert "tokens_por_pregunta" not in shared
++    assert shared["turno"]["uso_inicio"]["deepseek-flash"]["prompt"] == 100
++
++    # la primera pregunta respondió gastando 50 más: la segunda la cierra
++    uso["deepseek-flash"] = _fila(150)
++    GetQuestion().post(shared, None, "segunda")
++    cerradas = shared["tokens_por_pregunta"]
++    assert len(cerradas) == 1
++    assert cerradas[0]["deepseek-flash"]["prompt"] == 50
++
++
++def test_preguntas_reales_ignora_prefetch_y_compaccion():
++    """El resumen de sesión cuenta preguntas REALES: un mensaje sintético de
++    prefetch o el marcador de compacción no lo disparan (medido en vivo)."""
++    from modules.memoria import preguntas_reales as _preguntas_reales
++
++    mensajes = [
++        {"role": "system", "content": "s"},
++        {"role": "user", "content": "auditá el repo"},
++        {"role": "user", "content": "[pre-fetch] /tmp/x (primeras 5 líneas):\nh"},
++        {"role": "user", "content": "[compacción] 3 mensajes anteriores compactados."},
++    ]
++    assert _preguntas_reales(mensajes) == 1
++
++
++def test_post_verifica_citas_y_corrige(monkeypatch, capsys):
++    """A40: si la respuesta cita una línea inexistente, se detecta contra el
++    disco y se pide UNA corrección (sin tools). Evidencia: sesiones reales con
++    citas de línea corridas (S5/S6)."""
++    from types import SimpleNamespace
++
++    import nodes
++
++    monkeypatch.setenv("CITAS_VERIFICAR", "1")
++    monkeypatch.setenv("CHAT_STREAM", "1")
++    visto = {}
++
++    def fake_llm(msgs, tools=None):
++        visto["msgs"] = msgs
++        return SimpleNamespace(content="corregido en utils/tracing.py:1")
++
++    monkeypatch.setattr(nodes, "call_llm_agent", fake_llm)
++    shared = {"messages": [{"role": "system", "content": "s"},
++                             {"role": "user", "content": "auditá"}]}
++    contenido = "hallazgo en utils/tracing.py:1 y malo en utils/tracing.py:99999"
++    exec_res = SimpleNamespace(content=contenido, tool_calls=None)
++    # F6: la verificación es un NODO del grafo (answer → citas → ask), con retry
++    assert nodes.AgentStep().post(shared, None, exec_res) == "answer"
++    nodes.VerificarCitas()._run(shared)
++
++    assert shared["messages"][-1]["content"] == "corregido en utils/tracing.py:1"
++    salida = capsys.readouterr().out
++    assert "[citas]" in salida and "99999" in salida and "corregidas" in salida
++    assert visto["msgs"][-2]["content"] == contenido
++    assert "99999" in visto["msgs"][-1]["content"]
++
++
++def test_post_no_corrige_si_las_citas_estan_bien(monkeypatch):
++    """Con citas verificadas no hay segunda llamada: la corrección es solo para
++    citas que no coinciden (costo cero en el camino feliz)."""
++    from types import SimpleNamespace
++
++    import nodes
++
++    monkeypatch.setenv("CITAS_VERIFICAR", "1")
++    monkeypatch.setenv("CHAT_STREAM", "0")
++
++    def no_llamar(msgs, tools=None):
++        raise AssertionError("no debía pedir corrección con citas válidas")
++
++    monkeypatch.setattr(nodes, "call_llm_agent", no_llamar)
++    shared = {"messages": [{"role": "system", "content": "s"},
++                             {"role": "user", "content": "auditá"}]}
++    exec_res = SimpleNamespace(content="hallazgo en utils/tracing.py:1", tool_calls=None)
++    assert nodes.AgentStep().post(shared, None, exec_res) == "answer"
++    nodes.VerificarCitas()._run(shared)
++    assert shared["messages"][-1]["content"] == "hallazgo en utils/tracing.py:1"
++
++
++def test_alcance_amplio_por_nombre_de_archivo_a_secas(tmp_path):
++    """F8 (dogfood): 'auditá fable_judge.py' menciona 800+ líneas SIN barra —
++    el token con extensión tiene que resolver igual."""
++    import nodes
++
++    grande = tmp_path / "fable_judge.py"
++    grande.write_text("x = 1\n" * 500)
++    assert nodes.alcance_amplio("Auditá el código de fable_judge.py buscando bugs",
++                                raiz=tmp_path)
++
++
++def test_todos_los_tests_pasa_no_es_totalidad(tmp_path):
++    """F9 (dogfood): 'todos los tests pasan' es un claim de verificación, no
++    de alcance. Desde X104 ninguna frase decide sola (ni esa ni "todos los
++    archivos"): el alcance lo cuenta el disco a partir de lo mencionado."""
++    import nodes
++
++    assert not nodes.alcance_amplio("arregló el bug y todos los tests pasan", raiz=tmp_path)
++    assert not nodes.alcance_amplio("revisá todos los archivos del paquete", raiz=tmp_path)
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/tests/test_compaccion.py deepseek-flow-main/tests/test_compaccion.py
+--- /tmp/orig/tests/test_compaccion.py	2026-10-29 19:17:38.403243911 +0000
++++ deepseek-flow-main/tests/test_compaccion.py	2026-10-29 19:18:59.357489512 +0000
+@@ -187,7 +187,7 @@
+     )
+     shared = {"messages": [{"role": "system", "content": "s"}], "tool_rounds": 0}
+     assert nodes.Contexto()._run(shared) == "herramientas"   # no debe levantar
+-    mensajes, tools, _ = nodes.AgentStep().prep(shared)
++    mensajes, tools = nodes.AgentStep().prep(shared)
+     assert mensajes and tools is not None
+ 
+ def test_compactar_no_devuelve_mas_contexto_del_que_recibio():
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/tests/test_comparar_fase3.py deepseek-flow-main/tests/test_comparar_fase3.py
+--- /tmp/orig/tests/test_comparar_fase3.py	2026-10-29 19:17:38.399243800 +0000
++++ deepseek-flow-main/tests/test_comparar_fase3.py	1970-01-01 00:00:00.000000000 +0000
+@@ -1,63 +0,0 @@
+-"""El comparador del A/B de la fase 3, con datos sintéticos (sin red)."""
+-import json
+-
+-import pytest
+-
+-from banco.probes import comparar_fase3 as cf
+-
+-
+-def _brazo(tmp_path, nombre, filas, usos):
+-    """filas: [(escenario, ca)]; usos: por corrida, [(prompt, hit, completion)]."""
+-    res = tmp_path / f"{nombre}.jsonl"
+-    res.write_text("".join(json.dumps({"escenario": e, "correct_action": ca}) + "\n" for e, ca in filas),
+-                   encoding="utf-8")
+-    runs = tmp_path / f"runs_{nombre}"
+-    runs.mkdir()
+-    for i, llamadas in enumerate(usos):
+-        eventos = [{"nodo": "GetQuestion", "accion": "continue"}]
+-        eventos += [{"nodo": "llm", "accion": "usage", "prompt_tokens": p, "cache_hit": h,
+-                     "completion_tokens": c} for p, h, c in llamadas]
+-        (runs / f"2026_{i:03d}.jsonl").write_text("".join(json.dumps(e) + "\n" for e in eventos),
+-                                                  encoding="utf-8")
+-    (runs / "2026_999.jsonl").write_text(json.dumps({"nodo": "Sintetizar", "accion": "None"}) + "\n",
+-                                         encoding="utf-8")  # traza que no es de chat: se ignora
+-    return str(res), str(runs)
+-
+-
+-ESC = ["s17-scale-audit", "s18-real-audit", "s19-real-audit-2"]
+-
+-
+-def test_pasa_cuando_s17_s18_suben_y_el_costo_entra(tmp_path, capsys):
+-    base = _brazo(tmp_path, "a", [(e, 1) for e in ESC], [[(1_000_000, 0, 0)]] * 3)
+-    # 50k de completion: 0,15 → 0,18 USD (1,2×), dentro de la tolerancia
+-    pensar = _brazo(tmp_path, "e", [(ESC[0], 2), (ESC[1], 2), (ESC[2], 1)], [[(1_000_000, 0, 50_000)]] * 3)
+-    assert cf.main(["--base", base[0], "--runs-base", base[1],
+-                    "--pensar", pensar[0], "--runs-pensar", pensar[1]]) == 0
+-    assert "FASE 3a: PASA" in capsys.readouterr().out
+-
+-
+-@pytest.mark.parametrize(("pensar_ca", "completion", "motivo"), [
+-    ([1, 1, 1], 0, "s17+s18 suben 0"),            # sin ganancia no entra
+-    ([2, 2, 0], 0, "la calidad baja"),            # s19 empeora
+-    ([2, 2, 1], 2_000_000, "USD"),                # 0,15 → 1,35 USD: 9×
+-])
+-def test_no_pasa_y_dice_por_que(tmp_path, capsys, pensar_ca, completion, motivo):
+-    base = _brazo(tmp_path, "a", [(e, 1) for e in ESC], [[(1_000_000, 0, 0)]] * 3)
+-    pensar = _brazo(tmp_path, "e", list(zip(ESC, pensar_ca, strict=True)), [[(1_000_000, 0, completion)]] * 3)
+-    assert cf.main(["--base", base[0], "--runs-base", base[1],
+-                    "--pensar", pensar[0], "--runs-pensar", pensar[1]]) == 1
+-    salida = capsys.readouterr().out
+-    assert motivo in salida and "NO PASA" in salida
+-
+-
+-def test_el_cache_hit_abarata_y_sin_dato_cuenta_como_miss():
+-    tarifa = (0.003, 0.15, 0.60)
+-    con_hit = cf.usd([{"accion": "usage", "prompt_tokens": 1_000_000, "cache_hit": 1_000_000}], tarifa)
+-    sin_dato = cf.usd([{"accion": "usage", "prompt_tokens": 1_000_000}], tarifa)
+-    assert con_hit == pytest.approx(0.003) and sin_dato == pytest.approx(0.15)
+-
+-
+-def test_se_niega_si_resultados_y_trazas_no_se_emparejan(tmp_path):
+-    res, runs = _brazo(tmp_path, "a", [(e, 1) for e in ESC], [[(10, 0, 0)]] * 2)
+-    with pytest.raises(ValueError, match="no se emparejan"):
+-        cf.por_escenario(cf.resultados(res), cf.trazas_de_chat(runs), (0.003, 0.15, 0.60))
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/tests/test_novedad.py deepseek-flow-main/tests/test_novedad.py
+--- /tmp/orig/tests/test_novedad.py	2026-10-29 19:17:38.403243911 +0000
++++ deepseek-flow-main/tests/test_novedad.py	2026-10-29 19:18:59.357489512 +0000
+@@ -65,7 +65,7 @@
+               **_con_turno(rondas=4, racha_sin_novedad=2)}
+     assert nodes.motivo_de_cierre(shared) == "sin_novedad"
+     assert nodes.Contexto()._run(shared) == "cierre"
+-    mensajes, tools, _ = nodes.Cierre().prep(shared)
++    mensajes, tools = nodes.Cierre().prep(shared)
+     assert tools is None
+     assert mensajes[-1]["content"] == nodes.AVISO_CIERRE
+     assert "corte_novedad" not in shared["turno"]
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/tests/test_skills.py deepseek-flow-main/tests/test_skills.py
+--- /tmp/orig/tests/test_skills.py	2026-10-29 19:17:38.403243911 +0000
++++ deepseek-flow-main/tests/test_skills.py	2026-10-29 19:18:59.357489512 +0000
+@@ -104,9 +104,9 @@
+     revision = next(h for h in disponibles() if h.id == "revision")
+     shared = {"messages": [{"role": "user", "content": "revisá el código"}],
+               "turno": {**nodes.nuevo_turno(), "skill": revision.id}}
+-    _, tools, _ = nodes.AgentStep().prep(shared)
++    _, tools = nodes.AgentStep().prep(shared)
+     assert {tool["function"]["name"] for tool in tools} == set(revision.tools)
+-    _, todos, _ = nodes.AgentStep().prep({"messages": [{"role": "user", "content": "hola"}]})
++    _, todos = nodes.AgentStep().prep({"messages": [{"role": "user", "content": "hola"}]})
+     assert {tool["function"]["name"] for tool in todos} == {
+         tool["function"]["name"] for tool in nodes.TOOLS}
+ 
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/tests/test_thinking_tools.py deepseek-flow-main/tests/test_thinking_tools.py
+--- /tmp/orig/tests/test_thinking_tools.py	2026-10-29 19:17:38.399243800 +0000
++++ deepseek-flow-main/tests/test_thinking_tools.py	2026-10-29 19:19:45.554460654 +0000
+@@ -1,5 +1,5 @@
+ """Gate previo de la fase 3 (banco/specs/fase3.md): la sonda thinking_tools
+-sin red. Clava que usa el MISMO builder que produccion, las ocho secuencias y
++sin red. Clava que el OFF es el builder de producción, las ocho secuencias y
+ el veredicto redefinido (A–E y G deciden; F y H informan)."""
+ from types import SimpleNamespace as NS
+ 
+@@ -9,17 +9,20 @@
+ from utils.call_llm import _kwargs_agente
+ 
+ 
+-def test_pensar_preserva_el_reasoning_y_habilita_thinking_con_tools():
++def test_la_sonda_arma_el_on_y_el_off_es_el_de_produccion():
++    """La fase 3 se rechazó (A/B): el producto no ofrece thinking con tools.
++    La sonda arma ese request ella misma; el OFF es el builder del chat."""
+     mensajes = [{"role": "user", "content": "x"},
+                 {"role": "assistant", "content": None, "reasoning_content": "pienso",
+                  "tool_calls": [{"id": "1", "type": "function",
+                                  "function": {"name": "list_files", "arguments": "{}"}}]},
+                 {"role": "tool", "tool_call_id": "1", "content": "a.py"}]
+-    con = _kwargs_agente(mensajes, [{"function": {"name": "list_files"}}], pensar=True)
++    con = tt.pedido(mensajes, [{"function": {"name": "list_files"}}])
+     assert con["extra_body"] == {"thinking": {"type": "enabled"}}
+     assert con["messages"][1]["reasoning_content"] == "pienso"
+-    # el camino de hoy no cambia: thinking OFF y el reasoning no viaja
++    # el camino del producto: thinking OFF y el reasoning no viaja
+     hoy = _kwargs_agente(mensajes, [{"function": {"name": "list_files"}}])
++    assert tt.pedido(mensajes, [{"function": {"name": "list_files"}}], pensar=False) == hoy
+     assert hoy["extra_body"] == {"thinking": {"type": "disabled"}}
+     assert "reasoning_content" not in hoy["messages"][1]
+ 
+@@ -50,8 +53,7 @@
+         if self.regla and pensando and sin_razon:
+             raise _Error400()
+         ultimo = mensajes[-1]
+-        pide = kwargs.get("tools") and (getattr(self, "insistente", False) or (
+-            ultimo["role"] == "user" and "Respondé AHORA" not in ultimo["content"]))
++        pide = kwargs.get("tools") and ultimo["role"] == "user" and "Respondé AHORA" not in ultimo["content"]
+         calls = [NS(id=f"c{len(self.requests)}", function=NS(name="list_files", arguments="{}"))] if pide else None
+         return NS(choices=[NS(message=NS(content=None if pide else "listo", tool_calls=calls,
+                                          reasoning_content="razono"))])
+@@ -113,103 +115,3 @@
+     pasa, resumen = tt.veredicto(pasos)
+     assert pasa and resumen["F"] == resumen["H"] == "400"
+ 
+-
+-# ── X103: la fase 3 en el chat (PENSAR_TOOLS, default 0) ─────────────────
+-
+-
+-def test_el_stream_junta_el_reasoning_sin_imprimirlo(monkeypatch, capsys):
+-    """El banco corre con streaming: sin juntar el reasoning de los deltas,
+-    la 3a daba 400 en la primera ronda (la secuencia F). Se junta APARTE:
+-    ni a stdout ni a content (el contrato de exp/38 sigue)."""
+-    import utils.call_llm as c
+-
+-    def chunk(content=None, reasoning=None):
+-        return NS(choices=[NS(delta=NS(content=content, reasoning_content=reasoning, tool_calls=None))])
+-
+-    class Completions:
+-        def create(self, **kwargs):
+-            self.kwargs = kwargs
+-            return iter([chunk(reasoning="pien"), chunk(reasoning="so"), chunk(content="hola")])
+-
+-    comp = Completions()
+-    monkeypatch.setattr(c, "_client", lambda: NS(chat=NS(completions=comp)))
+-    msg = c.call_llm_agent_stream([{"role": "user", "content": "x"}], pensar=True)
+-    assert msg.content == "hola" and msg.reasoning_content == "pienso"
+-    assert "pien" not in capsys.readouterr().out
+-    assert comp.kwargs["extra_body"] == {"thinking": {"type": "enabled"}}
+-
+-
+-def test_el_reasoning_vive_solo_en_el_turno_en_curso():
+-    """El invariante 1 nuevo: reasoning en assistant después del último user,
+-    nunca antes; y al llegar la pregunta nueva se descarta el de antes."""
+-    from utils.compaccion import sin_razonamiento_previo, validar_historial
+-
+-    turno_viejo = [{"role": "system", "content": "s"}, {"role": "user", "content": "q1"},
+-                   {"role": "assistant", "content": None, "reasoning_content": "r1",
+-                    "tool_calls": [{"id": "1", "type": "function",
+-                                    "function": {"name": "list_files", "arguments": "{}"}}]},
+-                   {"role": "tool", "tool_call_id": "1", "content": "a.py"}]
+-    assert validar_historial(turno_viejo) == []
+-    con_pregunta = turno_viejo + [{"role": "user", "content": "q2"}]
+-    assert validar_historial(con_pregunta) == ["[2] arrastra reasoning_content"]
+-    limpio = sin_razonamiento_previo(con_pregunta)
+-    assert validar_historial(limpio) == []
+-    assert "reasoning_content" in turno_viejo[2]  # pura: no muta el original
+-    assert validar_historial([{"role": "system", "content": "s"},
+-                              {"role": "user", "content": "q", "reasoning_content": "x"}])
+-
+-
+-def test_con_pensar_el_modo_no_cambia_dentro_de_la_pregunta(monkeypatch):
+-    """La secuencia F (400 en vivo) queda IMPOSIBLE por construcción: todas
+-    las llamadas de una pregunta — rondas con tools y el Cierre por
+-    presupuesto — van con el mismo modo, el reasoning del turno en curso
+-    viaja, y una pregunta nueva arranca sin el reasoning de la anterior.
+-    El cliente falso con la regla del turno (la de la API) no da ningún 400."""
+-    import nodes
+-    from flow import create_agent_flow
+-
+-    for clave, valor in {"USE_LAYA_ROUTER": "0", "CHAT_STREAM": "0", "PREFETCH": "0",
+-                         "CITAS_VERIFICAR": "0", "HITL_AUTO": "1", "SKILLS": "0",
+-                         "PENSAR_TOOLS": "1"}.items():
+-        monkeypatch.setenv(clave, valor)
+-    monkeypatch.delenv("HITL_SCOPE", raising=False)
+-    monkeypatch.setattr(nodes, "MAX_TOOL_ROUNDS", 2)
+-    api = ClienteFalso(regla="turno")
+-    api.insistente = True  # pide tools mientras las haya: agota el presupuesto
+-    modos = []
+-
+-    def llm(mensajes, tools=None, pensar=False):
+-        from utils.call_llm import _kwargs_agente
+-
+-        modos.append(pensar)
+-        return api.create(**_kwargs_agente(mensajes, tools, pensar)).choices[0].message
+-
+-    entradas = iter(["listá", "¿y ahora?", "salir"])
+-    monkeypatch.setattr("builtins.input", lambda *a, **k: next(entradas))
+-    monkeypatch.setattr(nodes, "call_llm_agent", llm)
+-    monkeypatch.setattr(nodes, "run_tool_call",
+-                        lambda tc, impls=None: {"role": "tool", "tool_call_id": tc["id"], "content": "a.py"})
+-    shared = {"messages": [{"role": "system", "content": "s"}]}
+-    create_agent_flow().run(shared)
+-
+-    from utils.compaccion import validar_historial
+-
+-    assert modos and all(modos)              # ninguna llamada de la pregunta cambió de modo
+-    assert len(api.requests) == len(modos)   # y ninguna dio 400 contra la regla del turno
+-    assert any(r["messages"][-1]["content"].startswith("(presupuesto") for r in api.requests)
+-    assert validar_historial(shared["messages"]) == []
+-
+-
+-def test_sin_pensar_el_chat_es_el_de_siempre(monkeypatch):
+-    """PENSAR_TOOLS=0 (default): ningún reasoning entra al historial aunque
+-    el proveedor lo devuelva, y el cliente se llama con la firma vieja."""
+-    import nodes
+-
+-    monkeypatch.setenv("CHAT_STREAM", "0")
+-    vistos = []
+-    monkeypatch.setattr(nodes, "call_llm_agent",
+-                        lambda m, t=None, **extra: vistos.append(extra) or NS(
+-                            content="ok", tool_calls=None, reasoning_content="r"))
+-    shared = {"messages": [{"role": "user", "content": "x"}], "turno": nodes.nuevo_turno()}
+-    nodes.AgentStep()._run(shared)
+-    assert vistos == [{}] and "reasoning_content" not in shared["messages"][-1]
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/utils/call_llm.py deepseek-flow-main/utils/call_llm.py
+--- /tmp/orig/utils/call_llm.py	2026-10-29 19:17:38.407244022 +0000
++++ deepseek-flow-main/utils/call_llm.py	2026-10-29 19:19:20.645937033 +0000
+@@ -176,7 +176,7 @@
+     return response.choices[0].message.content
+ 
+ 
+-def _kwargs_agente(messages, tools=None, pensar=False):
++def _kwargs_agente(messages, tools=None):
+     """Contrato de modo thinking compartido por la versión clásica y la de
+     streaming (MISMA lógica: no puede haber deriva entre las dos).
+ 
+@@ -203,18 +203,10 @@
+     toda llamada con tools o con historial agéntico viaja con thinking
+     DISABLED; no existe acá una combinación tools+thinking activa.
+ 
+-    `pensar=True` es esa combinación (fase 3, pre-registro
+-    banco/specs/fase3.md): el `reasoning_content` que traigan los mensajes
+-    VIAJA y el thinking va habilitado aunque haya tools. Hoy no lo usa el chat:
+-    lo usa la sonda del gate (banco/probes/thinking_tools.py), que tiene que
+-    dar 0 errores 400 antes de que el chat lo active — así la sonda prueba el
+-    MISMO request que mandaría producción."""
+-    if pensar:
+-        kwargs = {"model": _model(), "messages": list(messages),
+-                  "extra_body": {"thinking": {"type": "enabled"}}}
+-        if tools:
+-            kwargs["tools"] = tools
+-        return kwargs
++    Medido (fase 3, banco/specs/fase3.md): la combinación es VÁLIDA si el
++    reasoning del turno en curso vuelve (sonda banco/probes/thinking_tools.py),
++    pero el A/B la rechazó — 2,2×–6,9× el USD por escenario y sin mejora en
++    s17/s18. Por eso este builder no la ofrece."""
+     # el reasoning_content del modo thinking no viaja (parte del mismo
+     # contrato de consistencia de modo)
+     limpio = [
+@@ -234,10 +226,10 @@
+     return kwargs
+ 
+ 
+-def call_llm_agent(messages, tools=None, pensar=False):
++def call_llm_agent(messages, tools=None):
+     """Una vuelta del agente: devuelve el mensaje del asistente
+-    (con .tool_calls si pidió herramientas). `pensar`: ver _kwargs_agente."""
+-    kwargs = _kwargs_agente(messages, tools, pensar)
++    (con .tool_calls si pidió herramientas)."""
++    kwargs = _kwargs_agente(messages, tools)
+     response = _client().chat.completions.create(**kwargs)
+     _contabilizar(getattr(response, "usage", None), kwargs.get("model"))
+     return response.choices[0].message
+@@ -259,17 +251,12 @@
+         acumulado["arguments"] += funcion.arguments
+ 
+ 
+-def _acumular_delta(delta, contenido, por_indice, razonamiento):
+-    """Texto de content (se imprime en vivo) + fragmentos de tool_calls. El
+-    reasoning NO se imprime ni se mezcla con content: se junta aparte, porque
+-    con thinking en las rondas con tools (fase 3) tiene que volver a la API."""
++def _acumular_delta(delta, contenido, por_indice):
++    """Texto de content (se imprime en vivo) + fragmentos de tool_calls."""
+     texto = getattr(delta, "content", None)
+     if texto:
+         print(texto, end="", flush=True)
+         contenido.append(texto)
+-    razon = getattr(delta, "reasoning_content", None)
+-    if razon:
+-        razonamiento.append(razon)
+     for frag in getattr(delta, "tool_calls", None) or []:
+         _acumular_fragmento(frag, por_indice)
+ 
+@@ -297,7 +284,7 @@
+     ]
+ 
+ 
+-def call_llm_agent_stream(messages, tools=None, pensar=False):
++def call_llm_agent_stream(messages, tools=None):
+     """Igual contrato que call_llm_agent (mismo modo thinking pegajoso,
+     mismo filtro de reasoning_content) pero con stream=True: imprime EN
+     VIVO cada delta de CONTENT a medida que llega (flush, sin saltos de
+@@ -316,12 +303,12 @@
+     stream y se devuelve lo acumulado (el chat sigue, no se cae); se imprime
+     un aviso "[interrumpido]". Con 0, el Ctrl+C se propaga como siempre
+     (main lo toma como salida). El Ctrl+C fuera del stream no se toca."""
+-    kwargs = _kwargs_agente(messages, tools, pensar)
++    kwargs = _kwargs_agente(messages, tools)
+     # exp/89: el último chunk trae usage solo si se pide (OpenAI-compat)
+     kwargs["stream_options"] = {"include_usage": True}
+     stream = _client().chat.completions.create(**kwargs, stream=True)
+     interrumpible = _setting("CHAT_STREAM_INTERRUPT", "1") == "1"
+-    contenido, razonamiento = [], []
++    contenido = []
+     por_indice = {}  # index -> {"id", "name", "arguments"}
+     cortado = False
+     uso = None
+@@ -334,7 +321,7 @@
+             if not chunk.choices:
+                 continue
+             # los deltas de reasoning_content NO se imprimen (se descartan)
+-            _acumular_delta(chunk.choices[0].delta, contenido, por_indice, razonamiento)
++            _acumular_delta(chunk.choices[0].delta, contenido, por_indice)
+     except KeyboardInterrupt:
+         # Ctrl+C durante la generación: si la interrupción está activa se
+         # corta acá y se devuelve lo acumulado (el chat sigue vivo); si no,
+@@ -365,7 +352,6 @@
+     return SimpleNamespace(
+         content="".join(contenido) or None,
+         tool_calls=tool_calls or None,
+-        reasoning_content="".join(razonamiento) or None,
+     )
+ 
+ 
+diff -ruN -x .runs -x __pycache__ -x .pytest_cache -x .ruff_cache /tmp/orig/utils/compaccion.py deepseek-flow-main/utils/compaccion.py
+--- /tmp/orig/utils/compaccion.py	2026-10-29 19:17:38.407244022 +0000
++++ deepseek-flow-main/utils/compaccion.py	2026-10-29 19:18:59.361489596 +0000
+@@ -15,9 +15,7 @@
+ Invariantes de seguridad (los exige el modo thinking pegajoso de la API;
+ ver utils/call_llm.py):
+ 
+-1. `reasoning_content` solo en mensajes del assistant DESPUÉS del último
+-   `user` (el turno en curso, fase 3: la API lo exige ahí y en ningún otro
+-   lado — X102). Con thinking apagado no aparece nunca.
++1. Sin `reasoning_content` en ningún mensaje.
+ 2. Dicts canónicos (solo role/content/tool_calls/tool_call_id).
+ 3. Ningún assistant con `tool_calls` sin sus `tool` inmediatas después.
+ 4. Primer mensaje = system.
+@@ -57,7 +55,7 @@
+ _CLAVES = {
+     "system": {"role", "content"},
+     "user": {"role", "content"},
+-    "assistant": {"role", "content", "tool_calls", "reasoning_content"},
++    "assistant": {"role", "content", "tool_calls"},
+     "tool": {"role", "tool_call_id", "content"},
+ }
+ 
+@@ -81,14 +79,13 @@
+ 
+ # Validación de invariantes
+ 
+-def _chequeos_de_rol(i, m, ultimo_user=-1):
+-    """(fallas, rol_conocido) de un mensaje: rol, reasoning y claves. El
+-    reasoning solo vale en el turno en curso (después del último user)."""
++def _chequeos_de_rol(i, m):
++    """(fallas, rol_conocido) de un mensaje: rol, reasoning y claves."""
+     rol = m.get("role")
+     if rol not in _CLAVES:
+         return [f"[{i}] rol desconocido: {rol!r}"], False
+     fallas = []
+-    if "reasoning_content" in m and (rol != "assistant" or i < ultimo_user):
++    if "reasoning_content" in m:
+         fallas.append(f"[{i}] arrastra reasoning_content")
+     extra = set(m) - _CLAVES[rol]
+     if extra:
+@@ -127,23 +124,6 @@
+     return set()
+ 
+ 
+-def ultimo_usuario(messages):
+-    """Índice del último mensaje `user`, o -1. Desde ahí empieza el turno en
+-    curso: lo de antes es historia y no lleva reasoning."""
+-    return max((i for i, m in enumerate(messages)
+-                if isinstance(m, dict) and m.get("role") == "user"), default=-1)
+-
+-
+-def sin_razonamiento_previo(messages):
+-    """El historial sin el reasoning de los turnos ANTERIORES (lo que la API
+-    no pide, X102): se descarta al llegar una pregunta nueva. PURA: los
+-    mensajes que cambian son copias; los demás, los mismos objetos."""
+-    corte = ultimo_usuario(messages)
+-    return [{k: v for k, v in m.items() if k != "reasoning_content"}
+-            if i < corte and isinstance(m, dict) and "reasoning_content" in m else m
+-            for i, m in enumerate(messages)]
+-
+-
+ def validar_historial(messages):
+     """Devuelve la lista de violaciones (vacía = historial válido).
+ 
+@@ -157,13 +137,12 @@
+     if not (isinstance(primero, dict) and primero.get("role") == "system"):
+         fallas.append("el primer mensaje no es system")
+     abiertos = set()  # ids del último assistant con tool_calls aún sin respuesta
+-    ultimo_user = ultimo_usuario(messages)
+     for i, m in enumerate(messages):
+         if not isinstance(m, dict):
+             fallas.append(f"[{i}] no es dict")
+             continue
+         abiertos = _actualizar_abiertos(i, m, abiertos, fallas)
+-        violaciones, rol_conocido = _chequeos_de_rol(i, m, ultimo_user)
++        violaciones, rol_conocido = _chequeos_de_rol(i, m)
+         fallas.extend(violaciones)
+         if rol_conocido:
+             fallas.extend(_chequeos_tool_calls(i, m, messages))

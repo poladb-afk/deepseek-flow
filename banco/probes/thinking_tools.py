@@ -7,8 +7,11 @@ passed back") salían de flips de modo dentro de la conversación; la regla
 documentada es que, con tool calls en el turno, el reasoning de esos mensajes
 del asistente tiene que volver COMPLETO en todas las requests siguientes.
 
-Cada secuencia arma el request con `utils.call_llm._kwargs_agente(...,
-pensar=True)`: el MISMO builder que usaría producción, no una copia.
+Los requests con thinking ON los arma la sonda (`pedido`): la fase 3 se
+rechazó en el A/B (banco/specs/fase3.md) y el producto ya no ofrece esa
+combinación. Los de thinking OFF salen de `utils.call_llm._kwargs_agente`, el
+builder de producción. La sonda queda como documento ejecutable de la
+restricción del proveedor (la regla es por pregunta: F da 400, G pasa).
 
 Secuencias (cada una arranca de cero):
   A  ronda de tools y respuesta, reasoning preservado
@@ -41,7 +44,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ))
 
-from utils.call_llm import _client, _kwargs_agente  # noqa: E402
+from utils.call_llm import _client, _kwargs_agente, _model  # noqa: E402
 from utils.fs_tools import TOOLS  # noqa: E402
 
 LEER = [t for t in TOOLS if t["function"]["name"] in ("read_file", "list_files")]
@@ -50,6 +53,18 @@ PEDIDO = {"role": "user", "content": "Listá los archivos de la carpeta actual c
 RECHAZO = "RECHAZADO por el usuario: fuera del scope de la tarea"
 CIERRE = ("(presupuesto de herramientas agotado) Respondé AHORA con lo que tengas: "
           "hallazgos, límites y qué falta. No emitas tool calls.")
+
+
+def pedido(mensajes, tools=None, pensar=True):
+    """El request de una llamada. ON: thinking habilitado y el reasoning que
+    traigan los mensajes viaja tal cual. OFF: el de producción."""
+    if not pensar:
+        return _kwargs_agente(mensajes, tools)
+    kwargs = {"model": _model(), "messages": list(mensajes),
+              "extra_body": {"thinking": {"type": "enabled"}}}
+    if tools:
+        kwargs["tools"] = tools
+    return kwargs
 
 
 def asistente(msg, con_razonamiento=True):
@@ -76,7 +91,7 @@ class Sonda:
         self.cliente, self.max_tokens, self.pasos = cliente, max_tokens, []
 
     def llamar(self, secuencia, paso, mensajes, tools=None, pensar=True):
-        kwargs = _kwargs_agente(mensajes, tools, pensar=pensar)
+        kwargs = pedido(mensajes, tools, pensar)
         fila = {"secuencia": secuencia, "paso": paso, "pensar": pensar, "tools": bool(tools)}
         try:
             r = self.cliente.chat.completions.create(**kwargs, max_tokens=self.max_tokens)

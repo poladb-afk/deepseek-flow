@@ -99,9 +99,6 @@ def _sin_el_aprobador_del_operador(monkeypatch):
     prueban el scope o el HITL web lo fijan ellos (monkeypatch: gana el último)."""
     monkeypatch.delenv("HITL_SCOPE", raising=False)
     monkeypatch.setenv("HITL_WEB", "0")
-    # X103: la fase 3 la prende el A/B, no la suite (los fakes del cliente
-    # usan la firma de siempre; los tests de la 3a la fijan ellos)
-    monkeypatch.setenv("PENSAR_TOOLS", "0")
 
 
 def tc(nombre, args):
