@@ -95,3 +95,29 @@ aprobada (base) y sobre 3a.
    de la base, por escenario.
 4. **Sin ganancia de calidad no entra**, aunque cueste lo mismo: el thinking
    en rondas con tools suma latencia y un riesgo conocido (los 400).
+
+## Resultado de la segunda corrida y el cableado (2026-10-28, X103)
+
+Segunda corrida (operador): A–E ok, **G ok**, H ok, F 400 → **gate PASA**.
+La regla del proveedor es la del turno: el reasoning se exige solo en los
+assistant posteriores al último `user`.
+
+Cableado en el chat, detrás de `PENSAR_TOOLS` (default 0, temporal):
+- `turno["pensar"]` se fija al empezar la pregunta; `AgentStep` y `Cierre`
+  lo pasan al cliente. `Cierre` hereda el modo (H permitiría apagarlo; se
+  difiere para no mezclar dos cambios en el A/B). `DirectAnswer` y
+  `VerificarCitas` no cambian (sin tools en el turno).
+- El stream junta el `reasoning_content` de los deltas aparte (sin
+  imprimirlo ni mezclarlo con content): sin esto la 3a daba F en la primera
+  ronda del banco, que corre con streaming.
+- `historiar` lo conserva si la pregunta piensa; `GetQuestion` lo descarta
+  de los turnos anteriores (`compaccion.sin_razonamiento_previo`).
+- Invariante 1: reasoning solo en assistant después del último `user`
+  (`validar_historial`, y con él `thread_store.valido` y `resume`).
+
+## Corridas del A/B (lo que sigue)
+
+Brazo base: HEAD con `PENSAR_TOOLS=0`. Brazo 3a: el mismo HEAD con
+`PENSAR_TOOLS=1`. s17 ×5, s18 ×5, s19 ×3, s20 ×3 cada uno. Los criterios de
+arriba no cambian. La base de 2d (`fase2d-base-x98`) NO sirve de base acá:
+corrió sobre otro árbol (`012b92f`).

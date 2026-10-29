@@ -5565,3 +5565,44 @@ A=ok B=ok C=ok D=ok E=ok G=ok · informativas F=400, H=ok. **GATE PASA** —
 la 3a puede escribirse con el setting temporal del A/B (decisión del
 operador, ratchet 78→79, borrar en 3b). Artefacto actualizado:
 `salidas/evals/thinking_tools.json`.
+
+---
+
+## La fase 3 cableada, apagada, y el pre-registro de la 4b-mín (2026-10-28, X103)
+
+**Gate**: la segunda corrida del operador dio G ok (y H ok, F 400): pasa. La
+regla del proveedor es por turno.
+
+**Cuatro ajustes que salieron de leer el código antes de escribir**:
+1. `call_llm_agent_stream` armaba la respuesta solo con content y tool_calls
+   (exp/38 lo pedía): el reasoning de los deltas se tiraba. El banco corre con
+   stream: sin juntarlo aparte, la 3a era la secuencia F en la primera ronda.
+   Se junta sin imprimirlo ni mezclarlo (`test_streaming` intacto).
+2. `Cierre` hereda el modo de la pregunta: H permite apagarlo, pero hacerlo
+   en el mismo A/B mezclaría dos cambios.
+3. `DirectAnswer` y `VerificarCitas` no cambian: sin tools en el turno.
+4. El costo de la 3a se mide en USD (el desglose de exp/90 ya lo calcula;
+   el reasoning se cobra como completion).
+
+**Cableado** (con `PENSAR_TOOLS=0` el chat es el de siempre: la llamada al
+cliente no lleva el kwarg nuevo y ningún reasoning entra al historial).
+`turno["pensar"]` fijo por pregunta; `historiar` conserva el reasoning si la
+pregunta piensa; `GetQuestion` lo descarta de los turnos anteriores; el
+invariante 1 pasa a "reasoning solo después del último user". El candado
+principal corre el chat real con un cliente falso que aplica la regla de la
+API: ninguna llamada cambia de modo, el `Cierre` por presupuesto incluido, y
+ningún 400. Probado contra tres regresiones (cierre con otro modo,
+`GetQuestion` sin limpiar, stream que tira el reasoning): cada una cae. La
+caracterización pasa entera con `PENSAR_TOOLS=1`; la suite fija
+`PENSAR_TOOLS=0` en conftest (la prende el A/B, no el `.env` del operador).
+
+**Ratchet**: `settings_leidos` 78 → 79 por `PENSAR_TOOLS`, temporal
+(inventario: "borrar en 3b"). Decisión del operador: lo acepta con su clave
+(`--actualizar`). Hasta entonces `./calidad.sh` da rojo SOLO en esa métrica.
+
+**4b-mín** (decisión del operador): pre-registro en
+`banco/specs/fase4b_min.md`. Contrafáctico 1 calculado: los 14 escenarios de
+fable clasifican igual con y sin `_PALABRAS_AMPLIAS`. El contrafáctico 2 lo
+corre el operador sobre sus preguntas reales
+(`banco/probes/alcance_sin_palabras.py`). **Fase 6** (limpieza de piezas
+sueltas) aprobada, después de la 5.

@@ -1,0 +1,758 @@
+diff -ruN a/.env.example b/.env.example
+--- a/.env.example	2026-10-29 17:29:52.412451511 +0000
++++ b/.env.example	2026-10-29 17:24:06.018645755 +0000
+@@ -36,6 +36,11 @@
+ # Vacío (default) = pregunta real por terminal.
+ # HUMANO_RESPUESTA=
+ # MAX_TOOL_ROUNDS=8
++# Fase 3 (banco/specs/fase3.md): 1 = thinking también en las rondas con tools,
++# con el reasoning del turno en curso preservado (la API lo exige ahí). El modo
++# se fija UNA vez por pregunta. Default 0 hasta que el A/B lo apruebe; TEMPORAL:
++# se borra en 3b, cuando el modo lo elija Laya por pregunta.
++# PENSAR_TOOLS=0
+ # Presupuesto dinámico determinista (exp/86): un pedido de alcance amplio
+ # (palabras de totalidad, o un directorio mencionado con >=10 archivos de
+ # código, o masa mencionada >=300 líneas — lo cuenta el código contra el
+diff -ruN a/banco/probes/alcance_sin_palabras.py b/banco/probes/alcance_sin_palabras.py
+--- a/banco/probes/alcance_sin_palabras.py	1970-01-01 00:00:00.000000000 +0000
++++ b/banco/probes/alcance_sin_palabras.py	2026-10-29 17:25:47.096727915 +0000
+@@ -0,0 +1,69 @@
++"""Contrafáctico 2 de la fase 4b-mín (banco/specs/fase4b_min.md): ¿alguna
++pregunta REAL es amplia solo por la regex de palabras de `alcance_amplio`?
++
++Lee `salidas/preguntas.jsonl` (solo origen web/terminal: el banco escribe el
++suyo aparte desde X93) y clasifica cada pregunta con y sin `_PALABRAS_AMPLIAS`,
++contra el disco del repo. Puro: no escribe nada, no llama al modelo.
++
++Uso: AGENT_ALLOWED_DIRS=$PWD python3 banco/probes/alcance_sin_palabras.py [--ruta salidas/preguntas.jsonl]
++"""
++import argparse
++import json
++import re
++import sys
++from pathlib import Path
++
++RAIZ = Path(__file__).resolve().parents[2]
++sys.path.insert(0, str(RAIZ))
++
++import nodes  # noqa: E402
++
++NUNCA = re.compile(r"(?!)")
++
++
++def clasificar(pregunta, raiz=RAIZ):
++    """(con la regex, sin la regex) para una pregunta."""
++    con = nodes.alcance_amplio(pregunta, raiz=raiz)
++    original = nodes._PALABRAS_AMPLIAS
++    nodes._PALABRAS_AMPLIAS = NUNCA
++    try:
++        sin = nodes.alcance_amplio(pregunta, raiz=raiz)
++    finally:
++        nodes._PALABRAS_AMPLIAS = original
++    return con, sin
++
++
++def preguntas(ruta):
++    for linea in Path(ruta).read_text(encoding="utf-8").splitlines():
++        try:
++            fila = json.loads(linea)
++        except ValueError:
++            continue
++        if fila.get("origen") in ("web", "terminal") and fila.get("pregunta"):
++            yield fila["pregunta"]
++
++
++def main(argv=None):
++    parser = argparse.ArgumentParser(prog="alcance_sin_palabras")
++    parser.add_argument("--ruta", default=str(RAIZ / "salidas" / "preguntas.jsonl"))
++    args = parser.parse_args(argv)
++    if not Path(args.ruta).is_file():
++        print(f"sin {args.ruta}")
++        return 1
++    total, amplias, cambian = 0, 0, []
++    for pregunta in dict.fromkeys(preguntas(args.ruta)):
++        total += 1
++        con, sin = clasificar(pregunta)
++        amplias += con
++        if con and not sin:
++            cambian.append(pregunta)
++    print(f"{total} preguntas únicas · {amplias} amplias con la regex · "
++          f"{len(cambian)} dejan de serlo sin ella")
++    for pregunta in cambian:
++        print(f"  - {pregunta[:160]}")
++    print("4b-mín: " + ("PASA (se borra la regex)" if not cambian else "REVISAR caso por caso"))
++    return 0 if not cambian else 2
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff -ruN a/banco/specs/fase3.md b/banco/specs/fase3.md
+--- a/banco/specs/fase3.md	2026-10-29 17:29:52.452452055 +0000
++++ b/banco/specs/fase3.md	2026-10-29 17:29:02.331431958 +0000
+@@ -95,3 +95,29 @@
+    de la base, por escenario.
+ 4. **Sin ganancia de calidad no entra**, aunque cueste lo mismo: el thinking
+    en rondas con tools suma latencia y un riesgo conocido (los 400).
++
++## Resultado de la segunda corrida y el cableado (2026-10-28, X103)
++
++Segunda corrida (operador): A–E ok, **G ok**, H ok, F 400 → **gate PASA**.
++La regla del proveedor es la del turno: el reasoning se exige solo en los
++assistant posteriores al último `user`.
++
++Cableado en el chat, detrás de `PENSAR_TOOLS` (default 0, temporal):
++- `turno["pensar"]` se fija al empezar la pregunta; `AgentStep` y `Cierre`
++  lo pasan al cliente. `Cierre` hereda el modo (H permitiría apagarlo; se
++  difiere para no mezclar dos cambios en el A/B). `DirectAnswer` y
++  `VerificarCitas` no cambian (sin tools en el turno).
++- El stream junta el `reasoning_content` de los deltas aparte (sin
++  imprimirlo ni mezclarlo con content): sin esto la 3a daba F en la primera
++  ronda del banco, que corre con streaming.
++- `historiar` lo conserva si la pregunta piensa; `GetQuestion` lo descarta
++  de los turnos anteriores (`compaccion.sin_razonamiento_previo`).
++- Invariante 1: reasoning solo en assistant después del último `user`
++  (`validar_historial`, y con él `thread_store.valido` y `resume`).
++
++## Corridas del A/B (lo que sigue)
++
++Brazo base: HEAD con `PENSAR_TOOLS=0`. Brazo 3a: el mismo HEAD con
++`PENSAR_TOOLS=1`. s17 ×5, s18 ×5, s19 ×3, s20 ×3 cada uno. Los criterios de
++arriba no cambian. La base de 2d (`fase2d-base-x98`) NO sirve de base acá:
++corrió sobre otro árbol (`012b92f`).
+diff -ruN a/banco/specs/fase4b_min.md b/banco/specs/fase4b_min.md
+--- a/banco/specs/fase4b_min.md	1970-01-01 00:00:00.000000000 +0000
++++ b/banco/specs/fase4b_min.md	2026-10-29 17:25:47.096727915 +0000
+@@ -0,0 +1,37 @@
++# Pre-registro — fase 4b-mín de elegancia: `alcance_amplio` sin la regex de palabras
++
++**Estado:** pre-registrado el 2026-10-28, ANTES de borrar nada. Decisión del
++operador: 4b-mín en vez del presupuesto por novedad (exp/52-B ya midió que la
++redundancia real del chat es ≈0: no hay nada que la novedad recorte).
++
++## Hipótesis
++
++`alcance_amplio` decide con tres señales: palabras de totalidad
++(`_PALABRAS_AMPLIAS`, una regex de vocabulario — hardcodeo), un directorio
++mencionado con ≥ 10 archivos de código, o masa mencionada ≥ 300 líneas (las
++dos últimas las cuenta el código contra el disco: datos exactos). La regex
++no decide nada que el conteo no decida ya.
++
++## Contrafáctico 1 — los 14 escenarios de fable (calculado, 2026-10-28)
++
++| escenario | con la regex | sin la regex |
++|---|---|---|
++| s7, s13, s17, s18, s19, s20 | amplio | amplio |
++| s1, s2, s3, s9, s10, s11, s15, s16 | — | — |
++
++**Ninguno cambia.** Los seis amplios lo son por el conteo en disco.
++
++## Contrafáctico 2 — preguntas reales (lo corre el operador)
++
++`banco/probes/alcance_sin_palabras.py` lee `salidas/preguntas.jsonl` (origen
++web/terminal) y clasifica cada pregunta con y sin la regex. Criterio:
++
++- **0 preguntas** que pasen de amplio a no-amplio → se borra la regex.
++- **1 o más** → se listan y se decide CASO POR CASO antes de borrar (si una
++  es "todo el repo" sin ruta mencionada, el remedio es que el conteo mire la
++  raíz, no volver a la regex).
++
++## Qué se borra si pasa
++
++`_PALABRAS_AMPLIAS` (−1 en `vocabulario_hardcodeado`). Nada más. Sin banco:
++la regla es determinista, el contrafáctico ES la medición.
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-29 17:29:52.424451674 +0000
++++ b/docs/bitacora.md	2026-10-29 17:29:02.335432074 +0000
+@@ -5467,3 +5467,44 @@
+ 
+ Decisión del operador para 3a: un setting temporal para el A/B, con su clave
+ del ratchet (78 → 79), marcado "borrar en 3b".
++
++---
++
++## La fase 3 cableada, apagada, y el pre-registro de la 4b-mín (2026-10-28, X103)
++
++**Gate**: la segunda corrida del operador dio G ok (y H ok, F 400): pasa. La
++regla del proveedor es por turno.
++
++**Cuatro ajustes que salieron de leer el código antes de escribir**:
++1. `call_llm_agent_stream` armaba la respuesta solo con content y tool_calls
++   (exp/38 lo pedía): el reasoning de los deltas se tiraba. El banco corre con
++   stream: sin juntarlo aparte, la 3a era la secuencia F en la primera ronda.
++   Se junta sin imprimirlo ni mezclarlo (`test_streaming` intacto).
++2. `Cierre` hereda el modo de la pregunta: H permite apagarlo, pero hacerlo
++   en el mismo A/B mezclaría dos cambios.
++3. `DirectAnswer` y `VerificarCitas` no cambian: sin tools en el turno.
++4. El costo de la 3a se mide en USD (el desglose de exp/90 ya lo calcula;
++   el reasoning se cobra como completion).
++
++**Cableado** (con `PENSAR_TOOLS=0` el chat es el de siempre: la llamada al
++cliente no lleva el kwarg nuevo y ningún reasoning entra al historial).
++`turno["pensar"]` fijo por pregunta; `historiar` conserva el reasoning si la
++pregunta piensa; `GetQuestion` lo descarta de los turnos anteriores; el
++invariante 1 pasa a "reasoning solo después del último user". El candado
++principal corre el chat real con un cliente falso que aplica la regla de la
++API: ninguna llamada cambia de modo, el `Cierre` por presupuesto incluido, y
++ningún 400. Probado contra tres regresiones (cierre con otro modo,
++`GetQuestion` sin limpiar, stream que tira el reasoning): cada una cae. La
++caracterización pasa entera con `PENSAR_TOOLS=1`; la suite fija
++`PENSAR_TOOLS=0` en conftest (la prende el A/B, no el `.env` del operador).
++
++**Ratchet**: `settings_leidos` 78 → 79 por `PENSAR_TOOLS`, temporal
++(inventario: "borrar en 3b"). Decisión del operador: lo acepta con su clave
++(`--actualizar`). Hasta entonces `./calidad.sh` da rojo SOLO en esa métrica.
++
++**4b-mín** (decisión del operador): pre-registro en
++`banco/specs/fase4b_min.md`. Contrafáctico 1 calculado: los 14 escenarios de
++fable clasifican igual con y sin `_PALABRAS_AMPLIAS`. El contrafáctico 2 lo
++corre el operador sobre sus preguntas reales
++(`banco/probes/alcance_sin_palabras.py`). **Fase 6** (limpieza de piezas
++sueltas) aprobada, después de la 5.
+diff -ruN a/docs/elegancia.md b/docs/elegancia.md
+--- a/docs/elegancia.md	2026-10-29 17:29:52.428451729 +0000
++++ b/docs/elegancia.md	2026-10-29 17:24:06.018645755 +0000
+@@ -58,7 +58,7 @@
+ | `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
+ | `producto_conoce_lab` | 10 → **0** (X93) | 0 ✅ |
+ | `vocabulario_hardcodeado` | 8 | ≤ 2 (fases 3–4; quedan los sí/no del HITL) |
+-| `settings_leidos` | 89 → 84 (X93) → 78 (X101) | ≤ 45 (fases 1–5, ver inventario) |
++| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) | ≤ 45 (fases 1–5, ver inventario) |
+ | `imports_perezosos` | 137 → 126 (X92) | ≤ 40 |
+ | `nodos_largos` | 15 → 14 (X96) | ≤ 3 |
+ | `texto_de_prompt` | 2748 chars | ≤ 800 |
+@@ -70,17 +70,19 @@
+ | 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
+ | 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
+ | 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. ✅ 2b-2 (X96): `Observar` y `Cierre` (el presupuesto como arista). Falta: el chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
+-| 3 | (2d no entró, X99.) Gate previo de 3a escrito (X100). `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
++| 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a cableada, apagada (X103). `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
+ | 4 | Se borran reglas, voto, `alcance_amplio`, perfiles y directivas (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
+ | 5 | Política de comandos como datos (S10); skills por descripción; Laya 0.4.x | Mínimo | `test_policy_bypass.py` idéntico |
++| 6 | Limpieza de piezas sueltas (`juez`, `effective_n`, `juez_lote`, `research`, `informe`, `fable_judge`): nodos largos e imports perezosos (decisión del operador, X103) | No | `nodos_largos` ≤ 3, `imports_perezosos` ≤ 40 |
+ 
+-## Inventario de settings (78 tras X101: 42 contrato · 19 revisar · 17 borrar)
++## Inventario de settings (79 tras X103: 42 contrato · 19 revisar · 18 borrar)
+ 
+ `contrato` = decisión del operador que se queda; `revisar` = se decide en la
+ fase indicada; `borrar` = se va con su rama en esa fase.
+ 
+ | Setting | Veredicto | Fase | Motivo | Lo lee |
+ |---|---|---|---|---|
++| `PENSAR_TOOLS` | borrar | 3 | 3b: TEMPORAL para el A/B de 3a (decisión del operador, con su clave del ratchet); se borra cuando el modo lo elija Laya por pregunta | `nodes.py` |
+ | `BMO_TASKS_DIR` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/rutas.py` |
+ | `LEER_BMO_ENV` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/call_llm.py` |
+ | `LAYA_ALPHA_VOTO` | borrar | 3 | S2: el voto existe para tapar el directo sin tools | `utils/laya_routing.py` |
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-29 17:29:52.428451729 +0000
++++ b/docs/estado.md	2026-10-29 17:29:02.335432074 +0000
+@@ -136,6 +136,7 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
++| X103 | — | La fase 3 (thinking en rondas con tools) no tenía cableado en el chat; además el stream descartaba el `reasoning_content` de los deltas, así que encenderla tal cual daba la secuencia F (400) en la primera ronda del banco | ✅ 2026-10-28 (cableado detrás de `PENSAR_TOOLS=0`; falta el A/B) | `turno["pensar"]` fijo por pregunta; el stream junta el reasoning aparte; `historiar` lo conserva y `GetQuestion` descarta el de turnos anteriores; invariante 1 de la compacción → "reasoning solo después del último user". Pre-registro de la 4b-mín ([fase4b_min.md](../banco/specs/fase4b_min.md)): contrafáctico 1 sin cambios en los 14 escenarios | `test_con_pensar_el_modo_no_cambia_dentro_de_la_pregunta`, `test_el_stream_junta_el_reasoning_sin_imprimirlo`, `test_el_reasoning_vive_solo_en_el_turno_en_curso`, `test_sin_pensar_el_chat_es_el_de_siempre`, `test_una_pregunta_amplia_solo_por_palabras_se_lista` |
+ | X102 | — | El gate previo de la fase 3 no pasó en vivo: A–E ok, F 400 (`reasoning_content ... must be passed back`). E ok y F 400 sugieren que la API exige el reasoning solo en el turno EN CURSO, pero dos datos no lo prueban y la doc dice algo más estricto | ✅ 2026-10-28 (sonda ampliada; falta la segunda corrida) | `thinking_tools` suma G (turno entero OFF → pregunta siguiente ON, decide) y H (rondas ON → cierre OFF, informativa); el gate pasa a A–E + G, con F informativa. Redefinido ANTES de correr G y H; diseño de 3a condicionado en [fase3.md](../banco/specs/fase3.md) | `test_la_regla_del_turno_reproduce_la_primera_corrida_y_el_gate_pasa`, `test_un_400_tumba_el_gate_y_se_ve_donde`, `test_las_informativas_no_deciden_el_gate` |
+ | X101 | — | Seis settings eran tunables que nadie fijaba (ningún escenario del banco, ningún test por entorno salvo dos) y uno, `LAYA_MAX_EN_PROCESO`, se leía con `int()` a secas: un typo en el `.env` tiraba el import de `utils.laya` | ✅ 2026-10-28 | `MAPA_CONCURRENCIA`, `JUEZ_LOTE_CONCURRENCIA`, `PREFETCH_MAX_ARCHIVOS`, `PREFETCH_MAX_LINEAS`, `LAYA_ERROR_COOLDOWN` y `LAYA_MAX_EN_PROCESO` pasan a constantes con el MISMO valor (el bug del `int()` deja de existir: no queda lectura que falle). `LAYA_BATCH_SIZE` NO: su `0` es un modo (el lote no se parte), no un número — pasa a contrato en el inventario. Ratchet `settings_leidos` **84 → 78**. Sin cambio de conducta | `test_los_tunables_de_x101_no_se_leen_del_entorno` |
+ | X100 | — | El gate previo de la fase 3 (thinking con tools, reasoning preservado) no tenía sonda | ✅ 2026-10-28 (sonda escrita; falta correrla) | `banco/probes/thinking_tools.py`, seis secuencias (A–F, incluido el rechazo de s19-s3 y la compacción); arma los requests con `_kwargs_agente(..., pensar=True)`, el builder de producción, que hoy solo usa la sonda. El cableado en el chat espera el resultado | `test_pensar_preserva_el_reasoning_y_habilita_thinking_con_tools`, `test_un_400_tumba_el_gate_y_se_ve_donde` |
+diff -ruN a/docs/roadmap.md b/docs/roadmap.md
+--- a/docs/roadmap.md	2026-10-29 17:29:52.428451729 +0000
++++ b/docs/roadmap.md	2026-10-29 17:29:02.335432074 +0000
+@@ -15,8 +15,10 @@
+ `Contexto → Cierre`). **2d**: instrumento listo (X98, `cache_hit` y
+ `llamador` en la traza) y pre-registro en `banco/specs/fase2d.md`. **2d no
+ entra** (X99: 2 cierres reales en 16 corridas, casos insuficientes). Fase 3:
+-gate previo corrido (F 400, X102): la sonda suma G y H y el gate se
+-redefine a A–E + G; el cableado en el chat espera la segunda corrida.
++gate previo PASA (X102). **3a cableada detrás de `PENSAR_TOOLS=0`** (X103);
++falta el A/B de 16 + 16 corridas sobre el mismo HEAD. 4b-mín pre-registrada
++(`banco/specs/fase4b_min.md`); falta el contrafáctico sobre las preguntas
++reales. Fase 6 (limpieza de las piezas sueltas) aprobada, después de la 5.
+ 2b-3 queda para después de la fase 4 (o se descarta si sigue sin haber
+ sub-agentes); 2b-3 `AgentStep`/`ExecuteTools` →
+ `Paso`/`Actuar` del kernel con renombre y alias en `replay`/`evals`. Sin
+diff -ruN a/nodes.py b/nodes.py
+--- a/nodes.py	2026-10-29 17:29:52.412451511 +0000
++++ b/nodes.py	2026-10-29 17:28:08.641955058 +0000
+@@ -8,7 +8,14 @@
+ 
+ from modules import discover, ganchos
+ from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_stream
+-from utils.compaccion import PREFIJO_COMPACCION, compactar, huella, recortar_tools_viejos, serializar
++from utils.compaccion import (
++    PREFIJO_COMPACCION,
++    compactar,
++    huella,
++    recortar_tools_viejos,
++    serializar,
++    sin_razonamiento_previo,
++)
+ from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
+ from utils.fs_tools import TOOLS as CORE_TOOLS
+ from utils.proveedor import (  # noqa: F401  (re-export: tests y banco los importan de nodes)
+@@ -172,6 +179,9 @@
+         "router_pendiente": None,  # id de la decisión shadow a etiquetar (exp/43)
+         "uso_inicio": None,      # desglose de tokens al empezar (exp/90)
+         "ruta": "herramientas",  # la arista que toma Contexto (la fija el router)
++        # fase 3: thinking en las rondas con tools, fijado UNA vez por pregunta
++        # (la API no tolera cambiar de modo dentro del turno: X102, secuencia F)
++        "pensar": _setting("PENSAR_TOOLS", "0") == "1",
+     }
+ 
+ 
+@@ -275,12 +285,15 @@
+ )
+ 
+ 
+-def historiar(msg):
+-    """El mensaje del asistente en forma canónica para el historial: solo
+-    role/content/tool_calls. El reasoning_content del modo thinking NO
+-    viaja — arrastrarlo a una vuelta sin thinking rompe la API (400
+-    'reasoning_content must be passed back', medido en producción)."""
++def historiar(msg, pensar=False):
++    """El mensaje del asistente en forma canónica para el historial:
++    role/content/tool_calls. El reasoning_content queda solo si la pregunta
++    piensa (fase 3): ahí la API lo exige de vuelta en el turno en curso; sin
++    thinking, arrastrarlo rompe la API (400 medido en producción)."""
+     m = {"role": "assistant", "content": msg.content}
++    razon = getattr(msg, "reasoning_content", None)
++    if pensar and isinstance(razon, str) and razon:
++        m["reasoning_content"] = razon
+     if getattr(msg, "tool_calls", None):
+         m["tool_calls"] = [
+             {"id": tc.id, "type": "function",
+@@ -334,7 +347,10 @@
+         # Tarea vigente para la compacción: una continuación no pisa el objetivo.
+         if exec_res.strip().lower() not in {"seguí", "segui", "continúa", "continua", "continue"}:
+             shared["_objetivo"] = exec_res
+-        shared["messages"].append({"role": "user", "content": exec_res})
++        # fase 3: el reasoning de los turnos anteriores no vuelve a la API
++        # (X102: solo lo exige en el turno en curso) — se descarta acá.
++        shared["messages"] = sin_razonamiento_previo(shared["messages"] + [
++            {"role": "user", "content": exec_res}])
+         # exp/90: el costo POR PREGUNTA se cierra acá — se vuelve por
+         # "answer", así que la pregunta anterior ya respondió: su costo es
+         # el delta del desglose desde su propio arranque. La última nunca
+@@ -480,18 +496,22 @@
+ 
+             skill = next((h for h in disponibles() if h.id == skill_id), None)
+             tools = filtrar_tools(tools, skill) if skill else tools
+-        return shared["messages"], tools
++        return shared["messages"], tools, turno(shared)["pensar"]
+ 
+     def exec(self, inputs):
+-        messages, tools = inputs
++        messages, tools, *resto = inputs
++        pensar = bool(resto and resto[0])
+         stream = _setting("CHAT_STREAM", "1") == "1"
++        # sin `pensar` la llamada es la de siempre (la firma vieja: los tests
++        # y fakes que reemplazan el cliente no se enteran de la fase 3)
++        extra = {"pensar": True} if pensar else {}
+         if stream:
+             # etiqueta antes del primer delta: sin ella las respuestas
+             # llegan sin rótulo (nit de UX de la mesa 8, medido en prod)
+             print("\nDeepSeek: ", end="", flush=True)
+-            exec_res = call_llm_agent_stream(messages, tools)
++            exec_res = call_llm_agent_stream(messages, tools, **extra)
+         else:
+-            exec_res = call_llm_agent(messages, tools)
++            exec_res = call_llm_agent(messages, tools, **extra)
+         # La normalización va en exec, NO en post: los max_retries de
+         # PocketFlow envuelven exec(), así que un raise acá SÍ re-pregunta; en
+         # post() cortaría el chat (bug medido). Es la misma del kernel.
+@@ -510,7 +530,7 @@
+         return exec_res
+ 
+     def post(self, shared, prep_res, exec_res):
+-        shared["messages"].append(historiar(exec_res))
++        shared["messages"].append(historiar(exec_res, turno(shared)["pensar"]))
+         if getattr(exec_res, "tool_calls", None):
+             # exp/49: punto seguro 4 — la SELECCIÓN: las llamadas quedaron
+             # elegidas pero no ejecutadas (la pausa exacta del factor 8).
+@@ -922,7 +942,10 @@
+     def prep(self, shared):
+         # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
+         # el modelo sigue emitiendo tool calls en vez de cerrar la respuesta.
+-        return list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None
++        # El cierre hereda el modo de la pregunta (no se apaga: X102 H dio ok,
++        # pero cambiar dos cosas en el A/B de 3a las mezclaría).
++        return (list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None,
++                turno(shared)["pensar"])
+ 
+ 
+ class DirectAnswer(AgentStep):
+@@ -932,5 +955,6 @@
+ 
+     def prep(self, shared):
+         # La compacción ya corrió en Contexto (la ruta directa mandaba el
+-        # historial entero sin techo, exp/36). Sin tools.
+-        return shared["messages"], None
++        # historial entero sin techo, exp/36). Sin tools y sin la fase 3: sin
++        # tools en el turno, la regla de la API no aplica.
++        return shared["messages"], None, False
+diff -ruN a/tests/conftest.py b/tests/conftest.py
+--- a/tests/conftest.py	2026-10-29 17:29:52.424451674 +0000
++++ b/tests/conftest.py	2026-10-29 17:24:06.018645755 +0000
+@@ -99,6 +99,9 @@
+     prueban el scope o el HITL web lo fijan ellos (monkeypatch: gana el último)."""
+     monkeypatch.delenv("HITL_SCOPE", raising=False)
+     monkeypatch.setenv("HITL_WEB", "0")
++    # X103: la fase 3 la prende el A/B, no la suite (los fakes del cliente
++    # usan la firma de siempre; los tests de la 3a la fijan ellos)
++    monkeypatch.setenv("PENSAR_TOOLS", "0")
+ 
+ 
+ def tc(nombre, args):
+diff -ruN a/tests/test_alcance_sin_palabras.py b/tests/test_alcance_sin_palabras.py
+--- a/tests/test_alcance_sin_palabras.py	1970-01-01 00:00:00.000000000 +0000
++++ b/tests/test_alcance_sin_palabras.py	2026-10-29 17:25:47.096727915 +0000
+@@ -0,0 +1,24 @@
++"""La sonda del contrafáctico 2 de la fase 4b-mín, sin disco real ni modelo."""
++import json
++
++from banco.probes import alcance_sin_palabras as asp
++
++
++def test_una_pregunta_amplia_solo_por_palabras_se_lista(tmp_path, capsys, monkeypatch):
++    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
++    ruta = tmp_path / "preguntas.jsonl"
++    filas = [{"origen": "terminal", "pregunta": "revisá todo el repo"},
++             {"origen": "terminal", "pregunta": "¿qué hace esta línea?"},
++             {"origen": "banco", "pregunta": "auditoría completa del proyecto"},
++             {"origen": "web", "pregunta": "revisá todo el repo"}]
++    ruta.write_text("\n".join(json.dumps(f) for f in filas) + "\nroto\n", encoding="utf-8")
++    assert asp.main(["--ruta", str(ruta)]) == 2
++    salida = capsys.readouterr().out
++    assert "2 preguntas únicas · 1 amplias con la regex · 1 dejan de serlo" in salida
++    assert "revisá todo el repo" in salida and "REVISAR" in salida
++
++
++def test_la_regex_queda_intacta_despues_de_clasificar():
++    original = asp.nodes._PALABRAS_AMPLIAS
++    asp.clasificar("revisá todo el repo")
++    assert asp.nodes._PALABRAS_AMPLIAS is original
+diff -ruN a/tests/test_chat_flujo.py b/tests/test_chat_flujo.py
+--- a/tests/test_chat_flujo.py	2026-10-29 17:29:52.416451566 +0000
++++ b/tests/test_chat_flujo.py	2026-10-29 17:24:06.018645755 +0000
+@@ -386,7 +386,7 @@
+                              {"role": "user", "content": "auditá el repo"}],
+               "turno": {**nuevo_turno(), "rondas": 8}}
+     assert Contexto()._run(shared) == "cierre"
+-    mensajes, tools = Cierre().prep(shared)
++    mensajes, tools, _ = Cierre().prep(shared)
+     assert tools is None
+     assert mensajes[-1]["content"] == AVISO_CIERRE
+     # el aviso es EFÍMERO: no entra al historial
+diff -ruN a/tests/test_compaccion.py b/tests/test_compaccion.py
+--- a/tests/test_compaccion.py	2026-10-29 17:29:52.420451620 +0000
++++ b/tests/test_compaccion.py	2026-10-29 17:24:06.018645755 +0000
+@@ -187,7 +187,7 @@
+     )
+     shared = {"messages": [{"role": "system", "content": "s"}], "tool_rounds": 0}
+     assert nodes.Contexto()._run(shared) == "herramientas"   # no debe levantar
+-    mensajes, tools = nodes.AgentStep().prep(shared)
++    mensajes, tools, _ = nodes.AgentStep().prep(shared)
+     assert mensajes and tools is not None
+ 
+ def test_compactar_no_devuelve_mas_contexto_del_que_recibio():
+diff -ruN a/tests/test_novedad.py b/tests/test_novedad.py
+--- a/tests/test_novedad.py	2026-10-29 17:29:52.416451566 +0000
++++ b/tests/test_novedad.py	2026-10-29 17:24:06.018645755 +0000
+@@ -65,7 +65,7 @@
+               **_con_turno(rondas=4, racha_sin_novedad=2)}
+     assert nodes.motivo_de_cierre(shared) == "sin_novedad"
+     assert nodes.Contexto()._run(shared) == "cierre"
+-    mensajes, tools = nodes.Cierre().prep(shared)
++    mensajes, tools, _ = nodes.Cierre().prep(shared)
+     assert tools is None
+     assert mensajes[-1]["content"] == nodes.AVISO_CIERRE
+     assert "corte_novedad" not in shared["turno"]
+diff -ruN a/tests/test_skills.py b/tests/test_skills.py
+--- a/tests/test_skills.py	2026-10-29 17:29:52.416451566 +0000
++++ b/tests/test_skills.py	2026-10-29 17:24:06.018645755 +0000
+@@ -104,9 +104,9 @@
+     revision = next(h for h in disponibles() if h.id == "revision")
+     shared = {"messages": [{"role": "user", "content": "revisá el código"}],
+               "turno": {**nodes.nuevo_turno(), "skill": revision.id}}
+-    _, tools = nodes.AgentStep().prep(shared)
++    _, tools, _ = nodes.AgentStep().prep(shared)
+     assert {tool["function"]["name"] for tool in tools} == set(revision.tools)
+-    _, todos = nodes.AgentStep().prep({"messages": [{"role": "user", "content": "hola"}]})
++    _, todos, _ = nodes.AgentStep().prep({"messages": [{"role": "user", "content": "hola"}]})
+     assert {tool["function"]["name"] for tool in todos} == {
+         tool["function"]["name"] for tool in nodes.TOOLS}
+ 
+diff -ruN a/tests/test_thinking_tools.py b/tests/test_thinking_tools.py
+--- a/tests/test_thinking_tools.py	2026-10-29 17:29:52.416451566 +0000
++++ b/tests/test_thinking_tools.py	2026-10-29 17:25:47.092727852 +0000
+@@ -50,7 +50,8 @@
+         if self.regla and pensando and sin_razon:
+             raise _Error400()
+         ultimo = mensajes[-1]
+-        pide = kwargs.get("tools") and ultimo["role"] == "user" and "Respondé AHORA" not in ultimo["content"]
++        pide = kwargs.get("tools") and (getattr(self, "insistente", False) or (
++            ultimo["role"] == "user" and "Respondé AHORA" not in ultimo["content"]))
+         calls = [NS(id=f"c{len(self.requests)}", function=NS(name="list_files", arguments="{}"))] if pide else None
+         return NS(choices=[NS(message=NS(content=None if pide else "listo", tool_calls=calls,
+                                          reasoning_content="razono"))])
+@@ -111,3 +112,104 @@
+     pasos += [{"secuencia": s, "ok": False, "status": 400} for s in "FH"]
+     pasa, resumen = tt.veredicto(pasos)
+     assert pasa and resumen["F"] == resumen["H"] == "400"
++
++
++# ── X103: la fase 3 en el chat (PENSAR_TOOLS, default 0) ─────────────────
++
++
++def test_el_stream_junta_el_reasoning_sin_imprimirlo(monkeypatch, capsys):
++    """El banco corre con streaming: sin juntar el reasoning de los deltas,
++    la 3a daba 400 en la primera ronda (la secuencia F). Se junta APARTE:
++    ni a stdout ni a content (el contrato de exp/38 sigue)."""
++    import utils.call_llm as c
++
++    def chunk(content=None, reasoning=None):
++        return NS(choices=[NS(delta=NS(content=content, reasoning_content=reasoning, tool_calls=None))])
++
++    class Completions:
++        def create(self, **kwargs):
++            self.kwargs = kwargs
++            return iter([chunk(reasoning="pien"), chunk(reasoning="so"), chunk(content="hola")])
++
++    comp = Completions()
++    monkeypatch.setattr(c, "_client", lambda: NS(chat=NS(completions=comp)))
++    msg = c.call_llm_agent_stream([{"role": "user", "content": "x"}], pensar=True)
++    assert msg.content == "hola" and msg.reasoning_content == "pienso"
++    assert "pien" not in capsys.readouterr().out
++    assert comp.kwargs["extra_body"] == {"thinking": {"type": "enabled"}}
++
++
++def test_el_reasoning_vive_solo_en_el_turno_en_curso():
++    """El invariante 1 nuevo: reasoning en assistant después del último user,
++    nunca antes; y al llegar la pregunta nueva se descarta el de antes."""
++    from utils.compaccion import sin_razonamiento_previo, validar_historial
++
++    turno_viejo = [{"role": "system", "content": "s"}, {"role": "user", "content": "q1"},
++                   {"role": "assistant", "content": None, "reasoning_content": "r1",
++                    "tool_calls": [{"id": "1", "type": "function",
++                                    "function": {"name": "list_files", "arguments": "{}"}}]},
++                   {"role": "tool", "tool_call_id": "1", "content": "a.py"}]
++    assert validar_historial(turno_viejo) == []
++    con_pregunta = turno_viejo + [{"role": "user", "content": "q2"}]
++    assert validar_historial(con_pregunta) == ["[2] arrastra reasoning_content"]
++    limpio = sin_razonamiento_previo(con_pregunta)
++    assert validar_historial(limpio) == []
++    assert "reasoning_content" in turno_viejo[2]  # pura: no muta el original
++    assert validar_historial([{"role": "system", "content": "s"},
++                              {"role": "user", "content": "q", "reasoning_content": "x"}])
++
++
++def test_con_pensar_el_modo_no_cambia_dentro_de_la_pregunta(monkeypatch):
++    """La secuencia F (400 en vivo) queda IMPOSIBLE por construcción: todas
++    las llamadas de una pregunta — rondas con tools y el Cierre por
++    presupuesto — van con el mismo modo, el reasoning del turno en curso
++    viaja, y una pregunta nueva arranca sin el reasoning de la anterior.
++    El cliente falso con la regla del turno (la de la API) no da ningún 400."""
++    import nodes
++    from flow import create_agent_flow
++
++    for clave, valor in {"USE_LAYA_ROUTER": "0", "CHAT_STREAM": "0", "PREFETCH": "0",
++                         "CITAS_VERIFICAR": "0", "HITL_AUTO": "1", "SKILLS": "0",
++                         "PENSAR_TOOLS": "1"}.items():
++        monkeypatch.setenv(clave, valor)
++    monkeypatch.delenv("HITL_SCOPE", raising=False)
++    monkeypatch.setattr(nodes, "MAX_TOOL_ROUNDS", 2)
++    api = ClienteFalso(regla="turno")
++    api.insistente = True  # pide tools mientras las haya: agota el presupuesto
++    modos = []
++
++    def llm(mensajes, tools=None, pensar=False):
++        from utils.call_llm import _kwargs_agente
++
++        modos.append(pensar)
++        return api.create(**_kwargs_agente(mensajes, tools, pensar)).choices[0].message
++
++    entradas = iter(["listá", "¿y ahora?", "salir"])
++    monkeypatch.setattr("builtins.input", lambda *a, **k: next(entradas))
++    monkeypatch.setattr(nodes, "call_llm_agent", llm)
++    monkeypatch.setattr(nodes, "run_tool_call",
++                        lambda tc, impls=None: {"role": "tool", "tool_call_id": tc["id"], "content": "a.py"})
++    shared = {"messages": [{"role": "system", "content": "s"}]}
++    create_agent_flow().run(shared)
++
++    from utils.compaccion import validar_historial
++
++    assert modos and all(modos)              # ninguna llamada de la pregunta cambió de modo
++    assert len(api.requests) == len(modos)   # y ninguna dio 400 contra la regla del turno
++    assert any(r["messages"][-1]["content"].startswith("(presupuesto") for r in api.requests)
++    assert validar_historial(shared["messages"]) == []
++
++
++def test_sin_pensar_el_chat_es_el_de_siempre(monkeypatch):
++    """PENSAR_TOOLS=0 (default): ningún reasoning entra al historial aunque
++    el proveedor lo devuelva, y el cliente se llama con la firma vieja."""
++    import nodes
++
++    monkeypatch.setenv("CHAT_STREAM", "0")
++    vistos = []
++    monkeypatch.setattr(nodes, "call_llm_agent",
++                        lambda m, t=None, **extra: vistos.append(extra) or NS(
++                            content="ok", tool_calls=None, reasoning_content="r"))
++    shared = {"messages": [{"role": "user", "content": "x"}], "turno": nodes.nuevo_turno()}
++    nodes.AgentStep()._run(shared)
++    assert vistos == [{}] and "reasoning_content" not in shared["messages"][-1]
+diff -ruN a/utils/call_llm.py b/utils/call_llm.py
+--- a/utils/call_llm.py	2026-10-29 17:29:52.444451947 +0000
++++ b/utils/call_llm.py	2026-10-29 17:28:05.681892310 +0000
+@@ -234,10 +234,10 @@
+     return kwargs
+ 
+ 
+-def call_llm_agent(messages, tools=None):
++def call_llm_agent(messages, tools=None, pensar=False):
+     """Una vuelta del agente: devuelve el mensaje del asistente
+-    (con .tool_calls si pidió herramientas)."""
+-    kwargs = _kwargs_agente(messages, tools)
++    (con .tool_calls si pidió herramientas). `pensar`: ver _kwargs_agente."""
++    kwargs = _kwargs_agente(messages, tools, pensar)
+     response = _client().chat.completions.create(**kwargs)
+     _contabilizar(getattr(response, "usage", None), kwargs.get("model"))
+     return response.choices[0].message
+@@ -259,12 +259,17 @@
+         acumulado["arguments"] += funcion.arguments
+ 
+ 
+-def _acumular_delta(delta, contenido, por_indice):
+-    """Texto de content (se imprime en vivo) + fragmentos de tool_calls."""
++def _acumular_delta(delta, contenido, por_indice, razonamiento):
++    """Texto de content (se imprime en vivo) + fragmentos de tool_calls. El
++    reasoning NO se imprime ni se mezcla con content: se junta aparte, porque
++    con thinking en las rondas con tools (fase 3) tiene que volver a la API."""
+     texto = getattr(delta, "content", None)
+     if texto:
+         print(texto, end="", flush=True)
+         contenido.append(texto)
++    razon = getattr(delta, "reasoning_content", None)
++    if razon:
++        razonamiento.append(razon)
+     for frag in getattr(delta, "tool_calls", None) or []:
+         _acumular_fragmento(frag, por_indice)
+ 
+@@ -292,7 +297,7 @@
+     ]
+ 
+ 
+-def call_llm_agent_stream(messages, tools=None):
++def call_llm_agent_stream(messages, tools=None, pensar=False):
+     """Igual contrato que call_llm_agent (mismo modo thinking pegajoso,
+     mismo filtro de reasoning_content) pero con stream=True: imprime EN
+     VIVO cada delta de CONTENT a medida que llega (flush, sin saltos de
+@@ -311,12 +316,12 @@
+     stream y se devuelve lo acumulado (el chat sigue, no se cae); se imprime
+     un aviso "[interrumpido]". Con 0, el Ctrl+C se propaga como siempre
+     (main lo toma como salida). El Ctrl+C fuera del stream no se toca."""
+-    kwargs = _kwargs_agente(messages, tools)
++    kwargs = _kwargs_agente(messages, tools, pensar)
+     # exp/89: el último chunk trae usage solo si se pide (OpenAI-compat)
+     kwargs["stream_options"] = {"include_usage": True}
+     stream = _client().chat.completions.create(**kwargs, stream=True)
+     interrumpible = _setting("CHAT_STREAM_INTERRUPT", "1") == "1"
+-    contenido = []
++    contenido, razonamiento = [], []
+     por_indice = {}  # index -> {"id", "name", "arguments"}
+     cortado = False
+     uso = None
+@@ -329,7 +334,7 @@
+             if not chunk.choices:
+                 continue
+             # los deltas de reasoning_content NO se imprimen (se descartan)
+-            _acumular_delta(chunk.choices[0].delta, contenido, por_indice)
++            _acumular_delta(chunk.choices[0].delta, contenido, por_indice, razonamiento)
+     except KeyboardInterrupt:
+         # Ctrl+C durante la generación: si la interrupción está activa se
+         # corta acá y se devuelve lo acumulado (el chat sigue vivo); si no,
+@@ -360,6 +365,7 @@
+     return SimpleNamespace(
+         content="".join(contenido) or None,
+         tool_calls=tool_calls or None,
++        reasoning_content="".join(razonamiento) or None,
+     )
+ 
+ 
+diff -ruN a/utils/compaccion.py b/utils/compaccion.py
+--- a/utils/compaccion.py	2026-10-29 17:29:52.444451947 +0000
++++ b/utils/compaccion.py	2026-10-29 17:24:06.014645658 +0000
+@@ -15,7 +15,9 @@
+ Invariantes de seguridad (los exige el modo thinking pegajoso de la API;
+ ver utils/call_llm.py):
+ 
+-1. Sin `reasoning_content` en ningún mensaje.
++1. `reasoning_content` solo en mensajes del assistant DESPUÉS del último
++   `user` (el turno en curso, fase 3: la API lo exige ahí y en ningún otro
++   lado — X102). Con thinking apagado no aparece nunca.
+ 2. Dicts canónicos (solo role/content/tool_calls/tool_call_id).
+ 3. Ningún assistant con `tool_calls` sin sus `tool` inmediatas después.
+ 4. Primer mensaje = system.
+@@ -55,7 +57,7 @@
+ _CLAVES = {
+     "system": {"role", "content"},
+     "user": {"role", "content"},
+-    "assistant": {"role", "content", "tool_calls"},
++    "assistant": {"role", "content", "tool_calls", "reasoning_content"},
+     "tool": {"role", "tool_call_id", "content"},
+ }
+ 
+@@ -79,13 +81,14 @@
+ 
+ # Validación de invariantes
+ 
+-def _chequeos_de_rol(i, m):
+-    """(fallas, rol_conocido) de un mensaje: rol, reasoning y claves."""
++def _chequeos_de_rol(i, m, ultimo_user=-1):
++    """(fallas, rol_conocido) de un mensaje: rol, reasoning y claves. El
++    reasoning solo vale en el turno en curso (después del último user)."""
+     rol = m.get("role")
+     if rol not in _CLAVES:
+         return [f"[{i}] rol desconocido: {rol!r}"], False
+     fallas = []
+-    if "reasoning_content" in m:
++    if "reasoning_content" in m and (rol != "assistant" or i < ultimo_user):
+         fallas.append(f"[{i}] arrastra reasoning_content")
+     extra = set(m) - _CLAVES[rol]
+     if extra:
+@@ -124,6 +127,23 @@
+     return set()
+ 
+ 
++def ultimo_usuario(messages):
++    """Índice del último mensaje `user`, o -1. Desde ahí empieza el turno en
++    curso: lo de antes es historia y no lleva reasoning."""
++    return max((i for i, m in enumerate(messages)
++                if isinstance(m, dict) and m.get("role") == "user"), default=-1)
++
++
++def sin_razonamiento_previo(messages):
++    """El historial sin el reasoning de los turnos ANTERIORES (lo que la API
++    no pide, X102): se descarta al llegar una pregunta nueva. PURA: los
++    mensajes que cambian son copias; los demás, los mismos objetos."""
++    corte = ultimo_usuario(messages)
++    return [{k: v for k, v in m.items() if k != "reasoning_content"}
++            if i < corte and isinstance(m, dict) and "reasoning_content" in m else m
++            for i, m in enumerate(messages)]
++
++
+ def validar_historial(messages):
+     """Devuelve la lista de violaciones (vacía = historial válido).
+ 
+@@ -137,12 +157,13 @@
+     if not (isinstance(primero, dict) and primero.get("role") == "system"):
+         fallas.append("el primer mensaje no es system")
+     abiertos = set()  # ids del último assistant con tool_calls aún sin respuesta
++    ultimo_user = ultimo_usuario(messages)
+     for i, m in enumerate(messages):
+         if not isinstance(m, dict):
+             fallas.append(f"[{i}] no es dict")
+             continue
+         abiertos = _actualizar_abiertos(i, m, abiertos, fallas)
+-        violaciones, rol_conocido = _chequeos_de_rol(i, m)
++        violaciones, rol_conocido = _chequeos_de_rol(i, m, ultimo_user)
+         fallas.extend(violaciones)
+         if rol_conocido:
+             fallas.extend(_chequeos_tool_calls(i, m, messages))

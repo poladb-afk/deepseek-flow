@@ -15,7 +15,9 @@ input → mismo output).
 Invariantes de seguridad (los exige el modo thinking pegajoso de la API;
 ver utils/call_llm.py):
 
-1. Sin `reasoning_content` en ningún mensaje.
+1. `reasoning_content` solo en mensajes del assistant DESPUÉS del último
+   `user` (el turno en curso, fase 3: la API lo exige ahí y en ningún otro
+   lado — X102). Con thinking apagado no aparece nunca.
 2. Dicts canónicos (solo role/content/tool_calls/tool_call_id).
 3. Ningún assistant con `tool_calls` sin sus `tool` inmediatas después.
 4. Primer mensaje = system.
@@ -55,7 +57,7 @@ MANTENER_TOOLS = 3     # los últimos N tool results quedan INTACTOS
 _CLAVES = {
     "system": {"role", "content"},
     "user": {"role", "content"},
-    "assistant": {"role", "content", "tool_calls"},
+    "assistant": {"role", "content", "tool_calls", "reasoning_content"},
     "tool": {"role", "tool_call_id", "content"},
 }
 
@@ -79,13 +81,14 @@ def huella(messages):
 
 # Validación de invariantes
 
-def _chequeos_de_rol(i, m):
-    """(fallas, rol_conocido) de un mensaje: rol, reasoning y claves."""
+def _chequeos_de_rol(i, m, ultimo_user=-1):
+    """(fallas, rol_conocido) de un mensaje: rol, reasoning y claves. El
+    reasoning solo vale en el turno en curso (después del último user)."""
     rol = m.get("role")
     if rol not in _CLAVES:
         return [f"[{i}] rol desconocido: {rol!r}"], False
     fallas = []
-    if "reasoning_content" in m:
+    if "reasoning_content" in m and (rol != "assistant" or i < ultimo_user):
         fallas.append(f"[{i}] arrastra reasoning_content")
     extra = set(m) - _CLAVES[rol]
     if extra:
@@ -124,6 +127,23 @@ def _actualizar_abiertos(i, m, abiertos, fallas):
     return set()
 
 
+def ultimo_usuario(messages):
+    """Índice del último mensaje `user`, o -1. Desde ahí empieza el turno en
+    curso: lo de antes es historia y no lleva reasoning."""
+    return max((i for i, m in enumerate(messages)
+                if isinstance(m, dict) and m.get("role") == "user"), default=-1)
+
+
+def sin_razonamiento_previo(messages):
+    """El historial sin el reasoning de los turnos ANTERIORES (lo que la API
+    no pide, X102): se descarta al llegar una pregunta nueva. PURA: los
+    mensajes que cambian son copias; los demás, los mismos objetos."""
+    corte = ultimo_usuario(messages)
+    return [{k: v for k, v in m.items() if k != "reasoning_content"}
+            if i < corte and isinstance(m, dict) and "reasoning_content" in m else m
+            for i, m in enumerate(messages)]
+
+
 def validar_historial(messages):
     """Devuelve la lista de violaciones (vacía = historial válido).
 
@@ -137,12 +157,13 @@ def validar_historial(messages):
     if not (isinstance(primero, dict) and primero.get("role") == "system"):
         fallas.append("el primer mensaje no es system")
     abiertos = set()  # ids del último assistant con tool_calls aún sin respuesta
+    ultimo_user = ultimo_usuario(messages)
     for i, m in enumerate(messages):
         if not isinstance(m, dict):
             fallas.append(f"[{i}] no es dict")
             continue
         abiertos = _actualizar_abiertos(i, m, abiertos, fallas)
-        violaciones, rol_conocido = _chequeos_de_rol(i, m)
+        violaciones, rol_conocido = _chequeos_de_rol(i, m, ultimo_user)
         fallas.extend(violaciones)
         if rol_conocido:
             fallas.extend(_chequeos_tool_calls(i, m, messages))

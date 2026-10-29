@@ -187,7 +187,7 @@ def test_un_typo_en_un_setting_numerico_no_mata_el_chat(monkeypatch):
     )
     shared = {"messages": [{"role": "system", "content": "s"}], "tool_rounds": 0}
     assert nodes.Contexto()._run(shared) == "herramientas"   # no debe levantar
-    mensajes, tools = nodes.AgentStep().prep(shared)
+    mensajes, tools, _ = nodes.AgentStep().prep(shared)
     assert mensajes and tools is not None
 
 def test_compactar_no_devuelve_mas_contexto_del_que_recibio():

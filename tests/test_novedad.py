@@ -65,7 +65,7 @@ def test_agent_step_retira_tools_con_corte_de_novedad(monkeypatch):
               **_con_turno(rondas=4, racha_sin_novedad=2)}
     assert nodes.motivo_de_cierre(shared) == "sin_novedad"
     assert nodes.Contexto()._run(shared) == "cierre"
-    mensajes, tools = nodes.Cierre().prep(shared)
+    mensajes, tools, _ = nodes.Cierre().prep(shared)
     assert tools is None
     assert mensajes[-1]["content"] == nodes.AVISO_CIERRE
     assert "corte_novedad" not in shared["turno"]

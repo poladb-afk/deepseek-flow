@@ -386,7 +386,7 @@ def test_agotado_fuerza_respuesta_sin_tools():
                              {"role": "user", "content": "auditá el repo"}],
               "turno": {**nuevo_turno(), "rondas": 8}}
     assert Contexto()._run(shared) == "cierre"
-    mensajes, tools = Cierre().prep(shared)
+    mensajes, tools, _ = Cierre().prep(shared)
     assert tools is None
     assert mensajes[-1]["content"] == AVISO_CIERRE
     # el aviso es EFÍMERO: no entra al historial

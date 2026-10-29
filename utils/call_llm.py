@@ -234,10 +234,10 @@ def _kwargs_agente(messages, tools=None, pensar=False):
     return kwargs
 
 
-def call_llm_agent(messages, tools=None):
+def call_llm_agent(messages, tools=None, pensar=False):
     """Una vuelta del agente: devuelve el mensaje del asistente
-    (con .tool_calls si pidió herramientas)."""
-    kwargs = _kwargs_agente(messages, tools)
+    (con .tool_calls si pidió herramientas). `pensar`: ver _kwargs_agente."""
+    kwargs = _kwargs_agente(messages, tools, pensar)
     response = _client().chat.completions.create(**kwargs)
     _contabilizar(getattr(response, "usage", None), kwargs.get("model"))
     return response.choices[0].message
@@ -259,12 +259,17 @@ def _acumular_fragmento(frag, por_indice):
         acumulado["arguments"] += funcion.arguments
 
 
-def _acumular_delta(delta, contenido, por_indice):
-    """Texto de content (se imprime en vivo) + fragmentos de tool_calls."""
+def _acumular_delta(delta, contenido, por_indice, razonamiento):
+    """Texto de content (se imprime en vivo) + fragmentos de tool_calls. El
+    reasoning NO se imprime ni se mezcla con content: se junta aparte, porque
+    con thinking en las rondas con tools (fase 3) tiene que volver a la API."""
     texto = getattr(delta, "content", None)
     if texto:
         print(texto, end="", flush=True)
         contenido.append(texto)
+    razon = getattr(delta, "reasoning_content", None)
+    if razon:
+        razonamiento.append(razon)
     for frag in getattr(delta, "tool_calls", None) or []:
         _acumular_fragmento(frag, por_indice)
 
@@ -292,7 +297,7 @@ def _tool_calls_finales(por_indice, cortado):
     ]
 
 
-def call_llm_agent_stream(messages, tools=None):
+def call_llm_agent_stream(messages, tools=None, pensar=False):
     """Igual contrato que call_llm_agent (mismo modo thinking pegajoso,
     mismo filtro de reasoning_content) pero con stream=True: imprime EN
     VIVO cada delta de CONTENT a medida que llega (flush, sin saltos de
@@ -311,12 +316,12 @@ def call_llm_agent_stream(messages, tools=None):
     stream y se devuelve lo acumulado (el chat sigue, no se cae); se imprime
     un aviso "[interrumpido]". Con 0, el Ctrl+C se propaga como siempre
     (main lo toma como salida). El Ctrl+C fuera del stream no se toca."""
-    kwargs = _kwargs_agente(messages, tools)
+    kwargs = _kwargs_agente(messages, tools, pensar)
     # exp/89: el último chunk trae usage solo si se pide (OpenAI-compat)
     kwargs["stream_options"] = {"include_usage": True}
     stream = _client().chat.completions.create(**kwargs, stream=True)
     interrumpible = _setting("CHAT_STREAM_INTERRUPT", "1") == "1"
-    contenido = []
+    contenido, razonamiento = [], []
     por_indice = {}  # index -> {"id", "name", "arguments"}
     cortado = False
     uso = None
@@ -329,7 +334,7 @@ def call_llm_agent_stream(messages, tools=None):
             if not chunk.choices:
                 continue
             # los deltas de reasoning_content NO se imprimen (se descartan)
-            _acumular_delta(chunk.choices[0].delta, contenido, por_indice)
+            _acumular_delta(chunk.choices[0].delta, contenido, por_indice, razonamiento)
     except KeyboardInterrupt:
         # Ctrl+C durante la generación: si la interrupción está activa se
         # corta acá y se devuelve lo acumulado (el chat sigue vivo); si no,
@@ -360,6 +365,7 @@ def call_llm_agent_stream(messages, tools=None):
     return SimpleNamespace(
         content="".join(contenido) or None,
         tool_calls=tool_calls or None,
+        reasoning_content="".join(razonamiento) or None,
     )
 
 
