@@ -50,9 +50,9 @@
           74
         ],
         "nodes.py": [
-          59,
-          806,
-          878
+          66,
+          826,
+          898
         ],
         "research.py": [
           78
@@ -64,7 +64,7 @@
           47
         ],
         "utils/call_llm.py": [
-          341
+          346
         ],
         "utils/contexto.py": [
           119
@@ -239,8 +239,8 @@
         "juez.py:Judge": 144,
         "juez_lote.py:CorrerJuez": 51,
         "juez_lote.py:JuezLoteFlow": 108,
-        "nodes.py:AgentStep": 72,
-        "nodes.py:GetQuestion": 56,
+        "nodes.py:AgentStep": 76,
+        "nodes.py:GetQuestion": 59,
         "nodes.py:LayaRouter": 155,
         "nodes.py:VerificarCitas": 53,
         "research.py:Synthesizer": 60
@@ -409,6 +409,9 @@
         "NO_COLOR": [
           "utils/terminal.py"
         ],
+        "PENSAR_TOOLS": [
+          "nodes.py"
+        ],
         "PRECIO_TOKENS": [
           "main.py"
         ],
@@ -495,12 +498,13 @@
           "utils/hitl_web.py"
         ]
       },
-      "metrica": 78
+      "metrica": 79
     },
     "tests_definidos": {
       "detalle": {
         "tests/test_ab_skills.py": 9,
         "tests/test_absurdos_funcionales.py": 44,
+        "tests/test_alcance_sin_palabras.py": 2,
         "tests/test_auditoria_2026_10_26.py": 39,
         "tests/test_banco.py": 20,
         "tests/test_bench.py": 18,
@@ -565,7 +569,7 @@
         "tests/test_streaming.py": 11,
         "tests/test_supervisor_convergencia.py": 4,
         "tests/test_tablero.py": 2,
-        "tests/test_thinking_tools.py": 7,
+        "tests/test_thinking_tools.py": 11,
         "tests/test_thread_store.py": 26,
         "tests/test_tokens_runs.py": 5,
         "tests/test_twins_extractores.py": 5,
@@ -580,7 +584,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1132
+      "metrica": 1138
     },
     "texto_de_prompt": {
       "detalle": {
