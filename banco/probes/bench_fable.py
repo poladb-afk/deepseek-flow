@@ -59,12 +59,14 @@ RESPUESTA_HUMANO_OFFLINE = (
 )
 
 # Entorno que define cada brazo. A/B son los de exp/72-74 (baseline vs prosa de
-# fable); C es la skill revision del propio harness (exp/75).
+# fable); C es la skill revision del propio harness (exp/75); E es A con el
+# thinking de la fase 3a (A/B de X103, spec banco/specs/fase3.md).
 ENV_POR_BRAZO = {
     "A": {"PROMPT_FABLE": "0", "SKILLS": "0"},
     "B": {"PROMPT_FABLE": "1", "SKILLS": "0"},
     "C": {"PROMPT_FABLE": "0", "SKILLS": "1"},
     "D": {"PROMPT_FABLE": "0", "SKILLS": "0", "PROMPT_AUDITORIA": "1"},
+    "E": {"PROMPT_FABLE": "0", "SKILLS": "0", "PENSAR_TOOLS": "1"},
 }
 
 
