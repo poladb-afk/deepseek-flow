@@ -5606,3 +5606,12 @@ fable clasifican igual con y sin `_PALABRAS_AMPLIAS`. El contrafáctico 2 lo
 corre el operador sobre sus preguntas reales
 (`banco/probes/alcance_sin_palabras.py`). **Fase 6** (limpieza de piezas
 sueltas) aprobada, después de la 5.
+
+**El ratchet acepta PENSAR_TOOLS (79)** (2026-10-29): el operador corrió
+`python3 ratchet.py --actualizar` con su clave en su terminal — el
+empeoramiento de `settings_leidos` 78→79 por el setting temporal de la 3a
+(marcado "borrar en 3b" en el inventario). El commit que acepta (`c09d02d`)
+queda como cicatriz de un commit (calidad roja solo ahí, por el doble
+candado de X80); este commit siguiente la limpia. Contrafáctico 2 de la
+4b-mín, corrido por el agente: 36 preguntas reales, 12 amplias con la regex,
+0 dejan de serlo sin ella — PASA.
