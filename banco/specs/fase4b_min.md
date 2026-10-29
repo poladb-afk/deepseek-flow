@@ -35,3 +35,15 @@ web/terminal) y clasifica cada pregunta con y sin la regex. Criterio:
 
 `_PALABRAS_AMPLIAS` (−1 en `vocabulario_hardcodeado`). Nada más. Sin banco:
 la regla es determinista, el contrafáctico ES la medición.
+
+## Resultado (2026-10-28, X104)
+
+Contrafáctico 2 (operador, con el comando del pre-registro): **36 preguntas
+únicas · 12 amplias con la regex · 0 dejan de serlo sin ella → PASA**. Se
+borra `_PALABRAS_AMPLIAS`. La sonda `alcance_sin_palabras.py` se borra con
+ella: sin regex no queda qué comparar.
+
+**Lo que cambia, declarado**: una frase de totalidad SIN ruta mencionada
+("revisá todo el repo") ya no sube el tope a 16. En las 36 preguntas reales
+no hubo ninguna así; si aparece en producción, el remedio pre-registrado es
+que el conteo mire la raíz, no volver a la regex.

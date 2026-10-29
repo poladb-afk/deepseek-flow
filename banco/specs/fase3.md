@@ -121,3 +121,17 @@ Brazo base: HEAD con `PENSAR_TOOLS=0`. Brazo 3a: el mismo HEAD con
 `PENSAR_TOOLS=1`. s17 ×5, s18 ×5, s19 ×3, s20 ×3 cada uno. Los criterios de
 arriba no cambian. La base de 2d (`fase2d-base-x98`) NO sirve de base acá:
 corrió sobre otro árbol (`012b92f`).
+
+## El A/B en curso y su veredicto (2026-10-28)
+
+**Brazo E** (desvío declarado por el operador): el entorno del chat del banco
+es un dict fijo por brazo (`bench_fable.ENV_POR_BRAZO`) que no hereda la
+shell, así que `PENSAR_TOOLS=1` en la shell no llegaba. Se agregó
+`ENV_POR_BRAZO["E"]` = A + `PENSAR_TOOLS=1` (commit del operador `bc5e8d0`).
+Piloto (s20-s1): ca=2, sin 400, completion por llamada ~1.509 vs ~772 en la
+base — el setting llega.
+
+**Veredicto sin juicio a mano**: `banco/probes/comparar_fase3.py` toma el
+JSONL de resultados y el directorio de trazas de cada brazo, calcula USD con
+el split de caché de la traza y aplica los criterios de arriba. Se niega a
+decidir si resultados y trazas de chat no se emparejan uno a uno.

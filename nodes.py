@@ -93,13 +93,6 @@ AMPLIO_ARCHIVOS = 10  # un directorio mencionado con esta cantidad ya es amplio
 # ve (el banco copia los fixtures sin la answer sheet): las familias que agotaban el cap quedan arriba
 # con margen (s18 347 · s19 587 · s20 930) y las cómodas muy abajo (máx 111).
 AMPLIO_LINEAS = 300
-# "todos los" exige sustantivo de amplitud (dogfood exp/87: "todos los
-# tests pasan" disparaba el tope amplio por la razón equivocada)
-_PALABRAS_AMPLIAS = re.compile(
-    r"(?i)\b(todo el (repo|proyecto|c[oó]digo)|todos los (archivos|m[oó]dulos|directorios)|"
-    r"cada (m[oó]dulo|archivo)|"
-    r"auditor[ií]a (completa|del (repo|proyecto))|the (whole|entire) (repo|codebase)|"
-    r"all (files|modules))\b")
 # todo token del pedido que trae al menos una barra (archivo o directorio)...
 _TOKEN_RUTA = re.compile(r"[\w./~-]*/[\w./~-]+")
 # ...y también un nombre de archivo CON EXTENSIÓN a secas, sin barra (dogfood
@@ -128,15 +121,14 @@ def _lineas_de(ruta):
 def alcance_amplio(pregunta, raiz=None):
     """True si el pedido es de alcance amplio — DETERMINISTA, sin LLM: los
     datos exactos (cuántos archivos, cuántas líneas) los cuenta el código
-    contra el disco. Tres señales: palabras de totalidad; un directorio
-    mencionado con >=AMPLIO_ARCHIVOS archivos de código; o masa mencionada
-    >=AMPLIO_LINEAS. Contrafáctico contra las corridas de exp/72-80 (bitácora
+    contra el disco. Dos señales: un directorio mencionado con
+    >=AMPLIO_ARCHIVOS archivos de código, o masa mencionada >=AMPLIO_LINEAS.
+    (Hasta X104 había una tercera, una regex de palabras de totalidad: el
+    contrafáctico de la fase 4b-mín midió que no decidía ningún caso.) Contrafáctico contra las corridas de exp/72-80 (bitácora
     exp/86): las tareas que agotaban el cap clasifican amplio; las cómodas
     no; y como la regla solo sube el tope, no puede cortar nada."""
     raiz = Path(raiz) if raiz else Path.cwd()
     texto = str(pregunta or "")
-    if _PALABRAS_AMPLIAS.search(texto):
-        return True
     masa = 0  # suma de líneas de los ARCHIVOS mencionados (spec: la masa, no cada uno)
     tokens = _TOKEN_RUTA.findall(texto) + _TOKEN_ARCHIVO.findall(texto)
     from utils.fs_tools import allowed_roots

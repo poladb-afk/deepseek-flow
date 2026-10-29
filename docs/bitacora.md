@@ -5637,3 +5637,41 @@ borran porque todo camino ofrece tools). Evidencia:
 `salidas/fable/resultados/fase3a-ab-{A,E}.jsonl`, desgloses en
 `salidas/evals/fase3a-ab-{A,E}-tokens.txt`, 33 trazas en `.runs/`
 (separadas por brazo en su origen).
+
+---
+
+## La fase 4b-mín: la regex de palabras se va (2026-10-28, X104)
+
+El contrafáctico 2 del pre-registro lo corrió el operador sobre sus
+preguntas reales: 36 únicas, 12 amplias con la regex, **0** que dejen de
+serlo sin ella. Con el contrafáctico 1 (14 escenarios de fable, sin cambios)
+la regex no decidía nada que el conteo en disco no decidiera ya: se borra
+`_PALABRAS_AMPLIAS` y `alcance_amplio` queda con las dos señales que cuenta
+el código. `vocabulario_hardcodeado` 8 → 7.
+
+**Conducta declarada**: una frase de totalidad sin ruta ("revisá todo el
+repo") ya no sube el tope. En el tráfico real no apareció; si aparece, el
+remedio pre-registrado es contar la raíz, no reponer la regex. Los tres
+tests que fijaban las frases como amplias pasan a fijar que ya no deciden;
+el de la precedencia del presupuesto usa un árbol de 12 archivos en vez de
+una frase. La sonda del contrafáctico se borra con la regex.
+
+**El comparador del A/B de la fase 3**: `banco/probes/comparar_fase3.py`.
+Lee el JSONL de cada brazo y SU directorio de trazas (el operador corre cada
+brazo en un worktree), empareja por orden de ejecución y se niega si las
+cuentas no coinciden; USD con las tarifas de `utils.costos` y el `cache_hit`
+de X98 (sin dato = miss, techo conservador). Aplica los cuatro criterios de
+`fase3.md` y dice cuál falló. Registrado también el brazo E del operador
+(`ENV_POR_BRAZO` no hereda la shell: sin él, el A/B habría corrido dos veces
+el brazo base).
+
+**El comparador de fase 3, corrido sobre el A/B real** (2026-10-29):
+`comparar_fase3.py` sobre los 16+16 del A/B (trazas separadas por brazo a
+partir de la hora de inicio en el nombre; el piloto del brazo E aparte).
+Veredicto: **FASE 3a: NO PASA** — los ocho renglones de fallo: calidad baja
+en s17/s18/s19, USD por escenario 2,2×–6,9× (tope 1,5×), y s17+s18 −2
+(hacía falta +2). Coincide con el cálculo a mano del operador. Salida:
+`salidas/evals/fase3a-ab-comparador.txt`. Detalle de método: emparejar
+trazas por mtime de última escritura mete el piloto en la tanda A (su
+escritura final cae en plena tanda); el nombre de la traza lleva la hora
+de inicio y es la referencia correcta.

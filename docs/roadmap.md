@@ -16,9 +16,9 @@ cerrada** (X96: `Observar` cuenta la ronda y el presupuesto es la arista
 `llamador` en la traza) y pre-registro en `banco/specs/fase2d.md`. **2d no
 entra** (X99: 2 cierres reales en 16 corridas, casos insuficientes). Fase 3:
 gate previo PASA (X102). **3a cableada detrás de `PENSAR_TOOLS=0`** (X103);
-falta el A/B de 16 + 16 corridas sobre el mismo HEAD. 4b-mín pre-registrada
-(`banco/specs/fase4b_min.md`); falta el contrafáctico sobre las preguntas
-reales. Fase 6 (limpieza de las piezas sueltas) aprobada, después de la 5.
+el A/B (brazo A vs brazo E, 16 + 16 sobre `bc5e8d0`) está corriendo; el
+veredicto lo da `banco/probes/comparar_fase3.py`. **4b-mín cerrada** (X104:
+la regex de palabras se borró, 0 cambios en 36 preguntas reales). Fase 6 (limpieza de las piezas sueltas) aprobada, después de la 5.
 2b-3 queda para después de la fase 4 (o se descarta si sigue sin haber
 sub-agentes); 2b-3 `AgentStep`/`ExecuteTools` →
 `Paso`/`Actuar` del kernel con renombre y alias en `replay`/`evals`. Sin

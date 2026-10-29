@@ -51,8 +51,8 @@
         ],
         "nodes.py": [
           66,
-          826,
-          898
+          818,
+          890
         ],
         "research.py": [
           78
@@ -504,7 +504,6 @@
       "detalle": {
         "tests/test_ab_skills.py": 9,
         "tests/test_absurdos_funcionales.py": 44,
-        "tests/test_alcance_sin_palabras.py": 2,
         "tests/test_auditoria_2026_10_26.py": 39,
         "tests/test_banco.py": 20,
         "tests/test_bench.py": 18,
@@ -513,6 +512,7 @@
         "tests/test_chat_flujo.py": 24,
         "tests/test_citas.py": 7,
         "tests/test_compaccion.py": 25,
+        "tests/test_comparar_fase3.py": 6,
         "tests/test_consolidacion.py": 44,
         "tests/test_contratos.py": 6,
         "tests/test_convergencia.py": 9,
@@ -584,7 +584,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1138
+      "metrica": 1142
     },
     "texto_de_prompt": {
       "detalle": {
@@ -599,14 +599,13 @@
       "detalle": {
         "juez.py:TOOL_CONTEXTO_RE": 1,
         "nodes.py:GetQuestion": 1,
-        "nodes.py:_PALABRAS_AMPLIAS": 1,
         "utils/aprobaciones.py:YES": 1,
         "utils/laya_routing.py:RE_TEMPORAL": 1,
         "utils/laya_routing.py:_IMPERATIVOS_CAPACIDAD": 1,
         "utils/laya_routing.py:_RELLENOS": 1,
         "utils/laya_routing.py:_RE_OBJETO_CAPACIDAD": 1
       },
-      "metrica": 8
+      "metrica": 7
     }
   },
   "version": 1

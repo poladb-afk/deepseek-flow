@@ -204,12 +204,14 @@ def test_presupuesto_perfiles_por_operacion_y_precedencia(monkeypatch):
 
 def test_alcance_amplio_por_palabras_directorio_y_masa(tmp_path):
     """exp/86: la regla es determinista (los datos exactos los cuenta el
-    código contra el disco). Contrafáctico contra exp/72-80 en bitácora."""
+    código contra el disco). Desde X104 (fase 4b-mín) sin vocabulario: las
+    palabras de totalidad solas ya no deciden — el contrafáctico sobre los 14
+    escenarios y 36 preguntas reales midió que no decidían ningún caso."""
     import nodes
 
-    # palabras de totalidad, sin tocar el disco
-    assert nodes.alcance_amplio("revisá todo el repo buscando bugs")
-    assert nodes.alcance_amplio("auditoría del proyecto completa")
+    # palabras de totalidad SIN ruta: ya no suben el tope (X104)
+    assert not nodes.alcance_amplio("revisá todo el repo buscando bugs", raiz=tmp_path)
+    assert not nodes.alcance_amplio("auditoría del proyecto completa", raiz=tmp_path)
     # directorio mencionado con muchos archivos de código (s13: árbol exports)
     arbol = tmp_path / "exports"
     arbol.mkdir()
@@ -231,23 +233,27 @@ def test_alcance_amplio_por_palabras_directorio_y_masa(tmp_path):
     assert not nodes.alcance_amplio("mirá no/existe/dir y decime", raiz=tmp_path)
 
 
-def test_presupuesto_amplio_sube_el_tope_sin_tocar_la_precedencia():
-    """exp/86: el tope amplio se aplica solo cuando no hay override ni perfil
-    (y como la regla solo sube, no puede cortar nada: cap, no gasto)."""
+def test_presupuesto_amplio_sube_el_tope_sin_tocar_la_precedencia(tmp_path, monkeypatch):
+    """exp/86: el tope amplio se aplica solo cuando no hay override (y como
+    la regla solo sube, no puede cortar nada: cap, no gasto). El pedido
+    amplio es uno que menciona un árbol grande (X104: sin palabras)."""
     import nodes
 
-    assert nodes.presupuesto({"_objetivo": "audit todo el repo"}) == nodes.MAX_TOOL_ROUNDS_AMPLIO
+    arbol = tmp_path / "exports"
+    arbol.mkdir()
+    for i in range(12):
+        (arbol / f"mod_{i}.py").write_text("x = 1\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    amplio = f"auditá {arbol}"
+    assert nodes.presupuesto({"_objetivo": amplio}) == nodes.MAX_TOOL_ROUNDS_AMPLIO
     # el override sigue ganando
-    assert nodes.presupuesto({"_objetivo": "todo el repo", "max_tool_rounds": 3}) == 3
+    assert nodes.presupuesto({"_objetivo": amplio, "max_tool_rounds": 3}) == 3
     # pregunta acotada: default de siempre
     assert nodes.presupuesto({"_objetivo": "qué hace esta línea?"}) == nodes.MAX_TOOL_ROUNDS
     # el tope amplio nunca BAJA del default si alguien lo configuró más alto
-    monkey_default = nodes.MAX_TOOL_ROUNDS
-    try:
-        nodes.MAX_TOOL_ROUNDS = 20
-        assert nodes.presupuesto({"_objetivo": "todo el repo"}) == 20
-    finally:
-        nodes.MAX_TOOL_ROUNDS = monkey_default
+    monkeypatch.setattr(nodes, "MAX_TOOL_ROUNDS", 20)
+    assert nodes.presupuesto({"_objetivo": amplio}) == 20
 
 
 def test_fingerprint_paginado_no_dispara_y_repetido_si():
@@ -504,8 +510,9 @@ def test_alcance_amplio_por_nombre_de_archivo_a_secas(tmp_path):
 
 def test_todos_los_tests_pasa_no_es_totalidad(tmp_path):
     """F9 (dogfood): 'todos los tests pasan' es un claim de verificación, no
-    de alcance — el sustantivo de amplitud es el que decide."""
+    de alcance. Desde X104 ninguna frase decide sola (ni esa ni "todos los
+    archivos"): el alcance lo cuenta el disco a partir de lo mencionado."""
     import nodes
 
     assert not nodes.alcance_amplio("arregló el bug y todos los tests pasan", raiz=tmp_path)
-    assert nodes.alcance_amplio("revisá todos los archivos del paquete", raiz=tmp_path)
+    assert not nodes.alcance_amplio("revisá todos los archivos del paquete", raiz=tmp_path)
