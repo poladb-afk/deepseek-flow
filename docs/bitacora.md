@@ -5615,3 +5615,25 @@ queda como cicatriz de un commit (calidad roja solo ahí, por el doble
 candado de X80); este commit siguiente la limpia. Contrafáctico 2 de la
 4b-mín, corrido por el agente: 36 preguntas reales, 12 amplias con la regex,
 0 dejan de serlo sin ella — PASA.
+
+**A/B de la fase 3a corrido: la 3a NO PASA por los tres criterios** (2026-10-29):
+32 corridas sobre el mismo HEAD (`bc5e8d0`), brazos A (base) y E (A +
+`PENSAR_TOOLS=1`, brazo agregado por el agente porque el env del chat del
+banco no hereda la shell), worktrees separados, 0 errores, sin 400. Piloto
+previo: el setting llega (completion por llamada ~1.509 vs ~772 de la base).
+
+Calidad (suma correct_action): s17 6→5, s18 5→4, s19 6→4, s20 6→6.
+- s17+s18: **11 → 9** (el criterio pedía subir ≥2) ❌
+- tres escenarios bajan (pedía ninguno) ❌
+- costo USD mediana por corrida: **0,0066 → 0,0322 (4,85×)**, pedía ≤1,5× ❌
+  · latencia mediana 47 s → 167 s (3,6×)
+
+Veredicto (fase3.md, decisión atada): **la 3a no entra** — y rige la regla
+explícita «sin ganancia de calidad no entra aunque cueste lo mismo»: no
+hubo ganancia Y costó ~5×. Camino declarado por el autor: se borra el
+cableado de la 3a y su setting, queda anotada como no aprobada; 3b y 4a
+siguen (Laya elige otra cosa en lugar del modo thinking; las reglas se
+borran porque todo camino ofrece tools). Evidencia:
+`salidas/fable/resultados/fase3a-ab-{A,E}.jsonl`, desgloses en
+`salidas/evals/fase3a-ab-{A,E}-tokens.txt`, 33 trazas en `.runs/`
+(separadas por brazo en su origen).
