@@ -5716,3 +5716,12 @@ tools de más, USD y descarrilos — este último porque con tools ofrecidas el
 thinking va apagado, y la bitácora ya midió descarrilos en directo sin
 thinking.
 
+
+**Aceptación del ratchet tras revertir la 3a** (2026-10-29): el operador
+aceptó con su clave el `tests_definidos` 1142→1132 (la reversión adelgaza
+los tests del thinking 11→7 y borra los del comparador, que cumplió: el
+veredicto del A/B queda en la bitácora y en `salidas/evals`).
+`settings_leidos` volvió a 78 solo (mejora: PENSAR_TOOLS fuera). Nota del
+método para 3b, del pre-registro: cada brazo con su `.runs` desde el
+principio (la reconstrucción por mtime de esta vez mezcló el piloto en la
+tanda A).
