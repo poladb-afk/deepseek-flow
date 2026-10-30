@@ -1,0 +1,410 @@
+{"comando": "/bin/cat x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/cd x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/cp x", "nivel": "preguntar", "explicacion": "copia archivos"}
+{"comando": "/bin/echo x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/file x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/find x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/git blame x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/git checkout x", "nivel": "preguntar", "explicacion": "cambia de rama/descarta cambios de working tree"}
+{"comando": "/bin/git commit x", "nivel": "preguntar", "explicacion": "crea un commit en tu repo local"}
+{"comando": "/bin/git diff x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/git log x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/git push x", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
+{"comando": "/bin/git reset x", "nivel": "preguntar", "explicacion": "mueve HEAD (puede descartar cambios)"}
+{"comando": "/bin/git show x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/git status x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/grep x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/head x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/ls x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/mkdir x", "nivel": "preguntar", "explicacion": "crea directorios"}
+{"comando": "/bin/mv x", "nivel": "preguntar", "explicacion": "mueve o renombra archivos"}
+{"comando": "/bin/pip x", "nivel": "preguntar", "explicacion": "instala paquetes (modifica el entorno)"}
+{"comando": "/bin/pip3 x", "nivel": "preguntar", "explicacion": "instala paquetes (modifica el entorno)"}
+{"comando": "/bin/pytest x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/python -c x", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
+{"comando": "/bin/python3 -c x", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
+{"comando": "/bin/python3 -m pytest x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/python3 -m ruff check x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/rm -fr x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "/bin/rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "/bin/rm x", "nivel": "preguntar", "explicacion": "borra archivos"}
+{"comando": "/bin/ruff check x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/sort x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/tail x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/touch x", "nivel": "preguntar", "explicacion": "crea o actualiza archivos"}
+{"comando": "/bin/wc x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "cat", "nivel": "auto", "explicacion": "muestra un archivo (solo lee)"}
+{"comando": "cat x", "nivel": "auto", "explicacion": "muestra un archivo (solo lee)"}
+{"comando": "cd", "nivel": "auto", "explicacion": "cambia de directorio (solo afecta al subshell del comando)"}
+{"comando": "cd x", "nivel": "auto", "explicacion": "cambia de directorio (solo afecta al subshell del comando)"}
+{"comando": "command ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "command rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "cp", "nivel": "preguntar", "explicacion": "copia archivos"}
+{"comando": "cp x", "nivel": "preguntar", "explicacion": "copia archivos"}
+{"comando": "echo", "nivel": "auto", "explicacion": "imprime texto"}
+{"comando": "echo x", "nivel": "auto", "explicacion": "imprime texto"}
+{"comando": "env --chdir v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "env --chdir v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "env --split-string v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "env --split-string v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "env --unset v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "env --unset v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "env -C v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "env -C v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "env -S v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "env -S v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "env -u v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "env -u v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "env ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "env rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "exec -a v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "exec -a v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "exec ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "exec rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "file", "nivel": "auto", "explicacion": "identifica el tipo de archivo (solo lee)"}
+{"comando": "file x", "nivel": "auto", "explicacion": "identifica el tipo de archivo (solo lee)"}
+{"comando": "find", "nivel": "auto", "explicacion": "busca archivos (solo lee)"}
+{"comando": "find -H x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -H=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -L x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -L=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -delete x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -delete=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -exec x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -exec=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -execdir x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -execdir=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -fls x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -fls=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -follow x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -follow=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -fprint x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -fprint0 x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -fprint0=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -fprint=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -fprintf x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -fprintf=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -ok x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -ok=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -okdir x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -okdir=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "find -qH x", "nivel": "auto", "explicacion": "busca archivos (solo lee)"}
+{"comando": "find -qL x", "nivel": "auto", "explicacion": "busca archivos (solo lee)"}
+{"comando": "find x", "nivel": "auto", "explicacion": "busca archivos (solo lee)"}
+{"comando": "git --git-dir v push", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
+{"comando": "git --git-dir v status", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "git --namespace v push", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
+{"comando": "git --namespace v status", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "git --work-tree v push", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
+{"comando": "git --work-tree v status", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "git -C v push", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
+{"comando": "git -C v status", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "git -c v push", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
+{"comando": "git -c v status", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "git blame", "nivel": "auto", "explicacion": "autoría por línea (solo lee)"}
+{"comando": "git blame --ext-diff x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git blame --ext-diff=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git blame --output x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git blame --output=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git blame --textconv x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git blame --textconv=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git blame x", "nivel": "auto", "explicacion": "autoría por línea (solo lee)"}
+{"comando": "git checkout", "nivel": "preguntar", "explicacion": "cambia de rama/descarta cambios de working tree"}
+{"comando": "git checkout x", "nivel": "preguntar", "explicacion": "cambia de rama/descarta cambios de working tree"}
+{"comando": "git commit", "nivel": "preguntar", "explicacion": "crea un commit en tu repo local"}
+{"comando": "git commit x", "nivel": "preguntar", "explicacion": "crea un commit en tu repo local"}
+{"comando": "git diff", "nivel": "auto", "explicacion": "cambios sin commitear (solo lee)"}
+{"comando": "git diff --ext-diff x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git diff --ext-diff=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git diff --output x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git diff --output=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git diff --textconv x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git diff --textconv=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git diff x", "nivel": "auto", "explicacion": "cambios sin commitear (solo lee)"}
+{"comando": "git log", "nivel": "auto", "explicacion": "historial de commits (solo lee)"}
+{"comando": "git log --ext-diff x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git log --ext-diff=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git log --output x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git log --output=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git log --textconv x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git log --textconv=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git log x", "nivel": "auto", "explicacion": "historial de commits (solo lee)"}
+{"comando": "git push", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
+{"comando": "git push x", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
+{"comando": "git reset", "nivel": "preguntar", "explicacion": "mueve HEAD (puede descartar cambios)"}
+{"comando": "git reset x", "nivel": "preguntar", "explicacion": "mueve HEAD (puede descartar cambios)"}
+{"comando": "git show", "nivel": "auto", "explicacion": "contenido de un objeto (solo lee)"}
+{"comando": "git show --ext-diff x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git show --ext-diff=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git show --output x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git show --output=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git show --textconv x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git show --textconv=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git show x", "nivel": "auto", "explicacion": "contenido de un objeto (solo lee)"}
+{"comando": "git status", "nivel": "auto", "explicacion": "estado del repo (solo lee)"}
+{"comando": "git status --ext-diff x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git status --ext-diff=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git status --output x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git status --output=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git status --textconv x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git status --textconv=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "git status x", "nivel": "auto", "explicacion": "estado del repo (solo lee)"}
+{"comando": "grep", "nivel": "auto", "explicacion": "busca texto (solo lee)"}
+{"comando": "grep --dereference-recursive x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "grep --dereference-recursive=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "grep -R x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "grep -R=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "grep -qR x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "grep x", "nivel": "auto", "explicacion": "busca texto (solo lee)"}
+{"comando": "head", "nivel": "auto", "explicacion": "muestra el inicio de un archivo (solo lee)"}
+{"comando": "head x", "nivel": "auto", "explicacion": "muestra el inicio de un archivo (solo lee)"}
+{"comando": "ls", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && cat x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && cd x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && cp x", "nivel": "preguntar", "explicacion": "copia archivos"}
+{"comando": "ls && echo x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && file x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && find x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && git blame x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && git checkout x", "nivel": "preguntar", "explicacion": "cambia de rama/descarta cambios de working tree"}
+{"comando": "ls && git commit x", "nivel": "preguntar", "explicacion": "crea un commit en tu repo local"}
+{"comando": "ls && git diff x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && git log x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && git push x", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
+{"comando": "ls && git reset x", "nivel": "preguntar", "explicacion": "mueve HEAD (puede descartar cambios)"}
+{"comando": "ls && git show x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && git status x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && grep x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && head x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && ls x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && mkdir x", "nivel": "preguntar", "explicacion": "crea directorios"}
+{"comando": "ls && mv x", "nivel": "preguntar", "explicacion": "mueve o renombra archivos"}
+{"comando": "ls && pip x", "nivel": "preguntar", "explicacion": "instala paquetes (modifica el entorno)"}
+{"comando": "ls && pip3 x", "nivel": "preguntar", "explicacion": "instala paquetes (modifica el entorno)"}
+{"comando": "ls && pytest x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && python -c x", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
+{"comando": "ls && python3 -c x", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
+{"comando": "ls && python3 -m pytest x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && python3 -m ruff check x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && rm -fr x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "ls && rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "ls && rm x", "nivel": "preguntar", "explicacion": "borra archivos"}
+{"comando": "ls && ruff check x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && sort x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && tail x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && touch x", "nivel": "preguntar", "explicacion": "crea o actualiza archivos"}
+{"comando": "ls && wc x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "mkdir", "nivel": "preguntar", "explicacion": "crea directorios"}
+{"comando": "mkdir x", "nivel": "preguntar", "explicacion": "crea directorios"}
+{"comando": "mv", "nivel": "preguntar", "explicacion": "mueve o renombra archivos"}
+{"comando": "mv x", "nivel": "preguntar", "explicacion": "mueve o renombra archivos"}
+{"comando": "nice --adjustment v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "nice --adjustment v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "nice -n v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "nice -n v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "nice ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "nice rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "nohup ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "nohup rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "pip", "nivel": "preguntar", "explicacion": "instala paquetes (modifica el entorno)"}
+{"comando": "pip x", "nivel": "preguntar", "explicacion": "instala paquetes (modifica el entorno)"}
+{"comando": "pip3", "nivel": "preguntar", "explicacion": "instala paquetes (modifica el entorno)"}
+{"comando": "pip3 x", "nivel": "preguntar", "explicacion": "instala paquetes (modifica el entorno)"}
+{"comando": "pytest", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --basetemp x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest --basetemp=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest --confcutdir x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest --confcutdir=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest --override-ini x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest --override-ini=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest --rootdir x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest --rootdir=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest -c x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest -c=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest -o x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest -o=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest -p x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest -p=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest -qc x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest -qo x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest -qp x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python -c", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
+{"comando": "python -c x", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
+{"comando": "python3 -c", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
+{"comando": "python3 -c x", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
+{"comando": "python3 -m pytest", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --basetemp x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest --basetemp=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest --confcutdir x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest --confcutdir=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest --override-ini x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest --override-ini=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest --rootdir x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest --rootdir=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest -c x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest -c=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest -o x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest -o=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest -p x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest -p=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest -qc x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest -qo x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest -qp x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m ruff check", "nivel": "auto", "explicacion": "lintea — parsea el código SIN ejecutarlo (escribe caché)"}
+{"comando": "python3 -m ruff check --add-noqa x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check --add-noqa=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check --fix x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check --fix-only x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check --fix-only=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check --fix=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check --output-file x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check --output-file=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check --watch x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check --watch=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check -o x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check -o=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check -qo x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check -qw x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check -w x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check -w=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m ruff check x", "nivel": "auto", "explicacion": "lintea — parsea el código SIN ejecutarlo (escribe caché)"}
+{"comando": "rm", "nivel": "preguntar", "explicacion": "borra archivos"}
+{"comando": "rm -fr", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "rm -fr x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "rm -rf", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "rm x", "nivel": "preguntar", "explicacion": "borra archivos"}
+{"comando": "ruff check", "nivel": "auto", "explicacion": "lintea — parsea el código SIN ejecutarlo (escribe caché)"}
+{"comando": "ruff check --add-noqa x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check --add-noqa=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check --fix x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check --fix-only x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check --fix-only=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check --fix=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check --output-file x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check --output-file=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check --watch x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check --watch=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check -o x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check -o=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check -qo x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check -qw x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check -w x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check -w=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "ruff check x", "nivel": "auto", "explicacion": "lintea — parsea el código SIN ejecutarlo (escribe caché)"}
+{"comando": "sort", "nivel": "auto", "explicacion": "ordena líneas (solo lee)"}
+{"comando": "sort --compress-program x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "sort --compress-program=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "sort --output x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "sort --output=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "sort -o x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "sort -o=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "sort -qo x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "sort x", "nivel": "auto", "explicacion": "ordena líneas (solo lee)"}
+{"comando": "sudo --close-from v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo --close-from v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo --command-timeout v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo --command-timeout v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo --group v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo --group v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo --other-user v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo --other-user v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo --prompt v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo --prompt v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo --role v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo --role v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo --type v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo --type v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo --user v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo --user v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo -C v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo -C v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo -T v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo -T v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo -U v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo -U v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo -g v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo -g v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo -p v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo -p v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo -r v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo -r v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo -t v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo -t v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo -u v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo -u v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo cat x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo cd x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo cp x", "nivel": "preguntar", "explicacion": "copia archivos"}
+{"comando": "sudo echo x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo file x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo find x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo git blame x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo git checkout x", "nivel": "preguntar", "explicacion": "cambia de rama/descarta cambios de working tree"}
+{"comando": "sudo git commit x", "nivel": "preguntar", "explicacion": "crea un commit en tu repo local"}
+{"comando": "sudo git diff x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo git log x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo git push x", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
+{"comando": "sudo git reset x", "nivel": "preguntar", "explicacion": "mueve HEAD (puede descartar cambios)"}
+{"comando": "sudo git show x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo git status x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo grep x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo head x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo ls x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo mkdir x", "nivel": "preguntar", "explicacion": "crea directorios"}
+{"comando": "sudo mv x", "nivel": "preguntar", "explicacion": "mueve o renombra archivos"}
+{"comando": "sudo pip x", "nivel": "preguntar", "explicacion": "instala paquetes (modifica el entorno)"}
+{"comando": "sudo pip3 x", "nivel": "preguntar", "explicacion": "instala paquetes (modifica el entorno)"}
+{"comando": "sudo pytest x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo python -c x", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
+{"comando": "sudo python3 -c x", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
+{"comando": "sudo python3 -m pytest x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo python3 -m ruff check x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo rm -fr x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "sudo rm x", "nivel": "preguntar", "explicacion": "borra archivos"}
+{"comando": "sudo ruff check x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo sort x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo tail x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo touch x", "nivel": "preguntar", "explicacion": "crea o actualiza archivos"}
+{"comando": "sudo wc x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "tail", "nivel": "auto", "explicacion": "muestra el final de un archivo (solo lee)"}
+{"comando": "tail --follow x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "tail --follow=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "tail --retry x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "tail --retry=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "tail -F x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "tail -F=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "tail -f x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "tail -f=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "tail -qF x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "tail -qf x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "tail x", "nivel": "auto", "explicacion": "muestra el final de un archivo (solo lee)"}
+{"comando": "time --format v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "time --format v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "time --output v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "time --output v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "time -f v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "time -f v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "time -o v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "time -o v rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "time ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "time rm -rf x", "nivel": "confirmar_doble", "explicacion": "borrado recursivo forzado (destructivo)"}
+{"comando": "timeout --kill-after v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "timeout --kill-after v rm -rf x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "timeout --signal v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "timeout --signal v rm -rf x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "timeout -k v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "timeout -k v rm -rf x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "timeout -s v ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "timeout -s v rm -rf x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "timeout ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "timeout rm -rf x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "touch", "nivel": "preguntar", "explicacion": "crea o actualiza archivos"}
+{"comando": "touch x", "nivel": "preguntar", "explicacion": "crea o actualiza archivos"}
+{"comando": "wc", "nivel": "auto", "explicacion": "cuenta líneas/palabras (solo lee)"}
+{"comando": "wc x", "nivel": "auto", "explicacion": "cuenta líneas/palabras (solo lee)"}

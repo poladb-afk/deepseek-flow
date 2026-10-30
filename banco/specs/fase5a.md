@@ -96,3 +96,11 @@ desaparece.
 
 Cambiar cualquier decisión (agregar o sacar un prefijo, endurecer un flag).
 Eso es otro PR, con su test de bypass, después de la 5a (R7).
+
+## Desvío declarado (X108a, antes del código)
+
+El instrumento 2 ("un caso por entrada, congelado en el mismo commit que la
+foto") no llegó con la foto: la sonda de X107 no lo generaba. X108a le suma
+`--casos` a la sonda; `banco/fixtures/policy_casos_entrada.jsonl` (410 casos)
+se genera sobre el árbol de ANTES de la migración y va en su commit, antes
+del código. Criterios intactos.

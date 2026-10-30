@@ -20,8 +20,15 @@ placeholders del banco); `/home/<usuario>` y `/Users/<usuario>` ajenos, a
 La salida por default va a `salidas/` (ignorado); `--fixture` escribe la foto
 que se versiona, para revisarla a mano ANTES de commitear.
 
+`--casos` escribe la otra mitad del instrumento de la 5a: UN caso sintético
+por entrada de la política (cada prefijo, cada flag peligroso con cada
+prefijo de su base, cada envoltorio con cada opción, cada opción global de
+git), derivado mecánicamente de las listas, con el nivel y el texto de la
+política del árbol donde se corre. Así ninguna entrada queda sin ejercitar
+aunque el tráfico real no la use.
+
 Uso:
-    python3 banco/probes/comandos_reales.py [--salidas salidas] [--fixture]
+    python3 banco/probes/comandos_reales.py [--salidas salidas] [--fixture | --casos]
 """
 import argparse
 import json
@@ -37,6 +44,7 @@ from utils import policy  # noqa: E402
 
 HOME = Path.home()
 FIXTURE = RAIZ / "banco" / "fixtures" / "policy_comandos.jsonl"
+CASOS = RAIZ / "banco" / "fixtures" / "policy_casos_entrada.jsonl"
 LARGO_MAX = 500
 TRUNCADO_RIESGO = 200
 _SECRETO = re.compile(r"(?i)sk-[a-z0-9]{8}|api[_-]?key|token\s*=|passw(or)?d|secret|bearer\s")
@@ -104,6 +112,38 @@ def foto(comandos, raiz=RAIZ, home=HOME):
     return filas, dict(descartes)
 
 
+def _base_efectiva(prefijo):
+    return policy._BASES_MODULO.get(tuple(prefijo[:3]), prefijo[0])
+
+
+def casos_por_entrada():
+    """Los comandos sintéticos, uno o más por entrada de la política (lee
+    los nombres internos de `utils.policy`, que la 5a conserva). Ordenados
+    y sin repetidos: mismo árbol ⇒ mismo archivo, byte a byte."""
+    auto = list(policy._WHITELIST_PREFIJOS)
+    todos = auto + list(policy._NEGRA_PREGUNTAR) + list(policy._NEGRA_DOBLE) \
+        + [p for p, _ in policy._EXPLICACIONES]
+    casos = set()
+    for prefijo in todos:
+        texto = " ".join(prefijo)
+        casos |= {texto, f"{texto} x", f"sudo {texto} x", f"ls && {texto} x", f"/bin/{texto} x"}
+    for base, flags in policy._FLAGS_PELIGROSOS.items():
+        for prefijo in (p for p in auto if _base_efectiva(p) == base):
+            texto = " ".join(prefijo)
+            for flag in flags:
+                casos |= {f"{texto} {flag} x", f"{texto} {flag}=x"}
+                if len(flag) == 2:
+                    casos.add(f"{texto} -q{flag[1]} x")
+    for envoltorio in sorted(policy._ENVOLTORIOS):
+        casos |= {f"{envoltorio} rm -rf x", f"{envoltorio} ls"}
+        for opcion in policy._OPCIONES_CON_VALOR.get(envoltorio, ()):
+            casos |= {f"{envoltorio} {opcion} v rm -rf x", f"{envoltorio} {opcion} v ls"}
+    for opcion in sorted(policy._GIT_GLOBAL_CON_VALOR):
+        casos |= {f"git {opcion} v push", f"git {opcion} v status"}
+    return [{"comando": c, "nivel": policy.clasificar(c), "explicacion": policy.explicar(c)}
+            for c in sorted(casos)]
+
+
 def resumen(filas, descartes):
     por_nivel = Counter(f["nivel"] for f in filas)
     primeros = Counter((f["comando"].split() or ["?"])[0] for f in filas)
@@ -117,8 +157,15 @@ def resumen(filas, descartes):
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="comandos_reales", description="fase 5a: la foto de la política")
     parser.add_argument("--salidas", default=str(RAIZ / "salidas"))
-    parser.add_argument("--fixture", action="store_true", help=f"escribe la foto versionable en {FIXTURE}")
+    modo = parser.add_mutually_exclusive_group()
+    modo.add_argument("--fixture", action="store_true", help=f"escribe la foto versionable en {FIXTURE}")
+    modo.add_argument("--casos", action="store_true", help=f"escribe un caso por entrada en {CASOS}")
     args = parser.parse_args(argv)
+    if args.casos:
+        casos = casos_por_entrada()
+        CASOS.write_text("".join(json.dumps(c, ensure_ascii=False) + "\n" for c in casos), encoding="utf-8")
+        print(f"casos por entrada: {len(casos)} → {CASOS}")
+        return 0
     salidas = Path(args.salidas)
     comandos = []
     for ruta in sorted(salidas.rglob("*.jsonl")):

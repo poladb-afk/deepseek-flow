@@ -37,3 +37,17 @@ def test_la_foto_es_la_politica_de_hoy_dedup_y_sin_secretos():
         ("ls", "auto", 2), ("rm -rf build", "confirmar_doble", 1)]
     assert descartes == {"posible_secreto": 1, "largo": 1}
     assert all(f["explicacion"] for f in filas)
+
+
+def test_hay_un_caso_por_cada_entrada_de_la_politica():
+    """Ninguna entrada de la política queda sin un caso que la ejercite."""
+    from utils import policy
+
+    comandos = {c["comando"] for c in cr.casos_por_entrada()}
+    for prefijo in policy._WHITELIST_PREFIJOS + policy._NEGRA_PREGUNTAR + policy._NEGRA_DOBLE:
+        assert " ".join(prefijo) in comandos
+    for base, flags in policy._FLAGS_PELIGROSOS.items():
+        assert all(any(f" {flag} x" in c and c.split()[0] in (base, "python3") for c in comandos) for flag in flags)
+    for envoltorio, opciones in policy._OPCIONES_CON_VALOR.items():
+        assert all(f"{envoltorio} {o} v rm -rf x" in comandos for o in opciones)
+    assert all(f"git {o} v push" in comandos for o in policy._GIT_GLOBAL_CON_VALOR)

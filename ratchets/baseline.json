@@ -438,6 +438,7 @@
         "tests/test_caracterizacion_chat.py": 12,
         "tests/test_chat_flujo.py": 24,
         "tests/test_citas.py": 7,
+        "tests/test_comandos_reales.py": 4,
         "tests/test_compaccion.py": 25,
         "tests/test_consolidacion.py": 38,
         "tests/test_contratos.py": 4,
@@ -501,7 +502,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1004
+      "metrica": 1008
     },
     "texto_de_prompt": {
       "detalle": {
