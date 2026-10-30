@@ -34,8 +34,9 @@ def migrar(shared):
     if "turno" not in shared:
         shared["turno"] = {**nuevo_turno(), **viejas}
     # X96: `aviso_cierre` y `corte_novedad` los reemplazó la estructura (el
-    # nodo Cierre, motivo_de_cierre): un checkpoint anterior los trae y sobran
-    for clave in ("aviso_cierre", "corte_novedad"):
+    # nodo Cierre, motivo_de_cierre); X106: `ruta` y `router_pendiente` se
+    # fueron con el router. Un checkpoint anterior los trae y sobran.
+    for clave in ("aviso_cierre", "corte_novedad", "ruta", "router_pendiente"):
         shared["turno"].pop(clave, None)
     return shared
 

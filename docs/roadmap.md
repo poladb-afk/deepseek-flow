@@ -16,8 +16,9 @@ cerrada** (X96: `Observar` cuenta la ronda y el presupuesto es la arista
 `llamador` en la traza) y pre-registro en `banco/specs/fase2d.md`. **2d no
 entra** (X99: 2 cierres reales en 16 corridas, casos insuficientes). Fase 3:
 gate previo PASA (X102). **3a NO PASA** (X105: el A/B dio 2,2×–6,9× el USD y s17+s18 −2; cableado
-borrado). **3b + 4a pre-registradas** (`banco/specs/fase3b_4a.md`: el router
-sale del chat; corre el operador `fase3b-directas` ×3 por brazo). **4b-mín cerrada** (X104:
+borrado). **3b + 4a pre-registradas** (`banco/specs/fase3b_4a.md`) y **escritas**
+(X106: el router sale del chat; falta el A/B `fase3b-directas` ×3 por brazo y
+la clave del operador para `tests_definidos` 1132 → 1004). **4b-mín cerrada** (X104:
 la regex de palabras se borró, 0 cambios en 36 preguntas reales). Fase 6 (limpieza de las piezas sueltas) aprobada, después de la 5.
 2b-3 queda para después de la fase 4 (o se descarta si sigue sin haber
 sub-agentes); 2b-3 `AgentStep`/`ExecuteTools` →

@@ -14,22 +14,18 @@ disparan por regex, sin LLM.
 ```mermaid
 flowchart TD
     GetQuestion_0 -->|continue| PreFetch_1
-    PreFetch_1 -->|continue| LayaRouter_2
-    LayaRouter_2 -->|directo| Contexto_3
-    Contexto_3 -->|directo| DirectAnswer_4
-    DirectAnswer_4 -->|answer| VerificarCitas_5
+    PreFetch_1 -->|continue| Skills_2
+    Skills_2 -->|continue| Contexto_3
+    Contexto_3 -->|herramientas| AgentStep_4
+    AgentStep_4 -->|answer| VerificarCitas_5
     VerificarCitas_5 -->|default| GetQuestion_0
-    DirectAnswer_4 -->|tool| ExecuteTools_6
+    AgentStep_4 -->|tool| ExecuteTools_6
     ExecuteTools_6 -->|default| Observar_7
     Observar_7 -->|default| Contexto_3
-    Contexto_3 -->|herramientas| AgentStep_8
-    AgentStep_8 -->|answer| VerificarCitas_5
-    AgentStep_8 -->|tool| ExecuteTools_6
-    Contexto_3 -->|cierre| Cierre_9
-    Cierre_9 -->|answer| VerificarCitas_5
-    Cierre_9 -->|tool| ExecuteTools_6
-    LayaRouter_2 -->|herramientas| Contexto_3
-    GetQuestion_0 -->|exit| ExitChat_10
+    Contexto_3 -->|cierre| Cierre_8
+    Cierre_8 -->|answer| VerificarCitas_5
+    Cierre_8 -->|tool| ExecuteTools_6
+    GetQuestion_0 -->|exit| ExitChat_9
 ```
 
 ## Filosofía
@@ -89,9 +85,9 @@ un comando los baja, verifica y deja listos:
 ./descargar_modelos.sh
 ```
 
-Sin ese paso el harness funciona igual — el router del chat y el Choose del
-supervisor degradan al lado DeepSeek; solo se pierden los ifs locales (ms,
-costo 0).
+Sin ese paso el harness funciona igual: el prefiltro de memoria, el juez de
+riesgo y el juicio MCP degradan a su camino sin Laya (el router del chat se
+retiró en X106: un solo camino con tools).
 
 ## Capacidades (31 tools, al día de hoy)
 
@@ -112,7 +108,7 @@ costo 0).
 | supervisor | `run_supervisor` — v2: un paso = UNA llamada con tool-calling nativo (herramienta + args juntos); vetos, caché y presupuesto como guardas de código |
 | db | `sql` / `db_schema` — SELECT de solo lectura sobre SQLite |
 | effective_n | `run_effective_n` — deduplicación exacta por contenido (Effective N; 1 o varias carpetas, `BatchFlow`) |
-| evals | `evals` — el harness juzgándose a sí mismo: bench del router, linter de trazas, costo por sesión (tool del chat: informe a disco SIN pisar el baseline) |
+| evals | `evals` — el harness juzgándose a sí mismo: linter de trazas y costo por sesión (informe a disco) |
 | rag | `rag_search` / `rag_index` — búsqueda semántica local (fastembed) |
 | memoria | `memory_search` / `memory_save` — biblioteca consultable entre sesiones |
 | vision/PDF | `ver_imagen` / `ver_pdf` — mira imágenes (data-URL base64) y lee PDFs (rasterizados con `pdftoppm`, página → imagen); tipo por contenido, límites chequeados antes de llamar |
@@ -156,8 +152,6 @@ guarda cada sink, con qué default y cómo apagarlo:
 | Dato | Archivo | Default | Apagador |
 |---|---|---|---|
 | Pregunta del usuario, **texto en claro** (4000 chars) | `salidas/preguntas.jsonl` | **encendido** | `PREGUNTAS_LOG=0` |
-| Decisión del router (sin texto) | `salidas/routing.jsonl` | `LAYA_LOG_DECISIONES=1` | `LAYA_LOG_DECISIONES=0` |
-| Texto de la pregunta dentro del evento de routing | — | apagado | `LAYA_LOG_PREGUNTA=1` (200 chars) |
 | Juicio de riesgo de comandos (exp/44) | `salidas/riesgo.jsonl` | activo si hay `LAYA_MODEL_RIESGO` | sin modelo, es no-op |
 | Transcripción COMPLETA del `shared` por checkpoint | `salidas/threads/<id>.jsonl` | `THREAD_PERSIST=1` | `THREAD_PERSIST=0` |
 | Traza de nodos (nodo/acción/segundos, sin contenido) | `.runs/*.jsonl` | `TRACE=1` | `TRACE=0` |
@@ -165,7 +159,7 @@ guarda cada sink, con qué default y cómo apagarlo:
 | Respaldo de la zona fría al compactar | `memoria/nota_*_compactacion-*.md` | con la compacción | `COMPACTION_CHARS=0` |
 
 `PREGUNTAS_LOG` es el único sink con **texto del usuario encendido por
-default**: existe para calibrar el router con tráfico real (exp/33/43) y el
+default**: nació para calibrar el router con tráfico real (exp/33/43; el router se fue en X106) y el
 archivo está en `.gitignore`. Si tratás datos sensibles, arrancá con
 `PREGUNTAS_LOG=0` y `THREAD_PERSIST=0`. No hay retención automática: los
 archivos crecen hasta que los borres.
@@ -183,14 +177,13 @@ python3 main.py research "tema"          # investigación web con loop
 python3 main.py debate "tema" [--rondas] # debate multi-agente
 python3 main.py supervisor "tarea"       # orquestación de piezas
 python3 main.py effective_n [carpeta ...] # deduplicación exacta (1 o varias carpetas)
-python3 main.py evals                   # evals: bench del router + linter de trazas + costos
+python3 main.py evals                   # evals: linter de trazas + costos
 python3 main.py heartbeat [--ahora]    # piezas programadas (cron nocturno)
 python3 main.py webhook                 # server HITL+webhook (servicio, bloquea)
 WEBCHAT=1 python3 main.py webhook       # ídem + chat web en http://127.0.0.1:8765/chat
 python3 main.py visor [trace.jsonl]    # HTML del trace (default: el último)
 python3 main.py index [carpeta]          # indexar para RAG
 python3 carga_trazas.py                  # (script aparte) jsonl → SQLite
-python3 sonda_router.py [ckpt]        # (script aparte) router con compuerta
 python3 main.py mcp-server               # exponer capacidades vía MCP
 python3 main.py grafo [flujo]            # exportar los grafos a mermaid
 python3 main.py bench_juez               # bench de answer_verified (grading por código)
@@ -230,7 +223,7 @@ deepseek-flow/
 │                      # piezas standalone (CLI) — los módulos las exponen
 ├── ratchet.py         # las métricas no empeoran (baseline en ratchets/)
 ├── ratchets/          # baseline versionado del ratchet
-├── utils/             # call_llm, fs_tools, policy, laya, laya_routing, conformal,
+├── utils/             # call_llm, fs_tools, policy, laya, skills,
 │                      # compaccion, contexto, prefetch, riesgo, thread_store,
 │                      # hitl_web, mcp_client, tracing, viz, websearch…
 ├── memoria/           # biblioteca entre sesiones (ignorada)

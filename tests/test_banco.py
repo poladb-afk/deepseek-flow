@@ -30,8 +30,7 @@ def test_los_escenarios_del_banco_son_validos():
 
 def test_los_marcadores_matchean_las_lineas_reales_del_chat():
     muestras = {
-        "laya": "  [laya] herramientas (conf 0.99)",
-        "voto": "  [voto] deepseek dice herramientas → herramientas",
+        "skill": "  [skill] revision activo — revisión de código",
         "hitl_prompt": "¿Escribir? → /x/hola.txt (s/n): ",
         "compaccion": "[compacción] zona fría: 30 mensajes → resumen; ventana caliente: 11",
         "sintaxis": "contenido\n⚠ SINTAXIS: invalid syntax (roto.py, line 1)",
@@ -44,7 +43,6 @@ def test_los_marcadores_matchean_las_lineas_reales_del_chat():
         "auto_lectura": "── run_command [auto: solo-lectura] ──",
         "interrumpido": "[interrumpido] generación cortada por el usuario",
         "dsml_ignorado": "  [DSML] tool calls como texto: IGNORADOS (presupuesto agotado)",
-        "etiqueta_ambiental": "  [router] etiqueta ambiental: directo (0 rondas)",
         "riesgo": "  [riesgo] observa: modifica=si 0.82 · irreversible=no 0.91 · revisar=si 0.66",
         "prefetch": "  [pre-fetch] /tmp/proyecto/flow.py",
     }
@@ -64,14 +62,11 @@ def test_los_marcadores_matchean_las_lineas_reales_del_chat():
     for linea in contaminantes:
         c = contar_marcadores(linea)
         assert not c.get("veto_l8") and not c.get("veto_denylist"), f"falso positivo en {linea!r}"
-    # Fixture NEGATIVO de la etiqueta ambiental: el TEMPLATE del código fuente
-    # (con {etiqueta}/{rondas}) lo cita la prosa de un agente que lee nodes.py
-    # y NO debe contar; la línea real (con dígitos) sí matchea (está arriba).
-    template = "  [router] etiqueta ambiental: {etiqueta} ({rondas} rondas)"
-    assert not re.search(MARCADORES["etiqueta_ambiental"], template), \
+    # Fixture NEGATIVO del skill: el TEMPLATE del código fuente (con
+    # {exec_res.id}) lo cita la prosa de un agente que lee nodes.py y NO cuenta.
+    template = '  [skill] {exec_res.id} activo — {exec_res.descripcion}'
+    assert not re.search(MARCADORES["skill"], template), \
         "el template del código fuente no debe matchear (prosa ecoada)"
-    assert re.search(MARCADORES["etiqueta_ambiental"],
-                     "  [router] etiqueta ambiental: directo (0 rondas)")
 
 
 def test_limpiar_quita_ansi_y_crlf():
@@ -213,7 +208,7 @@ def test_env_del_chat_aisla_la_memoria_y_marca_procedencia(monkeypatch):
     """exp/71: una corrida de banco no puede tocar la biblioteca curada del
     usuario (antes, con MEMORIA=0, el respaldo de compacción igual escribía
     `memoria/`). La memoria del banco va a `salidas/banco/memoria` y sus
-    logs (preguntas, routing, riesgo) a `salidas/banco/`: el tráfico
+    logs (preguntas, riesgo) a `salidas/banco/`: el tráfico
     sintético no cae en los de producción (X93)."""
     from banco.banco import RAIZ, _env_del_chat
 
@@ -221,7 +216,6 @@ def test_env_del_chat_aisla_la_memoria_y_marca_procedencia(monkeypatch):
     monkeypatch.delenv("MEMORIA_DIR", raising=False)
     env = _env_del_chat({"MAX_TOOL_ROUNDS": "3"})
     assert env["PREGUNTAS_ARCHIVO"] == str(RAIZ / "salidas" / "banco" / "preguntas.jsonl")
-    assert env["LAYA_LOG_ARCHIVO"] == str(RAIZ / "salidas" / "banco" / "routing.jsonl")
     assert env["RIESGO_ARCHIVO"] == str(RAIZ / "salidas" / "banco" / "riesgo.jsonl")
     assert env["MEMORIA"] == "0"
     assert env["MAX_TOOL_ROUNDS"] == "3"  # el env del escenario sigue mandando

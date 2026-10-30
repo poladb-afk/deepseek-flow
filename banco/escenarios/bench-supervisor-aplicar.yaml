@@ -12,7 +12,6 @@ env:
   COMPACTION_CHARS: "200000"
   # sesión de ESCRITURA de código: Laya apagada para no cargar checkpoints
   # (2×2.86 GiB) que solo consumen RAM — el router no aporta acá
-  USE_LAYA_ROUTER: "0"
   LAYA_MODEL_RIESGO: "0"
 scratch: []
 turnos:

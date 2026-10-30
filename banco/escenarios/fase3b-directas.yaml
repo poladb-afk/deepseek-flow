@@ -2,7 +2,6 @@ id: fase3b-directas
 descripcion: "fase 3b (pre-registro): las 12 preguntas `directo` de producto_router por el camino del chat; base = router, 3b = un solo camino con tools"
 env:
   PREGUNTAS_LOG: "0"
-  LAYA_LOG_ARCHIVO: "salidas/fase3b/routing.jsonl"
   COMPACTION_CHARS: "120000"
 turnos:
   - id: d01

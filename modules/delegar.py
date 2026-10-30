@@ -52,10 +52,6 @@ TOOLS = [
                         "type": "integer",
                         "description": "plazo global en minutos (default 30)",
                     },
-                    "shadow": {
-                        "type": "string",
-                        "description": "'1' fuerza LAYA_MODO=shadow en la corrida (suma pares a la flywheel del router)",
-                    },
                 },
                 "required": ["pedido"],
             },
@@ -79,8 +75,7 @@ def _minutos_validos(timeout_min):
     return minutos if minutos >= 1 else None
 
 
-def delegar_tarea(pedido, permitir=None, permitir_comandos=None,
-                  timeout_min=30, shadow=None):
+def delegar_tarea(pedido, permitir=None, permitir_comandos=None, timeout_min=30):
     if not pedido or not str(pedido).strip():
         return "ERROR: el pedido está vacío"
     pedido = " ".join(str(pedido).split())  # una sola línea, como el CLI
@@ -95,7 +90,7 @@ def delegar_tarea(pedido, permitir=None, permitir_comandos=None,
     # imprime acá para la terminal y viaja entero al HITL web)
     cuerpo = (f"lanzamiento del conductor\n\npedido: {pedido}\n"
               f"escrituras permitidas: {scope}\ncomandos permitidos: {scope_cmd}\n"
-              f"plazo: {minutos} min · shadow: {'sí' if shadow == '1' else 'no'}\n\n"
+              f"plazo: {minutos} min\n\n"
               "El conductor contesta solo los HITL dentro de este scope "
               "(proceso aparte); la tarea sigue aunque cierres el chat.")
     print(f"\n── delegar_tarea ──\n{cuerpo}")
@@ -111,10 +106,7 @@ def delegar_tarea(pedido, permitir=None, permitir_comandos=None,
     for prefijo in comandos or []:
         argv += ["--permitir-comandos", prefijo]
     argv += ["--timeout-min", str(minutos)]
-    env = dict(os.environ)
-    if shadow == "1":
-        env["LAYA_MODO"] = "shadow"
-    subprocess.Popen(argv, cwd=RAIZ, env=env, stdin=subprocess.DEVNULL,
+    subprocess.Popen(argv, cwd=RAIZ, env=dict(os.environ), stdin=subprocess.DEVNULL,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=True)
     return ("tarea delegada al conductor (proceso aparte: sigue aunque se cierre "

@@ -1,11 +1,10 @@
 """exp/55 — skills declarativas (Mesa 7): loader, disparo y cableado.
 
 Clavan el contrato mínimo: YAML válido → skill cargado; condición regex →
-disparo determinístico; el router en enforce fuerza herramientas, inyecta el
+disparo determinístico; el nodo Skills (X106) lo activa a la entrada, inyecta el
 prompt (prefijo `[skill]`) y el loop recorta la lista de tools al subset. Un
 YAML roto se saltea; un skill nunca expande el action space.
 """
-import json
 
 from modules import memoria
 from utils.skills import (
@@ -61,42 +60,6 @@ def test_filtrar_tools_es_subset_y_nunca_expande():
     assert [tool["function"]["name"] for tool in elegidas] == ["read_file"]
 
 
-def test_router_activa_skill_y_fuerza_herramientas(tmp_path, monkeypatch):
-    import nodes
-    from utils import call_llm
-
-    archivo = tmp_path / "routing.jsonl"
-    ajustes = {"LAYA_MODO": "enforce", "LAYA_LOG_ARCHIVO": str(archivo), "SKILLS": "1"}
-    monkeypatch.setattr(
-        call_llm, "_setting", lambda nombre, default=None: ajustes.get(nombre, default)
-    )
-    shared = {"messages": []}
-    router = nodes.LayaRouter()
-    estado = {"pregunta": "Revisá el código de utils/formato.py y decime si hay problemas."}
-    assert router.post(shared, estado, "herramientas") == "herramientas"
-    assert shared["turno"]["skill"] == "revision"  # el ID: el shared es JSON (F4)
-    assert shared["messages"][-1]["role"] == "user"
-    assert shared["messages"][-1]["content"].startswith(PREFIJO_SKILL)
-    linea = json.loads(archivo.read_text(encoding="utf-8").strip())
-    assert "skill revision" in linea["causa"]
-    assert linea["propuesta"] == "herramientas" and linea["p_directo"] is None
-
-
-def test_router_en_shadow_no_activa_skill(tmp_path, monkeypatch):
-    import nodes
-    from utils import call_llm
-
-    ajustes = {"LAYA_MODO": "shadow", "LAYA_LOG_ARCHIVO": str(tmp_path / "r.jsonl"),
-               "SKILLS": "1"}
-    monkeypatch.setattr(
-        call_llm, "_setting", lambda nombre, default=None: ajustes.get(nombre, default)
-    )
-    shared = {"messages": []}
-    estado = {"pregunta": "Revisá el código de utils/formato.py."}
-    nodes.LayaRouter().post(shared, estado, "herramientas")
-    assert shared.get("turno", {}).get("skill") is None
-
-
 def test_agent_step_anuncia_solo_el_subset_del_skill():
     import nodes
     from utils.skills import disponibles
@@ -119,3 +82,28 @@ def test_preguntas_reales_no_cuentan_el_mensaje_de_skill():
         {"role": "assistant", "content": "…"},
     ]
     assert memoria.preguntas_reales(mensajes) == 1
+
+
+def test_el_nodo_skills_activa_el_skill_una_vez(monkeypatch):
+    """X106: el skill se activa a la entrada de la pregunta (antes, dentro del
+    router y solo en enforce). La pregunta en curso sigue siendo la del usuario."""
+    import nodes
+
+    monkeypatch.setenv("SKILLS", "1")
+    pregunta = "Revisá el código de utils/formato.py y decime si hay problemas."
+    shared = {"messages": [{"role": "user", "content": pregunta}]}
+    assert nodes.Skills()._run(shared) == "continue"
+    assert shared["turno"]["skill"] == "revision"  # el ID: el shared es JSON (F4)
+    assert shared["messages"][-1]["content"].startswith(PREFIJO_SKILL)
+    assert nodes.pregunta_en_curso(shared["messages"]) == pregunta
+
+
+def test_el_nodo_skills_apagado_o_sin_disparo_no_toca_nada(monkeypatch):
+    import nodes
+
+    for valor, pregunta in (("0", "Revisá el código de utils/formato.py y decime si hay problemas."),
+                            ("1", "escribime un haiku sobre el mar.")):
+        monkeypatch.setenv("SKILLS", valor)
+        shared = {"messages": [{"role": "user", "content": pregunta}]}
+        assert nodes.Skills()._run(shared) == "continue"
+        assert shared.get("turno", {}).get("skill") is None and len(shared["messages"]) == 1

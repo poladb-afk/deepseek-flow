@@ -1,6 +1,6 @@
 """Rutas compartidas por las sondas: una sola fuente.
 
-El default de BMO_TASKS_DIR vivía copiado en sonda_laya.py, sonda_router.py y
+El default de BMO_TASKS_DIR vivía copiado en sonda_laya.py, sonda_router.py (retirada en X106) y
 sonda_supervisor.py — tres copias del mismo default, cada una libre de derivar
 sin que ningún test lo notara.
 """

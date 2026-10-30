@@ -5,7 +5,6 @@ id: exp91-selffix
 descripcion: recorte de tool results viejos en la ventana caliente (exp/88 fondo)
 env:
   PROMPT_FABLE: "1"
-  USE_LAYA_ROUTER: "0"
   MAX_TOOL_ROUNDS: "16"
   COMPACTION_CHARS: "120000"
 permitir:

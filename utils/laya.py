@@ -1,10 +1,10 @@
 """Laya: juicios cerrados locales con probabilidades — los "ifs inteligentes".
 
-Carga perezosa del checkpoint (LAYA_MODEL). Para el router del chat, el
-checkpoint es el fine-tune router_flow (bmo/train/kaggle-router): 27/30
-crudo con ECE 0.066 (reproducible: python3 sonda_laya.py router; el 22/24 histórico era el test de 24 casos previo a la curaduría).
-Sin LAYA_MODEL, el default es el BASE multilingual — útil como fallback
-genérico, pero el router afinado se trae de bmo.
+Carga perezosa del checkpoint (LAYA_MODEL). El router del chat, su primer
+uso, se retiró en X106 (fase 3b: un solo camino con tools). Quedan el juicio
+tipado del servidor MCP (`juicio`), el prefiltro de memoria/RAG
+(LAYA_MODEL_PREFILTRO) y el juez de riesgo (LAYA_MODEL_RIESGO). Sin
+LAYA_MODEL, el default es el BASE multilingual.
 
 Detalles medidos:
 - laya.load con path LOCAL igual consulta HF Hub y puede colgar en red:
@@ -233,9 +233,11 @@ def preguntar_lote(estados, preguntas, setting="LAYA_MODEL"):
     return [_extraer(r["answers"]) for r in resultados]
 
 
-def veredicto(confianza, alto=None, bajo=None):
-    alto = float(alto if alto is not None else _setting("LAYA_UNSURE_HIGH", "0.85"))
-    bajo = float(bajo if bajo is not None else _setting("LAYA_UNSURE_LOW", "0.3"))
+def veredicto(confianza, alto=0.85, bajo=0.3):
+    """met / not met / uncertain. Los umbrales eran settings del router
+    (LAYA_UNSURE_HIGH/LOW); sin router (X106) quedan sus defaults, y el
+    supervisor pasa el suyo."""
+    alto, bajo = float(alto), float(bajo)
     if confianza >= alto:
         return "met"
     if confianza <= bajo:

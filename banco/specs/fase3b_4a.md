@@ -96,3 +96,19 @@ vuelve a este documento con el dato.
 
 `vocabulario_hardcodeado` 7 → 3, `settings_leidos` 78 → ~66, `nodos_largos`
 14 → 13. Además el chat deja de cargar el checkpoint del router.
+
+## Brazo 3b escrito (X106)
+
+El código del brazo 3b es el árbol de X106. Desvíos respecto de "Qué se
+borra", declarados antes de correr:
+- `LAYA_UNSURE_HIGH/LOW` también se van (los leía `utils.laya.veredicto`
+  solo para el router; quedan sus defaults). `LAYA_LOG_*` estaba en el
+  inventario como contrato de privacidad; se va con el sink que apagaba.
+- `utils/conformal.py` se va: sin router no tiene lectores en el producto.
+- `delegar_tarea` pierde `shadow` (existía para alimentar la flywheel).
+- Escenarios `exp43-demo` y `exp54-reglas` borrados; `exp55-skills` sigue
+  siendo el gate de los skills.
+
+Resultado en ratchets: `settings_leidos` 78 → **64**, `vocabulario` 7 → **3**,
+`nodos_largos` 14 → **13** (la estimación decía ~66, 3, 13).
+

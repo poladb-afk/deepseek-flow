@@ -102,13 +102,6 @@ def test_prefetch_prep_saltea_mensajes_prefetch(monkeypatch):
     assert nodes.PreFetch().prep(shared) == "pregunta buena"
 
 
-# LayaRouter.prep lee la PREGUNTA aunque el prefetch quedó último (§3)
-
-def test_layarouter_prep_saltea_el_prefetch(monkeypatch):
-    shared = _shared_con_pregunta("¿Quién ganó el último mundial?")
-    shared["messages"].append({"role": "user", "content": f"{PREFIJO_PREFETCH} algo.md …"})
-    estado = nodes.LayaRouter().prep(shared)
-    assert estado["pregunta"] == "¿Quién ganó el último mundial?"
 
 
 # marcador del banco: positiva la línea real, negativo el template
@@ -123,3 +116,14 @@ def test_marcador_prefetch_del_banco():
     assert not re.search(patron, 'print(colorear(f"  {PREFIJO_PREFETCH} {path}", "info"))'), (
         "el template del código NO debe matchear (lección H2/Fix 10)"
     )
+
+
+def test_pregunta_en_curso_saltea_prefetch_y_skill():
+    """§3 de exp/50 sin router (X106): PreFetch y Skills leen la PREGUNTA
+    aunque el pre-fetch o el skill hayan quedado últimos."""
+    from utils.skills import PREFIJO_SKILL
+
+    mensajes = [{"role": "user", "content": "¿Quién ganó el último mundial?"},
+                {"role": "user", "content": f"{PREFIJO_PREFETCH} algo.md …"},
+                {"role": "user", "content": f"{PREFIJO_SKILL} revision — x"}]
+    assert nodes.pregunta_en_curso(mensajes) == "¿Quién ganó el último mundial?"

@@ -1,7 +1,7 @@
 """El diagrama del README es el grafo que ejecuta el framework, no uno dibujado.
 
 Medido en la auditoría del 2026-10-27: el README mostraba
-GetQuestion → AgentStep mientras el chat real pasa por PreFetch y LayaRouter.
+GetQuestion → AgentStep mientras el chat real pasaba por PreFetch y el router.
 `utils.viz.mermaid` ya camina los sucesores; acá se exige que el README diga
 lo mismo (regenerarlo: `python3 main.py grafo chat`)."""
 import re
@@ -9,8 +9,7 @@ import re
 from conftest import RAIZ
 
 
-def test_el_diagrama_del_readme_es_el_grafo_del_chat(monkeypatch):
-    monkeypatch.setenv("USE_LAYA_ROUTER", "1")  # el default de producción
+def test_el_diagrama_del_readme_es_el_grafo_del_chat():
     from flow import create_agent_flow
     from utils.viz import mermaid
 

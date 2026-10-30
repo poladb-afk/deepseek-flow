@@ -1,40 +1,16 @@
-"""Replay de trazas (exp/41, Mesa 1): niveles A-D contra los grafos vivos.
+"""Replay de trazas (exp/41, Mesa 1): niveles A-C contra los grafos vivos.
 
 Los niveles son funciones PURAS sobre listas de eventos: se testean sin
 tocar disco ni red. Los grafos vivos se construyen una vez por módulo
 (importar replay dispara lo mismo que viz: todos los flujos del registro).
 """
-import os
 from pathlib import Path
 
 import pytest
 
 import replay
-from utils.laya_routing import RouterConfig
 
 # Fijuras: grafos vivos + una caminata realista del chat
-
-
-@pytest.fixture(scope="module", autouse=True)
-def _router_on():
-    """HERMÉTICO: los grafos vivos se construyen con USE_LAYA_ROUTER=1.
-
-    `replay._grafos_vivos()` lee el setting por `_setting`, que mira PRIMERO
-    `os.environ` y recién después el `.env`. El banco exporta
-    USE_LAYA_ROUTER=0 para sus escenarios, y ese valor se hereda por el
-    pytest hijo: la variante con router (LayaRouter/DirectAnswer) desaparecía
-    del grafo y 4 tests fallaban por AMBIENTE, no por código. El fixture lo
-    pina a "1" (restaurando el valor previo al salir) para que la conducta
-    no dependa de dónde corre. Va ANTES de `vivos` (autouse + module)."""
-    previo = os.environ.get("USE_LAYA_ROUTER")
-    os.environ["USE_LAYA_ROUTER"] = "1"
-    try:
-        yield
-    finally:
-        if previo is None:
-            os.environ.pop("USE_LAYA_ROUTER", None)
-        else:
-            os.environ["USE_LAYA_ROUTER"] = previo
 
 
 @pytest.fixture(scope="module")
@@ -49,38 +25,38 @@ def _ev(nodo, accion, seg=0.1):
 
 
 def _caminata_chat():
-    """Una vuelta realista del chat con router: pregunta → router directo →
-    respuesta; pregunta → router herramientas → agente con tools → respuesta;
-    salida. Incluye evento_tool intercalado (la forma real de la traza)."""
+    """Una vuelta realista del chat de HOY (X106, un solo camino): pregunta →
+    respuesta sin tools; pregunta → agente con tools → respuesta; salida.
+    Incluye evento_tool intercalado (la forma real de la traza)."""
     return [
-        _ev("GetQuestion", "continue"),
-        _ev("LayaRouter", "directo"),
-        _ev("DirectAnswer", "answer"),
-        _ev("GetQuestion", "continue"),
-        _ev("LayaRouter", "herramientas"),
-        _ev("AgentStep", "tool"),
+        _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"), _ev("Skills", "continue"),
+        _ev("Contexto", "herramientas"), _ev("AgentStep", "answer"), _ev("VerificarCitas", "default"),
+        _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"), _ev("Skills", "continue"),
+        _ev("Contexto", "herramientas"), _ev("AgentStep", "tool"),
         _ev("read_file", "ok", 0.3),      # evento_tool entre AgentStep y ExecuteTools
-        _ev("ExecuteTools", "default"),
-        _ev("AgentStep", "answer"),
-        _ev("GetQuestion", "exit"),
-        _ev("ExitChat", "None"),
+        _ev("ExecuteTools", "default"), _ev("Observar", "default"),
+        _ev("Contexto", "herramientas"), _ev("AgentStep", "answer"), _ev("VerificarCitas", "default"),
+        _ev("GetQuestion", "exit"), _ev("ExitChat", "None"),
     ]
 
 
 # Grafos vivos
 
 
-def test_grafos_vivos_traen_las_variantes_del_chat(vivos):
+def test_grafos_vivos_traen_el_chat_de_un_solo_camino(vivos):
+    """X106: un solo grafo del chat, sin la variante ±router."""
     clases, aristas, _ = vivos
-    # nodos del chat con y sin router (PreFetch desde exp/50 en ambas variantes)
-    for nodo in ("GetQuestion", "PreFetch", "LayaRouter", "Contexto", "DirectAnswer",
-                 "AgentStep", "ExecuteTools", "ExitChat"):
+    for nodo in ("GetQuestion", "PreFetch", "Skills", "Contexto", "AgentStep",
+                 "ExecuteTools", "Observar", "Cierre", "ExitChat"):
         assert nodo in clases, nodo
-    # las aristas de ambas variantes: la del router y la de degradación
+    for nodo in ("LayaRouter", "DirectAnswer"):
+        assert nodo not in clases, nodo
     assert ("GetQuestion", "exit", "ExitChat") in aristas
-    assert ("LayaRouter", "herramientas", "AgentStep") in aristas
-    assert ("PreFetch", "continue", "AgentStep") in aristas  # sin router
+    assert ("Skills", "continue", "Contexto") in aristas
     assert ("AgentStep", "tool", "ExecuteTools") in aristas
+    # los pasajes transparentes: las caminatas sin PreFetch/Skills/Contexto valen
+    assert ("PreFetch", "continue", "AgentStep") in aristas
+    assert ("GetQuestion", "continue", "AgentStep") in aristas
 
 
 def test_grafos_vivos_traen_los_inline_y_las_tools(vivos):
@@ -96,34 +72,27 @@ def test_grafos_vivos_traen_los_inline_y_las_tools(vivos):
 # Nivel A — emisibilidad
 
 
-def test_caminata_con_contexto_es_valida(vivos):
-    """X95: la caminata NUEVA — router → Contexto → AgentStep → ExecuteTools →
-    Contexto → AgentStep — es arista del chat, y la vieja (sin Contexto)
-    también sigue valiendo (test_caminata_valida_sin_violaciones)."""
+def test_caminata_con_cierre_es_valida(vivos):
+    """X96: un turno que agota el presupuesto termina en Cierre."""
     clases, aristas, _ = vivos
-    nueva = [
-        _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"),
-        _ev("LayaRouter", "herramientas"), _ev("Contexto", "herramientas"),
-        _ev("AgentStep", "tool"), _ev("read_file", "ok", 0.3), _ev("ExecuteTools", "default"),
-        _ev("Observar", "default"), _ev("Contexto", "herramientas"), _ev("AgentStep", "answer"),
-        _ev("VerificarCitas", "default"), _ev("GetQuestion", "continue"),
-        _ev("PreFetch", "continue"), _ev("LayaRouter", "directo"),
-        _ev("Contexto", "directo"), _ev("DirectAnswer", "answer"),
-        _ev("VerificarCitas", "default"), _ev("GetQuestion", "exit"), _ev("ExitChat", "None"),
-    ]
-    assert replay.nivel_b_chat(nueva, clases, aristas) == []
-    assert replay.nivel_a(nueva, clases) == []
-    # X96: un turno que agota el presupuesto termina en Cierre
-    cerrado = [_ev("GetQuestion", "continue"), _ev("PreFetch", "continue"),
-               _ev("LayaRouter", "herramientas"), _ev("Contexto", "herramientas"),
-               _ev("AgentStep", "tool"), _ev("ExecuteTools", "default"), _ev("Observar", "default"),
-               _ev("Contexto", "cierre"), _ev("Cierre", "answer"), _ev("VerificarCitas", "default"),
-               _ev("GetQuestion", "exit"), _ev("ExitChat", "None")]
+    cerrado = [_ev("GetQuestion", "continue"), _ev("PreFetch", "continue"), _ev("Skills", "continue"),
+               _ev("Contexto", "herramientas"), _ev("AgentStep", "tool"), _ev("ExecuteTools", "default"),
+               _ev("Observar", "default"), _ev("Contexto", "cierre"), _ev("Cierre", "answer"),
+               _ev("VerificarCitas", "default"), _ev("GetQuestion", "exit"), _ev("ExitChat", "None")]
     assert replay.nivel_b_chat(cerrado, clases, aristas) == []
     assert replay.nivel_a(cerrado, clases) == []
-    # una ruta cruzada NO vale: Contexto sale por la arista por la que entró
-    cruzada = [_ev("LayaRouter", "directo"), _ev("Contexto", "directo"), _ev("AgentStep", "answer")]
-    assert replay.nivel_b_chat(cruzada, clases, aristas) == [("Contexto", "directo", "AgentStep")]
+
+
+def test_una_traza_del_router_se_ve_en_el_replay(vivos):
+    """X106: el replay existe para esto — una caminata de producción que el
+    código de HOY ya no puede dar. El router y la ruta directa son nodos
+    desconocidos (A′) y sus aristas, adyacencia rota (B)."""
+    clases, aristas, herramientas = vivos
+    vieja = [_ev("GetQuestion", "continue"), _ev("LayaRouter", "directo"),
+             _ev("Contexto", "directo"), _ev("DirectAnswer", "answer")]
+    assert replay.nivel_a_desconocidos(vieja, clases, herramientas) == [
+        ("LayaRouter", "directo"), ("DirectAnswer", "answer")]
+    assert ("GetQuestion", "continue", "LayaRouter") in replay.nivel_b_chat(vieja, clases, aristas)
 
 
 def test_caminata_valida_sin_violaciones(vivos):
@@ -137,11 +106,11 @@ def test_caminata_valida_sin_violaciones(vivos):
 
 def test_accion_renombrada_no_es_emisible(vivos):
     """El caso del guard (exp/39) pero hacia atrás: una acción que YA no está
-    cableada — incluida la etiqueta cruda histórica del router."""
+    cableada — incluida la ruta directa de Contexto, borrada en X106."""
     clases, *_ = vivos
-    eventos = [_ev("AgentStep", "respuesta_vieja"), _ev("LayaRouter", "uso_herramientas")]
+    eventos = [_ev("AgentStep", "respuesta_vieja"), _ev("Contexto", "directo")]
     assert sorted(replay.nivel_a(eventos, clases)) == [
-        ("AgentStep", "respuesta_vieja"), ("LayaRouter", "uso_herramientas")]
+        ("AgentStep", "respuesta_vieja"), ("Contexto", "directo")]
 
 
 def test_error_trazado_y_terminales_son_emisibles(vivos):
@@ -189,7 +158,6 @@ def test_chat_con_flujo_interno_adyacencia(vivos):
     clases, aristas, herramientas = vivos
     eventos = [
         _ev("GetQuestion", "continue"),
-        _ev("LayaRouter", "herramientas"),
         _ev("AgentStep", "tool"),
         _ev("run_supervisor", "ok", 30.0),     # la tool que lanza el flujo
         _ev("ElegirSiguiente", "ejecutar"),     # eventos del flujo interno:
@@ -254,48 +222,12 @@ def test_nodo_desconocido_sin_clase_ni_tool(vivos):
         ("NodoViejo", "continue")]
 
 
-# Nivel D — política del router sobre tráfico registrado
-
-
-@pytest.mark.parametrize("config,linea,esperado", [
-    (RouterConfig(modo="enforce", umbral=0.85),
-     {"propuesta": "directo", "aplicada": "directo",
-      "causa": "p(directo)=0.800 >= umbral 0.85", "p_directo": 0.80},
-     [("apretó", "p(directo)=0.800 >= umbral 0.85", 0.80)]),
-    (RouterConfig(modo="enforce", umbral=0.70),
-     {"propuesta": "herramientas", "aplicada": "herramientas",
-      "causa": "p(directo)=0.750 < umbral 0.85", "p_directo": 0.75},
-     [("aflojó", "p(directo)=0.750 < umbral 0.85", 0.75)]),
-], ids=["aprieta", "afloja"])
-def test_router_compuerta(config, linea, esperado):
-    '''Drift de política del router sobre tráfico registrado: un directo
-    aprobado entonces que la compuerta de HOY bloquea ("apretó"), o uno
-    bloqueado entonces que HOY pasaría ("aflojó"). La causa 'p(directo)=...'
-    es la firma de decide, el formato versionado.'''
-    assert replay.nivel_d_router([linea], config) == esperado
-
-
-def test_router_conforme_y_sin_drift():
-    """Con q conformal el piso es 1-q; y sin cambio de política no hay
-    divergencia."""
-    config = RouterConfig(modo="enforce", umbral=0.85, q=0.2)  # piso 0.8
-    lineas = [
-        {"propuesta": "directo", "causa": "conjunto colapsa en directo (q=0.200)",
-         "p_directo": 0.90},
-        {"propuesta": "herramientas", "causa": "p(directo)=0.750 < umbral 0.85",
-         "p_directo": 0.75},
-        {"propuesta": "herramientas", "causa": "laya eligió herramientas",
-         "p_directo": 0.30},
-    ]
-    assert replay.nivel_d_router(lineas, config) == []
-
-
 # End-to-end sobre tmp: corrida, baseline y veredicto
 
 
 def test_replay_runs_end_to_end(tmp_path, vivos, monkeypatch):
-    """Dos trazas (una limpia, una con drift) + routing.jsonl: el informe
-    cuenta por nivel, el markdown se escribe y el baseline compara."""
+    """Dos trazas (una limpia, una rota): el informe cuenta por nivel, el
+    markdown se escribe y el baseline compara."""
     runs = tmp_path / ".runs"
     runs.mkdir()
     (runs / "limpia.jsonl").write_text(
@@ -305,19 +237,12 @@ def test_replay_runs_end_to_end(tmp_path, vivos, monkeypatch):
         + _json(_ev("AgentStep", "accion_renombrada")) + "\n"
         + _json(_ev("tool_fantasma", "ok")) + "\n"
         + _json(_ev("ExecuteTools", "default")) + "\n", encoding="utf-8")
-    routing = tmp_path / "routing.jsonl"
-    routing.write_text(_json({
-        "propuesta": "directo", "aplicada": "directo",
-        "causa": "p(directo)=0.800 >= umbral 0.85", "p_directo": 0.80}) + "\n",
-        encoding="utf-8")
-
-    config = RouterConfig(modo="enforce", umbral=0.85)
-    informe = replay.replay_runs(runs, routing_log=routing, config=config)
+    informe = replay.replay_runs(runs)
     assert informe["trazas"] == 2
     assert informe["trazas_chat"] == 2
     assert informe["violaciones"]["a"] == 1        # accion_renombrada
     assert informe["violaciones"]["c"] == 1        # tool_fantasma
-    assert informe["violaciones"]["d"] == 1        # apretó
+    assert "d" not in informe["violaciones"]       # X106: sin nivel D
     # la rota.jsonl tiene un salto GetQuestion→AgentStep (válido) y
     # AgentStep(accion_renombrada)→tool_fantasma→ExecuteTools: los pares
     # con la tool filtrada quedan AgentStep→ExecuteTools, que NO es arista
@@ -339,12 +264,11 @@ def test_replay_runs_end_to_end(tmp_path, vivos, monkeypatch):
     assert replay.comparar_baseline(mejorado, ruta=baseline)["veredicto"] == "OK"
 
     # el informe markdown se escribe con la sección de límites primero
-    destino = replay.generar(runs, dir_salida=tmp_path / "salidas",
-                             routing_log=routing, config=config, sha="test")
+    destino = replay.generar(runs, dir_salida=tmp_path / "salidas", sha="test")
     texto = destino.read_text(encoding="utf-8")
     assert "Límite honesto" in texto
     assert "accion_renombrada" in texto and "tool_fantasma" in texto
-    assert "apretó" in texto
+    assert "Nivel D" not in texto
 
 
 def _json(e):
@@ -361,7 +285,6 @@ def test_main_replay_escribe(tmp_path, monkeypatch):
         "\n".join(_json(e) for e in _caminata_chat()) + "\n", encoding="utf-8")
     baseline = tmp_path / "base.json"
     destino = replay.main([
-        "--dir", str(runs), "--routing", str(tmp_path / "no_existe.jsonl"),
-        "--salida", str(tmp_path / "salidas")])
+        "--dir", str(runs), "--salida", str(tmp_path / "salidas")])
     assert Path(destino).is_file()
     assert not baseline.exists()  # nunca se guardó nada sin la flag

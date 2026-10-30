@@ -114,16 +114,3 @@ def test_los_flujos_inline_no_tienen_acciones_sueltas():
         assert not sueltas, f"{modulo}: devuelve {sueltas} sin arista declarada"
 
 
-def test_el_router_no_devuelve_una_accion_fuera_de_contrato(monkeypatch):
-    """El caso que motivó el guard: una etiqueta del checkpoint fuera de
-    contrato no puede cerrar el Flow en silencio."""
-    import nodes
-    from utils import laya
-
-    monkeypatch.setattr(laya, "disponible", lambda *a, **k: True)
-    monkeypatch.setattr(
-        laya, "preguntar",
-        lambda *a, **k: {"necesita_herramientas": ("uso_herramientas", 0.97)},
-    )
-    assert nodes.LayaRouter().post({}, "¿q?", ("uso_herramientas", 0.97)) == "herramientas"
-

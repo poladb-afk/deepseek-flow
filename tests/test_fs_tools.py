@@ -69,11 +69,11 @@ def test_search_files_con_path_a_archivo():
     archivo que sí lo contiene."""
     from utils.fs_tools import search_files
 
-    r = search_files(query="PREGUNTA_ROUTER", path="nodes.py")
-    assert "nodes.py" in r and "Ningún archivo" not in r
+    r = search_files(query="PREGUNTA_DESPACHO", path="sonda_supervisor.py")
+    assert "sonda_supervisor.py" in r and "Ningún archivo" not in r
 
-    r = search_files(query="PREGUNTA", path="sonda_router.py")
-    assert "sonda_router.py" in r and "Ningún archivo" not in r
+    r = search_files(query="PREGUNTA", path="sonda_laya.py")
+    assert "sonda_laya.py" in r and "Ningún archivo" not in r
 
 def test_recorrido_no_sigue_enlaces_simbolicos(tmp_path, monkeypatch):
     """exp/22 (C02 de la auditoría externa): comprobar la RAÍZ no comprueba

@@ -36,8 +36,7 @@ MAX_HITL_POR_TURNO = 6
 
 # Los marcadores que el banco cuenta por turno: la señal medible del chat.
 MARCADORES = {
-    "laya": r"\[laya\]",
-    "voto": r"\[voto\]",
+    "skill": r"\[skill\] [\w-]+ activo",
     "hitl_prompt": r"\(s/n\)",
     "compaccion": r"\[compacción\]",
     "sintaxis": r"⚠ SINTAXIS",
@@ -49,7 +48,6 @@ MARCADORES = {
     "ronda": r"⚙ ronda \d+",
     "auto_lectura": r"run_command \[auto",
     "interrumpido": r"\[interrumpido\]",
-    "etiqueta_ambiental": r"\[router\] etiqueta ambiental: (directo|herramientas) \(\d+ rondas\)",
     "riesgo": r"\[riesgo\] observa:",
     "prefetch": r"\[pre-fetch\]",
 }
@@ -65,7 +63,7 @@ def _env_del_chat(extras=None):
     """Entorno del chat bajo banco: sus datos fuera de los de producción.
 
     Los logs que alimentan la flywheel y el juez de riesgo (preguntas,
-    routing, riesgo) van a `salidas/banco/`: el tráfico sintético no se marca
+    riesgo) van a `salidas/banco/`: el tráfico sintético no se marca
     con una bandera que el producto tenga que leer, directamente no cae en los
     logs de producción (X93; antes BANCO=1 y `origen=banco`). Y la memoria
     va SIEMPRE a `salidas/banco/memoria`: una corrida de banco no puede tocar
@@ -79,7 +77,6 @@ def _env_del_chat(extras=None):
         PYTHONUNBUFFERED="1",
         TERM="dumb",
         PREGUNTAS_ARCHIVO=str(RAIZ / "salidas" / "banco" / "preguntas.jsonl"),
-        LAYA_LOG_ARCHIVO=str(RAIZ / "salidas" / "banco" / "routing.jsonl"),
         RIESGO_ARCHIVO=str(RAIZ / "salidas" / "banco" / "riesgo.jsonl"),
         MEMORIA="0",
         MEMORIA_DIR=str(RAIZ / "salidas" / "banco" / "memoria"),

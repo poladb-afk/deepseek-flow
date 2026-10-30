@@ -14,12 +14,11 @@ escribe y el proceso TERMINA. No hay modo multi-checkpoint ni servidor:
 cargar dos de estos en el mismo proceso revienta la memoria (medido).
 
 Uso:
-    python3 sonda_laya.py router        # .modelos/router_flow-1k + test router (30)
-    python3 sonda_laya.py voto          # .modelos/router_voto + test voto (30)
-    python3 sonda_laya.py voto_en_router  # .modelos/router_voto sobre el test del router (ensamble)
     python3 sonda_laya.py supervisor    # .modelos/supervisor_dispatch-1k + test (24)
     python3 sonda_laya.py prefiltro      # .modelos/router_prefiltro + test propio (28 casos)
-    python3 sonda_laya.py base          # .modelos/laya-multilingual + test router (referencia)
+
+(router, voto, voto_en_router y base se fueron con el router del chat, X106:
+medían contratos que el producto ya no tiene.)
 """
 import argparse
 import json
@@ -38,8 +37,7 @@ SALIDA = RAIZ / "salidas" / "evals"
 
 # Los contratos EXISTENTES se importan, no se copian: una copia local derivaría
 # del contrato del fine-tune sin que ningún test lo note (mismo criterio que
-# sonda_router.py). Los tests son los mismos que leen evals.py y las sondas.
-from nodes import PREGUNTA_ROUTER, PREGUNTA_VOTO  # noqa: E402
+# la sonda del router, retirada en X106). Los tests son los mismos que leen las sondas.
 from sonda_supervisor import PREGUNTA_DESPACHO  # noqa: E402
 from utils.contexto import PREGUNTA_PREFILTRO  # noqa: E402
 from utils.rutas import tasks_dir  # noqa: E402
@@ -50,33 +48,10 @@ TAREAS = tasks_dir()
 
 # El mapeo nombre → (checkpoint, test, pregunta, arma el estado por caso).
 # El estado de cada familia es el contrato del fine-tune correspondiente:
-#   router/voto → {"pregunta": fields["pregunta"]}
 #   supervisor → {"tarea": fields["tarea"], "hechos": fields.get("hechos", "")}
 # (hechos puede ser string multilínea o venir vacío: el .get con default "" cubre
 # el caso vacío; probado contra los tres .jsonl, un caso por línea).
 ESPECIFICACIONES = {
-    "router": {
-        "checkpoint": ".modelos/router_flow-1k",
-        "test": TAREAS / "router_flow_test.jsonl",
-        "pregunta": "necesita_herramientas",
-        "contrato": PREGUNTA_ROUTER,
-        "estado": lambda f: {"pregunta": f["pregunta"]},
-    },
-    "voto": {
-        "checkpoint": ".modelos/router_voto",
-        "test": TAREAS / "router_voto_test.jsonl",
-        "pregunta": "confirma_herramientas",
-        "contrato": PREGUNTA_VOTO,
-        "estado": lambda f: {"pregunta": f["pregunta"]},
-    },
-    "voto_en_router": {
-        "checkpoint": ".modelos/router_voto",
-        "test": TAREAS / "router_flow_test.jsonl",
-        "pregunta": "confirma_herramientas",
-        "esperado_de": "necesita_herramientas",
-        "contrato": PREGUNTA_VOTO,
-        "estado": lambda f: {"pregunta": f["pregunta"]},
-    },
     "supervisor": {
         "checkpoint": ".modelos/supervisor_dispatch-1k",
         "test": TAREAS / "supervisor_dispatch_test.jsonl",
@@ -90,13 +65,6 @@ ESPECIFICACIONES = {
         "pregunta": "aporta_contexto",
         "contrato": PREGUNTA_PREFILTRO,
         "estado": lambda f: {"consulta": f["consulta"], "bloque": f["bloque"]},
-    },
-    "base": {
-        "checkpoint": ".modelos/laya-multilingual",
-        "test": TAREAS / "router_flow_test.jsonl",
-        "pregunta": "necesita_herramientas",
-        "contrato": PREGUNTA_ROUTER,
-        "estado": lambda f: {"pregunta": f["pregunta"]},
     },
 }
 
@@ -245,7 +213,7 @@ def correr(nombre, spec):
     # Un setting PROPIO por corrida: utils.laya cachea agentes por setting y
     # hereda HF_HUB_OFFLINE antes de importar, el caché de errores y el RLock.
     # Al setear env var + nombre de setting nos aseguramos de no pisar ni
-    # reusar el agente de LAYA_MODEL (router del chat) o del supervisor.
+    # reusar el agente de LAYA_MODEL (mcp/riesgo) o del supervisor.
     os.environ["SONDA_LAYA_CKPT"] = str(RAIZ / spec["checkpoint"])
     t0 = time.perf_counter()
     a = agente("SONDA_LAYA_CKPT")

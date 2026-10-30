@@ -5725,3 +5725,80 @@ veredicto del A/B queda en la bitácora y en `salidas/evals`).
 método para 3b, del pre-registro: cada brazo con su `.runs` desde el
 principio (la reconstrucción por mtime de esta vez mezcló el piloto en la
 tanda A).
+
+---
+
+## La fase 3b + 4a: un solo camino, sin router (2026-10-28, X106)
+
+Código del brazo 3b del pre-registro `banco/specs/fase3b_4a.md`. El A/B
+(`fase3b-directas` ×3 por brazo, `exp55-skills`) lo corre el operador; hasta
+que pase, esto vive en una rama.
+
+**El grafo**: `GetQuestion → PreFetch → Skills → Contexto → AgentStep`, con
+`Cierre` por presupuesto y `VerificarCitas` antes de la próxima pregunta.
+Toda pregunta llega al modelo con las tools ofrecidas.
+
+**Lo que se movió**: los skills. Vivían en `LayaRouter.post` y solo en
+enforce; ahora son el nodo `Skills` (misma `skill_para`, mismo mensaje
+`[skill]`, mismo recorte en `AgentStep`). `PreFetch` y `Skills` comparten
+`pregunta_en_curso` (saltea los mensajes que inyecta la entrada).
+
+**Lo que se borró**:
+- `LayaRouter` (155 líneas), `DirectAnswer`, `voto_confirmacion_router`,
+  `PREGUNTA_ROUTER`/`PREGUNTA_VOTO`/`PROMPT_ARBITRO_VOTO`, la arista
+  `directo` de `Contexto` y `turno["ruta"]`.
+- `utils/laya_routing.py` entero (política, voto, las dos reglas y su
+  vocabulario, el log de decisiones, la flywheel) y `utils/conformal.py`
+  (solo lo usaban el router y sus sondas).
+- `ofrece_tools` y `MENSAJE_DSML_SIN_TOOLS` en `utils/proveedor`: sin ruta
+  directa, "nunca se ofrecieron" no existe.
+- La etiqueta ambiental en `AgentStep.post` y `turno["router_pendiente"]`;
+  `resume` descarta las dos claves de checkpoints viejos.
+- Del lab: `sonda_router.py` y 11 sondas (`bench_voto`, `calibrar_voto`,
+  `conformal_router`, `estado_flywheel`, `etiquetar_ambiental`,
+  `etiquetar_router`, `h3g_reglas`, `producto_router`, `veredicto_router`,
+  `voto_antifuga`, `voto_combinar`, `voto_dataset_gen`). Medían al router o al
+  voto; sin ellos no queda qué medir. Escenarios `exp43-demo` y `exp54-reglas`
+  (solo ejercitaban la flywheel y las reglas). El `env:` del router se sacó
+  de 14 escenarios (ya no lo lee nadie); la prosa histórica de los pedidos
+  queda como estaba.
+- `evals.py`: el bench del router y el invariante (b) "cada turno arranca en
+  el router". La letra (b) no se reusa. Las acciones históricas
+  (`LayaRouter`, `DirectAnswer`, `Contexto/directo`) siguen canónicas para el
+  linter: juzga el cableado de cada traza, no si el nodo sobrevivió.
+- `replay.py`: el nivel D (política del router sobre `routing.jsonl`) y la
+  variante ±router. `LayaRouter`/`DirectAnswer` siguen en `NODOS_CHAT` para
+  que el nivel B vea las trazas viejas como lo que son: caminatas que el código
+  de hoy ya no da (`test_una_traza_del_router_se_ve_en_el_replay`).
+- `delegar_tarea(shadow=…)`: forzaba `LAYA_MODO=shadow` para la flywheel.
+- `sonda_laya`: los checkpoints `router`, `voto`, `voto_en_router` y `base`.
+- `utils.laya.veredicto` pierde los settings del router; quedan los
+  defaults (0,85/0,3) y el supervisor sigue pasando su umbral.
+
+**Archivado** (decisión del operador, cero costo): `voto_casos.jsonl`,
+`voto_control.jsonl`, `voto_control_baseline.json` y las cuatro calibraciones
+van a `docs/informes/archivo/2026-10/router/`. Son etiquetas humanas;
+`fase3b-directas` sale de ahí.
+
+**Se quedan**: `utils/laya.py` y `LAYA_MODEL` (servidor MCP, prefiltro de
+memoria, juez de riesgo), `utils/votacion.mayoria` (la usa la sonda del
+supervisor), el contrato congelado del prefiltro.
+
+**Ratchets**: `vocabulario_hardcodeado` 7 → 3, `settings_leidos` 78 → 64 (14
+del router, ver inventario), `nodos_largos` 14 → 13, `imports_perezosos`
+124 → 90, `excepts_amplios` 33 → 29. **`tests_definidos` 1132 → 1004 (−128)**:
+106 casos en los 10 archivos de test del router borrados enteros, y 22 sueltos
+en 8 archivos que fijaban el router, el voto, el bench o la flywheel. Se
+agregaron 7 que fijan el camino nuevo (nodo `Skills`, `pregunta_en_curso`,
+grafo de un solo camino, trazas viejas visibles en replay y canónicas en el
+linter, cierre por presupuesto). Es la baja de cobertura que exige la clave del
+operador (`ratchet.py --actualizar`); el agente no la corre. El inventario de
+tests (`tests/inventario_tests.txt`) pierde las mismas 105 entradas de la foto.
+
+**Gemelos**: `twins_extractores` congela 2 sitios LLM en `nodes.py` (era 3: el
+árbitro del voto se fue).
+
+**Lo que el A/B tiene que decir** (pre-registro, sin retoques): tools de más
+en las 12 preguntas directas, USD ≤ 1,5× la base, descarrilos ≤ base, 0
+timeouts, `exp55-skills` igual.
+

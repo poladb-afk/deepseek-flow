@@ -62,7 +62,7 @@ primer fragmento de cada llamada; `function.arguments` se acumula por
 concatenación). Si el stream se corta a mitad, devuelve lo acumulado sin
 explotar.
 
-`AgentStep.exec` (y por herencia `DirectAnswer`, sin tocar su clase) usa la
+`AgentStep.exec` (y por herencia `Cierre`) usa la
 versión stream cuando `CHAT_STREAM == "1"` (default) y la clásica con `0`.
 El resto del flujo no cambia (historiar, recuperación DSML, sanitizar,
 ExecuteTools). Como con streaming el contenido crudo ya se imprimió en
@@ -101,7 +101,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Clave | Contenido |
 |---|---|
 | `messages` | Historial completo: system (fijo) + user + assistant (con `tool_calls` cuando pidió herramientas) + tool (resultados). Es lo único que DeepSeek recibe en cada vuelta |
-| `turno` | **La caja de la pregunta en curso** (H2 PR 4a, `nodes.nuevo_turno()`): `rondas` (L8), `sin_progreso`/`huella` (exp/13), `huellas_vistas`/`racha_sin_novedad` (exp/52-B), `ruta` (X95), `skill` (exp/55), `router_pendiente` (exp/43) y `uso_inicio` (exp/90). `GetQuestion` la REEMPLAZA entera: no hay `pop` que olvidar. Es JSON y viaja en el checkpoint |
+| `turno` | **La caja de la pregunta en curso** (H2 PR 4a, `nodes.nuevo_turno()`): `rondas` (L8), `sin_progreso`/`huella` (exp/13), `huellas_vistas`/`racha_sin_novedad` (exp/52-B), `skill` (exp/55) y `uso_inicio` (exp/90). `GetQuestion` la REEMPLAZA entera: no hay `pop` que olvidar. Es JSON y viaja en el checkpoint |
 | `_objetivo` / `tokens_por_pregunta` | De la SESIÓN, no de la pregunta: la tarea vigente (un "seguí" no la pisa) y el costo cerrado de cada pregunta |
 | `compacciones` / `_compaccion_huella` | Compactaciones aplicadas al historial y huella del historial ya compactado (evita re-compactar la misma ronda) |
 | `_respaldo_huella` / `_respaldo_ruta` | Huella de la última zona fría respaldada en `memoria/` y ruta de ese respaldo: si la siguiente compacción descarta la MISMA zona fría no se reescribe (exp/70; el marcador A17 sigue nombrando la ruta vigente) |
@@ -112,6 +112,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Nodo | Tipo | prep | exec | post |
 |---|---|---|---|---|
 | GetQuestion | Node | — | `input()` (ignora vacías; EOF → exit) | `salir/exit/quit` → `exit`; si no, resetea el presupuesto por pregunta (ley L8) y agrega el mensaje user → `continue`; `/aprobaciones` imprime el historial HITL y NO entra al historial |
+| Skills | Node | la pregunta en curso (`pregunta_en_curso`) | `skill_para` (regex del YAML, sin LLM; `SKILLS=0` apaga) | si dispara: id en `turno["skill"]` y mensaje `[skill]` → `continue` — X106 (antes dentro del router) |
 | Contexto | Node | si el historial supera `COMPACTION_CHARS`: respaldo de la zona fría (gancho `al_compactar`), compacción, recorte de tool results viejos y aviso de ventana caliente | — | sale por `cierre` si `motivo_de_cierre` (tope, no-progreso o sin novedad); si no, por `turno["ruta"]` (`herramientas`/`directo`, la fija el router; tras una ronda de tools, `herramientas`) — X95, X96 |
 | Observar | Node | la ronda recién ejecutada | — | cuenta la ronda, huella/no-progreso y novedad; agrega al último resultado el aviso de sin-progreso y la nota de presupuesto; checkpoint (punto seguro 2) → `default` — X96 |
 | Cierre | Node (max_retries=3, wait=5) | historial + `AVISO_CIERRE` efímero, **sin tools** | igual que AgentStep | la respuesta de un turno que agotó el presupuesto → `answer` — X96 |
@@ -158,7 +159,6 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Rondas | `presupuesto(shared)` por pregunta (override > alcance amplio > `MAX_TOOL_ROUNDS`); al llegar, `Contexto` sale a `Cierre`, que llama sin tools y el modelo debe responder (X96: una arista, ya no un flag). Se reinicia con cada pregunta nueva del usuario (el comando `/aprobaciones` incluido, que no agrega mensaje) | `nodes.presupuesto`, `AgentStep.prep` |
 | No-progreso | Repeticiones idénticas de la ronda de tools (`fingerprint` de nombre+argumentos) a `UMBRAL_SIN_PROGRESO`: se retiran las tools sin esperar el techo, con el evento `corte_no_progreso` en la traza | `nodes.fingerprint`, `ExecuteTools.post`, `AgentStep.prep` |
 | Contexto | `READ_MAX_CHARS` por lectura, listados truncados | `fs_tools` |
-| Reglas duras del router | recencia (`regla_temporal`, exp/46) e imperativos de capacidad (`regla_imperativo_capacidad`, exp/54) mandan a herramientas ANTES de Laya; en shadow no cortan | `utils/laya_routing.py` |
 | Convergencia | corte OPCIONAL por falta de novedad (tool+argumentos; `CORTE_NOVEDAD=k`). **A/B exp/52-B negativo**: redundancia real ≈0 → default 0=off; la huella queda en la traza | `nodes.corte_por_novedad_activo` |
 
 ## Segundo flujo: informe map-reduce
@@ -206,9 +206,9 @@ sobre la pregunta), `instrucciones` (prompt que se inyecta con prefijo
 `[skill]`) y `tools` (subset que el loop anuncia mientras el skill está
 activo). `utils/skills.py` los carga (YAML roto se saltea) y expone funciones
 puras (`skill_para`, `mensaje`, `filtrar_tools`). En **enforce**, el
-`LayaRouter` evalúa el disparo en `post`: si matchea, fuerza herramientas,
-inyecta el contexto y anuncia el skill; `AgentStep` recorta la lista de tools
-al subset. En shadow no cambia conducta; `SKILLS=0` apaga. El recorte de tools
+el nodo `Skills` evalúa el disparo a la entrada de cada pregunta (X106; antes
+lo hacía el router en enforce): si matchea, inyecta el contexto y anuncia el skill; `AgentStep` recorta la lista de tools
+al subset. `SKILLS=0` apaga. El recorte de tools
 es GUÍA (no sandbox): el action space sigue completo y la seguridad sigue en
 HITL/policy. Dos skills iniciales: `revision` y `tdd`.
 
@@ -646,7 +646,7 @@ que emite `steps` vía schema) o versionar el generador de observaciones;
 hasta entonces, entrenar solo con el subconjunto del punto 6 y tratar
 `round3/verified` como choose.
 
-### Laya — el router del chat, afinado (activo por defecto)
+### Laya — el router del chat, afinado (RETIRADO en X106, fase 3b: histórico)
 [utils/laya.py](../utils/laya.py) · nodos LayaRouter/DirectAnswer · [sonda_router.py](../sonda_router.py)
 
 Laya responde preguntas cerradas en local (carga ~12 s, inferencia ~0 s,

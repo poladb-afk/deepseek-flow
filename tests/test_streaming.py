@@ -148,8 +148,7 @@ def test_call_llm_agent_stream_thinking_pegajoso(monkeypatch):
 
 def test_agent_step_usa_stream_segun_setting(monkeypatch):
     """AgentStep.exec usa la versión stream con CHAT_STREAM=1 (default) y la
-    clásica con 0. DirectAnswer hereda exec (sin tocar su clase): mismo
-    camino de streaming."""
+    clásica con 0."""
     from types import SimpleNamespace
 
     import nodes
@@ -174,11 +173,6 @@ def test_agent_step_usa_stream_segun_setting(monkeypatch):
 
     monkeypatch.setenv("CHAT_STREAM", "1")
     nodes.AgentStep().exec(([{"role": "user", "content": "x"}], None))
-    assert elegido["via"] == "stream"
-
-    # DirectAnswer hereda el exec de AgentStep: mismo switch de streaming
-    elegido.clear()
-    nodes.DirectAnswer().exec(([{"role": "user", "content": "x"}], None))
     assert elegido["via"] == "stream"
 
 def test_agent_step_stream_imprime_limpio_si_sanitiza(monkeypatch, capsys):

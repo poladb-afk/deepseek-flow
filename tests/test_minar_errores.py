@@ -162,7 +162,7 @@ def test_triaje_seleccionar_clasifica_los_cuatro_casos():
         # limpia y corta: FUERA
         "limpia_corta": [
             _ev_triaje("GetQuestion", "continue", 0.1),
-            _ev_triaje("LayaRouter", "directo", 0.2),
+            _ev_triaje("Skills", "continue", 0.2),
             _ev_triaje("AgentStep", "answer", 0.3),
         ],
         # violación (acción desconocida) pero corta: dentro por violaciones
@@ -172,7 +172,7 @@ def test_triaje_seleccionar_clasifica_los_cuatro_casos():
         # larga y limpia (solo acciones canónicas): dentro por duración
         "larga_limpia": [
             _ev_triaje("GetQuestion", "continue", 0.1),
-            _ev_triaje("LayaRouter", "herramientas", 50.0),
+            _ev_triaje("Contexto", "herramientas", 50.0),
             _ev_triaje("AgentStep", "tool", 60.0),
             _ev_triaje("ExecuteTools", "default", 30.0),
             _ev_triaje("read_file", "ok", 0.0),

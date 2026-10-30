@@ -1,5 +1,4 @@
 """Cliente Laya: lotes, puntajes, checkpoints en proceso y log de preguntas (PR 4)."""
-from conftest import RAIZ
 
 
 def test_preguntar_lote_alinea_y_extrae(monkeypatch):
@@ -88,7 +87,7 @@ def test_puntuar_lote_que_falla_devuelve_none(monkeypatch):
 def test_laya_tope_de_checkpoints_en_proceso(monkeypatch):
     """exp/32: la ley medida es un checkpoint por proceso (2,86 GiB de RSS);
     el tope descarga el MENOS usado en vez de acumular hasta los cuatro
-    alcanzables en un chat (router + voto + prefiltro + supervisor)."""
+    alcanzables en un proceso (prefiltro + riesgo + supervisor + mcp)."""
     import sys
     from types import SimpleNamespace
 
@@ -161,23 +160,3 @@ def test_registrar_pregunta_es_bookkeeping_que_no_rompe(tmp_path, monkeypatch):
     )
     nodo.post({"messages": []}, None, "tampoco explota")
 
-def test_etiquetador_acepta_el_log_de_preguntas_del_chat(tmp_path):
-    """exp/34: el --extra del etiquetador lee el JSONL del log del chat, así el
-    tráfico real entra a la calibración sin conversiones."""
-    import json as _json
-    import sys
-
-    sys.path.insert(0, str(RAIZ / "banco" / "probes"))
-    from etiquetar_router import preguntas_de_archivo
-
-    archivo = tmp_path / "preguntas.jsonl"
-    archivo.write_text(
-        _json.dumps({"ts": 1.0, "pregunta": "¿quién ganó el último mundial?"}) + "\n"
-        + "una pregunta suelta sin json\n"
-        + _json.dumps({"ts": 2.0, "pregunta": "corta"}) + "\n",
-        encoding="utf-8",
-    )
-    assert preguntas_de_archivo(archivo) == [
-        "¿quién ganó el último mundial?",
-        "una pregunta suelta sin json",
-    ]

@@ -3,9 +3,8 @@
 El meta-loop necesitaba un auditor contestando s/n por tmux (exp/95–98); con
 esto el operador delega solo. Es el "banco-lite" de exp/99: el MISMO driver
 PTY y el MISMO scope HITL del banco (`utils.conductor`), pero con un pedido real
-en vez de un escenario guionizado — y con los logs de producción: las decisiones cuentan
-como origen `terminal`, el tráfico orgánico que alimenta la flywheel del
-router (X42). Si el chat muere a mitad (el kill de tmux de exp/98), el
+en vez de un escenario guionizado — y con los logs de producción: las preguntas y
+los juicios de riesgo cuentan como origen `terminal` (tráfico orgánico). Si el chat muere a mitad (el kill de tmux de exp/98), el
 conductor rehidrata el thread (exp/48) y re-envía el pedido como continuación.
 
 Uso:
@@ -26,7 +25,7 @@ from utils.conductor import RAIZ, RE_TU, Chat, escribir_scope, leer_decisiones, 
 RE_SN = re.compile(r"\(s/n\):?\s*$")
 MAX_RESUMES = 2
 # los destinos que el banco redirige a salidas/banco/ (banco._env_del_chat)
-LOGS_DEL_BANCO = ("PREGUNTAS_ARCHIVO", "LAYA_LOG_ARCHIVO", "RIESGO_ARCHIVO")
+LOGS_DEL_BANCO = ("PREGUNTAS_ARCHIVO", "RIESGO_ARCHIVO")
 LINEA_RESUME = ("La sesión se cortó a mitad del pedido. Retomá donde quedó y "
                 "completalo; después respondé con el resultado.")
 
@@ -35,8 +34,8 @@ def env_delegar(dir_threads, extras=None):
     """El entorno del chat conducido (función PURA).
 
     Los logs son los de PRODUCCIÓN — y si el entorno heredado traía los del
-    banco, se sacan: la corrida DEBE sumar sus pares de routing a la flywheel
-    como origen `terminal` (exp/44), es su razón de ser. Las ETIQUETAS de riesgo de una delegada salen `scope` solas:
+    banco, se sacan: la corrida es tráfico orgánico, origen `terminal`
+    (exp/44). Las ETIQUETAS de riesgo de una delegada salen `scope` solas:
     las decide `HITL_SCOPE` (el mecanismo), no un humano (exp/101, X93).
     Tampoco se toca MEMORIA/MEMORIA_DIR: esto es tráfico
     orgánico, la biblioteca y los resúmenes son los de producción (el

@@ -60,27 +60,18 @@ MENSAJE_DSML_AGOTADO = (
 )
 
 
-MENSAJE_DSML_SIN_TOOLS = (
-    "(sin texto: emitiste tool-calls en la ruta directa, donde no hay "
-    "herramientas disponibles — respondé sin ellas)"
-)
-
-def dsml_con_presupuesto_agotado(content, parseados, tools, ofrece_tools=True):
+def dsml_con_presupuesto_agotado(content, parseados, tools):
     """(nuevo_content, avisar): la recuperación DSML no re-armó tools que
     el tope retiró (ley L8 — medido en exp/4 que sí las ejecutaba: el
     write_file corría después del retiro). Con tools presentes la
     recuperación de siempre; sin tools, el markup se corta y el mensaje
-    que queda es honesto y accionable.
-
-    `ofrece_tools=False` (DirectAnswer) distingue "nunca se ofrecieron" de
-    "las retiró el tope": el mensaje de presupuesto agotado era FALSO en la
-    ruta directa y descartaba la llamada (medido, exp/36)."""
+    que queda es honesto y accionable."""
     if tools is not None or not parseados:
         return content, False
     m = RE_DSML.search(content or "")
     limpio = (content or "")[: m.start()].rstrip() if m else ""
     if not limpio:
-        return (MENSAJE_DSML_AGOTADO if ofrece_tools else MENSAJE_DSML_SIN_TOOLS), True
+        return MENSAJE_DSML_AGOTADO, True
     return limpio, True
 
 
@@ -99,7 +90,7 @@ AVISOS = {
 }
 
 
-def normalizar(msg, tools, ofrece_tools=True):
+def normalizar(msg, tools):
     """La respuesta del proveedor en forma canónica. Devuelve (msg, avisos).
 
     Una sola normalización para el chat y el kernel (H2 PR 4b): antes el
@@ -110,12 +101,11 @@ def normalizar(msg, tools, ofrece_tools=True):
     - tool calls nativas con las tools retiradas → se descartan (L8);
     - sin texto ni tool calls (stream cortado) → mensaje honesto, no null;
     - markers de rol ajenos → se corta; si no queda nada, `ValueError` para
-      que el retry del nodo re-pregunte. `ofrece_tools=False` (ruta directa)
-      distingue "nunca se ofrecieron" de "las retiró el tope" (exp/36)."""
+      que el retry del nodo re-pregunte."""
     avisos = []
     if not getattr(msg, "tool_calls", None) and RE_DSML.search(msg.content or ""):
         parseados = dsml_a_tool_calls(msg.content)
-        contenido, ignorado = dsml_con_presupuesto_agotado(msg.content, parseados, tools, ofrece_tools)
+        contenido, ignorado = dsml_con_presupuesto_agotado(msg.content, parseados, tools)
         if ignorado:
             msg.content = contenido
             avisos += ["dsml_ignorado", "reemplazado"]
@@ -126,7 +116,7 @@ def normalizar(msg, tools, ofrece_tools=True):
         msg.tool_calls = None
         avisos.append("l8")
         if not (msg.content or "").strip():
-            msg.content = MENSAJE_DSML_AGOTADO if ofrece_tools else MENSAJE_DSML_SIN_TOOLS
+            msg.content = MENSAJE_DSML_AGOTADO
             avisos.append("reemplazado")
     if getattr(msg, "tool_calls", None):
         return msg, avisos

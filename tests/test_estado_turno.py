@@ -94,9 +94,12 @@ def test_resume_descarta_las_claves_que_reemplazo_la_estructura():
     reemplazó la estructura (el nodo Cierre y motivo_de_cierre). Un checkpoint
     anterior los trae: resume los descarta y el turno queda como uno nuevo."""
     viejo = {"messages": [], "turno": {**nodes.nuevo_turno(), "aviso_cierre": True,
-                                       "corte_novedad": True, "rondas": 2}}
+                                       "corte_novedad": True, "rondas": 2,
+                                       "ruta": "directo", "router_pendiente": "id0"}}
     migrado = resume.migrar(viejo)
     assert "aviso_cierre" not in migrado["turno"] and "corte_novedad" not in migrado["turno"]
+    # X106: lo del router tampoco sobrevive
+    assert "ruta" not in migrado["turno"] and "router_pendiente" not in migrado["turno"]
     assert migrado["turno"]["rondas"] == 2
     # y desde las claves de antes de la caja (`_aviso_cierre`), igual
     anterior = resume.migrar({"messages": [], "_aviso_cierre": True, "_corte_novedad": True})

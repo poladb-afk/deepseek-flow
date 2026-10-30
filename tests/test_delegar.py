@@ -51,13 +51,13 @@ def _decide(tmp_path, pedido, **scope):
 
 
 def test_env_delegar_no_marca_banco_y_aisla_threads(tmp_path, monkeypatch):
-    """La corrida escribe en los logs de PRODUCCIÓN (sus pares de routing son
-    orgánicos, exp/44) — incluso si el entorno heredado traía los del banco.
+    """La corrida escribe en los logs de PRODUCCIÓN (tráfico orgánico,
+    exp/44) — incluso si el entorno heredado traía los del banco.
     La etiqueta de riesgo sale `scope` sola (la decide HITL_SCOPE, X93).
     THREADS_DIR propio: el checkpoint vive junto al transcript."""
-    monkeypatch.setenv("LAYA_LOG_ARCHIVO", "salidas/banco/routing.jsonl")
+    monkeypatch.setenv("PREGUNTAS_ARCHIVO", "salidas/banco/preguntas.jsonl")
     env = env_delegar(tmp_path / "threads", {"MAX_TOOL_ROUNDS": "3"})
-    assert not set(env) & {"PREGUNTAS_ARCHIVO", "LAYA_LOG_ARCHIVO", "RIESGO_ARCHIVO"}
+    assert not set(env) & {"PREGUNTAS_ARCHIVO", "RIESGO_ARCHIVO"}
     assert env["THREADS_DIR"] == str(tmp_path / "threads")
     assert env["TERM"] == "dumb"
     assert env["MAX_TOOL_ROUNDS"] == "3"
@@ -229,7 +229,7 @@ def test_conducir_completa_y_cierra_limpio(tmp_path):
     assert [f["ok"] for f in leer_decisiones(run / "hitl.jsonl")] == [True]
     assert (run / "resumen.md").read_text(encoding="utf-8").find("estado: ok") >= 0
     assert (run / "transcript.log").exists()
-    assert "LAYA_LOG_ARCHIVO" not in chats[0].env  # logs de producción
+    assert "PREGUNTAS_ARCHIVO" not in chats[0].env  # logs de producción
 
 
 def test_conducir_muerto_resume_y_completa(tmp_path):
@@ -414,20 +414,6 @@ def test_delegar_tarea_valida_sus_entradas(monkeypatch):
     assert mod.delegar_tarea("   ") .startswith("ERROR")
     assert mod.delegar_tarea("tarea", timeout_min="cero").startswith("ERROR")
     assert mod.delegar_tarea("tarea", timeout_min="0").startswith("ERROR")
-
-
-def test_delegar_tarea_shadow_fuerza_el_modo(monkeypatch):
-    import modules.delegar as mod
-
-    lanzamientos = []
-
-    def popen_falso(argv, env=None, **kwargs):
-        lanzamientos.append(env)
-
-    monkeypatch.setattr(mod.subprocess, "Popen", popen_falso)
-    monkeypatch.setattr(mod, "pedir_aprobacion", lambda prompt, cuerpo="": True)
-    mod.delegar_tarea("tarea", shadow="1")
-    assert lanzamientos[0]["LAYA_MODO"] == "shadow"
 
 
 def test_el_arranque_y_cierre_del_chat_reportan_delegadas(monkeypatch, capsys):

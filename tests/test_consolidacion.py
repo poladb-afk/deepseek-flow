@@ -2,7 +2,6 @@
 
 Cada test reproduce el defecto MEDIDO en el árbol previo y fija la conducta
 corregida. Sin red, sin LLM, sin Laya."""
-import json
 import os
 import sqlite3
 import sys
@@ -52,7 +51,6 @@ def test_evals_salida_fuera_de_raices_se_rechaza(tmp_path, monkeypatch):
     (dentro / "runs").mkdir(parents=True)
     fuera = tmp_path / "fuera"
     monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(dentro))
-    monkeypatch.setattr(ev, "correr_bench", lambda agente=None: ({"score": None}, "x"))
     monkeypatch.setattr(ev, "informe_markdown", lambda *a, **k: "# x")
     r = mod.evals(dir_runs=str(dentro / "runs"), salida=str(fuera))
     assert r.startswith("ERROR: ruta fuera")
@@ -220,31 +218,6 @@ def test_sql_limit_legitimo(base, q):
 
 def test_sql_literal_con_doble_guion_sigue_valido(base):
     assert not base.sql("select * from t where x = '--' ").startswith("ERROR")
-
-
-# 8 baseline
-def test_comparar_baseline_con_bench_degradado(tmp_path):
-    import evals as ev
-
-    ruta = tmp_path / "b.json"
-    ruta.write_text(json.dumps({"score": 0.9, "ece": 0.05}), encoding="utf-8")
-    r = ev.comparar_baseline({"score": None, "ece": None, "estado": "no disponible"}, ruta=ruta)
-    assert r["veredicto"] == "SIN BENCH"
-
-
-# 10 umbral
-@pytest.mark.parametrize("valor", ["nan", "1.5", "-0.1", "inf", "abc"])
-def test_umbral_invalido_usa_default(monkeypatch, valor):
-    from utils.laya_routing import config_router, config_voto, decide
-
-    monkeypatch.setenv("LAYA_UNSURE_HIGH", valor)
-    monkeypatch.setenv("LAYA_UNSURE_HIGH_VOTO", valor)
-    monkeypatch.delenv("LAYA_CALIBRACION_ROUTER", raising=False)
-    cfg = config_router()
-    assert cfg.umbral == 0.85 and config_voto().umbral == 0.7
-    propuesta, _, _ = decide({"choice": "directo",
-                              "probabilities": {"directo": 0.51, "herramientas": 0.49}}, cfg)
-    assert propuesta == "herramientas"
 
 
 # 11 mcp

@@ -30,7 +30,7 @@ def chat(monkeypatch):
     import nodes
     from flow import create_agent_flow
 
-    for clave, valor in {"USE_LAYA_ROUTER": "0", "CHAT_STREAM": "0", "PREFETCH": "0",
+    for clave, valor in {"CHAT_STREAM": "0", "PREFETCH": "0",
                          "CITAS_VERIFICAR": "0", "HITL_AUTO": "1", "SKILLS": "0"}.items():
         monkeypatch.setenv(clave, valor)
     monkeypatch.delenv("HITL_SCOPE", raising=False)

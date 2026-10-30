@@ -1,8 +1,7 @@
 """Módulo `evals`: el harness juzgándose a sí mismo como capacidad del chat.
 
-Corre el pipeline de evals.py (bench del router + linter de trazas + costo por
-sesión) y devuelve la ruta del informe markdown. La pieza sigue utilizable
-sola: `main.py evals [--dir .runs] [--salida salidas/evals]`.
+Corre el pipeline de evals.py (linter de trazas + costo por sesión) y
+devuelve la ruta del informe markdown. La pieza sigue utilizable sola: `main.py evals [--dir .runs] [--salida salidas/evals]`.
 El informe no se imprime en la terminal: se escribe a disco y se lee con
 read_file, igual que run_informe.
 """
@@ -31,13 +30,12 @@ def evals(dir_runs=None, salida=None):
     if err:
         return f"ERROR: {err}"
     try:
-        # sin actualizar el baseline: el ancla de medición no se pisa desde el chat
-        destino = generar(dir_runs=carpeta, dir_salida=destino_dir, actualizar_baseline=False)
+        destino = generar(dir_runs=carpeta, dir_salida=destino_dir)
     except Exception as e:  # noqa: BLE001 (una excepción no debe tumbar el chat)
         return f"ERROR: no se pudo generar el informe de evals ({type(e).__name__}: {e})"
     return (
         f"Informe de evals generado: {destino} "
-        "(bench del router + linter de trazas + costo por sesión)."
+        "(linter de trazas + costo por sesión)."
     )
 
 
@@ -47,10 +45,9 @@ TOOLS = [
         "function": {
             "name": "evals",
             "description": (
-                "Corre los evals del harness: bench del router (acierto con "
-                "compuerta, crudo y ECE contra el baseline), linter de "
-                "invariantes estructurales sobre las trazas .jsonl y costo por "
-                "sesión. Escribe un informe markdown y devuelve su ruta; leelo "
+                "Corre los evals del harness: linter de invariantes "
+                "estructurales sobre las trazas .jsonl y costo por sesión. "
+                "Escribe un informe markdown y devuelve su ruta; leelo "
                 "con read_file para el detalle."
             ),
             "parameters": {

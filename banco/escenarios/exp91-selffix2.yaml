@@ -6,7 +6,6 @@ id: exp91-selffix2
 descripcion: vuelta 2 del recorte de tool results viejos (implementación, 40 rondas)
 env:
   PROMPT_FABLE: "1"
-  USE_LAYA_ROUTER: "0"
   MAX_TOOL_ROUNDS: "40"
   COMPACTION_CHARS: "120000"
 permitir:

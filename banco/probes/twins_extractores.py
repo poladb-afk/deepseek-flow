@@ -42,10 +42,10 @@ REGISTRO = {
                 "el Judge recibe citas LEÍDAS del disco + inventario real de "
                 "tools (exp/42); el CITA_RE es del código"),
     "main.py": (1, "a", "resumen de sesión: bookkeeping, prosa de prosa"),
-    "nodes.py": (3, "e/d",
+    "nodes.py": (2, "e/d",
                  "chat ejecutor con tools (e); corrección de citas con las "
-                 "citas verificadas por utils/citas contra el disco (d); "
-                 "árbitro del voto tras las reglas deterministas de exp/54 (d)"),
+                 "citas verificadas por utils/citas contra el disco (d). El "
+                 "árbitro del voto se fue con el router (X106)"),
     "research.py": (4, "b/d/a",
                     "plan y decisión yaml (b); los hechos se extraen del "
                     "material que el código fetch-eó, URLs ya delante (d); "

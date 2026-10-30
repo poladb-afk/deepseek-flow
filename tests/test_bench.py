@@ -13,9 +13,9 @@ def test_banco_contar_marcadores():
     assert conteo["compaccion"] == 1
 
     # varias señales en varias líneas: cada una suma por ocurrencia en su línea
-    texto = "[laya] directo\n[laya] dudoso\n⚙ ronda 2/5\n(s/n): 2x"
+    texto = "  [skill] revision activo — a\n  [skill] tdd activo — b\n⚙ ronda 2/5\n(s/n): 2x"
     conteo = contar_marcadores(texto)
-    assert conteo["laya"] == 2 and conteo["ronda"] == 1 and conteo["hitl_prompt"] == 1
+    assert conteo["skill"] == 2 and conteo["ronda"] == 1 and conteo["hitl_prompt"] == 1
 
     # texto sin señales: no aparece ninguna clave (solo se cuentan > 0)
     conteo = contar_marcadores("charla normal")
