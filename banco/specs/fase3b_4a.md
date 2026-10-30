@@ -112,3 +112,25 @@ borra", declarados antes de correr:
 Resultado en ratchets: `settings_leidos` 78 → **64**, `vocabulario` 7 → **3**,
 `nodos_largos` 14 → **13** (la estimación decía ~66, 3, 13).
 
+
+## Veredicto (2026-10-30, corrido por el operador; commit 7a23b63)
+
+Cada brazo en su worktree con su `.runs` desde el principio. 8 corridas
+(3× `fase3b-directas` + 1× `exp55-skills` por brazo), 104 turnos, 0 timeouts.
+Los cinco criterios en verde:
+
+1. **Sin tools de más**: 12/12 preguntas directas con 0 rondas de tools en
+   las 3 corridas del brazo 3b (pedía ≥10/12; ninguna >1).
+2. **Costo**: USD mediana 3b 0,00204 vs base 0,00313 = **0,65×** (tope
+   1,5×). La base pagó 17 llamadas por corrida contra 12: las 5 extra son
+   el árbitro DeepSeek del voto cuando Laya dudaba — el costo de decidir
+   que este pre-registro mandaba incluir.
+3. **Descarrilos**: sanitizado + dsml_ignorado = 0 en los dos brazos.
+4. **Turnos ok**: 104/104.
+5. **Skills**: `exp55-skills` dispara la skill de revisión y no el control
+   en los dos brazos (el marcador pasa de `laya` a `skill`).
+
+Condición de fable sin re-corrida: 0 eventos `LayaRouter/directo` en las 16
+trazas del brazo A del A/B de 3a — en las auditorías el camino no cambia.
+**PASA: la 3b+4a sale de la rama y se mergea a main.** Evidencia:
+`salidas/banco/fase3b-ab/` (base-*/3b-*) y 8 trazas con usage en `.runs/`.
