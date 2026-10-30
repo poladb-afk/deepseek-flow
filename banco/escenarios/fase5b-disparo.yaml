@@ -1,0 +1,30 @@
+id: fase5b-disparo
+descripcion: "fase 5b (pre-registro): cuándo se carga un skill. Positivos en otra redacción y en inglés; negativos que no deben cargar ninguno"
+env:
+  PREGUNTAS_LOG: "0"
+  COMPACTION_CHARS: "120000"
+turnos:
+  - id: pos-revision-es
+    linea: "Revisá el código de utils/formato.py y decime si hay algún problema."
+    timeout: 240
+  - id: pos-revision-en
+    linea: "Review the code in utils/formato.py and tell me if there is any problem."
+    timeout: 240
+  - id: pos-revision-parafrasis
+    linea: "Mirá utils/formato.py: ¿ves algo que esté mal?"
+    timeout: 240
+  - id: pos-auditoria
+    linea: "¿Hay algún hueco de seguridad en utils/policy.py? Fijate sobre todo en lo que falte. No edites nada."
+    timeout: 360
+  - id: neg-haiku
+    linea: "escribime un haiku sobre el mar."
+    timeout: 180
+  - id: neg-concepto
+    linea: "¿qué es un closure en Python?"
+    timeout: 180
+  - id: neg-lectura
+    linea: "leé README.md y resumilo en tres líneas."
+    timeout: 240
+  - id: salir
+    linea: "salir"
+    timeout: 60

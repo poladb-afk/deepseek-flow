@@ -5953,3 +5953,36 @@ su clave el `tests_definidos` 1023→1012, y decidió por selección explícita
 que `RIESGO_LOG` siga en 1 por default (el log de s/n humanos se escribe
 aunque no haya checkpoint: es la etiqueta que exp/44 quedó debiendo).
 Mejoras solas: settings 64→58, imports 90→81, excepts 29→27.
+
+---
+
+## Pre-registro de la fase 5b: directivas y skills por descripción (2026-10-30, X110)
+
+**Pre-registro** en `banco/specs/fase5b.md`. Los skills dejan de activarse
+por una regex del YAML y pasan a una tool `usar_skill` cuyo catálogo lee el
+modelo (divulgación progresiva). El recorte de tools y el setting `SKILLS`
+salen. `DIRECTIVA_AUDITORIA` pasa a skill con el texto intacto.
+`DIRECTIVA_FORMA` se queda: exp/51 la sostiene con el mismo modelo.
+
+**Medido al escribirlo**: la regex de `revision` dispara en 1 de 4 positivos
+del escenario nuevo (no la activan ni el pedido en inglés ni la paráfrasis).
+Es un defecto de generalidad (F1) que el ratchet no veía porque vive en YAML.
+
+**Lo que queda abierto**: (1) fable, borrarla (recomendado: dos A/B sin
+lift) o pasarla a skill, con 30 corridas más; (2) la meta de
+`texto_de_prompt`: con la forma adentro el piso es 805, no ≤ 800, y no se
+recorta texto para llegar al número.
+
+**Instrumento** (este commit): `fase5b-disparo.yaml` y
+`banco/probes/fase5b.py`, que dice qué skill se cargó en cada turno a partir
+de los eventos del banco y aplica el criterio de disparo.
+
+**Decisiones del operador para la 5b** (2026-10-30, selección explícita
+con las recomendaciones a la vista):
+1. **Fable se convierte en skill** — decisión que REVIERTE la recomendación
+   del autor (borrarla: dos A/B sin mejora y apagada en producción). El
+   operador prefiere medirla con el criterio de disparo por descripción;
+   el A/B suma ~30 corridas de las trampas de exp/72.
+2. **La meta de `texto_de_prompt` queda en 805** — el piso real con la
+   directiva de forma adentro (526 + 279, sostenida por exp/51); recortar
+   5 caracteres para el número redondo sería hacerle trampa al ratchet.
