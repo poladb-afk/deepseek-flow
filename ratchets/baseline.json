@@ -438,7 +438,7 @@
         "tests/test_caracterizacion_chat.py": 12,
         "tests/test_chat_flujo.py": 24,
         "tests/test_citas.py": 7,
-        "tests/test_comandos_reales.py": 4,
+        "tests/test_comandos_reales.py": 5,
         "tests/test_compaccion.py": 25,
         "tests/test_consolidacion.py": 38,
         "tests/test_contratos.py": 4,
@@ -478,6 +478,7 @@
         "tests/test_pendientes.py": 35,
         "tests/test_policy.py": 26,
         "tests/test_policy_bypass.py": 35,
+        "tests/test_policy_datos.py": 14,
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
         "tests/test_ratchet.py": 35,
@@ -502,7 +503,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1008
+      "metrica": 1023
     },
     "texto_de_prompt": {
       "detalle": {

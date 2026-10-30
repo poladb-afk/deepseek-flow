@@ -104,3 +104,22 @@ foto") no llegó con la foto: la sonda de X107 no lo generaba. X108a le suma
 `--casos` a la sonda; `banco/fixtures/policy_casos_entrada.jsonl` (410 casos)
 se genera sobre el árbol de ANTES de la migración y va en su commit, antes
 del código. Criterios intactos.
+
+## Resultado (X108b; la foto real la confirma el operador)
+
+| criterio | medido |
+|---|---|
+| 1. 0 diferencias | casos por entrada: **0/410**. Foto real (445): el test la lee si está; en el árbol del autor no está y se saltea — la corrida que cuenta es la del operador. Extra, no pre-registrado: 200.000 comandos aleatorios (tokens de las listas + separadores + sintaxis de shell), política vieja vs nueva → **0** en `clasificar`, `explicar` e `irreversible` |
+| 2. tests de policy idénticos | md5 de `test_policy.py` y `test_policy_bypass.py` iguales a X107; verdes |
+| 3. falla cerrada | 11 casos: ausente, JSON roto, raíz no objeto, nivel desconocido, repetido, tapado, sin `confirmar_doble`, sin explicación, token con espacio, clave faltante, flag sin guion |
+| 4. ruff / C901 / ratchet | verdes; C901 ≤ 12 también en `utils/policy.py`; ninguna métrica empeora (`tests_definidos` +15) |
+
+**Las listas derivadas son iguales a las de antes**, comparadas una por una
+(whitelist, negras, `IRREVERSIBLES` en el mismo orden, flags, envoltorios).
+Solo cambia el orden de `_EXPLICACIONES`, que no decide: el validador prohíbe
+que un prefijo tape a otro, y es el único caso en que el orden de `explicar`
+importaría.
+
+**Efecto esperado, no cumplido**: `policy.py` 463 → 425, no ~300. Salieron
+las listas (−100 líneas) y entró la validación de falla cerrada (+60); los
+datos ocupan 64 líneas.

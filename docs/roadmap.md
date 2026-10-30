@@ -18,7 +18,7 @@ entra** (X99: 2 cierres reales en 16 corridas, casos insuficientes). Fase 3:
 gate previo PASA (X102). **3a NO PASA** (X105: el A/B dio 2,2×–6,9× el USD y s17+s18 −2; cableado
 borrado). **3b + 4a pre-registradas** (`banco/specs/fase3b_4a.md`) y **escritas**
 (X106: el router sale del chat; falta el A/B `fase3b-directas` ×3 por brazo y
-la clave del operador para `tests_definidos` 1132 → 1004) — **3b PASA** (12/12 sin tools, 0,65× USD; `fase3b_4a.md`). **5a pre-registrada** (X107, `banco/specs/fase5a.md`: política de comandos como datos, 0 diferencias; falta la foto real del operador). **4b-mín cerrada** (X104:
+la clave del operador para `tests_definidos` 1132 → 1004) — **3b PASA** (12/12 sin tools, 0,65× USD; `fase3b_4a.md`). **5a hecha** (X108: política de comandos como datos en `utils/politica_comandos.json`; 0 diferencias en los casos por entrada y en el fuzz; la foto real la confirma el operador). **4b-mín cerrada** (X104:
 la regex de palabras se borró, 0 cambios en 36 preguntas reales). Fase 6 (limpieza de las piezas sueltas) aprobada, después de la 5.
 2b-3 queda para después de la fase 4 (o se descarta si sigue sin haber
 sub-agentes); 2b-3 `AgentStep`/`ExecuteTools` →

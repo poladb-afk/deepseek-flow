@@ -5872,3 +5872,27 @@ sin distinción de mayúsculas, y los prefijos de shell no lo son. Los 3 que
 quedan (`juez.TOOL_CONTEXTO_RE`, las palabras de continuación de
 `GetQuestion`, el `YES` de `aprobaciones`) son de la 5b o la fase 6.
 
+---
+
+## Fase 5a: la política de comandos como datos (2026-10-30, X108)
+
+**Desvío declarado (X108a)**: los casos por entrada, que el pre-registro
+pedía congelar junto con la foto, no estaban: la sonda de X107 no los
+generaba. X108a suma `--casos` a la sonda (410 casos, derivados de las listas
+de antes) y va en su propio commit, antes del código.
+
+**Qué (X108b)**: las listas de `utils/policy.py` viven en
+`utils/politica_comandos.json`; el código conserva el mecanismo y los mismos
+nombres internos, ahora derivados del archivo. La duplicación
+whitelist/`_LECTURA` desaparece: cada prefijo es una entrada. Si el archivo
+falta o no valida, el import falla con `ValueError` (falla cerrada).
+
+**Medido**: 0/410 casos por entrada; 200.000 comandos aleatorios con la
+política vieja y la nueva, 0 diferencias; las listas derivadas, iguales una
+por una. Tests de policy idénticos byte a byte. `policy.py` 463 → 425, no los
+~300 esperados: la validación ocupa casi todo lo que liberaron las listas.
+
+**Cobertura de la foto real** (nota del operador): es de sesión de
+desarrollo (387/445 empiezan con `cd {RAIZ}`), no de usuario final, y dejó
+afuera 317 comandos largos y 33 con posible secreto. Ese espacio lo cubren
+los casos por entrada y el fuzz, no la foto.

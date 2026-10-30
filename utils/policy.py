@@ -45,62 +45,104 @@ HITL_AUTO=0 vuelve todo a s/n. El costo se documenta, no se esconde.
 Orden de evaluación: whitelist primero, negra después, default preguntar.
 """
 
+import json
 import re
+from pathlib import Path
 
 # Niveles de riesgo, de menor a mayor fricción humana.
 AUTO = "auto"
 PREGUNTAR = "preguntar"
 CONFIRMAR_DOBLE = "confirmar_doble"
 
-# Prefijos exactos de solo-lectura: la secuencia de primeros tokens del
-# segmento debe COINCIDIR exactamente con uno de estos. Conservadora a
-# propósito — solo herramientas que no escriben ni ejecutan nada del
-# usuario. `echo` se admite solo sin redirección (se valida aparte).
-_WHITELIST_PREFIJOS = (
-    ("pytest",),
-    ("python3", "-m", "pytest"),
-    ("ruff", "check"),
-    ("python3", "-m", "ruff", "check"),
-    ("grep",),
-    ("ls",),
-    ("cat",),
-    ("head",),
-    ("tail",),
-    ("wc",),
-    ("find",),
-    ("file",),
-    ("echo",),
-    ("git", "status"),
-    ("git", "log"),
-    ("git", "diff"),
-    ("git", "show"),
-    ("git", "blame"),
-    # neutros: no leen ni escriben nada por sí mismos
-    ("cd",),
-    ("sort",),
-)
+# Las listas de la política son DATOS (fase 5a): `politica_comandos.json`,
+# al lado de este archivo. Acá queda el mecanismo. Se lee UNA vez, al
+# importar, y si no valida el import falla: el chat no arranca. Nunca "todo
+# auto" ni "todo preguntar" en silencio (una negra vacía bajaría `rm -rf` a
+# una sola confirmación). Sin setting para la ruta: no es configurable.
+_ARCHIVO = Path(__file__).with_name("politica_comandos.json")
+_NIVELES = (AUTO, PREGUNTAR, CONFIRMAR_DOBLE)
+_CLAVES = {"prefijos": list, "flags_peligrosos": dict, "bases_modulo": list,
+           "envoltorios": dict, "git_globales_con_valor": list}
 
-# Comandos que SIEMPRE preguntan (aunque no tengan redirección ni xargs).
-# python3 -c: código arbitrario disfrazado de comando de una línea.
-_NEGRA_PREGUNTAR = (
-    ("python3", "-c"),
-    ("python", "-c"),
-    ("rm",),
-    ("pip",),
-    ("pip3",),
-    ("git", "commit"),
-    ("git", "checkout"),
-    ("git", "reset"),
-)
 
-# Comandos que piden DOS confirmaciones: lo más peligroso del inventario.
-# rm -rf/-fr entra acá (("rm",) suelto queda en preguntar): la
-# especificación de la mesa 2 le exige doble fricción a lo destructivo.
-_NEGRA_DOBLE = (
-    ("git", "push"),
-    ("rm", "-rf"),
-    ("rm", "-fr"),
-)
+def _exigir(condicion, motivo):
+    if not condicion:
+        raise ValueError(f"política de comandos inválida ({_ARCHIVO.name}): {motivo}")
+
+
+def _es_token(t):
+    return isinstance(t, str) and t != "" and t.split() == [t]
+
+
+def _validar_prefijos(prefijos):
+    vistos = []
+    for entrada in prefijos:
+        _exigir(isinstance(entrada, dict), f"entrada que no es objeto: {entrada!r}")
+        tokens = entrada.get("tokens")
+        _exigir(isinstance(tokens, list) and tokens and all(map(_es_token, tokens)), f"tokens: {entrada!r}")
+        _exigir(entrada.get("nivel", PREGUNTAR) in _NIVELES, f"nivel desconocido: {entrada!r}")
+        _exigir(isinstance(entrada.get("explicacion"), str) and entrada["explicacion"].strip(),
+                f"sin explicación: {entrada!r}")
+        _exigir(tokens not in vistos, f"prefijo repetido: {tokens}")
+        # el primero que matchea explica: uno más corto antes lo taparía
+        _exigir(not any(tokens[:len(v)] == v for v in vistos), f"{tokens} queda tapado por uno anterior")
+        vistos.append(tokens)
+    for nivel in _NIVELES:
+        _exigir(any(e.get("nivel") == nivel for e in prefijos), f"ningún prefijo con nivel {nivel}")
+
+
+def _validar_politica(datos):
+    _exigir(isinstance(datos, dict), "la raíz no es un objeto")
+    for clave, tipo in _CLAVES.items():
+        _exigir(isinstance(datos.get(clave), tipo), f"falta `{clave}` ({tipo.__name__})")
+    _validar_prefijos(datos["prefijos"])
+    for base, entrada in datos["flags_peligrosos"].items():
+        flags = entrada.get("flags") if isinstance(entrada, dict) else None
+        _exigir(isinstance(flags, list) and flags and all(_es_token(f) and f.startswith("-") for f in flags),
+                f"flags de {base}")
+    for entrada in datos["bases_modulo"]:
+        _exigir(isinstance(entrada, dict) and all(map(_es_token, entrada.get("prefijo") or [None]))
+                and _es_token(entrada.get("base")), f"base de módulo: {entrada!r}")
+    for nombre, opciones in datos["envoltorios"].items():
+        _exigir(_es_token(nombre) and isinstance(opciones, list) and all(map(_es_token, opciones)),
+                f"envoltorio {nombre}")
+    _exigir(all(map(_es_token, datos["git_globales_con_valor"])), "git_globales_con_valor")
+
+
+def _leer_politica(ruta=_ARCHIVO):
+    """Los datos de la política, validados. Falla cerrada: ValueError."""
+    try:
+        datos = json.loads(Path(ruta).read_text(encoding="utf-8"))
+    except OSError as e:
+        raise ValueError(f"política de comandos ilegible: {ruta}: {e}") from e
+    _validar_politica(datos)
+    return datos
+
+
+_POLITICA = _leer_politica()
+
+
+def _con_nivel(nivel):
+    """(prefijo, explicación) de las entradas con ese nivel EXPLÍCITO: las que
+    no traen nivel solo explican (clasifican al default, no a la negra)."""
+    return tuple((tuple(e["tokens"]), e["explicacion"]) for e in _POLITICA["prefijos"] if e.get("nivel") == nivel)
+
+
+# Prefijos exactos de solo-lectura (whitelist): la secuencia de primeros
+# tokens del segmento debe COINCIDIR con uno. Conservadora a propósito.
+# `echo` se admite solo sin redirección (se valida aparte). Su texto dice POR
+# QUÉ no pide fricción.
+_LECTURA = _con_nivel(AUTO)
+_WHITELIST_PREFIJOS = tuple(p for p, _ in _LECTURA)
+# La negra: siempre preguntan, o piden DOS confirmaciones (lo más peligroso;
+# `rm` suelto pregunta, `rm -rf` paga doble: mesa 2).
+_NEGRA_PREGUNTAR = tuple(p for p, _ in _con_nivel(PREGUNTAR))
+_NEGRA_DOBLE = tuple(p for p, _ in _con_nivel(CONFIRMAR_DOBLE))
+# Explicaciones de lo que no es auto (mesa 8, UX): DELIBERADAMENTE más ancha
+# que la negra — mv/cp/mkdir clasifican al default 'preguntar' pero igual
+# merecen SU razón en el s/n (clasificar = riesgo; explicar = UX).
+_EXPLICACIONES = tuple((tuple(e["tokens"]), e["explicacion"]) for e in _POLITICA["prefijos"]
+                       if e.get("nivel") != AUTO)
 
 # Patrones de shell que impiden clasificar por prefijo: escriben, sustituyen
 # o ejecutan cosas que no vemos. Cualquier aparición ⇒ 'preguntar'.
@@ -120,30 +162,9 @@ _COMILLAS = re.compile(r"'[^']*'|\"[^\"]*\"")
 # viaje sin clasificar (medido: 'ls\nrm -rf ~' y 'cat a & rm -rf b' daban auto).
 _SEPARADORES = re.compile(r"&&|\|\||\||&|;|\n|\r")
 
-# Flags que vuelven escritor/ejecutor a un comando de la whitelist.
-# find -delete/-exec borra o ejecuta; sort -o y git --output escriben;
-# pytest -p carga plugins y --basetemp borra el directorio que le pases.
-_FLAGS_PELIGROSOS = {
-    "find": ("-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint",
-             "-fprint0", "-fprintf", "-fls",
-             # traversal: siguen symlinks; con un enlace dentro de las raíces
-             # se lee fuera de ellas (auditoría F2, symlink escape)
-             "-L", "-H", "-follow"),
-    # --compress-program EJECUTA el programa que se le pasa (GNU sort)
-    "sort": ("-o", "--output", "--compress-program"),
-    # tail -f/-F no termina: en auto el agente queda colgado hasta TIMEOUT_S
-    "tail": ("-f", "-F", "--follow", "--retry"),
-    "git": ("--output", "--ext-diff", "--textconv"),
-    # -o/--override-ini reinyecta cualquier flag (addopts=-p plugin) y saltea la lista
-    "pytest": ("-p", "--basetemp", "--rootdir", "-c", "--confcutdir", "-o", "--override-ini"),
-    # ruff: lo que ESCRIBE archivos (--fix/--fix-only/--add-noqa, -o/--output-file)
-    # o cuelga (-w/--watch); `ruff check` a secas solo parsea (el --diff es
-    # dry-run, medido: no toca disco). --add-noqa y -o los destapó el juez de
-    # fable refutando la primera versión de esta admisión (exp/92)
-    "ruff": ("--fix", "--fix-only", "-w", "--watch", "--add-noqa", "-o",
-             "--output-file"),
-    "grep": ("-R", "--dereference-recursive"),
-}
+# Flags que vuelven escritor/ejecutor (o colgado) a un comando de la
+# whitelist; el porqué de cada base va en su `nota` del archivo.
+_FLAGS_PELIGROSOS = {base: tuple(e["flags"]) for base, e in _POLITICA["flags_peligrosos"].items()}
 
 
 
@@ -200,10 +221,7 @@ def _segmento_es_auto(segmento):
 
 # Formas `python3 -m X`: el veto de flags mira el MÓDULO, no el intérprete
 # (sin esto, `python3 -m ruff check --fix` esquivaba el veto de ruff).
-_BASES_MODULO = {
-    ("python3", "-m", "pytest"): "pytest",
-    ("python3", "-m", "ruff"): "ruff",
-}
+_BASES_MODULO = {tuple(e["prefijo"]): e["base"] for e in _POLITICA["bases_modulo"]}
 
 
 def _tiene_flag_peligroso(tokens):
@@ -234,18 +252,10 @@ def _grupo_corto(tok):
 # Envoltorios que ejecutan el comando que les sigue: el riesgo es el del
 # comando. Sus opciones (y los valores de esas opciones) no son el comando:
 # `sudo -u root rm -rf x` sigue siendo un rm -rf recursivo y forzado.
-_ENVOLTORIOS = {"sudo", "env", "command", "exec", "nice", "nohup", "time", "timeout"}
-_OPCIONES_CON_VALOR = {
-    "sudo": ("-u", "--user", "-g", "--group", "-p", "--prompt", "-C", "--close-from",
-             "-r", "--role", "-t", "--type", "-U", "--other-user", "-T", "--command-timeout"),
-    "env": ("-u", "--unset", "-C", "--chdir", "-S", "--split-string"),
-    "nice": ("-n", "--adjustment"),
-    "timeout": ("-s", "--signal", "-k", "--kill-after"),
-    "time": ("-o", "--output", "-f", "--format"),
-    "exec": ("-a",),
-}
+_ENVOLTORIOS = set(_POLITICA["envoltorios"])
+_OPCIONES_CON_VALOR = {e: tuple(o) for e, o in _POLITICA["envoltorios"].items() if o}
 # Opciones globales de git que toman un valor: `git -C . push` sigue siendo push.
-_GIT_GLOBAL_CON_VALOR = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
+_GIT_GLOBAL_CON_VALOR = set(_POLITICA["git_globales_con_valor"])
 
 
 def _saltar_opciones(tokens, envoltorio):
@@ -381,54 +391,6 @@ def clasificar(comando):
 
     # 3) default: preguntar.
     return PREGUNTAR
-
-
-# Explicaciones cortas por prefijo (mesa 8, UX): por qué el comando merece
-# la fricción que merece. Determinista, sin LLM — es un rótulo, no un juicio.
-# DELIBERADAMENTE más ancha que whitelist/negra: entradas como mv/cp/mkdir
-# clasifican al default 'preguntar' pero igual merecen SU razón en el
-# prompt de aprobación (clasificar = riesgo; explicar = UX del s/n).
-_EXPLICACIONES = (
-    (("rm", "-rf"), "borrado recursivo forzado (destructivo)"),
-    (("rm", "-fr"), "borrado recursivo forzado (destructivo)"),
-    (("rm",), "borra archivos"),
-    (("git", "push"), "publica commits al remoto (irreversible en el server)"),
-    (("git", "commit"), "crea un commit en tu repo local"),
-    (("git", "checkout"), "cambia de rama/descarta cambios de working tree"),
-    (("git", "reset"), "mueve HEAD (puede descartar cambios)"),
-    (("pip",), "instala paquetes (modifica el entorno)"),
-    (("pip3",), "instala paquetes (modifica el entorno)"),
-    (("python3", "-c"), "código Python arbitrario en una línea"),
-    (("python", "-c"), "código Python arbitrario en una línea"),
-    (("mv",), "mueve o renombra archivos"),
-    (("cp",), "copia archivos"),
-    (("mkdir",), "crea directorios"),
-    (("touch",), "crea o actualiza archivos"),
-)
-
-# Solo-lectura conocida: la explicación dice POR QUÉ no pide fricción.
-_LECTURA = (
-    (("pytest",), "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"),
-    (("python3", "-m", "pytest"), "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"),
-    (("ruff", "check"), "lintea — parsea el código SIN ejecutarlo (escribe caché)"),
-    (("python3", "-m", "ruff", "check"), "lintea — parsea el código SIN ejecutarlo (escribe caché)"),
-    (("grep",), "busca texto (solo lee)"),
-    (("ls",), "lista un directorio (solo lee)"),
-    (("cat",), "muestra un archivo (solo lee)"),
-    (("head",), "muestra el inicio de un archivo (solo lee)"),
-    (("tail",), "muestra el final de un archivo (solo lee)"),
-    (("wc",), "cuenta líneas/palabras (solo lee)"),
-    (("find",), "busca archivos (solo lee)"),
-    (("file",), "identifica el tipo de archivo (solo lee)"),
-    (("echo",), "imprime texto"),
-    (("git", "status"), "estado del repo (solo lee)"),
-    (("git", "log"), "historial de commits (solo lee)"),
-    (("git", "diff"), "cambios sin commitear (solo lee)"),
-    (("git", "show"), "contenido de un objeto (solo lee)"),
-    (("git", "blame"), "autoría por línea (solo lee)"),
-    (("cd",), "cambia de directorio (solo afecta al subshell del comando)"),
-    (("sort",), "ordena líneas (solo lee)"),
-)
 
 
 def explicar(comando):
