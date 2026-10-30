@@ -5896,3 +5896,15 @@ por una. Tests de policy idénticos byte a byte. `policy.py` 463 → 425, no los
 desarrollo (387/445 empiezan con `cd {RAIZ}`), no de usuario final, y dejó
 afuera 317 comandos largos y 33 con posible secreto. Ese espacio lo cubren
 los casos por entrada y el fuzz, no la foto.
+
+**Decisiones del operador para el tramo final del refactor** (2026-10-30,
+selección explícita con las recomendaciones a la vista):
+1. `imports_perezosos`: meta **~60 realista tras S9** — la fase 6 NO se
+   amplia con los módulos de MCP/web/HITL solo por el número original de 40.
+2. Fase 3, lo suelto: **S1 y S2 se cierran con veredicto negativo** (la 3a
+   midió el thinking con tools y el A/B lo rechazó; S1 no aplica sin él) y
+   `LAYA_MODEL_RIESGO` se resuelve en el **paso 1** (el juez de riesgo
+   observa y no decide: pasa a decidir o se borra).
+3. La continuación ("seguí", "continúa") pasa a **detección por estado del
+   thread** (queda pregunta abierta sin responder), no por palabras: la
+   lista de `GetQuestion` sale y el grafo decide (F1/F3).
