@@ -5947,3 +5947,9 @@ tests del juez y de bmo y se suman 3 (el log escribe cada decisión humana;
 los settings salen solo del entorno y del `.env` propio; el mensaje de
 `get_api_key`). Hace falta la clave del operador. `tests/inventario_tests.txt`
 pierde exactamente esas 14 líneas.
+
+**Aceptación del ratchet del paso 1** (2026-10-30): el operador aceptó con
+su clave el `tests_definidos` 1023→1012, y decidió por selección explícita
+que `RIESGO_LOG` siga en 1 por default (el log de s/n humanos se escribe
+aunque no haya checkpoint: es la etiqueta que exp/44 quedó debiendo).
+Mejoras solas: settings 64→58, imports 90→81, excepts 29→27.
