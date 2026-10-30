@@ -5843,3 +5843,32 @@ setting muerto en `test_core_sin_modulos` y un comentario huérfano en
 
 **Nota del operador**: los `.orig` nunca quedaron versionados acá (se
 excluyeron al aplicar X105 y X106), así que no hubo commit que hacer.
+---
+
+## Pre-registro de la fase 5a: la política de comandos como datos (2026-10-30, X107)
+
+**Veredicto de la 3b** registrado por el operador en `fase3b_4a.md`
+(`0269208`): 12/12 preguntas directas sin tools, USD 0,65× la base, 0
+descarrilos, 104/104 turnos ok, `exp55-skills` igual. X106 entró después del
+A/B, como pedía el pre-registro.
+
+**Pre-registro** en `banco/specs/fase5a.md`: las listas de `utils/policy.py`
+pasan a `utils/politica_comandos.json` con criterio de **0 diferencias** en
+`clasificar` y `explicar`. Al leerlas apareció una duplicación: whitelist y
+`_LECTURA` son los mismos 20 prefijos, y las negras están todas repetidas en
+`_EXPLICACIONES`; como datos, una entrada por prefijo.
+
+**Instrumento** (este commit): `banco/probes/comandos_reales.py`. La traza no
+guarda argumentos, así que los comandos salen de los checkpoints de thread
+(`tool_calls` completos, `auto` incluidos) y del log de riesgo (sin los
+truncados a 200). Deduplicados, anonimizados a `{RAIZ}`/`{HOME}`, sin
+posibles secretos. El operador genera y revisa la foto
+(`--fixture` → `banco/fixtures/policy_comandos.jsonl`) antes de que se
+escriba la 5a.
+
+**Corrección**: en la propuesta de X106 se dijo que la 5a bajaba
+`vocabulario_hardcodeado`. No: el ratchet mide palabras en español y regex
+sin distinción de mayúsculas, y los prefijos de shell no lo son. Los 3 que
+quedan (`juez.TOOL_CONTEXTO_RE`, las palabras de continuación de
+`GetQuestion`, el `YES` de `aprobaciones`) son de la 5b o la fase 6.
+
