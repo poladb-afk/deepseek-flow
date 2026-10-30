@@ -5808,3 +5808,25 @@ su clave el `tests_definidos` 1132→1004 (−128: 106 del router borrados
 enteros y 22 sueltos, contra 7 nuevos del camino sin router). Mejoras que
 entraron solas: vocabulario 7→3, settings 78→64, excepts 33→29,
 imports_perezosos 124→90, nodos_largos 14→13.
+
+**A/B de 3b+4a corrido: los cinco criterios PASAN — merge a main** (2026-10-30):
+pre-registro `banco/specs/fase3b_4a.md`, cada brazo en su worktree con su
+`.runs` desde el principio (lección del A/B de 3a). 8 corridas, 0 timeouts.
+
+1. **Tools de más**: 12/12 preguntas directas con **0 rondas de tools** en
+   las 3 corridas del brazo 3b (pedía ≥10/12; ninguna >1) ✅
+2. **USD**: mediana 3b **0,00204** vs base 0,00313 = **0,65×** (tope 1,5×) ✅
+   — el brazo 3b salió MÁS BARATO: la base pagó 17 llamadas por corrida
+   contra 12 (las 5 extra: el árbitro DeepSeek del voto cuando Laya duda,
+   exactamente el costo de decidir que el pre-registro decía incluir)
+3. **Descarrilos**: sanitizado + dsml_ignorado = 0 en los dos brazos ✅
+4. **Timeouts**: 0 en 104 turnos ✅
+5. **Skills**: exp55 dispara la skill de revisión y no el control, en los
+   dos brazos; el marcador pasa de `laya` a `skill` (más honesto: lo que
+   dispara es la skill) ✅
+
+Condición de fable resuelta sin re-correr: 0 eventos LayaRouter/directo en
+las 16 trazas del brazo A del A/B de 3a — en las auditorías el camino no
+cambia. Evidencia: `salidas/banco/fase3b-ab/` (base-*/3b-*) y 8 trazas en
+`.runs/`. Veredicto atado del pre-registro: **la 3b+4a pasa y sale de la
+rama** — merge a main.
