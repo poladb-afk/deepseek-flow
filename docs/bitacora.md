@@ -5754,7 +5754,7 @@ enforce; ahora son el nodo `Skills` (misma `skill_para`, mismo mensaje
   directa, "nunca se ofrecieron" no existe.
 - La etiqueta ambiental en `AgentStep.post` y `turno["router_pendiente"]`;
   `resume` descarta las dos claves de checkpoints viejos.
-- Del lab: `sonda_router.py` y 11 sondas (`bench_voto`, `calibrar_voto`,
+- Del lab: `sonda_router.py` y 12 sondas (`bench_voto`, `calibrar_voto`,
   `conformal_router`, `estado_flywheel`, `etiquetar_ambiental`,
   `etiquetar_router`, `h3g_reglas`, `producto_router`, `veredicto_router`,
   `voto_antifuga`, `voto_combinar`, `voto_dataset_gen`). Medían al router o al
@@ -5830,3 +5830,16 @@ las 16 trazas del brazo A del A/B de 3a — en las auditorías el camino no
 cambia. Evidencia: `salidas/banco/fase3b-ab/` (base-*/3b-*) y 8 trazas en
 `.runs/`. Veredicto atado del pre-registro: **la 3b+4a pasa y sale de la
 rama** — merge a main.
+
+
+**X106b (revisión del diff)**: los `.orig` de `patch -R` (X105) no son parte
+de X106: se sacan en un commit aparte si quedaron versionados. Docs al día:
+gate de la fase 3 en `elegancia.md` apunta a `fase3b_4a.md` (no a
+`producto_router.py`, borrado); `design.md` sin `turno["ruta"]` ni el enlace a
+`sonda_router.py` y con la frase de skills reparada; R8 de `AGENTS.md` sin el
+contrato del voto; dos comentarios de `.env.example`; 12 sondas (no 11); un
+setting muerto en `test_core_sin_modulos` y un comentario huérfano en
+`bench-supervisor-aplicar.yaml`. Sin cambio de conducta.
+
+**Nota del operador**: los `.orig` nunca quedaron versionados acá (se
+excluyeron al aplicar X105 y X106), así que no hubo commit que hacer.

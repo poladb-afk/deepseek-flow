@@ -40,7 +40,7 @@ nombra el gate que la hace cumplir.
 | R5 | Los helpers privados no se bifurcan: si `_foo` ya existe en otro archivo, extraelo a `utils/` en vez de copiarlo. | `ratchet.py` (helpers duplicados) |
 | R6 | El baseline del ratchet solo se mueve hacia la mejora; editarlo a mano es bypass. Aceptar un empeoramiento exige la CLAVE del operador (su sha256 commiteado), no una bandera. | `ratchet.py`, `test_una_bandera_cualquiera_no_es_la_clave` |
 | R7 | La seguridad no se relaja: HITL, contención de paths y política de comandos se tocan con tests de bypass. | `tests/test_policy_bypass.py`, `tests/test_policy.py` |
-| R8 | Los contratos congelados (dispatch, voto, prefiltro) no cambian sin regenerar su sha1 y justificarlo. | `tests/test_contratos.py` |
+| R8 | Los contratos congelados (dispatch, prefiltro) no cambian sin regenerar su sha1 y justificarlo. | `tests/test_contratos.py` |
 | R9 | El código se escribe para humanos: mínimo que funciona, sin defensas/abstracciones/docstrings no pedidos, sin banners decorativos; los `except` amplios no crecen y la complejidad/anidación del harness tampoco (ratchet). | `tests/test_estilo_humano.py`, `ratchet.py` |
 | R10 | Elegancia: un arreglo borra un caso, no lo agrega. Sin vocabulario hardcodeado, sin el CORE importando módulos, sin el producto leyendo el banco, sin settings ni prompt que crezcan (definición en `docs/elegancia.md`). | `ratchet.py`, `tests/test_ratchet_elegancia.py` |
 

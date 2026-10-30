@@ -59,7 +59,7 @@ def test_el_chat_corre_sin_el_modulo_de_memoria(tmp_path):
     env = {**os.environ, "AGENT_ALLOWED_DIRS": str(tmp_path),
            "CHAT_STREAM": "0", "PREFETCH": "0", "CITAS_VERIFICAR": "0",
            "SKILLS": "0", "COMPACTION_CHARS": "3000", "TRACE": "0", "THREAD_PERSIST": "0",
-           "PREGUNTAS_LOG": "0", "LAYA_LOG_DECISIONES": "0"}
+           "PREGUNTAS_LOG": "0"}
     script = SIN_MEMORIA.replace("sys.path.insert(0, RAIZ)", f"sys.path.insert(0, {str(RAIZ)!r})")
     r = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, env=env,
                        capture_output=True, text=True, timeout=120)

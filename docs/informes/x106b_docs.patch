@@ -1,0 +1,143 @@
+diff -ruN -x .runs c/deepseek-flow-main/.env.example b/deepseek-flow-main/.env.example
+--- c/deepseek-flow-main/.env.example	2026-10-30 11:12:09.000000000 +0000
++++ b/deepseek-flow-main/.env.example	2026-10-30 11:55:18.851052120 +0000
+@@ -50,8 +50,8 @@
+ # CORTE_NOVEDAD=0
+ # CORTE_NOVEDAD_MIN=3
+ # Skills declarativas (exp/55, Mesa 7): un YAML en skills/ con condición regex,
+-# prompt y subset de tools. En enforce, el disparo fuerza herramientas, inyecta
+-# el prompt y el loop anuncia solo ese subset (guía, no sandbox). 0 = apagado.
++# prompt y subset de tools. El nodo Skills dispara a la entrada de cada pregunta,
++# inyecta el prompt y el loop anuncia solo ese subset (guía, no sandbox). 0 = apagado.
+ # SKILLS=1
+ # Webhook autenticado (Mesa 7, exp/57) sobre el server HITL web. Con
+ # WEBHOOK_TOKEN vacío el endpoint POST /webhook queda DESHABILITADO (503);
+@@ -75,8 +75,8 @@
+ # nuevo del usuario). Se lee al importar: cambiarlo exige reiniciar.
+ # UMBRAL_SIN_PROGRESO=3
+ # Log de preguntas del usuario (exp/34): una línea JSON por pregunta en
+-# salidas/preguntas.jsonl (gitignored). Es lo que permite calibrar el router
+-# con tráfico REAL — el trace no guarda texto y los logs del banco van con
++# salidas/preguntas.jsonl (gitignored). Es la muestra de tráfico REAL
++# para calibrar — el trace no guarda texto y los logs del banco van con
+ # echo off. Cualquier fallo de escritura se traga: nunca corta el chat.
+ # PREGUNTAS_LOG=1
+ # PREGUNTAS_ARCHIVO=salidas/preguntas.jsonl
+diff -ruN -x .runs c/deepseek-flow-main/AGENTS.md b/deepseek-flow-main/AGENTS.md
+--- c/deepseek-flow-main/AGENTS.md	2026-10-29 18:18:10.000000000 +0000
++++ b/deepseek-flow-main/AGENTS.md	2026-10-30 11:55:18.851052120 +0000
+@@ -40,7 +40,7 @@
+ | R5 | Los helpers privados no se bifurcan: si `_foo` ya existe en otro archivo, extraelo a `utils/` en vez de copiarlo. | `ratchet.py` (helpers duplicados) |
+ | R6 | El baseline del ratchet solo se mueve hacia la mejora; editarlo a mano es bypass. Aceptar un empeoramiento exige la CLAVE del operador (su sha256 commiteado), no una bandera. | `ratchet.py`, `test_una_bandera_cualquiera_no_es_la_clave` |
+ | R7 | La seguridad no se relaja: HITL, contención de paths y política de comandos se tocan con tests de bypass. | `tests/test_policy_bypass.py`, `tests/test_policy.py` |
+-| R8 | Los contratos congelados (dispatch, voto, prefiltro) no cambian sin regenerar su sha1 y justificarlo. | `tests/test_contratos.py` |
++| R8 | Los contratos congelados (dispatch, prefiltro) no cambian sin regenerar su sha1 y justificarlo. | `tests/test_contratos.py` |
+ | R9 | El código se escribe para humanos: mínimo que funciona, sin defensas/abstracciones/docstrings no pedidos, sin banners decorativos; los `except` amplios no crecen y la complejidad/anidación del harness tampoco (ratchet). | `tests/test_estilo_humano.py`, `ratchet.py` |
+ | R10 | Elegancia: un arreglo borra un caso, no lo agrega. Sin vocabulario hardcodeado, sin el CORE importando módulos, sin el producto leyendo el banco, sin settings ni prompt que crezcan (definición en `docs/elegancia.md`). | `ratchet.py`, `tests/test_ratchet_elegancia.py` |
+ 
+diff -ruN -x .runs c/deepseek-flow-main/banco/escenarios/bench-supervisor-aplicar.yaml b/deepseek-flow-main/banco/escenarios/bench-supervisor-aplicar.yaml
+--- c/deepseek-flow-main/banco/escenarios/bench-supervisor-aplicar.yaml	2026-10-30 11:08:47.000000000 +0000
++++ b/deepseek-flow-main/banco/escenarios/bench-supervisor-aplicar.yaml	2026-10-30 11:55:18.855052174 +0000
+@@ -10,8 +10,8 @@
+ env:
+   MAX_TOOL_ROUNDS: "30"
+   COMPACTION_CHARS: "200000"
+-  # sesión de ESCRITURA de código: Laya apagada para no cargar checkpoints
+-  # (2×2.86 GiB) que solo consumen RAM — el router no aporta acá
++  # sesión de ESCRITURA de código: el juez de riesgo apagado para no cargar
++  # su checkpoint (2,86 GiB) que solo consume RAM
+   LAYA_MODEL_RIESGO: "0"
+ scratch: []
+ turnos:
+diff -ruN -x .runs c/deepseek-flow-main/docs/bitacora.md b/deepseek-flow-main/docs/bitacora.md
+--- c/deepseek-flow-main/docs/bitacora.md	2026-10-30 11:17:32.000000000 +0000
++++ b/deepseek-flow-main/docs/bitacora.md	2026-10-30 11:55:18.859052228 +0000
+@@ -5604,7 +5604,7 @@
+   directa, "nunca se ofrecieron" no existe.
+ - La etiqueta ambiental en `AgentStep.post` y `turno["router_pendiente"]`;
+   `resume` descarta las dos claves de checkpoints viejos.
+-- Del lab: `sonda_router.py` y 11 sondas (`bench_voto`, `calibrar_voto`,
++- Del lab: `sonda_router.py` y 12 sondas (`bench_voto`, `calibrar_voto`,
+   `conformal_router`, `estado_flywheel`, `etiquetar_ambiental`,
+   `etiquetar_router`, `h3g_reglas`, `producto_router`, `veredicto_router`,
+   `voto_antifuga`, `voto_combinar`, `voto_dataset_gen`). Medían al router o al
+@@ -5652,3 +5652,12 @@
+ en las 12 preguntas directas, USD ≤ 1,5× la base, descarrilos ≤ base, 0
+ timeouts, `exp55-skills` igual.
+ 
++**X106b (revisión del diff)**: los `.orig` de `patch -R` (X105) no son parte
++de X106: se sacan en un commit aparte si quedaron versionados. Docs al día:
++gate de la fase 3 en `elegancia.md` apunta a `fase3b_4a.md` (no a
++`producto_router.py`, borrado); `design.md` sin `turno["ruta"]` ni el enlace a
++`sonda_router.py` y con la frase de skills reparada; R8 de `AGENTS.md` sin el
++contrato del voto; dos comentarios de `.env.example`; 12 sondas (no 11); un
++setting muerto en `test_core_sin_modulos` y un comentario huérfano en
++`bench-supervisor-aplicar.yaml`. Sin cambio de conducta.
++
+diff -ruN -x .runs c/deepseek-flow-main/docs/design.md b/deepseek-flow-main/docs/design.md
+--- c/deepseek-flow-main/docs/design.md	2026-10-30 11:17:50.000000000 +0000
++++ b/deepseek-flow-main/docs/design.md	2026-10-30 11:55:18.851052120 +0000
+@@ -113,7 +113,7 @@
+ |---|---|---|---|---|
+ | GetQuestion | Node | — | `input()` (ignora vacías; EOF → exit) | `salir/exit/quit` → `exit`; si no, resetea el presupuesto por pregunta (ley L8) y agrega el mensaje user → `continue`; `/aprobaciones` imprime el historial HITL y NO entra al historial |
+ | Skills | Node | la pregunta en curso (`pregunta_en_curso`) | `skill_para` (regex del YAML, sin LLM; `SKILLS=0` apaga) | si dispara: id en `turno["skill"]` y mensaje `[skill]` → `continue` — X106 (antes dentro del router) |
+-| Contexto | Node | si el historial supera `COMPACTION_CHARS`: respaldo de la zona fría (gancho `al_compactar`), compacción, recorte de tool results viejos y aviso de ventana caliente | — | sale por `cierre` si `motivo_de_cierre` (tope, no-progreso o sin novedad); si no, por `turno["ruta"]` (`herramientas`/`directo`, la fija el router; tras una ronda de tools, `herramientas`) — X95, X96 |
++| Contexto | Node | si el historial supera `COMPACTION_CHARS`: respaldo de la zona fría (gancho `al_compactar`), compacción, recorte de tool results viejos y aviso de ventana caliente | — | sale por `cierre` si `motivo_de_cierre` (tope, no-progreso o sin novedad); si no, por `herramientas` (un solo camino desde X106) — X95, X96 |
+ | Observar | Node | la ronda recién ejecutada | — | cuenta la ronda, huella/no-progreso y novedad; agrega al último resultado el aviso de sin-progreso y la nota de presupuesto; checkpoint (punto seguro 2) → `default` — X96 |
+ | Cierre | Node (max_retries=3, wait=5) | historial + `AVISO_CIERRE` efímero, **sin tools** | igual que AgentStep | la respuesta de un turno que agotó el presupuesto → `answer` — X96 |
+ | AgentStep | Node (max_retries=3, wait=5) | historial + tools (el subset del skill si hay uno activo) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
+@@ -205,8 +205,7 @@
+ sobre la pregunta), `instrucciones` (prompt que se inyecta con prefijo
+ `[skill]`) y `tools` (subset que el loop anuncia mientras el skill está
+ activo). `utils/skills.py` los carga (YAML roto se saltea) y expone funciones
+-puras (`skill_para`, `mensaje`, `filtrar_tools`). En **enforce**, el
+-el nodo `Skills` evalúa el disparo a la entrada de cada pregunta (X106; antes
++puras (`skill_para`, `mensaje`, `filtrar_tools`). El nodo `Skills` evalúa el disparo a la entrada de cada pregunta (X106; antes
+ lo hacía el router en enforce): si matchea, inyecta el contexto y anuncia el skill; `AgentStep` recorta la lista de tools
+ al subset. `SKILLS=0` apaga. El recorte de tools
+ es GUÍA (no sandbox): el action space sigue completo y la seguridad sigue en
+@@ -647,7 +646,7 @@
+ `round3/verified` como choose.
+ 
+ ### Laya — el router del chat, afinado (RETIRADO en X106, fase 3b: histórico)
+-[utils/laya.py](../utils/laya.py) · nodos LayaRouter/DirectAnswer · [sonda_router.py](../sonda_router.py)
++[utils/laya.py](../utils/laya.py) · nodos LayaRouter/DirectAnswer y `sonda_router.py` (retirados en X106)
+ 
+ Laya responde preguntas cerradas en local (carga ~12 s, inferencia ~0 s,
+ costo 0) con probabilidades; los umbrales de bmo (0.7/0.3) convierten la
+diff -ruN -x .runs c/deepseek-flow-main/docs/elegancia.md b/deepseek-flow-main/docs/elegancia.md
+--- c/deepseek-flow-main/docs/elegancia.md	2026-10-30 11:16:29.000000000 +0000
++++ b/deepseek-flow-main/docs/elegancia.md	2026-10-30 11:55:18.851052120 +0000
+@@ -70,7 +70,7 @@
+ | 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
+ | 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
+ | 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. ✅ 2b-2 (X96): `Observar` y `Cierre` (el presupuesto como arista). Falta: el chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
+-| 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a NO PASA (X105, cableado borrado). 3b por la opción (b): el router sale del chat (X106, código listo; falta el A/B de `banco/specs/fase3b_4a.md`). `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | `producto_router.py` con 0 falsos directos; s17–s20 calidad ≥ y costo ≤ |
++| 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a NO PASA (X105, cableado borrado). 3b por la opción (b): el router sale del chat (X106, código listo; falta el A/B de `banco/specs/fase3b_4a.md`). `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | los criterios de `banco/specs/fase3b_4a.md` (`fase3b-directas`: sin tools de más, USD ≤ 1,5×, descarrilos ≤ base; `exp55-skills` igual) |
+ | 4 | ✅ 4b-mín (X104): sin la regex de palabras. 4a (X106): reglas y voto borrados con la 3b; directivas en la 5b (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
+ | 5 | Política de comandos como datos (S10); skills por descripción; Laya 0.4.x | Mínimo | `test_policy_bypass.py` idéntico |
+ | 6 | Limpieza de piezas sueltas (`juez`, `effective_n`, `juez_lote`, `research`, `informe`, `fable_judge`): nodos largos e imports perezosos (decisión del operador, X103) | No | `nodos_largos` ≤ 3, `imports_perezosos` ≤ 40 |
+diff -ruN -x .runs c/deepseek-flow-main/docs/estado.md b/deepseek-flow-main/docs/estado.md
+--- c/deepseek-flow-main/docs/estado.md	2026-10-30 11:14:01.000000000 +0000
++++ b/deepseek-flow-main/docs/estado.md	2026-10-30 11:55:18.855052174 +0000
+@@ -136,7 +136,7 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
+-| X106 | — | Fase 3b + 4a: el chat tenía dos caminos (router de Laya + voto 2-de-2 + dos reglas de palabras → `DirectAnswer` sin tools, o el agente con tools) y la 3a no pasó, así que corresponde la opción (b) del pre-registro | 🧪 2026-10-28 (código listo; el A/B `fase3b-directas` lo corre el operador) | Un solo camino `GetQuestion → PreFetch → Skills → Contexto → AgentStep`. Borrados `LayaRouter`, `DirectAnswer`, `voto_confirmacion_router`, `utils/laya_routing.py`, `utils/conformal.py`, la flywheel del router (`router_pendiente`, etiqueta ambiental, `routing.jsonl`), el nivel D del replay, el invariante (b) y el bench del router de evals, `sonda_router.py` y 11 sondas del lab que solo medían al router o al voto. Los skills pasan al nodo `Skills`. Datos etiquetados archivados en `docs/informes/archivo/2026-10/router/`. Criterio en [fase3b_4a.md](../banco/specs/fase3b_4a.md) | `test_el_nodo_skills_activa_el_skill_una_vez`, `test_grafos_vivos_traen_el_chat_de_un_solo_camino`, `test_una_traza_del_router_se_ve_en_el_replay`, `test_las_trazas_viejas_del_router_siguen_siendo_canonicas` |
++| X106 | — | Fase 3b + 4a: el chat tenía dos caminos (router de Laya + voto 2-de-2 + dos reglas de palabras → `DirectAnswer` sin tools, o el agente con tools) y la 3a no pasó, así que corresponde la opción (b) del pre-registro | 🧪 2026-10-28 (código listo; el A/B `fase3b-directas` lo corre el operador) | Un solo camino `GetQuestion → PreFetch → Skills → Contexto → AgentStep`. Borrados `LayaRouter`, `DirectAnswer`, `voto_confirmacion_router`, `utils/laya_routing.py`, `utils/conformal.py`, la flywheel del router (`router_pendiente`, etiqueta ambiental, `routing.jsonl`), el nivel D del replay, el invariante (b) y el bench del router de evals, `sonda_router.py` y 12 sondas del lab que solo medían al router o al voto. Los skills pasan al nodo `Skills`. Datos etiquetados archivados en `docs/informes/archivo/2026-10/router/`. Criterio en [fase3b_4a.md](../banco/specs/fase3b_4a.md) | `test_el_nodo_skills_activa_el_skill_una_vez`, `test_grafos_vivos_traen_el_chat_de_un_solo_camino`, `test_una_traza_del_router_se_ve_en_el_replay`, `test_las_trazas_viejas_del_router_siguen_siendo_canonicas` |
+ | X105 | — | La fase 3a (thinking en las rondas con tools) se midió en el A/B pre-registrado (16 + 16 corridas, s17–s20) y **no pasó**: costo 2,21× / 6,87× / 4,18× / 3,90× la base por escenario (tope 1,5×) y s17+s18 −2 (hacía falta +2) | ✅ 2026-10-28 (decisión pre-registrada) | Se borra el cableado: `turno["pensar"]`, `PENSAR_TOOLS`, el parámetro `pensar` del cliente, la acumulación del reasoning en el stream y `sin_razonamiento_previo`; el invariante 1 vuelve a "sin reasoning en ningún mensaje". El comparador del A/B y su test se retiran (veredicto en `salidas/evals` y en la bitácora). La sonda `thinking_tools` se queda como documento de la restricción del proveedor y arma sus propios requests con thinking ON. Ratchet `settings_leidos` **79 → 78**. Pre-registro de la 3b+4a en [fase3b_4a.md](../banco/specs/fase3b_4a.md) | `test_historial_canonico_sin_reasoning`, `test_la_sonda_arma_el_on_y_el_off_es_el_de_produccion` |
+ | X104 | — | `alcance_amplio` decidía también por una regex de palabras de totalidad (`_PALABRAS_AMPLIAS`, vocabulario hardcodeado) | ✅ 2026-10-28 (fase 4b-mín) | Contrafácticos del pre-registro: los 14 escenarios de fable clasifican igual sin la regex (los 6 amplios lo son por el conteo en disco) y, sobre 36 preguntas reales del operador, 12 amplias con la regex y **0** dejan de serlo sin ella. Se borra la regex; quedan las dos señales que cuenta el disco. La sonda del contrafáctico se borra con ella (no queda qué comparar). Ratchet `vocabulario_hardcodeado` **8 → 7**. Además: `comparar_fase3.py`, el veredicto del A/B de la fase 3 sin juicio a mano (retirado en X105, cumplido) | `test_alcance_amplio_por_palabras_directorio_y_masa`, `test_todos_los_tests_pasa_no_es_totalidad` |
+ | X103 | — | La fase 3 (thinking en rondas con tools) no tenía cableado en el chat; además el stream descartaba el `reasoning_content` de los deltas, así que encenderla tal cual daba la secuencia F (400) en la primera ronda del banco | ✅ 2026-10-28 (cableado detrás de `PENSAR_TOOLS=0`; falta el A/B) | `turno["pensar"]` fijo por pregunta; el stream junta el reasoning aparte; `historiar` lo conserva y `GetQuestion` descarta el de turnos anteriores; invariante 1 de la compacción → "reasoning solo después del último user". Pre-registro de la 4b-mín ([fase4b_min.md](../banco/specs/fase4b_min.md)): contrafáctico 1 sin cambios en los 14 escenarios | Retirados con el cableado (X105: la 3a no pasó el A/B); el invariante 1 estricto vuelve a cubrirlo `test_historial_canonico_sin_reasoning` |
+diff -ruN -x .runs c/deepseek-flow-main/tests/test_core_sin_modulos.py b/deepseek-flow-main/tests/test_core_sin_modulos.py
+--- c/deepseek-flow-main/tests/test_core_sin_modulos.py	2026-10-30 11:09:49.000000000 +0000
++++ b/deepseek-flow-main/tests/test_core_sin_modulos.py	2026-10-30 11:55:18.855052174 +0000
+@@ -59,7 +59,7 @@
+     env = {**os.environ, "AGENT_ALLOWED_DIRS": str(tmp_path),
+            "CHAT_STREAM": "0", "PREFETCH": "0", "CITAS_VERIFICAR": "0",
+            "SKILLS": "0", "COMPACTION_CHARS": "3000", "TRACE": "0", "THREAD_PERSIST": "0",
+-           "PREGUNTAS_LOG": "0", "LAYA_LOG_DECISIONES": "0"}
++           "PREGUNTAS_LOG": "0"}
+     script = SIN_MEMORIA.replace("sys.path.insert(0, RAIZ)", f"sys.path.insert(0, {str(RAIZ)!r})")
+     r = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, env=env,
+                        capture_output=True, text=True, timeout=120)

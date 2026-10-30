@@ -113,7 +113,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 |---|---|---|---|---|
 | GetQuestion | Node | — | `input()` (ignora vacías; EOF → exit) | `salir/exit/quit` → `exit`; si no, resetea el presupuesto por pregunta (ley L8) y agrega el mensaje user → `continue`; `/aprobaciones` imprime el historial HITL y NO entra al historial |
 | Skills | Node | la pregunta en curso (`pregunta_en_curso`) | `skill_para` (regex del YAML, sin LLM; `SKILLS=0` apaga) | si dispara: id en `turno["skill"]` y mensaje `[skill]` → `continue` — X106 (antes dentro del router) |
-| Contexto | Node | si el historial supera `COMPACTION_CHARS`: respaldo de la zona fría (gancho `al_compactar`), compacción, recorte de tool results viejos y aviso de ventana caliente | — | sale por `cierre` si `motivo_de_cierre` (tope, no-progreso o sin novedad); si no, por `turno["ruta"]` (`herramientas`/`directo`, la fija el router; tras una ronda de tools, `herramientas`) — X95, X96 |
+| Contexto | Node | si el historial supera `COMPACTION_CHARS`: respaldo de la zona fría (gancho `al_compactar`), compacción, recorte de tool results viejos y aviso de ventana caliente | — | sale por `cierre` si `motivo_de_cierre` (tope, no-progreso o sin novedad); si no, por `herramientas` (un solo camino desde X106) — X95, X96 |
 | Observar | Node | la ronda recién ejecutada | — | cuenta la ronda, huella/no-progreso y novedad; agrega al último resultado el aviso de sin-progreso y la nota de presupuesto; checkpoint (punto seguro 2) → `default` — X96 |
 | Cierre | Node (max_retries=3, wait=5) | historial + `AVISO_CIERRE` efímero, **sin tools** | igual que AgentStep | la respuesta de un turno que agotó el presupuesto → `answer` — X96 |
 | AgentStep | Node (max_retries=3, wait=5) | historial + tools (el subset del skill si hay uno activo) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
@@ -205,8 +205,7 @@ en mapa y reduce (el BatchNode reintenta **por archivo**, no por lote).
 sobre la pregunta), `instrucciones` (prompt que se inyecta con prefijo
 `[skill]`) y `tools` (subset que el loop anuncia mientras el skill está
 activo). `utils/skills.py` los carga (YAML roto se saltea) y expone funciones
-puras (`skill_para`, `mensaje`, `filtrar_tools`). En **enforce**, el
-el nodo `Skills` evalúa el disparo a la entrada de cada pregunta (X106; antes
+puras (`skill_para`, `mensaje`, `filtrar_tools`). El nodo `Skills` evalúa el disparo a la entrada de cada pregunta (X106; antes
 lo hacía el router en enforce): si matchea, inyecta el contexto y anuncia el skill; `AgentStep` recorta la lista de tools
 al subset. `SKILLS=0` apaga. El recorte de tools
 es GUÍA (no sandbox): el action space sigue completo y la seguridad sigue en
@@ -647,7 +646,7 @@ hasta entonces, entrenar solo con el subconjunto del punto 6 y tratar
 `round3/verified` como choose.
 
 ### Laya — el router del chat, afinado (RETIRADO en X106, fase 3b: histórico)
-[utils/laya.py](../utils/laya.py) · nodos LayaRouter/DirectAnswer · [sonda_router.py](../sonda_router.py)
+[utils/laya.py](../utils/laya.py) · nodos LayaRouter/DirectAnswer y `sonda_router.py` (retirados en X106)
 
 Laya responde preguntas cerradas en local (carga ~12 s, inferencia ~0 s,
 costo 0) con probabilidades; los umbrales de bmo (0.7/0.3) convierten la
