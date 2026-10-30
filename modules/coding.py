@@ -34,7 +34,6 @@ from utils.call_llm import _setting
 from utils.estado_sesion import ultimo_usuario
 from utils.fs_tools import _resolve, escribir_atomico
 from utils.policy import clasificar, explicar, segmentos
-from utils.riesgo import juzgar
 from utils.riesgo import registrar as registrar_riesgo
 from utils.terminal import colorear, highlight_diff, recortar_chars
 
@@ -248,29 +247,13 @@ def _nivel(command):
     return nivel
 
 
-def _observar_riesgo(command, nivel):
-    """exp/44 — OBSERVACIÓN de riesgo (el s/n NO cambia): solo en las bandas
-    que un humano gatea (preguntar/confirmar_doble). 'auto' y la denylist NO
-    se juzgan: las reglas duras van primero. Sin LAYA_MODEL_RIESGO, juzgar()
-    devuelve None y todo queda no-op."""
-    if nivel not in ("preguntar", "confirmar_doble"):
-        return None
-    juicios = juzgar(command, ultimo_usuario())
-    if juicios:
-        resumen = " · ".join(f"{k.split('_')[0]}={v[0]} {v[1]:.2f}"
-                             for k, v in juicios.items())
-        print(colorear(f"  [riesgo] observa: {resumen}", "info"))
-    return juicios
+def _registrar_riesgo(command, aprobado):
+    """La decisión humana del s/n va al log de riesgo UNA vez por corrida,
+    aprobada o rechazada: es la etiqueta del juez que todavía no existe."""
+    registrar_riesgo(command, ultimo_usuario(), aprobado)
 
 
-def _registrar_riesgo(command, juicios, aprobado):
-    """El riesgo se registra UNA vez por corrida, junto a la aprobación o su
-    rechazo, y solo si hubo observación."""
-    if juicios is not None:
-        registrar_riesgo(command, ultimo_usuario(), juicios, aprobado)
-
-
-def _aprobar(command, nivel, juicios):
+def _aprobar(command, nivel):
     """Pide lo que el nivel exija, en orden, y registra cada respuesta.
     Devuelve (aprobado, motivo del rechazo): el preview y el pedido viven
     juntos para que no se pueda agregar un nivel sin su registro."""
@@ -293,13 +276,13 @@ def _aprobar(command, nivel, juicios):
         if decision:
             continue
         registrar_aprobacion("run_command", command, False, nivel)
-        _registrar_riesgo(command, juicios, False)
+        _registrar_riesgo(command, False)
         motivo = getattr(decision, "motivo", "")
         if motivo:
             return False, f'{motivo_rechazo} Motivo del humano: "{motivo}"'
         return False, motivo_rechazo
     registrar_aprobacion("run_command", command, True, nivel)
-    _registrar_riesgo(command, juicios, True)
+    _registrar_riesgo(command, True)
     return True, ""
 
 
@@ -330,8 +313,7 @@ def run_command(command):
     command = str(command)
 
     nivel = _nivel(command)                               # clasificar + raíces + HITL_AUTO
-    juicios = _observar_riesgo(command, nivel)            # exp/44: solo bandas humanas
-    aprobado, motivo = _aprobar(command, nivel, juicios)  # auto / s-n / doble s-n
+    aprobado, motivo = _aprobar(command, nivel)           # auto / s-n / doble s-n
     if not aprobado:
         return motivo
     return _ejecutar(command)                             # subprocess + timeout + recorte

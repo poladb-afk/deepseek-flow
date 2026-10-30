@@ -4,7 +4,7 @@
 def test_pregunta_despacho_congelada():
     # El contrato del despacho se mudó con la sonda (supervisor v2): su casa
     # es sonda_supervisor.py. REGISTRO sigue viviendo en supervisor.py.
-    from sonda_supervisor import OPCIONES
+    from banco.probes.sonda_supervisor import OPCIONES
     from supervisor import REGISTRO
 
     # El contrato del fine-tune supervisor_dispatch (bmo): las 18 opciones,
@@ -26,7 +26,7 @@ def test_contratos_laya_congelados_sha1():
     import hashlib
     import json
 
-    from sonda_supervisor import PREGUNTA_DESPACHO  # su casa desde supervisor v2
+    from banco.probes.sonda_supervisor import PREGUNTA_DESPACHO  # su casa desde supervisor v2
 
     canon = lambda p: hashlib.sha1(  # noqa: E731
         json.dumps(p, sort_keys=True, ensure_ascii=False).encode()
@@ -38,8 +38,8 @@ def test_sonda_supervisor_es_la_casa_del_contrato():
     """Con el supervisor v2 el contrato del despacho (PREGUNTA_DESPACHO y
     elegir_con_deepseek) VIVE en sonda_supervisor.py: supervisor ya no lo
     expone (se jubiló el Choose). La sonda lo mide como evidencia histórica."""
-    import sonda_supervisor
     import supervisor
+    from banco.probes import sonda_supervisor
 
     assert not hasattr(supervisor, "PREGUNTA_DESPACHO")
     assert isinstance(sonda_supervisor.PREGUNTA_DESPACHO, dict)

@@ -10,7 +10,6 @@ env:
   MAX_TOOL_ROUNDS: "30"
   COMPACTION_CHARS: "200000"
   # sesión de ESCRITURA: Laya apagada (los tests del fake la simulan)
-  LAYA_MODEL_RIESGO: "0"
 scratch: []
 turnos:
   - id: aplicar

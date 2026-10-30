@@ -85,9 +85,8 @@ un comando los baja, verifica y deja listos:
 ./descargar_modelos.sh
 ```
 
-Sin ese paso el harness funciona igual: el prefiltro de memoria, el juez de
-riesgo y el juicio MCP degradan a su camino sin Laya (el router del chat se
-retiró en X106: un solo camino con tools).
+Sin ese paso el harness funciona igual: el prefiltro de memoria y el juicio
+MCP degradan a su camino sin Laya.
 
 ## Capacidades (31 tools, al día de hoy)
 
@@ -152,16 +151,17 @@ guarda cada sink, con qué default y cómo apagarlo:
 | Dato | Archivo | Default | Apagador |
 |---|---|---|---|
 | Pregunta del usuario, **texto en claro** (4000 chars) | `salidas/preguntas.jsonl` | **encendido** | `PREGUNTAS_LOG=0` |
-| Juicio de riesgo de comandos (exp/44) | `salidas/riesgo.jsonl` | activo si hay `LAYA_MODEL_RIESGO` | sin modelo, es no-op |
+| Decisión humana de cada s/n de comando (comando, último mensaje a 200 chars, respuesta) | `salidas/riesgo.jsonl` | **encendido** | `RIESGO_LOG=0` |
 | Transcripción COMPLETA del `shared` por checkpoint | `salidas/threads/<id>.jsonl` | `THREAD_PERSIST=1` | `THREAD_PERSIST=0` |
 | Traza de nodos (nodo/acción/segundos, sin contenido) | `.runs/*.jsonl` | `TRACE=1` | `TRACE=0` |
 | Biblioteca de notas y resúmenes de sesión | `memoria/*.md` | `MEMORIA=1` | `MEMORIA=0` |
 | Respaldo de la zona fría al compactar | `memoria/nota_*_compactacion-*.md` | con la compacción | `COMPACTION_CHARS=0` |
 
-`PREGUNTAS_LOG` es el único sink con **texto del usuario encendido por
-default**: nació para calibrar el router con tráfico real (exp/33/43; el router se fue en X106) y el
-archivo está en `.gitignore`. Si tratás datos sensibles, arrancá con
-`PREGUNTAS_LOG=0` y `THREAD_PERSIST=0`. No hay retención automática: los
+`PREGUNTAS_LOG` y `RIESGO_LOG` son los sinks con **texto del usuario
+encendido por default** (el segundo, solo en los s/n de comando: son las
+etiquetas de un juez de riesgo futuro); los dos están en `.gitignore`. Si
+tratás datos sensibles, arrancá con `PREGUNTAS_LOG=0`, `RIESGO_LOG=0` y
+`THREAD_PERSIST=0`. No hay retención automática: los
 archivos crecen hasta que los borres.
 
 ## CLI completo
@@ -254,11 +254,11 @@ deepseek-flow/
 ```bash
 ./calidad.sh                     # el gate completo: ruff + complejidad + ratchet + pytest
 python3 -m pytest tests/ -q      # solo la suite (un archivo por tema, ver tests/)
-python3 -m pytest -m "not laya and not bmo and not red and not datos and not git"   # subconjunto determinista
+python3 -m pytest -m "not laya and not red and not datos and not git"   # subconjunto determinista
 ```
 
 Cada test que se saltea por un recurso lo declara con un marker: el marker
-dice **qué** falta (`laya`, `bmo`, `red`, `datos`), el `skip` dice por qué.
+dice **qué** falta (`laya`, `red`, `datos`, `git`), el `skip` dice por qué.
 
 Cuatro candados de la propia suite: `tests/test_inventario.py` compara lo
 que pytest recolecta contra `tests/inventario_tests.txt` (un test que

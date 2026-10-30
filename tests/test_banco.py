@@ -43,7 +43,6 @@ def test_los_marcadores_matchean_las_lineas_reales_del_chat():
         "auto_lectura": "── run_command [auto: solo-lectura] ──",
         "interrumpido": "[interrumpido] generación cortada por el usuario",
         "dsml_ignorado": "  [DSML] tool calls como texto: IGNORADOS (presupuesto agotado)",
-        "riesgo": "  [riesgo] observa: modifica=si 0.82 · irreversible=no 0.91 · revisar=si 0.66",
         "prefetch": "  [pre-fetch] /tmp/proyecto/flow.py",
     }
     for nombre, patron in MARCADORES.items():

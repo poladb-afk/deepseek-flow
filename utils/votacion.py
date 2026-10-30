@@ -9,7 +9,7 @@ votos, 2 coincidentes ya cuentan como mayoría); sin mayoría gana el desempate
 fallback es el más votado — que con todos los votos distintos es el
 PRIMERO en aparecer (orden de inserción de Counter): determinista, pero
 convención del llamador. En producción siempre se pasa desempate
-(supervisor.py y sonda_supervisor.py pasan el voto directo).
+(supervisor.py y banco/probes/sonda_supervisor.py pasan el voto directo).
 """
 from collections import Counter
 

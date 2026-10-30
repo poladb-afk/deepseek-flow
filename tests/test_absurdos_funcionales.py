@@ -97,11 +97,10 @@ def test_run_command_no_ejecuta_los_flags_peligrosos(monkeypatch):
     """E2E del flujo: con la clasificación arreglada, run_command NO llega a
     `_ejecutar` para esos comandos (y sí ejecuta un auto legítimo)."""
 
-    def aprobar(command, nivel, juicios):
+    def aprobar(command, nivel):
         return (nivel == "auto", "" if nivel == "auto" else "RECHAZADO")
 
     ejecutados = []
-    monkeypatch.setattr(coding, "_observar_riesgo", lambda command, nivel: None)
     monkeypatch.setattr(coding, "_aprobar", aprobar)
     monkeypatch.setattr(coding, "_ejecutar", lambda command: ejecutados.append(command) or "ok")
 

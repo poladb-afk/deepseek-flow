@@ -52,14 +52,11 @@
         "research.py": [
           78
         ],
-        "sonda_laya.py": [
-          173
-        ],
         "utils/aprobaciones.py": [
           47
         ],
         "utils/call_llm.py": [
-          333
+          311
         ],
         "utils/contexto.py": [
           119
@@ -82,9 +79,6 @@
           74,
           96
         ],
-        "utils/riesgo.py": [
-          80
-        ],
         "utils/thread_store.py": [
           160
         ],
@@ -96,7 +90,7 @@
           16
         ]
       },
-      "metrica": 29
+      "metrica": 27
     },
     "funciones_anidadas": {
       "detalle": {},
@@ -174,10 +168,6 @@
         "replay.py:_herramientas_vivas": 1,
         "resume.py:main": 1,
         "resume.py:migrar": 1,
-        "sonda_laya.py:correr": 1,
-        "sonda_laya.py:ece": 1,
-        "sonda_supervisor.py:correr": 3,
-        "sonda_supervisor.py:main": 3,
         "supervisor.py:system_prompt": 1,
         "utils/aprobaciones.py:pedir_aprobacion": 2,
         "utils/aprobaciones.py:registrar": 1,
@@ -192,7 +182,6 @@
         "utils/mcp_client.py:_listar": 2,
         "utils/mcp_client.py:_llamar": 2,
         "utils/prefetch.py:decidir": 1,
-        "utils/riesgo.py:juzgar": 1,
         "utils/skills.py:cargar_skills": 1,
         "utils/thread_store.py:checkpoint": 1,
         "utils/thread_store.py:valido": 1,
@@ -203,7 +192,7 @@
         "utils/websearch.py:search_web": 1,
         "visor.py:vigilar": 1
       },
-      "metrica": 90
+      "metrica": 81
     },
     "nodos_largos": {
       "detalle": {
@@ -217,7 +206,7 @@
         "juez_lote.py:CorrerJuez": 51,
         "juez_lote.py:JuezLoteFlow": 108,
         "nodes.py:AgentStep": 60,
-        "nodes.py:GetQuestion": 56,
+        "nodes.py:GetQuestion": 55,
         "nodes.py:VerificarCitas": 53,
         "research.py:Synthesizer": 60
       },
@@ -234,9 +223,6 @@
         ],
         "AGENT_ALLOWED_DIRS": [
           "utils/fs_tools.py"
-        ],
-        "BMO_TASKS_DIR": [
-          "utils/rutas.py"
         ],
         "CHAT_STREAM": [
           "nodes.py"
@@ -296,18 +282,6 @@
         ],
         "LAYA_MODEL_PREFILTRO": [
           "modules/memoria.py"
-        ],
-        "LAYA_MODEL_RIESGO": [
-          "utils/riesgo.py"
-        ],
-        "LAYA_MODEL_SUPERVISOR": [
-          "sonda_supervisor.py"
-        ],
-        "LAYA_UNSURE_HIGH_SUPERVISOR": [
-          "sonda_supervisor.py"
-        ],
-        "LEER_BMO_ENV": [
-          "utils/call_llm.py"
         ],
         "LLM_API_KEY": [
           "utils/call_llm.py"
@@ -389,9 +363,6 @@
         "SKILLS": [
           "nodes.py"
         ],
-        "SONDA_LAYA_CKPT": [
-          "sonda_laya.py"
-        ],
         "THREADS_DIR": [
           "utils/thread_store.py"
         ],
@@ -426,7 +397,7 @@
           "utils/hitl_web.py"
         ]
       },
-      "metrica": 64
+      "metrica": 58
     },
     "tests_definidos": {
       "detalle": {
@@ -473,7 +444,7 @@
         "tests/test_mcp_laya.py": 11,
         "tests/test_memoria.py": 25,
         "tests/test_minar_errores.py": 16,
-        "tests/test_modulos.py": 19,
+        "tests/test_modulos.py": 18,
         "tests/test_novedad.py": 7,
         "tests/test_pendientes.py": 35,
         "tests/test_policy.py": 26,
@@ -484,7 +455,7 @@
         "tests/test_ratchet.py": 35,
         "tests/test_ratchet_elegancia.py": 15,
         "tests/test_replay.py": 16,
-        "tests/test_riesgo.py": 19,
+        "tests/test_riesgo.py": 9,
         "tests/test_rondas.py": 6,
         "tests/test_skills.py": 8,
         "tests/test_smoke.py": 5,
@@ -503,7 +474,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1023
+      "metrica": 1012
     },
     "texto_de_prompt": {
       "detalle": {

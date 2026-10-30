@@ -48,7 +48,6 @@ MARCADORES = {
     "ronda": r"⚙ ronda \d+",
     "auto_lectura": r"run_command \[auto",
     "interrumpido": r"\[interrumpido\]",
-    "riesgo": r"\[riesgo\] observa:",
     "prefetch": r"\[pre-fetch\]",
 }
 

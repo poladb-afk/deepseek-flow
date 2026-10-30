@@ -8,7 +8,6 @@ permitir_comandos:
 env:
   MAX_TOOL_ROUNDS: "40"
   COMPACTION_CHARS: "400000"
-  LAYA_MODEL_RIESGO: "0"
 scratch: []
 turnos:
   - id: analisis

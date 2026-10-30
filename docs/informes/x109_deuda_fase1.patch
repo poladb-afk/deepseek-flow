@@ -1,0 +1,2604 @@
+diff -ruN a/.env.example b/.env.example
+--- a/.env.example	2026-10-30 11:55:18.000000000 +0000
++++ b/.env.example	2026-10-30 17:28:11.870401101 +0000
+@@ -112,12 +112,6 @@
+ # CHAT_STREAM_INTERRUPT=1
+ # Checkpoint de Laya por defecto (juicio MCP). Sin él, el BASE multilingual.
+ # LAYA_MODEL=.modelos/router_flow-1k
+-# JUBILADOS por el bench del supervisor (2026-10-13): el Choose local y la
+-# mayoría 2-de-3 se retiraron — un paso = UNA llamada (tool+args juntos) y
+-# las leyes L8 viven como guardas de código. El checkpoint queda como
+-# evidencia histórica: se mide con sonda_supervisor.py pasándolo por args.
+-# LAYA_MODEL_SUPERVISOR=.modelos/supervisor_dispatch-1k
+-# LAYA_UNSURE_HIGH_SUPERVISOR=0.9
+ # El router del chat, su voto, sus umbrales, su calibración conformal, su modo
+ # y su registro de decisiones se retiraron en X106 (fase 3b: un solo camino
+ # con tools; pre-registro en banco/specs/fase3b_4a.md).
+@@ -126,12 +120,6 @@
+ # crece con la cantidad de candidatos; con un N positivo se parte en lotes.
+ # LAYA_BATCH_SIZE=0
+ 
+-# Autonomía del harness: con 0 (default) los settings salen SOLO del entorno y
+-# del .env de ESTE proyecto. Con 1 se lee además ~/Documentos/00_IA/bmo/.env, el
+-# comportamiento viejo (dependencia invisible: de ahí salían la API key y el
+-# modelo). Si lo activás, un cambio en el otro proyecto te cambia este.
+-# LEER_BMO_ENV=0
+-
+ # HITL web: con 1, las aprobaciones de write_file/edit_file/run_command se
+ # responden desde el navegador (http://127.0.0.1:8765) en vez de 's/n' por
+ # terminal. Puerto y timeout (segundos) configurables; timeout => rechazo.
+@@ -174,17 +162,13 @@
+ # Checkpoint de Laya para el pre-filtro (sin él, no-op)
+ # LAYA_MODEL_PREFILTRO=.modelos/router_prefiltro
+ 
+-# Directorio de los tests a mano de bmo que leen las sondas (sonda_laya,
+-# sonda_supervisor). Default: ~/Documentos/00_IA/bmo/train/tasks
+-# BMO_TASKS_DIR=/ruta/a/bmo/train/tasks
+-
+ # ---------------------------------------------------------------------------
+ # Settings que el código ya leía y no estaban documentados (consolidación
+ # 2026-10-15). Todos opcionales; el valor mostrado es el default del código.
+ # ---------------------------------------------------------------------------
+ 
+-# Juez de riesgo en observación (exp/44): sin checkpoint, no-op total
+-# LAYA_MODEL_RIESGO=.modelos/riesgo
++# Log de las decisiones HITL de comando (comando, último mensaje y s/n): las
++# etiquetas de un juez futuro. 0 lo apaga.
+ # RIESGO_LOG=1
+ # RIESGO_ARCHIVO=salidas/riesgo.jsonl
+ 
+@@ -210,7 +194,7 @@
+ # NO_COLOR=1
+ # COLOR=0
+ 
+-# Interno de sonda_laya.py (lo setea la sonda; no hace falta tocarlo)
++# Interno de banco/probes/sonda_laya.py (lo setea la sonda; no hace falta tocarlo)
+ # SONDA_LAYA_CKPT=
+ 
+ # Verificación de citas archivo:línea en la respuesta final: comprueba que la
+diff -ruN a/README.md b/README.md
+--- a/README.md	2026-10-30 11:12:09.000000000 +0000
++++ b/README.md	2026-10-30 17:28:11.870401101 +0000
+@@ -85,9 +85,8 @@
+ ./descargar_modelos.sh
+ ```
+ 
+-Sin ese paso el harness funciona igual: el prefiltro de memoria, el juez de
+-riesgo y el juicio MCP degradan a su camino sin Laya (el router del chat se
+-retiró en X106: un solo camino con tools).
++Sin ese paso el harness funciona igual: el prefiltro de memoria y el juicio
++MCP degradan a su camino sin Laya.
+ 
+ ## Capacidades (31 tools, al día de hoy)
+ 
+@@ -152,16 +151,17 @@
+ | Dato | Archivo | Default | Apagador |
+ |---|---|---|---|
+ | Pregunta del usuario, **texto en claro** (4000 chars) | `salidas/preguntas.jsonl` | **encendido** | `PREGUNTAS_LOG=0` |
+-| Juicio de riesgo de comandos (exp/44) | `salidas/riesgo.jsonl` | activo si hay `LAYA_MODEL_RIESGO` | sin modelo, es no-op |
++| Decisión humana de cada s/n de comando (comando, último mensaje a 200 chars, respuesta) | `salidas/riesgo.jsonl` | **encendido** | `RIESGO_LOG=0` |
+ | Transcripción COMPLETA del `shared` por checkpoint | `salidas/threads/<id>.jsonl` | `THREAD_PERSIST=1` | `THREAD_PERSIST=0` |
+ | Traza de nodos (nodo/acción/segundos, sin contenido) | `.runs/*.jsonl` | `TRACE=1` | `TRACE=0` |
+ | Biblioteca de notas y resúmenes de sesión | `memoria/*.md` | `MEMORIA=1` | `MEMORIA=0` |
+ | Respaldo de la zona fría al compactar | `memoria/nota_*_compactacion-*.md` | con la compacción | `COMPACTION_CHARS=0` |
+ 
+-`PREGUNTAS_LOG` es el único sink con **texto del usuario encendido por
+-default**: nació para calibrar el router con tráfico real (exp/33/43; el router se fue en X106) y el
+-archivo está en `.gitignore`. Si tratás datos sensibles, arrancá con
+-`PREGUNTAS_LOG=0` y `THREAD_PERSIST=0`. No hay retención automática: los
++`PREGUNTAS_LOG` y `RIESGO_LOG` son los sinks con **texto del usuario
++encendido por default** (el segundo, solo en los s/n de comando: son las
++etiquetas de un juez de riesgo futuro); los dos están en `.gitignore`. Si
++tratás datos sensibles, arrancá con `PREGUNTAS_LOG=0`, `RIESGO_LOG=0` y
++`THREAD_PERSIST=0`. No hay retención automática: los
+ archivos crecen hasta que los borres.
+ 
+ ## CLI completo
+@@ -254,11 +254,11 @@
+ ```bash
+ ./calidad.sh                     # el gate completo: ruff + complejidad + ratchet + pytest
+ python3 -m pytest tests/ -q      # solo la suite (un archivo por tema, ver tests/)
+-python3 -m pytest -m "not laya and not bmo and not red and not datos and not git"   # subconjunto determinista
++python3 -m pytest -m "not laya and not red and not datos and not git"   # subconjunto determinista
+ ```
+ 
+ Cada test que se saltea por un recurso lo declara con un marker: el marker
+-dice **qué** falta (`laya`, `bmo`, `red`, `datos`), el `skip` dice por qué.
++dice **qué** falta (`laya`, `red`, `datos`, `git`), el `skip` dice por qué.
+ 
+ Cuatro candados de la propia suite: `tests/test_inventario.py` compara lo
+ que pytest recolecta contra `tests/inventario_tests.txt` (un test que
+diff -ruN a/banco/banco.py b/banco/banco.py
+--- a/banco/banco.py	2026-10-30 11:08:47.000000000 +0000
++++ b/banco/banco.py	2026-10-30 17:28:11.830400184 +0000
+@@ -48,7 +48,6 @@
+     "ronda": r"⚙ ronda \d+",
+     "auto_lectura": r"run_command \[auto",
+     "interrumpido": r"\[interrumpido\]",
+-    "riesgo": r"\[riesgo\] observa:",
+     "prefetch": r"\[pre-fetch\]",
+ }
+ 
+diff -ruN a/banco/escenarios/bench-supervisor-aplicar.yaml b/banco/escenarios/bench-supervisor-aplicar.yaml
+--- a/banco/escenarios/bench-supervisor-aplicar.yaml	2026-10-30 11:55:18.000000000 +0000
++++ b/banco/escenarios/bench-supervisor-aplicar.yaml	2026-10-30 17:28:11.846400551 +0000
+@@ -10,9 +10,6 @@
+ env:
+   MAX_TOOL_ROUNDS: "30"
+   COMPACTION_CHARS: "200000"
+-  # sesión de ESCRITURA de código: el juez de riesgo apagado para no cargar
+-  # su checkpoint (2,86 GiB) que solo consume RAM
+-  LAYA_MODEL_RIESGO: "0"
+ scratch: []
+ turnos:
+   - id: aplicar
+diff -ruN a/banco/escenarios/exp46-aplicar.yaml b/banco/escenarios/exp46-aplicar.yaml
+--- a/banco/escenarios/exp46-aplicar.yaml	2026-10-30 11:08:47.000000000 +0000
++++ b/banco/escenarios/exp46-aplicar.yaml	2026-10-30 17:28:11.862400918 +0000
+@@ -10,7 +10,6 @@
+   MAX_TOOL_ROUNDS: "30"
+   COMPACTION_CHARS: "200000"
+   # sesión de ESCRITURA: Laya apagada (los tests del fake la simulan)
+-  LAYA_MODEL_RIESGO: "0"
+ scratch: []
+ turnos:
+   - id: aplicar
+diff -ruN a/banco/escenarios/exp47-analisis.yaml b/banco/escenarios/exp47-analisis.yaml
+--- a/banco/escenarios/exp47-analisis.yaml	2026-10-30 11:08:47.000000000 +0000
++++ b/banco/escenarios/exp47-analisis.yaml	2026-10-30 17:28:11.842400459 +0000
+@@ -8,7 +8,6 @@
+ env:
+   MAX_TOOL_ROUNDS: "40"
+   COMPACTION_CHARS: "400000"
+-  LAYA_MODEL_RIESGO: "0"
+ scratch: []
+ turnos:
+   - id: analisis
+diff -ruN a/banco/escenarios/exp48-aplicar.yaml b/banco/escenarios/exp48-aplicar.yaml
+--- a/banco/escenarios/exp48-aplicar.yaml	2026-10-30 11:08:47.000000000 +0000
++++ b/banco/escenarios/exp48-aplicar.yaml	2026-10-30 17:28:11.850400643 +0000
+@@ -10,7 +10,6 @@
+ env:
+   MAX_TOOL_ROUNDS: "40"
+   COMPACTION_CHARS: "400000"
+-  LAYA_MODEL_RIESGO: "0"
+ scratch: []
+ turnos:
+   - id: aplicar
+diff -ruN a/banco/escenarios/exp49-aplicar.yaml b/banco/escenarios/exp49-aplicar.yaml
+--- a/banco/escenarios/exp49-aplicar.yaml	2026-10-30 11:08:47.000000000 +0000
++++ b/banco/escenarios/exp49-aplicar.yaml	2026-10-30 17:28:11.834400276 +0000
+@@ -10,7 +10,6 @@
+ env:
+   MAX_TOOL_ROUNDS: "40"
+   COMPACTION_CHARS: "400000"
+-  LAYA_MODEL_RIESGO: "0"
+ scratch: []
+ turnos:
+   - id: aplicar
+diff -ruN a/banco/escenarios/exp49b-aplicar.yaml b/banco/escenarios/exp49b-aplicar.yaml
+--- a/banco/escenarios/exp49b-aplicar.yaml	2026-10-30 11:08:47.000000000 +0000
++++ b/banco/escenarios/exp49b-aplicar.yaml	2026-10-30 17:28:11.850400643 +0000
+@@ -10,7 +10,6 @@
+ env:
+   MAX_TOOL_ROUNDS: "40"
+   COMPACTION_CHARS: "400000"
+-  LAYA_MODEL_RIESGO: "0"
+ scratch: []
+ turnos:
+   - id: aplicar
+diff -ruN a/banco/escenarios/exp50-aplicar.yaml b/banco/escenarios/exp50-aplicar.yaml
+--- a/banco/escenarios/exp50-aplicar.yaml	2026-10-30 11:08:47.000000000 +0000
++++ b/banco/escenarios/exp50-aplicar.yaml	2026-10-30 17:28:11.858400826 +0000
+@@ -10,7 +10,6 @@
+ env:
+   MAX_TOOL_ROUNDS: "40"
+   COMPACTION_CHARS: "400000"
+-  LAYA_MODEL_RIESGO: "0"
+ scratch: []
+ turnos:
+   - id: aplicar
+diff -ruN a/banco/escenarios/exp50-aplicar2.yaml b/banco/escenarios/exp50-aplicar2.yaml
+--- a/banco/escenarios/exp50-aplicar2.yaml	2026-10-30 11:08:47.000000000 +0000
++++ b/banco/escenarios/exp50-aplicar2.yaml	2026-10-30 17:28:11.854400734 +0000
+@@ -10,7 +10,6 @@
+ env:
+   MAX_TOOL_ROUNDS: "40"
+   COMPACTION_CHARS: "400000"
+-  LAYA_MODEL_RIESGO: "0"
+ scratch: []
+ turnos:
+   - id: aplicar
+diff -ruN a/banco/escenarios/supervisor-v2-aplicar.yaml b/banco/escenarios/supervisor-v2-aplicar.yaml
+--- a/banco/escenarios/supervisor-v2-aplicar.yaml	2026-10-30 11:08:47.000000000 +0000
++++ b/banco/escenarios/supervisor-v2-aplicar.yaml	2026-10-30 17:28:11.858400826 +0000
+@@ -10,7 +10,6 @@
+ env:
+   MAX_TOOL_ROUNDS: "40"
+   COMPACTION_CHARS: "300000"
+-  LAYA_MODEL_RIESGO: "0"
+ scratch: []
+ turnos:
+   - id: aplicar
+diff -ruN a/banco/escenarios/supervisor-v2-tests.yaml b/banco/escenarios/supervisor-v2-tests.yaml
+--- a/banco/escenarios/supervisor-v2-tests.yaml	2026-10-30 11:08:47.000000000 +0000
++++ b/banco/escenarios/supervisor-v2-tests.yaml	2026-10-30 17:28:11.838400367 +0000
+@@ -10,7 +10,6 @@
+ env:
+   MAX_TOOL_ROUNDS: "30"
+   COMPACTION_CHARS: "300000"
+-  LAYA_MODEL_RIESGO: "0"
+ scratch: []
+ turnos:
+   - id: tests
+diff -ruN a/banco/probes/sonda_laya.py b/banco/probes/sonda_laya.py
+--- a/banco/probes/sonda_laya.py	1970-01-01 00:00:00.000000000 +0000
++++ b/banco/probes/sonda_laya.py	2026-10-30 17:28:11.826400092 +0000
+@@ -0,0 +1,347 @@
++"""Sonda de evidencia de los checkpoints de Laya: ECE propio, confiabilidad
++por bucket, curva de compuerta, latencia local y RSS pico.
++
++Motivación (exp/7): las afirmaciones sobre calibración, acierto crudo y
++"ahorro" de los checkpoints venían heredadas de notas, no medidas con
++nuestra propia vara. Esta sonda convierte esas afirmaciones en números:
++corre el test etiquetado de UN checkpoint y escribe md+json en salidas/evals/.
++
++Es determinista a propósito: SIN LLM, SIN red, SIN DeepSeek. Solo carga el
++checkpoint local (en CPU), infiere cada caso del test y agrega métricas.
++
++LEY DE RAM: exactamente UN checkpoint por proceso. Se carga, se mide, se
++escribe y el proceso TERMINA. No hay modo multi-checkpoint ni servidor:
++cargar dos de estos en el mismo proceso revienta la memoria (medido).
++
++Uso:
++    python3 banco/probes/sonda_laya.py supervisor    # .modelos/supervisor_dispatch-1k + test (24)
++    python3 banco/probes/sonda_laya.py prefiltro      # .modelos/router_prefiltro + test propio (28 casos)
++
++(router, voto, voto_en_router y base se fueron con el router del chat, X106:
++medían contratos que el producto ya no tiene.)
++"""
++import argparse
++import json
++import os
++import resource
++import subprocess
++import sys
++import time
++from datetime import datetime
++from pathlib import Path
++
++RAIZ = Path(__file__).resolve().parents[2]
++sys.path.insert(0, str(RAIZ))
++SALIDA = RAIZ / "salidas" / "evals"
++
++# Los contratos EXISTENTES se importan, no se copian: una copia local derivaría
++# del contrato del fine-tune sin que ningún test lo note (mismo criterio que
++# la sonda del router, retirada en X106). Los tests son los mismos que leen las sondas.
++from banco.probes.sonda_supervisor import PREGUNTA_DESPACHO, TAREAS  # noqa: E402
++from utils.contexto import PREGUNTA_PREFILTRO  # noqa: E402
++
++# El mapeo nombre → (checkpoint, test, pregunta, arma el estado por caso).
++# El estado de cada familia es el contrato del fine-tune correspondiente:
++#   supervisor → {"tarea": fields["tarea"], "hechos": fields.get("hechos", "")}
++# (hechos puede ser string multilínea o venir vacío: el .get con default "" cubre
++# el caso vacío; probado contra los tres .jsonl, un caso por línea).
++ESPECIFICACIONES = {
++    "supervisor": {
++        "checkpoint": ".modelos/supervisor_dispatch-1k",
++        "test": "supervisor_dispatch_test.jsonl",
++        "pregunta": "elegir_proxima",
++        "contrato": PREGUNTA_DESPACHO,
++        "estado": lambda f: {"tarea": f["tarea"], "hechos": f.get("hechos", "")},
++    },
++    "prefiltro": {
++        "checkpoint": ".modelos/router_prefiltro",
++        "test": "router_prefiltro_test.jsonl",
++        "pregunta": "aporta_contexto",
++        "contrato": PREGUNTA_PREFILTRO,
++        "estado": lambda f: {"consulta": f["consulta"], "bloque": f["bloque"]},
++    },
++}
++
++# Los bordes de la tabla de confiabilidad: 5 buckets sobre [0.5, 1].
++BORDES = [0.5, 0.7, 0.85, 0.95]
++
++
++# Métricas — funciones PURAS sobre una lista de casos. Puras para poder
++# testearlas sin cargar el modelo (un checkpoint son GB y minutos): la
++# aritmética de calibración se verifica sola, el modelo se mide aparte.
++
++def tabla_confiabilidad(casos, bordes=BORDES):
++    """Acierto y conteo por bucket de answer_confidence.
++
++    `bordes` son los cortes inferiores de cada bucket, p. ej. [0.5, 0.7, 0.85, 0.95]
++    da los buckets [0.5,0.7) [0.7,0.85) [0.85,0.95) [0.95,1.0] y un último
++    [1.0,∞) que recoge el 1.0 exacto. Devuelve una lista de dicts con
++    lo/hi/conf_media/acierto/n/conf_observada (la confianza media del bucket
++    es la que se compara contra el acierto para leer la calibración).
++    """
++    filas = []
++    for i, lo in enumerate(bordes):
++        hi = bordes[i + 1] if i + 1 < len(bordes) else None
++        # El último bucket arranca en el último borde y es abierto hacia arriba,
++        # para que conf==1.0 entre (con un tope cerrado se caería del histograma).
++        dentro = [c for c in casos if c["conf"] >= lo and (hi is None or c["conf"] < hi)]
++        n = len(dentro)
++        filas.append({
++            "lo": lo,
++            "hi": hi,
++            "conf_media": (sum(c["conf"] for c in dentro) / n) if n else None,
++            "acierto": (sum(c["correcto"] for c in dentro) / n) if n else None,
++            "n": n,
++        })
++    return filas
++
++
++def curva_compuerta(casos, umbrales=None):
++    """Por umbral t: cobertura = fracción con conf >= t (los que la compuerta
++    decidiría locales), precisión = acierto crudo entre esos casos, y ahorro
++    = cobertura (1 llamada externa evitada por caso local).
++
++    Es la curva que justifica la compuerta: subir t compra precisión a costa
++    de cobertura. El umbral de producción (LAY A_UNSURE_*) es un punto de la
++    curva."""
++    if umbrales is None:
++        umbrales = [round(0.5 + 0.05 * i, 2) for i in range(10)]  # 0.50 .. 0.95
++    filas = []
++    for t in umbrales:
++        locales = [c for c in casos if c["conf"] >= t]
++        n = len(locales)
++        filas.append({
++            "umbral": t,
++            "cobertura": n / len(casos) if casos else 0.0,
++            "precision": (sum(c["correcto"] for c in locales) / n) if n else None,
++            "ahorro": n / len(casos) if casos else 0.0,
++            "n_locales": n,
++        })
++    return filas
++
++
++def ece_local(casos, bins=10):
++    """ECE con bins iguales en [0,1] sobre answer_confidence.
++
++    Esperado de acierto por bin = media de correcto (0/1); observado = media
++    de conf. ECE = suma ponderada por n_bin/n de |esperado - observado|.
++    Es la implementación de respaldo, usada cuando laya.ece_score no está:
++    la salida documenta cuál se usó para que el número sea trazable.
++    """
++    if not casos:
++        return None
++    total = len(casos)
++    ece_val = 0.0
++    for b in range(bins):
++        lo, hi = b / bins, (b + 1) / bins
++        # El último bin cierra el borde derecho para incluir conf == 1.0.
++        dentro = [c for c in casos if c["conf"] >= lo and (c["conf"] < hi or (b == bins - 1 and c["conf"] <= hi))]
++        if not dentro:
++            continue
++        esperado = sum(c["correcto"] for c in dentro) / len(dentro)
++        observado = sum(c["conf"] for c in dentro) / len(dentro)
++        ece_val += (len(dentro) / total) * abs(esperado - observado)
++    return ece_val
++
++
++def ece(casos):
++    """ECE sobre answer_confidence, con laya.ece_score si su firma lo permite.
++
++    Devuelve (valor, fuente) con fuente en {"laya.ece_score", "local:10bins"}
++    para poder documentar cuál se usó. La firma de laya.ece_score no está fijada
++    por contrato, así que se prueba a llamarla con los pares (conf, correcto) y
++    si no encaja se cae a la implementación local — nunca se rompe por esto.
++    """
++    if not casos:
++        return None, "local:10bins"
++    try:
++        import laya  # import perezoso: solo existe si el checkpoint se pudo cargar
++
++        ece_score = getattr(laya, "ece_score", None)
++        if callable(ece_score):
++            try:
++                valor = ece_score([c["conf"] for c in casos], [c["correcto"] for c in casos])
++                return float(valor), "laya.ece_score"
++            except TypeError:
++                pass  # otra firma: no adivinamos, usamos la nuestra
++    except Exception:  # noqa: BLE001 (sonda de libreria externa opcional)
++        pass
++    return ece_local(casos), "local:10bins"
++
++
++# Medición
++
++def percentil(valores, p):
++    """Percentil por interpolación lineal (método igual al de numpy en su
++    default): no dependemos de numpy para esto, la sonda corre pelada."""
++    if not valores:
++        return None
++    ordenados = sorted(valores)
++    if len(ordenados) == 1:
++        return ordenados[0]
++    pos = p / 100 * (len(ordenados) - 1)
++    i = int(pos)
++    frac = pos - i
++    if i + 1 >= len(ordenados):
++        return ordenados[i]
++    return ordenados[i] * (1 - frac) + ordenados[i + 1] * frac
++
++
++def cargar_casos(test):
++    return [json.loads(linea) for linea in test.read_text(encoding="utf-8").splitlines() if linea.strip()]
++
++
++def correr(nombre, spec, tareas=TAREAS):
++    """Carga UN checkpoint, corre el test caso por caso y devuelve el informe.
++
++    La carga se mide APARTE de la inferencia: el tiempo de carga en frío es
++    costo fijo por proceso, la latencia por caso es el costo variable que
++    decide si Laya ahorra una llamada remota. Mezclarlas escondería las dos.
++    """
++    from utils.laya import agente
++
++    test = Path(tareas) / spec["test"]
++    casos = cargar_casos(test)
++    if not casos:
++        raise SystemExit(f"test vacío: {test}")
++
++    # Un setting PROPIO por corrida: utils.laya cachea agentes por setting y
++    # hereda HF_HUB_OFFLINE antes de importar, el caché de errores y el RLock.
++    # Al setear env var + nombre de setting nos aseguramos de no pisar ni
++    # reusar el agente de LAYA_MODEL (mcp/riesgo) o del supervisor.
++    os.environ["SONDA_LAYA_CKPT"] = str(RAIZ / spec["checkpoint"])
++    t0 = time.perf_counter()
++    a = agente("SONDA_LAYA_CKPT")
++    carga_ms = (time.perf_counter() - t0) * 1000
++
++    filas, errores = [], []
++    for caso in casos:
++        estado = spec["estado"](caso["fields"])
++        t1 = time.perf_counter()
++        r = a.system_one(estado, spec["contrato"], lang="es")
++        latencia_ms = (time.perf_counter() - t1) * 1000
++        resp = r["answers"][spec["pregunta"]]
++        eleccion = resp.get("choice", resp.get("answer"))
++        conf = resp["answer_confidence"] if resp.get("answer_confidence") is not None else resp.get("confidence", 0.0)
++        # La verdad de terreno vive en la clave de la pregunta ORIGINAL cuando la sonda mide una segunda capa sobre el test de otra.
++        esperado = caso["answers"][spec.get("esperado_de", spec["pregunta"])]
++        correcto = eleccion == esperado
++        filas.append({
++            "id": caso["id"],
++            "esperado": esperado,
++            "obtenido": eleccion,
++            "conf": conf,
++            "correcto": correcto,
++            "latencia_ms": latencia_ms,
++        })
++        if not correcto:
++            errores.append({"id": caso["id"], "esperado": esperado, "obtenido": eleccion, "conf": conf})
++
++    latencias = [f["latencia_ms"] for f in filas]
++    score = sum(f["correcto"] for f in filas) / len(filas)
++    ece_val, ece_fuente = ece(filas)
++    rss_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss  # KB en Linux
++
++    # git sha corto para anclar el número a un commit exacto (patrón bench_router.json).
++    try:
++        sha = subprocess.run(
++            ["git", "rev-parse", "--short", "HEAD"],
++            cwd=RAIZ, capture_output=True, text=True, timeout=10,
++        ).stdout.strip() or None
++    except (OSError, subprocess.SubprocessError):
++        sha = None
++
++    return {
++        "nombre": nombre,
++        "checkpoint": spec["checkpoint"],
++        "fecha": datetime.now().isoformat(timespec="seconds"),
++        "git_sha": sha,
++        "n": len(filas),
++        "score": score,
++        "ece": ece_val,
++        "ece_fuente": ece_fuente,
++        "latencia_p50_ms": percentil(latencias, 50),
++        "latencia_p95_ms": percentil(latencias, 95),
++        "carga_ms": carga_ms,
++        "rss_max_kb": rss_kb,
++        "tabla_confiabilidad": tabla_confiabilidad(filas),
++        "curva_compuerta": curva_compuerta(filas),
++        "fallos": errores,
++        "casos": filas,
++    }
++
++
++def escribir_md(informe):
++    """Informe legible: resumen, confiabilidad, curva y fallos con su confianza
++    exacta (para poder discutir cada error, no solo el agregado)."""
++    o = []
++    o.append(f"# Evidencia Laya — `{informe['nombre']}`\n")
++    o.append(f"Checkpoint: `{informe['checkpoint']}` · fecha {informe['fecha']} · git `{informe['git_sha']}`\n")
++    o.append("## Resumen\n")
++    o.append(f"- Casos: {informe['n']}")
++    o.append(f"- Acierto crudo: {informe['score']:.4f} ({round(informe['score'] * informe['n'])}/{informe['n']})")
++    fuente = informe["ece_fuente"]
++    valor_ece = "n/d" if informe["ece"] is None else f"{informe['ece']:.4f}"
++    o.append(f"- ECE: {valor_ece} (fuente: {fuente})")
++    o.append(f"- Latencia inferencia: p50 {informe['latencia_p50_ms']:.1f} ms · p95 {informe['latencia_p95_ms']:.1f} ms")
++    o.append(f"- Carga en frío: {informe['carga_ms'] / 1000:.1f} s")
++    o.append(f"- RSS pico: {informe['rss_max_kb'] / 1024:.0f} MiB ({informe['rss_max_kb']} KB)\n")
++
++    o.append("## Tabla de confiabilidad\n")
++    o.append("| bucket | n | conf. media | acierto | gap |")
++    o.append("|---|---|---|---|---|")
++    for f in informe["tabla_confiabilidad"]:
++        hi = "1.0+" if f["hi"] is None else f"{f['hi']:.2f}"
++        if f["n"]:
++            o.append(f"| [{f['lo']:.2f}, {hi}) | {f['n']} | {f['conf_media']:.3f} | "
++                     f"{f['acierto']:.3f} | {f['acierto'] - f['conf_media']:+.3f} |")
++        else:
++            o.append(f"| [{f['lo']:.2f}, {hi}) | 0 | — | — | — |")
++
++    o.append("\n## Curva de compuerta\n")
++    o.append("| umbral | cobertura | precisión | ahorro | n locales |")
++    o.append("|---|---|---|---|---|")
++    for f in informe["curva_compuerta"]:
++        prec = "—" if f["precision"] is None else f"{f['precision']:.3f}"
++        o.append(f"| {f['umbral']:.2f} | {f['cobertura']:.3f} | {prec} | {f['ahorro']:.3f} | {f['n_locales']} |")
++
++    o.append(f"\n## Fallos ({len(informe['fallos'])})\n")
++    if informe["fallos"]:
++        o.append("| caso | esperado | obtenido | conf |")
++        o.append("|---|---|---|---|")
++        for e in informe["fallos"]:
++            o.append(f"| {e['id']} | {e['esperado']} | {e['obtenido']} | {e['conf']:.3f} |")
++    else:
++        o.append("Ninguno.")
++    return "\n".join(o) + "\n"
++
++
++def main(argv=None):
++    parser = argparse.ArgumentParser(description="Evidencia de UN checkpoint de Laya (ECE, compuerta, RAM).")
++    parser.add_argument("nombre", choices=sorted(ESPECIFICACIONES), help="checkpoint a medir (uno por proceso)")
++    parser.add_argument("--salida", default=None, help="directorio de salida (default: salidas/evals)")
++    parser.add_argument("--tareas", type=Path, default=TAREAS, help="carpeta con los tests a mano del fine-tune")
++    args = parser.parse_args(argv)
++
++    spec = ESPECIFICACIONES[args.nombre]
++    informe = correr(args.nombre, spec, args.tareas)
++
++    destino = Path(args.salida) if args.salida else SALIDA
++    destino.mkdir(parents=True, exist_ok=True)
++    md_path = destino / f"laya_evidencia_{args.nombre}.md"
++    json_path = destino / f"laya_evidencia_{args.nombre}.json"
++    md_path.write_text(escribir_md(informe), encoding="utf-8")
++    json_path.write_text(json.dumps(informe, indent=2, ensure_ascii=False), encoding="utf-8")
++
++    print(f"=== {args.nombre} · {informe['checkpoint']} ===")
++    print(f"  acierto crudo: {informe['score']:.4f} ({round(informe['score'] * informe['n'])}/{informe['n']})")
++    print(f"  ECE: {'n/d' if informe['ece'] is None else f'{informe['ece']:.4f}'} ({informe['ece_fuente']})")
++    print(f"  p50/p95: {informe['latencia_p50_ms']:.1f}/{informe['latencia_p95_ms']:.1f} ms · "
++          f"carga {informe['carga_ms'] / 1000:.1f} s · RSS {informe['rss_max_kb'] / 1024:.0f} MiB")
++    print(f"  fallos: {len(informe['fallos'])}")
++    print(f"  → {md_path}")
++    print(f"  → {json_path}")
++
++
++if __name__ == "__main__":
++    main()
+diff -ruN a/banco/probes/sonda_supervisor.py b/banco/probes/sonda_supervisor.py
+--- a/banco/probes/sonda_supervisor.py	1970-01-01 00:00:00.000000000 +0000
++++ b/banco/probes/sonda_supervisor.py	2026-10-30 17:28:11.826400092 +0000
+@@ -0,0 +1,161 @@
++"""Sonda del Choose del supervisor con la lógica EXACTA de producción.
++
++Corre el test a mano (bmo/train/tasks/supervisor_dispatch_test.jsonl)
++contra uno o más checkpoints y reporta, por caso: elección cruda,
++confianza, veredicto y la decisión final — con 'met' la elección de Laya
++despacha local; cualquier otra cosa cae a la votación. El valor real son
++DOS números: acierto crudo y cuántos pasos despacha Laya sin gastar una
++llamada.
++
++Esta sonda es la CASA del contrato del fine-tune supervisor_dispatch:
++PREGUNTA_DESPACHO y elegir_con_deepseek VIVEN acá desde que el Supervisor v2
++jubiló el Choose (el checkpoint quedó como evidencia histórica — el
++instrumento de medida sobrevive al mecanismo que medía). El congelamiento
++del contrato se testea ALLÍ, en esta sonda.
++
++Con --votacion, la vía dudosa se mide COMPLETA (gasta API): dos votos
++DeepSeek (directo y por eliminación) + el voto crudo de Laya → mayoría
++2-de-3.
++
++Uso:
++    python3 banco/probes/sonda_supervisor.py CHECKPOINT [...] [--umbral 0.9] [--tareas DIR]
++    python3 banco/probes/sonda_supervisor.py --votacion CHECKPOINT   # mide también la mayoría
++"""
++import argparse
++import json
++import sys
++from pathlib import Path
++
++RAIZ = Path(__file__).resolve().parents[2]
++sys.path.insert(0, str(RAIZ))
++from supervisor import MAX_FALLOS_POR_HERRAMIENTA, REGISTRO, catalogo  # noqa: E402
++from utils.call_llm import call_llm  # noqa: E402
++from utils.estructura import extraer_yaml  # noqa: E402
++
++# Los tests a mano del fine-tune viven en el repo de entrenamiento (bmo): la
++# ruta de esta máquina es el default y `--tareas` la cambia.
++TAREAS = Path.home() / "Documentos" / "00_IA" / "bmo" / "train" / "tasks"
++UMBRAL_DESPACHO = 0.9  # el del Choose: un paso quemado pesa más que la llamada que ahorra
++
++
++# Congelada: task supervisor_dispatch (bmo/train/tasks/supervisor_dispatch.yaml).
++# Las 18 opciones en este orden exacto; entrenamiento y producción leen igual.
++PREGUNTA_DESPACHO = {
++    "elegir_proxima": {
++        "type": "choice",
++        "instructions": "Which tool runs the next step of this task, given what already ran?",
++        "criteria": {
++            "list_files": "see which files a folder holds",
++            "read_file": "read the exact content of one file",
++            "search_files": "find files by name or contained text",
++            "write_file": "create or replace a file (needs approval)",
++            "run_informe": "summarize one folder of traces",
++            "run_auditoria": "compare several folders of traces",
++            "answer_verified": "answer with citations checked against files",
++            "rag_search": "semantic search over the local index",
++            "rag_index": "(re)index a folder for semantic search",
++            "debate": "run a proponent-vs-critic debate",
++            "mcp_tools": "list the tools of external MCP servers",
++            "mcp_call": "call a tool on an external MCP server",
++            "search_web": "quick web search: titles, URLs, snippets",
++            "deep_research": "multi-round web research with a report",
++            "sql": "one SELECT query over the traces db",
++            "db_schema": "schema of the traces database",
++            "run_effective_n": "exact dedup of trace datasets",
++            "finish": "done or blocked: synthesize now",
++        },
++    }
++}
++OPCIONES = list(PREGUNTA_DESPACHO["elegir_proxima"]["criteria"])
++
++INSTRUCCION_ELECCION = {
++    # voto A — el clásico
++    "directo": "Elige UNA herramienta para el siguiente paso (o finish). "
++               "El siguiente paso sigue de lo que FALTA, no de lo ya hecho.",
++    # voto B — independiente por construcción: razona al revés
++    "eliminacion": "Primero ELIMINA: nombra las herramientas que ya cumplieron "
++                   "su parte según los hechos (o están prohibidas) y quedan descartadas. "
++                   "Luego elige UNA de las restantes para el siguiente paso (o finish "
++                   "si no queda nada que aporte).",
++}
++
++
++def elegir_con_deepseek(tarea, hechos, fuera, estilo="directo"):
++    """Un voto de DeepSeek sobre el catálogo, con el framing del estilo."""
++    veto_txt = (
++        f"\nPROHIBIDO elegir (ya fallaron {MAX_FALLOS_POR_HERRAMIENTA} veces): "
++        + ", ".join(sorted(fuera)) + ".\n" if fuera else ""
++    )
++    plan = extraer_yaml(call_llm(
++        f"Tarea del usuario: {tarea}\n\n"
++        f"Ya ejecutado:\n" + ("\n".join(hechos) or "(nada)") + "\n\n"
++        f"Herramientas disponibles (nombre: descripción):\n{catalogo()}\n"
++        f"{veto_txt}"
++        f"finish: la tarea está cubierta o bloqueada; sintetizar ya.\n\n"
++        f"{INSTRUCCION_ELECCION[estilo]}\n\n"
++        "Responde SOLO yaml:\n```yaml\nherramienta: nombre\n```"
++    ))
++    eleccion = plan["herramienta"]
++    assert eleccion in REGISTRO or eleccion == "finish", f"herramienta desconocida: {eleccion}"
++    return eleccion
++
++
++def correr(agente, casos, votacion=False, alto=UMBRAL_DESPACHO):
++    from utils.laya import _confianza, veredicto
++    from utils.votacion import mayoria
++
++    filas, crudo_ok, local_ok, locales, final_ok = [], 0, 0, 0, 0
++    for caso in casos:
++        r = agente.system_one(
++            {"tarea": caso["fields"]["tarea"], "hechos": caso["fields"].get("hechos", "")},
++            PREGUNTA_DESPACHO,
++            lang="es",
++        )
++        resp = r["answers"]["elegir_proxima"]
++        eleccion = resp.get("choice", resp.get("answer"))
++        conf = _confianza(resp)
++        esperado = caso["answers"]["elegir_proxima"]
++        crudo_ok += eleccion == esperado
++        if veredicto(conf, alto=alto) == "met":
++            decision, detalle = eleccion, f"laya {conf:.2f}"
++            locales += 1
++            local_ok += eleccion == esperado
++        elif votacion:
++            tarea, hechos = caso["fields"]["tarea"], caso["fields"].get("hechos", "").splitlines()
++            a = elegir_con_deepseek(tarea, hechos, set(), "directo")
++            b = elegir_con_deepseek(tarea, hechos, set(), "eliminacion")
++            votos = [a, b] + ([eleccion] if eleccion else [])
++            decision = mayoria(votos, desempate=a, minimo=2)
++            detalle = f"votos {votos}"
++        else:
++            decision, detalle = "(votación)", "—"
++        final_ok += decision == esperado
++        filas.append((caso["id"], esperado, eleccion, conf, decision, detalle, "✓" if decision == esperado else "✗"))
++    return filas, crudo_ok, local_ok, locales, final_ok
++
++
++def main(argv=None):
++    parser = argparse.ArgumentParser(prog="sonda_supervisor", description="el Choose del supervisor, medido")
++    parser.add_argument("checkpoints", nargs="+", help="uno o más checkpoints de Laya (se cargan de a uno)")
++    parser.add_argument("--votacion", action="store_true", help="mide también la mayoría 2-de-3 (gasta API)")
++    parser.add_argument("--umbral", type=float, default=UMBRAL_DESPACHO, help="confianza mínima para despachar local")
++    parser.add_argument("--tareas", type=Path, default=TAREAS, help="carpeta con supervisor_dispatch_test.jsonl")
++    args = parser.parse_args(argv)
++    test = args.tareas / "supervisor_dispatch_test.jsonl"
++    casos = [json.loads(linea) for linea in test.read_text(encoding="utf-8").splitlines() if linea.strip()]
++    import laya
++
++    for nombre in args.checkpoints:
++        agente = laya.load(nombre, device="cpu")
++        filas, crudo, local_ok, locales, final = correr(agente, casos, args.votacion, alto=args.umbral)
++        print(f"\n=== {nombre}{' (con votación 2-de-3)' if args.votacion else ''} ===")
++        for id_, esperado, eleccion, conf, decision, detalle, marca in filas:
++            print(f"  {marca} {id_:<26} esperado={esperado:<16} crudo={str(eleccion):<16} "
++                  f"conf={conf:.2f} → {decision} · {detalle}")
++        extra = f" · sistema (laya+mayoría): {final}/{len(casos)}" if args.votacion else ""
++        print(f"crudo: {crudo}/{len(casos)} · despachos locales de Laya: {locales}/{len(casos)} "
++              f"· correctos entre los locales: {local_ok}/{locales or 1}{extra}")
++
++
++if __name__ == "__main__":
++    main()
+diff -ruN a/banco/probes/twins_extractores.py b/banco/probes/twins_extractores.py
+--- a/banco/probes/twins_extractores.py	2026-10-30 11:08:47.000000000 +0000
++++ b/banco/probes/twins_extractores.py	2026-10-30 17:28:11.830400184 +0000
+@@ -50,7 +50,6 @@
+                     "plan y decisión yaml (b); los hechos se extraen del "
+                     "material que el código fetch-eó, URLs ya delante (d); "
+                     "informe final (a)"),
+-    "sonda_supervisor.py": (1, "b", "plan yaml con args: contrato de salida"),
+     "supervisor.py": (2, "e/c",
+                       "UnPaso es ejecutor con tools (e); la síntesis va sobre "
+                       "pasos registrados del propio bucle (c)"),
+diff -ruN a/delegar.py b/delegar.py
+--- a/delegar.py	2026-10-30 11:08:47.000000000 +0000
++++ b/delegar.py	2026-10-30 17:28:11.830400184 +0000
+@@ -4,7 +4,7 @@
+ esto el operador delega solo. Es el "banco-lite" de exp/99: el MISMO driver
+ PTY y el MISMO scope HITL del banco (`utils.conductor`), pero con un pedido real
+ en vez de un escenario guionizado — y con los logs de producción: las preguntas y
+-los juicios de riesgo cuentan como origen `terminal` (tráfico orgánico). Si el chat muere a mitad (el kill de tmux de exp/98), el
++las decisiones HITL cuentan como origen `terminal` (tráfico orgánico). Si el chat muere a mitad (el kill de tmux de exp/98), el
+ conductor rehidrata el thread (exp/48) y re-envía el pedido como continuación.
+ 
+ Uso:
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-30 17:26:41.960338580 +0000
++++ b/docs/bitacora.md	2026-10-30 17:30:53.450107712 +0000
+@@ -5714,3 +5714,42 @@
+ desarrollo (387/445 empiezan con `cd {RAIZ}`), no de usuario final, y dejó
+ afuera 317 comandos largos y 33 con posible secreto. Ese espacio lo cubren
+ los casos por entrada y el fuzz, no la foto.
++
++---
++
++## Paso 1 del orden: la deuda de la fase 1 y el juez de riesgo (2026-10-30, X109)
++
++**Por qué ahora**: al armar el roadmap pendiente apareció deuda de fases que
++`elegancia.md` daba por cerradas. Este paso es la parte que no cambia
++conducta.
++
++**Lo que salió**:
++- `LEER_BMO_ENV` y el `.env` de otro proyecto. `_setting` lee el entorno y el
++  `.env` de este proyecto, nada más. `BMO_TASKS_DIR` y `utils.rutas.tasks_dir`
++  también: los únicos que los usaban eran las sondas.
++- `sonda_laya.py` y `sonda_supervisor.py` pasan a `banco/probes/`. La carpeta
++  de tareas y el umbral de despacho son argumentos (`--tareas`, `--umbral`), no
++  settings. La sonda del supervisor exige el checkpoint por argumento: antes
++  lo tomaba de `LAYA_MODEL_SUPERVISOR`. `SONDA_LAYA_CKPT` lo sigue seteando
++  la sonda para sí misma y deja de contar como setting del harness.
++- **El juez de riesgo (decisión del operador: resolverlo acá)**. Se borró.
++  Llevaba desde exp/44 (2026-10-13) observando sin decidir nada, y lo que el
++  fine-tune necesita no es su juicio sino la decisión humana. Con el juez, la
++  fila del log solo se escribía si el checkpoint estaba cargado: sin modelo
++  no había etiqueta. Ahora `riesgo.registrar` escribe cada s/n de comando
++  (comando, último mensaje, respuesta, origen) siempre que `RIESGO_LOG=1`.
++  Salen `juzgar`, `PREGUNTA_RIESGO` (su sha1 queda en
++  `banco/specs/exp44_riesgo.md`), `_observar_riesgo`, `laya.preguntar` (sin
++  otro usuario) y el marcador `[riesgo] observa` del banco.
++
++**Cambio visible, declarado**: con `RIESGO_LOG=1` (default) el log de riesgo
++ahora se escribe aunque no haya checkpoint. Es el comportamiento que el
++README ya prometía para la etiqueta; el README queda con la fila correcta y
++el apagador.
++
++**Ratchets**: `settings_leidos` 64 → 58, `imports_perezosos` 90 → 81,
++`excepts_amplios` 29 → 27. `tests_definidos` 1023 → 1012: se borran los 14
++tests del juez y de bmo y se suman 3 (el log escribe cada decisión humana;
++los settings salen solo del entorno y del `.env` propio; el mensaje de
++`get_api_key`). Hace falta la clave del operador. `tests/inventario_tests.txt`
++pierde exactamente esas 14 líneas.
+diff -ruN a/docs/design.md b/docs/design.md
+--- a/docs/design.md	2026-10-30 11:55:18.000000000 +0000
++++ b/docs/design.md	2026-10-30 17:28:11.870401101 +0000
+@@ -9,7 +9,7 @@
+ Un chat que **no cierra** y que, para responder sobre los archivos del
+ usuario, los explora por sí mismo: decide cuándo listar y cuándo leer
+ (patrones Chat + Agent del cookbook). Las credenciales viven **fuera** del
+-proyecto: `DEEPSEEK_API_KEY` en el entorno o `LLM_API_KEY` en el `.env` de bmo.
++código: `DEEPSEEK_API_KEY` en el entorno o `LLM_API_KEY` en el `.env` del proyecto (ignorado por git).
+ 
+ ## Flujo
+ 
+@@ -453,7 +453,7 @@
+ structured output en todo (extraer_yaml + assert + retry).
+ 
+ ### Supervisor — el loop del kernel con las leyes del ejecutor (v3, H2 PR 2)
+-`main.py supervisor "tarea"` · [supervisor.py](../supervisor.py) · [sonda_supervisor.py](../sonda_supervisor.py)
++`main.py supervisor "tarea"` · [supervisor.py](../supervisor.py) · [sonda_supervisor.py](../banco/probes/sonda_supervisor.py)
+ 
+ ```mermaid
+ flowchart TD
+@@ -516,10 +516,10 @@
+ - **Feedback reforzado**: el reintento corregía a ciegas ("programa") en
+   vez de leer el esquema visible en hechos; ahora el prompt exige copiar
+   los nombres EXACTOS de los pasos ejecutados. El umbral de despacho es
+-propio y MÁS exigente que el del router (`LAYA_UNSURE_HIGH_SUPERVISOR`,
++propio y MÁS exigente que el del router (`--umbral` de la sonda,
+ 0.9): un paso quemado pesa más que la llamada que ahorra. utils/laya
+ cachea agentes POR setting: el router y el supervisor son checkpoints
+-distintos (`LAYA_MODEL` / `LAYA_MODEL_SUPERVISOR`).
++distintos (`LAYA_MODEL` / el que se le pasa a la sonda).
+ 
+ Ciclo de fine-tune medido (test a mano 24, todas las opciones cubiertas):
+ 
+@@ -734,7 +734,7 @@
+ `/kaggle/input/datasets/<owner>/<slug>`, no en `/kaggle/input/<slug>`:
+ resolver el base buscando `model.safetensors`, no por nombre.
+ 
+-Acá termina la evidencia heredada y empieza la propia. `sonda_laya.py`
++Acá termina la evidencia heredada y empieza la propia. `banco/probes/sonda_laya.py`
+ (exp/7) convierte esas afirmaciones en números medidos con nuestra vara:
+ corre el test etiquetado de UN checkpoint a la vez, porque la RAM lo impone
+ (cargar dos en un mismo proceso revienta la memoria, medido), así que el
+@@ -968,8 +968,7 @@
+ 
+ Todo lo que mide (flywheel, juez de riesgo, memoria, preguntas) depende de
+ procedencia auditable. Por eso la suite NO escribe los datos de producción:
+-un fixture autouse de `tests/conftest.py` pone `LAYA_MODEL_RIESGO=0` (nunca
+-carga el checkpoint real), y manda `RIESGO_ARCHIVO`, `PREGUNTAS_ARCHIVO`,
++un fixture autouse de `tests/conftest.py` manda `RIESGO_ARCHIVO`, `PREGUNTAS_ARCHIVO`,
+ `LAYA_LOG_ARCHIVO`, `MEMORIA_DIR` y `THREADS_DIR` al tmp de pytest; los tests
+ que prueban esos caminos fijan su propia ruta. El banco tampoco toca la
+ biblioteca: `banco.banco._env_del_chat` fuerza
+diff -ruN a/docs/elegancia.md b/docs/elegancia.md
+--- a/docs/elegancia.md	2026-10-30 17:26:41.960338580 +0000
++++ b/docs/elegancia.md	2026-10-30 17:30:53.446107620 +0000
+@@ -21,7 +21,7 @@
+ | F3 | **El grafo dice la verdad**: el control vive en las aristas | ¿Se explica un turno leyendo `python3 main.py grafo`? | `nodos_largos`, `test_el_diagrama_del_readme_es_el_grafo_del_chat` |
+ | F4 | **Fractal**: una primitiva a toda escala (chat = sub-agente = supervisor) | ¿Una política nueva llega gratis a los sub-agentes? | fase 2 (un solo loop) |
+ | F5 | **Dependencias hacia adentro**: los módulos dependen del CORE; el CORE no los conoce | ¿Borrar cualquier archivo de `modules/` deja el chat andando? | `core_importa_modulos` |
+-| F6 | **Errores reversibles**: el smart-if decide perillas cuyo error se autocorrige, nunca le quita capacidades al agente | ¿Si Laya se equivoca, el siguiente paso lo corrige solo? | fase 3 (`producto_router.py`) |
++| F6 | **Errores reversibles**: el smart-if decide perillas cuyo error se autocorrige, nunca le quita capacidades al agente | ¿Si Laya se equivoca, el siguiente paso lo corrige solo? | fase 3 (`banco/specs/fase3b_4a.md`) |
+ | F7 | **Producto ≠ laboratorio**: el producto no sabe que existe el banco | ¿Aparecen `banco`, `BANCO`, `DELEGADO` o `GROUND-TRUTH` en producción? | `producto_conoce_lab` |
+ 
+ ## Elegancia de código
+@@ -57,9 +57,9 @@
+ |---|---|---|
+ | `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
+ | `producto_conoce_lab` | 10 → **0** (X93) | 0 ✅ |
+-| `vocabulario_hardcodeado` | 8 → 7 (X104) → 3 (X106) | ≤ 2 (fases 3–4; quedan los sí/no del HITL) |
+-| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) → 64 (X106) | ≤ 45 (fases 1–5, ver inventario) |
+-| `imports_perezosos` | 137 → 126 (X92) → 90 (X106) | ≤ 40 |
++| `vocabulario_hardcodeado` | 8 → 7 (X104) → 3 (X106) | ≤ 2 (S9 saca la continuación por palabras de `GetQuestion`; fase 6, `TOOL_CONTEXTO_RE`; queda el sí/no del HITL) |
++| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) → 64 (X106) → 58 (X109) | ≤ 45 (fases 1–5, ver inventario) |
++| `imports_perezosos` | 137 → 126 (X92) → 90 (X106) → 81 (X109) | ~60 (decisión del operador, 2026-10-30: ≤ 40 pedía ampliar la fase 6 a MCP/web/HITL solo por el número) |
+ | `nodos_largos` | 15 → 14 (X96) → 13 (X106) | ≤ 3 |
+ | `texto_de_prompt` | 2748 chars | ≤ 800 |
+ 
+@@ -68,22 +68,24 @@
+ | Fase | Cambio | ¿Cambia conducta? | Gate de salida |
+ |---|---|---|---|
+ | 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
+-| 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
+-| 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. ✅ 2b-2 (X96): `Observar` y `Cierre` (el presupuesto como arista). Falta: el chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
+-| 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a NO PASA (X105, cableado borrado). 3b por la opción (b): el router sale del chat (X106, código listo; falta el A/B de `banco/specs/fase3b_4a.md`). `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | los criterios de `banco/specs/fase3b_4a.md` (`fase3b-directas`: sin tools de más, USD ≤ 1,5×, descarrilos ≤ base; `exp55-skills` igual) |
+-| 4 | ✅ 4b-mín (X104): sin la regex de palabras. 4a (X106): reglas y voto borrados con la 3b; directivas en la 5b (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
+-| 5 | ✅ 5a (X108): política de comandos como datos (S10) en `utils/politica_comandos.json`, 0 diferencias. 5b: skills por descripción y directivas a skills. 5c: Laya 0.4.x | Mínimo | `test_policy_bypass.py` idéntico; 5a: 0 diferencias sobre la foto real |
+-| 6 | Limpieza de piezas sueltas (`juez`, `effective_n`, `juez_lote`, `research`, `informe`, `fable_judge`): nodos largos e imports perezosos (decisión del operador, X103) | No | `nodos_largos` ≤ 3, `imports_perezosos` ≤ 40 |
++| 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/`. ✅ deuda (X109): sin el `.env` ni las tareas de bmo; las sondas de Laya a `banco/probes/`. **Queda**: `HITL_SCOPE` y `HUMANO_RESPUESTA` (revisar) | No | `test_caracterizacion_chat.py` idéntico |
++| 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. ✅ 2b-2 (X96): `Observar` y `Cierre` (el presupuesto como arista). **Queda (paso 5 del orden)**: el chat como `kernel.loop` + políticas como nodos (S9: citas, interrupción, prefetch), la continuación por estado del thread (decisión del operador), esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
++| 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a NO PASA (X105, cableado borrado). ✅ 3b PASA (X106, `banco/specs/fase3b_4a.md`): el router salió del chat. **Cerradas con veredicto negativo** (decisión del operador): S2 —Laya elige el modo— la rechazó el A/B de la 3a; S1 —`reasoning_content` en rondas de tools— no aplica sin thinking con tools. ✅ X109: el juez de riesgo que solo observaba se borró; el log de la decisión humana queda | **Sí** | los criterios de `banco/specs/fase3b_4a.md` |
++| 4 | ✅ 4b-mín (X104): sin la regex de palabras. ✅ 4a (X106): reglas y voto borrados con la 3b. **Queda (paso 3 del orden)**: S6, el presupuesto por novedad — `CORTE_NOVEDAD`, `CORTE_NOVEDAD_MIN`, `MAX_TOOL_ROUNDS_AMPLIO`, `UMBRAL_SIN_PROGRESO` salen; `MAX_TOOL_ROUNDS` es el único techo | Sí | banco + fable: USD y descarrilos ≤ base; `settings_leidos` ≤ 60 ✅ |
++| 5 | ✅ 5a (X108): política de comandos como datos (S10) en `utils/politica_comandos.json`, 0 diferencias sobre la foto real de 445. **Queda**: 5b (paso 2) directivas a skills por descripción (S7/S8: `PROMPT_AUDITORIA`, `PROMPT_FABLE`; `PROMPT_FORMA` solo con A/B). 5c (paso 4) Laya 0.4.x y los prefiltros como un mecanismo con un setting | Mínimo / Sí (5b) | 5b: `exp55-skills`, fable s17–s20, `texto_de_prompt` ≤ 800; 5c: su pre-registro |
++| 6 | Limpieza de piezas sueltas (`juez`, `effective_n`, `juez_lote`, `research`, `informe`, `fable_judge`): nodos largos e imports perezosos (decisión del operador, X103) | No | `nodos_largos` ≤ 3 (los 3 de `nodes.py` los resuelve S9), `imports_perezosos` ~60 |
++
++**Orden de lo que queda** (X109, aprobado por el operador): 1 ✅ deuda de la
++fase 1 → 2 5b → 3 S6 → 4 5c → 5 S9/S3 → 6 fase 6. Primero lo que no cambia
++conducta; lo que la cambia, con su A/B pre-registrado.
+ 
+-## Inventario de settings (64 tras X106: 39 contrato · 17 revisar · 8 borrar)
++## Inventario de settings (58 tras X109: 39 contrato · 13 revisar · 6 borrar)
+ 
+ `contrato` = decisión del operador que se queda; `revisar` = se decide en la
+ fase indicada; `borrar` = se va con su rama en esa fase.
+ 
+ | Setting | Veredicto | Fase | Motivo | Lo lee |
+ |---|---|---|---|---|
+-| `BMO_TASKS_DIR` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/rutas.py` |
+-| `LEER_BMO_ENV` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/call_llm.py` |
+ | `CORTE_NOVEDAD` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+ | `CORTE_NOVEDAD_MIN` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+ | `MAX_TOOL_ROUNDS_AMPLIO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+@@ -92,13 +94,9 @@
+ | `UMBRAL_SIN_PROGRESO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+ | `HITL_SCOPE` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `utils/aprobaciones.py` |
+ | `HUMANO_RESPUESTA` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `modules/humano.py` |
+-| `LAYA_MODEL_SUPERVISOR` | revisar | 1 | sondas: van a banco/, no al producto | `sonda_supervisor.py` |
+-| `LAYA_UNSURE_HIGH_SUPERVISOR` | revisar | 1 | sondas: van a banco/, no al producto | `sonda_supervisor.py` |
+-| `SONDA_LAYA_CKPT` | revisar | 1 | sondas: van a banco/, no al producto | `sonda_laya.py` |
+ | `CHAT_STREAM_INTERRUPT` | revisar | 2 | S9: citas e interrupción siempre activas | `utils/call_llm.py` |
+ | `CITAS_VERIFICAR` | revisar | 2 | S9: citas e interrupción siempre activas | `nodes.py` |
+ | `PREFETCH` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
+-| `LAYA_MODEL_RIESGO` | revisar | 3 | S1: el juez de riesgo observa sin decidir: decidir o borrar | `utils/riesgo.py` |
+ | `PROMPT_FORMA` | revisar | 4 | S8: se queda solo si un A/B del modelo actual lo sostiene | `main.py` |
+ | `SKILLS` | revisar | 4 | S7: skills por descripción; el apagador global quizá sobra | `nodes.py` |
+ | `INFORME_CARPETA` | revisar | 5 | concurrencia: una constante del kernel | `informe.py` |
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-30 17:26:41.960338580 +0000
++++ b/docs/estado.md	2026-10-30 17:30:53.446107620 +0000
+@@ -79,7 +79,7 @@
+ | A65 | — | `cita_ok` 87,5%: el modelo cita el inicio del bloque / líneas abreviadas en vez de la línea exacta que exigía el grading | ✅ 2026-10-18 (cambio de grading) | grading del bench ahora tolera **±`VENTANA_GRADING`=10 líneas**; full bench: **100% respuesta / 100% cita** (17 casos, 607 s); baseline regenerado con backup; producción no se tocó (solo el instrumento) | `test_bench_cita_ok_ventana_de_grading` |
+ | A66 | — | El grading del bench confundía sufijos de path (`otro_modulo.py` contaba como `modulo.py`) | ✅ 2026-10-18 | `_misma_ruta` con frontera de path en `cita_ok`; además, test que exige `cita_contiene` no vacío en el banco | `test_bench_cita_ok_no_confunde_sufijos`, `test_banco_casos_con_cita_tienen_token` |
+ | A67 | — | Comentarios de traza desactualizados: `aprobaciones` prometía “segundos” (siempre 0) y `nodes` omitía el `codigo` de `evento_tool` | ✅ 2026-10-18 | comentarios corregidos (auditoría real con el harness) | — |
+-| A68 | — | Docs de `call_llm` incompletos: no declaraban env vacía, descarte de tools/reasoning/thinking ni que bmo depende de `LEER_BMO_ENV=1` | ✅ 2026-10-18 | docstring de módulo/función y mensaje de `get_api_key` corregidos | `test_get_api_key_error_menciona_bmo_condicional` |
++| A68 | — | Docs de `call_llm` incompletos: no declaraban env vacía, descarte de tools/reasoning/thinking ni que bmo depende de `LEER_BMO_ENV=1` | ✅ 2026-10-18 | docstring de módulo/función y mensaje de `get_api_key` corregidos | `test_get_api_key_error_solo_ofrece_las_fuentes_del_proyecto` |
+ | A69 | — | Docs de `tracing` vs comportamiento: `evento_hitl` prometía segundos (siempre 0), `codigo` sin garantía, `thread_id` con fallback ambiguo, `evento_politica` con esquema no explicado | ✅ 2026-10-18 | docstrings aclarados (el campo existe por esquema, no como medición) | — |
+ | A70 | — | Docs de `call_llm_agent_stream`: thinking auto-contradictorio, corte de stream sin documentar descarte de tool_calls, retorno `None` no documentado | ✅ 2026-10-18 | docstrings y comentario del armado de tool_calls corregidos | — |
+ | A71 | — | Verificación de límites: `aprobaciones`/`codigo_error` completos y `accion="politica"` en tablero/minería | ✅ 2026-10-18 | sin hallazgos en aprobaciones/codigo_error; `tablero` ignora politica como tool y cuenta el corte (test) | `test_politica_no_cuenta_como_tool` |
+@@ -97,7 +97,7 @@
+ | X37 | — | La compacción respaldaba la zona fría en `memoria/` en CADA compacción: 143 respaldos con el mismo cuerpo (solo cambiaba el título al minuto) y 9 respaldos en una sesión real de 3 preguntas; la biblioteca curada quedó con 229 respaldos de 234 notas | ✅ 2026-10-21 (exp/70) | `_respaldar_zona_fria` recuerda en `shared` la huella de la última zona fría respaldada y no reescribe si es idéntica (devuelve la ruta vigente, el marcador A17 sigue siendo verdadero); título con segundos (`%H-%M-%S`) para no colisionar dentro del minuto. Límite: cuando la zona fría crece con mensajes nuevos sigue escribiendo un respaldo por compacción; mover los respaldos fuera de `memoria/` queda como decisión futura. **Corrección exp/71**: de los 243 respaldos, **157 eran el fixture sintético de la suite** (`pedido 0…`, 57.591 B), no sesiones reales — el dedupe intra-sesión sigue siendo válido, pero el volumen histórico no era de uso orgánico | `test_zona_fria_identica_no_se_respalda_dos_veces`, `test_zona_fria_distinta_se_respalda_de_nuevo`, `test_marcador_de_compaccion_menciona_el_ultimo_respaldo` |
+ | X38 | — | El arranque imprimía la biblioteca de memoria COMPLETA: 234 líneas por sesión (229 eran respaldos de compacción), spam en cada inicio | ✅ 2026-10-21 (exp/70) | `memoria.catalogo` (antes `main.catalogo_memoria`) imprime el total + solo las `CATALOGO_MAX` (8) notas más recientes y recuerda `memory_search`; sigue best-effort y respeta `MEMORIA=0` | `test_catalogo_memoria_resumen_acotado` |
+ | X39 | — | Una sesión real usó `run_command` para leer/listar/buscar (21 shell vs 6 `read_file`): el system prompt no desalentaba ese atajo, que paga HITL y latencia | ✅ 2026-10-21 (exp/70) | `main.system_prompt` suma una línea que pide `read_file`/`list_files`/`search_files` para leer/listar/buscar y no `cat`/`grep`/`find` por `run_command` (prompt 907 → 1.029 chars, dentro del presupuesto de 1.400) | `test_system_prompt_pide_codigo_minimo_y_no_crece` |
+-| X40 | — | La suite escribía el log del juez de riesgo de PRODUCCIÓN: 541 filas con `origen=terminal` eran tráfico sintético de tests (24 tests de `test_policy.py` dejan 8 y cargan el checkpoint del `.env`: 18,9 s y 2,98 GiB de RSS), y `salidas/preguntas.jsonl`/`salidas/routing.jsonl` también recibían líneas de tests — el "577 orgánicas" que parecía cumplir el criterio del fine-tune era falso | ✅ 2026-10-21 (exp/71) | `tests/conftest.py` fixture autouse: `LAYA_MODEL_RIESGO=0` (nunca el checkpoint real), `RIESGO_ARCHIVO`/`PREGUNTAS_ARCHIVO`/`LAYA_LOG_ARCHIVO`/`MEMORIA_DIR` a tmp (los tests que prueban esos caminos fijan su ruta y ganan por monkeypatch); sonda read-only `banco/probes/estado_riesgo.py` mide orgánicas/rechazos contra el criterio ≥300/≥100; el log viejo quedó en cuarentena (`salidas/riesgo_pre_exp71_2026-10-21.jsonl`) porque su procedencia no es auditable; el último test que escribía el routing log por parchear `_setting` sin `LAYA_LOG_ARCHIVO` ahora apunta a tmp. Medición: mismo test 18,9 s/2,98 GiB → **1,8 s/161 MB** y **0 filas** nuevas | `test_la_suite_no_escribe_los_logs_ni_la_memoria_de_produccion`, `test_observar_riesgo_solo_juzga_bandas_humanas`, `test_estado_riesgo.py` |
++| X40 | — | La suite escribía el log del juez de riesgo de PRODUCCIÓN: 541 filas con `origen=terminal` eran tráfico sintético de tests (24 tests de `test_policy.py` dejan 8 y cargan el checkpoint del `.env`: 18,9 s y 2,98 GiB de RSS), y `salidas/preguntas.jsonl`/`salidas/routing.jsonl` también recibían líneas de tests — el "577 orgánicas" que parecía cumplir el criterio del fine-tune era falso | ✅ 2026-10-21 (exp/71) | `tests/conftest.py` fixture autouse: `LAYA_MODEL_RIESGO=0` (nunca el checkpoint real), `RIESGO_ARCHIVO`/`PREGUNTAS_ARCHIVO`/`LAYA_LOG_ARCHIVO`/`MEMORIA_DIR` a tmp (los tests que prueban esos caminos fijan su ruta y ganan por monkeypatch); sonda read-only `banco/probes/estado_riesgo.py` mide orgánicas/rechazos contra el criterio ≥300/≥100; el log viejo quedó en cuarentena (`salidas/riesgo_pre_exp71_2026-10-21.jsonl`) porque su procedencia no es auditable; el último test que escribía el routing log por parchear `_setting` sin `LAYA_LOG_ARCHIVO` ahora apunta a tmp. Medición: mismo test 18,9 s/2,98 GiB → **1,8 s/161 MB** y **0 filas** nuevas | `test_la_suite_no_escribe_los_logs_ni_la_memoria_de_produccion`, `test_run_command_registra_cada_decision_humana_y_nada_en_auto`, `test_estado_riesgo.py` |
+ | X41 | — | El respaldo de la zona fría ignoraba `MEMORIA=0`: la suite y las corridas del banco compactaban con la memoria apagada y escribían en la biblioteca curada — **157 de los 243 respaldos** de `memoria/` eran el fixture sintético de `test_agent_step_prep_compacta_y_cuenta` (57.591 B, `pedido 0…`), indistinguibles de una nota real | ✅ 2026-10-21 (exp/71) | `_respaldar_zona_fria` devuelve `None` sin escribir cuando `MEMORIA != "1"` (sin biblioteca no hay `memory_search` que recupere el respaldo); `tests/conftest.py` manda `MEMORIA_DIR` a tmp y `banco/banco.py` fija `MEMORIA_DIR=salidas/banco/memoria` en el chat del banco (una corrida no toca la biblioteca ni con `memoria: true`). Limpieza: los 157 sintéticos se movieron a `salidas/memoria_respaldos_suite/` (la biblioteca quedó en 100 notas: 86 respaldos + 12 notas + 2 sesiones) | `test_compaccion_no_respalda_con_memoria_apagada`, `test_env_del_chat_aisla_la_memoria_y_marca_procedencia` |
+ | X42 | — | La flywheel del router contaba tráfico del banco como orgánico: las decisiones de `salidas/routing.jsonl` no llevaban procedencia y **80 de los 152 pares** caían dentro de corridas del banco (preguntas idénticas a `banco/escenarios/*.yaml`; 72/621 preguntas del log también eran de escenarios) — el número alimenta la revisión de ROI pre-registrada (≥250 pares) | ✅ 2026-10-21 (exp/71b) | `registrar_decision` y `registrar_pregunta` escriben `origen` (`banco`/`web`/`terminal`, misma función que el juez: `utils.riesgo.origen`); `etiquetar_ambiental.unir` solo cuenta pares con `origen` auditable (el banco y el log previo sin campo quedan afuera, mismo criterio que la cuarentena de exp/71); `estado_flywheel` arranca en 0/0 y el criterio (≥250/≥14) no cambia | test_unir_solo_cuenta_pares_con_procedencia_auditable (retirado en X106 con el router), test_registrar_decision_escribe_y_no_rompe (retirado en X106 con el router), `test_registrar_pregunta_es_bookkeeping_que_no_rompe` |
+ | X43 | — | `banco._env_del_chat` heredaba `MEMORIA_DIR` del entorno: con ese setting exportado (documentado en `.env.example`), una corrida de banco volvía a escribir la biblioteca curada — la invariante "SIEMPRE a `salidas/banco/memoria`" era una promesa del docstring, no del código | ✅ 2026-10-21 (exp/71b) | `_env_del_chat` fuerza `MEMORIA=0` y `MEMORIA_DIR=salidas/banco/memoria`; solo el `env:` del escenario puede pisarlos. El test ahora incluye el caso de entorno sucio | `test_env_del_chat_aisla_la_memoria_y_marca_procedencia` |
+@@ -136,6 +136,7 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
++| X109 | — | Deuda de la fase 1 que la tabla daba por cerrada: el harness todavía podía leer el `.env` de otro proyecto (`LEER_BMO_ENV`) y las sondas de Laya vivían en la raíz con 4 settings propios; y el juez de riesgo de exp/44 llevaba 17 días observando sin decidir nada (S1) | ✅ 2026-10-30 | `LEER_BMO_ENV`/`BMO_TASKS_DIR` borrados; `sonda_laya.py` y `sonda_supervisor.py` a `banco/probes/` con su umbral y su carpeta de tareas como argumentos; `juzgar` y `PREGUNTA_RIESGO` borrados, `riesgo.registrar` guarda la decisión humana sin depender del checkpoint. `settings_leidos` 64 → 58, `imports_perezosos` 90 → 81 | `test_los_settings_salen_solo_del_entorno_y_del_env_del_proyecto`, `test_run_command_registra_cada_decision_humana_y_nada_en_auto` |
+ | X107 | — | Fase 5a (S10): las listas de `utils/policy.py` son datos de la política escritos como código, y dos de ellas están duplicadas (whitelist = `_LECTURA`, 20 prefijos; las negras repetidas en `_EXPLICACIONES`) | ✅ 2026-10-30 (X108: 0/410 casos por entrada, 0/200.000 en el fuzz; la foto real de 445, el operador) | Criterio de 0 diferencias en `clasificar`/`explicar` sobre la foto real y un caso por entrada, tests de policy idénticos, falla cerrada al importar ([fase5a.md](../banco/specs/fase5a.md)). Instrumento: `banco/probes/comandos_reales.py` (checkpoints + log de riesgo; la traza no guarda argumentos) | `test_la_foto_es_la_politica_de_hoy_dedup_y_sin_secretos`, `test_lee_los_comandos_de_los_checkpoints_y_no_otras_tools`, `test_cero_diferencias_contra_la_foto`, `test_falla_cerrada_si_los_datos_no_validan` |
+ | X106 | — | Fase 3b + 4a: el chat tenía dos caminos (router de Laya + voto 2-de-2 + dos reglas de palabras → `DirectAnswer` sin tools, o el agente con tools) y la 3a no pasó, así que corresponde la opción (b) del pre-registro | 🧪 2026-10-28 (código listo; el A/B `fase3b-directas` lo corre el operador) | Un solo camino `GetQuestion → PreFetch → Skills → Contexto → AgentStep`. Borrados `LayaRouter`, `DirectAnswer`, `voto_confirmacion_router`, `utils/laya_routing.py`, `utils/conformal.py`, la flywheel del router (`router_pendiente`, etiqueta ambiental, `routing.jsonl`), el nivel D del replay, el invariante (b) y el bench del router de evals, `sonda_router.py` y 12 sondas del lab que solo medían al router o al voto. Los skills pasan al nodo `Skills`. Datos etiquetados archivados en `docs/informes/archivo/2026-10/router/`. Criterio en [fase3b_4a.md](../banco/specs/fase3b_4a.md) | `test_el_nodo_skills_activa_el_skill_una_vez`, `test_grafos_vivos_traen_el_chat_de_un_solo_camino`, `test_una_traza_del_router_se_ve_en_el_replay`, `test_las_trazas_viejas_del_router_siguen_siendo_canonicas` |
+ | X105 | — | La fase 3a (thinking en las rondas con tools) se midió en el A/B pre-registrado (16 + 16 corridas, s17–s20) y **no pasó**: costo 2,21× / 6,87× / 4,18× / 3,90× la base por escenario (tope 1,5×) y s17+s18 −2 (hacía falta +2) | ✅ 2026-10-28 (decisión pre-registrada) | Se borra el cableado: `turno["pensar"]`, `PENSAR_TOOLS`, el parámetro `pensar` del cliente, la acumulación del reasoning en el stream y `sin_razonamiento_previo`; el invariante 1 vuelve a "sin reasoning en ningún mensaje". El comparador del A/B y su test se retiran (veredicto en `salidas/evals` y en la bitácora). La sonda `thinking_tools` se queda como documento de la restricción del proveedor y arma sus propios requests con thinking ON. Ratchet `settings_leidos` **79 → 78**. Pre-registro de la 3b+4a en [fase3b_4a.md](../banco/specs/fase3b_4a.md) | `test_historial_canonico_sin_reasoning`, `test_la_sonda_arma_el_on_y_el_off_es_el_de_produccion` |
+diff -ruN a/docs/roadmap.md b/docs/roadmap.md
+--- a/docs/roadmap.md	2026-10-30 17:26:41.960338580 +0000
++++ b/docs/roadmap.md	2026-10-30 17:30:53.446107620 +0000
+@@ -18,7 +18,7 @@
+ gate previo PASA (X102). **3a NO PASA** (X105: el A/B dio 2,2×–6,9× el USD y s17+s18 −2; cableado
+ borrado). **3b + 4a pre-registradas** (`banco/specs/fase3b_4a.md`) y **escritas**
+ (X106: el router sale del chat; falta el A/B `fase3b-directas` ×3 por brazo y
+-la clave del operador para `tests_definidos` 1132 → 1004) — **3b PASA** (12/12 sin tools, 0,65× USD; `fase3b_4a.md`). **5a hecha** (X108: política de comandos como datos en `utils/politica_comandos.json`; 0 diferencias en los casos por entrada y en el fuzz; la foto real la confirma el operador). **4b-mín cerrada** (X104:
++la clave del operador para `tests_definidos` 1132 → 1004) — **3b PASA** (12/12 sin tools, 0,65× USD; `fase3b_4a.md`). **5a hecha** (X108: política de comandos como datos, 0 diferencias sobre la foto real de 445). **Deuda de la fase 1 cerrada** (X109: sin bmo, sondas a `banco/probes/`, juez de riesgo observador borrado). Orden de lo que queda en `docs/elegancia.md`: 5b → S6 → 5c → S9/S3 → fase 6. **4b-mín cerrada** (X104:
+ la regex de palabras se borró, 0 cambios en 36 preguntas reales). Fase 6 (limpieza de las piezas sueltas) aprobada, después de la 5.
+ 2b-3 queda para después de la fase 4 (o se descarta si sigue sin haber
+ sub-agentes); 2b-3 `AgentStep`/`ExecuteTools` →
+@@ -156,9 +156,11 @@
+    reales de exp/95–102; las corridas delegadas quedan fuera: origen
+    `delegado`, exp/101). **Criterio pre-registrado, sin cambios: ≥300
+    etiquetas orgánicas y ≥100 rechazos orgánicos** (las históricas sin
+-   procedencia no se usan; el banco no cuenta). `requiere_revision` casi no
+-   dispara (5/1467): esa dimensión es la que el fine-tune tiene que arreglar.
+-   Umbrales del log propio y enforcement recién después.
++   procedencia no se usan; el banco no cuenta). **X109**: el juez que solo
++   observaba se borró (17 días sin decidir nada, y su contrato no es lo que
++   se entrena: lo que se entrena es la decisión humana). El log sigue, sin
++   `juicios` y sin depender de un checkpoint: cada s/n de comando deja su
++   fila. Al cumplirse el criterio se pre-registra un juez que DECIDA.
+ 6. **Mesa 3 (restos, re-priorizados)**: gate del juez (después del 5),
+    presupuesto dinámico/convergencia de loops (empezar DETERMINISTA con las
+    features de exp/9, Laya solo si no alcanza), Laya vía MCP como producto.
+diff -ruN a/modules/coding.py b/modules/coding.py
+--- a/modules/coding.py	2026-10-29 18:18:10.000000000 +0000
++++ b/modules/coding.py	2026-10-30 17:28:11.826400092 +0000
+@@ -34,7 +34,6 @@
+ from utils.estado_sesion import ultimo_usuario
+ from utils.fs_tools import _resolve, escribir_atomico
+ from utils.policy import clasificar, explicar, segmentos
+-from utils.riesgo import juzgar
+ from utils.riesgo import registrar as registrar_riesgo
+ from utils.terminal import colorear, highlight_diff, recortar_chars
+ 
+@@ -248,29 +247,13 @@
+     return nivel
+ 
+ 
+-def _observar_riesgo(command, nivel):
+-    """exp/44 — OBSERVACIÓN de riesgo (el s/n NO cambia): solo en las bandas
+-    que un humano gatea (preguntar/confirmar_doble). 'auto' y la denylist NO
+-    se juzgan: las reglas duras van primero. Sin LAYA_MODEL_RIESGO, juzgar()
+-    devuelve None y todo queda no-op."""
+-    if nivel not in ("preguntar", "confirmar_doble"):
+-        return None
+-    juicios = juzgar(command, ultimo_usuario())
+-    if juicios:
+-        resumen = " · ".join(f"{k.split('_')[0]}={v[0]} {v[1]:.2f}"
+-                             for k, v in juicios.items())
+-        print(colorear(f"  [riesgo] observa: {resumen}", "info"))
+-    return juicios
+-
+-
+-def _registrar_riesgo(command, juicios, aprobado):
+-    """El riesgo se registra UNA vez por corrida, junto a la aprobación o su
+-    rechazo, y solo si hubo observación."""
+-    if juicios is not None:
+-        registrar_riesgo(command, ultimo_usuario(), juicios, aprobado)
++def _registrar_riesgo(command, aprobado):
++    """La decisión humana del s/n va al log de riesgo UNA vez por corrida,
++    aprobada o rechazada: es la etiqueta del juez que todavía no existe."""
++    registrar_riesgo(command, ultimo_usuario(), aprobado)
+ 
+ 
+-def _aprobar(command, nivel, juicios):
++def _aprobar(command, nivel):
+     """Pide lo que el nivel exija, en orden, y registra cada respuesta.
+     Devuelve (aprobado, motivo del rechazo): el preview y el pedido viven
+     juntos para que no se pueda agregar un nivel sin su registro."""
+@@ -293,13 +276,13 @@
+         if decision:
+             continue
+         registrar_aprobacion("run_command", command, False, nivel)
+-        _registrar_riesgo(command, juicios, False)
++        _registrar_riesgo(command, False)
+         motivo = getattr(decision, "motivo", "")
+         if motivo:
+             return False, f'{motivo_rechazo} Motivo del humano: "{motivo}"'
+         return False, motivo_rechazo
+     registrar_aprobacion("run_command", command, True, nivel)
+-    _registrar_riesgo(command, juicios, True)
++    _registrar_riesgo(command, True)
+     return True, ""
+ 
+ 
+@@ -330,8 +313,7 @@
+     command = str(command)
+ 
+     nivel = _nivel(command)                               # clasificar + raíces + HITL_AUTO
+-    juicios = _observar_riesgo(command, nivel)            # exp/44: solo bandas humanas
+-    aprobado, motivo = _aprobar(command, nivel, juicios)  # auto / s-n / doble s-n
++    aprobado, motivo = _aprobar(command, nivel)           # auto / s-n / doble s-n
+     if not aprobado:
+         return motivo
+     return _ejecutar(command)                             # subprocess + timeout + recorte
+diff -ruN a/nodes.py b/nodes.py
+--- a/nodes.py	2026-10-30 11:06:58.000000000 +0000
++++ b/nodes.py	2026-10-30 17:28:11.830400184 +0000
+@@ -317,9 +317,8 @@
+         # (/aprobaciones no llega hasta acá: lo atiende exec(), sin gastar turno.)
+         anterior = turno(shared)
+         shared["turno"] = nuevo_turno()
+-        # exp/44: el último mensaje del usuario queda como EVIDENCIA DE
+-        # INTENCIÓN para el juez de riesgo (import perezoso; los módulos no
+-        # ven `shared`). Plumbing, no decide nada.
++        # El último mensaje del usuario acompaña cada decisión HITL en el log
++        # de riesgo (los módulos no ven `shared`). Plumbing, no decide nada.
+         from utils.estado_sesion import recordar_usuario
+ 
+         recordar_usuario(exec_res)
+diff -ruN a/pyproject.toml b/pyproject.toml
+--- a/pyproject.toml	2026-10-29 18:18:10.000000000 +0000
++++ b/pyproject.toml	2026-10-30 17:28:11.870401101 +0000
+@@ -49,10 +49,9 @@
+ testpaths = ["tests"]
+ # Por qué un test se saltea: el marker dice el RECURSO, el skip su motivo.
+ # Correr el subconjunto determinista:
+-#   pytest -m "not laya and not bmo and not red and not datos and not git"
++#   pytest -m "not laya and not red and not datos and not git"
+ markers = [
+     "laya: requiere el paquete laya y un checkpoint local",
+-    "bmo: requiere los archivos de bmo (BMO_TASKS_DIR)",
+     "red: requiere red o dependencias opcionales (ddgs, fastmcp)",
+     "datos: requiere artefactos locales ya generados (trazas.db, evidencia de sondas)",
+     "git: requiere git (algunos tests, además, el repo inicializado: ver tests/conftest.py)",
+diff -ruN a/sonda_laya.py b/sonda_laya.py
+--- a/sonda_laya.py	2026-10-30 11:08:47.000000000 +0000
++++ b/sonda_laya.py	1970-01-01 00:00:00.000000000 +0000
+@@ -1,351 +0,0 @@
+-"""Sonda de evidencia de los checkpoints de Laya: ECE propio, confiabilidad
+-por bucket, curva de compuerta, latencia local y RSS pico.
+-
+-Motivación (exp/7): las afirmaciones sobre calibración, acierto crudo y
+-"ahorro" de los checkpoints venían heredadas de notas, no medidas con
+-nuestra propia vara. Esta sonda convierte esas afirmaciones en números:
+-corre el test etiquetado de UN checkpoint y escribe md+json en salidas/evals/.
+-
+-Es determinista a propósito: SIN LLM, SIN red, SIN DeepSeek. Solo carga el
+-checkpoint local (en CPU), infiere cada caso del test y agrega métricas.
+-
+-LEY DE RAM: exactamente UN checkpoint por proceso. Se carga, se mide, se
+-escribe y el proceso TERMINA. No hay modo multi-checkpoint ni servidor:
+-cargar dos de estos en el mismo proceso revienta la memoria (medido).
+-
+-Uso:
+-    python3 sonda_laya.py supervisor    # .modelos/supervisor_dispatch-1k + test (24)
+-    python3 sonda_laya.py prefiltro      # .modelos/router_prefiltro + test propio (28 casos)
+-
+-(router, voto, voto_en_router y base se fueron con el router del chat, X106:
+-medían contratos que el producto ya no tiene.)
+-"""
+-import argparse
+-import json
+-import os
+-import resource
+-import subprocess
+-import sys
+-import time
+-from datetime import datetime
+-from pathlib import Path
+-
+-sys.path.insert(0, str(Path(__file__).resolve().parent))
+-
+-RAIZ = Path(__file__).resolve().parent
+-SALIDA = RAIZ / "salidas" / "evals"
+-
+-# Los contratos EXISTENTES se importan, no se copian: una copia local derivaría
+-# del contrato del fine-tune sin que ningún test lo note (mismo criterio que
+-# la sonda del router, retirada en X106). Los tests son los mismos que leen las sondas.
+-from sonda_supervisor import PREGUNTA_DESPACHO  # noqa: E402
+-from utils.contexto import PREGUNTA_PREFILTRO  # noqa: E402
+-from utils.rutas import tasks_dir  # noqa: E402
+-
+-# El directorio de tests se resuelve por setting (default: la ruta histórica de
+-# esta máquina) para que la sonda no quede clavada a un path local.
+-TAREAS = tasks_dir()
+-
+-# El mapeo nombre → (checkpoint, test, pregunta, arma el estado por caso).
+-# El estado de cada familia es el contrato del fine-tune correspondiente:
+-#   supervisor → {"tarea": fields["tarea"], "hechos": fields.get("hechos", "")}
+-# (hechos puede ser string multilínea o venir vacío: el .get con default "" cubre
+-# el caso vacío; probado contra los tres .jsonl, un caso por línea).
+-ESPECIFICACIONES = {
+-    "supervisor": {
+-        "checkpoint": ".modelos/supervisor_dispatch-1k",
+-        "test": TAREAS / "supervisor_dispatch_test.jsonl",
+-        "pregunta": "elegir_proxima",
+-        "contrato": PREGUNTA_DESPACHO,
+-        "estado": lambda f: {"tarea": f["tarea"], "hechos": f.get("hechos", "")},
+-    },
+-    "prefiltro": {
+-        "checkpoint": ".modelos/router_prefiltro",
+-        "test": TAREAS / "router_prefiltro_test.jsonl",
+-        "pregunta": "aporta_contexto",
+-        "contrato": PREGUNTA_PREFILTRO,
+-        "estado": lambda f: {"consulta": f["consulta"], "bloque": f["bloque"]},
+-    },
+-}
+-
+-# Los bordes de la tabla de confiabilidad: 5 buckets sobre [0.5, 1].
+-BORDES = [0.5, 0.7, 0.85, 0.95]
+-
+-
+-# Métricas — funciones PURAS sobre una lista de casos. Puras para poder
+-# testearlas sin cargar el modelo (un checkpoint son GB y minutos): la
+-# aritmética de calibración se verifica sola, el modelo se mide aparte.
+-
+-def tabla_confiabilidad(casos, bordes=BORDES):
+-    """Acierto y conteo por bucket de answer_confidence.
+-
+-    `bordes` son los cortes inferiores de cada bucket, p. ej. [0.5, 0.7, 0.85, 0.95]
+-    da los buckets [0.5,0.7) [0.7,0.85) [0.85,0.95) [0.95,1.0] y un último
+-    [1.0,∞) que recoge el 1.0 exacto. Devuelve una lista de dicts con
+-    lo/hi/conf_media/acierto/n/conf_observada (la confianza media del bucket
+-    es la que se compara contra el acierto para leer la calibración).
+-    """
+-    filas = []
+-    for i, lo in enumerate(bordes):
+-        hi = bordes[i + 1] if i + 1 < len(bordes) else None
+-        # El último bucket arranca en el último borde y es abierto hacia arriba,
+-        # para que conf==1.0 entre (con un tope cerrado se caería del histograma).
+-        dentro = [c for c in casos if c["conf"] >= lo and (hi is None or c["conf"] < hi)]
+-        n = len(dentro)
+-        filas.append({
+-            "lo": lo,
+-            "hi": hi,
+-            "conf_media": (sum(c["conf"] for c in dentro) / n) if n else None,
+-            "acierto": (sum(c["correcto"] for c in dentro) / n) if n else None,
+-            "n": n,
+-        })
+-    return filas
+-
+-
+-def curva_compuerta(casos, umbrales=None):
+-    """Por umbral t: cobertura = fracción con conf >= t (los que la compuerta
+-    decidiría locales), precisión = acierto crudo entre esos casos, y ahorro
+-    = cobertura (1 llamada externa evitada por caso local).
+-
+-    Es la curva que justifica la compuerta: subir t compra precisión a costa
+-    de cobertura. El umbral de producción (LAY A_UNSURE_*) es un punto de la
+-    curva."""
+-    if umbrales is None:
+-        umbrales = [round(0.5 + 0.05 * i, 2) for i in range(10)]  # 0.50 .. 0.95
+-    filas = []
+-    for t in umbrales:
+-        locales = [c for c in casos if c["conf"] >= t]
+-        n = len(locales)
+-        filas.append({
+-            "umbral": t,
+-            "cobertura": n / len(casos) if casos else 0.0,
+-            "precision": (sum(c["correcto"] for c in locales) / n) if n else None,
+-            "ahorro": n / len(casos) if casos else 0.0,
+-            "n_locales": n,
+-        })
+-    return filas
+-
+-
+-def ece_local(casos, bins=10):
+-    """ECE con bins iguales en [0,1] sobre answer_confidence.
+-
+-    Esperado de acierto por bin = media de correcto (0/1); observado = media
+-    de conf. ECE = suma ponderada por n_bin/n de |esperado - observado|.
+-    Es la implementación de respaldo, usada cuando laya.ece_score no está:
+-    la salida documenta cuál se usó para que el número sea trazable.
+-    """
+-    if not casos:
+-        return None
+-    total = len(casos)
+-    ece_val = 0.0
+-    for b in range(bins):
+-        lo, hi = b / bins, (b + 1) / bins
+-        # El último bin cierra el borde derecho para incluir conf == 1.0.
+-        dentro = [c for c in casos if c["conf"] >= lo and (c["conf"] < hi or (b == bins - 1 and c["conf"] <= hi))]
+-        if not dentro:
+-            continue
+-        esperado = sum(c["correcto"] for c in dentro) / len(dentro)
+-        observado = sum(c["conf"] for c in dentro) / len(dentro)
+-        ece_val += (len(dentro) / total) * abs(esperado - observado)
+-    return ece_val
+-
+-
+-def ece(casos):
+-    """ECE sobre answer_confidence, con laya.ece_score si su firma lo permite.
+-
+-    Devuelve (valor, fuente) con fuente en {"laya.ece_score", "local:10bins"}
+-    para poder documentar cuál se usó. La firma de laya.ece_score no está fijada
+-    por contrato, así que se prueba a llamarla con los pares (conf, correcto) y
+-    si no encaja se cae a la implementación local — nunca se rompe por esto.
+-    """
+-    if not casos:
+-        return None, "local:10bins"
+-    try:
+-        import laya  # import perezoso: solo existe si el checkpoint se pudo cargar
+-
+-        ece_score = getattr(laya, "ece_score", None)
+-        if callable(ece_score):
+-            try:
+-                valor = ece_score([c["conf"] for c in casos], [c["correcto"] for c in casos])
+-                return float(valor), "laya.ece_score"
+-            except TypeError:
+-                pass  # otra firma: no adivinamos, usamos la nuestra
+-    except Exception:  # noqa: BLE001 (sonda de libreria externa opcional)
+-        pass
+-    return ece_local(casos), "local:10bins"
+-
+-
+-# Medición
+-
+-def percentil(valores, p):
+-    """Percentil por interpolación lineal (método igual al de numpy en su
+-    default): no dependemos de numpy para esto, la sonda corre pelada."""
+-    if not valores:
+-        return None
+-    ordenados = sorted(valores)
+-    if len(ordenados) == 1:
+-        return ordenados[0]
+-    pos = p / 100 * (len(ordenados) - 1)
+-    i = int(pos)
+-    frac = pos - i
+-    if i + 1 >= len(ordenados):
+-        return ordenados[i]
+-    return ordenados[i] * (1 - frac) + ordenados[i + 1] * frac
+-
+-
+-def cargar_casos(test):
+-    return [json.loads(linea) for linea in test.read_text(encoding="utf-8").splitlines() if linea.strip()]
+-
+-
+-def correr(nombre, spec):
+-    """Carga UN checkpoint, corre el test caso por caso y devuelve el informe.
+-
+-    La carga se mide APARTE de la inferencia: el tiempo de carga en frío es
+-    costo fijo por proceso, la latencia por caso es el costo variable que
+-    decide si Laya ahorra una llamada remota. Mezclarlas escondería las dos.
+-    """
+-    from utils.laya import agente
+-
+-    casos = cargar_casos(spec["test"])
+-    if not casos:
+-        raise SystemExit(f"test vacío: {spec['test']}")
+-
+-    # Un setting PROPIO por corrida: utils.laya cachea agentes por setting y
+-    # hereda HF_HUB_OFFLINE antes de importar, el caché de errores y el RLock.
+-    # Al setear env var + nombre de setting nos aseguramos de no pisar ni
+-    # reusar el agente de LAYA_MODEL (mcp/riesgo) o del supervisor.
+-    os.environ["SONDA_LAYA_CKPT"] = str(RAIZ / spec["checkpoint"])
+-    t0 = time.perf_counter()
+-    a = agente("SONDA_LAYA_CKPT")
+-    carga_ms = (time.perf_counter() - t0) * 1000
+-
+-    filas, errores = [], []
+-    for caso in casos:
+-        estado = spec["estado"](caso["fields"])
+-        t1 = time.perf_counter()
+-        r = a.system_one(estado, spec["contrato"], lang="es")
+-        latencia_ms = (time.perf_counter() - t1) * 1000
+-        resp = r["answers"][spec["pregunta"]]
+-        eleccion = resp.get("choice", resp.get("answer"))
+-        conf = resp["answer_confidence"] if resp.get("answer_confidence") is not None else resp.get("confidence", 0.0)
+-        # La verdad de terreno vive en la clave de la pregunta ORIGINAL cuando la sonda mide una segunda capa sobre el test de otra.
+-        esperado = caso["answers"][spec.get("esperado_de", spec["pregunta"])]
+-        correcto = eleccion == esperado
+-        filas.append({
+-            "id": caso["id"],
+-            "esperado": esperado,
+-            "obtenido": eleccion,
+-            "conf": conf,
+-            "correcto": correcto,
+-            "latencia_ms": latencia_ms,
+-        })
+-        if not correcto:
+-            errores.append({"id": caso["id"], "esperado": esperado, "obtenido": eleccion, "conf": conf})
+-
+-    latencias = [f["latencia_ms"] for f in filas]
+-    score = sum(f["correcto"] for f in filas) / len(filas)
+-    ece_val, ece_fuente = ece(filas)
+-    rss_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss  # KB en Linux
+-
+-    # git sha corto para anclar el número a un commit exacto (patrón bench_router.json).
+-    try:
+-        sha = subprocess.run(
+-            ["git", "rev-parse", "--short", "HEAD"],
+-            cwd=RAIZ, capture_output=True, text=True, timeout=10,
+-        ).stdout.strip() or None
+-    except (OSError, subprocess.SubprocessError):
+-        sha = None
+-
+-    return {
+-        "nombre": nombre,
+-        "checkpoint": spec["checkpoint"],
+-        "fecha": datetime.now().isoformat(timespec="seconds"),
+-        "git_sha": sha,
+-        "n": len(filas),
+-        "score": score,
+-        "ece": ece_val,
+-        "ece_fuente": ece_fuente,
+-        "latencia_p50_ms": percentil(latencias, 50),
+-        "latencia_p95_ms": percentil(latencias, 95),
+-        "carga_ms": carga_ms,
+-        "rss_max_kb": rss_kb,
+-        "tabla_confiabilidad": tabla_confiabilidad(filas),
+-        "curva_compuerta": curva_compuerta(filas),
+-        "fallos": errores,
+-        "casos": filas,
+-    }
+-
+-
+-def escribir_md(informe):
+-    """Informe legible: resumen, confiabilidad, curva y fallos con su confianza
+-    exacta (para poder discutir cada error, no solo el agregado)."""
+-    o = []
+-    o.append(f"# Evidencia Laya — `{informe['nombre']}`\n")
+-    o.append(f"Checkpoint: `{informe['checkpoint']}` · fecha {informe['fecha']} · git `{informe['git_sha']}`\n")
+-    o.append("## Resumen\n")
+-    o.append(f"- Casos: {informe['n']}")
+-    o.append(f"- Acierto crudo: {informe['score']:.4f} ({round(informe['score'] * informe['n'])}/{informe['n']})")
+-    fuente = informe["ece_fuente"]
+-    valor_ece = "n/d" if informe["ece"] is None else f"{informe['ece']:.4f}"
+-    o.append(f"- ECE: {valor_ece} (fuente: {fuente})")
+-    o.append(f"- Latencia inferencia: p50 {informe['latencia_p50_ms']:.1f} ms · p95 {informe['latencia_p95_ms']:.1f} ms")
+-    o.append(f"- Carga en frío: {informe['carga_ms'] / 1000:.1f} s")
+-    o.append(f"- RSS pico: {informe['rss_max_kb'] / 1024:.0f} MiB ({informe['rss_max_kb']} KB)\n")
+-
+-    o.append("## Tabla de confiabilidad\n")
+-    o.append("| bucket | n | conf. media | acierto | gap |")
+-    o.append("|---|---|---|---|---|")
+-    for f in informe["tabla_confiabilidad"]:
+-        hi = "1.0+" if f["hi"] is None else f"{f['hi']:.2f}"
+-        if f["n"]:
+-            o.append(f"| [{f['lo']:.2f}, {hi}) | {f['n']} | {f['conf_media']:.3f} | "
+-                     f"{f['acierto']:.3f} | {f['acierto'] - f['conf_media']:+.3f} |")
+-        else:
+-            o.append(f"| [{f['lo']:.2f}, {hi}) | 0 | — | — | — |")
+-
+-    o.append("\n## Curva de compuerta\n")
+-    o.append("| umbral | cobertura | precisión | ahorro | n locales |")
+-    o.append("|---|---|---|---|---|")
+-    for f in informe["curva_compuerta"]:
+-        prec = "—" if f["precision"] is None else f"{f['precision']:.3f}"
+-        o.append(f"| {f['umbral']:.2f} | {f['cobertura']:.3f} | {prec} | {f['ahorro']:.3f} | {f['n_locales']} |")
+-
+-    o.append(f"\n## Fallos ({len(informe['fallos'])})\n")
+-    if informe["fallos"]:
+-        o.append("| caso | esperado | obtenido | conf |")
+-        o.append("|---|---|---|---|")
+-        for e in informe["fallos"]:
+-            o.append(f"| {e['id']} | {e['esperado']} | {e['obtenido']} | {e['conf']:.3f} |")
+-    else:
+-        o.append("Ninguno.")
+-    return "\n".join(o) + "\n"
+-
+-
+-def main(argv=None):
+-    parser = argparse.ArgumentParser(description="Evidencia de UN checkpoint de Laya (ECE, compuerta, RAM).")
+-    parser.add_argument("nombre", choices=sorted(ESPECIFICACIONES), help="checkpoint a medir (uno por proceso)")
+-    parser.add_argument("--salida", default=None, help="directorio de salida (default: salidas/evals)")
+-    args = parser.parse_args(argv)
+-
+-    spec = ESPECIFICACIONES[args.nombre]
+-    informe = correr(args.nombre, spec)
+-
+-    destino = Path(args.salida) if args.salida else SALIDA
+-    destino.mkdir(parents=True, exist_ok=True)
+-    md_path = destino / f"laya_evidencia_{args.nombre}.md"
+-    json_path = destino / f"laya_evidencia_{args.nombre}.json"
+-    md_path.write_text(escribir_md(informe), encoding="utf-8")
+-    json_path.write_text(json.dumps(informe, indent=2, ensure_ascii=False), encoding="utf-8")
+-
+-    print(f"=== {args.nombre} · {informe['checkpoint']} ===")
+-    print(f"  acierto crudo: {informe['score']:.4f} ({round(informe['score'] * informe['n'])}/{informe['n']})")
+-    print(f"  ECE: {'n/d' if informe['ece'] is None else f'{informe['ece']:.4f}'} ({informe['ece_fuente']})")
+-    print(f"  p50/p95: {informe['latencia_p50_ms']:.1f}/{informe['latencia_p95_ms']:.1f} ms · "
+-          f"carga {informe['carga_ms'] / 1000:.1f} s · RSS {informe['rss_max_kb'] / 1024:.0f} MiB")
+-    print(f"  fallos: {len(informe['fallos'])}")
+-    print(f"  → {md_path}")
+-    print(f"  → {json_path}")
+-
+-
+-if __name__ == "__main__":
+-    main()
+diff -ruN a/sonda_supervisor.py b/sonda_supervisor.py
+--- a/sonda_supervisor.py	2026-10-29 18:18:10.000000000 +0000
++++ b/sonda_supervisor.py	1970-01-01 00:00:00.000000000 +0000
+@@ -1,168 +0,0 @@
+-"""Sonda del Choose del supervisor con la lógica EXACTA de producción.
+-
+-Corre el test a mano (bmo/train/tasks/supervisor_dispatch_test.jsonl)
+-contra uno o más checkpoints y reporta, por caso: elección cruda,
+-confianza, veredicto y la decisión final — con 'met' la elección de Laya
+-despacha local; cualquier otra cosa cae a la votación. El valor real son
+-DOS números: acierto crudo y cuántos pasos despacha Laya sin gastar una
+-llamada.
+-
+-Esta sonda es la CASA del contrato del fine-tune supervisor_dispatch:
+-PREGUNTA_DESPACHO y elegir_con_deepseek VIVEN acá desde que el Supervisor v2
+-jubiló el Choose (el checkpoint quedó como evidencia histórica — el
+-instrumento de medida sobrevive al mecanismo que medía). El congelamiento
+-del contrato se testea ALLÍ, en esta sonda.
+-
+-Con --votacion, la vía dudosa se mide COMPLETA (gasta API): dos votos
+-DeepSeek (directo y por eliminación) + el voto crudo de Laya → mayoría
+-2-de-3.
+-
+-Uso:
+-    python3 sonda_supervisor.py [checkpoint ...]        # sin args: LAYA_MODEL_SUPERVISOR
+-    python3 sonda_supervisor.py --votacion [checkpoint] # mide también la mayoría
+-"""
+-import json
+-import sys
+-from pathlib import Path
+-
+-sys.path.insert(0, str(Path(__file__).resolve().parent))
+-from supervisor import MAX_FALLOS_POR_HERRAMIENTA, REGISTRO, catalogo  # noqa: E402
+-from utils.call_llm import call_llm  # noqa: E402
+-from utils.estructura import extraer_yaml  # noqa: E402
+-from utils.rutas import tasks_dir  # noqa: E402
+-
+-# El directorio de tests se resuelve por setting (default: la ruta histórica de
+-# esta máquina) para que la sonda no quede clavada a un path local.
+-_TAREAS = tasks_dir()
+-TEST = _TAREAS / "supervisor_dispatch_test.jsonl"
+-
+-
+-# Congelada: task supervisor_dispatch (bmo/train/tasks/supervisor_dispatch.yaml).
+-# Las 18 opciones en este orden exacto; entrenamiento y producción leen igual.
+-PREGUNTA_DESPACHO = {
+-    "elegir_proxima": {
+-        "type": "choice",
+-        "instructions": "Which tool runs the next step of this task, given what already ran?",
+-        "criteria": {
+-            "list_files": "see which files a folder holds",
+-            "read_file": "read the exact content of one file",
+-            "search_files": "find files by name or contained text",
+-            "write_file": "create or replace a file (needs approval)",
+-            "run_informe": "summarize one folder of traces",
+-            "run_auditoria": "compare several folders of traces",
+-            "answer_verified": "answer with citations checked against files",
+-            "rag_search": "semantic search over the local index",
+-            "rag_index": "(re)index a folder for semantic search",
+-            "debate": "run a proponent-vs-critic debate",
+-            "mcp_tools": "list the tools of external MCP servers",
+-            "mcp_call": "call a tool on an external MCP server",
+-            "search_web": "quick web search: titles, URLs, snippets",
+-            "deep_research": "multi-round web research with a report",
+-            "sql": "one SELECT query over the traces db",
+-            "db_schema": "schema of the traces database",
+-            "run_effective_n": "exact dedup of trace datasets",
+-            "finish": "done or blocked: synthesize now",
+-        },
+-    }
+-}
+-OPCIONES = list(PREGUNTA_DESPACHO["elegir_proxima"]["criteria"])
+-
+-INSTRUCCION_ELECCION = {
+-    # voto A — el clásico
+-    "directo": "Elige UNA herramienta para el siguiente paso (o finish). "
+-               "El siguiente paso sigue de lo que FALTA, no de lo ya hecho.",
+-    # voto B — independiente por construcción: razona al revés
+-    "eliminacion": "Primero ELIMINA: nombra las herramientas que ya cumplieron "
+-                   "su parte según los hechos (o están prohibidas) y quedan descartadas. "
+-                   "Luego elige UNA de las restantes para el siguiente paso (o finish "
+-                   "si no queda nada que aporte).",
+-}
+-
+-
+-def elegir_con_deepseek(tarea, hechos, fuera, estilo="directo"):
+-    """Un voto de DeepSeek sobre el catálogo, con el framing del estilo."""
+-    veto_txt = (
+-        f"\nPROHIBIDO elegir (ya fallaron {MAX_FALLOS_POR_HERRAMIENTA} veces): "
+-        + ", ".join(sorted(fuera)) + ".\n" if fuera else ""
+-    )
+-    plan = extraer_yaml(call_llm(
+-        f"Tarea del usuario: {tarea}\n\n"
+-        f"Ya ejecutado:\n" + ("\n".join(hechos) or "(nada)") + "\n\n"
+-        f"Herramientas disponibles (nombre: descripción):\n{catalogo()}\n"
+-        f"{veto_txt}"
+-        f"finish: la tarea está cubierta o bloqueada; sintetizar ya.\n\n"
+-        f"{INSTRUCCION_ELECCION[estilo]}\n\n"
+-        "Responde SOLO yaml:\n```yaml\nherramienta: nombre\n```"
+-    ))
+-    eleccion = plan["herramienta"]
+-    assert eleccion in REGISTRO or eleccion == "finish", f"herramienta desconocida: {eleccion}"
+-    return eleccion
+-
+-
+-def correr(agente, casos, votacion=False):
+-    from utils.call_llm import _setting
+-    from utils.laya import _confianza, veredicto
+-    from utils.votacion import mayoria
+-
+-    alto = _setting("LAYA_UNSURE_HIGH_SUPERVISOR", "0.9")  # el umbral histórico del Choose
+-    filas, crudo_ok, local_ok, locales, final_ok = [], 0, 0, 0, 0
+-    for caso in casos:
+-        r = agente.system_one(
+-            {"tarea": caso["fields"]["tarea"], "hechos": caso["fields"].get("hechos", "")},
+-            PREGUNTA_DESPACHO,
+-            lang="es",
+-        )
+-        resp = r["answers"]["elegir_proxima"]
+-        eleccion = resp.get("choice", resp.get("answer"))
+-        conf = _confianza(resp)
+-        esperado = caso["answers"]["elegir_proxima"]
+-        crudo_ok += eleccion == esperado
+-        if veredicto(conf, alto=alto) == "met":
+-            decision, detalle = eleccion, f"laya {conf:.2f}"
+-            locales += 1
+-            local_ok += eleccion == esperado
+-        elif votacion:
+-            tarea, hechos = caso["fields"]["tarea"], caso["fields"].get("hechos", "").splitlines()
+-            a = elegir_con_deepseek(tarea, hechos, set(), "directo")
+-            b = elegir_con_deepseek(tarea, hechos, set(), "eliminacion")
+-            votos = [a, b] + ([eleccion] if eleccion else [])
+-            decision = mayoria(votos, desempate=a, minimo=2)
+-            detalle = f"votos {votos}"
+-        else:
+-            decision, detalle = "(votación)", "—"
+-        final_ok += decision == esperado
+-        filas.append((caso["id"], esperado, eleccion, conf, decision, detalle, "✓" if decision == esperado else "✗"))
+-    return filas, crudo_ok, local_ok, locales, final_ok
+-
+-
+-def main(args):
+-    votacion = "--votacion" in args
+-    paths = [a for a in args if not a.startswith("--")]
+-    casos = [json.loads(linea) for linea in TEST.read_text(encoding="utf-8").splitlines() if linea.strip()]
+-    if not paths:
+-        from utils.call_llm import _setting
+-
+-        setting = _setting("LAYA_MODEL_SUPERVISOR", "")
+-        if not setting:
+-            print("sin LAYA_MODEL_SUPERVISOR: pasá checkpoints como argumentos")
+-            return
+-        import laya
+-
+-        paths, agentes = [setting], [laya.load(setting, device="cpu")]
+-    else:
+-        import laya
+-
+-        agentes = [laya.load(p, device="cpu") for p in paths]
+-    for nombre, agente in zip(paths, agentes, strict=True):
+-        filas, crudo, local_ok, locales, final = correr(agente, casos, votacion)
+-        print(f"\n=== {nombre}{' (con votación 2-de-3)' if votacion else ''} ===")
+-        for id_, esperado, eleccion, conf, decision, detalle, marca in filas:
+-            print(f"  {marca} {id_:<26} esperado={esperado:<16} crudo={str(eleccion):<16} "
+-                  f"conf={conf:.2f} → {decision} · {detalle}")
+-        extra = f" · sistema (laya+mayoría): {final}/{len(casos)}" if votacion else ""
+-        print(f"crudo: {crudo}/{len(casos)} · despachos locales de Laya: {locales}/{len(casos)} "
+-              f"· correctos entre los locales: {local_ok}/{locales or 1}{extra}")
+-
+-
+-if __name__ == "__main__":
+-    main(sys.argv[1:])
+diff -ruN a/supervisor.py b/supervisor.py
+--- a/supervisor.py	2026-10-29 18:18:10.000000000 +0000
++++ b/supervisor.py	2026-10-30 17:28:11.830400184 +0000
+@@ -22,7 +22,7 @@
+ - **Sintetizar**: igual que siempre (informe + sección "Pasos").
+ 
+ Anti-recursión (L1): run_supervisor no está en el catálogo. El contrato del
+-fine-tune supervisor_dispatch vive en sonda_supervisor.py.
++fine-tune supervisor_dispatch vive en banco/probes/sonda_supervisor.py.
+ 
+ Uso: python3 main.py supervisor "tarea" [--salida supervisor.md]
+ """
+diff -ruN a/tests/conftest.py b/tests/conftest.py
+--- a/tests/conftest.py	2026-10-30 11:09:49.000000000 +0000
++++ b/tests/conftest.py	2026-10-30 17:28:57.947458101 +0000
+@@ -53,8 +53,8 @@
+     """La suite NO escribe los logs ni la biblioteca de PRODUCCIÓN (exp/71).
+ 
+     Medido antes de aislar: `tests/test_policy.py` solo (24 tests) tardaba
+-    24,4 s con 2,98 GiB de RSS porque los HITL no-auto tomaban el
+-    `LAYA_MODEL_RIESGO` del `.env` y cargaban el checkpoint del juez; y dejaba
++    24,4 s con 2,98 GiB de RSS porque los HITL no-auto cargaban el checkpoint
++    del juez de riesgo (borrado en X109); y dejaba
+     8 filas con `origen=terminal` en `salidas/riesgo.jsonl` (541 acumuladas,
+     indistinguibles del juicio humano). Además `test_compaccion` compactaba su
+     historial sintético y respaldaba la zona fría en `memoria/`: 157 de los 243
+@@ -65,7 +65,6 @@
+     `THREADS_DIR` se sumó al cerrar exp/71: los checkpoints de resume también son
+     estado del operador y la suite los dejaba en `salidas/threads/`."""
+     base = tmp_path_factory.getbasetemp()
+-    monkeypatch.setenv("LAYA_MODEL_RIESGO", "0")  # nunca el checkpoint real
+     monkeypatch.setenv("RIESGO_ARCHIVO", str(base / "riesgo.jsonl"))
+     monkeypatch.setenv("PREGUNTAS_ARCHIVO", str(base / "preguntas.jsonl"))
+     monkeypatch.setenv("MEMORIA_DIR", str(base / "memoria"))
+diff -ruN a/tests/inventario_tests.txt b/tests/inventario_tests.txt
+--- a/tests/inventario_tests.txt	2026-10-30 11:14:53.000000000 +0000
++++ b/tests/inventario_tests.txt	2026-10-30 17:30:00.628896002 +0000
+@@ -516,7 +516,6 @@
+ tests/test_llm.py::test_el_stream_pide_usage_y_lo_captura_del_ultimo_chunk
+ tests/test_llm.py::test_el_usage_acumula_por_modelo_con_split_de_cache
+ tests/test_llm.py::test_from_env_file_tolera_export
+-tests/test_llm.py::test_get_api_key_error_menciona_bmo_condicional
+ tests/test_llm.py::test_historial_canonico_sin_reasoning
+ tests/test_llm.py::test_respuesta_sin_usage_cuenta_cero_y_no_rompe
+ tests/test_llm.py::test_sin_split_de_cache_todo_el_prompt_cotiza_como_miss
+@@ -584,7 +583,6 @@
+ tests/test_modulos.py::test_elegir_exposicion_sin_descripcion
+ tests/test_modulos.py::test_mime_por_contenido_ignora_el_nombre
+ tests/test_modulos.py::test_search_web_degrada_a_error_sin_red
+-tests/test_modulos.py::test_tasks_dir_una_sola_fuente_para_las_sondas
+ tests/test_modulos.py::test_ver_imagen_data_url_bien_formada
+ tests/test_modulos.py::test_ver_imagen_demasiado_grande_sin_llamar
+ tests/test_modulos.py::test_ver_imagen_tipo_invalido_por_contenido
+@@ -614,7 +612,6 @@
+ tests/test_pendientes.py::test_escribir_atomico_publica_y_no_deja_tmp
+ tests/test_pendientes.py::test_escribir_salida_es_atomico
+ tests/test_pendientes.py::test_la_cli_sigue_pisando
+-tests/test_pendientes.py::test_leer_bmo_env_default_no_lee_el_env_ajeno
+ tests/test_pendientes.py::test_los_escenarios_usan_placeholders
+ tests/test_pendientes.py::test_marcador_de_compaccion_menciona_el_ultimo_respaldo
+ tests/test_pendientes.py::test_marcador_sin_respaldo_no_promete_memoria
+@@ -743,21 +740,10 @@
+ tests/test_replay.py::test_nodo_desconocido_sin_clase_ni_tool
+ tests/test_replay.py::test_replay_runs_end_to_end
+ tests/test_replay.py::test_tools_del_action_space_y_fantasmas
+-tests/test_riesgo.py::test_el_contrato_de_riesgo_queda_congelado_sha1
+-tests/test_riesgo.py::test_el_contrato_tiene_las_tres_preguntas_de_una_dimension
+ tests/test_riesgo.py::test_estado_riesgo_cuenta_las_delegadas_aparte
+ tests/test_riesgo.py::test_estado_sesion_recordar_y_leer
+-tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[ 0 ]
+-tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[0]
+-tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[OFF]
+-tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[no]
+-tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[off]
+-tests/test_riesgo.py::test_juzgar_con_fallo_degrade_a_none
+-tests/test_riesgo.py::test_juzgar_pasa_el_estado_recortado
+-tests/test_riesgo.py::test_juzgar_sin_setting_es_none
+ tests/test_riesgo.py::test_la_etiqueta_delegada_no_cuenta_como_humana
+ tests/test_riesgo.py::test_la_suite_no_escribe_los_logs_ni_la_memoria_de_produccion
+-tests/test_riesgo.py::test_observar_riesgo_solo_juzga_bandas_humanas
+ tests/test_riesgo.py::test_registrar_escribe_la_linea_completa
+ tests/test_riesgo.py::test_registrar_gate_apagado_no_escribe
+ tests/test_riesgo.py::test_registrar_marca_el_origen_de_la_decision
+diff -ruN a/tests/test_absurdos_funcionales.py b/tests/test_absurdos_funcionales.py
+--- a/tests/test_absurdos_funcionales.py	2026-10-29 18:18:10.000000000 +0000
++++ b/tests/test_absurdos_funcionales.py	2026-10-30 17:28:11.866401010 +0000
+@@ -97,11 +97,10 @@
+     """E2E del flujo: con la clasificación arreglada, run_command NO llega a
+     `_ejecutar` para esos comandos (y sí ejecuta un auto legítimo)."""
+ 
+-    def aprobar(command, nivel, juicios):
++    def aprobar(command, nivel):
+         return (nivel == "auto", "" if nivel == "auto" else "RECHAZADO")
+ 
+     ejecutados = []
+-    monkeypatch.setattr(coding, "_observar_riesgo", lambda command, nivel: None)
+     monkeypatch.setattr(coding, "_aprobar", aprobar)
+     monkeypatch.setattr(coding, "_ejecutar", lambda command: ejecutados.append(command) or "ok")
+ 
+diff -ruN a/tests/test_banco.py b/tests/test_banco.py
+--- a/tests/test_banco.py	2026-10-30 11:09:49.000000000 +0000
++++ b/tests/test_banco.py	2026-10-30 17:28:11.870401101 +0000
+@@ -43,7 +43,6 @@
+         "auto_lectura": "── run_command [auto: solo-lectura] ──",
+         "interrumpido": "[interrumpido] generación cortada por el usuario",
+         "dsml_ignorado": "  [DSML] tool calls como texto: IGNORADOS (presupuesto agotado)",
+-        "riesgo": "  [riesgo] observa: modifica=si 0.82 · irreversible=no 0.91 · revisar=si 0.66",
+         "prefetch": "  [pre-fetch] /tmp/proyecto/flow.py",
+     }
+     for nombre, patron in MARCADORES.items():
+diff -ruN a/tests/test_contratos.py b/tests/test_contratos.py
+--- a/tests/test_contratos.py	2026-10-30 11:09:49.000000000 +0000
++++ b/tests/test_contratos.py	2026-10-30 17:28:11.862400918 +0000
+@@ -4,7 +4,7 @@
+ def test_pregunta_despacho_congelada():
+     # El contrato del despacho se mudó con la sonda (supervisor v2): su casa
+     # es sonda_supervisor.py. REGISTRO sigue viviendo en supervisor.py.
+-    from sonda_supervisor import OPCIONES
++    from banco.probes.sonda_supervisor import OPCIONES
+     from supervisor import REGISTRO
+ 
+     # El contrato del fine-tune supervisor_dispatch (bmo): las 18 opciones,
+@@ -26,7 +26,7 @@
+     import hashlib
+     import json
+ 
+-    from sonda_supervisor import PREGUNTA_DESPACHO  # su casa desde supervisor v2
++    from banco.probes.sonda_supervisor import PREGUNTA_DESPACHO  # su casa desde supervisor v2
+ 
+     canon = lambda p: hashlib.sha1(  # noqa: E731
+         json.dumps(p, sort_keys=True, ensure_ascii=False).encode()
+@@ -38,8 +38,8 @@
+     """Con el supervisor v2 el contrato del despacho (PREGUNTA_DESPACHO y
+     elegir_con_deepseek) VIVE en sonda_supervisor.py: supervisor ya no lo
+     expone (se jubiló el Choose). La sonda lo mide como evidencia histórica."""
+-    import sonda_supervisor
+     import supervisor
++    from banco.probes import sonda_supervisor
+ 
+     assert not hasattr(supervisor, "PREGUNTA_DESPACHO")
+     assert isinstance(sonda_supervisor.PREGUNTA_DESPACHO, dict)
+diff -ruN a/tests/test_fs_tools.py b/tests/test_fs_tools.py
+--- a/tests/test_fs_tools.py	2026-10-30 11:09:49.000000000 +0000
++++ b/tests/test_fs_tools.py	2026-10-30 17:28:11.866401010 +0000
+@@ -69,10 +69,10 @@
+     archivo que sí lo contiene."""
+     from utils.fs_tools import search_files
+ 
+-    r = search_files(query="PREGUNTA_DESPACHO", path="sonda_supervisor.py")
++    r = search_files(query="PREGUNTA_DESPACHO", path="banco/probes/sonda_supervisor.py")
+     assert "sonda_supervisor.py" in r and "Ningún archivo" not in r
+ 
+-    r = search_files(query="PREGUNTA", path="sonda_laya.py")
++    r = search_files(query="PREGUNTA", path="banco/probes/sonda_laya.py")
+     assert "sonda_laya.py" in r and "Ningún archivo" not in r
+ 
+ def test_recorrido_no_sigue_enlaces_simbolicos(tmp_path, monkeypatch):
+diff -ruN a/tests/test_llm.py b/tests/test_llm.py
+--- a/tests/test_llm.py	2026-10-29 18:18:10.000000000 +0000
++++ b/tests/test_llm.py	2026-10-30 17:28:11.866401010 +0000
+@@ -120,9 +120,9 @@
+     assert c._from_env_file(env, "NO_EXISTE") is None
+ 
+ 
+-def test_get_api_key_error_menciona_bmo_condicional(monkeypatch):
+-    """A68: el error ofrecía el .env de bmo como fuente incondicional; bmo
+-    solo se lee con LEER_BMO_ENV=1. El mensaje debe decirlo."""
++def test_get_api_key_error_solo_ofrece_las_fuentes_del_proyecto(monkeypatch):
++    """A68/X109: el error lista las fuentes que existen (entorno y el .env de
++    este proyecto); el .env de otro proyecto ya no es una opción."""
+     import pytest
+ 
+     import utils.call_llm as c
+@@ -131,7 +131,9 @@
+     monkeypatch.setattr(c, "_setting", lambda *a, **k: None)
+     with pytest.raises(RuntimeError) as exc:
+         c.get_api_key()
+-    assert "LEER_BMO_ENV=1" in str(exc.value)
++    mensaje = str(exc.value)
++    assert "DEEPSEEK_API_KEY" in mensaje and ".env de este proyecto" in mensaje
++    assert "bmo" not in mensaje.lower()
+ 
+ 
+ # ── exp/89: tokens por llamada ──────────────────────────────────────────
+diff -ruN a/tests/test_modulos.py b/tests/test_modulos.py
+--- a/tests/test_modulos.py	2026-10-29 18:18:10.000000000 +0000
++++ b/tests/test_modulos.py	2026-10-30 17:28:11.866401010 +0000
+@@ -450,17 +450,3 @@
+     # si esto falla, el test no llegó a la llamada que debía reventar
+     assert llamadas == [("x", 3)]
+     assert isinstance(r, str) and r.startswith("ERROR: búsqueda web falló"), r
+-
+-def test_tasks_dir_una_sola_fuente_para_las_sondas(tmp_path, monkeypatch):
+-    """Las tres sondas comparten utils.rutas.tasks_dir (antes: el mismo default
+-    copiado en cada una). El setting manda; sin setting, el default histórico."""
+-    from pathlib import Path
+-
+-    from utils.rutas import tasks_dir
+-
+-    monkeypatch.setenv("BMO_TASKS_DIR", str(tmp_path / "tasks"))
+-    assert tasks_dir() == tmp_path / "tasks"
+-
+-    monkeypatch.delenv("BMO_TASKS_DIR", raising=False)
+-    sin_setting = tasks_dir()
+-    assert isinstance(sin_setting, Path) and sin_setting.name == "tasks"
+diff -ruN a/tests/test_pendientes.py b/tests/test_pendientes.py
+--- a/tests/test_pendientes.py	2026-10-30 11:09:49.000000000 +0000
++++ b/tests/test_pendientes.py	2026-10-30 17:28:11.866401010 +0000
+@@ -441,18 +441,19 @@
+     assert hitl_web._pendientes == {}
+ 
+ # PR 5 — portabilidad: sin rutas personales ni .env ajeno
+-def test_leer_bmo_env_default_no_lee_el_env_ajeno(tmp_path, monkeypatch):
+-    """El harness es autónomo: sin LEER_BMO_ENV=1 no se lee el .env de bmo."""
++def test_los_settings_salen_solo_del_entorno_y_del_env_del_proyecto(tmp_path, monkeypatch):
++    """El harness es autónomo (X9; X109 borró la lectura opcional del .env de
++    otro proyecto): el entorno manda, después el .env de ESTE proyecto, y nada más."""
+     from utils import call_llm
+ 
+-    ajeno = tmp_path / "bmo.env"
+-    ajeno.write_text("MARCADOR_SOLO_BMO=1\n", encoding="utf-8")
+-    monkeypatch.setattr(call_llm, "BMO_ENV", ajeno)
+-    monkeypatch.delenv("LEER_BMO_ENV", raising=False)
+-    monkeypatch.delenv("MARCADOR_SOLO_BMO", raising=False)
+-    assert call_llm._setting("MARCADOR_SOLO_BMO", "no") == "no"   # default: no lo lee
+-    monkeypatch.setenv("LEER_BMO_ENV", "1")
+-    assert call_llm._setting("MARCADOR_SOLO_BMO", "no") == "1"    # opt-in: sí
++    propio = tmp_path / ".env"
++    propio.write_text("MARCADOR_PROPIO=del-env\n", encoding="utf-8")
++    monkeypatch.setattr(call_llm, "PROJECT_ENV", propio)
++    monkeypatch.delenv("MARCADOR_PROPIO", raising=False)
++    assert call_llm._setting("MARCADOR_PROPIO", "no") == "del-env"
++    monkeypatch.setenv("MARCADOR_PROPIO", "del-entorno")
++    assert call_llm._setting("MARCADOR_PROPIO", "no") == "del-entorno"
++    assert not hasattr(call_llm, "BMO_ENV")
+ 
+ 
+ @pytest.mark.git
+@@ -462,18 +463,17 @@
+ 
+     Se busca `/home/<usuario>` (la ruta puntual de esta máquina), no las
+     referencias relativas al HOME (`~/Documentos/00_IA/...`), que son
+-    portables. Se saltean docs/ (informes históricos), LICENSE, .env.example
+-    (documenta LEER_BMO_ENV), los archivos grandes (trazas.db), los JSONL de
+-    calibración (transcripciones grabadas: reescribirlas falsearía el dato),
+-    utils/call_llm.py (define BMO_ENV a propósito) y este mismo archivo.
++    portables. Se saltean docs/ (informes históricos), LICENSE, .env.example,
++    los archivos grandes (trazas.db), los JSONL de
++    calibración (transcripciones grabadas: reescribirlas falsearía el dato) y
++    este mismo archivo.
+     """
+     import subprocess
+ 
+     raiz = Path(__file__).resolve().parent.parent
+     archivos = subprocess.run(["git", "ls-files"], capture_output=True, text=True,
+                               cwd=raiz, check=False).stdout.split()
+-    permitidos = {"LICENSE", ".env.example", "utils/call_llm.py",
+-                  "tests/test_pendientes.py"}
++    permitidos = {"LICENSE", ".env.example", "tests/test_pendientes.py"}
+     sospechosos = []
+     for rel in archivos:
+         if rel.startswith(("docs/", "banco/calibracion_")) or rel in permitidos:
+diff -ruN a/tests/test_policy.py b/tests/test_policy.py
+--- a/tests/test_policy.py	2026-10-29 18:18:10.000000000 +0000
++++ b/tests/test_policy.py	2026-10-30 17:28:11.866401010 +0000
+@@ -357,7 +357,7 @@
+         assert not corrio, "la implementación NO debe correr si la guarda lanzó"
+         assert res["content"].startswith("ERROR: la guarda previa de zz_guarda falló (ValueError)")
+     finally:
+-        fs_tools.HOOKS_PRE.pop("zz_guarda", None)
++        fs_tools.HOOKS_PRE.pop("zz_guarda")
+ 
+ @pytest.mark.parametrize("comandos,nivel,control,nivel_control", [
+     (["rm -rf /tmp/x", "rm -fr /tmp/x", "ls && rm -rf /"],
+@@ -492,23 +492,23 @@
+ 
+     respuestas = iter([True, True])
+     monkeypatch.setattr(coding, "_approve", lambda _p: next(respuestas))
+-    aprobado, motivo = coding._aprobar("echo hola", "confirmar_doble", None)
++    aprobado, motivo = coding._aprobar("echo hola", "confirmar_doble")
+     assert aprobado is True and motivo == ""
+     salida = capsys.readouterr().out
+     assert "doble confirmación" in salida and "echo hola" in salida
+ 
+     respuestas = iter([True, False])
+     monkeypatch.setattr(coding, "_approve", lambda _p: next(respuestas))
+-    aprobado, motivo = coding._aprobar("echo hola", "confirmar_doble", None)
++    aprobado, motivo = coding._aprobar("echo hola", "confirmar_doble")
+     assert aprobado is False and motivo == RECHAZO_DOBLE
+ 
+     respuestas = iter([False])
+     monkeypatch.setattr(coding, "_approve", lambda _p: next(respuestas))
+-    aprobado, motivo = coding._aprobar("echo hola", "preguntar", None)
++    aprobado, motivo = coding._aprobar("echo hola", "preguntar")
+     assert aprobado is False and motivo == RECHAZO
+ 
+     monkeypatch.setattr(coding, "_approve", no_preguntar)
+-    aprobado, motivo = coding._aprobar("cat x", "auto", None)
++    aprobado, motivo = coding._aprobar("cat x", "auto")
+     assert aprobado is True and motivo == ""
+     assert "auto: solo-lectura" in capsys.readouterr().out
+ 
+diff -ruN a/tests/test_riesgo.py b/tests/test_riesgo.py
+--- a/tests/test_riesgo.py	2026-10-29 18:18:10.000000000 +0000
++++ b/tests/test_riesgo.py	2026-10-30 17:28:11.870401101 +0000
+@@ -1,106 +1,41 @@
+-"""Tests del juez de riesgo (exp/44) — escritos por el conductor.
++"""El log de decisiones HITL de comando: la etiqueta humana del juez futuro.
+ 
+-La sesión de aplicación cableó el feature pero no escribió los tests que su
+-spec exigía (hallazgo de auditoría: el conteo de tests no creció). Acá están
+-los candados de la spec §5 más el del centinela de apagado explícito
+-(LAYA_MODEL_RIESGO="0"/"off" — la cadena vacía cae al .env por cascada y
+-las sesiones cargaban el checkpoint sin querer)."""
+-import hashlib
++El juez de Laya que solo observaba (exp/44) se borró en X109; la etiqueta ya
++no depende de que haya un checkpoint cargado."""
+ import json
+ from pathlib import Path
+ 
+-import pytest
+-
+ from utils import riesgo
+-from utils.riesgo import PREGUNTA_RIESGO, juzgar, registrar
++from utils.riesgo import registrar
+ 
+ 
+ def _ajustes(monkeypatch, **valores):
+-    """Parchea el _setting que riesgo USA: el módulo lo importa DIRECTO al
+-    tope (mismo binding que el contador del bench midió) — tocar
+-    utils.call_llm._setting no lo alcanza."""
+-    monkeypatch.setattr(
+-        riesgo, "_setting", lambda nombre, default=None: valores.get(nombre, default)
+-    )
+-
+-
+-# juzgar: degradación y centinela
+-
+-def test_juzgar_sin_setting_es_none(monkeypatch):
+-    _ajustes(monkeypatch, LAYA_MODEL_RIESGO=None)
+-    assert juzgar("ls -la", "listame") is None
+-
+-
+-@pytest.mark.parametrize("valor", ["0", "off", "no", "OFF", " 0 "])
+-def test_juzgar_apagado_explicito_es_none(monkeypatch, valor):
+-    """El centinela apaga DE VERDAD: la cadena vacía no sirve (cae al .env
+-    por cascada) — medido cargando 2.86 GiB invisibles en las sesiones."""
+-    _ajustes(monkeypatch, LAYA_MODEL_RIESGO=valor)
+-    assert juzgar("ls -la", "listame") is None
+-
+-
+-def test_juzgar_con_fallo_degrade_a_none(monkeypatch):
+-    """Cualquier excepción de la inferencia → None (sin juicio no hay log)."""
+-    from utils import laya
+-
+-    _ajustes(monkeypatch, LAYA_MODEL_RIESGO=".modelos/laya-multilingual")
+-
+-    def explota(*a, **k):
+-        raise RuntimeError("boom")
+-
+-    monkeypatch.setattr(laya, "preguntar", explota)
+-    assert juzgar("ls -la", "listame") is None
+-
+-
+-def test_juzgar_pasa_el_estado_recortado(monkeypatch):
+-    from utils import laya
+-
+-    visto = {}
+-
+-    def falso_preguntar(estado, preguntas, setting="LAYA_MODEL"):
+-        visto.update(estado)
+-        visto["setting"] = setting
+-        return {"modifica_estado": ("si", 0.9)}
+-
+-    monkeypatch.setattr(laya, "preguntar", falso_preguntar)
+-    _ajustes(monkeypatch, LAYA_MODEL_RIESGO=".modelos/x")
+-    r = juzgar("x" * 2000, "m" * 2000)
+-    assert r == {"modifica_estado": ("si", 0.9)}
+-    assert visto["setting"] == "LAYA_MODEL_RIESGO"
+-    assert len(visto["comando"]) == 1000 and len(visto["mensaje"]) == 1000
+-
++    """Parchea el _setting que riesgo USA: el módulo lo importa directo al tope."""
++    monkeypatch.setattr(riesgo, "_setting", lambda nombre, default=None: valores.get(nombre, default))
+ 
+-# registrar: la línea, el gate y el bookkeeping
+ 
+ def test_registrar_escribe_la_linea_completa(tmp_path, monkeypatch):
+     _ajustes(monkeypatch, RIESGO_ARCHIVO=str(tmp_path / "r.jsonl"))
+-    registrar("mkdir -p x", "creá la carpeta",
+-              {"requiere_revision": ("si", 0.64)}, True)
++    registrar("mkdir -p x", "creá la carpeta", True)
+     linea = json.loads((tmp_path / "r.jsonl").read_text(encoding="utf-8").strip())
+-    assert linea["comando"] == "mkdir -p x"
+-    assert linea["juicios"]["requiere_revision"] == ["si", 0.64]
+-    assert linea["aprobado"] is True
++    assert (linea["comando"], linea["mensaje"], linea["aprobado"]) == ("mkdir -p x", "creá la carpeta", True)
++    assert "juicios" not in linea
+ 
+ 
+ def test_registrar_gate_apagado_no_escribe(tmp_path, monkeypatch):
+     _ajustes(monkeypatch, RIESGO_LOG="0", RIESGO_ARCHIVO=str(tmp_path / "r.jsonl"))
+-    registrar("ls", "hola", None, False)
++    registrar("ls", "hola", False)
+     assert not (tmp_path / "r.jsonl").exists()
+ 
+ 
+ def test_registrar_ruta_rota_no_levanta(tmp_path, monkeypatch):
+-    _ajustes(monkeypatch, RIESGO_ARCHIVO=str(tmp_path / "no" / "existe" / "r.jsonl"))
+-    # el mkdir lo crea el propio registrar; para forzar el fallo usamos un path
+-    # cuyo PARENT es un ARCHIVO (mkdir falla) — bookkeeping lo traga
++    # el PARENT de la ruta es un ARCHIVO: el mkdir falla y el bookkeeping lo traga
+     archivo = tmp_path / "bloqueo"
+     archivo.write_text("x", encoding="utf-8")
+-    registrar("ls", "hola", None, False, ruta=str(archivo / "sub" / "r.jsonl"))
+-    # observable: el fallo se traga Y no deja un archivo a medias
++    registrar("ls", "hola", False, ruta=str(archivo / "sub" / "r.jsonl"))
+     assert not (archivo / "sub").exists()
+ 
+ 
+-# estado_sesion: el plumbing del último mensaje
+-
+ def test_estado_sesion_recordar_y_leer():
+     from utils import estado_sesion
+ 
+@@ -110,68 +45,37 @@
+     assert estado_sesion.ultimo_usuario() == ""
+ 
+ 
+-# el contrato: tres preguntas de UNA dimensión, congeladas por sha1
+-
+-def test_el_contrato_tiene_las_tres_preguntas_de_una_dimension():
+-    assert set(PREGUNTA_RIESGO) == {"modifica_estado", "danio_irreversible",
+-                                    "requiere_revision"}
+-    for pregunta in PREGUNTA_RIESGO.values():
+-        assert pregunta["type"] == "choice"
+-        assert set(pregunta["criteria"]) == {"si", "no"}
+-
+-
+-def test_el_contrato_de_riesgo_queda_congelado_sha1():
+-    """Mismo patrón que los contratos de Laya: cambiar una palabra rompe el
+-    test — el checkpoint del fine-tune entrenará contra este texto EXACTO."""
+-    canonico = json.dumps(PREGUNTA_RIESGO, sort_keys=True, ensure_ascii=False)
+-    assert hashlib.sha1(canonico.encode()).hexdigest() == "afb44dd7752ac593f25da7c5f54d0d7dcf1c58d7"
+-
+-
+ def test_registrar_marca_el_origen_de_la_decision(tmp_path, monkeypatch):
+-    """exp/44: la procedencia del canal humano (terminal / web). Lo sintético
+-    no se marca acá: el banco escribe sus logs aparte (X93)."""
+-    import json
+-
+-    from utils.riesgo import registrar
+-
++    """La procedencia del canal humano (terminal / web)."""
+     ruta = tmp_path / "riesgo.jsonl"
+-    monkeypatch.setenv("RIESGO_ARCHIVO", str(ruta))
+     monkeypatch.delenv("HITL_WEB", raising=False)
+-    registrar("ls", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
++    registrar("ls", "pedido", True, ruta=ruta)
+     monkeypatch.setenv("HITL_WEB", "1")
+-    registrar("ls", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
++    registrar("ls", "pedido", True, ruta=ruta)
+     origenes = [json.loads(linea)["origen"] for linea in ruta.read_text(encoding="utf-8").splitlines()]
+     assert origenes == ["terminal", "web"]
+ 
+ 
+-# exp/101 — la etiqueta que decide un scope no es juicio humano
+-
+ def test_la_etiqueta_delegada_no_cuenta_como_humana(tmp_path, monkeypatch):
+     """Con HITL_SCOPE el s/n lo decide el archivo de scope (conductor o
+-    banco): la ETIQUETA de riesgo es `scope` (excluida del fine-tune), por el
+-    MECANISMO que decidió y no por una bandera de quién corre. El `origen()`
+-    del PAR de routing sigue `terminal` — la flywheel no pierde las delegadas
+-    (contrato de exp/99)."""
+-    import json
+-
+-    from utils.riesgo import origen, origen_etiqueta, registrar
++    banco): la ETIQUETA es `scope` (excluida del fine-tune). El `origen()` del
++    tráfico sigue `terminal`."""
++    from utils.riesgo import origen, origen_etiqueta
+ 
+     ruta = tmp_path / "riesgo.jsonl"
+     monkeypatch.delenv("HITL_WEB", raising=False)
+     monkeypatch.setenv("HITL_SCOPE", str(tmp_path / "scope.json"))
+     assert origen_etiqueta() == "scope"
+-    assert origen() == "terminal"  # el par de routing NO cambia
+-    registrar("du -sh salidas", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
++    assert origen() == "terminal"
++    registrar("du -sh salidas", "pedido", True, ruta=ruta)
+     monkeypatch.delenv("HITL_SCOPE")
+-    assert origen_etiqueta() == "terminal"
+-    registrar("du -sh salidas", "pedido", {"modifica_estado": ["no", 0.9]}, True, ruta=ruta)
+-    origenes = [json.loads(linea)["origen"] for linea
+-                in ruta.read_text(encoding="utf-8").splitlines()]
++    registrar("du -sh salidas", "pedido", True, ruta=ruta)
++    origenes = [json.loads(linea)["origen"] for linea in ruta.read_text(encoding="utf-8").splitlines()]
+     assert origenes == ["scope", "terminal"]
+ 
+ 
+ def test_estado_riesgo_cuenta_las_delegadas_aparte():
+-    """El probe de readiness: lo aprobado por scope queda fuera de las
++    """La sonda de readiness: lo aprobado por scope queda fuera de las
+     orgánicas con su propia fila, en los DOS vocabularios (`delegado` de los
+     logs de exp/101, `scope` desde X93)."""
+     from banco.probes.estado_riesgo import estado
+@@ -189,42 +93,42 @@
+     assert e["banco"] == 1
+ 
+ 
+-# exp/71 — la suite no ensucia los logs ni carga el checkpoint real
+-
+-def test_observar_riesgo_solo_juzga_bandas_humanas(monkeypatch):
+-    """La observación (exp/44) es no-op en 'auto' y denylist: solo el humano
+-    gatea esas bandas. Con conftest apagando el checkpoint, este fake es el
+-    que mantiene cubierta la integración."""
++def test_run_command_registra_cada_decision_humana_y_nada_en_auto(tmp_path, monkeypatch):
++    """Cada s/n humano deja su fila (aprobada o rechazada) con la intención
++    del usuario; el `auto` no pregunta y no deja ninguna."""
+     import modules.coding as coding
+ 
+-    llamados = []
+-
+-    def falso(comando, mensaje):
+-        llamados.append((comando, mensaje))
+-        return {"modifica_estado": ("no", 0.9)}
+-
+-    monkeypatch.setattr(coding, "juzgar", falso)
+-    monkeypatch.setattr(coding, "ultimo_usuario", lambda: "pedido")
+-    assert coding._observar_riesgo("ls", "auto") is None
+-    assert llamados == []
+-    assert coding._observar_riesgo("ls", "preguntar") == {"modifica_estado": ("no", 0.9)}
+-    assert llamados == [("ls", "pedido")]
++    ruta = tmp_path / "riesgo.jsonl"
++    monkeypatch.setenv("RIESGO_ARCHIVO", str(ruta))
++    monkeypatch.setattr(coding, "ultimo_usuario", lambda: "creá las carpetas")
++    monkeypatch.setattr(coding, "registrar_aprobacion", lambda *a, **k: None)
++    respuestas = iter([True, False])
++    monkeypatch.setattr(coding, "_approve", lambda _p: next(respuestas))
++    assert coding._aprobar("mkdir x", "preguntar") == (True, "")
++    assert coding._aprobar("mkdir y", "preguntar")[0] is False
++
++    def no_preguntar(_p):
++        raise AssertionError("auto no pide aprobación")
++
++    monkeypatch.setattr(coding, "_approve", no_preguntar)
++    assert coding._aprobar("ls", "auto") == (True, "")
++    filas = [json.loads(linea) for linea in ruta.read_text(encoding="utf-8").splitlines()]
++    assert [(f["comando"], f["aprobado"], f["mensaje"]) for f in filas] == [
++        ("mkdir x", True, "creá las carpetas"), ("mkdir y", False, "creá las carpetas")]
+ 
+ 
+ def test_la_suite_no_escribe_los_logs_ni_la_memoria_de_produccion(monkeypatch):
+     """exp/71: la suite dejaba 541 filas `terminal` en `salidas/riesgo.jsonl`
+-    (24,4 s y 2,98 GiB de RSS por cargar el checkpoint) y 157 respaldos de
+-    fixture en `memoria/`. El conftest manda los logs, MEMORIA_DIR y el trace
+-    de resume (`THREADS_DIR`, review de exp/71) a tmp; los tests que prueban estos
+-    caminos fijan su propia ruta y ganan después."""
++    y 157 respaldos de fixture en `memoria/`. El conftest manda los logs,
++    MEMORIA_DIR y el trace de resume (`THREADS_DIR`) a tmp; los tests que
++    prueban estos caminos fijan su propia ruta y ganan después."""
+     from utils.call_llm import _setting
+ 
+     raiz = Path(__file__).resolve().parent.parent
+-    riesgo = Path(_setting("RIESGO_ARCHIVO")).resolve()
++    destino = Path(_setting("RIESGO_ARCHIVO")).resolve()
+     memoria = Path(_setting("MEMORIA_DIR")).resolve()
+     threads = Path(_setting("THREADS_DIR", "salidas/threads")).resolve()
+-    assert riesgo != (raiz / "salidas" / "riesgo.jsonl")
++    assert destino != (raiz / "salidas" / "riesgo.jsonl")
+     assert memoria != (raiz / "memoria")
+     assert threads != (raiz / "salidas" / "threads")
+-    assert _setting("LAYA_MODEL_RIESGO") == "0"  # sin checkpoint del juez en tests
+-    assert riesgo.parent == memoria.parent == threads.parent  # todo en el basetemp
++    assert destino.parent == memoria.parent == threads.parent  # todo en el basetemp
+diff -ruN a/tests/test_sonda_laya.py b/tests/test_sonda_laya.py
+--- a/tests/test_sonda_laya.py	2026-10-30 11:09:49.000000000 +0000
++++ b/tests/test_sonda_laya.py	2026-10-30 17:28:11.866401010 +0000
+@@ -1,4 +1,4 @@
+-"""Tests deterministas de las métricas PURAS de sonda_laya.py.
++"""Tests deterministas de las métricas PURAS de banco/probes/sonda_laya.py.
+ 
+ La sonda carga un checkpoint de GB y tarda minutos: por eso la aritmética
+ de calibración (tabla por bucket, curva de compuerta, ECE) se verifica acá,
+@@ -9,7 +9,7 @@
+ 
+ 
+ def test_tabla_confiabilidad_cubre_los_cinco_buckets_y_los_bordes():
+-    from sonda_laya import tabla_confiabilidad
++    from banco.probes.sonda_laya import tabla_confiabilidad
+ 
+     casos = [
+         {"conf": 0.55, "correcto": True},   # [0.50, 0.70)
+@@ -26,7 +26,7 @@
+ 
+ 
+ def test_curva_compuerta_mueve_cobertura_y_precision_con_el_umbral():
+-    from sonda_laya import curva_compuerta
++    from banco.probes.sonda_laya import curva_compuerta
+ 
+     casos = [
+         {"conf": 0.9, "correcto": True},
+@@ -41,7 +41,7 @@
+ 
+ 
+ def test_ece_local_es_cero_si_calibra_y_uno_si_miente_siempre():
+-    from sonda_laya import ece_local
++    from banco.probes.sonda_laya import ece_local
+ 
+     # conf 0.75 con 3 de 4 aciertos: esperado 0.75 = observado 0.75 → gap 0
+     calibrado = [{"conf": 0.75, "correcto": c} for c in (True, True, True, False)]
+@@ -53,7 +53,7 @@
+ 
+ def test_especificaciones_mapean_cada_checkpoint_a_su_pregunta():
+     """X106: router, voto y base se fueron con el router del chat."""
+-    from sonda_laya import ESPECIFICACIONES
++    from banco.probes.sonda_laya import ESPECIFICACIONES
+ 
+     assert set(ESPECIFICACIONES) == {"supervisor", "prefiltro"}
+     assert ESPECIFICACIONES["supervisor"]["pregunta"] == "elegir_proxima"
+diff -ruN a/utils/call_llm.py b/utils/call_llm.py
+--- a/utils/call_llm.py	2026-10-29 19:19:20.000000000 +0000
++++ b/utils/call_llm.py	2026-10-30 17:28:11.818399909 +0000
+@@ -3,15 +3,11 @@
+ Los settings se resuelven en tiempo de ejecución en este orden:
+   1. Variable de entorno del proceso
+   2. El .env de ESTE proyecto
+-  3. El .env de otro proyecto (bmo), SOLO con LEER_BMO_ENV=1 — default 0
+-El harness es autónomo por default: leer el .env ajeno era una dependencia
+-invisible (medido: la API key y el modelo salían de ahí sin avisar). La clave
+-nunca se imprime ni se loguea.
++Nada más: el harness es autónomo. La clave nunca se imprime ni se loguea.
+ 
+ Una variable de entorno VACÍA cuenta como no seteada (`_setting` usa
+ `if value:`) y se cae al .env: documentado acá porque el consumidor ya lo
+-sufrió (medido en `utils/riesgo.py`: `LAYA_MODEL_RIESGO=` no apagaba el
+-checkpoint).
++sufrió: `X=` en el entorno no apaga un `X=1` del .env).
+ """
+ import contextlib
+ import os
+@@ -22,7 +18,6 @@
+ 
+ DEFAULT_MODEL = "deepseek-flash"  # alias oficial de DeepSeek V4.1-Flash
+ DEFAULT_BASE_URL = "https://api.deepseek.com"
+-BMO_ENV = Path.home() / "Documentos" / "00_IA" / "bmo" / ".env"
+ PROJECT_ENV = Path(__file__).resolve().parent.parent / ".env"
+ 
+ 
+@@ -46,27 +41,11 @@
+     return None
+ 
+ 
+-def _leer_bmo_env():
+-    """¿se lee también el .env de bmo? Default 0 (el harness es autónomo).
+-
+-    Se resuelve SIN _setting() a propósito: _setting es justamente la que lee
+-    bmo, así que preguntarle a ella sería morderse la cola."""
+-    valor = os.environ.get("LEER_BMO_ENV")
+-    if valor is None:
+-        valor = _from_env_file(PROJECT_ENV, "LEER_BMO_ENV")
+-    return (valor or "0").strip().lower() in ("1", "true", "si", "sí", "yes")
+-
+-
+ def _setting(name, default=None):
+     value = os.environ.get(name)
+     if value:
+         return value
+-    rutas = (PROJECT_ENV, BMO_ENV) if _leer_bmo_env() else (PROJECT_ENV,)
+-    for env_path in rutas:
+-        value = _from_env_file(env_path, name)
+-        if value:
+-            return value
+-    return default
++    return _from_env_file(PROJECT_ENV, name) or default
+ 
+ 
+ def _entero(nombre, default):
+@@ -87,8 +66,7 @@
+         raise RuntimeError(
+             "API key de DeepSeek no encontrada. Opciones:\n"
+             "  1. export DEEPSEEK_API_KEY=...\n"
+-            "  2. LLM_API_KEY=... en el .env de este proyecto "
+-            "(el de bmo solo si LEER_BMO_ENV=1)"
++            "  2. LLM_API_KEY=... en el .env de este proyecto"
+         )
+     return key
+ 
+diff -ruN a/utils/estado_sesion.py b/utils/estado_sesion.py
+--- a/utils/estado_sesion.py	2026-10-29 18:18:10.000000000 +0000
++++ b/utils/estado_sesion.py	2026-10-30 17:28:11.830400184 +0000
+@@ -1,8 +1,8 @@
+ """Estado de SESIÓN del proceso: lo que no vive en `shared` y un resume debe recuperar.
+ 
+ Tres piezas viven fuera del grafo porque las tools y el LLM no ven `shared`:
+-la evidencia de intención del juez de riesgo (el último mensaje del usuario,
+-exp/44), el uso de tokens de la sesión (`utils.call_llm`) y el historial de
++el último mensaje del usuario (acompaña cada decisión HITL en el log de
++riesgo), el uso de tokens de la sesión (`utils.call_llm`) y el historial de
+ aprobaciones HITL (`utils.aprobaciones`). Este módulo es su ÚNICO dueño para
+ guardar y restaurar: `capturar()` las junta en un dict JSON que el checkpoint
+ escribe junto al `shared`, y `restaurar()` las repone al rehidratar.
+@@ -14,8 +14,8 @@
+ 
+ 
+ def recordar_usuario(texto):
+-    """El último mensaje del usuario del chat (evidencia de intención
+-    para el juez de riesgo). Lo siembra GetQuestion.post."""
++    """El último mensaje del usuario del chat (la intención detrás de cada
++    decisión HITL del log de riesgo). Lo siembra GetQuestion.post."""
+     _ultimo["mensaje"] = "" if texto is None else str(texto)[:1000]
+ 
+ 
+diff -ruN a/utils/laya.py b/utils/laya.py
+--- a/utils/laya.py	2026-10-30 11:08:47.000000000 +0000
++++ b/utils/laya.py	2026-10-30 17:28:11.826400092 +0000
+@@ -2,8 +2,8 @@
+ 
+ Carga perezosa del checkpoint (LAYA_MODEL). El router del chat, su primer
+ uso, se retiró en X106 (fase 3b: un solo camino con tools). Quedan el juicio
+-tipado del servidor MCP (`juicio`), el prefiltro de memoria/RAG
+-(LAYA_MODEL_PREFILTRO) y el juez de riesgo (LAYA_MODEL_RIESGO). Sin
++tipado del servidor MCP (`juicio`) y el prefiltro de memoria/RAG
++(LAYA_MODEL_PREFILTRO). Sin
+ LAYA_MODEL, el default es el BASE multilingual.
+ 
+ Detalles medidos:
+@@ -21,7 +21,7 @@
+ 
+ from utils.call_llm import _entero, _setting
+ 
+-_lock = threading.RLock()  # reentrante: preguntar() lockea y llama a agente(), que lockea de nuevo
++_lock = threading.RLock()  # reentrante: preguntar_lote() lockea y llama a agente(), que lockea de nuevo
+ _agentes = {}  # setting → agente (router y supervisor cargan checkpoints distintos)
+ _errores = {}  # setting → (ts, error) (por checkpoint: el fallo de uno no envenena al otro)
+ _uso = {}  # setting → contador de uso (para desalojar el MENOS usado, no el primero)
+@@ -137,29 +137,14 @@
+ 
+ 
+ def _extraer(answers):
+-    """{id: (respuesta, confianza)} de un dict de answers de laya. La
+-    extracción compartida por preguntar() y preguntar_lote()."""
++    """{id: (respuesta, confianza)} de un dict de answers de laya (preguntar_lote)."""
+     return {pid: (r.get("choice", r.get("answer")), _confianza(r)) for pid, r in answers.items()}
+ 
+ 
+-def preguntar(estado, preguntas, setting="LAYA_MODEL"):
+-    """Una pasada local. Devuelve {id: (respuesta, confianza)}.
+-
+-    `estado` puede ser str, dict o lista (laya serializa el dict a JSON:
+-    el contrato de los fine-tunes es {"pregunta": ...} / {"tarea", "hechos"}).
+-    `setting` elige el checkpoint: LAYA_MODEL (router) o
+-    LAYA_MODEL_SUPERVISOR (Choose del supervisor)."""
+-    with _lock:
+-        resultado = agente(setting).system_one(estado, preguntas, lang="es")
+-    return _extraer(resultado["answers"])
+-
+-
+ def preguntar_detalle(estado, preguntas, setting="LAYA_MODEL"):
+-    """La respuesta COMPLETA de laya (choice + probabilities + confianzas).
+-
+-    preguntar() la reduce a (respuesta, confianza) y pierde el vector, que es
+-    lo que la política del router necesita para decidir con probabilidades
+-    reales por etiqueta y no con una confianza reconstruida (exp/35)."""
++    """La respuesta COMPLETA de laya (choice + probabilities + confianzas):
++    `juicio` necesita el vector para decidir con probabilidades reales por
++    etiqueta y no con una confianza reconstruida."""
+     with _lock:
+         resultado = agente(setting).system_one(estado, preguntas, lang="es")
+     return resultado["answers"]
+@@ -218,7 +203,7 @@
+ 
+ 
+ def preguntar_lote(estados, preguntas, setting="LAYA_MODEL"):
+-    """La versión en lote de preguntar(): los MISMOS contratos evaluados
++    """Los contratos evaluados
+     sobre N estados en forward(s) compartido(s) (Agent.predict_batch).
+     Devuelve una lista alineada con estados: [{id_pregunta: (respuesta,
+     confianza)}]. NO degrada acá: propaga cualquier excepción. La degradación
+@@ -228,7 +213,7 @@
+     # el pico de memoria crece con N (el prefiltro puede mandar cientos).
+     lote = _entero("LAYA_BATCH_SIZE", 0)
+     extra = {"batch_size": lote} if lote > 0 else {}
+-    with _lock:  # reentrante, igual que preguntar: agente() lockea de nuevo
++    with _lock:  # reentrante: agente() lockea de nuevo
+         resultados = agente(setting).predict_batch(list(estados), preguntas, lang="es", **extra)
+     return [_extraer(r["answers"]) for r in resultados]
+ 
+diff -ruN a/utils/riesgo.py b/utils/riesgo.py
+--- a/utils/riesgo.py	2026-10-29 18:18:10.000000000 +0000
++++ b/utils/riesgo.py	2026-10-30 17:28:11.826400092 +0000
+@@ -1,24 +1,13 @@
+-"""Riesgo: juicio local de una ACCIÓN antes de ejecutarla (exp/44, OBSERVA).
++"""El log de las decisiones humanas de comando: las etiquetas de un juez futuro.
+ 
+-El uso nº1 de la familia Jev/Laya: juzgar cada acción antes de correrla. Este
+-harness ya tiene la mitad determinista (`utils/policy.py` clasifica la
+-fricción: `auto`/`preguntar`/`confirmar_doble`; la denylist que SÍ veta lo
+-irreversible vive en `modules/coding._PROHIBIDOS`, y el default no reconocido
+-paga `s/n`). La banda que hoy decide SOLO un humano es el hueco semántico:
+-todo lo no reconocido paga `s/n`.
+-
+-exp/44 es SOLO LA OBSERVACIÓN: Laya juzga, loguea, y NO cambia ninguna
+-conducta — el `s/n` sigue igual. La etiqueta ambiental llega gratis: la
+-respuesta del humano (`aprobado` true/false) ES el label. Después (exp/47+)
+-los umbrales salen de ese log y recién ahí se habla de enforcement.
+-
+-Leyes de la casa que aplican:
+-- degradación: sin checkpoint (LAYA_MODEL_RIESGO) → no-op, ni log.
+-- preguntas de UN solo propósito: dos hechos + la decisión misma, cada una de
+-  una sola dimensión (las compuestas puntúan mal).
+-- contrato congelado por test: PREGUNTA_RIESGO es byte-a-byte (sha1 canónico).
+-- el estado lleva la EVIDENCIA DE INTENCIÓN (el último mensaje del usuario),
+-  nunca el razonamiento del propio agente.
++Cada s/n de `run_command` en las bandas que decide un humano
++(`preguntar`/`confirmar_doble`) deja una línea con el comando, el último
++mensaje del usuario (la evidencia de intención) y la respuesta. La respuesta
++ES la etiqueta: cuando haya ≥300 orgánicas y ≥100 rechazos (roadmap, ítem 5;
++`banco/probes/estado_riesgo.py`) se pre-registra un juez que DECIDA.
++
++`origen` dice quién decidió: un humano (`terminal`/`web`) o un scope
++(`scope`: banco y conductor; no entra al fine-tune).
+ """
+ import json
+ import time
+@@ -26,87 +15,32 @@
+ 
+ from utils.call_llm import _setting
+ 
+-PREGUNTA_RIESGO = {
+-    "modifica_estado": {
+-        "type": "choice",
+-        "instructions": "Will running this command change anything (create, modify or delete files, git state, packages, or system state), as opposed to only inspecting or printing?",
+-        "criteria": {
+-            "si": "writes, creates, deletes, installs, commits, pushes or changes state",
+-            "no": "only reads, searches, lists, tests without writing, or prints",
+-        },
+-    },
+-    "danio_irreversible": {
+-        "type": "choice",
+-        "instructions": "Could running this command destroy data or state that would be hard or impossible to recover afterwards?",
+-        "criteria": {
+-            "si": "deletes, force-pushes, resets or overwrites without backup",
+-            "no": "reversible or read-only; what it changes can be undone or recreated",
+-        },
+-    },
+-    "requiere_revision": {
+-        "type": "choice",
+-        "instructions": "Should a human review and approve this command before it runs on the user's machine?",
+-        "criteria": {
+-            "si": "side effects beyond the immediate task, risky targets, or intent unclear from the request",
+-            "no": "plainly aligned with what the user asked; low stakes",
+-        },
+-    },
+-}
+-
+-
+-def juzgar(comando, mensaje):
+-    """{pregunta: (respuesta, conf)} del juez de riesgo, o None.
+-
+-    Degradación (ley de la casa): sin checkpoint (LAYA_MODEL_RIESGO) o ante
+-    CUALQUIER fallo → None (sin juicio no hay log; nunca rompe la acción).
+-    El estado lleva la EVIDENCIA DE INTENCIÓN: el comando propuesto y el
+-    último mensaje del usuario (recortados a 1000 chars).
+-
+-    El apagado EXPLÍCITO es "0"/"off"/"no" (medido): la cadena VACÍA no sirve —
+-    _setting la trata como no-seteada y cae al .env, así que las sesiones
+-    del banco con LAYA_MODEL_RIESGO="" cargaban el checkpoint (2.86 GiB
+-    invisibles) creyendo apagarlo."""
+-    valor = (_setting("LAYA_MODEL_RIESGO") or "").strip().lower()
+-    if not valor or valor in ("0", "off", "no"):
+-        return None
+-    try:
+-        from utils.laya import preguntar
+-
+-        estado = {
+-            "comando": str(comando)[:1000],
+-            "mensaje": str(mensaje)[:1000],
+-        }
+-        return preguntar(estado, PREGUNTA_RIESGO, setting="LAYA_MODEL_RIESGO")
+-    except Exception:  # noqa: BLE001  (degradación: sin juicio no hay log)
+-        return None
+-
+ 
+ def origen():
+-    """Por dónde llegó el TRÁFICO (pregunta, decisión del router): `web` o
++    """Por dónde llegó el TRÁFICO (pregunta, decisión HITL): `web` o
+     `terminal`. El producto no sabe si lo miden: el banco no se distingue con
+-    una bandera sino escribiendo sus logs aparte (`salidas/banco/`, X93), como
+-    ya hacía con la memoria (X41). Los logs de antes de X93 traen además
+-    `banco` y las sondas lo siguen excluyendo."""
++    una bandera sino escribiendo sus logs aparte (`salidas/banco/`, X93). Los
++    logs de antes de X93 traen además `banco` y las sondas lo siguen excluyendo."""
+     if _setting("HITL_WEB", "0") == "1":
+         return "web"
+     return "terminal"
+ 
+ 
+ def origen_etiqueta():
+-    """Quién decidió el s/n que es la ETIQUETA de riesgo, por el MECANISMO que
+-    lo decidió: con `HITL_SCOPE` lo decide el scope del archivo (banco y
+-    conductor; exp/101: no es juicio humano y no entra al fine-tune) → `scope`;
+-    si no, un humano en la terminal o la web → `origen()`."""
++    """Quién decidió el s/n que es la ETIQUETA, por el MECANISMO que lo
++    decidió: con `HITL_SCOPE` lo decide el scope del archivo (banco y
++    conductor; no es juicio humano y no entra al fine-tune) → `scope`; si no,
++    un humano en la terminal o la web → `origen()`."""
+     if _setting("HITL_SCOPE", ""):
+         return "scope"
+     return origen()
+ 
+-def registrar(comando, mensaje, juicios, aprobado, ruta=None):
++
++def registrar(comando, mensaje, aprobado, ruta=None):
+     """Una línea en RIESGO_ARCHIVO (default salidas/riesgo.jsonl), gated por
+     RIESGO_LOG (default 1). Bookkeeping: nunca rompe la acción.
+ 
+-    {"ts", "comando"[:200], "mensaje"[:200], "juicios": {pregunta:
+-    [respuesta, conf]}, "aprobado": bool, "origen": scope|web|terminal}"""
++    {"ts", "comando"[:200], "mensaje"[:200], "aprobado": bool, "origen": scope|web|terminal}"""
+     if _setting("RIESGO_LOG", "1") != "1":
+         return
+     try:
+@@ -118,11 +52,10 @@
+                     "ts": round(time.time(), 3),
+                     "comando": str(comando)[:200],
+                     "mensaje": str(mensaje)[:200],
+-                    "juicios": {k: list(v) for k, v in (juicios or {}).items()},
+                     "aprobado": bool(aprobado),
+                     "origen": origen_etiqueta(),
+                 },
+                 ensure_ascii=False,
+             ) + "\n")
+-    except (OSError, TypeError, ValueError):  # noqa: BLE001  (bookkeeping: nunca rompe la acción)
++    except (OSError, TypeError, ValueError):  # bookkeeping: nunca rompe la acción
+         pass
+diff -ruN a/utils/rutas.py b/utils/rutas.py
+--- a/utils/rutas.py	2026-10-30 11:08:47.000000000 +0000
++++ b/utils/rutas.py	2026-10-30 17:28:11.818399909 +0000
+@@ -1,24 +1,9 @@
+-"""Rutas compartidas por las sondas: una sola fuente.
+-
+-El default de BMO_TASKS_DIR vivía copiado en sonda_laya.py, sonda_router.py (retirada en X106) y
+-sonda_supervisor.py — tres copias del mismo default, cada una libre de derivar
+-sin que ningún test lo notara.
+-"""
++"""Rutas compartidas del harness: una sola fuente para las carpetas de trabajo."""
+ from pathlib import Path
+ 
+-from utils.call_llm import _setting
+-
+-BMO_TASKS_DEFAULT = Path.home() / "Documentos" / "00_IA" / "bmo" / "train" / "tasks"
+-
+-
+ RAIZ_PROYECTO = Path(__file__).resolve().parent.parent
+ 
+ # Carpetas de trabajo del harness (relativas al CWD del proyecto, que es la
+ # convención de los CLI). Una sola definición para los cuatro que las copiaban.
+ DIR_RUNS = Path(".runs")
+ DIR_SALIDA = Path("salidas/evals")
+-
+-
+-def tasks_dir():
+-    """Directorio de tareas del banco: BMO_TASKS_DIR, o el default histórico."""
+-    return Path(_setting("BMO_TASKS_DIR", str(BMO_TASKS_DEFAULT)))
+diff -ruN a/utils/votacion.py b/utils/votacion.py
+--- a/utils/votacion.py	2026-10-29 18:18:10.000000000 +0000
++++ b/utils/votacion.py	2026-10-30 17:28:11.830400184 +0000
+@@ -9,7 +9,7 @@
+ fallback es el más votado — que con todos los votos distintos es el
+ PRIMERO en aparecer (orden de inserción de Counter): determinista, pero
+ convención del llamador. En producción siempre se pasa desempate
+-(supervisor.py y sonda_supervisor.py pasan el voto directo).
++(supervisor.py y banco/probes/sonda_supervisor.py pasan el voto directo).
+ """
+ from collections import Counter
+ 

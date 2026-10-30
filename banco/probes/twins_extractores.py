@@ -50,7 +50,6 @@ REGISTRO = {
                     "plan y decisión yaml (b); los hechos se extraen del "
                     "material que el código fetch-eó, URLs ya delante (d); "
                     "informe final (a)"),
-    "sonda_supervisor.py": (1, "b", "plan yaml con args: contrato de salida"),
     "supervisor.py": (2, "e/c",
                       "UnPaso es ejecutor con tools (e); la síntesis va sobre "
                       "pasos registrados del propio bucle (c)"),

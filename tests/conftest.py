@@ -53,8 +53,8 @@ def _bookkeeping_y_memoria_en_tmp(tmp_path_factory, monkeypatch):
     """La suite NO escribe los logs ni la biblioteca de PRODUCCIÓN (exp/71).
 
     Medido antes de aislar: `tests/test_policy.py` solo (24 tests) tardaba
-    24,4 s con 2,98 GiB de RSS porque los HITL no-auto tomaban el
-    `LAYA_MODEL_RIESGO` del `.env` y cargaban el checkpoint del juez; y dejaba
+    24,4 s con 2,98 GiB de RSS porque los HITL no-auto cargaban el checkpoint
+    del juez de riesgo (borrado en X109); y dejaba
     8 filas con `origen=terminal` en `salidas/riesgo.jsonl` (541 acumuladas,
     indistinguibles del juicio humano). Además `test_compaccion` compactaba su
     historial sintético y respaldaba la zona fría en `memoria/`: 157 de los 243
@@ -65,7 +65,6 @@ def _bookkeeping_y_memoria_en_tmp(tmp_path_factory, monkeypatch):
     `THREADS_DIR` se sumó al cerrar exp/71: los checkpoints de resume también son
     estado del operador y la suite los dejaba en `salidas/threads/`."""
     base = tmp_path_factory.getbasetemp()
-    monkeypatch.setenv("LAYA_MODEL_RIESGO", "0")  # nunca el checkpoint real
     monkeypatch.setenv("RIESGO_ARCHIVO", str(base / "riesgo.jsonl"))
     monkeypatch.setenv("PREGUNTAS_ARCHIVO", str(base / "preguntas.jsonl"))
     monkeypatch.setenv("MEMORIA_DIR", str(base / "memoria"))

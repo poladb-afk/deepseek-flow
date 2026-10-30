@@ -4,7 +4,7 @@ El meta-loop necesitaba un auditor contestando s/n por tmux (exp/95–98); con
 esto el operador delega solo. Es el "banco-lite" de exp/99: el MISMO driver
 PTY y el MISMO scope HITL del banco (`utils.conductor`), pero con un pedido real
 en vez de un escenario guionizado — y con los logs de producción: las preguntas y
-los juicios de riesgo cuentan como origen `terminal` (tráfico orgánico). Si el chat muere a mitad (el kill de tmux de exp/98), el
+las decisiones HITL cuentan como origen `terminal` (tráfico orgánico). Si el chat muere a mitad (el kill de tmux de exp/98), el
 conductor rehidrata el thread (exp/48) y re-envía el pedido como continuación.
 
 Uso:

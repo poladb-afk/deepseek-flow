@@ -21,7 +21,7 @@ quien tiene la información para tomarla, y el grafo muestra todo el control.
 | F3 | **El grafo dice la verdad**: el control vive en las aristas | ¿Se explica un turno leyendo `python3 main.py grafo`? | `nodos_largos`, `test_el_diagrama_del_readme_es_el_grafo_del_chat` |
 | F4 | **Fractal**: una primitiva a toda escala (chat = sub-agente = supervisor) | ¿Una política nueva llega gratis a los sub-agentes? | fase 2 (un solo loop) |
 | F5 | **Dependencias hacia adentro**: los módulos dependen del CORE; el CORE no los conoce | ¿Borrar cualquier archivo de `modules/` deja el chat andando? | `core_importa_modulos` |
-| F6 | **Errores reversibles**: el smart-if decide perillas cuyo error se autocorrige, nunca le quita capacidades al agente | ¿Si Laya se equivoca, el siguiente paso lo corrige solo? | fase 3 (`producto_router.py`) |
+| F6 | **Errores reversibles**: el smart-if decide perillas cuyo error se autocorrige, nunca le quita capacidades al agente | ¿Si Laya se equivoca, el siguiente paso lo corrige solo? | fase 3 (`banco/specs/fase3b_4a.md`) |
 | F7 | **Producto ≠ laboratorio**: el producto no sabe que existe el banco | ¿Aparecen `banco`, `BANCO`, `DELEGADO` o `GROUND-TRUTH` en producción? | `producto_conoce_lab` |
 
 ## Elegancia de código
@@ -57,9 +57,9 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91).
 |---|---|---|
 | `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
 | `producto_conoce_lab` | 10 → **0** (X93) | 0 ✅ |
-| `vocabulario_hardcodeado` | 8 → 7 (X104) → 3 (X106) | ≤ 2 (fases 3–4; quedan los sí/no del HITL) |
-| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) → 64 (X106) | ≤ 45 (fases 1–5, ver inventario) |
-| `imports_perezosos` | 137 → 126 (X92) → 90 (X106) | ≤ 40 |
+| `vocabulario_hardcodeado` | 8 → 7 (X104) → 3 (X106) | ≤ 2 (S9 saca la continuación por palabras de `GetQuestion`; fase 6, `TOOL_CONTEXTO_RE`; queda el sí/no del HITL) |
+| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) → 64 (X106) → 58 (X109) | ≤ 45 (fases 1–5, ver inventario) |
+| `imports_perezosos` | 137 → 126 (X92) → 90 (X106) → 81 (X109) | ~60 (decisión del operador, 2026-10-30: ≤ 40 pedía ampliar la fase 6 a MCP/web/HITL solo por el número) |
 | `nodos_largos` | 15 → 14 (X96) → 13 (X106) | ≤ 3 |
 | `texto_de_prompt` | 2748 chars | ≤ 800 |
 
@@ -68,22 +68,24 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91).
 | Fase | Cambio | ¿Cambia conducta? | Gate de salida |
 |---|---|---|---|
 | 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
-| 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/` | No | `test_caracterizacion_chat.py` idéntico |
-| 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. ✅ 2b-2 (X96): `Observar` y `Cierre` (el presupuesto como arista). Falta: el chat es `kernel.loop` + políticas como nodos (S9); esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
-| 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a NO PASA (X105, cableado borrado). 3b por la opción (b): el router sale del chat (X106, código listo; falta el A/B de `banco/specs/fase3b_4a.md`). `reasoning_content` preservado en rondas de tools (S1); todo camino ofrece tools y Laya elige el modo (S2) | **Sí** | los criterios de `banco/specs/fase3b_4a.md` (`fase3b-directas`: sin tools de más, USD ≤ 1,5×, descarrilos ≤ base; `exp55-skills` igual) |
-| 4 | ✅ 4b-mín (X104): sin la regex de palabras. 4a (X106): reglas y voto borrados con la 3b; directivas en la 5b (S6–S8) | Sí | mismo banco; `settings_leidos` ≤ 60 |
-| 5 | ✅ 5a (X108): política de comandos como datos (S10) en `utils/politica_comandos.json`, 0 diferencias. 5b: skills por descripción y directivas a skills. 5c: Laya 0.4.x | Mínimo | `test_policy_bypass.py` idéntico; 5a: 0 diferencias sobre la foto real |
-| 6 | Limpieza de piezas sueltas (`juez`, `effective_n`, `juez_lote`, `research`, `informe`, `fable_judge`): nodos largos e imports perezosos (decisión del operador, X103) | No | `nodos_largos` ≤ 3, `imports_perezosos` ≤ 40 |
+| 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/`. ✅ deuda (X109): sin el `.env` ni las tareas de bmo; las sondas de Laya a `banco/probes/`. **Queda**: `HITL_SCOPE` y `HUMANO_RESPUESTA` (revisar) | No | `test_caracterizacion_chat.py` idéntico |
+| 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. ✅ 2b-2 (X96): `Observar` y `Cierre` (el presupuesto como arista). **Queda (paso 5 del orden)**: el chat como `kernel.loop` + políticas como nodos (S9: citas, interrupción, prefetch), la continuación por estado del thread (decisión del operador), esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
+| 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a NO PASA (X105, cableado borrado). ✅ 3b PASA (X106, `banco/specs/fase3b_4a.md`): el router salió del chat. **Cerradas con veredicto negativo** (decisión del operador): S2 —Laya elige el modo— la rechazó el A/B de la 3a; S1 —`reasoning_content` en rondas de tools— no aplica sin thinking con tools. ✅ X109: el juez de riesgo que solo observaba se borró; el log de la decisión humana queda | **Sí** | los criterios de `banco/specs/fase3b_4a.md` |
+| 4 | ✅ 4b-mín (X104): sin la regex de palabras. ✅ 4a (X106): reglas y voto borrados con la 3b. **Queda (paso 3 del orden)**: S6, el presupuesto por novedad — `CORTE_NOVEDAD`, `CORTE_NOVEDAD_MIN`, `MAX_TOOL_ROUNDS_AMPLIO`, `UMBRAL_SIN_PROGRESO` salen; `MAX_TOOL_ROUNDS` es el único techo | Sí | banco + fable: USD y descarrilos ≤ base; `settings_leidos` ≤ 60 ✅ |
+| 5 | ✅ 5a (X108): política de comandos como datos (S10) en `utils/politica_comandos.json`, 0 diferencias sobre la foto real de 445. **Queda**: 5b (paso 2) directivas a skills por descripción (S7/S8: `PROMPT_AUDITORIA`, `PROMPT_FABLE`; `PROMPT_FORMA` solo con A/B). 5c (paso 4) Laya 0.4.x y los prefiltros como un mecanismo con un setting | Mínimo / Sí (5b) | 5b: `exp55-skills`, fable s17–s20, `texto_de_prompt` ≤ 800; 5c: su pre-registro |
+| 6 | Limpieza de piezas sueltas (`juez`, `effective_n`, `juez_lote`, `research`, `informe`, `fable_judge`): nodos largos e imports perezosos (decisión del operador, X103) | No | `nodos_largos` ≤ 3 (los 3 de `nodes.py` los resuelve S9), `imports_perezosos` ~60 |
 
-## Inventario de settings (64 tras X106: 39 contrato · 17 revisar · 8 borrar)
+**Orden de lo que queda** (X109, aprobado por el operador): 1 ✅ deuda de la
+fase 1 → 2 5b → 3 S6 → 4 5c → 5 S9/S3 → 6 fase 6. Primero lo que no cambia
+conducta; lo que la cambia, con su A/B pre-registrado.
+
+## Inventario de settings (58 tras X109: 39 contrato · 13 revisar · 6 borrar)
 
 `contrato` = decisión del operador que se queda; `revisar` = se decide en la
 fase indicada; `borrar` = se va con su rama en esa fase.
 
 | Setting | Veredicto | Fase | Motivo | Lo lee |
 |---|---|---|---|---|
-| `BMO_TASKS_DIR` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/rutas.py` |
-| `LEER_BMO_ENV` | borrar | 1 | S5: dependencia de otro proyecto (bmo) | `utils/call_llm.py` |
 | `CORTE_NOVEDAD` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
 | `CORTE_NOVEDAD_MIN` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
 | `MAX_TOOL_ROUNDS_AMPLIO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
@@ -92,13 +94,9 @@ fase indicada; `borrar` = se va con su rama en esa fase.
 | `UMBRAL_SIN_PROGRESO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
 | `HITL_SCOPE` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `utils/aprobaciones.py` |
 | `HUMANO_RESPUESTA` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `modules/humano.py` |
-| `LAYA_MODEL_SUPERVISOR` | revisar | 1 | sondas: van a banco/, no al producto | `sonda_supervisor.py` |
-| `LAYA_UNSURE_HIGH_SUPERVISOR` | revisar | 1 | sondas: van a banco/, no al producto | `sonda_supervisor.py` |
-| `SONDA_LAYA_CKPT` | revisar | 1 | sondas: van a banco/, no al producto | `sonda_laya.py` |
 | `CHAT_STREAM_INTERRUPT` | revisar | 2 | S9: citas e interrupción siempre activas | `utils/call_llm.py` |
 | `CITAS_VERIFICAR` | revisar | 2 | S9: citas e interrupción siempre activas | `nodes.py` |
 | `PREFETCH` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
-| `LAYA_MODEL_RIESGO` | revisar | 3 | S1: el juez de riesgo observa sin decidir: decidir o borrar | `utils/riesgo.py` |
 | `PROMPT_FORMA` | revisar | 4 | S8: se queda solo si un A/B del modelo actual lo sostiene | `main.py` |
 | `SKILLS` | revisar | 4 | S7: skills por descripción; el apagador global quizá sobra | `nodes.py` |
 | `INFORME_CARPETA` | revisar | 5 | concurrencia: una constante del kernel | `informe.py` |

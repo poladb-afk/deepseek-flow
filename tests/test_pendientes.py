@@ -441,18 +441,19 @@ def test_cancelar_hitl_web_limpia_el_pedido(monkeypatch):
     assert hitl_web._pendientes == {}
 
 # PR 5 — portabilidad: sin rutas personales ni .env ajeno
-def test_leer_bmo_env_default_no_lee_el_env_ajeno(tmp_path, monkeypatch):
-    """El harness es autónomo: sin LEER_BMO_ENV=1 no se lee el .env de bmo."""
+def test_los_settings_salen_solo_del_entorno_y_del_env_del_proyecto(tmp_path, monkeypatch):
+    """El harness es autónomo (X9; X109 borró la lectura opcional del .env de
+    otro proyecto): el entorno manda, después el .env de ESTE proyecto, y nada más."""
     from utils import call_llm
 
-    ajeno = tmp_path / "bmo.env"
-    ajeno.write_text("MARCADOR_SOLO_BMO=1\n", encoding="utf-8")
-    monkeypatch.setattr(call_llm, "BMO_ENV", ajeno)
-    monkeypatch.delenv("LEER_BMO_ENV", raising=False)
-    monkeypatch.delenv("MARCADOR_SOLO_BMO", raising=False)
-    assert call_llm._setting("MARCADOR_SOLO_BMO", "no") == "no"   # default: no lo lee
-    monkeypatch.setenv("LEER_BMO_ENV", "1")
-    assert call_llm._setting("MARCADOR_SOLO_BMO", "no") == "1"    # opt-in: sí
+    propio = tmp_path / ".env"
+    propio.write_text("MARCADOR_PROPIO=del-env\n", encoding="utf-8")
+    monkeypatch.setattr(call_llm, "PROJECT_ENV", propio)
+    monkeypatch.delenv("MARCADOR_PROPIO", raising=False)
+    assert call_llm._setting("MARCADOR_PROPIO", "no") == "del-env"
+    monkeypatch.setenv("MARCADOR_PROPIO", "del-entorno")
+    assert call_llm._setting("MARCADOR_PROPIO", "no") == "del-entorno"
+    assert not hasattr(call_llm, "BMO_ENV")
 
 
 @pytest.mark.git
@@ -462,18 +463,17 @@ def test_ningun_archivo_versionado_tiene_rutas_absolutas_del_autor():
 
     Se busca `/home/<usuario>` (la ruta puntual de esta máquina), no las
     referencias relativas al HOME (`~/Documentos/00_IA/...`), que son
-    portables. Se saltean docs/ (informes históricos), LICENSE, .env.example
-    (documenta LEER_BMO_ENV), los archivos grandes (trazas.db), los JSONL de
-    calibración (transcripciones grabadas: reescribirlas falsearía el dato),
-    utils/call_llm.py (define BMO_ENV a propósito) y este mismo archivo.
+    portables. Se saltean docs/ (informes históricos), LICENSE, .env.example,
+    los archivos grandes (trazas.db), los JSONL de
+    calibración (transcripciones grabadas: reescribirlas falsearía el dato) y
+    este mismo archivo.
     """
     import subprocess
 
     raiz = Path(__file__).resolve().parent.parent
     archivos = subprocess.run(["git", "ls-files"], capture_output=True, text=True,
                               cwd=raiz, check=False).stdout.split()
-    permitidos = {"LICENSE", ".env.example", "utils/call_llm.py",
-                  "tests/test_pendientes.py"}
+    permitidos = {"LICENSE", ".env.example", "tests/test_pendientes.py"}
     sospechosos = []
     for rel in archivos:
         if rel.startswith(("docs/", "banco/calibracion_")) or rel in permitidos:

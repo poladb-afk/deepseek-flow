@@ -18,7 +18,7 @@ entra** (X99: 2 cierres reales en 16 corridas, casos insuficientes). Fase 3:
 gate previo PASA (X102). **3a NO PASA** (X105: el A/B dio 2,2×–6,9× el USD y s17+s18 −2; cableado
 borrado). **3b + 4a pre-registradas** (`banco/specs/fase3b_4a.md`) y **escritas**
 (X106: el router sale del chat; falta el A/B `fase3b-directas` ×3 por brazo y
-la clave del operador para `tests_definidos` 1132 → 1004) — **3b PASA** (12/12 sin tools, 0,65× USD; `fase3b_4a.md`). **5a hecha** (X108: política de comandos como datos en `utils/politica_comandos.json`; 0 diferencias en los casos por entrada y en el fuzz; la foto real la confirma el operador). **4b-mín cerrada** (X104:
+la clave del operador para `tests_definidos` 1132 → 1004) — **3b PASA** (12/12 sin tools, 0,65× USD; `fase3b_4a.md`). **5a hecha** (X108: política de comandos como datos, 0 diferencias sobre la foto real de 445). **Deuda de la fase 1 cerrada** (X109: sin bmo, sondas a `banco/probes/`, juez de riesgo observador borrado). Orden de lo que queda en `docs/elegancia.md`: 5b → S6 → 5c → S9/S3 → fase 6. **4b-mín cerrada** (X104:
 la regex de palabras se borró, 0 cambios en 36 preguntas reales). Fase 6 (limpieza de las piezas sueltas) aprobada, después de la 5.
 2b-3 queda para después de la fase 4 (o se descarta si sigue sin haber
 sub-agentes); 2b-3 `AgentStep`/`ExecuteTools` →
@@ -156,9 +156,11 @@ reasignan porque otras partes del doc los citan):
    reales de exp/95–102; las corridas delegadas quedan fuera: origen
    `delegado`, exp/101). **Criterio pre-registrado, sin cambios: ≥300
    etiquetas orgánicas y ≥100 rechazos orgánicos** (las históricas sin
-   procedencia no se usan; el banco no cuenta). `requiere_revision` casi no
-   dispara (5/1467): esa dimensión es la que el fine-tune tiene que arreglar.
-   Umbrales del log propio y enforcement recién después.
+   procedencia no se usan; el banco no cuenta). **X109**: el juez que solo
+   observaba se borró (17 días sin decidir nada, y su contrato no es lo que
+   se entrena: lo que se entrena es la decisión humana). El log sigue, sin
+   `juicios` y sin depender de un checkpoint: cada s/n de comando deja su
+   fila. Al cumplirse el criterio se pre-registra un juez que DECIDA.
 6. **Mesa 3 (restos, re-priorizados)**: gate del juez (después del 5),
    presupuesto dinámico/convergencia de loops (empezar DETERMINISTA con las
    features de exp/9, Laya solo si no alcanza), Laya vía MCP como producto.

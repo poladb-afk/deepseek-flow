@@ -2,8 +2,8 @@
 
 Carga perezosa del checkpoint (LAYA_MODEL). El router del chat, su primer
 uso, se retiró en X106 (fase 3b: un solo camino con tools). Quedan el juicio
-tipado del servidor MCP (`juicio`), el prefiltro de memoria/RAG
-(LAYA_MODEL_PREFILTRO) y el juez de riesgo (LAYA_MODEL_RIESGO). Sin
+tipado del servidor MCP (`juicio`) y el prefiltro de memoria/RAG
+(LAYA_MODEL_PREFILTRO). Sin
 LAYA_MODEL, el default es el BASE multilingual.
 
 Detalles medidos:
@@ -21,7 +21,7 @@ from pathlib import Path
 
 from utils.call_llm import _entero, _setting
 
-_lock = threading.RLock()  # reentrante: preguntar() lockea y llama a agente(), que lockea de nuevo
+_lock = threading.RLock()  # reentrante: preguntar_lote() lockea y llama a agente(), que lockea de nuevo
 _agentes = {}  # setting → agente (router y supervisor cargan checkpoints distintos)
 _errores = {}  # setting → (ts, error) (por checkpoint: el fallo de uno no envenena al otro)
 _uso = {}  # setting → contador de uso (para desalojar el MENOS usado, no el primero)
@@ -137,29 +137,14 @@ def _confianza(respuesta):
 
 
 def _extraer(answers):
-    """{id: (respuesta, confianza)} de un dict de answers de laya. La
-    extracción compartida por preguntar() y preguntar_lote()."""
+    """{id: (respuesta, confianza)} de un dict de answers de laya (preguntar_lote)."""
     return {pid: (r.get("choice", r.get("answer")), _confianza(r)) for pid, r in answers.items()}
 
 
-def preguntar(estado, preguntas, setting="LAYA_MODEL"):
-    """Una pasada local. Devuelve {id: (respuesta, confianza)}.
-
-    `estado` puede ser str, dict o lista (laya serializa el dict a JSON:
-    el contrato de los fine-tunes es {"pregunta": ...} / {"tarea", "hechos"}).
-    `setting` elige el checkpoint: LAYA_MODEL (router) o
-    LAYA_MODEL_SUPERVISOR (Choose del supervisor)."""
-    with _lock:
-        resultado = agente(setting).system_one(estado, preguntas, lang="es")
-    return _extraer(resultado["answers"])
-
-
 def preguntar_detalle(estado, preguntas, setting="LAYA_MODEL"):
-    """La respuesta COMPLETA de laya (choice + probabilities + confianzas).
-
-    preguntar() la reduce a (respuesta, confianza) y pierde el vector, que es
-    lo que la política del router necesita para decidir con probabilidades
-    reales por etiqueta y no con una confianza reconstruida (exp/35)."""
+    """La respuesta COMPLETA de laya (choice + probabilities + confianzas):
+    `juicio` necesita el vector para decidir con probabilidades reales por
+    etiqueta y no con una confianza reconstruida."""
     with _lock:
         resultado = agente(setting).system_one(estado, preguntas, lang="es")
     return resultado["answers"]
@@ -218,7 +203,7 @@ def juicio(estado, instrucciones, opciones, setting="LAYA_MODEL"):
 
 
 def preguntar_lote(estados, preguntas, setting="LAYA_MODEL"):
-    """La versión en lote de preguntar(): los MISMOS contratos evaluados
+    """Los contratos evaluados
     sobre N estados en forward(s) compartido(s) (Agent.predict_batch).
     Devuelve una lista alineada con estados: [{id_pregunta: (respuesta,
     confianza)}]. NO degrada acá: propaga cualquier excepción. La degradación
@@ -228,7 +213,7 @@ def preguntar_lote(estados, preguntas, setting="LAYA_MODEL"):
     # el pico de memoria crece con N (el prefiltro puede mandar cientos).
     lote = _entero("LAYA_BATCH_SIZE", 0)
     extra = {"batch_size": lote} if lote > 0 else {}
-    with _lock:  # reentrante, igual que preguntar: agente() lockea de nuevo
+    with _lock:  # reentrante: agente() lockea de nuevo
         resultados = agente(setting).predict_batch(list(estados), preguntas, lang="es", **extra)
     return [_extraer(r["answers"]) for r in resultados]
 

@@ -1,8 +1,8 @@
 """Estado de SESIÓN del proceso: lo que no vive en `shared` y un resume debe recuperar.
 
 Tres piezas viven fuera del grafo porque las tools y el LLM no ven `shared`:
-la evidencia de intención del juez de riesgo (el último mensaje del usuario,
-exp/44), el uso de tokens de la sesión (`utils.call_llm`) y el historial de
+el último mensaje del usuario (acompaña cada decisión HITL en el log de
+riesgo), el uso de tokens de la sesión (`utils.call_llm`) y el historial de
 aprobaciones HITL (`utils.aprobaciones`). Este módulo es su ÚNICO dueño para
 guardar y restaurar: `capturar()` las junta en un dict JSON que el checkpoint
 escribe junto al `shared`, y `restaurar()` las repone al rehidratar.
@@ -14,8 +14,8 @@ _ultimo = {"mensaje": ""}
 
 
 def recordar_usuario(texto):
-    """El último mensaje del usuario del chat (evidencia de intención
-    para el juez de riesgo). Lo siembra GetQuestion.post."""
+    """El último mensaje del usuario del chat (la intención detrás de cada
+    decisión HITL del log de riesgo). Lo siembra GetQuestion.post."""
     _ultimo["mensaje"] = "" if texto is None else str(texto)[:1000]
 
 

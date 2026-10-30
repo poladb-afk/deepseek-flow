@@ -1,4 +1,4 @@
-"""Tests deterministas de las métricas PURAS de sonda_laya.py.
+"""Tests deterministas de las métricas PURAS de banco/probes/sonda_laya.py.
 
 La sonda carga un checkpoint de GB y tarda minutos: por eso la aritmética
 de calibración (tabla por bucket, curva de compuerta, ECE) se verifica acá,
@@ -9,7 +9,7 @@ import pytest
 
 
 def test_tabla_confiabilidad_cubre_los_cinco_buckets_y_los_bordes():
-    from sonda_laya import tabla_confiabilidad
+    from banco.probes.sonda_laya import tabla_confiabilidad
 
     casos = [
         {"conf": 0.55, "correcto": True},   # [0.50, 0.70)
@@ -26,7 +26,7 @@ def test_tabla_confiabilidad_cubre_los_cinco_buckets_y_los_bordes():
 
 
 def test_curva_compuerta_mueve_cobertura_y_precision_con_el_umbral():
-    from sonda_laya import curva_compuerta
+    from banco.probes.sonda_laya import curva_compuerta
 
     casos = [
         {"conf": 0.9, "correcto": True},
@@ -41,7 +41,7 @@ def test_curva_compuerta_mueve_cobertura_y_precision_con_el_umbral():
 
 
 def test_ece_local_es_cero_si_calibra_y_uno_si_miente_siempre():
-    from sonda_laya import ece_local
+    from banco.probes.sonda_laya import ece_local
 
     # conf 0.75 con 3 de 4 aciertos: esperado 0.75 = observado 0.75 → gap 0
     calibrado = [{"conf": 0.75, "correcto": c} for c in (True, True, True, False)]
@@ -53,7 +53,7 @@ def test_ece_local_es_cero_si_calibra_y_uno_si_miente_siempre():
 
 def test_especificaciones_mapean_cada_checkpoint_a_su_pregunta():
     """X106: router, voto y base se fueron con el router del chat."""
-    from sonda_laya import ESPECIFICACIONES
+    from banco.probes.sonda_laya import ESPECIFICACIONES
 
     assert set(ESPECIFICACIONES) == {"supervisor", "prefiltro"}
     assert ESPECIFICACIONES["supervisor"]["pregunta"] == "elegir_proxima"

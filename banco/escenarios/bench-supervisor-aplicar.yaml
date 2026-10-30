@@ -10,9 +10,6 @@ permitir_comandos:
 env:
   MAX_TOOL_ROUNDS: "30"
   COMPACTION_CHARS: "200000"
-  # sesión de ESCRITURA de código: el juez de riesgo apagado para no cargar
-  # su checkpoint (2,86 GiB) que solo consume RAM
-  LAYA_MODEL_RIESGO: "0"
 scratch: []
 turnos:
   - id: aplicar

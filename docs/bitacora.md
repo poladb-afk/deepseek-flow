@@ -5908,3 +5908,42 @@ selección explícita con las recomendaciones a la vista):
 3. La continuación ("seguí", "continúa") pasa a **detección por estado del
    thread** (queda pregunta abierta sin responder), no por palabras: la
    lista de `GetQuestion` sale y el grafo decide (F1/F3).
+
+---
+
+## Paso 1 del orden: la deuda de la fase 1 y el juez de riesgo (2026-10-30, X109)
+
+**Por qué ahora**: al armar el roadmap pendiente apareció deuda de fases que
+`elegancia.md` daba por cerradas. Este paso es la parte que no cambia
+conducta.
+
+**Lo que salió**:
+- `LEER_BMO_ENV` y el `.env` de otro proyecto. `_setting` lee el entorno y el
+  `.env` de este proyecto, nada más. `BMO_TASKS_DIR` y `utils.rutas.tasks_dir`
+  también: los únicos que los usaban eran las sondas.
+- `sonda_laya.py` y `sonda_supervisor.py` pasan a `banco/probes/`. La carpeta
+  de tareas y el umbral de despacho son argumentos (`--tareas`, `--umbral`), no
+  settings. La sonda del supervisor exige el checkpoint por argumento: antes
+  lo tomaba de `LAYA_MODEL_SUPERVISOR`. `SONDA_LAYA_CKPT` lo sigue seteando
+  la sonda para sí misma y deja de contar como setting del harness.
+- **El juez de riesgo (decisión del operador: resolverlo acá)**. Se borró.
+  Llevaba desde exp/44 (2026-10-13) observando sin decidir nada, y lo que el
+  fine-tune necesita no es su juicio sino la decisión humana. Con el juez, la
+  fila del log solo se escribía si el checkpoint estaba cargado: sin modelo
+  no había etiqueta. Ahora `riesgo.registrar` escribe cada s/n de comando
+  (comando, último mensaje, respuesta, origen) siempre que `RIESGO_LOG=1`.
+  Salen `juzgar`, `PREGUNTA_RIESGO` (su sha1 queda en
+  `banco/specs/exp44_riesgo.md`), `_observar_riesgo`, `laya.preguntar` (sin
+  otro usuario) y el marcador `[riesgo] observa` del banco.
+
+**Cambio visible, declarado**: con `RIESGO_LOG=1` (default) el log de riesgo
+ahora se escribe aunque no haya checkpoint. Es el comportamiento que el
+README ya prometía para la etiqueta; el README queda con la fila correcta y
+el apagador.
+
+**Ratchets**: `settings_leidos` 64 → 58, `imports_perezosos` 90 → 81,
+`excepts_amplios` 29 → 27. `tests_definidos` 1023 → 1012: se borran los 14
+tests del juez y de bmo y se suman 3 (el log escribe cada decisión humana;
+los settings salen solo del entorno y del `.env` propio; el mensaje de
+`get_api_key`). Hace falta la clave del operador. `tests/inventario_tests.txt`
+pierde exactamente esas 14 líneas.

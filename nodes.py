@@ -317,9 +317,8 @@ class GetQuestion(Node):
         # (/aprobaciones no llega hasta acá: lo atiende exec(), sin gastar turno.)
         anterior = turno(shared)
         shared["turno"] = nuevo_turno()
-        # exp/44: el último mensaje del usuario queda como EVIDENCIA DE
-        # INTENCIÓN para el juez de riesgo (import perezoso; los módulos no
-        # ven `shared`). Plumbing, no decide nada.
+        # El último mensaje del usuario acompaña cada decisión HITL en el log
+        # de riesgo (los módulos no ven `shared`). Plumbing, no decide nada.
         from utils.estado_sesion import recordar_usuario
 
         recordar_usuario(exec_res)

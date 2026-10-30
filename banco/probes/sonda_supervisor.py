@@ -18,23 +18,24 @@ DeepSeek (directo y por eliminación) + el voto crudo de Laya → mayoría
 2-de-3.
 
 Uso:
-    python3 sonda_supervisor.py [checkpoint ...]        # sin args: LAYA_MODEL_SUPERVISOR
-    python3 sonda_supervisor.py --votacion [checkpoint] # mide también la mayoría
+    python3 banco/probes/sonda_supervisor.py CHECKPOINT [...] [--umbral 0.9] [--tareas DIR]
+    python3 banco/probes/sonda_supervisor.py --votacion CHECKPOINT   # mide también la mayoría
 """
+import argparse
 import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+RAIZ = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(RAIZ))
 from supervisor import MAX_FALLOS_POR_HERRAMIENTA, REGISTRO, catalogo  # noqa: E402
 from utils.call_llm import call_llm  # noqa: E402
 from utils.estructura import extraer_yaml  # noqa: E402
-from utils.rutas import tasks_dir  # noqa: E402
 
-# El directorio de tests se resuelve por setting (default: la ruta histórica de
-# esta máquina) para que la sonda no quede clavada a un path local.
-_TAREAS = tasks_dir()
-TEST = _TAREAS / "supervisor_dispatch_test.jsonl"
+# Los tests a mano del fine-tune viven en el repo de entrenamiento (bmo): la
+# ruta de esta máquina es el default y `--tareas` la cambia.
+TAREAS = Path.home() / "Documentos" / "00_IA" / "bmo" / "train" / "tasks"
+UMBRAL_DESPACHO = 0.9  # el del Choose: un paso quemado pesa más que la llamada que ahorra
 
 
 # Congelada: task supervisor_dispatch (bmo/train/tasks/supervisor_dispatch.yaml).
@@ -99,12 +100,10 @@ def elegir_con_deepseek(tarea, hechos, fuera, estilo="directo"):
     return eleccion
 
 
-def correr(agente, casos, votacion=False):
-    from utils.call_llm import _setting
+def correr(agente, casos, votacion=False, alto=UMBRAL_DESPACHO):
     from utils.laya import _confianza, veredicto
     from utils.votacion import mayoria
 
-    alto = _setting("LAYA_UNSURE_HIGH_SUPERVISOR", "0.9")  # el umbral histórico del Choose
     filas, crudo_ok, local_ok, locales, final_ok = [], 0, 0, 0, 0
     for caso in casos:
         r = agente.system_one(
@@ -135,34 +134,28 @@ def correr(agente, casos, votacion=False):
     return filas, crudo_ok, local_ok, locales, final_ok
 
 
-def main(args):
-    votacion = "--votacion" in args
-    paths = [a for a in args if not a.startswith("--")]
-    casos = [json.loads(linea) for linea in TEST.read_text(encoding="utf-8").splitlines() if linea.strip()]
-    if not paths:
-        from utils.call_llm import _setting
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="sonda_supervisor", description="el Choose del supervisor, medido")
+    parser.add_argument("checkpoints", nargs="+", help="uno o más checkpoints de Laya (se cargan de a uno)")
+    parser.add_argument("--votacion", action="store_true", help="mide también la mayoría 2-de-3 (gasta API)")
+    parser.add_argument("--umbral", type=float, default=UMBRAL_DESPACHO, help="confianza mínima para despachar local")
+    parser.add_argument("--tareas", type=Path, default=TAREAS, help="carpeta con supervisor_dispatch_test.jsonl")
+    args = parser.parse_args(argv)
+    test = args.tareas / "supervisor_dispatch_test.jsonl"
+    casos = [json.loads(linea) for linea in test.read_text(encoding="utf-8").splitlines() if linea.strip()]
+    import laya
 
-        setting = _setting("LAYA_MODEL_SUPERVISOR", "")
-        if not setting:
-            print("sin LAYA_MODEL_SUPERVISOR: pasá checkpoints como argumentos")
-            return
-        import laya
-
-        paths, agentes = [setting], [laya.load(setting, device="cpu")]
-    else:
-        import laya
-
-        agentes = [laya.load(p, device="cpu") for p in paths]
-    for nombre, agente in zip(paths, agentes, strict=True):
-        filas, crudo, local_ok, locales, final = correr(agente, casos, votacion)
-        print(f"\n=== {nombre}{' (con votación 2-de-3)' if votacion else ''} ===")
+    for nombre in args.checkpoints:
+        agente = laya.load(nombre, device="cpu")
+        filas, crudo, local_ok, locales, final = correr(agente, casos, args.votacion, alto=args.umbral)
+        print(f"\n=== {nombre}{' (con votación 2-de-3)' if args.votacion else ''} ===")
         for id_, esperado, eleccion, conf, decision, detalle, marca in filas:
             print(f"  {marca} {id_:<26} esperado={esperado:<16} crudo={str(eleccion):<16} "
                   f"conf={conf:.2f} → {decision} · {detalle}")
-        extra = f" · sistema (laya+mayoría): {final}/{len(casos)}" if votacion else ""
+        extra = f" · sistema (laya+mayoría): {final}/{len(casos)}" if args.votacion else ""
         print(f"crudo: {crudo}/{len(casos)} · despachos locales de Laya: {locales}/{len(casos)} "
               f"· correctos entre los locales: {local_ok}/{locales or 1}{extra}")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()

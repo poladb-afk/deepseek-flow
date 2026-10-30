@@ -49,10 +49,9 @@ ignore = [
 testpaths = ["tests"]
 # Por qué un test se saltea: el marker dice el RECURSO, el skip su motivo.
 # Correr el subconjunto determinista:
-#   pytest -m "not laya and not bmo and not red and not datos and not git"
+#   pytest -m "not laya and not red and not datos and not git"
 markers = [
     "laya: requiere el paquete laya y un checkpoint local",
-    "bmo: requiere los archivos de bmo (BMO_TASKS_DIR)",
     "red: requiere red o dependencias opcionales (ddgs, fastmcp)",
     "datos: requiere artefactos locales ya generados (trazas.db, evidencia de sondas)",
     "git: requiere git (algunos tests, además, el repo inicializado: ver tests/conftest.py)",

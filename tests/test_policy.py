@@ -357,7 +357,7 @@ def test_hook_pre_que_lanza_falla_cerrado(tmp_path):
         assert not corrio, "la implementación NO debe correr si la guarda lanzó"
         assert res["content"].startswith("ERROR: la guarda previa de zz_guarda falló (ValueError)")
     finally:
-        fs_tools.HOOKS_PRE.pop("zz_guarda", None)
+        fs_tools.HOOKS_PRE.pop("zz_guarda")
 
 @pytest.mark.parametrize("comandos,nivel,control,nivel_control", [
     (["rm -rf /tmp/x", "rm -fr /tmp/x", "ls && rm -rf /"],
@@ -492,23 +492,23 @@ def test_aprobar_doble_confirmacion_y_motivos(monkeypatch, capsys):
 
     respuestas = iter([True, True])
     monkeypatch.setattr(coding, "_approve", lambda _p: next(respuestas))
-    aprobado, motivo = coding._aprobar("echo hola", "confirmar_doble", None)
+    aprobado, motivo = coding._aprobar("echo hola", "confirmar_doble")
     assert aprobado is True and motivo == ""
     salida = capsys.readouterr().out
     assert "doble confirmación" in salida and "echo hola" in salida
 
     respuestas = iter([True, False])
     monkeypatch.setattr(coding, "_approve", lambda _p: next(respuestas))
-    aprobado, motivo = coding._aprobar("echo hola", "confirmar_doble", None)
+    aprobado, motivo = coding._aprobar("echo hola", "confirmar_doble")
     assert aprobado is False and motivo == RECHAZO_DOBLE
 
     respuestas = iter([False])
     monkeypatch.setattr(coding, "_approve", lambda _p: next(respuestas))
-    aprobado, motivo = coding._aprobar("echo hola", "preguntar", None)
+    aprobado, motivo = coding._aprobar("echo hola", "preguntar")
     assert aprobado is False and motivo == RECHAZO
 
     monkeypatch.setattr(coding, "_approve", no_preguntar)
-    aprobado, motivo = coding._aprobar("cat x", "auto", None)
+    aprobado, motivo = coding._aprobar("cat x", "auto")
     assert aprobado is True and motivo == ""
     assert "auto: solo-lectura" in capsys.readouterr().out
 

@@ -3,15 +3,11 @@
 Los settings se resuelven en tiempo de ejecución en este orden:
   1. Variable de entorno del proceso
   2. El .env de ESTE proyecto
-  3. El .env de otro proyecto (bmo), SOLO con LEER_BMO_ENV=1 — default 0
-El harness es autónomo por default: leer el .env ajeno era una dependencia
-invisible (medido: la API key y el modelo salían de ahí sin avisar). La clave
-nunca se imprime ni se loguea.
+Nada más: el harness es autónomo. La clave nunca se imprime ni se loguea.
 
 Una variable de entorno VACÍA cuenta como no seteada (`_setting` usa
 `if value:`) y se cae al .env: documentado acá porque el consumidor ya lo
-sufrió (medido en `utils/riesgo.py`: `LAYA_MODEL_RIESGO=` no apagaba el
-checkpoint).
+sufrió: `X=` en el entorno no apaga un `X=1` del .env).
 """
 import contextlib
 import os
@@ -22,7 +18,6 @@ from openai import AsyncOpenAI, OpenAI
 
 DEFAULT_MODEL = "deepseek-flash"  # alias oficial de DeepSeek V4.1-Flash
 DEFAULT_BASE_URL = "https://api.deepseek.com"
-BMO_ENV = Path.home() / "Documentos" / "00_IA" / "bmo" / ".env"
 PROJECT_ENV = Path(__file__).resolve().parent.parent / ".env"
 
 
@@ -46,27 +41,11 @@ def _from_env_file(path, name):
     return None
 
 
-def _leer_bmo_env():
-    """¿se lee también el .env de bmo? Default 0 (el harness es autónomo).
-
-    Se resuelve SIN _setting() a propósito: _setting es justamente la que lee
-    bmo, así que preguntarle a ella sería morderse la cola."""
-    valor = os.environ.get("LEER_BMO_ENV")
-    if valor is None:
-        valor = _from_env_file(PROJECT_ENV, "LEER_BMO_ENV")
-    return (valor or "0").strip().lower() in ("1", "true", "si", "sí", "yes")
-
-
 def _setting(name, default=None):
     value = os.environ.get(name)
     if value:
         return value
-    rutas = (PROJECT_ENV, BMO_ENV) if _leer_bmo_env() else (PROJECT_ENV,)
-    for env_path in rutas:
-        value = _from_env_file(env_path, name)
-        if value:
-            return value
-    return default
+    return _from_env_file(PROJECT_ENV, name) or default
 
 
 def _entero(nombre, default):
@@ -87,8 +66,7 @@ def get_api_key():
         raise RuntimeError(
             "API key de DeepSeek no encontrada. Opciones:\n"
             "  1. export DEEPSEEK_API_KEY=...\n"
-            "  2. LLM_API_KEY=... en el .env de este proyecto "
-            "(el de bmo solo si LEER_BMO_ENV=1)"
+            "  2. LLM_API_KEY=... en el .env de este proyecto"
         )
     return key
 

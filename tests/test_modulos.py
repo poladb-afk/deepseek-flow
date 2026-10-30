@@ -450,17 +450,3 @@ def test_search_web_degrada_a_error_sin_red(monkeypatch):
     # si esto falla, el test no llegó a la llamada que debía reventar
     assert llamadas == [("x", 3)]
     assert isinstance(r, str) and r.startswith("ERROR: búsqueda web falló"), r
-
-def test_tasks_dir_una_sola_fuente_para_las_sondas(tmp_path, monkeypatch):
-    """Las tres sondas comparten utils.rutas.tasks_dir (antes: el mismo default
-    copiado en cada una). El setting manda; sin setting, el default histórico."""
-    from pathlib import Path
-
-    from utils.rutas import tasks_dir
-
-    monkeypatch.setenv("BMO_TASKS_DIR", str(tmp_path / "tasks"))
-    assert tasks_dir() == tmp_path / "tasks"
-
-    monkeypatch.delenv("BMO_TASKS_DIR", raising=False)
-    sin_setting = tasks_dir()
-    assert isinstance(sin_setting, Path) and sin_setting.name == "tasks"

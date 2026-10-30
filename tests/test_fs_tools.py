@@ -69,10 +69,10 @@ def test_search_files_con_path_a_archivo():
     archivo que sí lo contiene."""
     from utils.fs_tools import search_files
 
-    r = search_files(query="PREGUNTA_DESPACHO", path="sonda_supervisor.py")
+    r = search_files(query="PREGUNTA_DESPACHO", path="banco/probes/sonda_supervisor.py")
     assert "sonda_supervisor.py" in r and "Ningún archivo" not in r
 
-    r = search_files(query="PREGUNTA", path="sonda_laya.py")
+    r = search_files(query="PREGUNTA", path="banco/probes/sonda_laya.py")
     assert "sonda_laya.py" in r and "Ningún archivo" not in r
 
 def test_recorrido_no_sigue_enlaces_simbolicos(tmp_path, monkeypatch):

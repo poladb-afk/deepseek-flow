@@ -9,7 +9,7 @@ armado con PocketFlow.
 Un chat que **no cierra** y que, para responder sobre los archivos del
 usuario, los explora por sí mismo: decide cuándo listar y cuándo leer
 (patrones Chat + Agent del cookbook). Las credenciales viven **fuera** del
-proyecto: `DEEPSEEK_API_KEY` en el entorno o `LLM_API_KEY` en el `.env` de bmo.
+código: `DEEPSEEK_API_KEY` en el entorno o `LLM_API_KEY` en el `.env` del proyecto (ignorado por git).
 
 ## Flujo
 
@@ -453,7 +453,7 @@ al planner con feedback; presupuesto MAX_ROUNDS=2. Web por ddgs,
 structured output en todo (extraer_yaml + assert + retry).
 
 ### Supervisor — el loop del kernel con las leyes del ejecutor (v3, H2 PR 2)
-`main.py supervisor "tarea"` · [supervisor.py](../supervisor.py) · [sonda_supervisor.py](../sonda_supervisor.py)
+`main.py supervisor "tarea"` · [supervisor.py](../supervisor.py) · [sonda_supervisor.py](../banco/probes/sonda_supervisor.py)
 
 ```mermaid
 flowchart TD
@@ -516,10 +516,10 @@ esquema ya ejecutado → tarea resuelta. La corrida (4) destapó dos fixes:
 - **Feedback reforzado**: el reintento corregía a ciegas ("programa") en
   vez de leer el esquema visible en hechos; ahora el prompt exige copiar
   los nombres EXACTOS de los pasos ejecutados. El umbral de despacho es
-propio y MÁS exigente que el del router (`LAYA_UNSURE_HIGH_SUPERVISOR`,
+propio y MÁS exigente que el del router (`--umbral` de la sonda,
 0.9): un paso quemado pesa más que la llamada que ahorra. utils/laya
 cachea agentes POR setting: el router y el supervisor son checkpoints
-distintos (`LAYA_MODEL` / `LAYA_MODEL_SUPERVISOR`).
+distintos (`LAYA_MODEL` / el que se le pasa a la sonda).
 
 Ciclo de fine-tune medido (test a mano 24, todas las opciones cubiertas):
 
@@ -734,7 +734,7 @@ defensible one" en el prompt de la task + verify lo dejaron en 2,3%
 `/kaggle/input/datasets/<owner>/<slug>`, no en `/kaggle/input/<slug>`:
 resolver el base buscando `model.safetensors`, no por nombre.
 
-Acá termina la evidencia heredada y empieza la propia. `sonda_laya.py`
+Acá termina la evidencia heredada y empieza la propia. `banco/probes/sonda_laya.py`
 (exp/7) convierte esas afirmaciones en números medidos con nuestra vara:
 corre el test etiquetado de UN checkpoint a la vez, porque la RAM lo impone
 (cargar dos en un mismo proceso revienta la memoria, medido), así que el
@@ -968,8 +968,7 @@ directorio (la lección del heartbeat), y el .gitignore se simplificó a
 
 Todo lo que mide (flywheel, juez de riesgo, memoria, preguntas) depende de
 procedencia auditable. Por eso la suite NO escribe los datos de producción:
-un fixture autouse de `tests/conftest.py` pone `LAYA_MODEL_RIESGO=0` (nunca
-carga el checkpoint real), y manda `RIESGO_ARCHIVO`, `PREGUNTAS_ARCHIVO`,
+un fixture autouse de `tests/conftest.py` manda `RIESGO_ARCHIVO`, `PREGUNTAS_ARCHIVO`,
 `LAYA_LOG_ARCHIVO`, `MEMORIA_DIR` y `THREADS_DIR` al tmp de pytest; los tests
 que prueban esos caminos fijan su propia ruta. El banco tampoco toca la
 biblioteca: `banco.banco._env_del_chat` fuerza

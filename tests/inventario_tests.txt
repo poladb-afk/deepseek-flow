@@ -516,7 +516,6 @@ tests/test_llm.py::test_el_stream_contabiliza_en_el_modelo_del_request
 tests/test_llm.py::test_el_stream_pide_usage_y_lo_captura_del_ultimo_chunk
 tests/test_llm.py::test_el_usage_acumula_por_modelo_con_split_de_cache
 tests/test_llm.py::test_from_env_file_tolera_export
-tests/test_llm.py::test_get_api_key_error_menciona_bmo_condicional
 tests/test_llm.py::test_historial_canonico_sin_reasoning
 tests/test_llm.py::test_respuesta_sin_usage_cuenta_cero_y_no_rompe
 tests/test_llm.py::test_sin_split_de_cache_todo_el_prompt_cotiza_como_miss
@@ -584,7 +583,6 @@ tests/test_modulos.py::test_elegir_exposicion_normal_sin_aviso
 tests/test_modulos.py::test_elegir_exposicion_sin_descripcion
 tests/test_modulos.py::test_mime_por_contenido_ignora_el_nombre
 tests/test_modulos.py::test_search_web_degrada_a_error_sin_red
-tests/test_modulos.py::test_tasks_dir_una_sola_fuente_para_las_sondas
 tests/test_modulos.py::test_ver_imagen_data_url_bien_formada
 tests/test_modulos.py::test_ver_imagen_demasiado_grande_sin_llamar
 tests/test_modulos.py::test_ver_imagen_tipo_invalido_por_contenido
@@ -614,7 +612,6 @@ tests/test_pendientes.py::test_el_scratch_del_banco_no_sale_del_proyecto
 tests/test_pendientes.py::test_escribir_atomico_publica_y_no_deja_tmp
 tests/test_pendientes.py::test_escribir_salida_es_atomico
 tests/test_pendientes.py::test_la_cli_sigue_pisando
-tests/test_pendientes.py::test_leer_bmo_env_default_no_lee_el_env_ajeno
 tests/test_pendientes.py::test_los_escenarios_usan_placeholders
 tests/test_pendientes.py::test_marcador_de_compaccion_menciona_el_ultimo_respaldo
 tests/test_pendientes.py::test_marcador_sin_respaldo_no_promete_memoria
@@ -743,21 +740,10 @@ tests/test_replay.py::test_no_chat_no_adyacencia
 tests/test_replay.py::test_nodo_desconocido_sin_clase_ni_tool
 tests/test_replay.py::test_replay_runs_end_to_end
 tests/test_replay.py::test_tools_del_action_space_y_fantasmas
-tests/test_riesgo.py::test_el_contrato_de_riesgo_queda_congelado_sha1
-tests/test_riesgo.py::test_el_contrato_tiene_las_tres_preguntas_de_una_dimension
 tests/test_riesgo.py::test_estado_riesgo_cuenta_las_delegadas_aparte
 tests/test_riesgo.py::test_estado_sesion_recordar_y_leer
-tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[ 0 ]
-tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[0]
-tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[OFF]
-tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[no]
-tests/test_riesgo.py::test_juzgar_apagado_explicito_es_none[off]
-tests/test_riesgo.py::test_juzgar_con_fallo_degrade_a_none
-tests/test_riesgo.py::test_juzgar_pasa_el_estado_recortado
-tests/test_riesgo.py::test_juzgar_sin_setting_es_none
 tests/test_riesgo.py::test_la_etiqueta_delegada_no_cuenta_como_humana
 tests/test_riesgo.py::test_la_suite_no_escribe_los_logs_ni_la_memoria_de_produccion
-tests/test_riesgo.py::test_observar_riesgo_solo_juzga_bandas_humanas
 tests/test_riesgo.py::test_registrar_escribe_la_linea_completa
 tests/test_riesgo.py::test_registrar_gate_apagado_no_escribe
 tests/test_riesgo.py::test_registrar_marca_el_origen_de_la_decision

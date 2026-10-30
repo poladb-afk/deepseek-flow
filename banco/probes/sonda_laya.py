@@ -14,8 +14,8 @@ escribe y el proceso TERMINA. No hay modo multi-checkpoint ni servidor:
 cargar dos de estos en el mismo proceso revienta la memoria (medido).
 
 Uso:
-    python3 sonda_laya.py supervisor    # .modelos/supervisor_dispatch-1k + test (24)
-    python3 sonda_laya.py prefiltro      # .modelos/router_prefiltro + test propio (28 casos)
+    python3 banco/probes/sonda_laya.py supervisor    # .modelos/supervisor_dispatch-1k + test (24)
+    python3 banco/probes/sonda_laya.py prefiltro      # .modelos/router_prefiltro + test propio (28 casos)
 
 (router, voto, voto_en_router y base se fueron con el router del chat, X106:
 medían contratos que el producto ya no tiene.)
@@ -30,21 +30,15 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-RAIZ = Path(__file__).resolve().parent
+RAIZ = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(RAIZ))
 SALIDA = RAIZ / "salidas" / "evals"
 
 # Los contratos EXISTENTES se importan, no se copian: una copia local derivaría
 # del contrato del fine-tune sin que ningún test lo note (mismo criterio que
 # la sonda del router, retirada en X106). Los tests son los mismos que leen las sondas.
-from sonda_supervisor import PREGUNTA_DESPACHO  # noqa: E402
+from banco.probes.sonda_supervisor import PREGUNTA_DESPACHO, TAREAS  # noqa: E402
 from utils.contexto import PREGUNTA_PREFILTRO  # noqa: E402
-from utils.rutas import tasks_dir  # noqa: E402
-
-# El directorio de tests se resuelve por setting (default: la ruta histórica de
-# esta máquina) para que la sonda no quede clavada a un path local.
-TAREAS = tasks_dir()
 
 # El mapeo nombre → (checkpoint, test, pregunta, arma el estado por caso).
 # El estado de cada familia es el contrato del fine-tune correspondiente:
@@ -54,14 +48,14 @@ TAREAS = tasks_dir()
 ESPECIFICACIONES = {
     "supervisor": {
         "checkpoint": ".modelos/supervisor_dispatch-1k",
-        "test": TAREAS / "supervisor_dispatch_test.jsonl",
+        "test": "supervisor_dispatch_test.jsonl",
         "pregunta": "elegir_proxima",
         "contrato": PREGUNTA_DESPACHO,
         "estado": lambda f: {"tarea": f["tarea"], "hechos": f.get("hechos", "")},
     },
     "prefiltro": {
         "checkpoint": ".modelos/router_prefiltro",
-        "test": TAREAS / "router_prefiltro_test.jsonl",
+        "test": "router_prefiltro_test.jsonl",
         "pregunta": "aporta_contexto",
         "contrato": PREGUNTA_PREFILTRO,
         "estado": lambda f: {"consulta": f["consulta"], "bloque": f["bloque"]},
@@ -197,7 +191,7 @@ def cargar_casos(test):
     return [json.loads(linea) for linea in test.read_text(encoding="utf-8").splitlines() if linea.strip()]
 
 
-def correr(nombre, spec):
+def correr(nombre, spec, tareas=TAREAS):
     """Carga UN checkpoint, corre el test caso por caso y devuelve el informe.
 
     La carga se mide APARTE de la inferencia: el tiempo de carga en frío es
@@ -206,9 +200,10 @@ def correr(nombre, spec):
     """
     from utils.laya import agente
 
-    casos = cargar_casos(spec["test"])
+    test = Path(tareas) / spec["test"]
+    casos = cargar_casos(test)
     if not casos:
-        raise SystemExit(f"test vacío: {spec['test']}")
+        raise SystemExit(f"test vacío: {test}")
 
     # Un setting PROPIO por corrida: utils.laya cachea agentes por setting y
     # hereda HF_HUB_OFFLINE antes de importar, el caché de errores y el RLock.
@@ -325,10 +320,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Evidencia de UN checkpoint de Laya (ECE, compuerta, RAM).")
     parser.add_argument("nombre", choices=sorted(ESPECIFICACIONES), help="checkpoint a medir (uno por proceso)")
     parser.add_argument("--salida", default=None, help="directorio de salida (default: salidas/evals)")
+    parser.add_argument("--tareas", type=Path, default=TAREAS, help="carpeta con los tests a mano del fine-tune")
     args = parser.parse_args(argv)
 
     spec = ESPECIFICACIONES[args.nombre]
-    informe = correr(args.nombre, spec)
+    informe = correr(args.nombre, spec, args.tareas)
 
     destino = Path(args.salida) if args.salida else SALIDA
     destino.mkdir(parents=True, exist_ok=True)

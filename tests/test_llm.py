@@ -120,9 +120,9 @@ def test_from_env_file_tolera_export(tmp_path):
     assert c._from_env_file(env, "NO_EXISTE") is None
 
 
-def test_get_api_key_error_menciona_bmo_condicional(monkeypatch):
-    """A68: el error ofrecía el .env de bmo como fuente incondicional; bmo
-    solo se lee con LEER_BMO_ENV=1. El mensaje debe decirlo."""
+def test_get_api_key_error_solo_ofrece_las_fuentes_del_proyecto(monkeypatch):
+    """A68/X109: el error lista las fuentes que existen (entorno y el .env de
+    este proyecto); el .env de otro proyecto ya no es una opción."""
     import pytest
 
     import utils.call_llm as c
@@ -131,7 +131,9 @@ def test_get_api_key_error_menciona_bmo_condicional(monkeypatch):
     monkeypatch.setattr(c, "_setting", lambda *a, **k: None)
     with pytest.raises(RuntimeError) as exc:
         c.get_api_key()
-    assert "LEER_BMO_ENV=1" in str(exc.value)
+    mensaje = str(exc.value)
+    assert "DEEPSEEK_API_KEY" in mensaje and ".env de este proyecto" in mensaje
+    assert "bmo" not in mensaje.lower()
 
 
 # ── exp/89: tokens por llamada ──────────────────────────────────────────

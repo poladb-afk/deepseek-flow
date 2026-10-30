@@ -22,7 +22,7 @@ supervisor.
 - **Sintetizar**: igual que siempre (informe + sección "Pasos").
 
 Anti-recursión (L1): run_supervisor no está en el catálogo. El contrato del
-fine-tune supervisor_dispatch vive en sonda_supervisor.py.
+fine-tune supervisor_dispatch vive en banco/probes/sonda_supervisor.py.
 
 Uso: python3 main.py supervisor "tarea" [--salida supervisor.md]
 """
