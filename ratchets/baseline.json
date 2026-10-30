@@ -24,9 +24,6 @@
         "carga_trazas.py": [
           104
         ],
-        "evals.py": [
-          139
-        ],
         "heartbeat.py": [
           81
         ],
@@ -40,7 +37,7 @@
           131
         ],
         "modules/evals.py": [
-          36
+          34
         ],
         "modules/memoria.py": [
           147,
@@ -50,15 +47,13 @@
           74
         ],
         "nodes.py": [
-          59,
-          798,
-          870
+          61
         ],
         "research.py": [
           78
         ],
         "sonda_laya.py": [
-          205
+          173
         ],
         "utils/aprobaciones.py": [
           47
@@ -83,9 +78,6 @@
         "utils/laya.py": [
           97
         ],
-        "utils/laya_routing.py": [
-          127
-        ],
         "utils/mcp_client.py": [
           74,
           96
@@ -104,7 +96,7 @@
           16
         ]
       },
-      "metrica": 33
+      "metrica": 29
     },
     "funciones_anidadas": {
       "detalle": {},
@@ -142,9 +134,7 @@
     "imports_perezosos": {
       "detalle": {
         "bench_juez.py:correr": 1,
-        "evals.py:correr_bench": 4,
         "fable_judge.py:_ejecutar_por_policy": 1,
-        "flow.py:create_agent_flow": 1,
         "heartbeat.py:correr": 2,
         "heartbeat.py:guardar_estado": 1,
         "heartbeat.py:main": 1,
@@ -168,14 +158,11 @@
         "modules/rag.py:_prefiltrar": 2,
         "modules/supervisor.py:run_supervisor": 2,
         "modules/vision.py:ver_pdf": 1,
-        "nodes.py:AgentStep": 2,
         "nodes.py:GetQuestion": 4,
-        "nodes.py:LayaRouter": 6,
-        "nodes.py:PreFetch": 3,
+        "nodes.py:PreFetch": 2,
         "nodes.py:VerificarCitas": 1,
         "nodes.py:alcance_amplio": 1,
         "nodes.py:registrar_pregunta": 1,
-        "nodes.py:voto_confirmacion_router": 4,
         "rag.py:EmbedChunks": 1,
         "rag.py:buscar": 1,
         "rag.py:indexar": 1,
@@ -183,15 +170,12 @@
         "ratchet.py:sha256": 1,
         "replay.py:_grafo_debate": 1,
         "replay.py:_grafo_rag": 1,
-        "replay.py:_grafos_vivos": 3,
+        "replay.py:_grafos_vivos": 1,
         "replay.py:_herramientas_vivas": 1,
-        "replay.py:replay_runs": 1,
         "resume.py:main": 1,
         "resume.py:migrar": 1,
         "sonda_laya.py:correr": 1,
         "sonda_laya.py:ece": 1,
-        "sonda_router.py:correr": 1,
-        "sonda_router.py:main": 2,
         "sonda_supervisor.py:correr": 3,
         "sonda_supervisor.py:main": 3,
         "supervisor.py:system_prompt": 1,
@@ -205,13 +189,6 @@
         "utils/hitl_web.py:_Handler": 4,
         "utils/kernel.py:agente": 1,
         "utils/laya.py:_cargar_checkpoint": 1,
-        "utils/laya_routing.py:_umbral": 1,
-        "utils/laya_routing.py:config_router": 2,
-        "utils/laya_routing.py:config_voto": 2,
-        "utils/laya_routing.py:decide_voto": 1,
-        "utils/laya_routing.py:registrar_decision": 2,
-        "utils/laya_routing.py:registrar_resultado": 1,
-        "utils/laya_routing.py:version_laya": 1,
         "utils/mcp_client.py:_listar": 2,
         "utils/mcp_client.py:_llamar": 2,
         "utils/prefetch.py:decidir": 1,
@@ -226,7 +203,7 @@
         "utils/websearch.py:search_web": 1,
         "visor.py:vigilar": 1
       },
-      "metrica": 124
+      "metrica": 90
     },
     "nodos_largos": {
       "detalle": {
@@ -239,13 +216,12 @@
         "juez.py:Judge": 144,
         "juez_lote.py:CorrerJuez": 51,
         "juez_lote.py:JuezLoteFlow": 108,
-        "nodes.py:AgentStep": 72,
+        "nodes.py:AgentStep": 60,
         "nodes.py:GetQuestion": 56,
-        "nodes.py:LayaRouter": 155,
         "nodes.py:VerificarCitas": 53,
         "research.py:Synthesizer": 60
       },
-      "metrica": 14
+      "metrica": 13
     },
     "producto_conoce_lab": {
       "detalle": {},
@@ -312,30 +288,8 @@
         "INFORME_CARPETA": [
           "informe.py"
         ],
-        "LAYA_ALPHA": [
-          "utils/laya_routing.py"
-        ],
-        "LAYA_ALPHA_VOTO": [
-          "utils/laya_routing.py"
-        ],
         "LAYA_BATCH_SIZE": [
           "utils/laya.py"
-        ],
-        "LAYA_CALIBRACION_ROUTER": [
-          "utils/laya_routing.py"
-        ],
-        "LAYA_CALIBRACION_VOTO": [
-          "utils/laya_routing.py"
-        ],
-        "LAYA_LOG_ARCHIVO": [
-          "utils/laya_routing.py"
-        ],
-        "LAYA_LOG_DECISIONES": [
-          "nodes.py",
-          "utils/laya_routing.py"
-        ],
-        "LAYA_LOG_PREGUNTA": [
-          "utils/laya_routing.py"
         ],
         "LAYA_MODEL": [
           "utils/laya.py"
@@ -349,24 +303,8 @@
         "LAYA_MODEL_SUPERVISOR": [
           "sonda_supervisor.py"
         ],
-        "LAYA_MODEL_VOTO": [
-          "nodes.py"
-        ],
-        "LAYA_MODO": [
-          "utils/laya_routing.py"
-        ],
-        "LAYA_UNSURE_HIGH": [
-          "utils/laya.py",
-          "utils/laya_routing.py"
-        ],
         "LAYA_UNSURE_HIGH_SUPERVISOR": [
           "sonda_supervisor.py"
-        ],
-        "LAYA_UNSURE_HIGH_VOTO": [
-          "utils/laya_routing.py"
-        ],
-        "LAYA_UNSURE_LOW": [
-          "utils/laya.py"
         ],
         "LEER_BMO_ENV": [
           "utils/call_llm.py"
@@ -466,13 +404,6 @@
         "UMBRAL_SIN_PROGRESO": [
           "nodes.py"
         ],
-        "USE_LAYA_ROUTER": [
-          "flow.py",
-          "replay.py"
-        ],
-        "USE_VOTACION": [
-          "nodes.py"
-        ],
         "WEBCHAT": [
           "utils/webchat.py"
         ],
@@ -495,7 +426,7 @@
           "utils/hitl_web.py"
         ]
       },
-      "metrica": 78
+      "metrica": 64
     },
     "tests_definidos": {
       "detalle": {
@@ -504,25 +435,23 @@
         "tests/test_auditoria_2026_10_26.py": 39,
         "tests/test_banco.py": 20,
         "tests/test_bench.py": 18,
-        "tests/test_bench_voto.py": 10,
         "tests/test_caracterizacion_chat.py": 12,
         "tests/test_chat_flujo.py": 24,
         "tests/test_citas.py": 7,
         "tests/test_compaccion.py": 25,
-        "tests/test_consolidacion.py": 44,
-        "tests/test_contratos.py": 6,
+        "tests/test_consolidacion.py": 38,
+        "tests/test_contratos.py": 4,
         "tests/test_convergencia.py": 9,
         "tests/test_core_sin_modulos.py": 2,
         "tests/test_costos.py": 11,
         "tests/test_db.py": 18,
-        "tests/test_delegar.py": 21,
+        "tests/test_delegar.py": 20,
         "tests/test_deriva_reglas.py": 7,
         "tests/test_docs_sin_deriva.py": 6,
-        "tests/test_estado_flywheel.py": 3,
         "tests/test_estado_riesgo.py": 3,
         "tests/test_estado_turno.py": 7,
         "tests/test_estilo_humano.py": 9,
-        "tests/test_evals.py": 18,
+        "tests/test_evals.py": 13,
         "tests/test_f_prompt.py": 9,
         "tests/test_fable.py": 29,
         "tests/test_fable_dominios.py": 6,
@@ -532,33 +461,29 @@
         "tests/test_forma_larga.py": 5,
         "tests/test_fs_tools.py": 16,
         "tests/test_grafo_readme.py": 1,
-        "tests/test_grafos_sin_calles_muertas.py": 4,
+        "tests/test_grafos_sin_calles_muertas.py": 3,
         "tests/test_h3b_swarm.py": 6,
-        "tests/test_h3g_reglas.py": 8,
         "tests/test_hitl.py": 23,
         "tests/test_inventario.py": 3,
         "tests/test_kernel.py": 17,
-        "tests/test_laya.py": 6,
+        "tests/test_laya.py": 5,
         "tests/test_laya_cache_reintento.py": 5,
-        "tests/test_laya_routing.py": 38,
         "tests/test_llm.py": 13,
         "tests/test_mcp_laya.py": 11,
         "tests/test_memoria.py": 25,
         "tests/test_minar_errores.py": 16,
         "tests/test_modulos.py": 19,
         "tests/test_novedad.py": 7,
-        "tests/test_pendientes.py": 39,
+        "tests/test_pendientes.py": 35,
         "tests/test_policy.py": 26,
         "tests/test_policy_bypass.py": 35,
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
-        "tests/test_producto_router.py": 3,
         "tests/test_ratchet.py": 35,
         "tests/test_ratchet_elegancia.py": 15,
-        "tests/test_replay.py": 18,
+        "tests/test_replay.py": 16,
         "tests/test_riesgo.py": 19,
         "tests/test_rondas.py": 6,
-        "tests/test_router.py": 12,
         "tests/test_skills.py": 8,
         "tests/test_smoke.py": 5,
         "tests/test_sonda_laya.py": 4,
@@ -571,16 +496,12 @@
         "tests/test_twins_extractores.py": 5,
         "tests/test_ui.py": 6,
         "tests/test_utils_compartidos.py": 7,
-        "tests/test_veredicto_router.py": 9,
         "tests/test_visor.py": 4,
         "tests/test_viz.py": 5,
-        "tests/test_voto_dataset_gen.py": 4,
-        "tests/test_voto_reentreno.py": 11,
-        "tests/test_voto_router.py": 8,
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1132
+      "metrica": 1004
     },
     "texto_de_prompt": {
       "detalle": {
@@ -595,13 +516,9 @@
       "detalle": {
         "juez.py:TOOL_CONTEXTO_RE": 1,
         "nodes.py:GetQuestion": 1,
-        "utils/aprobaciones.py:YES": 1,
-        "utils/laya_routing.py:RE_TEMPORAL": 1,
-        "utils/laya_routing.py:_IMPERATIVOS_CAPACIDAD": 1,
-        "utils/laya_routing.py:_RELLENOS": 1,
-        "utils/laya_routing.py:_RE_OBJETO_CAPACIDAD": 1
+        "utils/aprobaciones.py:YES": 1
       },
-      "metrica": 7
+      "metrica": 3
     }
   },
   "version": 1

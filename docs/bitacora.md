@@ -5802,3 +5802,9 @@ tests (`tests/inventario_tests.txt`) pierde las mismas 105 entradas de la foto.
 en las 12 preguntas directas, USD ≤ 1,5× la base, descarrilos ≤ base, 0
 timeouts, `exp55-skills` igual.
 
+
+**Aceptación del ratchet de la 3b/4a** (2026-10-30): el operador aceptó con
+su clave el `tests_definidos` 1132→1004 (−128: 106 del router borrados
+enteros y 22 sueltos, contra 7 nuevos del camino sin router). Mejoras que
+entraron solas: vocabulario 7→3, settings 78→64, excepts 33→29,
+imports_perezosos 124→90, nodos_largos 14→13.
