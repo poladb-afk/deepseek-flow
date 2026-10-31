@@ -5,7 +5,9 @@ Documento vivo: se actualiza en cada hito (X*n*). Lo estable está en
 `docs/bitacora.md`. Acá va lo que hoy solo vivía en las conversaciones.
 `tests/test_handoff.py` verifica que lo que cita exista.
 
-**Al día con:** X113, aplicado sobre X112 sobre `cca1f28`.
+**Al día con:** X113, aplicado sobre X112 sobre `cca1f28`, más la auditoría del
+operador sobre ese árbol (2026-10-31): dos hallazgos de seguridad abiertos
+(X114 y X115 en `docs/estado.md`) y cuatro de orden, todos en la cola.
 
 ## 0. Mensaje de arranque para la sesión nueva
 
@@ -76,7 +78,9 @@ sus fuentes: `docs/principios.md`.
 | Meta de `texto_de_prompt` 1542 | Lo fijo + la forma + el checklist; no se recorta para el número | X112 |
 
 **Abiertas.** `HITL_SCOPE` y `HUMANO_RESPUESTA` como contrato con un nombre
-neutro. F2 de fable (compuertas en código) solo si un dato lo pide.
+neutro. F2 de fable (compuertas en código) solo si un dato lo pide. En X114:
+la lista blanca exacta de opciones de pytest y si `pyproject.toml` entero
+cuenta como configuración de pytest o solo cuando trae `[tool.pytest]`.
 
 ## 6. Lo aprendido (una línea por veredicto)
 
@@ -94,20 +98,66 @@ neutro. F2 de fable (compuertas en código) solo si un dato lo pide.
 - **Skill `revision`**: baja el ruido (−40 % y −59 %), no detecta más (exp/56, exp/56b).
 - **Checklist de auditoría**: +1,33 en s18; techo en s19 y s20; creó un temporal en 1 de 3 (exp/80).
 - **s9 en la 5b**: el 0 venía de tareas sin terminar (5 de 6), no de un deploy: es un dato para S6.
+- **Auditoría del operador (X113)**: la contención de rutas, el HITL web y el MCP aguantaron; la lista
+  negra de flags de pytest no (tercera vez que una lista negra de flags pierde: E1, E2, X114).
 
 ## 7. Cola de trabajo
 
 | # | Paso | Cambia conducta | Depende de | Dato de entrada |
 |---|---|---|---|---|
 | 1 | Aplicar X112 + X113; la clave por vocabulario 3 → 5 | no | — | — |
-| 2 | Imports perezosos → ≤ 40, con `python -X importtime` como gate | no | 1 | 12 stdlib, 8 opcionales, 2 obligatorias y 59 internos (sobre 81) |
-| 3 | Pre-registro y A/B de S6 (un solo techo de rondas) | **sí** | 1 | s9: 5 de 6 sin terminar, 0 deploys |
-| 4 | 5c-a: los prefiltros como un mecanismo con un setting | depende | 1 | 5 settings hoy |
-| 5 | 5c-b: Laya 0.4 | sí | **bloqueado** | que esté instalada |
-| 6 | S9a: continuación por estado del thread | sí | 3 | vocabulario 5 → 4 |
-| 7 | S9b: el chat como `kernel.loop` | mínimo | 6 | los 3 nodos largos de `nodes.py` y los imports de `main.py` |
-| 8 | S3: esquema de tools fijo y cierre por arista | mínimo | **bloqueado** | la prueba de `tool_choice="none"` en DeepSeek |
-| 9 | Fase 6: piezas sueltas | no | — | 10 nodos largos, `TOOL_CONTEXTO_RE` |
+| 2 | **X114, seguridad (va primero, D11):** el `auto` de pytest pasa a lista blanca de opciones; tras escribir la configuración de pytest, el próximo `pytest` pregunta (X115) | **sí**, solo sube fricción | 1 | ver "X114 en detalle" abajo |
+| 3 | X115-orden: borrar los `.patch` de `docs/informes/` (4,3 MB) y su `docs/informes/test_auditoria_2026_10_26.py` (duplica `tests/test_auditoria_2026_10_26.py`); un candado de tamaño; separar las dependencias de desarrollo y las opcionales de `requirements.txt` | no | 1 | la CI (`.github/workflows/calidad.yml`) se toca en el mismo paso |
+| 4 | Imports perezosos → ≤ 40, con `python -X importtime` como gate | no | 1 | 12 stdlib, 8 opcionales, 2 obligatorias y 59 internos (sobre 81) |
+| 5 | Pre-registro y A/B de S6 (un solo techo de rondas) | **sí** | 1 | s9: 5 de 6 sin terminar, 0 deploys |
+| 6 | 5c-a: los prefiltros como un mecanismo con un setting | depende | 1 | 5 settings hoy |
+| 7 | 5c-b: Laya 0.4 | sí | **bloqueado** | que esté instalada |
+| 8 | S9a: continuación por estado del thread | sí | 5 | vocabulario 5 → 4 |
+| 9 | S9b: el chat como `kernel.loop` | mínimo | 8 | los 3 nodos largos de `nodes.py` y los imports de `main.py` |
+| 10 | S3: esquema de tools fijo y cierre por arista | mínimo | **bloqueado** | la prueba de `tool_choice="none"` en DeepSeek |
+| 11 | Fase 6: piezas sueltas | no | — | 10 nodos largos, `TOOL_CONTEXTO_RE` |
+| 12 | Archivar `docs/bitacora.md` por mes (6145 líneas) | no | después de 1–5 | mueve rutas que citan el tablero y los principios: el gate lo tiene que ver |
+
+### X114 en detalle (lo que la sesión nueva escribe primero)
+
+**Reproducido sobre X113** con `utils.policy.clasificar`: dan `auto`
+`pytest --pastebin=all` (también por `python3 -m pytest`), `--junitxml` y
+`--junit-xml` (las dos: no es un alias que se escapó, falta la familia),
+`--report-log`, `--debug[=ruta]` y `--cache-clear`. Hoy los vetados de pytest
+son solo `-p`, `--basetemp`, `--rootdir`, `-c`, `--confcutdir`, `-o` y
+`--override-ini` (`utils/politica_comandos.json`).
+
+**Por qué no alcanza sumar los 5 flags** (M1): es la tercera vez que una
+lista negra de flags se queda corta (E1 `sort --compress-program`, E2
+`pytest -o`, ahora esta). pytest y sus plugins agregan opciones; una lista
+negra pierde contra eso por construcción.
+
+**Lo que se recomienda** (decisión del operador al aplicarlo):
+- **Opciones de pytest en lista blanca para `auto`** (falla cerrada, D11):
+  `-q`, `-v`, `-x`, `-k`, `-m`, `-s`, `--lf`, `--ff`, `--co`/`--collect-only`,
+  `--tb`, `-r…`, `--maxfail`, `--durations`, `-W`, `--no-header`, rutas y
+  `nodeid`. Cualquier otra opción pregunta. Va en
+  `utils/politica_comandos.json` como datos, sin vocabulario.
+- **La configuración de pytest editada sube la fricción** (X115): después de
+  una escritura o edición aprobada sobre `tests/conftest.py` (o cualquier conftest), `pytest.ini`,
+  `setup.cfg`, `tox.ini` o `pyproject.toml`, el siguiente `pytest` de la
+  sesión pregunta. Determinista; los nombres son archivos de configuración,
+  no lenguaje del usuario.
+- Las alternativas descartadas: sumar los 5 (parche) y `pytest` siempre
+  pregunta (fricción alta: el agente corre pytest todo el tiempo).
+
+**Gate**: `tests/test_policy_bypass.py` y `tests/test_policy.py` intactos
+más un caso por cada flag de arriba (R7); la foto real
+(`banco/fixtures/policy_comandos.jsonl`, solo la tiene el operador) se vuelve
+a clasificar y **cada `pytest` que pase de `auto` a `preguntar` se lista y se
+explica**. Si alguno es de uso común, entra a la lista blanca con su motivo.
+Los casos por entrada de la 5a se regeneran: cambian a propósito y se
+declara. Cambia conducta solo en fricción, nunca la relaja: no hace falta un
+A/B del chat, pero sí la foto.
+
+**No es criterio, es dato**: la auditoría dijo que `--junitxml` estaba
+bloqueado y que los `except` amplios eran 36; los dos están mal (no estaba
+bloqueado; el ratchet cuenta 27 en el harness, 36 incluye tests).
 
 [PENDIENTE: operador] Lo que viene después del refactor, si hay algo.
 
@@ -135,6 +185,7 @@ neutro. F2 de fable (compuertas en código) solo si un dato lo pide.
 - Prometer un entregable y postergarlo (el pre-registro de S6).
 - Escribir sobre el árbol propio en vez del HEAD del operador.
 - Afirmar qué mide un ratchet sin correrlo (la 5a "bajaba el vocabulario").
+- Tomar los números de una auditoría sin reproducirlos: en X113 dos estaban mal.
 
 ## 10. Trampas del entorno
 

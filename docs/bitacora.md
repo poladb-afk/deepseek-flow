@@ -6154,3 +6154,33 @@ nombrarlos, y lo que viene después del refactor.
 citados existan, que cada principio nombre un gate vigente o diga "sin gate",
 y que cada fuente tenga URL. Los dos documentos entran en `DOCS_DE_ARRANQUE`
 y `AGENTS.md` los nombra primero.
+
+---
+
+## Auditoría del operador sobre X113: dos hallazgos de seguridad, para la sesión nueva (2026-10-31)
+
+El operador auditó el árbol de X113 (1024 tests, contención de rutas, ~110
+intentos contra la política de comandos, HITL web, MCP, secretos). Lo que
+aguantó: la contención (`../`, `/etc/passwd`, `~`, symlinks), la política
+contra `git -c core.pager`, `find -exec`, `sort --compress-program`, pipes a
+`sh`, separadores, `$(...)` y redirecciones; el HITL web (loopback, token,
+anti-CSRF) y el MCP sin escritura por default.
+
+**Lo que no aguantó, reproducido por el autor**: `pytest --pastebin=all`,
+`--junitxml`/`--junit-xml`, `--report-log`, `--debug` y `--cache-clear`
+corren en `auto` (X114 en el tablero). La auditoría decía que `--junitxml`
+estaba bloqueado: no lo está, falta la familia entera. Y A45 sigue abierto
+por la configuración de pytest (X115): editar `conftest.py` o
+`pyproject.toml` inyecta flags sin pasar por la línea de comandos.
+
+**Decisión del operador**: lo escribe la sesión nueva, con el handoff. El
+autor no los arregla: deja el diagnóstico, la recomendación (lista blanca
+de opciones para el `auto` de pytest, y fricción tras editar su
+configuración) y el gate en `docs/handoff.md`, cola #2, delante de todo lo
+demás por D11.
+
+**Orden** (cola #3 y #12): los `.patch` de `docs/informes/` pesan 4,3 MB y
+duplican el historial de git (dos de X106 suman 1,3 MB); el
+`test_auditoria_2026_10_26.py` de `docs/informes/` duplica el de `tests/`;
+`requirements.txt` mezcla producto, desarrollo y opcionales; la bitácora
+pasa las 6000 líneas.
