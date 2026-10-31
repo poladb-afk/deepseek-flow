@@ -429,6 +429,7 @@
         "tests/test_grafo_readme.py": 1,
         "tests/test_grafos_sin_calles_muertas.py": 3,
         "tests/test_h3b_swarm.py": 6,
+        "tests/test_handoff.py": 3,
         "tests/test_hitl.py": 23,
         "tests/test_inventario.py": 3,
         "tests/test_kernel.py": 17,
@@ -468,7 +469,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1020
+      "metrica": 1023
     },
     "texto_de_prompt": {
       "detalle": {

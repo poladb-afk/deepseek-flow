@@ -6122,3 +6122,35 @@ ciclo.
 **Ratchets**: `texto_de_prompt` 2748 → 1542, `settings_leidos` 58 → 56,
 `imports_perezosos` 81 → 80, `tests_definidos` 1016 → 1020,
 `vocabulario_hardcodeado` 3 → 5 (clave).
+
+---
+
+## X113: el handoff y los principios del harness (2026-10-31)
+
+Sin cambio de conducta. Dos documentos nuevos para seguir el trabajo con
+contexto limpio:
+
+- **`docs/principios.md`** (estable): los principios en tres capas. Diseño
+  (D1–D15: minimalista, modular, fractal, el grafo dice la verdad, cada
+  decisión en su lugar, generalidad, Laya como acelerador, presupuesto,
+  errores como información, errores reversibles, falla cerrada, prefijo
+  estable, memoria como biblioteca, producto ≠ laboratorio, forma humana).
+  Ingeniería (E1–E12) y método (M1–M10). Cada uno dice con qué se verifica y
+  ante qué cede, y hay un orden de precedencia: seguridad > medición >
+  elegancia > minimalismo. Hasta acá estaban repartidos entre README,
+  `design.md`, `elegancia.md` y `AGENTS.md`, y la capa de método no estaba
+  escrita. Suma la tabla de fuentes con URL; las nuevas de X113 no se
+  verificaron en línea y las confirma el operador.
+- **`docs/handoff.md`** (vivo): mensaje de arranque, arquitectura, estado,
+  decisiones tomadas y abiertas, lo aprendido, la cola con dependencias, cómo
+  trabajamos, los errores del autor a vigilar, trampas del entorno,
+  instrumentos y sus límites, y un glosario.
+
+**Pendiente del operador**, marcado `[PENDIENTE: operador]`: para qué es el
+harness y hacia dónde va, los principios que falten o sus palabras para
+nombrarlos, y lo que viene después del refactor.
+
+**Candado**: `tests/test_handoff.py` verifica que las rutas, tests y métricas
+citados existan, que cada principio nombre un gate vigente o diga "sin gate",
+y que cada fuente tenga URL. Los dos documentos entran en `DOCS_DE_ARRANQUE`
+y `AGENTS.md` los nombra primero.

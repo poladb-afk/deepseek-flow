@@ -1,0 +1,179 @@
+# Handoff — para seguir el trabajo con contexto limpio
+
+Documento vivo: se actualiza en cada hito (X*n*). Lo estable está en
+`docs/principios.md`; el detalle, en `docs/elegancia.md`, `docs/estado.md` y
+`docs/bitacora.md`. Acá va lo que hoy solo vivía en las conversaciones.
+`tests/test_handoff.py` verifica que lo que cita exista.
+
+**Al día con:** X113, aplicado sobre X112 sobre `cca1f28`.
+
+## 0. Mensaje de arranque para la sesión nueva
+
+> Leé `docs/handoff.md`, `docs/principios.md` y `AGENTS.md`. Te paso el zip
+> del HEAD con su sha256: verificalo. Corré `./calidad.sh` y decime si el
+> estado coincide con la sección 4 del handoff. No escribas código hasta que
+> confirmemos el próximo paso de la cola (sección 7).
+
+## 1. Para qué es el harness
+
+[PENDIENTE: operador] Quién lo usa, para qué tareas, qué es "funcionar bien"
+y hacia dónde va (uso personal, producto, investigación, otro modelo). Sin
+esto, una sesión nueva optimiza ratchets. Lo que dice el README hoy: un
+agente de terminal sobre PocketFlow con DeepSeek, para pedidos sobre tus
+archivos y tu código, con CORE + módulos.
+
+## 2. Principios
+
+Las tres capas (diseño, ingeniería, método), con su gate, ante qué ceden y
+sus fuentes: `docs/principios.md`.
+
+## 3. Arquitectura
+
+| Pieza | Qué hace | Dónde |
+|---|---|---|
+| Grafo del chat | `GetQuestion → PreFetch → Skills → Contexto → AgentStep ⇄ ExecuteTools → Observar`; `Cierre` por presupuesto; `VerificarCitas` antes de volver a preguntar | `flow.py`, `nodes.py` |
+| Kernel fractal | `Ctx`, `Ledger` (un saldo), `Tool`, `loop`, `agente`: el supervisor ya es un loop del kernel; el chat todavía no (S9b) | `utils/kernel.py`, `supervisor.py` |
+| Registro de módulos | `discover()` arma `TOOLS` e `IMPL`; `ganchos()` recorre los `HOOKS` | `modules/__init__.py` |
+| Skills | YAML con `condicion` regex (la 5b no la pudo reemplazar) | `utils/skills.py`, `skills/revision.yaml` |
+| Política de comandos | Mecanismo en código, listas como datos, falla cerrada | `utils/policy.py`, `utils/politica_comandos.json` |
+| HITL | s/n graduado, scope headless, web | `utils/aprobaciones.py`, `modules/coding.py`, `utils/hitl_web.py` |
+| Log de riesgo | Cada s/n de comando: las etiquetas de un juez futuro | `utils/riesgo.py`, `banco/probes/estado_riesgo.py` |
+| Laya | Juicios locales opcionales: prefiltro de memoria y RAG, juicio MCP | `utils/laya.py`, `utils/contexto.py` |
+| Memoria | Biblioteca consultable por tools | `modules/memoria.py` |
+| Threads y resume | Checkpoint del `shared` completo; `resume` lo rehidrata | `utils/thread_store.py`, `resume.py` |
+| Trazas | nodo/acción/segundos, sin contenido | `utils/tracing.py` |
+| Juez de trabajo | La parte de fable que funciona | `fable_judge.py`, `modules/fable.py` |
+
+## 4. Estado al cierre
+
+| ratchet | fase 0 | hoy | meta |
+|---|---|---|---|
+| `settings_leidos` | 89 | 56 | ≤ 45 |
+| `imports_perezosos` | 137 | 80 | ≤ 40 |
+| `nodos_largos` | 15 | 13 | ≤ 3 |
+| `vocabulario_hardcodeado` | 8 | 5 (el instrumento ve los YAML desde X112) | ≤ 2 |
+| `texto_de_prompt` | 2748 | 1542 | 1542 ✅ |
+| `core_importa_modulos`, `producto_conoce_lab`, `funciones_complejas`, `codigo_muerto_privado` | — | 0 | 0 ✅ |
+
+**Fases.**
+- Cerradas: 0, 1 (y su deuda, X109), 2a, 2b-1, 2b-2, 3b, 4b-mín, 4a, 5a, X112.
+- Cerradas con veredicto negativo: 2d, 3a, S1, S2, S7 (5b, revertida).
+- Pendientes: la cola de la sección 7.
+
+## 5. Decisiones tomadas (no se reabren sin un dato nuevo)
+
+| Decisión | Por qué | Dónde |
+|---|---|---|
+| El router sale del chat | 3b: 12/12 directas sin tools, 0,65× USD | `banco/specs/fase3b_4a.md` |
+| Thinking con tools, no | 3a: 2,2×–6,9× USD y peor en s17/s18 | `docs/bitacora.md` (X105) |
+| La 5b se revierte | Disparo 1/2/2 de 4; la regex vuelve con el revert y queda como deuda medida | `banco/specs/fase5b.md` |
+| La prosa de fable se borra; el juez se queda | 3 A/B sin lift; el juez refutó 5/5 y cazó 2 bugs reales | X112 |
+| La forma es fija | exp/51: −77 % SLOC con este modelo | `main.py` |
+| El checklist de auditoría es opción del operador | Único texto con lift donde había margen (s18) | `PROMPT_AUDITORIA` |
+| El juez de riesgo observador se borra; `RIESGO_LOG=1` | Lo que se entrena es la decisión humana | X109 |
+| La continuación, por estado del thread | Saca la lista de palabras de `GetQuestion` | S9a |
+| Imports perezosos ≤ 40 | De 81, la mayoría no rompe ningún ciclo | X112 |
+| Meta de `texto_de_prompt` 1542 | Lo fijo + la forma + el checklist; no se recorta para el número | X112 |
+
+**Abiertas.** `HITL_SCOPE` y `HUMANO_RESPUESTA` como contrato con un nombre
+neutro. F2 de fable (compuertas en código) solo si un dato lo pide.
+
+## 6. Lo aprendido (una línea por veredicto)
+
+- **3a** (thinking con tools): más caro y peor en las auditorías. El modo lo
+  elige el código, no Laya (S2 cerrado).
+- **3b**: el modelo decide solo cuándo usar tools; el router costaba más que
+  lo que ahorraba (el árbitro del voto).
+- **4b-mín**: la regex de palabras no decidía nada (0 cambios en 36 preguntas reales).
+- **5a**: pasar las listas a datos con 0 diferencias se prueba con la foto
+  real, casos por entrada y fuzz; la duplicación desaparece por construcción.
+- **5b**: con este modelo, la activación por descripción no dispara (5 de 12) y
+  cuando dispara no mejora. Que algo sea elegante no quiere decir que funcione.
+- **Fable**: la prosa no transfiere el método; el juez sí. Lo que falta medir
+  son las compuertas (F2).
+- **Skill `revision`**: baja el ruido (−40 % y −59 %), no detecta más (exp/56, exp/56b).
+- **Checklist de auditoría**: +1,33 en s18; techo en s19 y s20; creó un temporal en 1 de 3 (exp/80).
+- **s9 en la 5b**: el 0 venía de tareas sin terminar (5 de 6), no de un deploy: es un dato para S6.
+
+## 7. Cola de trabajo
+
+| # | Paso | Cambia conducta | Depende de | Dato de entrada |
+|---|---|---|---|---|
+| 1 | Aplicar X112 + X113; la clave por vocabulario 3 → 5 | no | — | — |
+| 2 | Imports perezosos → ≤ 40, con `python -X importtime` como gate | no | 1 | 12 stdlib, 8 opcionales, 2 obligatorias y 59 internos (sobre 81) |
+| 3 | Pre-registro y A/B de S6 (un solo techo de rondas) | **sí** | 1 | s9: 5 de 6 sin terminar, 0 deploys |
+| 4 | 5c-a: los prefiltros como un mecanismo con un setting | depende | 1 | 5 settings hoy |
+| 5 | 5c-b: Laya 0.4 | sí | **bloqueado** | que esté instalada |
+| 6 | S9a: continuación por estado del thread | sí | 3 | vocabulario 5 → 4 |
+| 7 | S9b: el chat como `kernel.loop` | mínimo | 6 | los 3 nodos largos de `nodes.py` y los imports de `main.py` |
+| 8 | S3: esquema de tools fijo y cierre por arista | mínimo | **bloqueado** | la prueba de `tool_choice="none"` en DeepSeek |
+| 9 | Fase 6: piezas sueltas | no | — | 10 nodos largos, `TOOL_CONTEXTO_RE` |
+
+[PENDIENTE: operador] Lo que viene después del refactor, si hay algo.
+
+## 8. Cómo trabajamos
+
+- **Roles.** El autor escribe sobre **el zip del HEAD del operador**, nunca
+  sobre su propio árbol, y entrega patch + zip con sha256. El operador
+  aplica, reconcilia, corre los A/B, da la clave y manda el zip nuevo.
+- **Patch.** `diff -ruN a/ b/` desde la raíz del repo, se aplica con
+  `patch -p1`. Antes de entregar: el patch reproduce el árbol, más la suite,
+  `ruff`, C901 de las fronteras y el ratchet.
+- **Cada X lleva:** pre-registro en `banco/specs/` si cambia conducta;
+  entrada en `docs/bitacora.md`; fila en `docs/estado.md` con sus tests;
+  `docs/elegancia.md` y este handoff al día.
+- **Lo que cambia conducta va en una rama hasta su A/B**, cada brazo en su
+  worktree con su `.runs` desde el principio.
+
+## 9. Errores del autor a vigilar
+
+- Dar una estimación como si fuera medición (805 contra 807; 83 contra 81).
+- Concluir por un puntaje sin leer los `checks` (s9: "deploy" cuando era tarea sin terminar).
+- Cambiar algo y no lo que depende de eso (`--brazos`, `TOOLS_CONOCIDAS`).
+- Escribir un criterio que puede fallar con el mecanismo andando (criterio 4 de la 5b).
+- Atribuirle al operador decisiones que no tomó ("decidiste `main`").
+- Prometer un entregable y postergarlo (el pre-registro de S6).
+- Escribir sobre el árbol propio en vez del HEAD del operador.
+- Afirmar qué mide un ratchet sin correrlo (la 5a "bajaba el vocabulario").
+
+## 10. Trampas del entorno
+
+- El ratchet necesita `ruff==0.17.1` en el PATH.
+- Sin git, Laya o `trazas.db`, hay tests que se saltean: los conteos difieren
+  entre la máquina del operador y la del autor.
+- `.runs/` y `salidas/` no viajan en el zip: el replay, la foto real de la 5a y
+  la evidencia de los A/B (`salidas/ab111/`) solo los ve el operador.
+- A `tests/inventario_tests.txt` solo se le sacan los tests borrados.
+- El patch de X107 tiene un prefijo de más (se aplica con `-p2`).
+
+## 11. Instrumentos del laboratorio y sus límites
+
+| Instrumento | Qué mide | Límite conocido |
+|---|---|---|
+| `banco/banco.py` | El chat real por PTY: turnos, marcadores, HITL por scope | Solo lo que imprime la terminal |
+| `banco/probes/bench_fable.py` | Trampas y auditorías con scoring determinista | s9 da 0 por deploy **o** por tarea sin terminar: leer los `checks` |
+| `banco/probes/ab_skills.py` | Revisión con issues plantados | Keywords, no calidad absoluta |
+| `banco/probes/tokens_runs.py` | Tokens y USD desde `.runs` | La traza no guarda argumentos ni contenido |
+| `banco/probes/comandos_reales.py` | Los comandos reales de `run_command` | Descarta largos y posibles secretos |
+| `replay.py` | Que las caminatas viejas sigan siendo ejecutables | Estructural, no semántico |
+| `evals.py` | Linter de trazas y costos | Hay que mantener `TOOLS_CONOCIDAS` |
+| `ratchet.py` | Métricas por AST | Lo que no es `.py` no lo ve, salvo los YAML de skills |
+
+## 12. Glosario
+
+- **X*n***: hito del refactor (un patch, un commit). **exp/*n***: experimento con medición.
+- **S1–S10**: síntomas de la auditoría X91. S1 `reasoning_content`; S2 Laya
+  elige el modo; S3 esquema de tools fijo; S4 hooks; S5 el producto lee el
+  banco; S6 presupuesto por novedad; S7 skills por descripción; S8
+  directivas; S9 el chat como loop del kernel; S10 la política como datos.
+- **F1–F7 / C1–C7**: propiedades de elegancia funcional y de código (`docs/elegancia.md`).
+- **D / E / M**: principios de diseño, ingeniería y método (`docs/principios.md`).
+- **Brazo, base, criterio**: cada árbol de un A/B, el de referencia y la
+  condición pre-registrada. **Desvío declarado**: un cambio al plan escrito
+  antes de correr.
+- **Ratchet, baseline, clave**: la métrica, su valor versionado en
+  `ratchets/baseline.json` y el permiso del operador para empeorarla.
+- **Banco, fable, probes**: escenarios del chat real, trampas y auditorías,
+  sondas del laboratorio.
+- **Orgánico / scope**: una decisión HITL de un humano o de un archivo de scope.
+- **Techo**: un fixture donde la base ya saca el máximo y no hay margen para medir.

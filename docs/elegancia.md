@@ -49,7 +49,7 @@ quitar tools en caliente); Agent Skills (divulgación progresiva por
 descripción); la bitter lesson aplicada a harnesses (las capas que tapan
 debilidades del modelo envejecen); mini-swe-agent (~100 líneas de clase de
 agente); SWE-agent (el linter en la edición como guardrail medido). Detalle y
-citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91).
+citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91). Con URL y la capa a la que fundamenta cada una: `docs/principios.md`.
 
 ## Línea de base (fase 0, 2026-10-27)
 

@@ -22,7 +22,8 @@ AGENTS = RAIZ / "AGENTS.md"
 ESTADO = RAIZ / "docs" / "estado.md"
 LIMITE_LINEAS = 160
 LIMITE_CHARS = 12000
-DOCS_DE_ARRANQUE = ("docs/estado.md", "docs/design.md", "docs/bitacora.md", "docs/roadmap.md")
+DOCS_DE_ARRANQUE = ("docs/handoff.md", "docs/principios.md", "docs/estado.md", "docs/design.md",
+                    "docs/bitacora.md", "docs/roadmap.md")
 
 _RUTA = re.compile(r"[\w./-]+\.(?:py|sh|md|json|txt|ya?ml)")
 _TEST = re.compile(r"test_[A-Za-z0-9_]+")

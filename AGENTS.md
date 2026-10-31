@@ -13,6 +13,8 @@ detalle va a `docs/`.
 
 Leé, en este orden, lo que aplique:
 
+0. `docs/handoff.md` y `docs/principios.md` — si arrancás una sesión nueva:
+   estado, cola, decisiones y la constitución del harness.
 1. `docs/estado.md` — el tablero vivo: un hallazgo por fila (A/H/R/X) con
    estado, evidencia y el test que lo cubre. **Empezá por acá.**
 2. `docs/design.md` — lo que es verdad hoy: grafos, contratos de `shared`,
