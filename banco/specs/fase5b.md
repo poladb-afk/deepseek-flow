@@ -97,15 +97,15 @@ ver resultados (un cambio va como desvío declarado en la bitácora).
 
 | brazo | árbol | corridas |
 |---|---|---|
-| base | HEAD previo a la 5b (`e8898c3` o el que corresponda) | ver abajo |
-| 5b | el PR de la 5b | ver abajo |
+| base | `3273a84^` (HEAD previo a la 5b), worktree propio con su `.runs` | ver abajo |
+| 5b | la 5b mergeada (`3273a84`), worktree propio con su `.runs` | ver abajo |
 
 En cada brazo: `fase5b-disparo` ×3, `exp55-skills` ×1,
 `exp56b-skill-revision-on` ×3, `fase3b-directas` ×3, y s18, s19 y s20 ×3
-con `bench_fable.py`. En la base, la auditoría va con `--brazos A`
-(producción de hoy, sin checklist) y también `--brazos D` como referencia;
-en la 5b, `--brazos A` (sin env: lo que hay es lo que decide). Son 34
-sesiones por brazo, más 9 de la referencia D.
+con `bench_fable.py`. En la base, `bench_fable.py --brazos A,C,D` **explícito**:
+ahí C y D todavía existen y el default viejo corre A y B. A es la referencia
+de los criterios 4 y 5; C y D son dato. En la 5b, `--brazos A` (sin env: lo
+que hay es lo que decide). Son 34 sesiones por brazo, más 9 de C y 9 de D.
 
 ## Criterios (todos)
 
@@ -129,8 +129,9 @@ sesiones por brazo, más 9 de la referencia D.
 6. **`exp55-skills`** sigue igual: revisión dispara, el haiku no.
 7. `ruff`, ratchet y suite en verde.
 
-Si falla 1 o 4, el skill no se activa por descripción con este modelo, y la
-regex no vuelve: se vuelve a este documento con el dato. Si falla 2, el
+Si falla 1 o 4, se revierte la 5b (`git revert 3273a84`): el skill no se
+activa por descripción con este modelo, y la regex no vuelve: se vuelve a
+este documento con el dato. Si falla 2, el
 catálogo cuesta más de lo que vale. Si fallan 3 o 5, el recorte de tools sí
 protegía algo, y eso se discute con el dato antes de reponerlo.
 
@@ -188,6 +189,10 @@ su dato.
    `test_cada_skill_esperado_esta_en_el_catalogo`, que verifica que el catálogo
    tenga los skills que el escenario espera. El número medido (1 de 4) queda
    acá y en la bitácora.
+7. **Merge a `main` antes del A/B.** Quedó mergeado a `main` antes del A/B
+   por decisión del operador (`3273a84`); la conducta nueva no está
+   validada; si falla un criterio, el remedio es `git revert 3273a84` (la
+   regex no se repone).
 
 **Corridas por brazo**: 34 + 15 (trampas) = **49**, y en la base 9 de D y 9
 de C como referencia.

@@ -6028,4 +6028,7 @@ corpus (`request_human_input`, `delegar_tarea`, `verificar_trabajo`,
 (`test_el_linter_conoce_todas_las_tools_del_chat`) para las próximas.
 `bench_fable --brazos` tenía default `A,B` con un solo brazo definido
 (KeyError al correrlo sin flags): el default sale ahora de `BRAZOS`.
-Se commitea en `main` (decisión del operador), no en una rama.
+
+Quedó mergeado a `main` antes del A/B por decisión del operador
+(`3273a84`); la conducta nueva no está validada; si falla un criterio, el
+remedio es `git revert 3273a84`.
