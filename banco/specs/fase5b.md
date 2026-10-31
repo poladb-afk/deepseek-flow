@@ -151,3 +151,33 @@ protegía algo, y eso se discute con el dato antes de reponerlo.
 Escribir skills nuevos, cambiar el texto de alguno o endurecer el checklist
 ("no crees temporales", que propuso exp/80). Cada uno es su propio PR, con
 su dato.
+
+## Resultado (2026-10-31)
+
+**NO PASA.** El A/B corrió en dos worktrees con su `.runs` desde el
+principio (base `3273a84^`, 5b `3273a84`), modelo `deepseek-flash`,
+secuencial por brazo. Artefactos y veredicto en `salidas/ab111/`.
+
+| # | criterio | medido | |
+|---|---|---|---|
+| 1 | disparo | 1/2/2 de 4 positivos por corrida (0 en negativos); `revision` cargó 1/3 en español, 0/3 en inglés y 0/3 en la paráfrasis | ❌ |
+| 2 | directas | 12/12 con 0 rondas en las 3 corridas, 0 skills, USD 0,87× la base | ✅ |
+| 3 | revisión | skill 3/3, issues 3 vs 2,67, 0 citas inválidas, 0 archivos tocados; palabras 210 vs 162 = **1,29×** (tope 1,2×) | ❌ |
+| 4 | s18 | recall 4,33 vs 4,00 de la base A (hace falta +1,0); R1 0/3 y R3 1/3; cargó `revision` 9/9 y `auditoria-seguridad` 0/3 | ❌ |
+| 5 | s19/s20 | s19 3,00 vs 2,67; s20 2,00 vs 1,33; 0 ediciones ni archivos nuevos | ✅ |
+| 6 | exp55 | revisión dispara, el haiku no | ✅ |
+| 7 | gate | verde en los dos árboles (1027+4 skip y 1024+4 skip; los skip son `tests/test_db.py` sin `trazas.db` en el worktree) | ✅ |
+| 8 | trampas | s1 2,00=2,00 · s2 1,00=1,00 · s3 1,33 vs 2,00 · s7 1,33=1,33 · s9 0,00 vs 0,67; `metodo-fable` cargó 2/3 en s2 (sin lift) y 2/3 en s3 | ❌ |
+
+Remedio pre-registrado: `git revert 3273a84` (commit `00f4380`); la regex
+no se repone. Las decisiones de fable-as-skill y meta 805 quedan sin efecto
+con el revert. El operador aceptó con su clave el empeoramiento del ratchet
+(58 vs 54 settings, 81 vs 79 imports, 2748 vs 807 prompt); el baseline quedó
+con `tests_definidos` 1012→1016 por el candado del linter.
+
+**Correcciones de instrumento** (declaradas acá): `evals.TOOLS_CONOCIDAS`
+no conocía cuatro tools del chat que ya emitían eventos en el corpus
+(`request_human_input`, `delegar_tarea`, `verificar_trabajo`, `evals`);
+se repone con candado en un commit aparte. `bench_fable --brazos` tenía
+default `A,B` con un solo brazo en el árbol 5b: se arregló en `3273a84` y se
+revierte con él (en el árbol base viejo el default vuelve a ser válido).

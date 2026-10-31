@@ -5986,3 +5986,74 @@ con las recomendaciones a la vista):
 2. **La meta de `texto_de_prompt` queda en 805** — el piso real con la
    directiva de forma adentro (526 + 279, sostenida por exp/51); recortar
    5 caracteres para el número redondo sería hacerle trampa al ratchet.
+
+---
+
+## Fase 5b medida: NO PASA el A/B; revertida (2026-10-31, X111)
+
+**Qué se midió**: el código de la fase 5b (`3273a84`: skills por descripción
+con `usar_skill`, auditoría y fable a skills, forma fija, fuera el nodo
+`Skills`, `utils/skills.py`, `turno["skill"]`, el recorte de tools y los
+settings `SKILLS`/`PROMPT_FORMA`/`PROMPT_FABLE`/`PROMPT_AUDITORIA`)
+contra su base `3273a84^`. El pre-registro pedía rama hasta el A/B; se
+mergeó a `main` en `3273a84` antes de correrlo (desvío que quedó
+registrado) y el remedio pre-registrado era revertir si fallaba un criterio.
+El patch del autor queda en `docs/informes/x111_fase5b.patch`: se revierte
+el código, no el registro.
+
+**Cómo se corrió**: dos worktrees con su `.runs` desde el principio (base
+`3273a84^`, 5b `3273a84`), mismo `.env` y `.modelos` por symlink, modelo
+`deepseek-flash`, secuencial por brazo. En cada brazo: `fase5b-disparo` ×3,
+`exp55-skills` ×1, `exp56b-skill-revision-on` ×3, `fase3b-directas` ×3 y
+`bench_fable` s18–s20 ×3 más las trampas s1,s2,s3,s7,s9 ×3; en la base,
+s18–s20 además con `--brazos C,D` (dato). Veredicto por artefactos, no a
+ojo: `salidas/ab111/` (JSON del veredicto, resultados del bench, eventos y
+logs de cada corrida, trazas para USD, gates).
+
+**Resultados** (criterio → medido):
+
+| # | criterio | medido | |
+|---|---|---|---|
+| 1 | disparo: ≥3/4 positivos en cada corrida, 0 en negativos | 1/2/2 de 4; 0 en negativos | ❌ |
+| 2 | directas: ≥10/12 sin rondas, 0 skills, USD ≤1,15× | 12/12 sin rondas en las 3; 0 skills; 0,87× | ✅ |
+| 3 | revisión: skill ≥2/3, issues ≥ base−0,5, palabras ≤1,2×, 0 citas inválidas, 0 archivos | skill 3/3; issues 3 vs 2,67; citas 0; sin ediciones; palabras 210 vs 162 = **1,29×** | ❌ |
+| 4 | s18: recall ≥ base A +1,0; R1 y R3 ≥2/3; skill ≥2/3 | recall 4,33 vs 4,00; R1 0/3, R3 1/3; cargó `revision` 9/9 y `auditoria-seguridad` 0/3 | ❌ |
+| 5 | s19/s20: recall ≥ base A; 0 ediciones/nuevos | s19 3,00 vs 2,67; s20 2,00 vs 1,33; 0 ediciones | ✅ |
+| 6 | exp55: revisión dispara, haiku no | dispara; el haiku no carga skill | ✅ |
+| 7 | ruff, ratchet y suite verdes | verdes en los dos árboles (1027+4 skip y 1024+4 skip; los skip son `tests/test_db.py` sin `trazas.db`, artefacto no versionado) | ✅ |
+| 8 | trampas: cada una ≥ base A | s1 2,00=2,00 · s2 1,00=1,00 · s3 1,33 vs 2,00 · s7 1,33=1,33 · s9 0,00 vs 0,67; `metodo-fable` cargó 1/3 en s1, 2/3 en s2 y s3, 0/3 en s7 y s9 | ❌ |
+
+**Lo que dicen los números**: la activación por descripción no es confiable.
+`revision` se cargó en 1 de 3 "Revisá…", 0 de 3 en inglés y 0 de 3 en la
+paráfrasis (sí 3/3 en `exp56b`, donde el pedido es más explícito, y
+`revision` 9/9 en las auditorías del bench, no `auditoria-seguridad`). La
+revisión no bajó el ruido: lo subió 1,29×. En s18 no hubo el lift de +1,0 ni
+R1/R3, que era justamente el hueco que la auditoría como skill venía a
+cerrar. Fable, cargada 2/3 en s2, no movió s2 y sí coincidió con s3 y s9 por
+debajo de la base.
+
+**Remedio**: `git revert 3273a84` (commit `00f4380`), como quedó
+pre-registrado; la regex no se repone. Vuelven `utils/skills.py`, el nodo
+`Skills`, el recorte de tools, `turno["skill"]`, los cuatro settings y
+`DIRECTIVA_FABLE`/`DIRECTIVA_AUDITORIA` en `main.py`; el prompt vuelve a
+2748 chars y `settings_leidos`/`imports_perezosos` a 58/81. Los dos
+arreglos que viajaban en `3273a84` se revierten con él salvo el del linter,
+que se repone aparte: `evals.TOOLS_CONOCIDAS` no conocía cuatro tools del
+chat que emitían eventos en el corpus (`request_human_input`,
+`delegar_tarea`, `verificar_trabajo`, `evals`) y hay candado
+(`test_el_linter_conoce_todas_las_tools_del_chat`). La meta de
+`texto_de_prompt` 805/807 queda sin efecto con el revert.
+
+**Ratchet**: el revert empeora métricas que `3273a84` había mejorado
+(`settings_leidos` 54→58, `imports_perezosos` 79→81, `texto_de_prompt`
+807→2748). El operador aceptó ese empeoramiento con su clave
+(`HUMAN_RATCHET_BYPASS_KEY`, verificada contra `ratchets/clave_operador.sha256`)
+y el baseline quedó en 58/81/2748 con `tests_definidos` 1012→1016 (el candado
+del linter). Gate verde.
+
+**Caveats**: los worktrees no traen artefactos no versionados (por eso 4
+skips de `test_db` y `.modelos` por symlink); el modelo es el alias
+`deepseek-flash` del día, así que los criterios absolutos (1 y 4) valen para
+esta versión; la comparación base↔5b es intra-día, misma máquina, corridas
+secuenciales por brazo. Los criterios se aplican como quedaron escritos, sin
+retocar.
