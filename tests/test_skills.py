@@ -1,64 +1,109 @@
-"""Skills por descripción (fase 5b, X111): el modelo los carga con `usar_skill`.
+"""exp/55 — skills declarativas (Mesa 7): loader, disparo y cableado.
 
-Hasta X110 una regex del YAML decidía y el loop recortaba las tools; con otro
-idioma o redacción no se activaba (1 de 4 positivos, `test_fase5b.py`). Acá:
-el catálogo carga, la tool devuelve las instrucciones y anuncia el marcador
-del banco, un YAML roto se saltea, y el chat ya no tiene nodo ni recorte.
+Clavan el contrato mínimo: YAML válido → skill cargado; condición regex →
+disparo determinístico; el nodo Skills (X106) lo activa a la entrada, inyecta el
+prompt (prefijo `[skill]`) y el loop recorta la lista de tools al subset. Un
+YAML roto se saltea; un skill nunca expande el action space.
 """
-import hashlib
 
-from modules import skills as mod
-
-
-def test_los_skills_del_repo_cargan_sin_condicion_ni_tools():
-    ids = [s.id for s in mod.cargar()]
-    assert ids == ["auditoria-seguridad", "metodo-fable", "revision", "tdd"]
-    for ruta in sorted(mod.DIR_SKILLS.glob("*.yaml")):
-        texto = ruta.read_text(encoding="utf-8")
-        assert "condicion:" not in texto and "\ntools:" not in texto, ruta.name
-
-
-def test_las_directivas_pasaron_a_skills_con_el_texto_intacto():
-    """El texto de DIRECTIVA_AUDITORIA (exp/78) y DIRECTIVA_FABLE (exp/72) es
-    el mismo byte a byte: el A/B compara el mecanismo, no una redacción nueva."""
-    sha = {s.id: hashlib.sha1(s.instrucciones.encode()).hexdigest() for s in mod.cargar()}
-    assert sha["auditoria-seguridad"] == "a6efc0a5410617537e4b97953950951fded8d759"
-    assert sha["metodo-fable"] == "edaad0d1823609163ed0c672eaef328b3b9b0779"
+from modules import memoria
+from utils.skills import (
+    PREFIJO_SKILL,
+    Skill,
+    cargar_skills,
+    filtrar_tools,
+    mensaje,
+    skill_para,
+)
 
 
-def test_el_catalogo_va_en_la_descripcion_de_la_tool():
-    funcion = mod.TOOLS[0]["function"]
-    assert funcion["name"] == "usar_skill"
-    for s in mod.cargar():
-        assert f"- {s.id}: {s.descripcion}" in funcion["description"]
-    assert funcion["parameters"]["properties"]["skill"]["enum"] == [s.id for s in mod.cargar()]
+def test_skills_del_repo_cargan_y_disparan():
+    habilidades = cargar_skills()
+    ids = {habilidad.id for habilidad in habilidades}
+    assert {"revision", "tdd"} <= ids
+    revision = next(h for h in habilidades if h.id == "revision")
+    assert revision.tools and "read_file" in revision.tools
+    assert skill_para("Revisá el código de utils/formato.py.", habilidades) is revision
+    assert skill_para("implementá esto con TDD", habilidades).id == "tdd"
+    for control in ("escribime un haiku sobre el mar", "¿qué es un closure en Python?",
+                    "corré la suite de tests"):
+        assert skill_para(control, habilidades) is None
 
 
-def test_usar_skill_devuelve_las_instrucciones_y_anuncia_el_marcador(capsys):
-    import re
-
-    from banco.banco import MARCADORES
-
-    texto = mod.usar_skill("revision")
-    assert texto == mod.SKILLS["revision"].instrucciones
-    assert re.search(MARCADORES["skill"], capsys.readouterr().out)
-    assert mod.usar_skill("no-existe").startswith("ERROR: no hay un skill 'no-existe'")
-
-
-def test_un_yaml_roto_se_saltea_sin_tumbar_el_resto(tmp_path):
-    (tmp_path / "a.yaml").write_text("id: ok\ndescripcion: prueba\ninstrucciones: hacé algo\n", encoding="utf-8")
-    (tmp_path / "b.yaml").write_text("id: roto\n", encoding="utf-8")
-    (tmp_path / "c.yaml").write_text("- no es un mapa\n", encoding="utf-8")
-    assert [s.id for s in mod.cargar(tmp_path)] == ["ok"]
-    assert mod.esquema([])["function"]["parameters"]["properties"]["skill"]["enum"] == []
+def test_skill_roto_se_saltea_sin_tumbar_el_resto(tmp_path):
+    (tmp_path / "ok.yaml").write_text(
+        "id: ok\ndescripcion: prueba\ncondicion: 'hola'\ninstrucciones: hacé algo\n",
+        encoding="utf-8")
+    (tmp_path / "sin_campos.yaml").write_text("id: roto\n", encoding="utf-8")
+    (tmp_path / "regex_roto.yaml").write_text(
+        "id: x\ndescripcion: d\ncondicion: '('\ninstrucciones: i\n", encoding="utf-8")
+    habilidades = cargar_skills(tmp_path)
+    assert [habilidad.id for habilidad in habilidades] == ["ok"]
 
 
-def test_el_chat_no_tiene_nodo_de_skills_ni_recorta_tools():
+def test_mensaje_lleva_prefijo_estable_y_descripcion():
+    skill = Skill(id="x", descripcion="una skill", condicion=None, instrucciones="reglas")
+    texto = mensaje(skill)
+    assert texto.startswith(f"{PREFIJO_SKILL} x — una skill")
+    assert texto.endswith("reglas")
+
+
+def test_filtrar_tools_es_subset_y_nunca_expande():
+    tools = [
+        {"function": {"name": "read_file"}},
+        {"function": {"name": "run_command"}},
+        {"function": {"name": "web_search"}},
+    ]
+    skill = Skill(id="x", descripcion="d", condicion=None, instrucciones="i",
+                  tools=("read_file", "no_existe"))
+    elegidas = filtrar_tools(tools, skill)
+    assert [tool["function"]["name"] for tool in elegidas] == ["read_file"]
+
+
+def test_agent_step_anuncia_solo_el_subset_del_skill():
     import nodes
-    from flow import create_agent_flow
+    from utils.skills import disponibles
 
-    assert not hasattr(nodes, "Skills")
-    assert type(create_agent_flow().start_node.successors["continue"].successors["continue"]).__name__ == "Contexto"
-    _, tools = nodes.AgentStep().prep({"messages": [{"role": "user", "content": "revisá el código"}]})
-    assert tools is nodes.TOOLS
-    assert "usar_skill" in {t["function"]["name"] for t in nodes.TOOLS}
+    revision = next(h for h in disponibles() if h.id == "revision")
+    shared = {"messages": [{"role": "user", "content": "revisá el código"}],
+              "turno": {**nodes.nuevo_turno(), "skill": revision.id}}
+    _, tools = nodes.AgentStep().prep(shared)
+    assert {tool["function"]["name"] for tool in tools} == set(revision.tools)
+    _, todos = nodes.AgentStep().prep({"messages": [{"role": "user", "content": "hola"}]})
+    assert {tool["function"]["name"] for tool in todos} == {
+        tool["function"]["name"] for tool in nodes.TOOLS}
+
+
+def test_preguntas_reales_no_cuentan_el_mensaje_de_skill():
+
+    mensajes = [
+        {"role": "user", "content": "¿qué es un closure?"},
+        {"role": "user", "content": f"{PREFIJO_SKILL} revision — reglas"},
+        {"role": "assistant", "content": "…"},
+    ]
+    assert memoria.preguntas_reales(mensajes) == 1
+
+
+def test_el_nodo_skills_activa_el_skill_una_vez(monkeypatch):
+    """X106: el skill se activa a la entrada de la pregunta (antes, dentro del
+    router y solo en enforce). La pregunta en curso sigue siendo la del usuario."""
+    import nodes
+
+    monkeypatch.setenv("SKILLS", "1")
+    pregunta = "Revisá el código de utils/formato.py y decime si hay problemas."
+    shared = {"messages": [{"role": "user", "content": pregunta}]}
+    assert nodes.Skills()._run(shared) == "continue"
+    assert shared["turno"]["skill"] == "revision"  # el ID: el shared es JSON (F4)
+    assert shared["messages"][-1]["content"].startswith(PREFIJO_SKILL)
+    assert nodes.pregunta_en_curso(shared["messages"]) == pregunta
+
+
+def test_el_nodo_skills_apagado_o_sin_disparo_no_toca_nada(monkeypatch):
+    import nodes
+
+    for valor, pregunta in (("0", "Revisá el código de utils/formato.py y decime si hay problemas."),
+                            ("1", "escribime un haiku sobre el mar.")):
+        monkeypatch.setenv("SKILLS", valor)
+        shared = {"messages": [{"role": "user", "content": pregunta}]}
+        assert nodes.Skills()._run(shared) == "continue"
+        assert shared.get("turno", {}).get("skill") is None and len(shared["messages"]) == 1

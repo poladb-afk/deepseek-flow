@@ -27,6 +27,7 @@ from utils.call_llm import _setting
 from utils.compaccion import MAX_RESPALDO_CHARS, PREFIJO_COMPACCION, huella, serializar, zona_fria
 from utils.fs_tools import escribir_atomico
 from utils.prefetch import PREFIJO_PREFETCH
+from utils.skills import PREFIJO_SKILL
 
 MEMORIA_DIR_DEFAULT = "memoria"
 SEARCH_MAX_FILES = 50
@@ -282,13 +283,13 @@ IMPL = {"memory_search": memory_search, "memory_save": memory_save}
 
 def preguntas_reales(mensajes):
     """Cuenta los user-role que son PREGUNTAS: excluye los mensajes sintéticos
-    de prefetch y el marcador de compacción (medido en vivo: con 1
+    de prefetch, skill y el marcador de compacción (medido en vivo: con 1
     pregunta + 1 pre-fetch el resumen se disparaba igual)."""
     return sum(
         1 for m in mensajes
         if m.get("role") == "user"
         and not str(m.get("content", "")).startswith(
-            (PREFIJO_PREFETCH, PREFIJO_COMPACCION))
+            (PREFIJO_PREFETCH, PREFIJO_COMPACCION, PREFIJO_SKILL))
     )
 
 

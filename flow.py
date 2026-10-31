@@ -9,6 +9,7 @@ from nodes import (
     GetQuestion,
     Observar,
     PreFetch,
+    Skills,
     VerificarCitas,
 )
 
@@ -19,6 +20,7 @@ def create_agent_flow():
     reglas de palabras) mandaba algunas a una llamada sin tools."""
     ask = GetQuestion()
     prefetch = PreFetch()
+    skills = Skills()  # el skill de la pregunta, una vez, a la entrada
     contexto = Contexto()  # compacta antes de CADA llamada al modelo
     step = AgentStep(max_retries=3, wait=5)
     tools = ExecuteTools()
@@ -30,7 +32,8 @@ def create_agent_flow():
     citas = VerificarCitas(max_retries=2, wait=2)
 
     ask - "continue" >> prefetch
-    prefetch - "continue" >> contexto
+    prefetch - "continue" >> skills
+    skills - "continue" >> contexto
     contexto - "herramientas" >> step
     contexto - "cierre" >> cierre  # el presupuesto se acabó: la última llamada
     step - "answer" >> citas  # respuesta entregada: se verifican sus citas

@@ -64,8 +64,6 @@ def main_probe(argv=None):
     parser.add_argument("--modelo", default=None,
                         help="override de LLM_MODEL para las sesiones (default: el configurado)")
     args = parser.parse_args(argv)
-    raise SystemExit("exp/51 está resuelto: la forma quedó fija en el prompt (X111) y PROMPT_FORMA se "
-                     "borró, así que el brazo off ya no existe. Para re-medirla: banco/probes/forma_codigo.py.")
     if args.modelo:
         os.environ["LLM_MODEL"] = args.modelo
 

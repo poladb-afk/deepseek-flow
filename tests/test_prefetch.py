@@ -118,9 +118,12 @@ def test_marcador_prefetch_del_banco():
     )
 
 
-def test_pregunta_en_curso_saltea_el_prefetch():
-    """§3 de exp/50 sin router (X106): PreFetch lee la PREGUNTA aunque el
-    pre-fetch haya quedado último."""
+def test_pregunta_en_curso_saltea_prefetch_y_skill():
+    """§3 de exp/50 sin router (X106): PreFetch y Skills leen la PREGUNTA
+    aunque el pre-fetch o el skill hayan quedado últimos."""
+    from utils.skills import PREFIJO_SKILL
+
     mensajes = [{"role": "user", "content": "¿Quién ganó el último mundial?"},
-                {"role": "user", "content": f"{PREFIJO_PREFETCH} algo.md …"}]
+                {"role": "user", "content": f"{PREFIJO_PREFETCH} algo.md …"},
+                {"role": "user", "content": f"{PREFIJO_SKILL} revision — x"}]
     assert nodes.pregunta_en_curso(mensajes) == "¿Quién ganó el último mundial?"

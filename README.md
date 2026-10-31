@@ -7,24 +7,25 @@ Un agente de terminal construido sobre [PocketFlow](https://github.com/The-Pocke
 arquitectura de **CORE + módulos**: un chat mínimo con capacidades de solo
 lectura, y cada capacidad nueva que se agrega es un archivo que se deja en
 `modules/` (y se quita borrándolo). Los **skills declarativos** de `skills/`
-(descripción + instrucciones) empaquetan modos de trabajo: el modelo ve el
-catálogo en la tool `usar_skill` y carga el que el pedido necesita.
+(condición + prompt + subset de tools) empaquetan modos de trabajo y se
+disparan por regex, sin LLM.
 
 <!-- generado: python3 main.py grafo chat (tests/test_grafo_readme.py lo compara) -->
 ```mermaid
 flowchart TD
     GetQuestion_0 -->|continue| PreFetch_1
-    PreFetch_1 -->|continue| Contexto_2
-    Contexto_2 -->|herramientas| AgentStep_3
-    AgentStep_3 -->|answer| VerificarCitas_4
-    VerificarCitas_4 -->|default| GetQuestion_0
-    AgentStep_3 -->|tool| ExecuteTools_5
-    ExecuteTools_5 -->|default| Observar_6
-    Observar_6 -->|default| Contexto_2
-    Contexto_2 -->|cierre| Cierre_7
-    Cierre_7 -->|answer| VerificarCitas_4
-    Cierre_7 -->|tool| ExecuteTools_5
-    GetQuestion_0 -->|exit| ExitChat_8
+    PreFetch_1 -->|continue| Skills_2
+    Skills_2 -->|continue| Contexto_3
+    Contexto_3 -->|herramientas| AgentStep_4
+    AgentStep_4 -->|answer| VerificarCitas_5
+    VerificarCitas_5 -->|default| GetQuestion_0
+    AgentStep_4 -->|tool| ExecuteTools_6
+    ExecuteTools_6 -->|default| Observar_7
+    Observar_7 -->|default| Contexto_3
+    Contexto_3 -->|cierre| Cierre_8
+    Cierre_8 -->|answer| VerificarCitas_5
+    Cierre_8 -->|tool| ExecuteTools_6
+    GetQuestion_0 -->|exit| ExitChat_9
 ```
 
 ## Filosofía
@@ -87,7 +88,7 @@ un comando los baja, verifica y deja listos:
 Sin ese paso el harness funciona igual: el prefiltro de memoria y el juicio
 MCP degradan a su camino sin Laya.
 
-## Capacidades (32 tools, al día de hoy)
+## Capacidades (31 tools, al día de hoy)
 
 | Origen | Herramientas |
 |---|---|
@@ -114,7 +115,6 @@ MCP degradan a su camino sin Laya.
 | mcp | `mcp_tools` / `mcp_call` — consume servidores MCP externos |
 | a2a | `agentes_remotos` / `a2a_tarea` — consume agentes remotos (protocolo agent2agent); setting `A2A_AGENTS` |
 | humano | `request_human_input` — el modelo le pregunta al usuario cuando le falta información (factor 7) |
-| skills | `usar_skill` — carga las instrucciones de un modo de trabajo de `skills/` (revisión, TDD, auditoría de seguridad, método fable) cuando el pedido encaja en su descripción |
 | delegar (HITL) | `delegar_tarea` — lanza el conductor en background (proceso aparte que sobrevive al chat): UNA aprobación con pedido+scope a la vista, HITL de la tarea por scope, y el resultado se reporta al próximo arranque (exp/99–100) |
 
 ## Memoria entre sesiones
@@ -218,12 +218,12 @@ deepseek-flow/
 ├── nodes.py / flow.py # el CORE: bucle del agente
 ├── AGENTS.md          # el contrato para agentes: reglas + gate de cada una
 ├── modules/           # capacidades del chat (TOOLS + IMPL por archivo)
-├── skills/            # skills declarativas (descripción + instrucciones; las carga usar_skill)
+├── skills/            # skills declarativas (condición regex + prompt + tools)
 ├── informe|juez|juez_lote|fable_judge|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|evals|heartbeat|visor|replay|resume|delegar|bench_juez|carga_trazas.py
 │                      # piezas standalone (CLI) — los módulos las exponen
 ├── ratchet.py         # las métricas no empeoran (baseline en ratchets/)
 ├── ratchets/          # baseline versionado del ratchet
-├── utils/             # call_llm, fs_tools, policy, laya,
+├── utils/             # call_llm, fs_tools, policy, laya, skills,
 │                      # compaccion, contexto, prefetch, riesgo, thread_store,
 │                      # hitl_web, mcp_client, tracing, viz, websearch…
 ├── memoria/           # biblioteca entre sesiones (ignorada)

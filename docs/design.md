@@ -101,7 +101,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Clave | Contenido |
 |---|---|
 | `messages` | Historial completo: system (fijo) + user + assistant (con `tool_calls` cuando pidió herramientas) + tool (resultados). Es lo único que DeepSeek recibe en cada vuelta |
-| `turno` | **La caja de la pregunta en curso** (H2 PR 4a, `nodes.nuevo_turno()`): `rondas` (L8), `sin_progreso`/`huella` (exp/13), `huellas_vistas`/`racha_sin_novedad` (exp/52-B) y `uso_inicio` (exp/90). `GetQuestion` la REEMPLAZA entera: no hay `pop` que olvidar. Es JSON y viaja en el checkpoint |
+| `turno` | **La caja de la pregunta en curso** (H2 PR 4a, `nodes.nuevo_turno()`): `rondas` (L8), `sin_progreso`/`huella` (exp/13), `huellas_vistas`/`racha_sin_novedad` (exp/52-B), `skill` (exp/55) y `uso_inicio` (exp/90). `GetQuestion` la REEMPLAZA entera: no hay `pop` que olvidar. Es JSON y viaja en el checkpoint |
 | `_objetivo` / `tokens_por_pregunta` | De la SESIÓN, no de la pregunta: la tarea vigente (un "seguí" no la pisa) y el costo cerrado de cada pregunta |
 | `compacciones` / `_compaccion_huella` | Compactaciones aplicadas al historial y huella del historial ya compactado (evita re-compactar la misma ronda) |
 | `_respaldo_huella` / `_respaldo_ruta` | Huella de la última zona fría respaldada en `memoria/` y ruta de ese respaldo: si la siguiente compacción descarta la MISMA zona fría no se reescribe (exp/70; el marcador A17 sigue nombrando la ruta vigente) |
@@ -112,10 +112,11 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Nodo | Tipo | prep | exec | post |
 |---|---|---|---|---|
 | GetQuestion | Node | — | `input()` (ignora vacías; EOF → exit) | `salir/exit/quit` → `exit`; si no, resetea el presupuesto por pregunta (ley L8) y agrega el mensaje user → `continue`; `/aprobaciones` imprime el historial HITL y NO entra al historial |
+| Skills | Node | la pregunta en curso (`pregunta_en_curso`) | `skill_para` (regex del YAML, sin LLM; `SKILLS=0` apaga) | si dispara: id en `turno["skill"]` y mensaje `[skill]` → `continue` — X106 (antes dentro del router) |
 | Contexto | Node | si el historial supera `COMPACTION_CHARS`: respaldo de la zona fría (gancho `al_compactar`), compacción, recorte de tool results viejos y aviso de ventana caliente | — | sale por `cierre` si `motivo_de_cierre` (tope, no-progreso o sin novedad); si no, por `herramientas` (un solo camino desde X106) — X95, X96 |
 | Observar | Node | la ronda recién ejecutada | — | cuenta la ronda, huella/no-progreso y novedad; agrega al último resultado el aviso de sin-progreso y la nota de presupuesto; checkpoint (punto seguro 2) → `default` — X96 |
 | Cierre | Node (max_retries=3, wait=5) | historial + `AVISO_CIERRE` efímero, **sin tools** | igual que AgentStep | la respuesta de un turno que agotó el presupuesto → `answer` — X96 |
-| AgentStep | Node (max_retries=3, wait=5) | historial + todas las tools | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
+| AgentStep | Node (max_retries=3, wait=5) | historial + tools (el subset del skill si hay uno activo) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
 | ExecuteTools | Node | último `tool_calls` | ejecuta cada llamada (`run_tool_call`) | agrega los mensajes tool → `default` (la cuenta de la ronda es de Observar, X96) |
 | VerificarCitas | Node (max_retries=2, wait=2) | la última respuesta (si `CITAS_VERIFICAR=1` y no trae `tool_calls`) | verifica `ruta:línea` contra el disco; si alguna falla, UNA corrección sin tools (`exec_fallback`: si la corrección revienta, queda la respuesta) | reemplaza el contenido corregido → `default` (antes vivía en `AgentStep.post`, sin retry: auditoría F6) |
 | ExitChat | Node | — | — | imprime despedida |
@@ -198,22 +199,17 @@ Medido: una llamada ≈ 5,5 s; el pipeline completo (12 mapas en paralelo +
 Topes: `MAX_FILES=30`, 2 tareas de ejemplo por archivo, reintentos 3/wait 5
 en mapa y reduce (el BatchNode reintenta **por archivo**, no por lote).
 
-## Skills declarativas (Mesa 7, exp/55; por descripción desde la 5b)
+## Skills declarativas (Mesa 7, exp/55)
 
-`skills/*.yaml` empaqueta un modo de trabajo: `descripcion` (cuándo usarlo) e
-`instrucciones`. `modules/skills.py` los carga (un YAML roto se saltea) y
-ofrece UNA tool, `usar_skill`, con el catálogo `id: descripción` en su
-descripción: fija en la sesión, así que no rompe el KV-cache. El modelo la
-llama si el pedido encaja, la tool imprime `[skill] <id> activo` y devuelve
-las instrucciones (divulgación progresiva). Cuatro skills: `revision`,
-`tdd`, `auditoria-seguridad` (el checklist de exp/78) y `metodo-fable` (la
-prosa de exp/72).
-
-Hasta X110 la activación era una regex del YAML (disparaba en 1 de 4
-positivos: ni en inglés ni parafraseado) y el loop recortaba las tools al
-subset del skill, contra la regla de no quitar tools en caliente. Se fueron
-los dos, con el nodo `Skills` y el setting `SKILLS`. Quitar el mecanismo es
-borrar el módulo (F5). Pre-registro y A/B: `banco/specs/fase5b.md`.
+`skills/*.yaml` empaqueta un modo de trabajo: `condicion` (regex determinística
+sobre la pregunta), `instrucciones` (prompt que se inyecta con prefijo
+`[skill]`) y `tools` (subset que el loop anuncia mientras el skill está
+activo). `utils/skills.py` los carga (YAML roto se saltea) y expone funciones
+puras (`skill_para`, `mensaje`, `filtrar_tools`). El nodo `Skills` evalúa el disparo a la entrada de cada pregunta (X106; antes
+lo hacía el router en enforce): si matchea, inyecta el contexto y anuncia el skill; `AgentStep` recorta la lista de tools
+al subset. `SKILLS=0` apaga. El recorte de tools
+es GUÍA (no sandbox): el action space sigue completo y la seguridad sigue en
+HITL/policy. Dos skills iniciales: `revision` y `tdd`.
 
 ## Módulos: el CORE y sus capacidades
 
@@ -1102,5 +1098,5 @@ defensas ni docstrings que el pedido no exija, sin abstracciones
 especulativas; validación, seguridad y accesibilidad no se recortan. Está
 medida: one-shot −79%/−67% de SLOC en dos modelos y −78%/−88% de SLOC en el
 chat real con tools/HITL (n=5/n=3, sesiones además ~20–27% más rápidas;
-bitácora exp/51). Desde la 5b es fija (sin setting); el brazo sin forma lo
-arma la sonda quitando la constante, y el prefijo sigue byte-estable.
+bitácora exp/51). `PROMPT_FORMA=0` la apaga para el A/B
+del banco; el default es 1 y el prefijo sigue siendo byte-estable.

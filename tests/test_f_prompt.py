@@ -19,7 +19,7 @@ def test_el_prompt_aplica_la_decision_de_f(monkeypatch):
 
     for nombre in ("PROMPT_CITAS", "PROMPT_ALCANCE"):
         monkeypatch.setenv(nombre, "0")  # perillas borradas: no cambian nada
-    texto = main.system_prompt().removesuffix("\n\n" + main.DIRECTIVA_FORMA)
+    texto = main.system_prompt(incluir_forma=False)
     esperado = (
         "Respondé en el idioma de cada pedido (español o inglés).\n\n"
         "Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la "

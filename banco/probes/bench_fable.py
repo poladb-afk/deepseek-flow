@@ -58,14 +58,14 @@ RESPUESTA_HUMANO_OFFLINE = (
     "assumption and report the open question in your final report."
 )
 
-# Entorno que define cada brazo. B (prosa de fable, exp/72), C (skill revision,
-# exp/75) y D (checklist, exp/78) eran settings del prompt que la 5b borró: hoy
-# son skills que el modelo carga solo, así que el único brazo es el chat como
-# está. Sus resultados viejos siguen en salidas/fable/resultados.
-ENV_POR_BRAZO = {"A": {}}
-# El default del CLI sale de los brazos que existen: X111 tenía default "A,B" con
-# un solo brazo, así que correrlo sin flags reventaba en KeyError al llegar a B.
-BRAZOS = tuple(ENV_POR_BRAZO)
+# Entorno que define cada brazo. A/B son los de exp/72-74 (baseline vs prosa de
+# fable); C es la skill revision del propio harness (exp/75).
+ENV_POR_BRAZO = {
+    "A": {"PROMPT_FABLE": "0", "SKILLS": "0"},
+    "B": {"PROMPT_FABLE": "1", "SKILLS": "0"},
+    "C": {"PROMPT_FABLE": "0", "SKILLS": "1"},
+    "D": {"PROMPT_FABLE": "0", "SKILLS": "0", "PROMPT_AUDITORIA": "1"},
+}
 
 
 def _tarea_revision(rel):
@@ -1007,7 +1007,7 @@ def main(argv=None):
         prog="bench_fable", description="exp/72 F0: trampas de fable, A/B baseline vs prosa"
     )
     parser.add_argument("--exp", default="exp72-f0")
-    parser.add_argument("--brazos", default=",".join(BRAZOS))
+    parser.add_argument("--brazos", default="A,B")
     parser.add_argument("--seeds", default="1,2,3")
     parser.add_argument("--escenarios", default=",".join(ESCENARIOS))
     parser.add_argument("--resumen", action="store_true", help="solo escribe el resumen de lo ya corrido")

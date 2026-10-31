@@ -309,13 +309,12 @@ def test_s16_scorer_recall_completo_y_edicion(tmp_path):
     assert bench.puntuar_s16(pristine, run, reporte)[0] == 0
 
 
-def test_el_unico_brazo_es_el_chat_como_esta():
-    """X111 (5b): B (prosa de fable), C (skill revision) y D (checklist) eran
-    settings del prompt; hoy son skills que el modelo carga solo."""
+def test_brazo_c_es_la_skill_revision():
+    """exp/75: A/B apagan skills; C prende la skill revision del harness."""
     bench = _bench()
-    assert bench.ENV_POR_BRAZO == {"A": {}}
-    # el default del CLI sale de acá: no puede pedir un brazo que no existe
-    assert bench.BRAZOS == ("A",)
+    assert bench.ENV_POR_BRAZO["A"] == {"PROMPT_FABLE": "0", "SKILLS": "0"}
+    assert bench.ENV_POR_BRAZO["B"] == {"PROMPT_FABLE": "1", "SKILLS": "0"}
+    assert bench.ENV_POR_BRAZO["C"] == {"PROMPT_FABLE": "0", "SKILLS": "1"}
 
 
 def test_s17_reusa_el_fixture_de_s13_y_parsea_5_bugs():
@@ -363,6 +362,16 @@ def test_s18_scorer_semantico_y_edicion(tmp_path):
     assert bench.puntuar_s18(pristine, run, reporte)[0] == 2
     (run / "policy.py").write_text("cambiado\n", encoding="utf-8")
     assert bench.puntuar_s18(pristine, run, reporte)[0] == 0
+
+
+def test_brazo_d_es_checklist_de_auditoria():
+    """exp/78: D prende solo el checklist de seguridad (PROMPT_AUDITORIA=1)."""
+    bench = _bench()
+    assert bench.ENV_POR_BRAZO["D"] == {
+        "PROMPT_FABLE": "0",
+        "SKILLS": "0",
+        "PROMPT_AUDITORIA": "1",
+    }
 
 
 def test_s19_ground_truth_historica_parsea_3_bugs():
