@@ -6096,11 +6096,22 @@ Sin cambio de conducta en producción.
 
 **Lo que no hizo falta**: el aviso en `ab_skills.py`. Con el revert, `SKILLS`
 vuelve a leerse, así que los brazos `off` de exp56/56b son un control válido.
-**Lo que no pude ver**: la regresión de `replay.comparar_baseline` contra el
-snapshot del 28-10. El replay corre sobre `.runs`, que no viaja en el zip.
-Queda para el operador: `python3 replay.py` y comparar las firmas nuevas
-con las de X106 (`LayaRouter`, `DirectAnswer`, `Skills`). Si solo aparecen
-esas, el snapshot quedó viejo y se regenera con `--actualizar-baseline`.
+**Replay** (corrido por el agente el 2026-10-31): sobre 690
+trazas contra el snapshot `04380fa` (X97, 627 trazas) da a +16,
+a_desconocidos +959, b +1872, c +0. Las firmas nuevas no son solo las de
+X106: también aparecen nodos del kernel previo a X94 (`ElegirSiguiente`,
+`EjecutarPaso`, `UnPaso`, `Ejecutar`), de la era juez (`RecolectarClaims`,
+`EstablecerCambio`, `ReEjecutar`, `CazarFraudes`, `Verdictar`) y tools
+viejas (`fable_rerun`, `grep`), todas de mecanismos ya borrados; las 38
+trazas con violaciones posteriores al snapshot son de árboles viejos
+(router). Ninguna firma es del código actual. El snapshot quedó viejo por
+diseño (se guardó en X97, antes de X106): la regeneración con
+`--actualizar-baseline` queda a decisión del autor.
+
+**Aceptación del ratchet** (2026-10-31): el operador aceptó con su clave
+(`--actualizar`, clave verificada) el `vocabulario_hardcodeado` 3 → 5, que
+es la deuda de S7 que el instrumento ahora ve; el baseline quedó
+actualizado.
 
 **Metas** (decisión del operador, X112): `texto_de_prompt` **1542** (medido:
 2748 → 1542; la estimación también decía 1542). `imports_perezosos` vuelve a
