@@ -49,8 +49,6 @@ ACCIONES_CANONICAS = {
     # evento_tool): no es una tool, pero viaja en la traza y el linter la
     # tiene que reconocer para no contarla como acción desconocida
     ("corte_no_progreso", "ok"),
-    # X106: la entrada del skill (antes vivía en el router)
-    ("Skills", "continue"),
     # X95: la compacción antes de cada llamada al modelo
     ("Contexto", "herramientas"),
     # X96: el presupuesto se acabó (arista de Contexto), la ronda se cuenta y
@@ -65,6 +63,8 @@ ACCIONES_CANONICAS = {
     # el nodo sobrevivió (eso es del replay, nivel A′)
     ("LayaRouter", "directo"), ("LayaRouter", "herramientas"),
     ("Contexto", "directo"), ("DirectAnswer", "tool"), ("DirectAnswer", "answer"),
+    # la entrada del skill por regex (X106–X110; la 5b la cambió por la tool usar_skill)
+    ("Skills", "continue"),
     # informe
     ("ScanFiles", "None"), ("AnalizeFile", "None"), ("WriteReport", "None"),
     # juez
@@ -104,6 +104,10 @@ TOOLS_CONOCIDAS = {
     "run_supervisor", "sql", "db_schema", "memory_search", "memory_save",
     # tools que los flujos exponen como herramientas del chat (modules/*)
     "debate", "juez_lote", "ver_imagen", "ver_pdf", "agentes_remotos", "a2a_tarea",
+    # tools del chat que ya emitían evento_tool y el set no tenía: el corpus real
+    # las marcaba desconocidas (request_human_input, delegar_tarea, verificar_trabajo,
+    # evals); usar_skill es la de la 5b. El candado de test_evals las exige todas.
+    "delegar_tarea", "verificar_trabajo", "request_human_input", "evals", "usar_skill",
     # alias históricos vistos en trazas viejas (una acción 'bash' error, nunca
     # llegó a ser tool CORE): se reconocen para no contarlos como desconocidos
     "bash",

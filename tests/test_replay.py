@@ -29,9 +29,9 @@ def _caminata_chat():
     respuesta sin tools; pregunta → agente con tools → respuesta; salida.
     Incluye evento_tool intercalado (la forma real de la traza)."""
     return [
-        _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"), _ev("Skills", "continue"),
+        _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"),
         _ev("Contexto", "herramientas"), _ev("AgentStep", "answer"), _ev("VerificarCitas", "default"),
-        _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"), _ev("Skills", "continue"),
+        _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"),
         _ev("Contexto", "herramientas"), _ev("AgentStep", "tool"),
         _ev("read_file", "ok", 0.3),      # evento_tool entre AgentStep y ExecuteTools
         _ev("ExecuteTools", "default"), _ev("Observar", "default"),
@@ -46,15 +46,16 @@ def _caminata_chat():
 def test_grafos_vivos_traen_el_chat_de_un_solo_camino(vivos):
     """X106: un solo grafo del chat, sin la variante ±router."""
     clases, aristas, _ = vivos
-    for nodo in ("GetQuestion", "PreFetch", "Skills", "Contexto", "AgentStep",
+    for nodo in ("GetQuestion", "PreFetch", "Contexto", "AgentStep",
                  "ExecuteTools", "Observar", "Cierre", "ExitChat"):
         assert nodo in clases, nodo
     for nodo in ("LayaRouter", "DirectAnswer"):
         assert nodo not in clases, nodo
     assert ("GetQuestion", "exit", "ExitChat") in aristas
-    assert ("Skills", "continue", "Contexto") in aristas
+    assert ("PreFetch", "continue", "Contexto") in aristas
+    assert "Skills" not in clases  # X111: el skill es una tool, no un nodo
     assert ("AgentStep", "tool", "ExecuteTools") in aristas
-    # los pasajes transparentes: las caminatas sin PreFetch/Skills/Contexto valen
+    # los pasajes transparentes: las caminatas sin PreFetch/Contexto valen
     assert ("PreFetch", "continue", "AgentStep") in aristas
     assert ("GetQuestion", "continue", "AgentStep") in aristas
 
@@ -75,7 +76,7 @@ def test_grafos_vivos_traen_los_inline_y_las_tools(vivos):
 def test_caminata_con_cierre_es_valida(vivos):
     """X96: un turno que agota el presupuesto termina en Cierre."""
     clases, aristas, _ = vivos
-    cerrado = [_ev("GetQuestion", "continue"), _ev("PreFetch", "continue"), _ev("Skills", "continue"),
+    cerrado = [_ev("GetQuestion", "continue"), _ev("PreFetch", "continue"),
                _ev("Contexto", "herramientas"), _ev("AgentStep", "tool"), _ev("ExecuteTools", "default"),
                _ev("Observar", "default"), _ev("Contexto", "cierre"), _ev("Cierre", "answer"),
                _ev("VerificarCitas", "default"), _ev("GetQuestion", "exit"), _ev("ExitChat", "None")]
@@ -288,3 +289,14 @@ def test_main_replay_escribe(tmp_path, monkeypatch):
         "--dir", str(runs), "--salida", str(tmp_path / "salidas")])
     assert Path(destino).is_file()
     assert not baseline.exists()  # nunca se guardó nada sin la flag
+
+
+def test_una_traza_con_el_nodo_skills_de_x106_sigue_valiendo(vivos):
+    """X111: el nodo Skills se fue, pero las trazas de X106–X110 lo traen como
+    pasaje entre PreFetch y Contexto: ni acción desconocida ni adyacencia rota."""
+    clases, aristas, herramientas = vivos
+    vieja = [_ev("GetQuestion", "continue"), _ev("PreFetch", "continue"), _ev("Skills", "continue"),
+             _ev("Contexto", "herramientas"), _ev("AgentStep", "answer"), _ev("VerificarCitas", "default")]
+    assert replay.nivel_a(vieja, clases) == []
+    assert replay.nivel_a_desconocidos(vieja, clases, herramientas) == []
+    assert replay.nivel_b_chat(vieja, clases, aristas) == []

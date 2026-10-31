@@ -1,0 +1,1421 @@
+diff -ruN a/.env.example b/.env.example
+--- a/.env.example	2026-10-30 22:48:54.574074668 +0000
++++ b/.env.example	2026-10-30 23:13:11.476890437 +0000
+@@ -20,17 +20,6 @@
+ # INFORME_CARPETA=/ruta/a/trazas
+ 
+ # Tope de rondas de herramientas por pregunta del chat (default 8)
+-# Directiva de forma del código que genera el chat (exp/51): 1 = pide el
+-# mínimo código que funciona (default); 0 = la apaga (solo para el A/B del
+-# banco). El efecto está medido: −79%/−67% de líneas según modelo.
+-# PROMPT_FORMA=1
+-# Directiva del método Fable (exp/72 F0, brazo prosa del A/B): 0 = apagada
+-# (default, producción sin cambios); 1 = inyecta la directiva del método.
+-# PROMPT_FABLE=0
+-# Checklist de auditoría de seguridad (exp/78, brazo D): 1 = agrega la directiva
+-# de buscar controles por AUSENCIA (flags que faltan, envoltorios, normalización).
+-# 0 = apagada (default, producción sin cambios).
+-# PROMPT_AUDITORIA=0
+ # Respuesta canned para request_human_input en corridas headless (banco):
+ # simula un usuario offline y evita que el pedido al humano bloquee el turno.
+ # Vacío (default) = pregunta real por terminal.
+@@ -49,10 +38,6 @@
+ # (exp/52-A midió que la cola gasta 85% de las rondas; falta el A/B real).
+ # CORTE_NOVEDAD=0
+ # CORTE_NOVEDAD_MIN=3
+-# Skills declarativas (exp/55, Mesa 7): un YAML en skills/ con condición regex,
+-# prompt y subset de tools. El nodo Skills dispara a la entrada de cada pregunta,
+-# inyecta el prompt y el loop anuncia solo ese subset (guía, no sandbox). 0 = apagado.
+-# SKILLS=1
+ # Webhook autenticado (Mesa 7, exp/57) sobre el server HITL web. Con
+ # WEBHOOK_TOKEN vacío el endpoint POST /webhook queda DESHABILITADO (503);
+ # el token se compara en tiempo constante y nunca se loguea. Los eventos se
+diff -ruN a/README.md b/README.md
+--- a/README.md	2026-10-30 22:48:54.570074573 +0000
++++ b/README.md	2026-10-30 23:15:38.087985504 +0000
+@@ -7,25 +7,24 @@
+ arquitectura de **CORE + módulos**: un chat mínimo con capacidades de solo
+ lectura, y cada capacidad nueva que se agrega es un archivo que se deja en
+ `modules/` (y se quita borrándolo). Los **skills declarativos** de `skills/`
+-(condición + prompt + subset de tools) empaquetan modos de trabajo y se
+-disparan por regex, sin LLM.
++(descripción + instrucciones) empaquetan modos de trabajo: el modelo ve el
++catálogo en la tool `usar_skill` y carga el que el pedido necesita.
+ 
+ <!-- generado: python3 main.py grafo chat (tests/test_grafo_readme.py lo compara) -->
+ ```mermaid
+ flowchart TD
+     GetQuestion_0 -->|continue| PreFetch_1
+-    PreFetch_1 -->|continue| Skills_2
+-    Skills_2 -->|continue| Contexto_3
+-    Contexto_3 -->|herramientas| AgentStep_4
+-    AgentStep_4 -->|answer| VerificarCitas_5
+-    VerificarCitas_5 -->|default| GetQuestion_0
+-    AgentStep_4 -->|tool| ExecuteTools_6
+-    ExecuteTools_6 -->|default| Observar_7
+-    Observar_7 -->|default| Contexto_3
+-    Contexto_3 -->|cierre| Cierre_8
+-    Cierre_8 -->|answer| VerificarCitas_5
+-    Cierre_8 -->|tool| ExecuteTools_6
+-    GetQuestion_0 -->|exit| ExitChat_9
++    PreFetch_1 -->|continue| Contexto_2
++    Contexto_2 -->|herramientas| AgentStep_3
++    AgentStep_3 -->|answer| VerificarCitas_4
++    VerificarCitas_4 -->|default| GetQuestion_0
++    AgentStep_3 -->|tool| ExecuteTools_5
++    ExecuteTools_5 -->|default| Observar_6
++    Observar_6 -->|default| Contexto_2
++    Contexto_2 -->|cierre| Cierre_7
++    Cierre_7 -->|answer| VerificarCitas_4
++    Cierre_7 -->|tool| ExecuteTools_5
++    GetQuestion_0 -->|exit| ExitChat_8
+ ```
+ 
+ ## Filosofía
+@@ -88,7 +87,7 @@
+ Sin ese paso el harness funciona igual: el prefiltro de memoria y el juicio
+ MCP degradan a su camino sin Laya.
+ 
+-## Capacidades (31 tools, al día de hoy)
++## Capacidades (32 tools, al día de hoy)
+ 
+ | Origen | Herramientas |
+ |---|---|
+@@ -115,6 +114,7 @@
+ | mcp | `mcp_tools` / `mcp_call` — consume servidores MCP externos |
+ | a2a | `agentes_remotos` / `a2a_tarea` — consume agentes remotos (protocolo agent2agent); setting `A2A_AGENTS` |
+ | humano | `request_human_input` — el modelo le pregunta al usuario cuando le falta información (factor 7) |
++| skills | `usar_skill` — carga las instrucciones de un modo de trabajo de `skills/` (revisión, TDD, auditoría de seguridad, método fable) cuando el pedido encaja en su descripción |
+ | delegar (HITL) | `delegar_tarea` — lanza el conductor en background (proceso aparte que sobrevive al chat): UNA aprobación con pedido+scope a la vista, HITL de la tarea por scope, y el resultado se reporta al próximo arranque (exp/99–100) |
+ 
+ ## Memoria entre sesiones
+@@ -218,12 +218,12 @@
+ ├── nodes.py / flow.py # el CORE: bucle del agente
+ ├── AGENTS.md          # el contrato para agentes: reglas + gate de cada una
+ ├── modules/           # capacidades del chat (TOOLS + IMPL por archivo)
+-├── skills/            # skills declarativas (condición regex + prompt + tools)
++├── skills/            # skills declarativas (descripción + instrucciones; las carga usar_skill)
+ ├── informe|juez|juez_lote|fable_judge|auditoria|research|supervisor|debate|rag|mcp_server|effective_n|evals|heartbeat|visor|replay|resume|delegar|bench_juez|carga_trazas.py
+ │                      # piezas standalone (CLI) — los módulos las exponen
+ ├── ratchet.py         # las métricas no empeoran (baseline en ratchets/)
+ ├── ratchets/          # baseline versionado del ratchet
+-├── utils/             # call_llm, fs_tools, policy, laya, skills,
++├── utils/             # call_llm, fs_tools, policy, laya,
+ │                      # compaccion, contexto, prefetch, riesgo, thread_store,
+ │                      # hitl_web, mcp_client, tracing, viz, websearch…
+ ├── memoria/           # biblioteca entre sesiones (ignorada)
+diff -ruN a/banco/probes/bench_fable.py b/banco/probes/bench_fable.py
+--- a/banco/probes/bench_fable.py	2026-10-30 22:48:54.562074383 +0000
++++ b/banco/probes/bench_fable.py	2026-10-30 23:11:50.227175196 +0000
+@@ -58,14 +58,11 @@
+     "assumption and report the open question in your final report."
+ )
+ 
+-# Entorno que define cada brazo. A/B son los de exp/72-74 (baseline vs prosa de
+-# fable); C es la skill revision del propio harness (exp/75).
+-ENV_POR_BRAZO = {
+-    "A": {"PROMPT_FABLE": "0", "SKILLS": "0"},
+-    "B": {"PROMPT_FABLE": "1", "SKILLS": "0"},
+-    "C": {"PROMPT_FABLE": "0", "SKILLS": "1"},
+-    "D": {"PROMPT_FABLE": "0", "SKILLS": "0", "PROMPT_AUDITORIA": "1"},
+-}
++# Entorno que define cada brazo. B (prosa de fable, exp/72), C (skill revision,
++# exp/75) y D (checklist, exp/78) eran settings del prompt que la 5b borró: hoy
++# son skills que el modelo carga solo, así que el único brazo es el chat como
++# está. Sus resultados viejos siguen en salidas/fable/resultados.
++ENV_POR_BRAZO = {"A": {}}
+ 
+ 
+ def _tarea_revision(rel):
+diff -ruN a/banco/probes/forma_chat.py b/banco/probes/forma_chat.py
+--- a/banco/probes/forma_chat.py	2026-10-30 22:48:54.562074383 +0000
++++ b/banco/probes/forma_chat.py	2026-10-30 23:13:11.476890437 +0000
+@@ -64,6 +64,8 @@
+     parser.add_argument("--modelo", default=None,
+                         help="override de LLM_MODEL para las sesiones (default: el configurado)")
+     args = parser.parse_args(argv)
++    raise SystemExit("exp/51 está resuelto: la forma quedó fija en el prompt (X111) y PROMPT_FORMA se "
++                     "borró, así que el brazo off ya no existe. Para re-medirla: banco/probes/forma_codigo.py.")
+     if args.modelo:
+         os.environ["LLM_MODEL"] = args.modelo
+ 
+diff -ruN a/banco/probes/forma_codigo.py b/banco/probes/forma_codigo.py
+--- a/banco/probes/forma_codigo.py	2026-10-30 22:48:54.562074383 +0000
++++ b/banco/probes/forma_codigo.py	2026-10-30 23:11:50.227175196 +0000
+@@ -56,6 +56,13 @@
+     },
+ ]
+ BRAZOS = (("sin_forma", False), ("con_forma", True))
++
++
++def prompt_del_brazo(incluir_forma):
++    """El prompt del chat; el brazo sin forma le quita la directiva (X111: ya
++    no hay setting, el laboratorio arma su brazo)."""
++    prompt = main.system_prompt()
++    return prompt if incluir_forma else prompt.replace("\n\n" + main.DIRECTIVA_FORMA, "")
+ _METRICAS = ("sloc", "tokens_completion", "tokens_prompt", "funciones", "docstrings_densidad", "try",
+              "except_amplios", "except_pass", "asserts", "none_checks",
+              "comentarios", "banners", "docstrings_relleno")
+@@ -146,7 +153,7 @@
+             for brazo, incluir_forma in BRAZOS:
+                 etiqueta = f"{tarea['nombre']}/{brazo}/r{turno + 1}"
+                 print(f"  · {etiqueta}…", flush=True)
+-                crudo, uso = llamar(main.system_prompt(incluir_forma=incluir_forma), tarea["prompt"])
++                crudo, uso = llamar(prompt_del_brazo(incluir_forma), tarea["prompt"])
+                 codigo = extraer_codigo(crudo)
+                 fila = {"tarea": tarea["nombre"], "brazo": brazo, "run": turno + 1,
+                         "codigo": codigo, "error": None, "metricas": None}
+diff -ruN a/banco/specs/fase5b.md b/banco/specs/fase5b.md
+--- a/banco/specs/fase5b.md	2026-10-30 22:48:54.550074098 +0000
++++ b/banco/specs/fase5b.md	2026-10-30 23:17:31.462625002 +0000
+@@ -151,3 +151,36 @@
+ Escribir skills nuevos, cambiar el texto de alguno o endurecer el checklist
+ ("no crees temporales", que propuso exp/80). Cada uno es su propio PR, con
+ su dato.
++
++## Decisiones del operador (X110) y desvíos declarados (X111, antes de correr)
++
++1. **Fable pasa a skill** (`metodo-fable`, el texto de la directiva sin
++   cambios), contra la recomendación del autor. El A/B suma las 5 trampas de
++   exp/72 (s1, s2, s3, s7, s9) ×3 por brazo, con `bench_fable.py --brazos A`
++   en los dos árboles. **Criterio 8**: en cada trampa, el `correct_action`
++   medio de la 5b ≥ el de la base A; en s2 (la única que discrimina) además
++   se reporta cuántas veces se cargó `metodo-fable`. Si se carga y s2 baja,
++   es el mismo resultado de exp/72 y la skill se borra.
++2. **Meta de `texto_de_prompt`**: 805. **Medido: 807.** Los 2 chars de más
++   son el separador `\n\n` antes de la forma, que antes vivía en una
++   variable fuera del f-string que mide el ratchet (por eso la estimación de
++   805 no lo contaba). No se recorta: el número honesto es 807. Lo confirma
++   el operador.
++3. **La base A no es la producción de hoy.** `ENV_POR_BRAZO["A"]` fija
++   `SKILLS=0`, y la tarea de auditoría ("Revisá el código Python…") hace
++   disparar la regex de `revision`. La producción de la base es el brazo C.
++   Los criterios 4 y 5 comparan contra la base A, como quedó escrito (es la
++   referencia de exp/77–80). Además, en la base se corre **C** en s18–s20 ×3,
++   como dato y no como criterio.
++4. **El catálogo cuesta 616 chars, no ~300.** Son 4 skills (fable sumó uno) y
++   cada descripción dice cuándo se usa. El criterio 2 (USD ≤ 1,15 ×) no
++   cambia: es justamente el que mide esto.
++5. **Escenarios que quedan inertes.** Los `env:` con `SKILLS`,
++   `PROMPT_FABLE` o `PROMPT_FORMA` ya no cambian nada en el árbol de la 5b.
++   Los brazos `off` de exp56/56b dejan de ser un control (ahí el modelo puede
++   cargar `revision`), y `forma_chat.py` sale con un aviso (su brazo off era
++   `PROMPT_FORMA=0`). Para la forma queda `forma_codigo.py`, que arma su brazo
++   sin el setting.
++
++**Corridas por brazo**: 34 + 15 (trampas) = **49**, y en la base 9 de D y 9
++de C como referencia.
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-30 22:48:54.542073909 +0000
++++ b/docs/bitacora.md	2026-10-30 23:17:31.466625096 +0000
+@@ -5776,3 +5776,34 @@
+ **Instrumento** (este commit): `fase5b-disparo.yaml` y
+ `banco/probes/fase5b.py`, que dice qué skill se cargó en cada turno a partir
+ de los eventos del banco y aplica el criterio de disparo.
++
++---
++
++## Fase 5b escrita: skills por descripción (2026-10-30, X111; falta el A/B)
++
++**Qué**: `modules/skills.py` ofrece `usar_skill`, con el catálogo `id:
++descripción` en su descripción. El modelo la llama, recibe las instrucciones
++y el marcador `[skill] <id> activo` sale igual que antes. Se borran
++`utils/skills.py` (la regex `condicion`, `skill_para`, `filtrar_tools`), el
++nodo `Skills`, `turno["skill"]` y los settings `SKILLS`, `PROMPT_FORMA`,
++`PROMPT_FABLE` y `PROMPT_AUDITORIA`. `DIRECTIVA_AUDITORIA` y
++`DIRECTIVA_FABLE` pasan a `skills/auditoria-seguridad.yaml` y
++`skills/metodo-fable.yaml` con el texto byte a byte (sha1 en
++`test_skills.py`). La forma queda fija en `system_prompt()`. El grafo vuelve
++a `GetQuestion → PreFetch → Contexto → AgentStep`.
++
++**Compatibilidad con trazas y checkpoints viejos**: las trazas de X106–X110
++traen el nodo `Skills`. El linter lo acepta como acción histórica, el replay
++lo tolera y no es nodo del chat, así que no rompe la adyacencia (con test).
++`resume.migrar` descarta el `turno["skill"]` de un checkpoint viejo.
++
++**Desvíos declarados** (en `fase5b.md`, antes de correr): las trampas de
++fable suman 15 corridas por brazo y un criterio 8; `texto_de_prompt` da 807
++y no 805 (el separador no estaba en el f-string medido); la base A tiene
++`SKILLS=0` y no es la producción (se corre C como dato); el catálogo mide
++616 chars, no ~300.
++
++**Ratchets**: `texto_de_prompt` 2748 → 807, `settings_leidos` 58 → 54,
++`imports_perezosos` 81 → 79. `tests_definidos` 1015 → 1011: salen 11 tests
++de la regex, del recorte y de las perillas, y entran 7. Hace falta la clave
++del operador después del A/B. Esto vive en una rama hasta que el A/B pase.
+diff -ruN a/docs/design.md b/docs/design.md
+--- a/docs/design.md	2026-10-30 22:48:54.542073909 +0000
++++ b/docs/design.md	2026-10-30 23:15:38.087985504 +0000
+@@ -101,7 +101,7 @@
+ | Clave | Contenido |
+ |---|---|
+ | `messages` | Historial completo: system (fijo) + user + assistant (con `tool_calls` cuando pidió herramientas) + tool (resultados). Es lo único que DeepSeek recibe en cada vuelta |
+-| `turno` | **La caja de la pregunta en curso** (H2 PR 4a, `nodes.nuevo_turno()`): `rondas` (L8), `sin_progreso`/`huella` (exp/13), `huellas_vistas`/`racha_sin_novedad` (exp/52-B), `skill` (exp/55) y `uso_inicio` (exp/90). `GetQuestion` la REEMPLAZA entera: no hay `pop` que olvidar. Es JSON y viaja en el checkpoint |
++| `turno` | **La caja de la pregunta en curso** (H2 PR 4a, `nodes.nuevo_turno()`): `rondas` (L8), `sin_progreso`/`huella` (exp/13), `huellas_vistas`/`racha_sin_novedad` (exp/52-B) y `uso_inicio` (exp/90). `GetQuestion` la REEMPLAZA entera: no hay `pop` que olvidar. Es JSON y viaja en el checkpoint |
+ | `_objetivo` / `tokens_por_pregunta` | De la SESIÓN, no de la pregunta: la tarea vigente (un "seguí" no la pisa) y el costo cerrado de cada pregunta |
+ | `compacciones` / `_compaccion_huella` | Compactaciones aplicadas al historial y huella del historial ya compactado (evita re-compactar la misma ronda) |
+ | `_respaldo_huella` / `_respaldo_ruta` | Huella de la última zona fría respaldada en `memoria/` y ruta de ese respaldo: si la siguiente compacción descarta la MISMA zona fría no se reescribe (exp/70; el marcador A17 sigue nombrando la ruta vigente) |
+@@ -112,11 +112,10 @@
+ | Nodo | Tipo | prep | exec | post |
+ |---|---|---|---|---|
+ | GetQuestion | Node | — | `input()` (ignora vacías; EOF → exit) | `salir/exit/quit` → `exit`; si no, resetea el presupuesto por pregunta (ley L8) y agrega el mensaje user → `continue`; `/aprobaciones` imprime el historial HITL y NO entra al historial |
+-| Skills | Node | la pregunta en curso (`pregunta_en_curso`) | `skill_para` (regex del YAML, sin LLM; `SKILLS=0` apaga) | si dispara: id en `turno["skill"]` y mensaje `[skill]` → `continue` — X106 (antes dentro del router) |
+ | Contexto | Node | si el historial supera `COMPACTION_CHARS`: respaldo de la zona fría (gancho `al_compactar`), compacción, recorte de tool results viejos y aviso de ventana caliente | — | sale por `cierre` si `motivo_de_cierre` (tope, no-progreso o sin novedad); si no, por `herramientas` (un solo camino desde X106) — X95, X96 |
+ | Observar | Node | la ronda recién ejecutada | — | cuenta la ronda, huella/no-progreso y novedad; agrega al último resultado el aviso de sin-progreso y la nota de presupuesto; checkpoint (punto seguro 2) → `default` — X96 |
+ | Cierre | Node (max_retries=3, wait=5) | historial + `AVISO_CIERRE` efímero, **sin tools** | igual que AgentStep | la respuesta de un turno que agotó el presupuesto → `answer` — X96 |
+-| AgentStep | Node (max_retries=3, wait=5) | historial + tools (el subset del skill si hay uno activo) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
++| AgentStep | Node (max_retries=3, wait=5) | historial + todas las tools | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
+ | ExecuteTools | Node | último `tool_calls` | ejecuta cada llamada (`run_tool_call`) | agrega los mensajes tool → `default` (la cuenta de la ronda es de Observar, X96) |
+ | VerificarCitas | Node (max_retries=2, wait=2) | la última respuesta (si `CITAS_VERIFICAR=1` y no trae `tool_calls`) | verifica `ruta:línea` contra el disco; si alguna falla, UNA corrección sin tools (`exec_fallback`: si la corrección revienta, queda la respuesta) | reemplaza el contenido corregido → `default` (antes vivía en `AgentStep.post`, sin retry: auditoría F6) |
+ | ExitChat | Node | — | — | imprime despedida |
+@@ -199,17 +198,22 @@
+ Topes: `MAX_FILES=30`, 2 tareas de ejemplo por archivo, reintentos 3/wait 5
+ en mapa y reduce (el BatchNode reintenta **por archivo**, no por lote).
+ 
+-## Skills declarativas (Mesa 7, exp/55)
++## Skills declarativas (Mesa 7, exp/55; por descripción desde la 5b)
+ 
+-`skills/*.yaml` empaqueta un modo de trabajo: `condicion` (regex determinística
+-sobre la pregunta), `instrucciones` (prompt que se inyecta con prefijo
+-`[skill]`) y `tools` (subset que el loop anuncia mientras el skill está
+-activo). `utils/skills.py` los carga (YAML roto se saltea) y expone funciones
+-puras (`skill_para`, `mensaje`, `filtrar_tools`). El nodo `Skills` evalúa el disparo a la entrada de cada pregunta (X106; antes
+-lo hacía el router en enforce): si matchea, inyecta el contexto y anuncia el skill; `AgentStep` recorta la lista de tools
+-al subset. `SKILLS=0` apaga. El recorte de tools
+-es GUÍA (no sandbox): el action space sigue completo y la seguridad sigue en
+-HITL/policy. Dos skills iniciales: `revision` y `tdd`.
++`skills/*.yaml` empaqueta un modo de trabajo: `descripcion` (cuándo usarlo) e
++`instrucciones`. `modules/skills.py` los carga (un YAML roto se saltea) y
++ofrece UNA tool, `usar_skill`, con el catálogo `id: descripción` en su
++descripción: fija en la sesión, así que no rompe el KV-cache. El modelo la
++llama si el pedido encaja, la tool imprime `[skill] <id> activo` y devuelve
++las instrucciones (divulgación progresiva). Cuatro skills: `revision`,
++`tdd`, `auditoria-seguridad` (el checklist de exp/78) y `metodo-fable` (la
++prosa de exp/72).
++
++Hasta X110 la activación era una regex del YAML (disparaba en 1 de 4
++positivos: ni en inglés ni parafraseado) y el loop recortaba las tools al
++subset del skill, contra la regla de no quitar tools en caliente. Se fueron
++los dos, con el nodo `Skills` y el setting `SKILLS`. Quitar el mecanismo es
++borrar el módulo (F5). Pre-registro y A/B: `banco/specs/fase5b.md`.
+ 
+ ## Módulos: el CORE y sus capacidades
+ 
+@@ -1098,5 +1102,5 @@
+ especulativas; validación, seguridad y accesibilidad no se recortan. Está
+ medida: one-shot −79%/−67% de SLOC en dos modelos y −78%/−88% de SLOC en el
+ chat real con tools/HITL (n=5/n=3, sesiones además ~20–27% más rápidas;
+-bitácora exp/51). `PROMPT_FORMA=0` la apaga para el A/B
+-del banco; el default es 1 y el prefijo sigue siendo byte-estable.
++bitácora exp/51). Desde la 5b es fija (sin setting); el brazo sin forma lo
++arma la sonda quitando la constante, y el prefijo sigue byte-estable.
+diff -ruN a/docs/elegancia.md b/docs/elegancia.md
+--- a/docs/elegancia.md	2026-10-30 22:48:54.542073909 +0000
++++ b/docs/elegancia.md	2026-10-30 23:17:31.462625002 +0000
+@@ -58,10 +58,10 @@
+ | `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
+ | `producto_conoce_lab` | 10 → **0** (X93) | 0 ✅ |
+ | `vocabulario_hardcodeado` | 8 → 7 (X104) → 3 (X106) | ≤ 2 (S9 saca la continuación por palabras de `GetQuestion`; fase 6, `TOOL_CONTEXTO_RE`; queda el sí/no del HITL) |
+-| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) → 64 (X106) → 58 (X109) | ≤ 45 (fases 1–5, ver inventario) |
++| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) → 64 (X106) → 58 (X109) → 54 (X111) | ≤ 45 (fases 1–5, ver inventario) |
+ | `imports_perezosos` | 137 → 126 (X92) → 90 (X106) → 81 (X109) | ~60 (decisión del operador, 2026-10-30: ≤ 40 pedía ampliar la fase 6 a MCP/web/HITL solo por el número) |
+ | `nodos_largos` | 15 → 14 (X96) → 13 (X106) | ≤ 3 |
+-| `texto_de_prompt` | 2748 chars | ≤ 800 |
++| `texto_de_prompt` | 2748 → 807 (X111) | 805 (decisión del operador, X110: lo fijo + la forma de exp/51). Medido 807: el `\n\n` antes de la forma no estaba en el f-string; no se recorta, lo confirma el operador |
+ 
+ ## Plan
+ 
+@@ -72,14 +72,14 @@
+ | 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. ✅ 2b-2 (X96): `Observar` y `Cierre` (el presupuesto como arista). **Queda (paso 5 del orden)**: el chat como `kernel.loop` + políticas como nodos (S9: citas, interrupción, prefetch), la continuación por estado del thread (decisión del operador), esquema de tools fijo y cierre por arista (S3) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
+ | 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a NO PASA (X105, cableado borrado). ✅ 3b PASA (X106, `banco/specs/fase3b_4a.md`): el router salió del chat. **Cerradas con veredicto negativo** (decisión del operador): S2 —Laya elige el modo— la rechazó el A/B de la 3a; S1 —`reasoning_content` en rondas de tools— no aplica sin thinking con tools. ✅ X109: el juez de riesgo que solo observaba se borró; el log de la decisión humana queda | **Sí** | los criterios de `banco/specs/fase3b_4a.md` |
+ | 4 | ✅ 4b-mín (X104): sin la regex de palabras. ✅ 4a (X106): reglas y voto borrados con la 3b. **Queda (paso 3 del orden)**: S6, el presupuesto por novedad — `CORTE_NOVEDAD`, `CORTE_NOVEDAD_MIN`, `MAX_TOOL_ROUNDS_AMPLIO`, `UMBRAL_SIN_PROGRESO` salen; `MAX_TOOL_ROUNDS` es el único techo | Sí | banco + fable: USD y descarrilos ≤ base; `settings_leidos` ≤ 60 ✅ |
+-| 5 | ✅ 5a (X108): política de comandos como datos (S10) en `utils/politica_comandos.json`, 0 diferencias sobre la foto real de 445. **Queda**: 5b (paso 2), pre-registrada en `banco/specs/fase5b.md` (X110): skills por descripción con `usar_skill`, auditoría a skill, forma fija (exp/51), fable a decidir. 5c (paso 4) Laya 0.4.x y los prefiltros como un mecanismo con un setting | Mínimo / Sí (5b) | 5b: `exp55-skills`, fable s17–s20, `texto_de_prompt` ≤ 800; 5c: su pre-registro |
++| 5 | ✅ 5a (X108): política de comandos como datos (S10) en `utils/politica_comandos.json`, 0 diferencias sobre la foto real de 445. 🧪 5b (X111): escrita, falta el A/B de `banco/specs/fase5b.md` — skills por descripción con `usar_skill`, auditoría y fable a skills (fable por decisión del operador), forma fija. 5c (paso 4) Laya 0.4.x y los prefiltros como un mecanismo con un setting | Mínimo / Sí (5b) | 5b: `exp55-skills`, fable s17–s20, `texto_de_prompt` ≤ 800; 5c: su pre-registro |
+ | 6 | Limpieza de piezas sueltas (`juez`, `effective_n`, `juez_lote`, `research`, `informe`, `fable_judge`): nodos largos e imports perezosos (decisión del operador, X103) | No | `nodos_largos` ≤ 3 (los 3 de `nodes.py` los resuelve S9), `imports_perezosos` ~60 |
+ 
+ **Orden de lo que queda** (X109, aprobado por el operador): 1 ✅ deuda de la
+ fase 1 → 2 5b → 3 S6 → 4 5c → 5 S9/S3 → 6 fase 6. Primero lo que no cambia
+ conducta; lo que la cambia, con su A/B pre-registrado.
+ 
+-## Inventario de settings (58 tras X109: 39 contrato · 13 revisar · 6 borrar)
++## Inventario de settings (54 tras X111: 39 contrato · 11 revisar · 4 borrar)
+ 
+ `contrato` = decisión del operador que se queda; `revisar` = se decide en la
+ fase indicada; `borrar` = se va con su rama en esa fase.
+@@ -89,16 +89,12 @@
+ | `CORTE_NOVEDAD` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+ | `CORTE_NOVEDAD_MIN` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+ | `MAX_TOOL_ROUNDS_AMPLIO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+-| `PROMPT_AUDITORIA` | borrar | 4 | S7/S8: brazos de A/B cerrados → skills | `main.py` |
+-| `PROMPT_FABLE` | borrar | 4 | S7/S8: brazos de A/B cerrados → skills | `main.py` |
+ | `UMBRAL_SIN_PROGRESO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+ | `HITL_SCOPE` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `utils/aprobaciones.py` |
+ | `HUMANO_RESPUESTA` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `modules/humano.py` |
+ | `CHAT_STREAM_INTERRUPT` | revisar | 2 | S9: citas e interrupción siempre activas | `utils/call_llm.py` |
+ | `CITAS_VERIFICAR` | revisar | 2 | S9: citas e interrupción siempre activas | `nodes.py` |
+ | `PREFETCH` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
+-| `PROMPT_FORMA` | revisar | 4 | S8: se queda solo si un A/B del modelo actual lo sostiene | `main.py` |
+-| `SKILLS` | revisar | 4 | S7: skills por descripción; el apagador global quizá sobra | `nodes.py` |
+ | `INFORME_CARPETA` | revisar | 5 | concurrencia: una constante del kernel | `informe.py` |
+ | `LAYA_BATCH_SIZE` | contrato | — | no es un tunable: `0` = el lote no se parte (un solo forward), N = lotes de N; elige el pico de memoria del prefiltro (X101) | `utils/laya.py` |
+ | `LAYA_MODEL_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-30 22:48:54.542073909 +0000
++++ b/docs/estado.md	2026-10-30 23:17:31.466625096 +0000
+@@ -136,10 +136,10 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
+-| X110 | — | Fase 5b (S7/S8): los skills se activan por una regex en español (la de `revision` dispara en 1 de 4 positivos: ni inglés ni paráfrasis) y recortan tools en caliente; dos directivas que viven como perillas del system prompt | 🧪 2026-10-30 (pre-registrado; faltan dos decisiones del operador y el A/B) | Activación por descripción con `usar_skill`, auditoría a skill, forma fija, cuatro settings fuera ([fase5b.md](../banco/specs/fase5b.md)). Instrumento: `fase5b-disparo.yaml` y `banco/probes/fase5b.py` | `test_la_regex_de_hoy_dispara_en_uno_de_cuatro_positivos`, `test_el_disparo_pide_tres_de_cuatro_en_cada_corrida_y_cero_en_negativos` |
++| X110 | — | Fase 5b (S7/S8): los skills se activan por una regex en español (la de `revision` dispara en 1 de 4 positivos: ni inglés ni paráfrasis) y recortan tools en caliente; dos directivas que viven como perillas del system prompt | 🧪 2026-10-30 (X111: escrita en rama; fable a skill y meta 805 por decisión del operador; falta el A/B) | Activación por descripción con `usar_skill`, auditoría a skill, forma fija, cuatro settings fuera ([fase5b.md](../banco/specs/fase5b.md)). Instrumento: `fase5b-disparo.yaml` y `banco/probes/fase5b.py` | `test_el_disparo_pide_tres_de_cuatro_en_cada_corrida_y_cero_en_negativos`, `test_las_directivas_pasaron_a_skills_con_el_texto_intacto`, `test_el_chat_no_tiene_nodo_de_skills_ni_recorta_tools`, `test_una_traza_con_el_nodo_skills_de_x106_sigue_valiendo` |
+ | X109 | — | Deuda de la fase 1 que la tabla daba por cerrada: el harness todavía podía leer el `.env` de otro proyecto (`LEER_BMO_ENV`) y las sondas de Laya vivían en la raíz con 4 settings propios; y el juez de riesgo de exp/44 llevaba 17 días observando sin decidir nada (S1) | ✅ 2026-10-30 | `LEER_BMO_ENV`/`BMO_TASKS_DIR` borrados; `sonda_laya.py` y `sonda_supervisor.py` a `banco/probes/` con su umbral y su carpeta de tareas como argumentos; `juzgar` y `PREGUNTA_RIESGO` borrados, `riesgo.registrar` guarda la decisión humana sin depender del checkpoint. `settings_leidos` 64 → 58, `imports_perezosos` 90 → 81 | `test_los_settings_salen_solo_del_entorno_y_del_env_del_proyecto`, `test_run_command_registra_cada_decision_humana_y_nada_en_auto` |
+ | X107 | — | Fase 5a (S10): las listas de `utils/policy.py` son datos de la política escritos como código, y dos de ellas están duplicadas (whitelist = `_LECTURA`, 20 prefijos; las negras repetidas en `_EXPLICACIONES`) | ✅ 2026-10-30 (X108: 0/410 casos por entrada, 0/200.000 en el fuzz; la foto real de 445, el operador) | Criterio de 0 diferencias en `clasificar`/`explicar` sobre la foto real y un caso por entrada, tests de policy idénticos, falla cerrada al importar ([fase5a.md](../banco/specs/fase5a.md)). Instrumento: `banco/probes/comandos_reales.py` (checkpoints + log de riesgo; la traza no guarda argumentos) | `test_la_foto_es_la_politica_de_hoy_dedup_y_sin_secretos`, `test_lee_los_comandos_de_los_checkpoints_y_no_otras_tools`, `test_cero_diferencias_contra_la_foto`, `test_falla_cerrada_si_los_datos_no_validan` |
+-| X106 | — | Fase 3b + 4a: el chat tenía dos caminos (router de Laya + voto 2-de-2 + dos reglas de palabras → `DirectAnswer` sin tools, o el agente con tools) y la 3a no pasó, así que corresponde la opción (b) del pre-registro | 🧪 2026-10-28 (código listo; el A/B `fase3b-directas` lo corre el operador) | Un solo camino `GetQuestion → PreFetch → Skills → Contexto → AgentStep`. Borrados `LayaRouter`, `DirectAnswer`, `voto_confirmacion_router`, `utils/laya_routing.py`, `utils/conformal.py`, la flywheel del router (`router_pendiente`, etiqueta ambiental, `routing.jsonl`), el nivel D del replay, el invariante (b) y el bench del router de evals, `sonda_router.py` y 12 sondas del lab que solo medían al router o al voto. Los skills pasan al nodo `Skills`. Datos etiquetados archivados en `docs/informes/archivo/2026-10/router/`. Criterio en [fase3b_4a.md](../banco/specs/fase3b_4a.md) | `test_el_nodo_skills_activa_el_skill_una_vez`, `test_grafos_vivos_traen_el_chat_de_un_solo_camino`, `test_una_traza_del_router_se_ve_en_el_replay`, `test_las_trazas_viejas_del_router_siguen_siendo_canonicas` |
++| X106 | — | Fase 3b + 4a: el chat tenía dos caminos (router de Laya + voto 2-de-2 + dos reglas de palabras → `DirectAnswer` sin tools, o el agente con tools) y la 3a no pasó, así que corresponde la opción (b) del pre-registro | 🧪 2026-10-28 (código listo; el A/B `fase3b-directas` lo corre el operador) | Un solo camino `GetQuestion → PreFetch → Skills → Contexto → AgentStep`. Borrados `LayaRouter`, `DirectAnswer`, `voto_confirmacion_router`, `utils/laya_routing.py`, `utils/conformal.py`, la flywheel del router (`router_pendiente`, etiqueta ambiental, `routing.jsonl`), el nivel D del replay, el invariante (b) y el bench del router de evals, `sonda_router.py` y 12 sondas del lab que solo medían al router o al voto. Los skills pasan al nodo `Skills`. Datos etiquetados archivados en `docs/informes/archivo/2026-10/router/`. Criterio en [fase3b_4a.md](../banco/specs/fase3b_4a.md) | `test_usar_skill_devuelve_las_instrucciones_y_anuncia_el_marcador`, `test_grafos_vivos_traen_el_chat_de_un_solo_camino`, `test_una_traza_del_router_se_ve_en_el_replay`, `test_las_trazas_viejas_del_router_siguen_siendo_canonicas` |
+ | X105 | — | La fase 3a (thinking en las rondas con tools) se midió en el A/B pre-registrado (16 + 16 corridas, s17–s20) y **no pasó**: costo 2,21× / 6,87× / 4,18× / 3,90× la base por escenario (tope 1,5×) y s17+s18 −2 (hacía falta +2) | ✅ 2026-10-28 (decisión pre-registrada) | Se borra el cableado: `turno["pensar"]`, `PENSAR_TOOLS`, el parámetro `pensar` del cliente, la acumulación del reasoning en el stream y `sin_razonamiento_previo`; el invariante 1 vuelve a "sin reasoning en ningún mensaje". El comparador del A/B y su test se retiran (veredicto en `salidas/evals` y en la bitácora). La sonda `thinking_tools` se queda como documento de la restricción del proveedor y arma sus propios requests con thinking ON. Ratchet `settings_leidos` **79 → 78**. Pre-registro de la 3b+4a en [fase3b_4a.md](../banco/specs/fase3b_4a.md) | `test_historial_canonico_sin_reasoning`, `test_la_sonda_arma_el_on_y_el_off_es_el_de_produccion` |
+ | X104 | — | `alcance_amplio` decidía también por una regex de palabras de totalidad (`_PALABRAS_AMPLIAS`, vocabulario hardcodeado) | ✅ 2026-10-28 (fase 4b-mín) | Contrafácticos del pre-registro: los 14 escenarios de fable clasifican igual sin la regex (los 6 amplios lo son por el conteo en disco) y, sobre 36 preguntas reales del operador, 12 amplias con la regex y **0** dejan de serlo sin ella. Se borra la regex; quedan las dos señales que cuenta el disco. La sonda del contrafáctico se borra con ella (no queda qué comparar). Ratchet `vocabulario_hardcodeado` **8 → 7**. Además: `comparar_fase3.py`, el veredicto del A/B de la fase 3 sin juicio a mano (retirado en X105, cumplido) | `test_alcance_amplio_por_palabras_directorio_y_masa`, `test_todos_los_tests_pasa_no_es_totalidad` |
+ | X103 | — | La fase 3 (thinking en rondas con tools) no tenía cableado en el chat; además el stream descartaba el `reasoning_content` de los deltas, así que encenderla tal cual daba la secuencia F (400) en la primera ronda del banco | ✅ 2026-10-28 (cableado detrás de `PENSAR_TOOLS=0`; falta el A/B) | `turno["pensar"]` fijo por pregunta; el stream junta el reasoning aparte; `historiar` lo conserva y `GetQuestion` descarta el de turnos anteriores; invariante 1 de la compacción → "reasoning solo después del último user". Pre-registro de la 4b-mín ([fase4b_min.md](../banco/specs/fase4b_min.md)): contrafáctico 1 sin cambios en los 14 escenarios | Retirados con el cableado (X105: la 3a no pasó el A/B); el invariante 1 estricto vuelve a cubrirlo `test_historial_canonico_sin_reasoning` |
+diff -ruN a/docs/roadmap.md b/docs/roadmap.md
+--- a/docs/roadmap.md	2026-10-30 22:48:54.542073909 +0000
++++ b/docs/roadmap.md	2026-10-30 23:17:31.466625096 +0000
+@@ -18,7 +18,7 @@
+ gate previo PASA (X102). **3a NO PASA** (X105: el A/B dio 2,2×–6,9× el USD y s17+s18 −2; cableado
+ borrado). **3b + 4a pre-registradas** (`banco/specs/fase3b_4a.md`) y **escritas**
+ (X106: el router sale del chat; falta el A/B `fase3b-directas` ×3 por brazo y
+-la clave del operador para `tests_definidos` 1132 → 1004) — **3b PASA** (12/12 sin tools, 0,65× USD; `fase3b_4a.md`). **5a hecha** (X108: política de comandos como datos, 0 diferencias sobre la foto real de 445). **Deuda de la fase 1 cerrada** (X109: sin bmo, sondas a `banco/probes/`, juez de riesgo observador borrado). Orden de lo que queda en `docs/elegancia.md`: 5b → S6 → 5c → S9/S3 → fase 6. **5b pre-registrada** (X110, `banco/specs/fase5b.md`; faltan dos decisiones del operador: fable y la meta de `texto_de_prompt`). **4b-mín cerrada** (X104:
++la clave del operador para `tests_definidos` 1132 → 1004) — **3b PASA** (12/12 sin tools, 0,65× USD; `fase3b_4a.md`). **5a hecha** (X108: política de comandos como datos, 0 diferencias sobre la foto real de 445). **Deuda de la fase 1 cerrada** (X109: sin bmo, sondas a `banco/probes/`, juez de riesgo observador borrado). Orden de lo que queda en `docs/elegancia.md`: 5b → S6 → 5c → S9/S3 → fase 6. **5b escrita** (X111, en rama: skills por descripción con `usar_skill`, fable y auditoría a skills, forma fija; `texto_de_prompt` 2748 → 807; falta el A/B de `banco/specs/fase5b.md`). **4b-mín cerrada** (X104:
+ la regex de palabras se borró, 0 cambios en 36 preguntas reales). Fase 6 (limpieza de las piezas sueltas) aprobada, después de la 5.
+ 2b-3 queda para después de la fase 4 (o se descarta si sigue sin haber
+ sub-agentes); 2b-3 `AgentStep`/`ExecuteTools` →
+diff -ruN a/evals.py b/evals.py
+--- a/evals.py	2026-10-30 22:48:54.570074573 +0000
++++ b/evals.py	2026-10-30 23:11:50.223175112 +0000
+@@ -49,8 +49,6 @@
+     # evento_tool): no es una tool, pero viaja en la traza y el linter la
+     # tiene que reconocer para no contarla como acción desconocida
+     ("corte_no_progreso", "ok"),
+-    # X106: la entrada del skill (antes vivía en el router)
+-    ("Skills", "continue"),
+     # X95: la compacción antes de cada llamada al modelo
+     ("Contexto", "herramientas"),
+     # X96: el presupuesto se acabó (arista de Contexto), la ronda se cuenta y
+@@ -65,6 +63,8 @@
+     # el nodo sobrevivió (eso es del replay, nivel A′)
+     ("LayaRouter", "directo"), ("LayaRouter", "herramientas"),
+     ("Contexto", "directo"), ("DirectAnswer", "tool"), ("DirectAnswer", "answer"),
++    # la entrada del skill por regex (X106–X110; la 5b la cambió por la tool usar_skill)
++    ("Skills", "continue"),
+     # informe
+     ("ScanFiles", "None"), ("AnalizeFile", "None"), ("WriteReport", "None"),
+     # juez
+diff -ruN a/flow.py b/flow.py
+--- a/flow.py	2026-10-30 22:48:54.542073909 +0000
++++ b/flow.py	2026-10-30 23:11:50.223175112 +0000
+@@ -9,7 +9,6 @@
+     GetQuestion,
+     Observar,
+     PreFetch,
+-    Skills,
+     VerificarCitas,
+ )
+ 
+@@ -20,7 +19,6 @@
+     reglas de palabras) mandaba algunas a una llamada sin tools."""
+     ask = GetQuestion()
+     prefetch = PreFetch()
+-    skills = Skills()  # el skill de la pregunta, una vez, a la entrada
+     contexto = Contexto()  # compacta antes de CADA llamada al modelo
+     step = AgentStep(max_retries=3, wait=5)
+     tools = ExecuteTools()
+@@ -32,8 +30,7 @@
+     citas = VerificarCitas(max_retries=2, wait=2)
+ 
+     ask - "continue" >> prefetch
+-    prefetch - "continue" >> skills
+-    skills - "continue" >> contexto
++    prefetch - "continue" >> contexto
+     contexto - "herramientas" >> step
+     contexto - "cierre" >> cierre  # el presupuesto se acabó: la última llamada
+     step - "answer" >> citas  # respuesta entregada: se verifican sus citas
+diff -ruN a/main.py b/main.py
+--- a/main.py	2026-10-30 22:48:54.546074003 +0000
++++ b/main.py	2026-10-30 23:11:50.223175112 +0000
+@@ -15,7 +15,8 @@
+ # en "Show and Tell" (arXiv 2511.13972) las instrucciones explícitas de
+ # concisión bajaron 56–70% los tokens del código y persistieron en el turno
+ # siguiente; un pedido genérico de "mejorar" inflaba todo. El A/B propio está
+-# en banco/probes/forma_codigo.py y la bitácora (exp/51).
++# en banco/probes/forma_codigo.py y la bitácora (exp/51); el brazo sin forma lo
++# arma la sonda quitando la constante del texto.
+ DIRECTIVA_FORMA = (
+     "Cuando escribas o edites código, escribí el mínimo que funciona y con la "
+     "forma del repo: sin defensas ni docstrings que el pedido no exija, sin "
+@@ -24,60 +25,10 @@
+ )
+ 
+ 
+-# Directiva de exp/72 F0 (brazo "prosa"): el método de fable como PROSA en el
+-# system prompt, destilado de Sahir619/fable-method @9924067 (MIT). No enforza
+-# nada (los gates/nodos son F2); sirve para medir si la prosa sola transfiere.
+-# Default 0: el chat de producción no cambia hasta que haya medición propia.
+-DIRECTIVA_FABLE = (
+-    "Antes de actuar, clasificá el pedido: pregunta/assessment (solo hallazgos "
+-    "y una recomendación, no edites), tarea (cambio verificado) o plan-first "
+-    "(alcance ambiguo o acción irreversible: plan y esperá aprobación). Definí "
+-    'en una línea qué significa "hecho" y cómo se verifica. Evidencia de fuentes '
+-    "primarias (leé el archivo real; no cites de memoria); dos rondas de búsqueda "
+-    "alcanzan. Una sola recomendación. Antes de cambiar comportamiento escribí "
+-    "`INTENT: el código hace X; el check espera Y; la spec dice Z`; si X/Y/Z no "
+-    "coinciden, el desacuerdo es el hallazgo: no edites. Para acciones outward "
+-    "(deploy, push, publicar, borrar datos compartidos) escribí `AUTH: el "
+-    'usuario dijo "..."`; sin cita, no actúes y dejala como próximo paso. Cambio '
+-    "mínimo y quirúrgico. Verificá observando (correr, no inferir) el criterio "
+-    "de hecho y el sistema alrededor; si arreglaste un defecto, buscá el mismo "
+-    "patrón en todo el repo y escribí `TWINS: busqué <patrón> — encontré N "
+-    "sitios: <archivos o none>`. Máximo 3 ciclos de fix-verify; si no, parás y "
+-    "reportás lo intentado. Reportá outcome-first, en lenguaje llano, con "
+-    "caveats honestos, y `PENDING: <acción> — esperando tu autorización` si un "
+-    "follow-up prescripto no se hizo."
+-)
+-
+-
+-# Directiva de exp/78 (auditoría de seguridad): checklist que empuja a buscar
+-# controles por AUSENCIA — el hueco medido en exp/77 (R1 sort --compress-program,
+-# R3 tail -f, R2 evasión por -o). Opt-in con PROMPT_AUDITORIA; default 0.
+-DIRECTIVA_AUDITORIA = (
+-    "Cuando audites código buscando bugs de seguridad, además de leer lo que hay, "
+-    "preguntate qué FALTA: listas de flags o denylists incompletas, normalización de "
+-    "envoltorios (sudo/nice/timeout/env), validaciones que comparan strings sin "
+-    "normalizar (mayúsculas, flags reordenados, /bin/rm), redirecciones y descriptores, "
+-    "y rutas sin canonicalizar. Enumerá las familias de riesgo del archivo (ejecución "
+-    "de programas, escritura de archivos, descriptores, envoltorios, opciones que toman "
+-    "valores) y verificá que cada una tenga su control; si un control depende de una "
+-    "lista, revisá si la lista está completa. Un hardening ausente es un hallazgo de "
+-    "seguridad: reportalo con archivo:línea, qué falta, cómo se explota y el fix. No "
+-    "edites archivos."
+-)
+-
+-
+-def system_prompt(
+-    incluir_forma: bool | None = None,
+-    incluir_fable: bool | None = None,
+-    incluir_auditoria: bool | None = None,
+-):
+-    """El prompt del chat; `incluir_forma=None` respeta el setting PROMPT_FORMA.
+-
+-    PROMPT_FORMA=0 quita la directiva de forma (palanca del A/B exp/51 en el
+-    chat real vía banco; default 1). PROMPT_FABLE=1 agrega la directiva de
+-    exp/72 (brazo prosa del A/B; default 0: producción sin cambios).
+-    PROMPT_AUDITORIA=1 agrega el checklist de auditoría de seguridad de exp/78
+-    (default 0)."""
++def system_prompt():
++    """El prompt del chat: fijo en la sesión, con la directiva de forma (exp/51
++    la sostiene con este modelo). Las directivas opcionales (fable, auditoría)
++    son skills desde la 5b: el modelo las carga con `usar_skill`."""
+     # REGLA de estabilidad: el prefijo debe ser byte-estable durante la
+     # sesión para no romper el KV-cache (DeepSeek Harness lo midió: una
+     # sección dinámica recalcularía ~99% del contexto por turno). Nada
+@@ -87,21 +38,10 @@
+     # F (X85): sin "acotá el alcance" (el tope de rondas ya lo gobierna; medido
+     # sin pérdida de calidad). La directiva de citas se quedó: sin ella la
+     # calidad bajó aunque VerificarCitas corrija después.
+-    from utils.call_llm import _setting
+-
+-    if incluir_forma is None:
+-        incluir_forma = _setting("PROMPT_FORMA", "1") != "0"
+-    if incluir_fable is None:
+-        incluir_fable = _setting("PROMPT_FABLE", "0") != "0"
+-    if incluir_auditoria is None:
+-        incluir_auditoria = _setting("PROMPT_AUDITORIA", "0") != "0"
+     roots = "\n".join(f"- {r}" for r in allowed_roots())
+     # el CWD del proceso: sin esto, "¿en qué carpeta estamos?" se responde
+     # adivinando la raíz permitida (medido en producción)
+     cwd = Path.cwd()
+-    forma = f"\n\n{DIRECTIVA_FORMA}" if incluir_forma else ""
+-    fable = f"\n\n{DIRECTIVA_FABLE}" if incluir_fable else ""
+-    auditoria = f"\n\n{DIRECTIVA_AUDITORIA}" if incluir_auditoria else ""
+     return f"""Agente de resolución de pedidos con tools disponibles.
+ 
+ Trabajás en {cwd} y sus subdirectorios.
+@@ -113,7 +53,9 @@
+ 
+ Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la verificaste, decila como no verificada. Citá siempre como ruta/archivo.py:línea (ruta relativa al repo, sin "líneas ~X").
+ 
+-Para leer, listar o buscar archivos usá read_file, list_files o search_files; no uses cat, grep ni find por run_command.{forma}{fable}{auditoria}"""
++Para leer, listar o buscar archivos usá read_file, list_files o search_files; no uses cat, grep ni find por run_command.
++
++{DIRECTIVA_FORMA}"""
+ 
+ 
+ SUBCOMANDOS = {
+diff -ruN a/modules/memoria.py b/modules/memoria.py
+--- a/modules/memoria.py	2026-10-30 22:48:54.546074003 +0000
++++ b/modules/memoria.py	2026-10-30 23:11:50.223175112 +0000
+@@ -27,7 +27,6 @@
+ from utils.compaccion import MAX_RESPALDO_CHARS, PREFIJO_COMPACCION, huella, serializar, zona_fria
+ from utils.fs_tools import escribir_atomico
+ from utils.prefetch import PREFIJO_PREFETCH
+-from utils.skills import PREFIJO_SKILL
+ 
+ MEMORIA_DIR_DEFAULT = "memoria"
+ SEARCH_MAX_FILES = 50
+@@ -283,13 +282,13 @@
+ 
+ def preguntas_reales(mensajes):
+     """Cuenta los user-role que son PREGUNTAS: excluye los mensajes sintéticos
+-    de prefetch, skill y el marcador de compacción (medido en vivo: con 1
++    de prefetch y el marcador de compacción (medido en vivo: con 1
+     pregunta + 1 pre-fetch el resumen se disparaba igual)."""
+     return sum(
+         1 for m in mensajes
+         if m.get("role") == "user"
+         and not str(m.get("content", "")).startswith(
+-            (PREFIJO_PREFETCH, PREFIJO_COMPACCION, PREFIJO_SKILL))
++            (PREFIJO_PREFETCH, PREFIJO_COMPACCION))
+     )
+ 
+ 
+diff -ruN a/modules/skills.py b/modules/skills.py
+--- a/modules/skills.py	1970-01-01 00:00:00.000000000 +0000
++++ b/modules/skills.py	2026-10-30 23:10:55.234014251 +0000
+@@ -0,0 +1,79 @@
++"""Módulo `skills`: modos de trabajo que el modelo carga cuando el pedido lo pide.
++
++Un skill es un YAML en `skills/` con `id`, `descripcion` (CUÁNDO usarlo) e
++`instrucciones`. El catálogo (`id: descripción`) viaja en la descripción de la
++tool `usar_skill`, igual en toda la sesión (no rompe el KV-cache); el modelo
++la llama si el pedido encaja y recibe las instrucciones como resultado
++(divulgación progresiva, Agent Skills). Hasta X110 una regex del YAML decidía
++y el loop recortaba las tools: con otro idioma o redacción no se activaba
++(fase 5b, `banco/specs/fase5b.md`).
++
++Quitar el mecanismo = borrar este archivo. Un YAML roto se saltea con aviso.
++"""
++import sys
++from dataclasses import dataclass
++from pathlib import Path
++
++from yaml import YAMLError, safe_load
++
++from utils.terminal import colorear
++
++DIR_SKILLS = Path(__file__).resolve().parent.parent / "skills"
++_CAMPOS = ("id", "descripcion", "instrucciones")
++
++
++@dataclass(frozen=True)
++class Skill:
++    id: str
++    descripcion: str
++    instrucciones: str
++
++
++def cargar(raiz=DIR_SKILLS):
++    """Los skills válidos de `raiz`, en orden de archivo."""
++    habilidades = []
++    for ruta in sorted(Path(raiz).glob("*.yaml")):
++        try:
++            datos = safe_load(ruta.read_text(encoding="utf-8")) or {}
++            faltan = [campo for campo in _CAMPOS if not datos.get(campo)]
++            if faltan:
++                raise ValueError("faltan campos: " + ", ".join(faltan))
++        except (OSError, YAMLError, ValueError, AttributeError) as e:
++            print(f"[skills] {ruta.name} no cargó ({type(e).__name__}: {e}) → se saltea", file=sys.stderr)
++            continue
++        habilidades.append(Skill(str(datos["id"]), " ".join(str(datos["descripcion"]).split()),
++                                 str(datos["instrucciones"]).strip()))
++    return habilidades
++
++
++def esquema(habilidades):
++    """La tool `usar_skill` con el catálogo en su descripción. PURA."""
++    catalogo = "\n".join(f"- {s.id}: {s.descripcion}" for s in habilidades)
++    return {
++        "type": "function",
++        "function": {
++            "name": "usar_skill",
++            "description": ("Cargá las instrucciones de un modo de trabajo cuando el pedido encaja en su "
++                            "descripción, antes de empezar a trabajar en él. Modos:\n" + catalogo),
++            "parameters": {
++                "type": "object",
++                "properties": {"skill": {"type": "string", "enum": [s.id for s in habilidades]}},
++                "required": ["skill"],
++            },
++        },
++    }
++
++
++SKILLS = {s.id: s for s in cargar()}
++
++
++def usar_skill(skill):
++    elegido = SKILLS.get(str(skill).strip())
++    if elegido is None:
++        return f"ERROR: no hay un skill '{skill}'. Disponibles: {', '.join(SKILLS) or 'ninguno'}"
++    print(colorear(f"  [skill] {elegido.id} activo — {elegido.descripcion}", "info"), flush=True)
++    return elegido.instrucciones
++
++
++TOOLS = [esquema(list(SKILLS.values()))] if SKILLS else []
++IMPL = {"usar_skill": usar_skill} if SKILLS else {}
+diff -ruN a/nodes.py b/nodes.py
+--- a/nodes.py	2026-10-30 22:48:54.546074003 +0000
++++ b/nodes.py	2026-10-30 23:10:55.238014335 +0000
+@@ -22,8 +22,6 @@
+     normalizar,
+     sanitizar,
+ )
+-from utils.skills import PREFIJO_SKILL, disponibles, filtrar_tools, skill_para
+-from utils.skills import mensaje as mensaje_skill
+ from utils.terminal import colorear, progreso_ronda
+ from utils.thread_store import checkpoint
+ from utils.tracing import evento_politica, evento_tool, thread_id
+@@ -162,7 +160,6 @@
+         "huella": None,          # huella de la última ronda
+         "huellas_vistas": [],    # novedad acumulada (exp/52-B)
+         "racha_sin_novedad": 0,
+-        "skill": None,           # id del skill activo (exp/55)
+         "uso_inicio": None,      # desglose de tokens al empezar (exp/90)
+     }
+ 
+@@ -312,7 +309,7 @@
+         # calibrar (bookkeeping; nunca corta el chat).
+         registrar_pregunta(exec_res)
+         # Todo lo de la pregunta anterior muere acá, de una vez: presupuesto
+-        # (L8), no-progreso, novedad y skill. El costo de la anterior se cierra
++        # (L8), no-progreso y novedad. El costo de la anterior se cierra
+         # con su `uso_inicio`.
+         # (/aprobaciones no llega hasta acá: lo atiende exec(), sin gastar turno.)
+         anterior = turno(shared)
+@@ -344,11 +341,11 @@
+ 
+ 
+ def pregunta_en_curso(messages):
+-    """La última pregunta del usuario: el último `user` que no sea un mensaje
+-    que la entrada del chat inyectó (pre-fetch o skill)."""
++    """La última pregunta del usuario: el último `user` que no sea el
++    pre-fetch que la entrada del chat inyectó."""
+     for m in reversed(messages):
+         contenido = str(m.get("content", ""))
+-        if m.get("role") == "user" and not contenido.startswith((PREFIJO_PREFETCH, PREFIJO_SKILL)):
++        if m.get("role") == "user" and not contenido.startswith(PREFIJO_PREFETCH):
+             return contenido
+     return ""
+ 
+@@ -386,33 +383,6 @@
+         return "continue"
+ 
+ 
+-class Skills(Node):
+-    """exp/55: el skill de la pregunta, una vez, a la entrada (fase 3b, X106).
+-
+-    Vivía dentro del router y solo corría en enforce; sin router es un nodo
+-    propio entre `PreFetch` y `Contexto`. `skill_para` decide por la condición
+-    del YAML (determinista, sin LLM) hasta la 5b, que la cambia por activación
+-    por descripción. Si dispara: el id va al turno (AgentStep recorta las tools
+-    a su subset) y su prompt entra como mensaje `[skill]`. `SKILLS=0` lo apaga.
+-    Siempre "continue"."""
+-
+-    def prep(self, shared):
+-        return pregunta_en_curso(shared.get("messages", []))
+-
+-    def exec(self, pregunta):
+-        if _setting("SKILLS", "1") == "0" or not pregunta:
+-            return None
+-        return skill_para(pregunta, disponibles())
+-
+-    def post(self, shared, prep_res, exec_res):
+-        if exec_res is not None:
+-            turno(shared)["skill"] = exec_res.id
+-            shared["messages"].append({"role": "user", "content": mensaje_skill(exec_res)})
+-            print(colorear(f"  [skill] {exec_res.id} activo — {exec_res.descripcion}", "info"),
+-                  flush=True)
+-        return "continue"
+-
+-
+ def _aviso_ventana_caliente(shared, tamano, tope):
+     """exp/88: si ni compactando se baja del tope, la masa está en la
+     ventana caliente — decílo UNA vez por sesión: el marcador de compacción
+@@ -488,16 +458,7 @@
+     def prep(self, shared):
+         # El cierre por presupuesto ya no pasa por acá: Contexto lo decide y
+         # sale a Cierre (X96). AgentStep siempre ofrece tools.
+-        tools = TOOLS
+-        skill_id = turno(shared)["skill"]
+-        if skill_id:
+-            # exp/55: mientras el skill está activo se anuncia SOLO su subset
+-            # (guía, no sandbox: el action space completo sigue existiendo).
+-            # En shared viaja el ID (JSON): el objeto Skill se guardaba como su
+-            # repr y un resume lo cargaba roto (auditoría 2026-10-26, F4).
+-            skill = next((h for h in disponibles() if h.id == skill_id), None)
+-            tools = filtrar_tools(tools, skill) if skill else tools
+-        return shared["messages"], tools
++        return shared["messages"], TOOLS
+ 
+     def exec(self, inputs):
+         messages, tools = inputs
+diff -ruN a/replay.py b/replay.py
+--- a/replay.py	2026-10-30 22:48:54.570074573 +0000
++++ b/replay.py	2026-10-30 23:11:50.223175112 +0000
+@@ -70,6 +70,7 @@
+     # (accion politica) la reconoce tracing.es_bookkeeping
+     "corte_no_progreso": "marca de incidente histórica (hoy nodes.motivo_de_cierre)",
+     "bash": "alias histórica de run_command en trazas viejas",
++    "Skills": "pasaje de la entrada (X106–X110); la 5b lo cambió por la tool usar_skill",
+ }
+ 
+ # Los nodos del CHAT: el nivel B juzga los RUNS de estos nodos dentro de
+@@ -78,7 +79,8 @@
+ # corridas de OTROS grafos, no caminatas del chat.
+ # El router y la ruta directa (borrados en X106) siguen acá: sus trazas viejas
+ # son del chat; sacarlos haría que B los saltee y "valide" aristas que nunca
+-# existieron. PreFetch y Skills no: son pasajes (aristas transitivas abajo).
++# existieron. PreFetch no: es un pasaje (aristas transitivas abajo); Skills,
++# el otro que hubo, no es nodo del chat y B lo saltea.
+ NODOS_CHAT = {"GetQuestion", "LayaRouter", "Contexto", "DirectAnswer", "AgentStep",
+               "ExecuteTools", "Observar", "Cierre", "ExitChat", "VerificarCitas"}
+ 
+@@ -185,15 +187,6 @@
+         for (b2, salida, c) in aristas_chat
+         if b2 == "Contexto" and salida == "herramientas"
+     }
+-    # X106: Skills es otro pasaje transparente a la entrada (PreFetch → Skills →
+-    # Contexto). Va ANTES de la regla de PreFetch, que la necesita resuelta.
+-    aristas_chat |= {
+-        (a, accion, c)
+-        for (a, accion, b) in aristas_chat
+-        if b == "Skills"
+-        for (b2, accion2, c) in aristas_chat
+-        if b2 == "Skills" and accion2 == accion and c != "Skills"
+-    }
+     # exp/50: PreFetch es un pasaje TRANSPARENTE entre GetQuestion y el resto.
+     # Las caminatas históricas (pre-exp/50) saltaban directo de GetQuestion al
+     # paso siguiente y siguen siendo válidas: se agregan las aristas
+diff -ruN a/resume.py b/resume.py
+--- a/resume.py	2026-10-30 22:48:54.570074573 +0000
++++ b/resume.py	2026-10-30 23:11:50.227175196 +0000
+@@ -35,8 +35,9 @@
+         shared["turno"] = {**nuevo_turno(), **viejas}
+     # X96: `aviso_cierre` y `corte_novedad` los reemplazó la estructura (el
+     # nodo Cierre, motivo_de_cierre); X106: `ruta` y `router_pendiente` se
+-    # fueron con el router. Un checkpoint anterior los trae y sobran.
+-    for clave in ("aviso_cierre", "corte_novedad", "ruta", "router_pendiente"):
++    # fueron con el router; X111 (5b): `skill`, con el recorte de tools. Un
++    # checkpoint anterior los trae y sobran.
++    for clave in ("aviso_cierre", "corte_novedad", "ruta", "router_pendiente", "skill"):
+         shared["turno"].pop(clave, None)
+     return shared
+ 
+diff -ruN a/skills/auditoria-seguridad.yaml b/skills/auditoria-seguridad.yaml
+--- a/skills/auditoria-seguridad.yaml	1970-01-01 00:00:00.000000000 +0000
++++ b/skills/auditoria-seguridad.yaml	2026-10-30 23:10:55.234014251 +0000
+@@ -0,0 +1,14 @@
++# Checklist de exp/78 (era DIRECTIVA_AUDITORIA, opt-in con PROMPT_AUDITORIA).
++# El texto es el de la directiva, sin cambios (fase 5b).
++id: auditoria-seguridad
++descripcion: "auditoría de seguridad: buscar huecos, bypasses o controles que faltan en código"
++instrucciones: >
++  Cuando audites código buscando bugs de seguridad, además de leer lo que hay, preguntate
++  qué FALTA: listas de flags o denylists incompletas, normalización de envoltorios
++  (sudo/nice/timeout/env), validaciones que comparan strings sin normalizar (mayúsculas,
++  flags reordenados, /bin/rm), redirecciones y descriptores, y rutas sin canonicalizar.
++  Enumerá las familias de riesgo del archivo (ejecución de programas, escritura de
++  archivos, descriptores, envoltorios, opciones que toman valores) y verificá que cada una
++  tenga su control; si un control depende de una lista, revisá si la lista está completa.
++  Un hardening ausente es un hallazgo de seguridad: reportalo con archivo:línea, qué
++  falta, cómo se explota y el fix. No edites archivos.
+diff -ruN a/skills/metodo-fable.yaml b/skills/metodo-fable.yaml
+--- a/skills/metodo-fable.yaml	1970-01-01 00:00:00.000000000 +0000
++++ b/skills/metodo-fable.yaml	2026-10-30 23:10:55.234014251 +0000
+@@ -0,0 +1,21 @@
++# El método de fable como prosa (exp/72 F0; era DIRECTIVA_FABLE, opt-in con
++# PROMPT_FABLE). Destilado de Sahir619/fable-method @9924067 (MIT). Texto sin
++# cambios (fase 5b, decisión del operador: medirla como skill antes de borrarla).
++id: metodo-fable
++descripcion: "tareas con riesgo de equivocarse de acción: un test que falla y contradice la spec, una evaluación donde no hay que editar, o acciones irreversibles (deploy, push, borrar)"
++instrucciones: >
++  Antes de actuar, clasificá el pedido: pregunta/assessment (solo hallazgos y una
++  recomendación, no edites), tarea (cambio verificado) o plan-first (alcance ambiguo o
++  acción irreversible: plan y esperá aprobación). Definí en una línea qué significa
++  "hecho" y cómo se verifica. Evidencia de fuentes primarias (leé el archivo real; no
++  cites de memoria); dos rondas de búsqueda alcanzan. Una sola recomendación. Antes de
++  cambiar comportamiento escribí `INTENT: el código hace X; el check espera Y; la spec
++  dice Z`; si X/Y/Z no coinciden, el desacuerdo es el hallazgo: no edites. Para acciones
++  outward (deploy, push, publicar, borrar datos compartidos) escribí `AUTH: el usuario
++  dijo "..."`; sin cita, no actúes y dejala como próximo paso. Cambio mínimo y quirúrgico.
++  Verificá observando (correr, no inferir) el criterio de hecho y el sistema alrededor; si
++  arreglaste un defecto, buscá el mismo patrón en todo el repo y escribí `TWINS: busqué
++  <patrón> — encontré N sitios: <archivos o none>`. Máximo 3 ciclos de fix-verify; si no,
++  parás y reportás lo intentado. Reportá outcome-first, en lenguaje llano, con caveats
++  honestos, y `PENDING: <acción> — esperando tu autorización` si un follow-up prescripto
++  no se hizo.
+diff -ruN a/skills/revision.yaml b/skills/revision.yaml
+--- a/skills/revision.yaml	2026-10-30 22:48:54.546074003 +0000
++++ b/skills/revision.yaml	2026-10-30 23:10:55.234014251 +0000
+@@ -1,6 +1,5 @@
+ id: revision
+-descripcion: "revisión de código: hallazgos con impacto, sin ruido de estilo"
+-condicion: '(?i)\b(revis(?:á|a|ar|áme)|audit(?:á|a|ar))\b[^.]*\b(c[oó]digo|cambios?|diff|pr|pull request|implementaci[oó]n)\b'
++descripcion: "revisión de código: el pedido es revisar, mirar o buscar problemas en código, un diff o un PR"
+ instrucciones: |
+   Revisión de código en este repo. Reglas:
+   - Leé los archivos reales antes de opinar; no inventes rutas, líneas ni comportamiento.
+@@ -8,8 +7,3 @@
+   - Baseline de smells (Fowler): método largo, duplicación, condicionales anidados; nombrá el smell solo si podés señalar ruta:línea.
+   - Formato: `ruta:línea — problema — fix concreto` (una línea por hallazgo). Sin hallazgos: decilo en una frase.
+   - No edites nada salvo que se te pida explícitamente.
+-tools:
+-  - read_file
+-  - list_files
+-  - search_files
+-  - run_command
+diff -ruN a/skills/tdd.yaml b/skills/tdd.yaml
+--- a/skills/tdd.yaml	2026-10-30 22:48:54.546074003 +0000
++++ b/skills/tdd.yaml	2026-10-30 23:10:55.234014251 +0000
+@@ -1,16 +1,8 @@
+ id: tdd
+-descripcion: "test-first: rojo, verde, refactor; el gate antes de decir listo"
+-condicion: '(?i)\b(tdd|test[- ]?first|primero (?:el|los) tests?|escribí primero (?:el|un) test)\b'
++descripcion: "test-first: el pedido es trabajar con TDD o escribir el test antes que el código"
+ instrucciones: |
+   Trabajo test-first en este repo:
+   - Primero el test que FALLA (rojo), después el código mínimo para pasarlo (verde), recién ahí refactor.
+   - Tests con pytest en `tests/test_*.py`; verificá con `python3 -m pytest tests/ -q`.
+   - No toques producción sin un test que lo cubra; no uses skip/xfail sin el marker del recurso que falta.
+   - Antes de decir listo: ./calidad.sh verde (ruff, C901, ratchet, pytest).
+-tools:
+-  - read_file
+-  - list_files
+-  - search_files
+-  - edit_file
+-  - write_file
+-  - run_command
+diff -ruN a/tests/inventario_tests.txt b/tests/inventario_tests.txt
+--- a/tests/inventario_tests.txt	2026-10-30 22:48:54.538073814 +0000
++++ b/tests/inventario_tests.txt	2026-10-30 23:15:40.004025953 +0000
+@@ -257,9 +257,6 @@
+ tests/test_estado_riesgo.py::test_estado_separa_organicas_de_banco
+ tests/test_estado_riesgo.py::test_leer_lineas_tolera_rotas_y_archivo_ausente
+ tests/test_estilo_humano.py::test_except_amplio_visible_y_justificado
+-tests/test_estilo_humano.py::test_prompt_auditoria_es_opt_in
+-tests/test_estilo_humano.py::test_prompt_fable_es_opt_in
+-tests/test_estilo_humano.py::test_prompt_forma_se_apaga_por_setting
+ tests/test_estilo_humano.py::test_sin_banners_decorativos
+ tests/test_estilo_humano.py::test_sin_docstrings_de_relleno
+ tests/test_estilo_humano.py::test_sin_wrappers_vacios_sin_justificar
+@@ -274,8 +271,6 @@
+ tests/test_evals.py::test_evals_linter_traza_limpia_sin_falsos_positivos
+ tests/test_evals.py::test_evals_tool_del_chat
+ tests/test_evals.py::test_evals_tool_rechaza_carpeta_inexistente
+-tests/test_fable.py::test_brazo_c_es_la_skill_revision
+-tests/test_fable.py::test_brazo_d_es_checklist_de_auditoria
+ tests/test_fable.py::test_copiar_fixture_nunca_lleva_el_ground_truth
+ tests/test_fable.py::test_criterio_marca_verdadera_si_la_prosa_sube_un_punto
+ tests/test_fable.py::test_criterio_pre_registrado_descarta_techos_y_predice_falso
+@@ -753,12 +748,6 @@
+ tests/test_rondas.py::test_es_sesion_chat_por_getquestion
+ tests/test_rondas.py::test_resumen_cuenta_la_cola
+ tests/test_rondas.py::test_simular_cap_solo_toca_la_cola
+-tests/test_skills.py::test_agent_step_anuncia_solo_el_subset_del_skill
+-tests/test_skills.py::test_filtrar_tools_es_subset_y_nunca_expande
+-tests/test_skills.py::test_mensaje_lleva_prefijo_estable_y_descripcion
+-tests/test_skills.py::test_preguntas_reales_no_cuentan_el_mensaje_de_skill
+-tests/test_skills.py::test_skill_roto_se_saltea_sin_tumbar_el_resto
+-tests/test_skills.py::test_skills_del_repo_cargan_y_disparan
+ tests/test_smoke.py::test_action_space_completo
+ tests/test_smoke.py::test_action_space_suma[coding]
+ tests/test_smoke.py::test_action_space_suma[memoria]
+diff -ruN a/tests/test_estado_turno.py b/tests/test_estado_turno.py
+--- a/tests/test_estado_turno.py	2026-10-30 22:48:54.534073719 +0000
++++ b/tests/test_estado_turno.py	2026-10-30 23:14:09.494115223 +0000
+@@ -76,7 +76,7 @@
+     checkpoint("v", "ExecuteTools", "default", viejo, ruta_dir=tmp_path)
+     shared = resume.migrar(cargar("v", ruta_dir=tmp_path))
+     assert shared["turno"]["rondas"] == 3 and shared["turno"]["sin_progreso"] == 1
+-    assert shared["turno"]["skill"] == "revision"
++    assert "skill" not in shared["turno"]  # X111: se fue con el recorte de tools
+     assert "tool_rounds" not in shared and shared["_objetivo"] == "auditá"
+     assert resume.migrar(shared) == shared  # idempotente
+     assert cargar_sesion("v", ruta_dir=tmp_path) is not None
+diff -ruN a/tests/test_estilo_humano.py b/tests/test_estilo_humano.py
+--- a/tests/test_estilo_humano.py	2026-10-30 22:48:54.538073814 +0000
++++ b/tests/test_estilo_humano.py	2026-10-30 23:14:09.494115223 +0000
+@@ -158,42 +158,17 @@
+     assert not sin_assert, f"tests sin aserción observable: {sin_assert}"
+ 
+ 
+-def test_prompt_forma_se_apaga_por_setting(monkeypatch):
+-    """PROMPT_FORMA=0 permite el A/B del banco sin duplicar el prompt."""
++def test_el_prompt_no_tiene_perillas_y_la_forma_queda_fija(monkeypatch):
++    """5b (X111): PROMPT_FORMA, PROMPT_FABLE y PROMPT_AUDITORIA se borraron;
++    la forma queda fija (exp/51) y las otras dos son skills."""
+     import main
+ 
+-    monkeypatch.delenv("PROMPT_FORMA", raising=False)
+-    assert main.DIRECTIVA_FORMA in main.system_prompt()  # default encendido
+-    monkeypatch.setenv("PROMPT_FORMA", "0")
+-    assert main.DIRECTIVA_FORMA not in main.system_prompt()
+-    monkeypatch.setenv("PROMPT_FORMA", "1")
+-    assert main.DIRECTIVA_FORMA in main.system_prompt()
+-
+-
+-def test_prompt_fable_es_opt_in(monkeypatch):
+-    """PROMPT_FABLE=1 inyecta la directiva del método (exp/72 F0); el default 0
+-    deja el prompt de producción byte-idéntico."""
+-    import main
+-
+-    monkeypatch.delenv("PROMPT_FABLE", raising=False)
+-    assert main.DIRECTIVA_FABLE not in main.system_prompt()
+-    monkeypatch.setenv("PROMPT_FABLE", "1")
+-    assert main.DIRECTIVA_FABLE in main.system_prompt()
+-    monkeypatch.setenv("PROMPT_FABLE", "0")
+-    assert main.DIRECTIVA_FABLE not in main.system_prompt()
+-
+-
+-def test_prompt_auditoria_es_opt_in(monkeypatch):
+-    """PROMPT_AUDITORIA=1 agrega el checklist de seguridad (exp/78); default 0."""
+-    import main
+-
+-    monkeypatch.setenv("PROMPT_AUDITORIA", "1")
+-    con_checklist = main.system_prompt()
+-    monkeypatch.setenv("PROMPT_AUDITORIA", "0")
+-    sin_checklist = main.system_prompt()
+-    assert main.DIRECTIVA_AUDITORIA in con_checklist
+-    assert main.DIRECTIVA_AUDITORIA not in sin_checklist
+-    assert len(con_checklist) > len(sin_checklist)
++    base = main.system_prompt()
++    for nombre in ("PROMPT_FORMA", "PROMPT_FABLE", "PROMPT_AUDITORIA"):
++        monkeypatch.setenv(nombre, "0" if nombre == "PROMPT_FORMA" else "1")
++    assert main.system_prompt() == base
++    assert base.endswith(main.DIRECTIVA_FORMA)
++    assert not hasattr(main, "DIRECTIVA_FABLE") and not hasattr(main, "DIRECTIVA_AUDITORIA")
+ 
+ 
+ def test_system_prompt_pide_codigo_minimo_y_no_crece():
+diff -ruN a/tests/test_f_prompt.py b/tests/test_f_prompt.py
+--- a/tests/test_f_prompt.py	2026-10-30 22:48:54.534073719 +0000
++++ b/tests/test_f_prompt.py	2026-10-30 23:14:09.494115223 +0000
+@@ -19,7 +19,7 @@
+ 
+     for nombre in ("PROMPT_CITAS", "PROMPT_ALCANCE"):
+         monkeypatch.setenv(nombre, "0")  # perillas borradas: no cambian nada
+-    texto = main.system_prompt(incluir_forma=False)
++    texto = main.system_prompt().removesuffix("\n\n" + main.DIRECTIVA_FORMA)
+     esperado = (
+         "Respondé en el idioma de cada pedido (español o inglés).\n\n"
+         "Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la "
+diff -ruN a/tests/test_fable.py b/tests/test_fable.py
+--- a/tests/test_fable.py	2026-10-30 22:48:54.534073719 +0000
++++ b/tests/test_fable.py	2026-10-30 23:14:09.494115223 +0000
+@@ -309,12 +309,11 @@
+     assert bench.puntuar_s16(pristine, run, reporte)[0] == 0
+ 
+ 
+-def test_brazo_c_es_la_skill_revision():
+-    """exp/75: A/B apagan skills; C prende la skill revision del harness."""
++def test_el_unico_brazo_es_el_chat_como_esta():
++    """X111 (5b): B (prosa de fable), C (skill revision) y D (checklist) eran
++    settings del prompt; hoy son skills que el modelo carga solo."""
+     bench = _bench()
+-    assert bench.ENV_POR_BRAZO["A"] == {"PROMPT_FABLE": "0", "SKILLS": "0"}
+-    assert bench.ENV_POR_BRAZO["B"] == {"PROMPT_FABLE": "1", "SKILLS": "0"}
+-    assert bench.ENV_POR_BRAZO["C"] == {"PROMPT_FABLE": "0", "SKILLS": "1"}
++    assert bench.ENV_POR_BRAZO == {"A": {}}
+ 
+ 
+ def test_s17_reusa_el_fixture_de_s13_y_parsea_5_bugs():
+@@ -364,16 +363,6 @@
+     assert bench.puntuar_s18(pristine, run, reporte)[0] == 0
+ 
+ 
+-def test_brazo_d_es_checklist_de_auditoria():
+-    """exp/78: D prende solo el checklist de seguridad (PROMPT_AUDITORIA=1)."""
+-    bench = _bench()
+-    assert bench.ENV_POR_BRAZO["D"] == {
+-        "PROMPT_FABLE": "0",
+-        "SKILLS": "0",
+-        "PROMPT_AUDITORIA": "1",
+-    }
+-
+-
+ def test_s19_ground_truth_historica_parsea_3_bugs():
+     """Segundo fixture real (commit 9508d6a^): 3 bugs por ausencia/estado."""
+     bench = _bench()
+diff -ruN a/tests/test_fase5b.py b/tests/test_fase5b.py
+--- a/tests/test_fase5b.py	2026-10-30 22:48:54.538073814 +0000
++++ b/tests/test_fase5b.py	2026-10-30 23:14:09.494115223 +0000
+@@ -25,16 +25,12 @@
+     assert fase5b.veredicto_disparo([])["cumple"] is False
+ 
+ 
+-def test_la_regex_de_hoy_dispara_en_uno_de_cuatro_positivos():
+-    """La predicción de la base, medida sin LLM al pre-registrar: la
+-    `condicion` del YAML de revision es una regex en español."""
+-    import yaml
++def test_cada_skill_esperado_esta_en_el_catalogo():
++    """X110 midió que la regex de la base disparaba en 1 de 4 positivos (con la
++    regex ya borrada, el número queda en la bitácora y en el pre-registro).
++    Lo que sigue verificable sin LLM: cada skill que el escenario espera es una
++    opción de `usar_skill`, y los negativos no tienen ninguno."""
++    from modules import skills
+ 
+-    from conftest import RAIZ
+-    from utils.skills import disponibles, skill_para
+-
+-    turnos = yaml.safe_load((RAIZ / "banco/escenarios/fase5b-disparo.yaml").read_text(encoding="utf-8"))["turnos"]
+-    disparo = {t["id"]: (skill_para(t["linea"], disponibles()) or None) for t in turnos if t["id"] in fase5b.ESPERADO}
+-    cargados = {t: [s.id] if s else [] for t, s in disparo.items()}
+-    assert fase5b.veredicto_disparo([cargados])["aciertos_por_corrida"] == [1]
+-    assert cargados["pos-revision-es"] == ["revision"]
++    enum = skills.TOOLS[0]["function"]["parameters"]["properties"]["skill"]["enum"]
++    assert {s for s in fase5b.ESPERADO.values() if s} <= set(enum)
+diff -ruN a/tests/test_prefetch.py b/tests/test_prefetch.py
+--- a/tests/test_prefetch.py	2026-10-30 22:48:54.534073719 +0000
++++ b/tests/test_prefetch.py	2026-10-30 23:14:09.494115223 +0000
+@@ -118,12 +118,9 @@
+     )
+ 
+ 
+-def test_pregunta_en_curso_saltea_prefetch_y_skill():
+-    """§3 de exp/50 sin router (X106): PreFetch y Skills leen la PREGUNTA
+-    aunque el pre-fetch o el skill hayan quedado últimos."""
+-    from utils.skills import PREFIJO_SKILL
+-
++def test_pregunta_en_curso_saltea_el_prefetch():
++    """§3 de exp/50 sin router (X106): PreFetch lee la PREGUNTA aunque el
++    pre-fetch haya quedado último."""
+     mensajes = [{"role": "user", "content": "¿Quién ganó el último mundial?"},
+-                {"role": "user", "content": f"{PREFIJO_PREFETCH} algo.md …"},
+-                {"role": "user", "content": f"{PREFIJO_SKILL} revision — x"}]
++                {"role": "user", "content": f"{PREFIJO_PREFETCH} algo.md …"}]
+     assert nodes.pregunta_en_curso(mensajes) == "¿Quién ganó el último mundial?"
+diff -ruN a/tests/test_replay.py b/tests/test_replay.py
+--- a/tests/test_replay.py	2026-10-30 22:48:54.534073719 +0000
++++ b/tests/test_replay.py	2026-10-30 23:14:09.494115223 +0000
+@@ -29,9 +29,9 @@
+     respuesta sin tools; pregunta → agente con tools → respuesta; salida.
+     Incluye evento_tool intercalado (la forma real de la traza)."""
+     return [
+-        _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"), _ev("Skills", "continue"),
++        _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"),
+         _ev("Contexto", "herramientas"), _ev("AgentStep", "answer"), _ev("VerificarCitas", "default"),
+-        _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"), _ev("Skills", "continue"),
++        _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"),
+         _ev("Contexto", "herramientas"), _ev("AgentStep", "tool"),
+         _ev("read_file", "ok", 0.3),      # evento_tool entre AgentStep y ExecuteTools
+         _ev("ExecuteTools", "default"), _ev("Observar", "default"),
+@@ -46,15 +46,16 @@
+ def test_grafos_vivos_traen_el_chat_de_un_solo_camino(vivos):
+     """X106: un solo grafo del chat, sin la variante ±router."""
+     clases, aristas, _ = vivos
+-    for nodo in ("GetQuestion", "PreFetch", "Skills", "Contexto", "AgentStep",
++    for nodo in ("GetQuestion", "PreFetch", "Contexto", "AgentStep",
+                  "ExecuteTools", "Observar", "Cierre", "ExitChat"):
+         assert nodo in clases, nodo
+     for nodo in ("LayaRouter", "DirectAnswer"):
+         assert nodo not in clases, nodo
+     assert ("GetQuestion", "exit", "ExitChat") in aristas
+-    assert ("Skills", "continue", "Contexto") in aristas
++    assert ("PreFetch", "continue", "Contexto") in aristas
++    assert "Skills" not in clases  # X111: el skill es una tool, no un nodo
+     assert ("AgentStep", "tool", "ExecuteTools") in aristas
+-    # los pasajes transparentes: las caminatas sin PreFetch/Skills/Contexto valen
++    # los pasajes transparentes: las caminatas sin PreFetch/Contexto valen
+     assert ("PreFetch", "continue", "AgentStep") in aristas
+     assert ("GetQuestion", "continue", "AgentStep") in aristas
+ 
+@@ -75,7 +76,7 @@
+ def test_caminata_con_cierre_es_valida(vivos):
+     """X96: un turno que agota el presupuesto termina en Cierre."""
+     clases, aristas, _ = vivos
+-    cerrado = [_ev("GetQuestion", "continue"), _ev("PreFetch", "continue"), _ev("Skills", "continue"),
++    cerrado = [_ev("GetQuestion", "continue"), _ev("PreFetch", "continue"),
+                _ev("Contexto", "herramientas"), _ev("AgentStep", "tool"), _ev("ExecuteTools", "default"),
+                _ev("Observar", "default"), _ev("Contexto", "cierre"), _ev("Cierre", "answer"),
+                _ev("VerificarCitas", "default"), _ev("GetQuestion", "exit"), _ev("ExitChat", "None")]
+@@ -288,3 +289,14 @@
+         "--dir", str(runs), "--salida", str(tmp_path / "salidas")])
+     assert Path(destino).is_file()
+     assert not baseline.exists()  # nunca se guardó nada sin la flag
++
++
++def test_una_traza_con_el_nodo_skills_de_x106_sigue_valiendo(vivos):
++    """X111: el nodo Skills se fue, pero las trazas de X106–X110 lo traen como
++    pasaje entre PreFetch y Contexto: ni acción desconocida ni adyacencia rota."""
++    clases, aristas, herramientas = vivos
++    vieja = [_ev("GetQuestion", "continue"), _ev("PreFetch", "continue"), _ev("Skills", "continue"),
++             _ev("Contexto", "herramientas"), _ev("AgentStep", "answer"), _ev("VerificarCitas", "default")]
++    assert replay.nivel_a(vieja, clases) == []
++    assert replay.nivel_a_desconocidos(vieja, clases, herramientas) == []
++    assert replay.nivel_b_chat(vieja, clases, aristas) == []
+diff -ruN a/tests/test_skills.py b/tests/test_skills.py
+--- a/tests/test_skills.py	2026-10-30 22:48:54.534073719 +0000
++++ b/tests/test_skills.py	2026-10-30 23:14:09.494115223 +0000
+@@ -1,109 +1,64 @@
+-"""exp/55 — skills declarativas (Mesa 7): loader, disparo y cableado.
++"""Skills por descripción (fase 5b, X111): el modelo los carga con `usar_skill`.
+ 
+-Clavan el contrato mínimo: YAML válido → skill cargado; condición regex →
+-disparo determinístico; el nodo Skills (X106) lo activa a la entrada, inyecta el
+-prompt (prefijo `[skill]`) y el loop recorta la lista de tools al subset. Un
+-YAML roto se saltea; un skill nunca expande el action space.
++Hasta X110 una regex del YAML decidía y el loop recortaba las tools; con otro
++idioma o redacción no se activaba (1 de 4 positivos, `test_fase5b.py`). Acá:
++el catálogo carga, la tool devuelve las instrucciones y anuncia el marcador
++del banco, un YAML roto se saltea, y el chat ya no tiene nodo ni recorte.
+ """
++import hashlib
+ 
+-from modules import memoria
+-from utils.skills import (
+-    PREFIJO_SKILL,
+-    Skill,
+-    cargar_skills,
+-    filtrar_tools,
+-    mensaje,
+-    skill_para,
+-)
+-
+-
+-def test_skills_del_repo_cargan_y_disparan():
+-    habilidades = cargar_skills()
+-    ids = {habilidad.id for habilidad in habilidades}
+-    assert {"revision", "tdd"} <= ids
+-    revision = next(h for h in habilidades if h.id == "revision")
+-    assert revision.tools and "read_file" in revision.tools
+-    assert skill_para("Revisá el código de utils/formato.py.", habilidades) is revision
+-    assert skill_para("implementá esto con TDD", habilidades).id == "tdd"
+-    for control in ("escribime un haiku sobre el mar", "¿qué es un closure en Python?",
+-                    "corré la suite de tests"):
+-        assert skill_para(control, habilidades) is None
+-
+-
+-def test_skill_roto_se_saltea_sin_tumbar_el_resto(tmp_path):
+-    (tmp_path / "ok.yaml").write_text(
+-        "id: ok\ndescripcion: prueba\ncondicion: 'hola'\ninstrucciones: hacé algo\n",
+-        encoding="utf-8")
+-    (tmp_path / "sin_campos.yaml").write_text("id: roto\n", encoding="utf-8")
+-    (tmp_path / "regex_roto.yaml").write_text(
+-        "id: x\ndescripcion: d\ncondicion: '('\ninstrucciones: i\n", encoding="utf-8")
+-    habilidades = cargar_skills(tmp_path)
+-    assert [habilidad.id for habilidad in habilidades] == ["ok"]
+-
+-
+-def test_mensaje_lleva_prefijo_estable_y_descripcion():
+-    skill = Skill(id="x", descripcion="una skill", condicion=None, instrucciones="reglas")
+-    texto = mensaje(skill)
+-    assert texto.startswith(f"{PREFIJO_SKILL} x — una skill")
+-    assert texto.endswith("reglas")
+-
+-
+-def test_filtrar_tools_es_subset_y_nunca_expande():
+-    tools = [
+-        {"function": {"name": "read_file"}},
+-        {"function": {"name": "run_command"}},
+-        {"function": {"name": "web_search"}},
+-    ]
+-    skill = Skill(id="x", descripcion="d", condicion=None, instrucciones="i",
+-                  tools=("read_file", "no_existe"))
+-    elegidas = filtrar_tools(tools, skill)
+-    assert [tool["function"]["name"] for tool in elegidas] == ["read_file"]
++from modules import skills as mod
+ 
+ 
+-def test_agent_step_anuncia_solo_el_subset_del_skill():
+-    import nodes
+-    from utils.skills import disponibles
++def test_los_skills_del_repo_cargan_sin_condicion_ni_tools():
++    ids = [s.id for s in mod.cargar()]
++    assert ids == ["auditoria-seguridad", "metodo-fable", "revision", "tdd"]
++    for ruta in sorted(mod.DIR_SKILLS.glob("*.yaml")):
++        texto = ruta.read_text(encoding="utf-8")
++        assert "condicion:" not in texto and "\ntools:" not in texto, ruta.name
++
++
++def test_las_directivas_pasaron_a_skills_con_el_texto_intacto():
++    """El texto de DIRECTIVA_AUDITORIA (exp/78) y DIRECTIVA_FABLE (exp/72) es
++    el mismo byte a byte: el A/B compara el mecanismo, no una redacción nueva."""
++    sha = {s.id: hashlib.sha1(s.instrucciones.encode()).hexdigest() for s in mod.cargar()}
++    assert sha["auditoria-seguridad"] == "a6efc0a5410617537e4b97953950951fded8d759"
++    assert sha["metodo-fable"] == "edaad0d1823609163ed0c672eaef328b3b9b0779"
++
++
++def test_el_catalogo_va_en_la_descripcion_de_la_tool():
++    funcion = mod.TOOLS[0]["function"]
++    assert funcion["name"] == "usar_skill"
++    for s in mod.cargar():
++        assert f"- {s.id}: {s.descripcion}" in funcion["description"]
++    assert funcion["parameters"]["properties"]["skill"]["enum"] == [s.id for s in mod.cargar()]
++
++
++def test_usar_skill_devuelve_las_instrucciones_y_anuncia_el_marcador(capsys):
++    import re
++
++    from banco.banco import MARCADORES
++
++    texto = mod.usar_skill("revision")
++    assert texto == mod.SKILLS["revision"].instrucciones
++    assert re.search(MARCADORES["skill"], capsys.readouterr().out)
++    assert mod.usar_skill("no-existe").startswith("ERROR: no hay un skill 'no-existe'")
+ 
+-    revision = next(h for h in disponibles() if h.id == "revision")
+-    shared = {"messages": [{"role": "user", "content": "revisá el código"}],
+-              "turno": {**nodes.nuevo_turno(), "skill": revision.id}}
+-    _, tools = nodes.AgentStep().prep(shared)
+-    assert {tool["function"]["name"] for tool in tools} == set(revision.tools)
+-    _, todos = nodes.AgentStep().prep({"messages": [{"role": "user", "content": "hola"}]})
+-    assert {tool["function"]["name"] for tool in todos} == {
+-        tool["function"]["name"] for tool in nodes.TOOLS}
+-
+-
+-def test_preguntas_reales_no_cuentan_el_mensaje_de_skill():
+-
+-    mensajes = [
+-        {"role": "user", "content": "¿qué es un closure?"},
+-        {"role": "user", "content": f"{PREFIJO_SKILL} revision — reglas"},
+-        {"role": "assistant", "content": "…"},
+-    ]
+-    assert memoria.preguntas_reales(mensajes) == 1
+-
+-
+-def test_el_nodo_skills_activa_el_skill_una_vez(monkeypatch):
+-    """X106: el skill se activa a la entrada de la pregunta (antes, dentro del
+-    router y solo en enforce). La pregunta en curso sigue siendo la del usuario."""
+-    import nodes
+ 
+-    monkeypatch.setenv("SKILLS", "1")
+-    pregunta = "Revisá el código de utils/formato.py y decime si hay problemas."
+-    shared = {"messages": [{"role": "user", "content": pregunta}]}
+-    assert nodes.Skills()._run(shared) == "continue"
+-    assert shared["turno"]["skill"] == "revision"  # el ID: el shared es JSON (F4)
+-    assert shared["messages"][-1]["content"].startswith(PREFIJO_SKILL)
+-    assert nodes.pregunta_en_curso(shared["messages"]) == pregunta
++def test_un_yaml_roto_se_saltea_sin_tumbar_el_resto(tmp_path):
++    (tmp_path / "a.yaml").write_text("id: ok\ndescripcion: prueba\ninstrucciones: hacé algo\n", encoding="utf-8")
++    (tmp_path / "b.yaml").write_text("id: roto\n", encoding="utf-8")
++    (tmp_path / "c.yaml").write_text("- no es un mapa\n", encoding="utf-8")
++    assert [s.id for s in mod.cargar(tmp_path)] == ["ok"]
++    assert mod.esquema([])["function"]["parameters"]["properties"]["skill"]["enum"] == []
+ 
+ 
+-def test_el_nodo_skills_apagado_o_sin_disparo_no_toca_nada(monkeypatch):
++def test_el_chat_no_tiene_nodo_de_skills_ni_recorta_tools():
+     import nodes
++    from flow import create_agent_flow
+ 
+-    for valor, pregunta in (("0", "Revisá el código de utils/formato.py y decime si hay problemas."),
+-                            ("1", "escribime un haiku sobre el mar.")):
+-        monkeypatch.setenv("SKILLS", valor)
+-        shared = {"messages": [{"role": "user", "content": pregunta}]}
+-        assert nodes.Skills()._run(shared) == "continue"
+-        assert shared.get("turno", {}).get("skill") is None and len(shared["messages"]) == 1
++    assert not hasattr(nodes, "Skills")
++    assert type(create_agent_flow().start_node.successors["continue"].successors["continue"]).__name__ == "Contexto"
++    _, tools = nodes.AgentStep().prep({"messages": [{"role": "user", "content": "revisá el código"}]})
++    assert tools is nodes.TOOLS
++    assert "usar_skill" in {t["function"]["name"] for t in nodes.TOOLS}
+diff -ruN a/utils/skills.py b/utils/skills.py
+--- a/utils/skills.py	2026-10-30 22:48:54.546074003 +0000
++++ b/utils/skills.py	1970-01-01 00:00:00.000000000 +0000
+@@ -1,101 +0,0 @@
+-"""Skills declarativas (Mesa 7, exp/55): paquete prompt + tools + disparo.
+-
+-Un skill es un YAML en `skills/`:
+-
+-- `id`, `descripcion`
+-- `condicion`: regex de DISPARO sobre la pregunta (determinística, sin LLM)
+-- `instrucciones`: el prompt que se inyecta como contexto
+-- `tools`: subset de tools que el loop anuncia mientras el skill está activo
+-
+-El disparo lo decide `skill_para` (puro); el nodo `Skills` del chat lo aplica
+-a la entrada de cada pregunta —inyecta el prompt y anuncia el skill— y `AgentStep` recorta la lista de
+-tools al subset. **No es un sandbox**: el action space sigue siendo el mismo
+-(igual que el subset de módulos); el recorte es guía/publicidad para el modelo,
+-no una frontera de seguridad (esa sigue en HITL/policy).
+-
+-SKILLS=0 apaga el mecanismo. Un YAML roto se saltea con aviso (como modules).
+-"""
+-import re
+-import sys
+-from dataclasses import dataclass, field
+-from pathlib import Path
+-
+-PREFIJO_SKILL = "[skill]"
+-
+-DIR_SKILLS = Path(__file__).resolve().parent.parent / "skills"
+-
+-_CAMPOS = ("id", "descripcion", "condicion", "instrucciones")
+-
+-
+-@dataclass(frozen=True)
+-class Skill:
+-    """Un skill cargado; la condición ya viene compilada."""
+-
+-    id: str
+-    descripcion: str
+-    condicion: re.Pattern
+-    instrucciones: str
+-    tools: tuple[str, ...] = field(default_factory=tuple)
+-    archivo: str = ""
+-
+-
+-def cargar_skills(raiz=None):
+-    """Skills válidos de `raiz` (default `skills/`); los inválidos se saltean
+-    con aviso a stderr para que un archivo roto no tumbe el chat."""
+-    from yaml import YAMLError, safe_load
+-
+-    directorio = Path(raiz or DIR_SKILLS)
+-    if not directorio.is_dir():
+-        return []
+-    habilidades = []
+-    for ruta in sorted(directorio.glob("*.yaml")):
+-        try:
+-            datos = safe_load(ruta.read_text(encoding="utf-8")) or {}
+-            faltan = [campo for campo in _CAMPOS if not datos.get(campo)]
+-            if faltan:
+-                raise ValueError("faltan campos: " + ", ".join(faltan))
+-            herramienta = Skill(
+-                id=str(datos["id"]),
+-                descripcion=str(datos["descripcion"]).strip(),
+-                condicion=re.compile(str(datos["condicion"])),
+-                instrucciones=str(datos["instrucciones"]).strip(),
+-                tools=tuple(str(nombre) for nombre in (datos.get("tools") or ())),
+-                archivo=ruta.name,
+-            )
+-        except (OSError, YAMLError, ValueError, re.error) as e:
+-            print(f"[skills] {ruta.name} no cargó ({type(e).__name__}: {e}) → se saltea",
+-                  file=sys.stderr)
+-            continue
+-        habilidades.append(herramienta)
+-    return habilidades
+-
+-
+-def skill_para(pregunta, habilidades):
+-    """El PRIMER skill cuya condición matchea la pregunta (o None). Puro."""
+-    for habilidad in habilidades or ():
+-        if habilidad.condicion.search(pregunta or ""):
+-            return habilidad
+-    return None
+-
+-
+-def mensaje(skill):
+-    """El texto que se inyecta al historial (prefijo estable para distinguirlo)."""
+-    return f"{PREFIJO_SKILL} {skill.id} — {skill.descripcion}\n{skill.instrucciones}"
+-
+-
+-def filtrar_tools(tools, skill):
+-    """Subset de `tools` permitidas por el skill; nunca agrega ni expande."""
+-    permitidas = set(skill.tools)
+-    return [tool for tool in tools
+-            if (tool.get("function") or {}).get("name") in permitidas]
+-
+-
+-_DISPONIBLES = None
+-
+-
+-def disponibles():
+-    """Skills del repo, cacheados (se cargan una vez por proceso)."""
+-    global _DISPONIBLES
+-    if _DISPONIBLES is None:
+-        _DISPONIBLES = cargar_skills()
+-    return _DISPONIBLES

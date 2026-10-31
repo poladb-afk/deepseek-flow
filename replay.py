@@ -70,6 +70,7 @@ NO_NODOS_TOLERADOS = {
     # (accion politica) la reconoce tracing.es_bookkeeping
     "corte_no_progreso": "marca de incidente histórica (hoy nodes.motivo_de_cierre)",
     "bash": "alias histórica de run_command en trazas viejas",
+    "Skills": "pasaje de la entrada (X106–X110); la 5b lo cambió por la tool usar_skill",
 }
 
 # Los nodos del CHAT: el nivel B juzga los RUNS de estos nodos dentro de
@@ -78,7 +79,8 @@ NO_NODOS_TOLERADOS = {
 # corridas de OTROS grafos, no caminatas del chat.
 # El router y la ruta directa (borrados en X106) siguen acá: sus trazas viejas
 # son del chat; sacarlos haría que B los saltee y "valide" aristas que nunca
-# existieron. PreFetch y Skills no: son pasajes (aristas transitivas abajo).
+# existieron. PreFetch no: es un pasaje (aristas transitivas abajo); Skills,
+# el otro que hubo, no es nodo del chat y B lo saltea.
 NODOS_CHAT = {"GetQuestion", "LayaRouter", "Contexto", "DirectAnswer", "AgentStep",
               "ExecuteTools", "Observar", "Cierre", "ExitChat", "VerificarCitas"}
 
@@ -184,15 +186,6 @@ def _grafos_vivos():
         if b == "Contexto"
         for (b2, salida, c) in aristas_chat
         if b2 == "Contexto" and salida == "herramientas"
-    }
-    # X106: Skills es otro pasaje transparente a la entrada (PreFetch → Skills →
-    # Contexto). Va ANTES de la regla de PreFetch, que la necesita resuelta.
-    aristas_chat |= {
-        (a, accion, c)
-        for (a, accion, b) in aristas_chat
-        if b == "Skills"
-        for (b2, accion2, c) in aristas_chat
-        if b2 == "Skills" and accion2 == accion and c != "Skills"
     }
     # exp/50: PreFetch es un pasaje TRANSPARENTE entre GetQuestion y el resto.
     # Las caminatas históricas (pre-exp/50) saltaban directo de GetQuestion al

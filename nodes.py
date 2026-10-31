@@ -22,8 +22,6 @@ from utils.proveedor import (  # noqa: F401  (re-export: tests y banco los impor
     normalizar,
     sanitizar,
 )
-from utils.skills import PREFIJO_SKILL, disponibles, filtrar_tools, skill_para
-from utils.skills import mensaje as mensaje_skill
 from utils.terminal import colorear, progreso_ronda
 from utils.thread_store import checkpoint
 from utils.tracing import evento_politica, evento_tool, thread_id
@@ -162,7 +160,6 @@ def nuevo_turno():
         "huella": None,          # huella de la última ronda
         "huellas_vistas": [],    # novedad acumulada (exp/52-B)
         "racha_sin_novedad": 0,
-        "skill": None,           # id del skill activo (exp/55)
         "uso_inicio": None,      # desglose de tokens al empezar (exp/90)
     }
 
@@ -312,7 +309,7 @@ class GetQuestion(Node):
         # calibrar (bookkeeping; nunca corta el chat).
         registrar_pregunta(exec_res)
         # Todo lo de la pregunta anterior muere acá, de una vez: presupuesto
-        # (L8), no-progreso, novedad y skill. El costo de la anterior se cierra
+        # (L8), no-progreso y novedad. El costo de la anterior se cierra
         # con su `uso_inicio`.
         # (/aprobaciones no llega hasta acá: lo atiende exec(), sin gastar turno.)
         anterior = turno(shared)
@@ -344,11 +341,11 @@ class GetQuestion(Node):
 
 
 def pregunta_en_curso(messages):
-    """La última pregunta del usuario: el último `user` que no sea un mensaje
-    que la entrada del chat inyectó (pre-fetch o skill)."""
+    """La última pregunta del usuario: el último `user` que no sea el
+    pre-fetch que la entrada del chat inyectó."""
     for m in reversed(messages):
         contenido = str(m.get("content", ""))
-        if m.get("role") == "user" and not contenido.startswith((PREFIJO_PREFETCH, PREFIJO_SKILL)):
+        if m.get("role") == "user" and not contenido.startswith(PREFIJO_PREFETCH):
             return contenido
     return ""
 
@@ -383,33 +380,6 @@ class PreFetch(Node):
             shared["messages"].append({"role": "user", "content": texto})
             for path, _ in exec_res:
                 print(colorear(f"  [pre-fetch] {path}", "info"))
-        return "continue"
-
-
-class Skills(Node):
-    """exp/55: el skill de la pregunta, una vez, a la entrada (fase 3b, X106).
-
-    Vivía dentro del router y solo corría en enforce; sin router es un nodo
-    propio entre `PreFetch` y `Contexto`. `skill_para` decide por la condición
-    del YAML (determinista, sin LLM) hasta la 5b, que la cambia por activación
-    por descripción. Si dispara: el id va al turno (AgentStep recorta las tools
-    a su subset) y su prompt entra como mensaje `[skill]`. `SKILLS=0` lo apaga.
-    Siempre "continue"."""
-
-    def prep(self, shared):
-        return pregunta_en_curso(shared.get("messages", []))
-
-    def exec(self, pregunta):
-        if _setting("SKILLS", "1") == "0" or not pregunta:
-            return None
-        return skill_para(pregunta, disponibles())
-
-    def post(self, shared, prep_res, exec_res):
-        if exec_res is not None:
-            turno(shared)["skill"] = exec_res.id
-            shared["messages"].append({"role": "user", "content": mensaje_skill(exec_res)})
-            print(colorear(f"  [skill] {exec_res.id} activo — {exec_res.descripcion}", "info"),
-                  flush=True)
         return "continue"
 
 
@@ -488,16 +458,7 @@ class AgentStep(Node):
     def prep(self, shared):
         # El cierre por presupuesto ya no pasa por acá: Contexto lo decide y
         # sale a Cierre (X96). AgentStep siempre ofrece tools.
-        tools = TOOLS
-        skill_id = turno(shared)["skill"]
-        if skill_id:
-            # exp/55: mientras el skill está activo se anuncia SOLO su subset
-            # (guía, no sandbox: el action space completo sigue existiendo).
-            # En shared viaja el ID (JSON): el objeto Skill se guardaba como su
-            # repr y un resume lo cargaba roto (auditoría 2026-10-26, F4).
-            skill = next((h for h in disponibles() if h.id == skill_id), None)
-            tools = filtrar_tools(tools, skill) if skill else tools
-        return shared["messages"], tools
+        return shared["messages"], TOOLS
 
     def exec(self, inputs):
         messages, tools = inputs

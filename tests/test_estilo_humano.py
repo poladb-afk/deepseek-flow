@@ -158,42 +158,17 @@ def test_todo_test_tiene_assert_o_raises():
     assert not sin_assert, f"tests sin aserción observable: {sin_assert}"
 
 
-def test_prompt_forma_se_apaga_por_setting(monkeypatch):
-    """PROMPT_FORMA=0 permite el A/B del banco sin duplicar el prompt."""
+def test_el_prompt_no_tiene_perillas_y_la_forma_queda_fija(monkeypatch):
+    """5b (X111): PROMPT_FORMA, PROMPT_FABLE y PROMPT_AUDITORIA se borraron;
+    la forma queda fija (exp/51) y las otras dos son skills."""
     import main
 
-    monkeypatch.delenv("PROMPT_FORMA", raising=False)
-    assert main.DIRECTIVA_FORMA in main.system_prompt()  # default encendido
-    monkeypatch.setenv("PROMPT_FORMA", "0")
-    assert main.DIRECTIVA_FORMA not in main.system_prompt()
-    monkeypatch.setenv("PROMPT_FORMA", "1")
-    assert main.DIRECTIVA_FORMA in main.system_prompt()
-
-
-def test_prompt_fable_es_opt_in(monkeypatch):
-    """PROMPT_FABLE=1 inyecta la directiva del método (exp/72 F0); el default 0
-    deja el prompt de producción byte-idéntico."""
-    import main
-
-    monkeypatch.delenv("PROMPT_FABLE", raising=False)
-    assert main.DIRECTIVA_FABLE not in main.system_prompt()
-    monkeypatch.setenv("PROMPT_FABLE", "1")
-    assert main.DIRECTIVA_FABLE in main.system_prompt()
-    monkeypatch.setenv("PROMPT_FABLE", "0")
-    assert main.DIRECTIVA_FABLE not in main.system_prompt()
-
-
-def test_prompt_auditoria_es_opt_in(monkeypatch):
-    """PROMPT_AUDITORIA=1 agrega el checklist de seguridad (exp/78); default 0."""
-    import main
-
-    monkeypatch.setenv("PROMPT_AUDITORIA", "1")
-    con_checklist = main.system_prompt()
-    monkeypatch.setenv("PROMPT_AUDITORIA", "0")
-    sin_checklist = main.system_prompt()
-    assert main.DIRECTIVA_AUDITORIA in con_checklist
-    assert main.DIRECTIVA_AUDITORIA not in sin_checklist
-    assert len(con_checklist) > len(sin_checklist)
+    base = main.system_prompt()
+    for nombre in ("PROMPT_FORMA", "PROMPT_FABLE", "PROMPT_AUDITORIA"):
+        monkeypatch.setenv(nombre, "0" if nombre == "PROMPT_FORMA" else "1")
+    assert main.system_prompt() == base
+    assert base.endswith(main.DIRECTIVA_FORMA)
+    assert not hasattr(main, "DIRECTIVA_FABLE") and not hasattr(main, "DIRECTIVA_AUDITORIA")
 
 
 def test_system_prompt_pide_codigo_minimo_y_no_crece():

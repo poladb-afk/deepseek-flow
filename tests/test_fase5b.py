@@ -25,16 +25,12 @@ def test_el_disparo_pide_tres_de_cuatro_en_cada_corrida_y_cero_en_negativos():
     assert fase5b.veredicto_disparo([])["cumple"] is False
 
 
-def test_la_regex_de_hoy_dispara_en_uno_de_cuatro_positivos():
-    """La predicción de la base, medida sin LLM al pre-registrar: la
-    `condicion` del YAML de revision es una regex en español."""
-    import yaml
-    from conftest import RAIZ
+def test_cada_skill_esperado_esta_en_el_catalogo():
+    """X110 midió que la regex de la base disparaba en 1 de 4 positivos (con la
+    regex ya borrada, el número queda en la bitácora y en el pre-registro).
+    Lo que sigue verificable sin LLM: cada skill que el escenario espera es una
+    opción de `usar_skill`, y los negativos no tienen ninguno."""
+    from modules import skills
 
-    from utils.skills import disponibles, skill_para
-
-    turnos = yaml.safe_load((RAIZ / "banco/escenarios/fase5b-disparo.yaml").read_text(encoding="utf-8"))["turnos"]
-    disparo = {t["id"]: (skill_para(t["linea"], disponibles()) or None) for t in turnos if t["id"] in fase5b.ESPERADO}
-    cargados = {t: [s.id] if s else [] for t, s in disparo.items()}
-    assert fase5b.veredicto_disparo([cargados])["aciertos_por_corrida"] == [1]
-    assert cargados["pos-revision-es"] == ["revision"]
+    enum = skills.TOOLS[0]["function"]["parameters"]["properties"]["skill"]["enum"]
+    assert {s for s in fase5b.ESPERADO.values() if s} <= set(enum)

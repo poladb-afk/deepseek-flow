@@ -56,6 +56,13 @@ TAREAS = [
     },
 ]
 BRAZOS = (("sin_forma", False), ("con_forma", True))
+
+
+def prompt_del_brazo(incluir_forma):
+    """El prompt del chat; el brazo sin forma le quita la directiva (X111: ya
+    no hay setting, el laboratorio arma su brazo)."""
+    prompt = main.system_prompt()
+    return prompt if incluir_forma else prompt.replace("\n\n" + main.DIRECTIVA_FORMA, "")
 _METRICAS = ("sloc", "tokens_completion", "tokens_prompt", "funciones", "docstrings_densidad", "try",
              "except_amplios", "except_pass", "asserts", "none_checks",
              "comentarios", "banners", "docstrings_relleno")
@@ -146,7 +153,7 @@ def main_probe(argv=None):
             for brazo, incluir_forma in BRAZOS:
                 etiqueta = f"{tarea['nombre']}/{brazo}/r{turno + 1}"
                 print(f"  · {etiqueta}…", flush=True)
-                crudo, uso = llamar(main.system_prompt(incluir_forma=incluir_forma), tarea["prompt"])
+                crudo, uso = llamar(prompt_del_brazo(incluir_forma), tarea["prompt"])
                 codigo = extraer_codigo(crudo)
                 fila = {"tarea": tarea["nombre"], "brazo": brazo, "run": turno + 1,
                         "codigo": codigo, "error": None, "metricas": None}

@@ -211,6 +211,17 @@ def test_el_linter_reconoce_las_acciones_y_tools_que_faltaban():
     assert "python3 carga_trazas.py" in readme
 
 
+def test_el_linter_conoce_todas_las_tools_del_chat():
+    """X111: la tool nueva `usar_skill` inventaba una violación (c) en el linter
+    (evals.py manda agregarla a mano al crear una tool). El candado es para
+    todas: el set tenía cuatro tools del chat sin registrar desde antes."""
+    import nodes
+    from evals import TOOLS_CONOCIDAS
+
+    faltan = {tool["function"]["name"] for tool in nodes.TOOLS} - TOOLS_CONOCIDAS
+    assert not faltan, f"tools del chat que el linter no conoce: {sorted(faltan)}"
+
+
 def test_un_turno_cerrado_por_presupuesto_es_canonico():
     """X96: un turno que agota el presupuesto termina en Cierre/answer, una
     acción canónica (c): sin violaciones."""

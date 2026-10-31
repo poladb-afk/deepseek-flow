@@ -151,3 +151,43 @@ protegía algo, y eso se discute con el dato antes de reponerlo.
 Escribir skills nuevos, cambiar el texto de alguno o endurecer el checklist
 ("no crees temporales", que propuso exp/80). Cada uno es su propio PR, con
 su dato.
+
+## Decisiones del operador (X110) y desvíos declarados (X111, antes de correr)
+
+1. **Fable pasa a skill** (`metodo-fable`, el texto de la directiva sin
+   cambios), contra la recomendación del autor. El A/B suma las 5 trampas de
+   exp/72 (s1, s2, s3, s7, s9) ×3 por brazo, con `bench_fable.py --brazos A`
+   en los dos árboles. **Criterio 8**: en cada trampa, el `correct_action`
+   medio de la 5b ≥ el de la base A; en s2 (la única que discrimina) además
+   se reporta cuántas veces se cargó `metodo-fable`. Si se carga y s2 baja,
+   es el mismo resultado de exp/72 y la skill se borra.
+2. **Meta de `texto_de_prompt`**: 805. **Medido: 807.** Los 2 chars de más
+   son el separador `\n\n` antes de la forma, que antes vivía en una
+   variable fuera del f-string que mide el ratchet (por eso la estimación de
+   805 no lo contaba). No se recorta: el número honesto es 807. Lo confirma
+   el operador.
+3. **La base A no es la producción de hoy.** `ENV_POR_BRAZO["A"]` fija
+   `SKILLS=0`, y la tarea de auditoría ("Revisá el código Python…") hace
+   disparar la regex de `revision`. La producción de la base es el brazo C.
+   Los criterios 4 y 5 comparan contra la base A, como quedó escrito (es la
+   referencia de exp/77–80). Además, en la base se corre **C** en s18–s20 ×3,
+   como dato y no como criterio.
+4. **La descripción de la tool cuesta 616 chars, no ~300** (485 son las
+   líneas del catálogo): son 4 skills (fable sumó uno) y cada descripción dice
+   cuándo se usa. El criterio 2 (USD ≤ 1,15 ×) no
+   cambia: es justamente el que mide esto.
+5. **Escenarios que quedan inertes.** Los `env:` con `SKILLS`,
+   `PROMPT_FABLE` o `PROMPT_FORMA` ya no cambian nada en el árbol de la 5b.
+   Los brazos `off` de exp56/56b dejan de ser un control (ahí el modelo puede
+   cargar `revision`), y `forma_chat.py` sale con un aviso (su brazo off era
+   `PROMPT_FORMA=0`). Para la forma queda `forma_codigo.py`, que arma su brazo
+   sin el setting.
+
+6. **El test que midió la regex se fue con la regex.** El instrumento cita
+   `test_la_regex_de_hoy_dispara_en_uno_de_cuatro_positivos`; hoy lo reemplaza
+   `test_cada_skill_esperado_esta_en_el_catalogo`, que verifica que el catálogo
+   tenga los skills que el escenario espera. El número medido (1 de 4) queda
+   acá y en la bitácora.
+
+**Corridas por brazo**: 34 + 15 (trampas) = **49**, y en la base 9 de D y 9
+de C como referencia.

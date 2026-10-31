@@ -40,14 +40,14 @@
           34
         ],
         "modules/memoria.py": [
-          147,
-          332
+          146,
+          331
         ],
         "modules/rag.py": [
           74
         ],
         "nodes.py": [
-          61
+          59
         ],
         "research.py": [
           78
@@ -135,7 +135,6 @@
         "juez.py:_inventario_tools": 1,
         "main.py:_reporte_tokens": 2,
         "main.py:main": 1,
-        "main.py:system_prompt": 1,
         "mcp_server.py:envolver": 3,
         "mcp_server.py:main": 1,
         "modules/auditoria.py:run_auditoria": 1,
@@ -182,7 +181,6 @@
         "utils/mcp_client.py:_listar": 2,
         "utils/mcp_client.py:_llamar": 2,
         "utils/prefetch.py:decidir": 1,
-        "utils/skills.py:cargar_skills": 1,
         "utils/thread_store.py:checkpoint": 1,
         "utils/thread_store.py:valido": 1,
         "utils/tracing.py:activar": 1,
@@ -192,7 +190,7 @@
         "utils/websearch.py:search_web": 1,
         "visor.py:vigilar": 1
       },
-      "metrica": 81
+      "metrica": 79
     },
     "nodos_largos": {
       "detalle": {
@@ -205,7 +203,7 @@
         "juez.py:Judge": 144,
         "juez_lote.py:CorrerJuez": 51,
         "juez_lote.py:JuezLoteFlow": 108,
-        "nodes.py:AgentStep": 60,
+        "nodes.py:AgentStep": 51,
         "nodes.py:GetQuestion": 55,
         "nodes.py:VerificarCitas": 53,
         "research.py:Synthesizer": 60
@@ -333,15 +331,6 @@
         "PREGUNTAS_LOG": [
           "nodes.py"
         ],
-        "PROMPT_AUDITORIA": [
-          "main.py"
-        ],
-        "PROMPT_FABLE": [
-          "main.py"
-        ],
-        "PROMPT_FORMA": [
-          "main.py"
-        ],
         "RAG_PREFILTRO": [
           "modules/rag.py"
         ],
@@ -359,9 +348,6 @@
         ],
         "SEARCH_PROVIDER": [
           "utils/websearch.py"
-        ],
-        "SKILLS": [
-          "nodes.py"
         ],
         "THREADS_DIR": [
           "utils/thread_store.py"
@@ -397,7 +383,7 @@
           "utils/hitl_web.py"
         ]
       },
-      "metrica": 58
+      "metrica": 54
     },
     "tests_definidos": {
       "detalle": {
@@ -422,13 +408,14 @@
         "tests/test_docs_sin_deriva.py": 6,
         "tests/test_estado_riesgo.py": 3,
         "tests/test_estado_turno.py": 7,
-        "tests/test_estilo_humano.py": 9,
-        "tests/test_evals.py": 13,
+        "tests/test_estilo_humano.py": 7,
+        "tests/test_evals.py": 14,
         "tests/test_f_prompt.py": 9,
-        "tests/test_fable.py": 29,
+        "tests/test_fable.py": 28,
         "tests/test_fable_dominios.py": 6,
         "tests/test_fable_judge.py": 66,
         "tests/test_fable_judge_claims.py": 24,
+        "tests/test_fase5b.py": 3,
         "tests/test_flujos.py": 34,
         "tests/test_forma_larga.py": 5,
         "tests/test_fs_tools.py": 16,
@@ -454,10 +441,10 @@
         "tests/test_probe_verdict.py": 1,
         "tests/test_ratchet.py": 35,
         "tests/test_ratchet_elegancia.py": 15,
-        "tests/test_replay.py": 16,
+        "tests/test_replay.py": 17,
         "tests/test_riesgo.py": 9,
         "tests/test_rondas.py": 6,
-        "tests/test_skills.py": 8,
+        "tests/test_skills.py": 6,
         "tests/test_smoke.py": 5,
         "tests/test_sonda_laya.py": 4,
         "tests/test_streaming.py": 11,
@@ -478,12 +465,10 @@
     },
     "texto_de_prompt": {
       "detalle": {
-        "DIRECTIVA_AUDITORIA": 735,
-        "DIRECTIVA_FABLE": 1208,
         "DIRECTIVA_FORMA": 279,
-        "system_prompt": 526
+        "system_prompt": 528
       },
-      "metrica": 2748
+      "metrica": 807
     },
     "vocabulario_hardcodeado": {
       "detalle": {

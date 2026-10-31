@@ -76,7 +76,7 @@ def test_un_checkpoint_viejo_se_migra_a_la_caja(tmp_path):
     checkpoint("v", "ExecuteTools", "default", viejo, ruta_dir=tmp_path)
     shared = resume.migrar(cargar("v", ruta_dir=tmp_path))
     assert shared["turno"]["rondas"] == 3 and shared["turno"]["sin_progreso"] == 1
-    assert shared["turno"]["skill"] == "revision"
+    assert "skill" not in shared["turno"]  # X111: se fue con el recorte de tools
     assert "tool_rounds" not in shared and shared["_objetivo"] == "auditá"
     assert resume.migrar(shared) == shared  # idempotente
     assert cargar_sesion("v", ruta_dir=tmp_path) is not None

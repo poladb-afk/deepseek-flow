@@ -257,9 +257,6 @@ tests/test_estado_riesgo.py::test_estado_marca_listo_con_el_criterio_pre_registr
 tests/test_estado_riesgo.py::test_estado_separa_organicas_de_banco
 tests/test_estado_riesgo.py::test_leer_lineas_tolera_rotas_y_archivo_ausente
 tests/test_estilo_humano.py::test_except_amplio_visible_y_justificado
-tests/test_estilo_humano.py::test_prompt_auditoria_es_opt_in
-tests/test_estilo_humano.py::test_prompt_fable_es_opt_in
-tests/test_estilo_humano.py::test_prompt_forma_se_apaga_por_setting
 tests/test_estilo_humano.py::test_sin_banners_decorativos
 tests/test_estilo_humano.py::test_sin_docstrings_de_relleno
 tests/test_estilo_humano.py::test_sin_wrappers_vacios_sin_justificar
@@ -274,8 +271,6 @@ tests/test_evals.py::test_evals_linter_runs_reporta_por_invariante
 tests/test_evals.py::test_evals_linter_traza_limpia_sin_falsos_positivos
 tests/test_evals.py::test_evals_tool_del_chat
 tests/test_evals.py::test_evals_tool_rechaza_carpeta_inexistente
-tests/test_fable.py::test_brazo_c_es_la_skill_revision
-tests/test_fable.py::test_brazo_d_es_checklist_de_auditoria
 tests/test_fable.py::test_copiar_fixture_nunca_lleva_el_ground_truth
 tests/test_fable.py::test_criterio_marca_verdadera_si_la_prosa_sube_un_punto
 tests/test_fable.py::test_criterio_pre_registrado_descarta_techos_y_predice_falso
@@ -753,12 +748,6 @@ tests/test_rondas.py::test_ciclos_registran_pregunta_sin_answer
 tests/test_rondas.py::test_es_sesion_chat_por_getquestion
 tests/test_rondas.py::test_resumen_cuenta_la_cola
 tests/test_rondas.py::test_simular_cap_solo_toca_la_cola
-tests/test_skills.py::test_agent_step_anuncia_solo_el_subset_del_skill
-tests/test_skills.py::test_filtrar_tools_es_subset_y_nunca_expande
-tests/test_skills.py::test_mensaje_lleva_prefijo_estable_y_descripcion
-tests/test_skills.py::test_preguntas_reales_no_cuentan_el_mensaje_de_skill
-tests/test_skills.py::test_skill_roto_se_saltea_sin_tumbar_el_resto
-tests/test_skills.py::test_skills_del_repo_cargan_y_disparan
 tests/test_smoke.py::test_action_space_completo
 tests/test_smoke.py::test_action_space_suma[coding]
 tests/test_smoke.py::test_action_space_suma[memoria]
