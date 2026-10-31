@@ -5,7 +5,6 @@
 id: exp83-selffix2
 descripcion: aplicar el plan del fix de fable_judge (vuelta 1 autorizada)
 env:
-  PROMPT_FABLE: "1"
   MAX_TOOL_ROUNDS: "16"
 permitir:
   - "{RAIZ}/fable_judge.py"

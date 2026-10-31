@@ -4,7 +4,8 @@ La sonda `forma_codigo.py` mide llamadas one-shot. Acá se mide lo que el
 harness HACE de verdad: una sesión de chat por PTY (banco), pidiendo escribir
 un módulo con `write_file` y editarlo con `edit_file` (HITL aprobado por
 scope). Los dos brazos son los escenarios `exp51-chat-on/off.yaml`, que solo
-difieren en `PROMPT_FORMA=1|0`.
+difieren en `PROMPT_FORMA=1|0`. Resuelto: la forma quedó fija y el setting se
+borró en X112, así que el brazo off ya no existe; para re-medir, forma_codigo.py.
 
 Uso: python3 banco/probes/forma_chat.py [--runs 2]
 Gasta API (dos sesiones de chat por brazo) y deja los archivos generados en
@@ -64,6 +65,8 @@ def main_probe(argv=None):
     parser.add_argument("--modelo", default=None,
                         help="override de LLM_MODEL para las sesiones (default: el configurado)")
     args = parser.parse_args(argv)
+    raise SystemExit("exp/51 está resuelto: la forma es fija desde X112 y PROMPT_FORMA se borró, "
+                     "así que el brazo off no existe. Para re-medirla: banco/probes/forma_codigo.py.")
     if args.modelo:
         os.environ["LLM_MODEL"] = args.modelo
 

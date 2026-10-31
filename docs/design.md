@@ -397,7 +397,7 @@ y refuta trabajo honesto (gap medido por el control honesto del operador).
 Presupuesto por archivo = el remanente del tope, con contabilidad exacta de
 lo que viaja (header + cuerpo + separador + marca de corte). La allowlist de
 re-ejecución admite `ruff check` (solo lectura; `ruff format` escribe y no
-entra). Fix implementado por el propio chat del harness con `PROMPT_FABLE=1`
+entra). Fix implementado por el propio chat del harness con la prosa de fable (`PROMPT_FABLE=1`, borrada en X112)
 y auditado por `verificar_trabajo` — el meta-juicio cazó dos bugs reales del
 tope que los tests de ambos lados dejaban pasar (exp/83).
 
@@ -1098,5 +1098,5 @@ defensas ni docstrings que el pedido no exija, sin abstracciones
 especulativas; validación, seguridad y accesibilidad no se recortan. Está
 medida: one-shot −79%/−67% de SLOC en dos modelos y −78%/−88% de SLOC en el
 chat real con tools/HITL (n=5/n=3, sesiones además ~20–27% más rápidas;
-bitácora exp/51). `PROMPT_FORMA=0` la apaga para el A/B
-del banco; el default es 1 y el prefijo sigue siendo byte-estable.
+bitácora exp/51). Desde X112 va siempre (el setting era el brazo de ese A/B);
+el brazo sin forma lo arma `forma_codigo.py`, y el prefijo sigue byte-estable.

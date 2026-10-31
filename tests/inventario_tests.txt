@@ -258,8 +258,6 @@ tests/test_estado_riesgo.py::test_estado_separa_organicas_de_banco
 tests/test_estado_riesgo.py::test_leer_lineas_tolera_rotas_y_archivo_ausente
 tests/test_estilo_humano.py::test_except_amplio_visible_y_justificado
 tests/test_estilo_humano.py::test_prompt_auditoria_es_opt_in
-tests/test_estilo_humano.py::test_prompt_fable_es_opt_in
-tests/test_estilo_humano.py::test_prompt_forma_se_apaga_por_setting
 tests/test_estilo_humano.py::test_sin_banners_decorativos
 tests/test_estilo_humano.py::test_sin_docstrings_de_relleno
 tests/test_estilo_humano.py::test_sin_wrappers_vacios_sin_justificar

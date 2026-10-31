@@ -135,7 +135,6 @@
         "juez.py:_inventario_tools": 1,
         "main.py:_reporte_tokens": 2,
         "main.py:main": 1,
-        "main.py:system_prompt": 1,
         "mcp_server.py:envolver": 3,
         "mcp_server.py:main": 1,
         "modules/auditoria.py:run_auditoria": 1,
@@ -192,7 +191,7 @@
         "utils/websearch.py:search_web": 1,
         "visor.py:vigilar": 1
       },
-      "metrica": 81
+      "metrica": 80
     },
     "nodos_largos": {
       "detalle": {
@@ -336,12 +335,6 @@
         "PROMPT_AUDITORIA": [
           "main.py"
         ],
-        "PROMPT_FABLE": [
-          "main.py"
-        ],
-        "PROMPT_FORMA": [
-          "main.py"
-        ],
         "RAG_PREFILTRO": [
           "modules/rag.py"
         ],
@@ -397,14 +390,14 @@
           "utils/hitl_web.py"
         ]
       },
-      "metrica": 58
+      "metrica": 56
     },
     "tests_definidos": {
       "detalle": {
         "tests/test_ab_skills.py": 9,
         "tests/test_absurdos_funcionales.py": 44,
         "tests/test_auditoria_2026_10_26.py": 39,
-        "tests/test_banco.py": 20,
+        "tests/test_banco.py": 21,
         "tests/test_bench.py": 18,
         "tests/test_caracterizacion_chat.py": 12,
         "tests/test_chat_flujo.py": 24,
@@ -418,14 +411,14 @@
         "tests/test_costos.py": 11,
         "tests/test_db.py": 18,
         "tests/test_delegar.py": 20,
-        "tests/test_deriva_reglas.py": 7,
+        "tests/test_deriva_reglas.py": 8,
         "tests/test_docs_sin_deriva.py": 6,
         "tests/test_estado_riesgo.py": 3,
         "tests/test_estado_turno.py": 7,
-        "tests/test_estilo_humano.py": 9,
+        "tests/test_estilo_humano.py": 8,
         "tests/test_evals.py": 14,
         "tests/test_f_prompt.py": 9,
-        "tests/test_fable.py": 29,
+        "tests/test_fable.py": 30,
         "tests/test_fable_dominios.py": 6,
         "tests/test_fable_judge.py": 66,
         "tests/test_fable_judge_claims.py": 24,
@@ -454,7 +447,7 @@
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
         "tests/test_ratchet.py": 35,
-        "tests/test_ratchet_elegancia.py": 15,
+        "tests/test_ratchet_elegancia.py": 17,
         "tests/test_replay.py": 16,
         "tests/test_riesgo.py": 9,
         "tests/test_rondas.py": 6,
@@ -475,24 +468,25 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1016
+      "metrica": 1020
     },
     "texto_de_prompt": {
       "detalle": {
         "DIRECTIVA_AUDITORIA": 735,
-        "DIRECTIVA_FABLE": 1208,
         "DIRECTIVA_FORMA": 279,
-        "system_prompt": 526
+        "system_prompt": 528
       },
-      "metrica": 2748
+      "metrica": 1542
     },
     "vocabulario_hardcodeado": {
       "detalle": {
         "juez.py:TOOL_CONTEXTO_RE": 1,
         "nodes.py:GetQuestion": 1,
+        "skills/revision.yaml:condicion": 1,
+        "skills/tdd.yaml:condicion": 1,
         "utils/aprobaciones.py:YES": 1
       },
-      "metrica": 3
+      "metrica": 5
     }
   },
   "version": 1

@@ -3,7 +3,6 @@
 id: exp83-selffix3
 descripcion: tests del fix de contenido_nuevos + verificación pytest/ruff
 env:
-  PROMPT_FABLE: "1"
   MAX_TOOL_ROUNDS: "16"
 permitir:
   - "{RAIZ}/fable_judge.py"

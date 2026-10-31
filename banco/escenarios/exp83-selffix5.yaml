@@ -4,7 +4,6 @@
 id: exp83-selffix5
 descripcion: decisión (a) de la vuelta 4 + fix del tope de contenido_nuevos
 env:
-  PROMPT_FABLE: "1"
   MAX_TOOL_ROUNDS: "16"
 permitir:
   - "{RAIZ}/fable_judge.py"

@@ -6057,3 +6057,57 @@ skips de `test_db` y `.modelos` por symlink); el modelo es el alias
 esta versión; la comparación base↔5b es intra-día, misma máquina, corridas
 secuenciales por brazo. Los criterios se aplican como quedaron escritos, sin
 retocar.
+
+---
+
+## X112: deuda de docs, la prosa de fable fuera, la forma fija y el ratchet sobre los YAML (2026-10-31)
+
+Sin cambio de conducta en producción.
+
+**Lo que sale y por qué es mérito, no comodidad**:
+- `DIRECTIVA_FABLE` y `PROMPT_FABLE`. Tres A/B sin lift (exp/72, exp/73, 5b) y
+  ningún camino de producción la encendía. Lo que se midió fue la prosa del
+  método (F0), no el método: el original de fable-method se apoya en
+  compuertas y en un juez. El juez (`verificar_trabajo`) se queda, con su
+  evidencia (exp/81, exp/83). Las compuertas en código (F2) siguen abiertas.
+- `PROMPT_FORMA`. Era el brazo del A/B de exp/51, que está cerrado. La forma
+  va siempre y `system_prompt()` no tiene parámetros. `forma_codigo.py` arma
+  su brazo sin forma quitando la constante, del lado del laboratorio;
+  `forma_chat.py` sale con aviso y `exp51-chat-off.yaml` se borra.
+- El checklist de auditoría queda como opción del operador
+  (`PROMPT_AUDITORIA`): es el único texto con efecto medido donde había margen
+  (exp/78, s18 3,67 → 5,00).
+
+**Instrumentos que ahora ven lo que no veían**:
+- El ratchet lee la `condicion` de `skills/*.yaml`. `vocabulario_hardcodeado`
+  pasa de 3 a **5** (`revision` y `tdd`): es la deuda de S7, ahora medida.
+  Es una corrección del instrumento que empeora la métrica: **clave del
+  operador**.
+- `docs/estado.md`: las citas `archivo.py::test` y su continuación `::test`
+  se verifican contra el archivo. Había 10 citas en 7 filas a tests borrados
+  (router y voto en X106, explorador en H3-B); quedan como "(retirado en …)".
+- La columna "Lo lee" del inventario de settings se compara con el escaneo.
+  Estaban mal `HITL_SCOPE` (faltaba `utils/riesgo.py`) y `MEMORIA` (era
+  `modules/memoria.py`).
+- Ningún escenario del banco puede setear un `env:` que nadie lea. Se
+  limpiaron 9 escenarios que traían `PROMPT_FABLE`/`PROMPT_FORMA`.
+- `bench_fable --brazos` toma el default de `ENV_POR_BRAZO` (lo que el
+  operador arregló en X111 y se fue con el revert), con test.
+
+**Lo que no hizo falta**: el aviso en `ab_skills.py`. Con el revert, `SKILLS`
+vuelve a leerse, así que los brazos `off` de exp56/56b son un control válido.
+**Lo que no pude ver**: la regresión de `replay.comparar_baseline` contra el
+snapshot del 28-10. El replay corre sobre `.runs`, que no viaja en el zip.
+Queda para el operador: `python3 replay.py` y comparar las firmas nuevas
+con las de X106 (`LayaRouter`, `DirectAnswer`, `Skills`). Si solo aparecen
+esas, el snapshot quedó viejo y se regenera con `--actualizar-baseline`.
+
+**Metas** (decisión del operador, X112): `texto_de_prompt` **1542** (medido:
+2748 → 1542; la estimación también decía 1542). `imports_perezosos` vuelve a
+**≤ 40**, con paso propio: de 81, 12 son stdlib y 2 dependencias
+obligatorias sin motivo, y 59 internos que en su mayoría no esquivan ningún
+ciclo.
+
+**Ratchets**: `texto_de_prompt` 2748 → 1542, `settings_leidos` 58 → 56,
+`imports_perezosos` 81 → 80, `tests_definidos` 1016 → 1020,
+`vocabulario_hardcodeado` 3 → 5 (clave).

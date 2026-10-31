@@ -1,7 +1,6 @@
 id: exp51-chat-on
 descripcion: exp/51 chat real — directiva de forma ON (escribe un módulo y lo edita)
 env:
-  PROMPT_FORMA: "1"
   COMPACTION_CHARS: "120000"
   PREGUNTAS_LOG: "0"
 permitir:

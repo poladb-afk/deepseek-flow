@@ -3,7 +3,6 @@
 id: exp84-extractor
 descripcion: el extractor de claims deja de depender del fraseo del reporte
 env:
-  PROMPT_FABLE: "1"
   MAX_TOOL_ROUNDS: "16"
 permitir:
   - "{RAIZ}/fable_judge.py"

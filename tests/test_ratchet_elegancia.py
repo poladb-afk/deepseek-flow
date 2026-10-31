@@ -54,6 +54,14 @@ def test_vocabulario_hardcodeado(tmp_path, codigo, cuenta):
     assert sum(ratchet.escanear_vocabulario(tmp_path).values()) == cuenta
 
 
+def test_la_condicion_regex_de_un_skill_cuenta_como_vocabulario(tmp_path):
+    """X112: la regex del YAML decide por palabras igual que una del código."""
+    _escribir(tmp_path, "skills/a.yaml", "id: a\ncondicion: '(?i)\\b(revisá|revisa|auditá|audita|mirá)\\b'\n")
+    _escribir(tmp_path, "skills/b.yaml", "id: b\ncondicion: '(?i)\\b(tdd|test-first)\\b'\n")
+    _escribir(tmp_path, "skills/roto.yaml", "id: [\n")
+    assert ratchet.escanear_vocabulario(tmp_path) == {"skills/a.yaml:condicion": 1}
+
+
 def test_imports_perezosos_cuentan_solo_dentro_de_funciones(tmp_path):
     _escribir(tmp_path, "nodes.py",
               "import json\n\nclass N:\n    def prep(self):\n        import re\n        return re\n\n"
@@ -114,3 +122,20 @@ def test_todo_setting_tiene_veredicto_en_el_inventario():
     con_fila = set(re.findall(r"^\| `([A-Z][A-Z0-9_]+)` \| (?:contrato|revisar|borrar) \|", doc, re.M))
     faltan = sorted(set(ratchet.escanear_settings(RAIZ)) - con_fila)
     assert not faltan, f"settings sin veredicto en docs/elegancia.md: {faltan}"
+
+
+def test_la_columna_lo_lee_del_inventario_es_la_del_codigo():
+    """X112: la columna "Lo lee" se desactualizaba en silencio (HITL_SCOPE y
+    MEMORIA nombraban archivos que ya no eran sus lectores). Cada fila tiene
+    que nombrar exactamente los archivos que el escaneo encuentra."""
+    from conftest import RAIZ
+
+    doc = (RAIZ / "docs" / "elegancia.md").read_text(encoding="utf-8")
+    filas = re.findall(r"^\| `([A-Z][A-Z0-9_]+)` \| (?:contrato|revisar|borrar) \|.*\| ([^|]*) \|$", doc, re.M)
+    reales = ratchet.escanear_settings(RAIZ)
+    distintos = {}
+    for nombre, lee in filas:
+        citados = sorted(re.findall(r"`([^`]+)`", lee))
+        if citados != reales.get(nombre):
+            distintos[nombre] = (citados, reales.get(nombre))
+    assert filas and not distintos, f"columna 'Lo lee' desactualizada (doc, código): {distintos}"

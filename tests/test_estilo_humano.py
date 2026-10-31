@@ -158,29 +158,18 @@ def test_todo_test_tiene_assert_o_raises():
     assert not sin_assert, f"tests sin aserción observable: {sin_assert}"
 
 
-def test_prompt_forma_se_apaga_por_setting(monkeypatch):
-    """PROMPT_FORMA=0 permite el A/B del banco sin duplicar el prompt."""
+def test_la_forma_va_siempre_y_fable_ya_no_es_una_perilla(monkeypatch):
+    """X112: la directiva de forma (exp/51) va siempre; PROMPT_FORMA era el
+    brazo de su A/B, cerrado. La prosa de fable se borró con su setting tras
+    tres A/B sin lift (exp/72, exp/73, 5b): los dos settings no cambian nada."""
     import main
 
-    monkeypatch.delenv("PROMPT_FORMA", raising=False)
-    assert main.DIRECTIVA_FORMA in main.system_prompt()  # default encendido
+    base = main.system_prompt()
+    assert main.DIRECTIVA_FORMA in base
     monkeypatch.setenv("PROMPT_FORMA", "0")
-    assert main.DIRECTIVA_FORMA not in main.system_prompt()
-    monkeypatch.setenv("PROMPT_FORMA", "1")
-    assert main.DIRECTIVA_FORMA in main.system_prompt()
-
-
-def test_prompt_fable_es_opt_in(monkeypatch):
-    """PROMPT_FABLE=1 inyecta la directiva del método (exp/72 F0); el default 0
-    deja el prompt de producción byte-idéntico."""
-    import main
-
-    monkeypatch.delenv("PROMPT_FABLE", raising=False)
-    assert main.DIRECTIVA_FABLE not in main.system_prompt()
     monkeypatch.setenv("PROMPT_FABLE", "1")
-    assert main.DIRECTIVA_FABLE in main.system_prompt()
-    monkeypatch.setenv("PROMPT_FABLE", "0")
-    assert main.DIRECTIVA_FABLE not in main.system_prompt()
+    assert main.system_prompt() == base
+    assert not hasattr(main, "DIRECTIVA_FABLE")
 
 
 def test_prompt_auditoria_es_opt_in(monkeypatch):

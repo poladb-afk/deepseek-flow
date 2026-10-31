@@ -1,11 +1,10 @@
 # exp/83 — el harness se arregla solo: fix del juez de fable medido por el
 # control honesto del operador (spec: banco/specs/exp83_selffix.md). El chat
-# trabaja con el método de fable en prompt (PROMPT_FABLE=1); scope cerrado a
+# trabajaba con el método de fable en prompt (PROMPT_FABLE=1, borrado en X112); scope cerrado a
 # los dos archivos del fix; docs y commit son del operador.
 id: exp83-selffix
 descripcion: fix de fable_judge por el propio chat (contenido de archivos nuevos en el prompt de código)
 env:
-  PROMPT_FABLE: "1"
   MAX_TOOL_ROUNDS: "16"
 permitir:
   - "{RAIZ}/fable_judge.py"

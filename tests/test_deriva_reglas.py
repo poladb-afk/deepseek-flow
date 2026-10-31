@@ -134,6 +134,31 @@ def test_estado_cita_tests_que_existen():
     assert not faltan, f"docs/estado.md cita tests que ya no existen: {faltan}"
 
 
+def _defs_por_archivo():
+    return {
+        archivo.name: {nodo.name for nodo in ast.walk(ast.parse(archivo.read_text(encoding="utf-8")))
+                       if isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef))}
+        for archivo in sorted((RAIZ / "tests").glob("test_*.py"))
+    }
+
+
+def test_estado_cita_tests_con_archivo_que_existen():
+    """X112: la forma `archivo.py::test` (y su continuación `::test`) no la veía
+    el test de arriba, que mira tokens enteros: 10 citas de 7 filas apuntaban a
+    tests borrados (router y voto en X106, explorador en H3-B). El test tiene
+    que vivir en ESE archivo; la continuación hereda el archivo anterior."""
+    defs = _defs_por_archivo()
+    faltan = []
+    for fila in _documento(ESTADO).splitlines():
+        archivo = None
+        for token in re.findall(r"`([^`\n]*::[^`\n]*)`", fila):
+            ruta, _, nombre = token.rpartition("::")
+            archivo = ruta.rsplit("/", 1)[-1] if ruta else archivo
+            if nombre not in defs.get(archivo, set()):
+                faltan.append(token)
+    assert not faltan, f"docs/estado.md cita tests que no existen en su archivo: {faltan}"
+
+
 def test_estado_cita_archivos_de_test_que_existen():
     """Las filas viejas citan archivos enteros: también tienen que existir."""
     tokens = _tokens(_documento(ESTADO))

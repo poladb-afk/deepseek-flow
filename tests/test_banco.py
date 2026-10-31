@@ -284,3 +284,27 @@ def test_friccion_auto_tiene_respuestas_calculables():
     for turno in turnos:
         (tipo, comando), = turno["verificar"][0].items()
         assert tipo == "salida" and _respuesta_esperada(comando), turno["id"]
+
+
+def test_ningun_escenario_setea_un_env_que_el_harness_no_lee():
+    """X112: un `env:` que nadie lee no mide nada y nadie se entera (los brazos
+    de PROMPT_FABLE y PROMPT_FORMA quedaron así). Cada clave tiene que leerla
+    algún código del repo, con los mismos lectores que el ratchet."""
+    from conftest import RAIZ
+
+    import ratchet
+
+    leidos = set()
+    for ruta in RAIZ.rglob("*.py"):
+        rel = ruta.relative_to(RAIZ).as_posix()
+        if rel.startswith(("tests/", "docs/", "salidas/", ".", "banco/fable/escenarios/")):
+            continue
+        texto = ruta.read_text(encoding="utf-8", errors="replace")
+        for patron in ratchet.LECTORES_SETTINGS:
+            leidos |= set(re.findall(patron, texto))
+    inertes = {}
+    for ruta in sorted((RAIZ / "banco" / "escenarios").glob("*.yaml")):
+        for clave in cargar_escenario(ruta).get("env") or {}:
+            if clave not in leidos:
+                inertes.setdefault(clave, []).append(ruta.name)
+    assert not inertes, f"escenarios con env que ningún código lee: {inertes}"

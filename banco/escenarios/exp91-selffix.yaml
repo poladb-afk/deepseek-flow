@@ -1,10 +1,9 @@
 # exp/91 — deuda de fondo de exp/88: recorte de tool results viejos en la
-# ventana caliente. Lo implementa el chat (PROMPT_FABLE=1); audita el operador
+# ventana caliente. Lo implementó el chat (PROMPT_FABLE=1, borrado en X112); audita el operador
 # con fable_judge. USE_LAYA_ROUTER=0 y tests dirigidos por disciplina de RAM.
 id: exp91-selffix
 descripcion: recorte de tool results viejos en la ventana caliente (exp/88 fondo)
 env:
-  PROMPT_FABLE: "1"
   MAX_TOOL_ROUNDS: "16"
   COMPACTION_CHARS: "120000"
 permitir:

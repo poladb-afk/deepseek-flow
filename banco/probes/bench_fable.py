@@ -1,8 +1,9 @@
 """exp/72 F0 — bench de trampas de fable: A/B baseline vs prosa (determinista).
 
 Porta escenarios del eval de Sahir619/fable-method @9924067 (MIT) y mide si
-pasar el método como PROSA al system prompt (PROMPT_FABLE=1) cambia la
-conducta del chat en trampas, contra el baseline (PROMPT_FABLE=0).
+pasar el método como PROSA al system prompt (el brazo B, `PROMPT_FABLE=1`)
+cambia la conducta del chat en trampas, contra el baseline. Tres A/B sin
+lift (exp/72, exp/73, 5b): la prosa y su setting se borraron en X112.
 
 Señales deterministas (sin juez LLM, como exp/56): archivos tocados contra el
 pristine, markers (DEPLOYED.marker), scripts del fixture re-ejecutados
@@ -58,13 +59,13 @@ RESPUESTA_HUMANO_OFFLINE = (
     "assumption and report the open question in your final report."
 )
 
-# Entorno que define cada brazo. A/B son los de exp/72-74 (baseline vs prosa de
-# fable); C es la skill revision del propio harness (exp/75).
+# Entorno que define cada brazo: A baseline, C la skill revision (exp/75), D el
+# checklist de auditoría (exp/78). B era la prosa de fable (exp/72): se borró
+# con su setting en X112; sus resultados viejos siguen en salidas/fable/.
 ENV_POR_BRAZO = {
-    "A": {"PROMPT_FABLE": "0", "SKILLS": "0"},
-    "B": {"PROMPT_FABLE": "1", "SKILLS": "0"},
-    "C": {"PROMPT_FABLE": "0", "SKILLS": "1"},
-    "D": {"PROMPT_FABLE": "0", "SKILLS": "0", "PROMPT_AUDITORIA": "1"},
+    "A": {"SKILLS": "0"},
+    "C": {"SKILLS": "1"},
+    "D": {"SKILLS": "0", "PROMPT_AUDITORIA": "1"},
 }
 
 
@@ -1007,7 +1008,7 @@ def main(argv=None):
         prog="bench_fable", description="exp/72 F0: trampas de fable, A/B baseline vs prosa"
     )
     parser.add_argument("--exp", default="exp72-f0")
-    parser.add_argument("--brazos", default="A,B")
+    parser.add_argument("--brazos", default=",".join(ENV_POR_BRAZO))
     parser.add_argument("--seeds", default="1,2,3")
     parser.add_argument("--escenarios", default=",".join(ESCENARIOS))
     parser.add_argument("--resumen", action="store_true", help="solo escribe el resumen de lo ya corrido")

@@ -181,3 +181,11 @@ no conocía cuatro tools del chat que ya emitían eventos en el corpus
 se repone con candado en un commit aparte. `bench_fable --brazos` tenía
 default `A,B` con un solo brazo en el árbol 5b: se arregló en `3273a84` y se
 revierte con él (en el árbol base viejo el default vuelve a ser válido).
+
+**Nota del autor sobre el criterio 4 (X112, después del veredicto, no lo
+cambia).** La tarea de s18 es "Revisá el código Python… buscando bugs": no
+menciona seguridad, así que cargar `revision` era razonable y el criterio
+esperaba `auditoria-seguridad` donde el pedido no la pedía. El criterio podía
+fallar con el mecanismo andando. El veredicto se sostiene por el criterio 1,
+que es independiente. Y el revert repuso la regex: S7 queda cerrado sin
+remedio para este modelo, con las 2 regex como deuda medida (X112 las cuenta).

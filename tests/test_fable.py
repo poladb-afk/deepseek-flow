@@ -8,6 +8,7 @@ import json
 import re
 import shutil
 
+import pytest
 from conftest import RAIZ
 
 CASOS = RAIZ / "banco" / "fable" / "escenarios"
@@ -310,11 +311,31 @@ def test_s16_scorer_recall_completo_y_edicion(tmp_path):
 
 
 def test_brazo_c_es_la_skill_revision():
-    """exp/75: A/B apagan skills; C prende la skill revision del harness."""
+    """exp/75: A apaga los skills; C prende la skill revision del harness. B
+    (la prosa de fable) se borró con su setting en X112."""
     bench = _bench()
-    assert bench.ENV_POR_BRAZO["A"] == {"PROMPT_FABLE": "0", "SKILLS": "0"}
-    assert bench.ENV_POR_BRAZO["B"] == {"PROMPT_FABLE": "1", "SKILLS": "0"}
-    assert bench.ENV_POR_BRAZO["C"] == {"PROMPT_FABLE": "0", "SKILLS": "1"}
+    assert bench.ENV_POR_BRAZO["A"] == {"SKILLS": "0"}
+    assert bench.ENV_POR_BRAZO["C"] == {"SKILLS": "1"}
+    assert "B" not in bench.ENV_POR_BRAZO
+
+
+def test_el_default_de_brazos_son_los_brazos_que_existen(monkeypatch):
+    """El default de --brazos sale de ENV_POR_BRAZO: un brazo borrado no puede
+    quedar como default y reventar con KeyError (lo vio el operador en X111)."""
+    import argparse
+
+    bench = _bench()
+    visto = {}
+    original = argparse.ArgumentParser.parse_args
+
+    def espiar(self, argv=None, namespace=None):
+        visto["brazos"] = original(self, argv, namespace).brazos
+        raise SystemExit(0)
+
+    monkeypatch.setattr(argparse.ArgumentParser, "parse_args", espiar)
+    with pytest.raises(SystemExit):
+        bench.main([])
+    assert set(visto["brazos"].split(",")) == set(bench.ENV_POR_BRAZO)
 
 
 def test_s17_reusa_el_fixture_de_s13_y_parsea_5_bugs():
@@ -367,11 +388,7 @@ def test_s18_scorer_semantico_y_edicion(tmp_path):
 def test_brazo_d_es_checklist_de_auditoria():
     """exp/78: D prende solo el checklist de seguridad (PROMPT_AUDITORIA=1)."""
     bench = _bench()
-    assert bench.ENV_POR_BRAZO["D"] == {
-        "PROMPT_FABLE": "0",
-        "SKILLS": "0",
-        "PROMPT_AUDITORIA": "1",
-    }
+    assert bench.ENV_POR_BRAZO["D"] == {"SKILLS": "0", "PROMPT_AUDITORIA": "1"}
 
 
 def test_s19_ground_truth_historica_parsea_3_bugs():

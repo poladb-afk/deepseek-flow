@@ -29,7 +29,7 @@ EXP = "f-prompt"
 CITAS = ("s15-python-bug-hunt", "s16-hard-bug-hunt", "s17-scale-audit",
          "s18-real-audit", "s19-real-audit-2", "s20-real-audit-3")
 AMPLIOS = CITAS[2:]
-BASE = {"PROMPT_FABLE": "0", "SKILLS": "0"}
+BASE = {"SKILLS": "0"}
 BRAZOS = {
     "base": (BASE, CITAS),
     "sin_citas": ({**BASE, "PROMPT_CITAS": "0"}, CITAS),

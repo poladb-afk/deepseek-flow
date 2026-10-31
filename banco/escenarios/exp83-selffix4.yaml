@@ -4,7 +4,6 @@
 id: exp83-selffix4
 descripcion: fix del tope global de contenido_nuevos + allowlist de ruff, hallazgos del meta-juicio
 env:
-  PROMPT_FABLE: "1"
   MAX_TOOL_ROUNDS: "16"
 permitir:
   - "{RAIZ}/fable_judge.py"

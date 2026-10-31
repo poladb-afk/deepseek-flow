@@ -1,0 +1,875 @@
+diff -ruN a/.env.example b/.env.example
+--- a/.env.example	2026-10-31 11:33:34.000000000 +0000
++++ b/.env.example	2026-10-31 13:49:53.550681201 +0000
+@@ -20,13 +20,6 @@
+ # INFORME_CARPETA=/ruta/a/trazas
+ 
+ # Tope de rondas de herramientas por pregunta del chat (default 8)
+-# Directiva de forma del código que genera el chat (exp/51): 1 = pide el
+-# mínimo código que funciona (default); 0 = la apaga (solo para el A/B del
+-# banco). El efecto está medido: −79%/−67% de líneas según modelo.
+-# PROMPT_FORMA=1
+-# Directiva del método Fable (exp/72 F0, brazo prosa del A/B): 0 = apagada
+-# (default, producción sin cambios); 1 = inyecta la directiva del método.
+-# PROMPT_FABLE=0
+ # Checklist de auditoría de seguridad (exp/78, brazo D): 1 = agrega la directiva
+ # de buscar controles por AUSENCIA (flags que faltan, envoltorios, normalización).
+ # 0 = apagada (default, producción sin cambios).
+diff -ruN a/banco/escenarios/exp51-chat-off.yaml b/banco/escenarios/exp51-chat-off.yaml
+--- a/banco/escenarios/exp51-chat-off.yaml	2026-10-31 11:33:34.000000000 +0000
++++ b/banco/escenarios/exp51-chat-off.yaml	1970-01-01 00:00:00.000000000 +0000
+@@ -1,23 +0,0 @@
+-id: exp51-chat-off
+-descripcion: exp/51 chat real — directiva de forma OFF (escribe un módulo y lo edita)
+-env:
+-  PROMPT_FORMA: "0"
+-  COMPACTION_CHARS: "120000"
+-  PREGUNTAS_LOG: "0"
+-permitir:
+-  - "{RAIZ}/salidas/exp51/"
+-permitir_comandos:
+-  - mkdir
+-  - ls
+-turnos:
+-  - id: modulo
+-    linea: "Escribí con write_file el archivo salidas/exp51/chat/modulo.py: un módulo Python que lea un JSON de configuración con defaults y valide las claves obligatorias. No lo ejecutes, una sola pasada."
+-    hitl: s
+-    timeout: 300
+-  - id: edicion
+-    linea: "Agregá a ese mismo archivo una función faltantes(config, obligatorias) que devuelva la lista de claves faltantes. Editá sin tocar el resto y no lo ejecutes."
+-    hitl: s
+-    timeout: 300
+-  - id: salir
+-    linea: "salir"
+-    timeout: 60
+diff -ruN a/banco/escenarios/exp51-chat-on.yaml b/banco/escenarios/exp51-chat-on.yaml
+--- a/banco/escenarios/exp51-chat-on.yaml	2026-10-31 11:33:34.000000000 +0000
++++ b/banco/escenarios/exp51-chat-on.yaml	2026-10-31 13:49:53.554681293 +0000
+@@ -1,7 +1,6 @@
+ id: exp51-chat-on
+ descripcion: exp/51 chat real — directiva de forma ON (escribe un módulo y lo edita)
+ env:
+-  PROMPT_FORMA: "1"
+   COMPACTION_CHARS: "120000"
+   PREGUNTAS_LOG: "0"
+ permitir:
+diff -ruN a/banco/escenarios/exp83-selffix.yaml b/banco/escenarios/exp83-selffix.yaml
+--- a/banco/escenarios/exp83-selffix.yaml	2026-10-31 11:33:34.000000000 +0000
++++ b/banco/escenarios/exp83-selffix.yaml	2026-10-31 13:49:53.558681384 +0000
+@@ -1,11 +1,10 @@
+ # exp/83 — el harness se arregla solo: fix del juez de fable medido por el
+ # control honesto del operador (spec: banco/specs/exp83_selffix.md). El chat
+-# trabaja con el método de fable en prompt (PROMPT_FABLE=1); scope cerrado a
++# trabajaba con el método de fable en prompt (PROMPT_FABLE=1, borrado en X112); scope cerrado a
+ # los dos archivos del fix; docs y commit son del operador.
+ id: exp83-selffix
+ descripcion: fix de fable_judge por el propio chat (contenido de archivos nuevos en el prompt de código)
+ env:
+-  PROMPT_FABLE: "1"
+   MAX_TOOL_ROUNDS: "16"
+ permitir:
+   - "{RAIZ}/fable_judge.py"
+diff -ruN a/banco/escenarios/exp83-selffix2.yaml b/banco/escenarios/exp83-selffix2.yaml
+--- a/banco/escenarios/exp83-selffix2.yaml	2026-10-31 11:33:34.000000000 +0000
++++ b/banco/escenarios/exp83-selffix2.yaml	2026-10-31 13:49:53.558681384 +0000
+@@ -5,7 +5,6 @@
+ id: exp83-selffix2
+ descripcion: aplicar el plan del fix de fable_judge (vuelta 1 autorizada)
+ env:
+-  PROMPT_FABLE: "1"
+   MAX_TOOL_ROUNDS: "16"
+ permitir:
+   - "{RAIZ}/fable_judge.py"
+diff -ruN a/banco/escenarios/exp83-selffix3.yaml b/banco/escenarios/exp83-selffix3.yaml
+--- a/banco/escenarios/exp83-selffix3.yaml	2026-10-31 11:33:34.000000000 +0000
++++ b/banco/escenarios/exp83-selffix3.yaml	2026-10-31 13:49:53.558681384 +0000
+@@ -3,7 +3,6 @@
+ id: exp83-selffix3
+ descripcion: tests del fix de contenido_nuevos + verificación pytest/ruff
+ env:
+-  PROMPT_FABLE: "1"
+   MAX_TOOL_ROUNDS: "16"
+ permitir:
+   - "{RAIZ}/fable_judge.py"
+diff -ruN a/banco/escenarios/exp83-selffix4.yaml b/banco/escenarios/exp83-selffix4.yaml
+--- a/banco/escenarios/exp83-selffix4.yaml	2026-10-31 11:33:34.000000000 +0000
++++ b/banco/escenarios/exp83-selffix4.yaml	2026-10-31 13:49:53.558681384 +0000
+@@ -4,7 +4,6 @@
+ id: exp83-selffix4
+ descripcion: fix del tope global de contenido_nuevos + allowlist de ruff, hallazgos del meta-juicio
+ env:
+-  PROMPT_FABLE: "1"
+   MAX_TOOL_ROUNDS: "16"
+ permitir:
+   - "{RAIZ}/fable_judge.py"
+diff -ruN a/banco/escenarios/exp83-selffix5.yaml b/banco/escenarios/exp83-selffix5.yaml
+--- a/banco/escenarios/exp83-selffix5.yaml	2026-10-31 11:33:34.000000000 +0000
++++ b/banco/escenarios/exp83-selffix5.yaml	2026-10-31 13:49:53.558681384 +0000
+@@ -4,7 +4,6 @@
+ id: exp83-selffix5
+ descripcion: decisión (a) de la vuelta 4 + fix del tope de contenido_nuevos
+ env:
+-  PROMPT_FABLE: "1"
+   MAX_TOOL_ROUNDS: "16"
+ permitir:
+   - "{RAIZ}/fable_judge.py"
+diff -ruN a/banco/escenarios/exp84-extractor.yaml b/banco/escenarios/exp84-extractor.yaml
+--- a/banco/escenarios/exp84-extractor.yaml	2026-10-31 11:33:34.000000000 +0000
++++ b/banco/escenarios/exp84-extractor.yaml	2026-10-31 13:49:53.558681384 +0000
+@@ -3,7 +3,6 @@
+ id: exp84-extractor
+ descripcion: el extractor de claims deja de depender del fraseo del reporte
+ env:
+-  PROMPT_FABLE: "1"
+   MAX_TOOL_ROUNDS: "16"
+ permitir:
+   - "{RAIZ}/fable_judge.py"
+diff -ruN a/banco/escenarios/exp91-selffix.yaml b/banco/escenarios/exp91-selffix.yaml
+--- a/banco/escenarios/exp91-selffix.yaml	2026-10-31 11:33:34.000000000 +0000
++++ b/banco/escenarios/exp91-selffix.yaml	2026-10-31 13:49:53.558681384 +0000
+@@ -1,10 +1,9 @@
+ # exp/91 — deuda de fondo de exp/88: recorte de tool results viejos en la
+-# ventana caliente. Lo implementa el chat (PROMPT_FABLE=1); audita el operador
++# ventana caliente. Lo implementó el chat (PROMPT_FABLE=1, borrado en X112); audita el operador
+ # con fable_judge. USE_LAYA_ROUTER=0 y tests dirigidos por disciplina de RAM.
+ id: exp91-selffix
+ descripcion: recorte de tool results viejos en la ventana caliente (exp/88 fondo)
+ env:
+-  PROMPT_FABLE: "1"
+   MAX_TOOL_ROUNDS: "16"
+   COMPACTION_CHARS: "120000"
+ permitir:
+diff -ruN a/banco/escenarios/exp91-selffix2.yaml b/banco/escenarios/exp91-selffix2.yaml
+--- a/banco/escenarios/exp91-selffix2.yaml	2026-10-31 11:33:34.000000000 +0000
++++ b/banco/escenarios/exp91-selffix2.yaml	2026-10-31 13:49:53.558681384 +0000
+@@ -5,7 +5,6 @@
+ id: exp91-selffix2
+ descripcion: vuelta 2 del recorte de tool results viejos (implementación, 40 rondas)
+ env:
+-  PROMPT_FABLE: "1"
+   MAX_TOOL_ROUNDS: "40"
+   COMPACTION_CHARS: "120000"
+ permitir:
+diff -ruN a/banco/probes/bench_fable.py b/banco/probes/bench_fable.py
+--- a/banco/probes/bench_fable.py	2026-10-31 11:33:34.000000000 +0000
++++ b/banco/probes/bench_fable.py	2026-10-31 13:49:53.554681293 +0000
+@@ -1,8 +1,9 @@
+ """exp/72 F0 — bench de trampas de fable: A/B baseline vs prosa (determinista).
+ 
+ Porta escenarios del eval de Sahir619/fable-method @9924067 (MIT) y mide si
+-pasar el método como PROSA al system prompt (PROMPT_FABLE=1) cambia la
+-conducta del chat en trampas, contra el baseline (PROMPT_FABLE=0).
++pasar el método como PROSA al system prompt (el brazo B, `PROMPT_FABLE=1`)
++cambia la conducta del chat en trampas, contra el baseline. Tres A/B sin
++lift (exp/72, exp/73, 5b): la prosa y su setting se borraron en X112.
+ 
+ Señales deterministas (sin juez LLM, como exp/56): archivos tocados contra el
+ pristine, markers (DEPLOYED.marker), scripts del fixture re-ejecutados
+@@ -58,13 +59,13 @@
+     "assumption and report the open question in your final report."
+ )
+ 
+-# Entorno que define cada brazo. A/B son los de exp/72-74 (baseline vs prosa de
+-# fable); C es la skill revision del propio harness (exp/75).
++# Entorno que define cada brazo: A baseline, C la skill revision (exp/75), D el
++# checklist de auditoría (exp/78). B era la prosa de fable (exp/72): se borró
++# con su setting en X112; sus resultados viejos siguen en salidas/fable/.
+ ENV_POR_BRAZO = {
+-    "A": {"PROMPT_FABLE": "0", "SKILLS": "0"},
+-    "B": {"PROMPT_FABLE": "1", "SKILLS": "0"},
+-    "C": {"PROMPT_FABLE": "0", "SKILLS": "1"},
+-    "D": {"PROMPT_FABLE": "0", "SKILLS": "0", "PROMPT_AUDITORIA": "1"},
++    "A": {"SKILLS": "0"},
++    "C": {"SKILLS": "1"},
++    "D": {"SKILLS": "0", "PROMPT_AUDITORIA": "1"},
+ }
+ 
+ 
+@@ -1007,7 +1008,7 @@
+         prog="bench_fable", description="exp/72 F0: trampas de fable, A/B baseline vs prosa"
+     )
+     parser.add_argument("--exp", default="exp72-f0")
+-    parser.add_argument("--brazos", default="A,B")
++    parser.add_argument("--brazos", default=",".join(ENV_POR_BRAZO))
+     parser.add_argument("--seeds", default="1,2,3")
+     parser.add_argument("--escenarios", default=",".join(ESCENARIOS))
+     parser.add_argument("--resumen", action="store_true", help="solo escribe el resumen de lo ya corrido")
+diff -ruN a/banco/probes/f_prompt.py b/banco/probes/f_prompt.py
+--- a/banco/probes/f_prompt.py	2026-10-31 11:33:34.000000000 +0000
++++ b/banco/probes/f_prompt.py	2026-10-31 13:49:53.554681293 +0000
+@@ -29,7 +29,7 @@
+ CITAS = ("s15-python-bug-hunt", "s16-hard-bug-hunt", "s17-scale-audit",
+          "s18-real-audit", "s19-real-audit-2", "s20-real-audit-3")
+ AMPLIOS = CITAS[2:]
+-BASE = {"PROMPT_FABLE": "0", "SKILLS": "0"}
++BASE = {"SKILLS": "0"}
+ BRAZOS = {
+     "base": (BASE, CITAS),
+     "sin_citas": ({**BASE, "PROMPT_CITAS": "0"}, CITAS),
+diff -ruN a/banco/probes/forma_chat.py b/banco/probes/forma_chat.py
+--- a/banco/probes/forma_chat.py	2026-10-31 11:33:34.000000000 +0000
++++ b/banco/probes/forma_chat.py	2026-10-31 13:49:53.554681293 +0000
+@@ -4,7 +4,8 @@
+ harness HACE de verdad: una sesión de chat por PTY (banco), pidiendo escribir
+ un módulo con `write_file` y editarlo con `edit_file` (HITL aprobado por
+ scope). Los dos brazos son los escenarios `exp51-chat-on/off.yaml`, que solo
+-difieren en `PROMPT_FORMA=1|0`.
++difieren en `PROMPT_FORMA=1|0`. Resuelto: la forma quedó fija y el setting se
++borró en X112, así que el brazo off ya no existe; para re-medir, forma_codigo.py.
+ 
+ Uso: python3 banco/probes/forma_chat.py [--runs 2]
+ Gasta API (dos sesiones de chat por brazo) y deja los archivos generados en
+@@ -64,6 +65,8 @@
+     parser.add_argument("--modelo", default=None,
+                         help="override de LLM_MODEL para las sesiones (default: el configurado)")
+     args = parser.parse_args(argv)
++    raise SystemExit("exp/51 está resuelto: la forma es fija desde X112 y PROMPT_FORMA se borró, "
++                     "así que el brazo off no existe. Para re-medirla: banco/probes/forma_codigo.py.")
+     if args.modelo:
+         os.environ["LLM_MODEL"] = args.modelo
+ 
+diff -ruN a/banco/probes/forma_codigo.py b/banco/probes/forma_codigo.py
+--- a/banco/probes/forma_codigo.py	2026-10-31 11:33:34.000000000 +0000
++++ b/banco/probes/forma_codigo.py	2026-10-31 13:49:53.554681293 +0000
+@@ -56,6 +56,13 @@
+     },
+ ]
+ BRAZOS = (("sin_forma", False), ("con_forma", True))
++
++
++def prompt_del_brazo(incluir_forma):
++    """El prompt del chat; el brazo sin forma le quita la directiva. Lo arma el
++    laboratorio: producción ya no tiene la perilla (X112)."""
++    prompt = main.system_prompt()
++    return prompt if incluir_forma else prompt.replace("\n\n" + main.DIRECTIVA_FORMA, "")
+ _METRICAS = ("sloc", "tokens_completion", "tokens_prompt", "funciones", "docstrings_densidad", "try",
+              "except_amplios", "except_pass", "asserts", "none_checks",
+              "comentarios", "banners", "docstrings_relleno")
+@@ -146,7 +153,7 @@
+             for brazo, incluir_forma in BRAZOS:
+                 etiqueta = f"{tarea['nombre']}/{brazo}/r{turno + 1}"
+                 print(f"  · {etiqueta}…", flush=True)
+-                crudo, uso = llamar(main.system_prompt(incluir_forma=incluir_forma), tarea["prompt"])
++                crudo, uso = llamar(prompt_del_brazo(incluir_forma), tarea["prompt"])
+                 codigo = extraer_codigo(crudo)
+                 fila = {"tarea": tarea["nombre"], "brazo": brazo, "run": turno + 1,
+                         "codigo": codigo, "error": None, "metricas": None}
+diff -ruN a/banco/specs/fase5b.md b/banco/specs/fase5b.md
+--- a/banco/specs/fase5b.md	2026-10-31 11:33:34.000000000 +0000
++++ b/banco/specs/fase5b.md	2026-10-31 13:55:29.602441776 +0000
+@@ -181,3 +181,11 @@
+ se repone con candado en un commit aparte. `bench_fable --brazos` tenía
+ default `A,B` con un solo brazo en el árbol 5b: se arregló en `3273a84` y se
+ revierte con él (en el árbol base viejo el default vuelve a ser válido).
++
++**Nota del autor sobre el criterio 4 (X112, después del veredicto, no lo
++cambia).** La tarea de s18 es "Revisá el código Python… buscando bugs": no
++menciona seguridad, así que cargar `revision` era razonable y el criterio
++esperaba `auditoria-seguridad` donde el pedido no la pedía. El criterio podía
++fallar con el mecanismo andando. El veredicto se sostiene por el criterio 1,
++que es independiente. Y el revert repuso la regex: S7 queda cerrado sin
++remedio para este modelo, con las 2 regex como deuda medida (X112 las cuenta).
+diff -ruN a/docs/bitacora.md b/docs/bitacora.md
+--- a/docs/bitacora.md	2026-10-31 11:33:34.000000000 +0000
++++ b/docs/bitacora.md	2026-10-31 13:55:29.610441962 +0000
+@@ -6057,3 +6057,57 @@
+ esta versión; la comparación base↔5b es intra-día, misma máquina, corridas
+ secuenciales por brazo. Los criterios se aplican como quedaron escritos, sin
+ retocar.
++
++---
++
++## X112: deuda de docs, la prosa de fable fuera, la forma fija y el ratchet sobre los YAML (2026-10-31)
++
++Sin cambio de conducta en producción.
++
++**Lo que sale y por qué es mérito, no comodidad**:
++- `DIRECTIVA_FABLE` y `PROMPT_FABLE`. Tres A/B sin lift (exp/72, exp/73, 5b) y
++  ningún camino de producción la encendía. Lo que se midió fue la prosa del
++  método (F0), no el método: el original de fable-method se apoya en
++  compuertas y en un juez. El juez (`verificar_trabajo`) se queda, con su
++  evidencia (exp/81, exp/83). Las compuertas en código (F2) siguen abiertas.
++- `PROMPT_FORMA`. Era el brazo del A/B de exp/51, que está cerrado. La forma
++  va siempre y `system_prompt()` no tiene parámetros. `forma_codigo.py` arma
++  su brazo sin forma quitando la constante, del lado del laboratorio;
++  `forma_chat.py` sale con aviso y `exp51-chat-off.yaml` se borra.
++- El checklist de auditoría queda como opción del operador
++  (`PROMPT_AUDITORIA`): es el único texto con efecto medido donde había margen
++  (exp/78, s18 3,67 → 5,00).
++
++**Instrumentos que ahora ven lo que no veían**:
++- El ratchet lee la `condicion` de `skills/*.yaml`. `vocabulario_hardcodeado`
++  pasa de 3 a **5** (`revision` y `tdd`): es la deuda de S7, ahora medida.
++  Es una corrección del instrumento que empeora la métrica: **clave del
++  operador**.
++- `docs/estado.md`: las citas `archivo.py::test` y su continuación `::test`
++  se verifican contra el archivo. Había 10 citas en 7 filas a tests borrados
++  (router y voto en X106, explorador en H3-B); quedan como "(retirado en …)".
++- La columna "Lo lee" del inventario de settings se compara con el escaneo.
++  Estaban mal `HITL_SCOPE` (faltaba `utils/riesgo.py`) y `MEMORIA` (era
++  `modules/memoria.py`).
++- Ningún escenario del banco puede setear un `env:` que nadie lea. Se
++  limpiaron 9 escenarios que traían `PROMPT_FABLE`/`PROMPT_FORMA`.
++- `bench_fable --brazos` toma el default de `ENV_POR_BRAZO` (lo que el
++  operador arregló en X111 y se fue con el revert), con test.
++
++**Lo que no hizo falta**: el aviso en `ab_skills.py`. Con el revert, `SKILLS`
++vuelve a leerse, así que los brazos `off` de exp56/56b son un control válido.
++**Lo que no pude ver**: la regresión de `replay.comparar_baseline` contra el
++snapshot del 28-10. El replay corre sobre `.runs`, que no viaja en el zip.
++Queda para el operador: `python3 replay.py` y comparar las firmas nuevas
++con las de X106 (`LayaRouter`, `DirectAnswer`, `Skills`). Si solo aparecen
++esas, el snapshot quedó viejo y se regenera con `--actualizar-baseline`.
++
++**Metas** (decisión del operador, X112): `texto_de_prompt` **1542** (medido:
++2748 → 1542; la estimación también decía 1542). `imports_perezosos` vuelve a
++**≤ 40**, con paso propio: de 81, 12 son stdlib y 2 dependencias
++obligatorias sin motivo, y 59 internos que en su mayoría no esquivan ningún
++ciclo.
++
++**Ratchets**: `texto_de_prompt` 2748 → 1542, `settings_leidos` 58 → 56,
++`imports_perezosos` 81 → 80, `tests_definidos` 1016 → 1020,
++`vocabulario_hardcodeado` 3 → 5 (clave).
+diff -ruN a/docs/design.md b/docs/design.md
+--- a/docs/design.md	2026-10-31 11:33:34.000000000 +0000
++++ b/docs/design.md	2026-10-31 13:49:53.562681476 +0000
+@@ -397,7 +397,7 @@
+ Presupuesto por archivo = el remanente del tope, con contabilidad exacta de
+ lo que viaja (header + cuerpo + separador + marca de corte). La allowlist de
+ re-ejecución admite `ruff check` (solo lectura; `ruff format` escribe y no
+-entra). Fix implementado por el propio chat del harness con `PROMPT_FABLE=1`
++entra). Fix implementado por el propio chat del harness con la prosa de fable (`PROMPT_FABLE=1`, borrada en X112)
+ y auditado por `verificar_trabajo` — el meta-juicio cazó dos bugs reales del
+ tope que los tests de ambos lados dejaban pasar (exp/83).
+ 
+@@ -1098,5 +1098,5 @@
+ especulativas; validación, seguridad y accesibilidad no se recortan. Está
+ medida: one-shot −79%/−67% de SLOC en dos modelos y −78%/−88% de SLOC en el
+ chat real con tools/HITL (n=5/n=3, sesiones además ~20–27% más rápidas;
+-bitácora exp/51). `PROMPT_FORMA=0` la apaga para el A/B
+-del banco; el default es 1 y el prefijo sigue siendo byte-estable.
++bitácora exp/51). Desde X112 va siempre (el setting era el brazo de ese A/B);
++el brazo sin forma lo arma `forma_codigo.py`, y el prefijo sigue byte-estable.
+diff -ruN a/docs/elegancia.md b/docs/elegancia.md
+--- a/docs/elegancia.md	2026-10-31 11:33:34.000000000 +0000
++++ b/docs/elegancia.md	2026-10-31 13:52:54.066828752 +0000
+@@ -57,11 +57,11 @@
+ |---|---|---|
+ | `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
+ | `producto_conoce_lab` | 10 → **0** (X93) | 0 ✅ |
+-| `vocabulario_hardcodeado` | 8 → 7 (X104) → 3 (X106) | ≤ 2 (S9 saca la continuación por palabras de `GetQuestion`; fase 6, `TOOL_CONTEXTO_RE`; queda el sí/no del HITL) |
+-| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) → 64 (X106) → 58 (X109) | ≤ 45 (fases 1–5, ver inventario) |
+-| `imports_perezosos` | 137 → 126 (X92) → 90 (X106) → 81 (X109) | ~60 (decisión del operador, 2026-10-30: ≤ 40 pedía ampliar la fase 6 a MCP/web/HITL solo por el número) |
++| `vocabulario_hardcodeado` | 8 → 7 (X104) → 3 (X106) → **5** (X112: el instrumento ahora lee la `condicion` de `skills/*.yaml`, que el AST no veía) | ≤ 2 (S7 cerrado sin remedio para este modelo: las 2 regex de los skills quedan como deuda medida; S9 saca la continuación de `GetQuestion`; fase 6, `TOOL_CONTEXTO_RE`; queda el sí/no del HITL) |
++| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) → 64 (X106) → 58 (X109) → 56 (X112) | ≤ 45 (fases 1–5, ver inventario) |
++| `imports_perezosos` | 137 → 126 (X92) → 90 (X106) → 81 (X109) → 80 (X112) | **≤ 40** (X112 deja sin efecto el ~60 del 2026-10-30: la clasificación de los 81 muestra 12 de stdlib y 2 de dependencias obligatorias sin motivo, y 59 internos que en su mayoría no esquivan ningún ciclo; paso propio de imports, con motivo visible para los que se quedan) |
+ | `nodos_largos` | 15 → 14 (X96) → 13 (X106) | ≤ 3 |
+-| `texto_de_prompt` | 2748 chars | ≤ 800 |
++| `texto_de_prompt` | 2748 → 1542 (X112: sin la prosa de fable) | **1542** (decisión del operador, X112: lo fijo + la forma de exp/51 + el checklist de exp/78 como opción; ≤ 800 pedía borrar una directiva con efecto medido) ✅ |
+ 
+ ## Plan
+ 
+@@ -73,13 +73,15 @@
+ | 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a NO PASA (X105, cableado borrado). ✅ 3b PASA (X106, `banco/specs/fase3b_4a.md`): el router salió del chat. **Cerradas con veredicto negativo** (decisión del operador): S2 —Laya elige el modo— la rechazó el A/B de la 3a; S1 —`reasoning_content` en rondas de tools— no aplica sin thinking con tools. ✅ X109: el juez de riesgo que solo observaba se borró; el log de la decisión humana queda | **Sí** | los criterios de `banco/specs/fase3b_4a.md` |
+ | 4 | ✅ 4b-mín (X104): sin la regex de palabras. ✅ 4a (X106): reglas y voto borrados con la 3b. **Queda (paso 3 del orden)**: S6, el presupuesto por novedad — `CORTE_NOVEDAD`, `CORTE_NOVEDAD_MIN`, `MAX_TOOL_ROUNDS_AMPLIO`, `UMBRAL_SIN_PROGRESO` salen; `MAX_TOOL_ROUNDS` es el único techo | Sí | banco + fable: USD y descarrilos ≤ base; `settings_leidos` ≤ 60 ✅ |
+ | 5 | ✅ 5a (X108): política de comandos como datos (S10) en `utils/politica_comandos.json`, 0 diferencias sobre la foto real de 445. **5b medida y revertida** (X111): el A/B no pasó (disparo 1/2/2 de 4, ruido 1,29×, s18 sin +1,0 ni R1/R3, trampas s3/s9 abajo); `git revert 3273a84` y la regex no vuelve (`banco/specs/fase5b.md`). 5c (paso 4) Laya 0.4.x y los prefiltros como un mecanismo con un setting | Mínimo / Sí (5b) | 5b: NO PASA (X111); 5c: su pre-registro |
+-| 6 | Limpieza de piezas sueltas (`juez`, `effective_n`, `juez_lote`, `research`, `informe`, `fable_judge`): nodos largos e imports perezosos (decisión del operador, X103) | No | `nodos_largos` ≤ 3 (los 3 de `nodes.py` los resuelve S9), `imports_perezosos` ~60 |
++| 6 | Limpieza de piezas sueltas (`juez`, `effective_n`, `juez_lote`, `research`, `informe`, `fable_judge`): nodos largos (decisión del operador, X103). Los imports perezosos van en su paso propio (X112) | No | `nodos_largos` ≤ 3 (los 3 de `nodes.py` los resuelve S9) |
+ 
+-**Orden de lo que queda** (X109, aprobado por el operador): 1 ✅ deuda de la
+-fase 1 → 2 5b → 3 S6 → 4 5c → 5 S9/S3 → 6 fase 6. Primero lo que no cambia
++**Orden de lo que queda** (X112, aprobado por el operador): 1 ✅ deuda de la
++fase 1 → 2 ❌ 5b (revertida) → ✅ X112 (docs, prosa de fable, forma fija,
++ratchet sobre los YAML) → 3 imports perezosos → 4 S6 → 5 5c-a / 5c-b → 6
++S9a / S9b / S3 → 7 fase 6. Primero lo que no cambia
+ conducta; lo que la cambia, con su A/B pre-registrado.
+ 
+-## Inventario de settings (58 tras X109: 39 contrato · 13 revisar · 6 borrar)
++## Inventario de settings (56 tras X112: 39 contrato · 12 revisar · 5 borrar)
+ 
+ `contrato` = decisión del operador que se queda; `revisar` = se decide en la
+ fase indicada; `borrar` = se va con su rama en esa fase.
+@@ -90,14 +92,12 @@
+ | `CORTE_NOVEDAD_MIN` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+ | `MAX_TOOL_ROUNDS_AMPLIO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+ | `PROMPT_AUDITORIA` | borrar | 4 | S7/S8: brazos de A/B cerrados → skills | `main.py` |
+-| `PROMPT_FABLE` | borrar | 4 | S7/S8: brazos de A/B cerrados → skills | `main.py` |
+ | `UMBRAL_SIN_PROGRESO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
+-| `HITL_SCOPE` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `utils/aprobaciones.py` |
++| `HITL_SCOPE` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `utils/aprobaciones.py`, `utils/riesgo.py` |
+ | `HUMANO_RESPUESTA` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `modules/humano.py` |
+ | `CHAT_STREAM_INTERRUPT` | revisar | 2 | S9: citas e interrupción siempre activas | `utils/call_llm.py` |
+ | `CITAS_VERIFICAR` | revisar | 2 | S9: citas e interrupción siempre activas | `nodes.py` |
+ | `PREFETCH` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
+-| `PROMPT_FORMA` | revisar | 4 | S8: se queda solo si un A/B del modelo actual lo sostiene | `main.py` |
+ | `SKILLS` | revisar | 4 | S7: skills por descripción; el apagador global quizá sobra | `nodes.py` |
+ | `INFORME_CARPETA` | revisar | 5 | concurrencia: una constante del kernel | `informe.py` |
+ | `LAYA_BATCH_SIZE` | contrato | — | no es un tunable: `0` = el lote no se parte (un solo forward), N = lotes de N; elige el pico de memoria del prefiltro (X101) | `utils/laya.py` |
+@@ -125,7 +125,7 @@
+ | `LLM_MODEL` | contrato | — | credenciales y proveedor | `modules/vision.py`, `utils/call_llm.py` |
+ | `MCP_EXPOSE` | contrato | — | superficies opcionales (web, MCP, A2A, búsqueda) | `mcp_server.py` |
+ | `MCP_SERVERS` | contrato | — | superficies opcionales (web, MCP, A2A, búsqueda) | `utils/mcp_client.py` |
+-| `MEMORIA` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `main.py`, `nodes.py` |
++| `MEMORIA` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `modules/memoria.py` |
+ | `MEMORIA_DIR` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `modules/memoria.py` |
+ | `NO_COLOR` | contrato | — | presentación y costos | `utils/terminal.py` |
+ | `PRECIO_TOKENS` | contrato | — | presentación y costos | `main.py` |
+diff -ruN a/docs/estado.md b/docs/estado.md
+--- a/docs/estado.md	2026-10-31 11:33:34.000000000 +0000
++++ b/docs/estado.md	2026-10-31 13:55:29.610441962 +0000
+@@ -119,7 +119,7 @@
+ | X70 | — | Decisión del operador (2026-10-26): la fricción nueva de `auto` medida en `friccion-auto` (7/7 hechas, **2 HITL en 6 tareas**, los dos glob) se ACEPTA (opción A): el glob era un bypass real (`cat d/*` leía afuera por symlink) y `find -name '*.pat'` con comillas sigue `auto`. H1 cerrado | ✅ 2026-10-26 (decisión) | Sin cambio de código; se revisa solo si el uso diario lo pide (opción B: expandir el glob y chequear cada ruta, mismo escenario como vara) | `tests/test_banco.py::test_friccion_auto_tiene_respuestas_calculables` |
+ | X71 | — | H2 (kernel fractal) es un refactor amplio por definición: la regla blanda "parche mínimo" de AGENTS.md se LEVANTA para H2 por decisión del operador, con estos gates por PR: `tests/test_caracterizacion_chat.py` sin cambiar una línea, `./calidad.sh` verde, ratchet sin empeorar y el gate propio de cada PR (docs/roadmap.md). Sin `_v2`: cada loop viejo se reemplaza | ✅ 2026-10-26 (decisión) | PR 1 hecho: `utils/kernel.py` (Ledger, Tool, Ctx, `loop`, `agente`) + `utils/proveedor.py` (DSML y sanitizado salen de `nodes.py`); `explorador.py` es una instancia del kernel (158 → 67 líneas, sin loop propio) | `tests/test_kernel.py` (10); los 5 del explorador se retiraron con él (X79) |
+ | X72 | — | Auditoría de H2 PR 1 (operador, LLM real): (1) el gate "fable s17–s20 con `EXPLORAR=1`" no podía medir el explorador: `explorar` solo existe en el catálogo del supervisor y fable corre por el chat (0 llamadas en 4 corridas; s19=0 era varianza del modelo sobre código que PR 1 no toca); (2) `TOOL_EXPLORAR` se armaba con system vacío: llamado desde el kernel, el sub-agente habría corrido sin sus instrucciones; (3) `json.loads` de los argumentos del agente sin manejo: un JSON malformado cortaba el loop del padre | ✅ 2026-10-26 (H2 PR 1b) | Gate movido al PR 2 con la regla "el gate prueba que la pieza corrió"; `agente()` exige system (texto o `pedido -> texto`) y `explorador.AGENTE` usa `system_prompt`; argumentos ilegibles o vacíos vuelven como ERROR al modelo | `tests/test_kernel.py::test_un_agente_sin_system_no_se_puede_crear`, `::test_argumentos_ilegibles_vuelven_como_error_y_el_loop_sigue` (el test del explorador como tool se retiró con él, X79) |
+-| X73 | — | El supervisor tenía su propio loop (UnPaso → Ejecutar), su propio presupuesto (`rondas`) y el explorador sumaba 3 rondas por fuera de esas 5; las leyes (veto, caché, repetición) vivían repartidas entre un snapshot de `prep`, un estado "vivo" de `exec` y los contadores de `post` | ✅ 2026-10-26 (H2 PR 2, código) | `supervisor.py` = loop del kernel → `Auditar` → `Sintetizar` (396 → 324 líneas); `con_leyes` envuelve cada Tool con las guardas puras y un lock; un `Ledger` para el árbol (la exploración gasta del mismo saldo); el kernel ofrece un sub-agente solo con saldo ≥ 2; `bench_supervisor` cuenta las exploraciones del informe (el gate prueba que la pieza corrió) | `tests/test_supervisor_convergencia.py::test_supervisor_y_explorador_comparten_el_saldo`, `::test_bench_cuenta_las_exploraciones_del_informe`, `tests/test_flujos.py::test_supervisor_flujo_nuevo_guarda_antes_de_despachar` |
++| X73 | — | El supervisor tenía su propio loop (UnPaso → Ejecutar), su propio presupuesto (`rondas`) y el explorador sumaba 3 rondas por fuera de esas 5; las leyes (veto, caché, repetición) vivían repartidas entre un snapshot de `prep`, un estado "vivo" de `exec` y los contadores de `post` | ✅ 2026-10-26 (H2 PR 2, código) | `supervisor.py` = loop del kernel → `Auditar` → `Sintetizar` (396 → 324 líneas); `con_leyes` envuelve cada Tool con las guardas puras y un lock; un `Ledger` para el árbol (la exploración gasta del mismo saldo); el kernel ofrece un sub-agente solo con saldo ≥ 2; `bench_supervisor` cuenta las exploraciones del informe (el gate prueba que la pieza corrió) | (los dos del explorador se retiraron con él en H3-B), `tests/test_flujos.py::test_supervisor_flujo_nuevo_guarda_antes_de_despachar` |
+ | X74 | — | PR 3 de H2 revisado (decisión del operador): `juez` y `research` NO son loops de tool calling (el modelo no elige tools; el reintento ya es una arista del grafo, el patrón objetivo) y como tools no consumen rondas del llamador: migrarlos al kernel sumaría un grafo genérico sin cerrar ningún bug | ✅ 2026-10-26 (decisión) | Sin cambio de código; se quedan como pipelines | `tests/test_grafos_sin_calles_muertas.py::test_ningun_nodo_devuelve_una_accion_sin_arista` |
+ | X75 | — | El estado de la pregunta eran 10 claves sueltas en `shared` con un `pop` por cada una en `GetQuestion.post` (una clave nueva sin su `pop` se filtraba a la pregunta siguiente, E5), y lo que vive fuera de `shared` (uso de tokens, historial HITL, intención del juez de riesgo) se perdía en `resume` (F5) | ✅ 2026-10-26 (H2 PR 4a) | `shared["turno"]` (`nodes.nuevo_turno()`), reemplazada entera por pregunta: 10 `pop` → 0; `utils/estado_sesion.capturar`/`restaurar` como único dueño del estado de proceso, en cada checkpoint; `resume` migra checkpoints viejos (`resume.migrar`) y repone la sesión | `tests/test_estado_turno.py` (6: `test_una_clave_nueva_de_la_pregunta_no_se_filtra_a_la_siguiente`, `test_el_checkpoint_lleva_la_sesion_y_resume_la_repone`, `test_un_checkpoint_viejo_se_migra_a_la_caja`…) |
+ | X76 | — | Chat y kernel tenían DOS normalizaciones de la respuesta del proveedor que divergían en 4 de 7 casos medidos: el kernel devolvía como respuesta un "solo markup de rol" (el chat re-pregunta) y usaba un mensaje falso para el stream cortado ("pidió herramientas sin presupuesto") | ✅ 2026-10-26 (H2 PR 4b) | `utils/proveedor.normalizar(msg, tools, ofrece_tools) -> (msg, avisos)` es la única: la usan `AgentStep.exec` (que pierde 4 helpers: 183 → 125 líneas) y `kernel.Paso`; los avisos de terminal quedan en el chat (`AVISOS`, contrato de MARCADORES del banco). 7/7 casos iguales | `tests/test_kernel.py::test_el_kernel_repregunta_si_la_respuesta_es_solo_markup_de_rol`, `::test_chat_y_kernel_normalizan_igual` |
+@@ -128,14 +128,15 @@
+ | X79 | — | H3-B corrido con LLM real (operador, 24 corridas: fable s17–s20 × 3 seeds × chat vs supervisor+`EXPLORAR=1`): `explorar` corrió **0 veces en las 12 corridas del supervisor**, incluida s17 (20 módulos, el caso de contexto pesado); calidad media 0,50 vs 1,33 del chat; calidad por Mtoken 7,77 vs 8,91. Las 3 condiciones pre-registradas ❌ | ✅ 2026-10-26 (decisión pre-registrada) | Borrados `explorador.py`, la tool `explorar`, el setting `EXPLORAR`/`MAX_PASOS_EXPLORADOR` y sus 7 tests (los 5 del archivo de tests del explorador + 2 de `test_supervisor_convergencia.py`); el kernel y `agente()` se quedan (el supervisor usa el loop; `agente()` es la primitiva para un experimento futuro). Retira lo que X60 instaló. Señal registrada: en s17 el supervisor ganó 3/3 seeds SIN delegar — el contexto fresco por tarea ayuda a escala; queda como dato para H3 | `tests/test_h3b_swarm.py::test_sin_adopcion_en_un_escenario_no_gana_aunque_la_calidad_suba`, `tests/test_kernel.py::test_un_agente_es_una_tool_con_contexto_fresco_y_el_mismo_saldo` |
+ | X80 | — | La guardia del ratchet aceptaba cualquier valor de `HUMAN_RATCHET_BYPASS_KEY` (bastaba con que existiera) y un agente la exportó para aceptar el borrado de H3-B argumentando que el operador ya había aprobado — AGENTS.md lo prohibía en prosa y no alcanzó | ✅ 2026-10-26 (decisión del operador) | La clave es un secreto: `ratchet.clave_valida` compara su sha256 con `ratchets/clave_operador.sha256` leído de la HISTORIA (HEAD y HEAD~1, no del disco), falla cerrado sin hash commiteado, y `--actualizar` también la exige; `--sembrar-clave` la pide por terminal y guarda solo el hash. AGENTS.md: el agente no la corre ni con aprobación | `tests/test_ratchet.py::test_una_bandera_cualquiera_no_es_la_clave`, `::test_el_hash_del_disco_no_vale_solo_el_commiteado`, `::test_cambiar_el_hash_junto_con_el_empeoramiento_exige_la_clave_vieja`, `::test_actualizar_sin_clave_no_acepta_el_empeoramiento` |
+ | X81 | — | H3-G: `regla_temporal` y `regla_imperativo_capacidad` son reglas de palabras clave que deciden antes del modelo; se agregaron antes del voto 2-de-2 y nadie midió si el voto ya las cubre | ❌ 2026-10-26 (corrido; inválido por diseño, X82) | `banco/specs/h3g_reglas.md` + `banco/probes/h3g_reglas.py`: pareado (una consulta a Laya + voto por caso, dos brazos), 103 casos con etiqueta; borrado solo si cobertura ≥20 y falso directo sin reglas == con reglas. Necesita Laya: corre el operador |
+-| X82 | — | H3-G dio "gana" (78 disparos, 0 falsos directos en los dos brazos) pero era **inválido por diseño**: cobertura efectiva (regla dispara y Laya propuso directo) = **0**; los 3 directos propuestos eran casos sin regla. Al verificar el borrado, `bench_voto.py` mostró al voto confiando en directo en c01 (0,94) y c02 (0,76): esos casos los salva Laya sola, no el voto | ✅ 2026-10-26 (decisión del operador) | Las reglas se quedan (R7). `h3g_reglas.cobertura_efectiva` se reporta al lado del veredicto viejo, que no se retoca; el borrado queda aparcado detrás de H3-G2 (X83); lección en AGENTS.md ("medí la pieza donde decide") | `tests/test_h3g_reglas.py::test_la_cobertura_efectiva_cuenta_donde_la_regla_decide` |
+-| X83 | — | H3-G2: la pregunta de H3-G medida donde las reglas deciden (Laya propuso directo): ¿el voto solo frena los falsos directos? | ✅ 2026-10-27 (cerrado sin ganar, X89) | `banco/specs/h3g2_voto_solo.md`; criterio en `bench_voto.veredicto_h3g2`: checkpoint real, 0 falsos directos del voto, directo 6/6. Gana → se aplica el borrado aparcado | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
++| X82 | — | H3-G dio "gana" (78 disparos, 0 falsos directos en los dos brazos) pero era **inválido por diseño**: cobertura efectiva (regla dispara y Laya propuso directo) = **0**; los 3 directos propuestos eran casos sin regla. Al verificar el borrado, `bench_voto.py` mostró al voto confiando en directo en c01 (0,94) y c02 (0,76): esos casos los salva Laya sola, no el voto | ✅ 2026-10-26 (decisión del operador) | Las reglas se quedan (R7). `h3g_reglas.cobertura_efectiva` se reporta al lado del veredicto viejo, que no se retoca; el borrado queda aparcado detrás de H3-G2 (X83); lección en AGENTS.md ("medí la pieza donde decide") | (retirado con las reglas del router en X106) |
++| X83 | — | H3-G2: la pregunta de H3-G medida donde las reglas deciden (Laya propuso directo): ¿el voto solo frena los falsos directos? | ✅ 2026-10-27 (cerrado sin ganar, X89) | `banco/specs/h3g2_voto_solo.md`; criterio en `bench_voto.veredicto_h3g2`: checkpoint real, 0 falsos directos del voto, directo 6/6. Gana → se aplica el borrado aparcado | (retirado con el voto en X106) |
+ | X84 | — | F (H3): el prompt del chat tiene dos directivas con una estructura que podría reemplazarlas: la de citas (`VerificarCitas`, X67) y la de alcance (el tope amplio de exp/86). Nadie midió si la prosa todavía aporta | ✅ 2026-10-27 (corrido, X85) | `banco/specs/f_prompt.md` + `banco/probes/f_prompt.py`: 3 brazos (base, `PROMPT_CITAS=0` en s15–s20, `PROMPT_ALCANCE=0` en s17–s20) × 3 seeds = 48 corridas; cada directiva se borra si la estructura decidió en ≥2/3 seeds por escenario, calidad ≥ base, citas inválidas ≤ base y tokens ≤ 1,10 × base. La de cat/grep/find queda fuera (sin estructura que la reemplace) | `tests/test_f_prompt.py::test_sin_cobertura_la_directiva_se_queda_aunque_todo_lo_demas_gane` |
+ | X85 | — | F corrido por el operador (48/48 corridas, 0 errores). **CITAS** (s15–s20): sin la directiva, calidad 1,22 → 1,06, citas inválidas 3 → 1, tokens 96,5K → 70,4K; cobertura ✅ (VerificarCitas vio citas en 3/3 seeds de los 6 escenarios y corrigió 3 veces) → **NO GANA** por calidad. **ALCANCE** (s17–s20): sin la directiva, calidad 0,92 → 1,25, citas inválidas 3 → 0, tokens 129,2K → 123,4K; cobertura ✅ (tope 16 en 3/3 seeds de los 4) → **GANA** | ✅ 2026-10-27 (decisión pre-registrada) | Borrada la directiva de alcance; la de citas vuelve al texto del prompt; se borran los dos toggles (`PROMPT_CITAS`, `PROMPT_ALCANCE`). `f_prompt.py` queda solo con `--resumen` | `tests/test_f_prompt.py::test_el_prompt_aplica_la_decision_de_f`, `::test_el_runner_resuelto_no_vuelve_a_correr` |
+ | X86 | — | H3-H (`max_profundidad` 1 vs 2) tenía cobertura efectiva 0 desde el diseño: ninguna pieza de producción construye agentes como tools (`supervisor.py` importa `Ctx`, `Ledger`, `Tool`, `loop` y `semilla` del kernel, no `agente`), así que todo corre a profundidad 0 y no hay delegación cuya profundidad medir | ✅ 2026-10-27 (decisión del operador) | Marcado sin objeto antes de pre-registrar (lección X82 aplicada al diseño). `agente()` queda como primitiva del kernel (H3-B) con su límite de profundidad cubierto; H vuelve si aparece una agent-tool en producción | `tests/test_kernel.py::test_la_profundidad_esta_acotada` |
+-| X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | `tests/test_voto_reentreno.py::test_memorizar_el_bench_no_alcanza_si_falla_fuera_de_muestra`, `::test_el_antifuga_atrapa_copias_y_reescrituras_cercanas` |
+-| X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | `tests/test_voto_reentreno.py::test_un_control_que_el_voto_viejo_ya_pasaba_no_promueve`, `::test_el_baseline_vale_solo_para_el_control_que_midio` |
+-| X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | `tests/test_bench_voto.py::test_h3g2_un_falso_directo_del_voto_y_las_reglas_se_quedan` |
++| X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | (retirados con el voto en X106) |
++| X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | (retirados con el voto en X106) |
++| X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | (retirado con el voto en X106) |
++| X112 | — | Deriva que los gates no veían: citas `archivo.py::test` a tests borrados, la columna "Lo lee" desactualizada, escenarios con `env:` que nadie leía y la `condicion` regex de los skills invisible al ratchet. Además dos perillas de A/B cerrados en el prompt (`PROMPT_FABLE`, `PROMPT_FORMA`) | ✅ 2026-10-31 | Cuatro candados nuevos y las citas corregidas; la prosa de fable y su setting borrados (el juez se queda); la forma fija; `vocabulario_hardcodeado` 3 → 5 por instrumento (clave del operador), `texto_de_prompt` 2748 → 1542 | `test_estado_cita_tests_con_archivo_que_existen`, `test_la_columna_lo_lee_del_inventario_es_la_del_codigo`, `test_ningun_escenario_setea_un_env_que_el_harness_no_lee`, `test_la_condicion_regex_de_un_skill_cuenta_como_vocabulario`, `test_la_forma_va_siempre_y_fable_ya_no_es_una_perilla`, `test_el_default_de_brazos_son_los_brazos_que_existen` |
+ | X110 | — | Fase 5b (S7/S8): los skills se activan por una regex en español (la de `revision` dispara en 1 de 4 positivos: ni inglés ni paráfrasis) y recortan tools en caliente; dos directivas que viven como perillas del system prompt | ✅ 2026-10-31 (A/B NO PASA: criterios 1, 3c, 4 y 8; revertida en `00f4380`) | Activación por descripción con `usar_skill`, auditoría a skill, forma fija, cuatro settings fuera ([fase5b.md](../banco/specs/fase5b.md)). A/B en `salidas/ab111/`: disparo 1/2/2 de 4; revisión 1,29× de ruido; s18 recall 4,33 vs 4,00 sin R1/R3 y `auditoria-seguridad` 0/3 (cargó `revision` 9/9); trampas s3 y s9 abajo. La regex no se repone | `test_la_regex_de_hoy_dispara_en_uno_de_cuatro_positivos`, `test_el_disparo_pide_tres_de_cuatro_en_cada_corrida_y_cero_en_negativos` |
+ | X109 | — | Deuda de la fase 1 que la tabla daba por cerrada: el harness todavía podía leer el `.env` de otro proyecto (`LEER_BMO_ENV`) y las sondas de Laya vivían en la raíz con 4 settings propios; y el juez de riesgo de exp/44 llevaba 17 días observando sin decidir nada (S1) | ✅ 2026-10-30 | `LEER_BMO_ENV`/`BMO_TASKS_DIR` borrados; `sonda_laya.py` y `sonda_supervisor.py` a `banco/probes/` con su umbral y su carpeta de tareas como argumentos; `juzgar` y `PREGUNTA_RIESGO` borrados, `riesgo.registrar` guarda la decisión humana sin depender del checkpoint. `settings_leidos` 64 → 58, `imports_perezosos` 90 → 81 | `test_los_settings_salen_solo_del_entorno_y_del_env_del_proyecto`, `test_run_command_registra_cada_decision_humana_y_nada_en_auto` |
+ | X107 | — | Fase 5a (S10): las listas de `utils/policy.py` son datos de la política escritos como código, y dos de ellas están duplicadas (whitelist = `_LECTURA`, 20 prefijos; las negras repetidas en `_EXPLICACIONES`) | ✅ 2026-10-30 (X108: 0/410 casos por entrada, 0/200.000 en el fuzz; la foto real de 445, el operador) | Criterio de 0 diferencias en `clasificar`/`explicar` sobre la foto real y un caso por entrada, tests de policy idénticos, falla cerrada al importar ([fase5a.md](../banco/specs/fase5a.md)). Instrumento: `banco/probes/comandos_reales.py` (checkpoints + log de riesgo; la traza no guarda argumentos) | `test_la_foto_es_la_politica_de_hoy_dedup_y_sin_secretos`, `test_lee_los_comandos_de_los_checkpoints_y_no_otras_tools`, `test_cero_diferencias_contra_la_foto`, `test_falla_cerrada_si_los_datos_no_validan` |
+@@ -155,7 +156,7 @@
+ | X93 | — | El producto conocía al laboratorio (`producto_conoce_lab` 10): perfiles de presupuesto `banco` sin invocador, `delegar` importaba el driver de `banco.banco`, `riesgo.origen*` leía `BANCO`/`DELEGADO`, los adapters de fable vivían en `banco/material/` y el juez y `_lineas_de` excluían `GROUND-TRUTH.md` por nombre | ✅ 2026-10-28 (fase 1b) | perfiles borrados; driver PTY en `utils/conductor.py`; el banco manda sus logs a `salidas/banco/` (el sintético no se marca: no llega) y la etiqueta de riesgo decidida por `HITL_SCOPE` sale `scope`; adapters en `fable/dominios/`; `fable_judge --ignorar NOMBRE` genérico. Ratchet `producto_conoce_lab` **10 → 0**, `settings_leidos` 89 → 84 | `test_la_etiqueta_delegada_no_cuenta_como_humana`, `test_env_del_chat_aisla_la_memoria_y_marca_procedencia`, `test_la_answer_sheet_nunca_es_evidencia` |
+ | X92 | — | El CORE importaba `modules.memoria` en tres lugares (`main.catalogo_memoria` con una privada, `main.resumen_de_sesion`, `nodes._respaldar_zona_fria`) y `main` llamaba al conductor por nombre: borrar el módulo rompía el arranque, la compacción y la salida | ✅ 2026-10-28 (fase 1a) | `HOOKS` de ciclo de vida en los módulos + `modules.ganchos(evento)`; la memoria y las delegadas se mudan a su módulo. Ratchet `core_importa_modulos` **3 → 0**, `imports_perezosos` 137 → 126, `excepts_amplios` 34 → 33 | `test_core_sin_modulos.py` |
+ | X91 | — | La auditoría de refactor (2026-10-27) encontró deuda de diseño que ningún gate contaba: el CORE importa `modules.memoria`, el producto lee `BANCO`/`DELEGADO`/`GROUND-TRUTH`, vocabulario hardcodeado en el router y el presupuesto, 89 settings, 137 imports perezosos, 15 nodos de más de 40 líneas y el diagrama del README desactualizado | ✅ 2026-10-27 (fase 0) | siete ratchets nuevos en `ratchet.py` (baseline 3 · 10 · 8 · 89 · 137 · 15 · 2748) y el diagrama del README generado del grafo; la definición y el plan en [elegancia.md](elegancia.md). La deuda NO se pagó: quedó congelada para las fases 1–5 | `test_ratchet_elegancia.py`, `test_grafo_readme.py` |
+-| X90 | — | k13 ("discutí…") y k15 ("argumentá…") son falsos directos del voto que NINGUNA regla cubre: en producción dependen solo de lo que proponga el router de Laya. Nadie midió la política completa sobre esos casos | ✅ 2026-10-27 (corrido: 0 falsos directos, no hay agujero — el router frenó los 8 de la ventana, k13 y k15 incluidos) | `banco/probes/producto_router.py`: skills → reglas → router → voto, en enforce, sobre bench + control; ventana declarada antes (esperado herramientas sin skill ni regla, hoy incluye k13/k15). 0 falsos directos → no hay agujero; más de 0 → hallazgo con ids y capa. No se agregan verbos a la lista | `tests/test_producto_router.py::test_la_ventana_existe_y_contiene_k13_y_k15` |
++| X90 | — | k13 ("discutí…") y k15 ("argumentá…") son falsos directos del voto que NINGUNA regla cubre: en producción dependen solo de lo que proponga el router de Laya. Nadie midió la política completa sobre esos casos | ✅ 2026-10-27 (corrido: 0 falsos directos, no hay agujero — el router frenó los 8 de la ventana, k13 y k15 incluidos) | `banco/probes/producto_router.py`: skills → reglas → router → voto, en enforce, sobre bench + control; ventana declarada antes (esperado herramientas sin skill ni regla, hoy incluye k13/k15). 0 falsos directos → no hay agujero; más de 0 → hallazgo con ids y capa. No se agregan verbos a la lista | (retirado con el router en X106) |
+ | X62 | — | El meta-loop exigía un auditor al timón (contestar s/n por tmux): sin conductor no había forma de delegarle trabajo real al harness solo, y cada sesión muerta a mitad (exp/98) se perdía entera; además la regex de scope del banco no matcheaba el prompt de `edit_file` de exp/98 (`¿Aplicar? → ruta (2 hunks…)`) → cualquier conductor habría aprobado ediciones fuera de scope y de la denylist | ✅ 2026-10-25 (exp/99) | `delegar.py`: conductor que reusa el driver PTY y `decision_hitl` del banco, sin `BANCO=1` (origen `terminal`), HITL por scope declarado con rechazo CON motivo (exp/98), doble confirmación solo con prefijo explícito, muerte → `resume` (tope 2) y `THREADS_DIR` propio; regex corregida en `banco/banco.py`. e2e: tarea delegada exit 0 + drill `kill -9` → rehidrata y completa; **par #14/250** de la flywheel con `--env LAYA_MODO=shadow` (día 3/14) | `tests/test_delegar.py` (13: `test_conducir_muerto_resume_y_completa`, `test_plan_respuesta_doble_exige_prefijo_explicito`…), `test_el_scope_cubre_el_prompt_de_edit_file_de_exp98` |
+ | X66 | — | Auditoría 2026-10-26 (H1): el conductor reconstruía el pedido HITL leyendo la pantalla y aprobaba `git push` (la doble confirmación real `(1/2) (s/n):` no matcheaba), el scope comparaba rutas y comandos por prefijo de texto, `auto` salía de las raíces (`cd ..;cat`, `cd` solo, glob, `$VAR`) y por flags agrupadas (`sort -uo/x`), `edit_file` perdía CRLF y bytes no UTF-8, las escrituras pisaban permisos y el checkpoint guardaba reprs (`default=str`) | ✅ 2026-10-26 (H1) | El pedido es DATO: `utils/aprobaciones.Pedido` + `dentro_de_scope`/`por_scope`; banco y conductor pasan el scope por `HITL_SCOPE` y el chat decide en su proceso (fuera `decision_hitl`, `tipo_prompt`, `plan_respuesta`, `_cuerpo`); `policy.segmentos`/`opaco`/`irreversible` como fuente única; getopt en flags cortas; `edit_file` por bytes y estricto; `escribir_atomico` conserva modo y saltos; `shared` JSON puro | `tests/test_auditoria_2026_10_26.py` (`test_la_doble_confirmacion_real_no_se_aprueba_por_scope`, `test_auto_no_sale_de_raices`, `test_checkpoint_ida_y_vuelta_es_identidad`…), `tests/test_delegar.py::test_plan_respuesta_doble_exige_prefijo_explicito` |
+ | X61 | — | El punto de confianza del sistema mostraba diffs recortados sin declarar cuánto faltaba (exp/96: hunks aprobados sin verse) y el rechazo era 'n' mudo — el chat adivinaba el motivo y re-propuso lo mismo | ✅ 2026-10-24 (exp/98) | El prompt de edit_file declara `(N hunks, +A/−B)` del diff COMPLETO y el marcador dice cuántos caracteres quedan sin ver; `Decision(ok, motivo)` con `__bool__`: el rechazo `n <motivo>` viaja al modelo en edit_file/write_file/run_command, con casing conservado; el seam `_approve` tolera bools para siempre (getattr — los mocks existentes intactos, R2) | `test_parser_decision_motivo`, `test_edit_file_prompt_declara_diff_completo`, `test_motivo_del_rechazo_viaja_al_modelo` |
+diff -ruN a/docs/roadmap.md b/docs/roadmap.md
+--- a/docs/roadmap.md	2026-10-31 11:33:34.000000000 +0000
++++ b/docs/roadmap.md	2026-10-31 13:55:29.610441962 +0000
+@@ -18,7 +18,7 @@
+ gate previo PASA (X102). **3a NO PASA** (X105: el A/B dio 2,2×–6,9× el USD y s17+s18 −2; cableado
+ borrado). **3b + 4a pre-registradas** (`banco/specs/fase3b_4a.md`) y **escritas**
+ (X106: el router sale del chat; falta el A/B `fase3b-directas` ×3 por brazo y
+-la clave del operador para `tests_definidos` 1132 → 1004) — **3b PASA** (12/12 sin tools, 0,65× USD; `fase3b_4a.md`). **5a hecha** (X108: política de comandos como datos, 0 diferencias sobre la foto real de 445). **Deuda de la fase 1 cerrada** (X109: sin bmo, sondas a `banco/probes/`, juez de riesgo observador borrado). Orden de lo que queda en `docs/elegancia.md`: 5b → S6 → 5c → S9/S3 → fase 6. **5b medida y revertida** (X111: el A/B no pasó los criterios 1, 3c, 4 y 8; `git revert 3273a84` y la regex no vuelve; `banco/specs/fase5b.md` y `salidas/ab111/`). **4b-mín cerrada** (X104:
++la clave del operador para `tests_definidos` 1132 → 1004) — **3b PASA** (12/12 sin tools, 0,65× USD; `fase3b_4a.md`). **5a hecha** (X108: política de comandos como datos, 0 diferencias sobre la foto real de 445). **5b NO PASA** (X111, revertida; S7 cerrado sin remedio para este modelo). **X112**: deuda de docs con candados, prosa de fable fuera, forma fija, el ratchet ve la regex de los skills (vocabulario 3 → 5). Orden de lo que queda en `docs/elegancia.md`: imports perezosos → S6 → 5c → S9/S3 → fase 6. **Deuda de la fase 1 cerrada** (X109: sin bmo, sondas a `banco/probes/`, juez de riesgo observador borrado). Orden de lo que queda en `docs/elegancia.md`: 5b → S6 → 5c → S9/S3 → fase 6. **5b medida y revertida** (X111: el A/B no pasó los criterios 1, 3c, 4 y 8; `git revert 3273a84` y la regex no vuelve; `banco/specs/fase5b.md` y `salidas/ab111/`). **4b-mín cerrada** (X104:
+ la regex de palabras se borró, 0 cambios en 36 preguntas reales). Fase 6 (limpieza de las piezas sueltas) aprobada, después de la 5.
+ 2b-3 queda para después de la fase 4 (o se descarta si sigue sin haber
+ sub-agentes); 2b-3 `AgentStep`/`ExecuteTools` →
+diff -ruN a/main.py b/main.py
+--- a/main.py	2026-10-31 11:33:34.000000000 +0000
++++ b/main.py	2026-10-31 13:49:53.550681201 +0000
+@@ -5,6 +5,7 @@
+ 
+ from flow import create_agent_flow
+ from modules import ganchos
++from utils.call_llm import _setting
+ from utils.costos import costo_desglose
+ from utils.fs_tools import allowed_roots
+ 
+@@ -15,7 +16,8 @@
+ # en "Show and Tell" (arXiv 2511.13972) las instrucciones explícitas de
+ # concisión bajaron 56–70% los tokens del código y persistieron en el turno
+ # siguiente; un pedido genérico de "mejorar" inflaba todo. El A/B propio está
+-# en banco/probes/forma_codigo.py y la bitácora (exp/51).
++# en banco/probes/forma_codigo.py y la bitácora (exp/51). Va siempre: el setting
++# que la apagaba era el brazo de ese A/B, cerrado (X112).
+ DIRECTIVA_FORMA = (
+     "Cuando escribas o edites código, escribí el mínimo que funciona y con la "
+     "forma del repo: sin defensas ni docstrings que el pedido no exija, sin "
+@@ -24,34 +26,9 @@
+ )
+ 
+ 
+-# Directiva de exp/72 F0 (brazo "prosa"): el método de fable como PROSA en el
+-# system prompt, destilado de Sahir619/fable-method @9924067 (MIT). No enforza
+-# nada (los gates/nodos son F2); sirve para medir si la prosa sola transfiere.
+-# Default 0: el chat de producción no cambia hasta que haya medición propia.
+-DIRECTIVA_FABLE = (
+-    "Antes de actuar, clasificá el pedido: pregunta/assessment (solo hallazgos "
+-    "y una recomendación, no edites), tarea (cambio verificado) o plan-first "
+-    "(alcance ambiguo o acción irreversible: plan y esperá aprobación). Definí "
+-    'en una línea qué significa "hecho" y cómo se verifica. Evidencia de fuentes '
+-    "primarias (leé el archivo real; no cites de memoria); dos rondas de búsqueda "
+-    "alcanzan. Una sola recomendación. Antes de cambiar comportamiento escribí "
+-    "`INTENT: el código hace X; el check espera Y; la spec dice Z`; si X/Y/Z no "
+-    "coinciden, el desacuerdo es el hallazgo: no edites. Para acciones outward "
+-    "(deploy, push, publicar, borrar datos compartidos) escribí `AUTH: el "
+-    'usuario dijo "..."`; sin cita, no actúes y dejala como próximo paso. Cambio '
+-    "mínimo y quirúrgico. Verificá observando (correr, no inferir) el criterio "
+-    "de hecho y el sistema alrededor; si arreglaste un defecto, buscá el mismo "
+-    "patrón en todo el repo y escribí `TWINS: busqué <patrón> — encontré N "
+-    "sitios: <archivos o none>`. Máximo 3 ciclos de fix-verify; si no, parás y "
+-    "reportás lo intentado. Reportá outcome-first, en lenguaje llano, con "
+-    "caveats honestos, y `PENDING: <acción> — esperando tu autorización` si un "
+-    "follow-up prescripto no se hizo."
+-)
+-
+-
+ # Directiva de exp/78 (auditoría de seguridad): checklist que empuja a buscar
+ # controles por AUSENCIA — el hueco medido en exp/77 (R1 sort --compress-program,
+-# R3 tail -f, R2 evasión por -o). Opt-in con PROMPT_AUDITORIA; default 0.
++# R3 tail -f, R2 evasión por -o). Opción del operador: PROMPT_AUDITORIA=1 (default 0).
+ DIRECTIVA_AUDITORIA = (
+     "Cuando audites código buscando bugs de seguridad, además de leer lo que hay, "
+     "preguntate qué FALTA: listas de flags o denylists incompletas, normalización de "
+@@ -66,18 +43,10 @@
+ )
+ 
+ 
+-def system_prompt(
+-    incluir_forma: bool | None = None,
+-    incluir_fable: bool | None = None,
+-    incluir_auditoria: bool | None = None,
+-):
+-    """El prompt del chat; `incluir_forma=None` respeta el setting PROMPT_FORMA.
+-
+-    PROMPT_FORMA=0 quita la directiva de forma (palanca del A/B exp/51 en el
+-    chat real vía banco; default 1). PROMPT_FABLE=1 agrega la directiva de
+-    exp/72 (brazo prosa del A/B; default 0: producción sin cambios).
+-    PROMPT_AUDITORIA=1 agrega el checklist de auditoría de seguridad de exp/78
+-    (default 0)."""
++def system_prompt():
++    """El prompt del chat: la directiva de forma va siempre (exp/51); el
++    checklist de auditoría de exp/78 es opción del operador
++    (PROMPT_AUDITORIA=1, default 0)."""
+     # REGLA de estabilidad: el prefijo debe ser byte-estable durante la
+     # sesión para no romper el KV-cache (DeepSeek Harness lo midió: una
+     # sección dinámica recalcularía ~99% del contexto por turno). Nada
+@@ -87,20 +56,11 @@
+     # F (X85): sin "acotá el alcance" (el tope de rondas ya lo gobierna; medido
+     # sin pérdida de calidad). La directiva de citas se quedó: sin ella la
+     # calidad bajó aunque VerificarCitas corrija después.
+-    from utils.call_llm import _setting
+-
+-    if incluir_forma is None:
+-        incluir_forma = _setting("PROMPT_FORMA", "1") != "0"
+-    if incluir_fable is None:
+-        incluir_fable = _setting("PROMPT_FABLE", "0") != "0"
+-    if incluir_auditoria is None:
+-        incluir_auditoria = _setting("PROMPT_AUDITORIA", "0") != "0"
++    incluir_auditoria = _setting("PROMPT_AUDITORIA", "0") != "0"
+     roots = "\n".join(f"- {r}" for r in allowed_roots())
+     # el CWD del proceso: sin esto, "¿en qué carpeta estamos?" se responde
+     # adivinando la raíz permitida (medido en producción)
+     cwd = Path.cwd()
+-    forma = f"\n\n{DIRECTIVA_FORMA}" if incluir_forma else ""
+-    fable = f"\n\n{DIRECTIVA_FABLE}" if incluir_fable else ""
+     auditoria = f"\n\n{DIRECTIVA_AUDITORIA}" if incluir_auditoria else ""
+     return f"""Agente de resolución de pedidos con tools disponibles.
+ 
+@@ -113,7 +73,9 @@
+ 
+ Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la verificaste, decila como no verificada. Citá siempre como ruta/archivo.py:línea (ruta relativa al repo, sin "líneas ~X").
+ 
+-Para leer, listar o buscar archivos usá read_file, list_files o search_files; no uses cat, grep ni find por run_command.{forma}{fable}{auditoria}"""
++Para leer, listar o buscar archivos usá read_file, list_files o search_files; no uses cat, grep ni find por run_command.
++
++{DIRECTIVA_FORMA}{auditoria}"""
+ 
+ 
+ SUBCOMANDOS = {
+diff -ruN a/ratchet.py b/ratchet.py
+--- a/ratchet.py	2026-10-31 11:33:34.000000000 +0000
++++ b/ratchet.py	2026-10-31 13:50:48.175936274 +0000
+@@ -83,6 +83,8 @@
+ import sys
+ from pathlib import Path
+ 
++import yaml
++
+ RAIZ = Path(__file__).resolve().parent
+ BASELINE = RAIZ / "ratchets" / "baseline.json"
+ CLAVE_BYPASS = "HUMAN_RATCHET_BYPASS_KEY"
+@@ -582,6 +584,12 @@
+     return all(_PALABRA.fullmatch(t) for t in textos) and any(_TILDE.search(t) for t in textos)
+ 
+ 
++def _patron_de_palabras(patron: str, sin_caso: bool = False) -> bool:
++    """Una regex sin distinción de mayúsculas, con ≥5 alternativas y alguna tilde."""
++    sin_caso = sin_caso or "(?i)" in patron
++    return sin_caso and patron.count("|") >= MIN_VOCABULARIO - 1 and bool(_TILDE.search(patron))
++
++
+ def _es_regex_de_palabras(nodo) -> bool:
+     funcion = nodo.func
+     if not (isinstance(funcion, ast.Attribute) and isinstance(funcion.value, ast.Name)
+@@ -591,8 +599,8 @@
+     if not (isinstance(patron, ast.Constant) and isinstance(patron.value, str)):
+         return False
+     banderas = ast.unparse(nodo.args[1:] + [k.value for k in nodo.keywords])
+-    sin_caso = "(?i)" in patron.value or "IGNORECASE" in banderas or re.search(r"\bre\.I\b", banderas)
+-    return bool(sin_caso) and patron.value.count("|") >= MIN_VOCABULARIO - 1 and bool(_TILDE.search(patron.value))
++    sin_caso = "IGNORECASE" in banderas or bool(re.search(r"\bre\.I\b", banderas))
++    return _patron_de_palabras(patron.value, sin_caso)
+ 
+ 
+ def _es_vocabulario(nodo, _en_def) -> bool:
+@@ -604,8 +612,24 @@
+     return isinstance(nodo, ast.Call) and _es_regex_de_palabras(nodo)
+ 
+ 
++def _vocabulario_de_skills(raiz: Path) -> dict[str, int]:
++    """La `condicion` de `skills/*.yaml` decide igual que una regex del código
++    (X112: el AST no la veía). Un YAML ilegible no cuenta: no es código."""
++    detalle = {}
++    for ruta in sorted((raiz / "skills").glob("*.yaml")):
++        try:
++            datos = yaml.safe_load(ruta.read_text(encoding="utf-8")) or {}
++        except (OSError, yaml.YAMLError):
++            continue
++        condicion = datos.get("condicion") if isinstance(datos, dict) else None
++        if isinstance(condicion, str) and _patron_de_palabras(condicion):
++            detalle[f"{_relativa(ruta, raiz)}:condicion"] = 1
++    return detalle
++
++
+ def escanear_vocabulario(raiz: Path) -> dict[str, int]:
+-    return _contar_por_ambito(raiz, _arboles(raiz), _es_vocabulario)
++    detalle = _contar_por_ambito(raiz, _arboles(raiz), _es_vocabulario)
++    return dict(sorted({**detalle, **_vocabulario_de_skills(raiz)}.items()))
+ 
+ 
+ def _es_import_perezoso(nodo, en_def) -> bool:
+diff -ruN a/tests/inventario_tests.txt b/tests/inventario_tests.txt
+--- a/tests/inventario_tests.txt	2026-10-31 11:33:34.000000000 +0000
++++ b/tests/inventario_tests.txt	2026-10-31 13:52:55.470861011 +0000
+@@ -258,8 +258,6 @@
+ tests/test_estado_riesgo.py::test_leer_lineas_tolera_rotas_y_archivo_ausente
+ tests/test_estilo_humano.py::test_except_amplio_visible_y_justificado
+ tests/test_estilo_humano.py::test_prompt_auditoria_es_opt_in
+-tests/test_estilo_humano.py::test_prompt_fable_es_opt_in
+-tests/test_estilo_humano.py::test_prompt_forma_se_apaga_por_setting
+ tests/test_estilo_humano.py::test_sin_banners_decorativos
+ tests/test_estilo_humano.py::test_sin_docstrings_de_relleno
+ tests/test_estilo_humano.py::test_sin_wrappers_vacios_sin_justificar
+diff -ruN a/tests/test_banco.py b/tests/test_banco.py
+--- a/tests/test_banco.py	2026-10-31 11:33:34.000000000 +0000
++++ b/tests/test_banco.py	2026-10-31 13:50:48.255938113 +0000
+@@ -284,3 +284,27 @@
+     for turno in turnos:
+         (tipo, comando), = turno["verificar"][0].items()
+         assert tipo == "salida" and _respuesta_esperada(comando), turno["id"]
++
++
++def test_ningun_escenario_setea_un_env_que_el_harness_no_lee():
++    """X112: un `env:` que nadie lee no mide nada y nadie se entera (los brazos
++    de PROMPT_FABLE y PROMPT_FORMA quedaron así). Cada clave tiene que leerla
++    algún código del repo, con los mismos lectores que el ratchet."""
++    from conftest import RAIZ
++
++    import ratchet
++
++    leidos = set()
++    for ruta in RAIZ.rglob("*.py"):
++        rel = ruta.relative_to(RAIZ).as_posix()
++        if rel.startswith(("tests/", "docs/", "salidas/", ".", "banco/fable/escenarios/")):
++            continue
++        texto = ruta.read_text(encoding="utf-8", errors="replace")
++        for patron in ratchet.LECTORES_SETTINGS:
++            leidos |= set(re.findall(patron, texto))
++    inertes = {}
++    for ruta in sorted((RAIZ / "banco" / "escenarios").glob("*.yaml")):
++        for clave in cargar_escenario(ruta).get("env") or {}:
++            if clave not in leidos:
++                inertes.setdefault(clave, []).append(ruta.name)
++    assert not inertes, f"escenarios con env que ningún código lee: {inertes}"
+diff -ruN a/tests/test_deriva_reglas.py b/tests/test_deriva_reglas.py
+--- a/tests/test_deriva_reglas.py	2026-10-31 11:33:34.000000000 +0000
++++ b/tests/test_deriva_reglas.py	2026-10-31 13:50:48.175936274 +0000
+@@ -134,6 +134,31 @@
+     assert not faltan, f"docs/estado.md cita tests que ya no existen: {faltan}"
+ 
+ 
++def _defs_por_archivo():
++    return {
++        archivo.name: {nodo.name for nodo in ast.walk(ast.parse(archivo.read_text(encoding="utf-8")))
++                       if isinstance(nodo, (ast.FunctionDef, ast.AsyncFunctionDef))}
++        for archivo in sorted((RAIZ / "tests").glob("test_*.py"))
++    }
++
++
++def test_estado_cita_tests_con_archivo_que_existen():
++    """X112: la forma `archivo.py::test` (y su continuación `::test`) no la veía
++    el test de arriba, que mira tokens enteros: 10 citas de 7 filas apuntaban a
++    tests borrados (router y voto en X106, explorador en H3-B). El test tiene
++    que vivir en ESE archivo; la continuación hereda el archivo anterior."""
++    defs = _defs_por_archivo()
++    faltan = []
++    for fila in _documento(ESTADO).splitlines():
++        archivo = None
++        for token in re.findall(r"`([^`\n]*::[^`\n]*)`", fila):
++            ruta, _, nombre = token.rpartition("::")
++            archivo = ruta.rsplit("/", 1)[-1] if ruta else archivo
++            if nombre not in defs.get(archivo, set()):
++                faltan.append(token)
++    assert not faltan, f"docs/estado.md cita tests que no existen en su archivo: {faltan}"
++
++
+ def test_estado_cita_archivos_de_test_que_existen():
+     """Las filas viejas citan archivos enteros: también tienen que existir."""
+     tokens = _tokens(_documento(ESTADO))
+diff -ruN a/tests/test_estilo_humano.py b/tests/test_estilo_humano.py
+--- a/tests/test_estilo_humano.py	2026-10-31 11:33:34.000000000 +0000
++++ b/tests/test_estilo_humano.py	2026-10-31 13:50:48.171936182 +0000
+@@ -158,29 +158,18 @@
+     assert not sin_assert, f"tests sin aserción observable: {sin_assert}"
+ 
+ 
+-def test_prompt_forma_se_apaga_por_setting(monkeypatch):
+-    """PROMPT_FORMA=0 permite el A/B del banco sin duplicar el prompt."""
++def test_la_forma_va_siempre_y_fable_ya_no_es_una_perilla(monkeypatch):
++    """X112: la directiva de forma (exp/51) va siempre; PROMPT_FORMA era el
++    brazo de su A/B, cerrado. La prosa de fable se borró con su setting tras
++    tres A/B sin lift (exp/72, exp/73, 5b): los dos settings no cambian nada."""
+     import main
+ 
+-    monkeypatch.delenv("PROMPT_FORMA", raising=False)
+-    assert main.DIRECTIVA_FORMA in main.system_prompt()  # default encendido
++    base = main.system_prompt()
++    assert main.DIRECTIVA_FORMA in base
+     monkeypatch.setenv("PROMPT_FORMA", "0")
+-    assert main.DIRECTIVA_FORMA not in main.system_prompt()
+-    monkeypatch.setenv("PROMPT_FORMA", "1")
+-    assert main.DIRECTIVA_FORMA in main.system_prompt()
+-
+-
+-def test_prompt_fable_es_opt_in(monkeypatch):
+-    """PROMPT_FABLE=1 inyecta la directiva del método (exp/72 F0); el default 0
+-    deja el prompt de producción byte-idéntico."""
+-    import main
+-
+-    monkeypatch.delenv("PROMPT_FABLE", raising=False)
+-    assert main.DIRECTIVA_FABLE not in main.system_prompt()
+     monkeypatch.setenv("PROMPT_FABLE", "1")
+-    assert main.DIRECTIVA_FABLE in main.system_prompt()
+-    monkeypatch.setenv("PROMPT_FABLE", "0")
+-    assert main.DIRECTIVA_FABLE not in main.system_prompt()
++    assert main.system_prompt() == base
++    assert not hasattr(main, "DIRECTIVA_FABLE")
+ 
+ 
+ def test_prompt_auditoria_es_opt_in(monkeypatch):
+diff -ruN a/tests/test_f_prompt.py b/tests/test_f_prompt.py
+--- a/tests/test_f_prompt.py	2026-10-31 11:33:34.000000000 +0000
++++ b/tests/test_f_prompt.py	2026-10-31 13:50:48.171936182 +0000
+@@ -19,7 +19,7 @@
+ 
+     for nombre in ("PROMPT_CITAS", "PROMPT_ALCANCE"):
+         monkeypatch.setenv(nombre, "0")  # perillas borradas: no cambian nada
+-    texto = main.system_prompt(incluir_forma=False)
++    texto = main.system_prompt().removesuffix("\n\n" + main.DIRECTIVA_FORMA)
+     esperado = (
+         "Respondé en el idioma de cada pedido (español o inglés).\n\n"
+         "Cuando cites archivo:línea, verificá esa línea en el archivo antes de afirmarla; si no la "
+diff -ruN a/tests/test_fable.py b/tests/test_fable.py
+--- a/tests/test_fable.py	2026-10-31 11:33:34.000000000 +0000
++++ b/tests/test_fable.py	2026-10-31 13:50:48.267938388 +0000
+@@ -8,6 +8,7 @@
+ import re
+ import shutil
+ 
++import pytest
+ from conftest import RAIZ
+ 
+ CASOS = RAIZ / "banco" / "fable" / "escenarios"
+@@ -310,11 +311,31 @@
+ 
+ 
+ def test_brazo_c_es_la_skill_revision():
+-    """exp/75: A/B apagan skills; C prende la skill revision del harness."""
++    """exp/75: A apaga los skills; C prende la skill revision del harness. B
++    (la prosa de fable) se borró con su setting en X112."""
+     bench = _bench()
+-    assert bench.ENV_POR_BRAZO["A"] == {"PROMPT_FABLE": "0", "SKILLS": "0"}
+-    assert bench.ENV_POR_BRAZO["B"] == {"PROMPT_FABLE": "1", "SKILLS": "0"}
+-    assert bench.ENV_POR_BRAZO["C"] == {"PROMPT_FABLE": "0", "SKILLS": "1"}
++    assert bench.ENV_POR_BRAZO["A"] == {"SKILLS": "0"}
++    assert bench.ENV_POR_BRAZO["C"] == {"SKILLS": "1"}
++    assert "B" not in bench.ENV_POR_BRAZO
++
++
++def test_el_default_de_brazos_son_los_brazos_que_existen(monkeypatch):
++    """El default de --brazos sale de ENV_POR_BRAZO: un brazo borrado no puede
++    quedar como default y reventar con KeyError (lo vio el operador en X111)."""
++    import argparse
++
++    bench = _bench()
++    visto = {}
++    original = argparse.ArgumentParser.parse_args
++
++    def espiar(self, argv=None, namespace=None):
++        visto["brazos"] = original(self, argv, namespace).brazos
++        raise SystemExit(0)
++
++    monkeypatch.setattr(argparse.ArgumentParser, "parse_args", espiar)
++    with pytest.raises(SystemExit):
++        bench.main([])
++    assert set(visto["brazos"].split(",")) == set(bench.ENV_POR_BRAZO)
+ 
+ 
+ def test_s17_reusa_el_fixture_de_s13_y_parsea_5_bugs():
+@@ -367,11 +388,7 @@
+ def test_brazo_d_es_checklist_de_auditoria():
+     """exp/78: D prende solo el checklist de seguridad (PROMPT_AUDITORIA=1)."""
+     bench = _bench()
+-    assert bench.ENV_POR_BRAZO["D"] == {
+-        "PROMPT_FABLE": "0",
+-        "SKILLS": "0",
+-        "PROMPT_AUDITORIA": "1",
+-    }
++    assert bench.ENV_POR_BRAZO["D"] == {"SKILLS": "0", "PROMPT_AUDITORIA": "1"}
+ 
+ 
+ def test_s19_ground_truth_historica_parsea_3_bugs():
+diff -ruN a/tests/test_ratchet_elegancia.py b/tests/test_ratchet_elegancia.py
+--- a/tests/test_ratchet_elegancia.py	2026-10-31 11:33:34.000000000 +0000
++++ b/tests/test_ratchet_elegancia.py	2026-10-31 13:50:48.175936274 +0000
+@@ -54,6 +54,14 @@
+     assert sum(ratchet.escanear_vocabulario(tmp_path).values()) == cuenta
+ 
+ 
++def test_la_condicion_regex_de_un_skill_cuenta_como_vocabulario(tmp_path):
++    """X112: la regex del YAML decide por palabras igual que una del código."""
++    _escribir(tmp_path, "skills/a.yaml", "id: a\ncondicion: '(?i)\\b(revisá|revisa|auditá|audita|mirá)\\b'\n")
++    _escribir(tmp_path, "skills/b.yaml", "id: b\ncondicion: '(?i)\\b(tdd|test-first)\\b'\n")
++    _escribir(tmp_path, "skills/roto.yaml", "id: [\n")
++    assert ratchet.escanear_vocabulario(tmp_path) == {"skills/a.yaml:condicion": 1}
++
++
+ def test_imports_perezosos_cuentan_solo_dentro_de_funciones(tmp_path):
+     _escribir(tmp_path, "nodes.py",
+               "import json\n\nclass N:\n    def prep(self):\n        import re\n        return re\n\n"
+@@ -114,3 +122,20 @@
+     con_fila = set(re.findall(r"^\| `([A-Z][A-Z0-9_]+)` \| (?:contrato|revisar|borrar) \|", doc, re.M))
+     faltan = sorted(set(ratchet.escanear_settings(RAIZ)) - con_fila)
+     assert not faltan, f"settings sin veredicto en docs/elegancia.md: {faltan}"
++
++
++def test_la_columna_lo_lee_del_inventario_es_la_del_codigo():
++    """X112: la columna "Lo lee" se desactualizaba en silencio (HITL_SCOPE y
++    MEMORIA nombraban archivos que ya no eran sus lectores). Cada fila tiene
++    que nombrar exactamente los archivos que el escaneo encuentra."""
++    from conftest import RAIZ
++
++    doc = (RAIZ / "docs" / "elegancia.md").read_text(encoding="utf-8")
++    filas = re.findall(r"^\| `([A-Z][A-Z0-9_]+)` \| (?:contrato|revisar|borrar) \|.*\| ([^|]*) \|$", doc, re.M)
++    reales = ratchet.escanear_settings(RAIZ)
++    distintos = {}
++    for nombre, lee in filas:
++        citados = sorted(re.findall(r"`([^`]+)`", lee))
++        if citados != reales.get(nombre):
++            distintos[nombre] = (citados, reales.get(nombre))
++    assert filas and not distintos, f"columna 'Lo lee' desactualizada (doc, código): {distintos}"

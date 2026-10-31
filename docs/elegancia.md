@@ -57,11 +57,11 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91).
 |---|---|---|
 | `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
 | `producto_conoce_lab` | 10 → **0** (X93) | 0 ✅ |
-| `vocabulario_hardcodeado` | 8 → 7 (X104) → 3 (X106) | ≤ 2 (S9 saca la continuación por palabras de `GetQuestion`; fase 6, `TOOL_CONTEXTO_RE`; queda el sí/no del HITL) |
-| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) → 64 (X106) → 58 (X109) | ≤ 45 (fases 1–5, ver inventario) |
-| `imports_perezosos` | 137 → 126 (X92) → 90 (X106) → 81 (X109) | ~60 (decisión del operador, 2026-10-30: ≤ 40 pedía ampliar la fase 6 a MCP/web/HITL solo por el número) |
+| `vocabulario_hardcodeado` | 8 → 7 (X104) → 3 (X106) → **5** (X112: el instrumento ahora lee la `condicion` de `skills/*.yaml`, que el AST no veía) | ≤ 2 (S7 cerrado sin remedio para este modelo: las 2 regex de los skills quedan como deuda medida; S9 saca la continuación de `GetQuestion`; fase 6, `TOOL_CONTEXTO_RE`; queda el sí/no del HITL) |
+| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) → 64 (X106) → 58 (X109) → 56 (X112) | ≤ 45 (fases 1–5, ver inventario) |
+| `imports_perezosos` | 137 → 126 (X92) → 90 (X106) → 81 (X109) → 80 (X112) | **≤ 40** (X112 deja sin efecto el ~60 del 2026-10-30: la clasificación de los 81 muestra 12 de stdlib y 2 de dependencias obligatorias sin motivo, y 59 internos que en su mayoría no esquivan ningún ciclo; paso propio de imports, con motivo visible para los que se quedan) |
 | `nodos_largos` | 15 → 14 (X96) → 13 (X106) | ≤ 3 |
-| `texto_de_prompt` | 2748 chars | ≤ 800 |
+| `texto_de_prompt` | 2748 → 1542 (X112: sin la prosa de fable) | **1542** (decisión del operador, X112: lo fijo + la forma de exp/51 + el checklist de exp/78 como opción; ≤ 800 pedía borrar una directiva con efecto medido) ✅ |
 
 ## Plan
 
@@ -73,13 +73,15 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91).
 | 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a NO PASA (X105, cableado borrado). ✅ 3b PASA (X106, `banco/specs/fase3b_4a.md`): el router salió del chat. **Cerradas con veredicto negativo** (decisión del operador): S2 —Laya elige el modo— la rechazó el A/B de la 3a; S1 —`reasoning_content` en rondas de tools— no aplica sin thinking con tools. ✅ X109: el juez de riesgo que solo observaba se borró; el log de la decisión humana queda | **Sí** | los criterios de `banco/specs/fase3b_4a.md` |
 | 4 | ✅ 4b-mín (X104): sin la regex de palabras. ✅ 4a (X106): reglas y voto borrados con la 3b. **Queda (paso 3 del orden)**: S6, el presupuesto por novedad — `CORTE_NOVEDAD`, `CORTE_NOVEDAD_MIN`, `MAX_TOOL_ROUNDS_AMPLIO`, `UMBRAL_SIN_PROGRESO` salen; `MAX_TOOL_ROUNDS` es el único techo | Sí | banco + fable: USD y descarrilos ≤ base; `settings_leidos` ≤ 60 ✅ |
 | 5 | ✅ 5a (X108): política de comandos como datos (S10) en `utils/politica_comandos.json`, 0 diferencias sobre la foto real de 445. **5b medida y revertida** (X111): el A/B no pasó (disparo 1/2/2 de 4, ruido 1,29×, s18 sin +1,0 ni R1/R3, trampas s3/s9 abajo); `git revert 3273a84` y la regex no vuelve (`banco/specs/fase5b.md`). 5c (paso 4) Laya 0.4.x y los prefiltros como un mecanismo con un setting | Mínimo / Sí (5b) | 5b: NO PASA (X111); 5c: su pre-registro |
-| 6 | Limpieza de piezas sueltas (`juez`, `effective_n`, `juez_lote`, `research`, `informe`, `fable_judge`): nodos largos e imports perezosos (decisión del operador, X103) | No | `nodos_largos` ≤ 3 (los 3 de `nodes.py` los resuelve S9), `imports_perezosos` ~60 |
+| 6 | Limpieza de piezas sueltas (`juez`, `effective_n`, `juez_lote`, `research`, `informe`, `fable_judge`): nodos largos (decisión del operador, X103). Los imports perezosos van en su paso propio (X112) | No | `nodos_largos` ≤ 3 (los 3 de `nodes.py` los resuelve S9) |
 
-**Orden de lo que queda** (X109, aprobado por el operador): 1 ✅ deuda de la
-fase 1 → 2 5b → 3 S6 → 4 5c → 5 S9/S3 → 6 fase 6. Primero lo que no cambia
+**Orden de lo que queda** (X112, aprobado por el operador): 1 ✅ deuda de la
+fase 1 → 2 ❌ 5b (revertida) → ✅ X112 (docs, prosa de fable, forma fija,
+ratchet sobre los YAML) → 3 imports perezosos → 4 S6 → 5 5c-a / 5c-b → 6
+S9a / S9b / S3 → 7 fase 6. Primero lo que no cambia
 conducta; lo que la cambia, con su A/B pre-registrado.
 
-## Inventario de settings (58 tras X109: 39 contrato · 13 revisar · 6 borrar)
+## Inventario de settings (56 tras X112: 39 contrato · 12 revisar · 5 borrar)
 
 `contrato` = decisión del operador que se queda; `revisar` = se decide en la
 fase indicada; `borrar` = se va con su rama en esa fase.
@@ -90,14 +92,12 @@ fase indicada; `borrar` = se va con su rama en esa fase.
 | `CORTE_NOVEDAD_MIN` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
 | `MAX_TOOL_ROUNDS_AMPLIO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
 | `PROMPT_AUDITORIA` | borrar | 4 | S7/S8: brazos de A/B cerrados → skills | `main.py` |
-| `PROMPT_FABLE` | borrar | 4 | S7/S8: brazos de A/B cerrados → skills | `main.py` |
 | `UMBRAL_SIN_PROGRESO` | borrar | 4 | S6: presupuesto por perfil/texto → Ledger por novedad | `nodes.py` |
-| `HITL_SCOPE` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `utils/aprobaciones.py` |
+| `HITL_SCOPE` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `utils/aprobaciones.py`, `utils/riesgo.py` |
 | `HUMANO_RESPUESTA` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `modules/humano.py` |
 | `CHAT_STREAM_INTERRUPT` | revisar | 2 | S9: citas e interrupción siempre activas | `utils/call_llm.py` |
 | `CITAS_VERIFICAR` | revisar | 2 | S9: citas e interrupción siempre activas | `nodes.py` |
 | `PREFETCH` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
-| `PROMPT_FORMA` | revisar | 4 | S8: se queda solo si un A/B del modelo actual lo sostiene | `main.py` |
 | `SKILLS` | revisar | 4 | S7: skills por descripción; el apagador global quizá sobra | `nodes.py` |
 | `INFORME_CARPETA` | revisar | 5 | concurrencia: una constante del kernel | `informe.py` |
 | `LAYA_BATCH_SIZE` | contrato | — | no es un tunable: `0` = el lote no se parte (un solo forward), N = lotes de N; elige el pico de memoria del prefiltro (X101) | `utils/laya.py` |
@@ -125,7 +125,7 @@ fase indicada; `borrar` = se va con su rama en esa fase.
 | `LLM_MODEL` | contrato | — | credenciales y proveedor | `modules/vision.py`, `utils/call_llm.py` |
 | `MCP_EXPOSE` | contrato | — | superficies opcionales (web, MCP, A2A, búsqueda) | `mcp_server.py` |
 | `MCP_SERVERS` | contrato | — | superficies opcionales (web, MCP, A2A, búsqueda) | `utils/mcp_client.py` |
-| `MEMORIA` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `main.py`, `nodes.py` |
+| `MEMORIA` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `modules/memoria.py` |
 | `MEMORIA_DIR` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `modules/memoria.py` |
 | `NO_COLOR` | contrato | — | presentación y costos | `utils/terminal.py` |
 | `PRECIO_TOKENS` | contrato | — | presentación y costos | `main.py` |

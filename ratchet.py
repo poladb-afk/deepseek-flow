@@ -83,6 +83,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
 RAIZ = Path(__file__).resolve().parent
 BASELINE = RAIZ / "ratchets" / "baseline.json"
 CLAVE_BYPASS = "HUMAN_RATCHET_BYPASS_KEY"
@@ -582,6 +584,12 @@ def _es_lista_de_palabras(nodo) -> bool:
     return all(_PALABRA.fullmatch(t) for t in textos) and any(_TILDE.search(t) for t in textos)
 
 
+def _patron_de_palabras(patron: str, sin_caso: bool = False) -> bool:
+    """Una regex sin distinción de mayúsculas, con ≥5 alternativas y alguna tilde."""
+    sin_caso = sin_caso or "(?i)" in patron
+    return sin_caso and patron.count("|") >= MIN_VOCABULARIO - 1 and bool(_TILDE.search(patron))
+
+
 def _es_regex_de_palabras(nodo) -> bool:
     funcion = nodo.func
     if not (isinstance(funcion, ast.Attribute) and isinstance(funcion.value, ast.Name)
@@ -591,8 +599,8 @@ def _es_regex_de_palabras(nodo) -> bool:
     if not (isinstance(patron, ast.Constant) and isinstance(patron.value, str)):
         return False
     banderas = ast.unparse(nodo.args[1:] + [k.value for k in nodo.keywords])
-    sin_caso = "(?i)" in patron.value or "IGNORECASE" in banderas or re.search(r"\bre\.I\b", banderas)
-    return bool(sin_caso) and patron.value.count("|") >= MIN_VOCABULARIO - 1 and bool(_TILDE.search(patron.value))
+    sin_caso = "IGNORECASE" in banderas or bool(re.search(r"\bre\.I\b", banderas))
+    return _patron_de_palabras(patron.value, sin_caso)
 
 
 def _es_vocabulario(nodo, _en_def) -> bool:
@@ -604,8 +612,24 @@ def _es_vocabulario(nodo, _en_def) -> bool:
     return isinstance(nodo, ast.Call) and _es_regex_de_palabras(nodo)
 
 
+def _vocabulario_de_skills(raiz: Path) -> dict[str, int]:
+    """La `condicion` de `skills/*.yaml` decide igual que una regex del código
+    (X112: el AST no la veía). Un YAML ilegible no cuenta: no es código."""
+    detalle = {}
+    for ruta in sorted((raiz / "skills").glob("*.yaml")):
+        try:
+            datos = yaml.safe_load(ruta.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
+            continue
+        condicion = datos.get("condicion") if isinstance(datos, dict) else None
+        if isinstance(condicion, str) and _patron_de_palabras(condicion):
+            detalle[f"{_relativa(ruta, raiz)}:condicion"] = 1
+    return detalle
+
+
 def escanear_vocabulario(raiz: Path) -> dict[str, int]:
-    return _contar_por_ambito(raiz, _arboles(raiz), _es_vocabulario)
+    detalle = _contar_por_ambito(raiz, _arboles(raiz), _es_vocabulario)
+    return dict(sorted({**detalle, **_vocabulario_de_skills(raiz)}.items()))
 
 
 def _es_import_perezoso(nodo, en_def) -> bool:
