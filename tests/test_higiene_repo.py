@@ -62,9 +62,14 @@ def _motivo(rel):
 @requiere_repo_git
 def test_higiene_del_arbol_trackeado():
     """La spec entera en un solo gate: si falla, el mensaje dice archivo y motivo."""
+    trackeados = _trackeados()
+    # Una excepción cuyo archivo deja de estar trackeado quedaría viva para
+    # siempre: el candado se ataría a sí mismo a un fantasma (Auditor, X118).
+    sueltas = sorted(set(EXCEPCIONES) - set(trackeados))
+    assert not sueltas, f"excepciones sin archivo trackeado, borralas: {sueltas}"
     violaciones = {
         rel: motivo
-        for rel in _trackeados()
+        for rel in trackeados
         if rel not in EXCEPCIONES and (motivo := _motivo(rel)) is not None
     }
     assert not violaciones, "archivos trackeados que violan la higiene (X118): " + "; ".join(
