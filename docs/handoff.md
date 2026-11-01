@@ -26,8 +26,11 @@ archivos y tu código, con CORE + módulos.
 
 ## 2. Principios
 
-Las tres capas (diseño, ingeniería, método), con su gate, ante qué ceden y
-sus fuentes: `docs/principios.md`.
+Desde X118: una restricción (S0, seguridad), cuatro principios (P1
+minimalismo, P2 fractalidad asimétrica, P3 modularidad, P4 complejidad
+emergente) y cuatro prohibiciones (N1 parches, N2 keywords, N3 prompt, N4
+duplicidad), con su gate y sus fuentes: `docs/principios.md`. Las reglas de
+proceso viven en `AGENTS.md`.
 
 ## 3. Arquitectura
 
@@ -107,7 +110,7 @@ cuenta como configuración de pytest o solo cuando trae `[tool.pytest]`.
 |---|---|---|---|---|
 | 1 | Aplicar X112 + X113; la clave por vocabulario 3 → 5 | no | — | — |
 | 2 | **X114 + X115 hechos (2026-11-01):** el `auto` de pytest pasa a lista blanca (`opciones_auto`, X114, con el token ya sin comillas/escapes) y escribir o editar configuración de pytest con aprobación —por tool o por redirección del shell— hace preguntar al `pytest` siguiente (`config_pytest`, X115) | **sí**, solo sube fricción | 1 | hecho; el detalle queda abajo como pre-registro |
-| 3 | X115-orden (resto): los `.patch` de `docs/informes/` y el test_auditoria_2026_10_26.py viejo se borraron el 2026-11-01 (3.387.314 B: 3.378.765 B de los 47 `.patch` + 8.549 B del test; siguen en la historia de git); el candado de tamaño y artefactos ya existe (`tests/test_higiene_repo.py`, X118); queda separar las dependencias de desarrollo y las opcionales de `requirements.txt` | no | 1 | la CI (`.github/workflows/calidad.yml`) se toca en el mismo paso |
+| 3 | X115-orden (resto): los `.patch` de `docs/informes/` y el test_auditoria_2026_10_26.py viejo se borraron el 2026-11-01 (3.387.314 B: 3.378.765 B de los 47 `.patch` + 8.549 B del test; siguen en la historia de git); el candado de tamaño y artefactos ya existe (`tests/test_higiene_repo.py`, X121); queda separar las dependencias de desarrollo y las opcionales de `requirements.txt` | no | 1 | la CI (`.github/workflows/calidad.yml`) se toca en el mismo paso |
 | 4 | Imports perezosos → ≤ 40, con `python -X importtime` como gate | no | 1 | 12 stdlib, 8 opcionales, 2 obligatorias y 59 internos (sobre 81) |
 | 5 | Pre-registro y A/B de S6 (un solo techo de rondas) | **sí** | 1 | s9: 5 de 6 sin terminar, 0 deploys |
 | 6 | 5c-a: los prefiltros como un mecanismo con un setting | depende | 1 | 5 settings hoy |
@@ -128,13 +131,13 @@ cuenta como configuración de pytest o solo cuando trae `[tool.pytest]`.
 son solo `-p`, `--basetemp`, `--rootdir`, `-c`, `--confcutdir`, `-o` y
 `--override-ini` (`utils/politica_comandos.json`).
 
-**Por qué no alcanza sumar los 5 flags** (M1): es la tercera vez que una
+**Por qué no alcanza sumar los 5 flags** (N1): es la tercera vez que una
 lista negra de flags se queda corta (E1 `sort --compress-program`, E2
 `pytest -o`, ahora esta). pytest y sus plugins agregan opciones; una lista
 negra pierde contra eso por construcción.
 
 **Lo que se recomienda** (decisión del operador al aplicarlo):
-- **Opciones de pytest en lista blanca para `auto`** (falla cerrada, D11):
+- **Opciones de pytest en lista blanca para `auto`** (falla cerrada, S0):
   `-q`, `-v`, `-x`, `-k`, `-m`, `-s`, `--lf`, `--ff`, `--co`/`--collect-only`,
   `--tb`, `-r…`, `--maxfail`, `--durations`, `-W`, `--no-header`, rutas y
   `nodeid`. Cualquier otra opción pregunta. Va en

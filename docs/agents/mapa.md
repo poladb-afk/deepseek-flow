@@ -10,9 +10,9 @@ contradice, gana `AGENTS.md`. Este archivo tampoco repite el contrato: apunta.
 |---|---|---|
 | Producto | El harness: CLI y grafo del chat | `main.py` (subcomandos en `README.md:170-188`), `nodes.py`, `flow.py` |
 | Transversal | Lo que todas las piezas comparten | `utils/` (policy, `call_llm`, `kernel`, `fs_tools`, `tracing`) |
-| Capacidades | Una capacidad = un archivo con `TOOLS`, `IMPL` y `HOOKS` | `modules/` (agregar es dejarlo, quitar es borrarlo: D2) |
+| Capacidades | Una capacidad = un archivo con `TOOLS`, `IMPL` y `HOOKS` | `modules/` (agregar es dejarlo, quitar es borrarlo: P3) |
 | Skills | Texto que se activa por regex | `skills/*.yaml` |
-| Medición | Benches, sondas y specs pre-registradas; el producto no lo conoce (D14) | `banco/` (`specs/`, `probes/`, `escenarios/`), `bench_juez.py`, `evals.py`, `tablero.py`, `replay.py` |
+| Medición | Benches, sondas y specs pre-registradas; el producto no lo conoce (P3) | `banco/` (`specs/`, `probes/`, `escenarios/`), `bench_juez.py`, `evals.py`, `tablero.py`, `replay.py` |
 | Contrato | Lo que un agente lee antes de tocar | `AGENTS.md` y `docs/` |
 | Guardrails | Lo que hace cumplir el contrato | `calidad.sh`, `ratchet.py`, `tests/`, `.github/workflows/calidad.yml` |
 | Artefactos | Salidas de corrida: no se trackean | `salidas/`, `.modelos/`, `.runs/`, `memoria/`, `trazas.db` (`tests/test_higiene_repo.py`) |
@@ -58,6 +58,6 @@ Si ya sabés qué buscás:
   trackeados y tope de tamaño).
 - **`.github/workflows/calidad.yml`**: el mismo gate en CI.
 - **Seguridad**: la política vive en `utils/policy.py` con sus datos en
-  `utils/politica_comandos.json`; falla cerrada y HITL graduado (D11).
+  `utils/politica_comandos.json`; falla cerrada y HITL graduado (S0).
 - **Bypasses prohibidos**: la lista por nombre está en `AGENTS.md`, sección
   "Bypasses prohibidos". No hay atajo: el gate es la única salida.

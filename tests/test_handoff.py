@@ -43,12 +43,12 @@ def test_cada_principio_nombra_su_gate_o_dice_sin_gate():
     """Un principio sin gate se declara; uno con gate cita algo vigente."""
     defs = _defs_de_tests()
     texto = _texto(PRINCIPIOS)
-    filas = _filas(texto, "D") + _filas(texto, "E") + _filas(texto, "M")
-    assert len(filas) >= 30, f"se esperaban las tres capas completas, hay {len(filas)} filas"
+    filas = _filas(texto, "S") + _filas(texto, "P") + _filas(texto, "N")
+    assert len(filas) == 9, f"se esperaban S0, P1–P4 y N1–N4 (X118), hay {len(filas)} filas"
     sueltos = []
     for fila in filas:
         celdas = [celda.strip() for celda in fila.strip().strip("|").split("|")]
-        verifica = celdas[4] if fila.lstrip("| ").startswith("D") else celdas[-1]
+        verifica = celdas[-2]
         citados = re.findall(r"`([^`\n]+)`", verifica)
         if "sin gate" in verifica:
             continue

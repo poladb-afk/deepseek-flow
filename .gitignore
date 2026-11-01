@@ -16,6 +16,7 @@ salidas/
 .heartbeat/
 informe_jsonl_runs.txt
 docs/informes/*.zip
+docs/informes/*.patch
 docs/informes/calidad_*.txt
 
 # memoria entre sesiones: la biblioteca se regenera, no se versiona

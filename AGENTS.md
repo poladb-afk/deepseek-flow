@@ -14,7 +14,7 @@ detalle va a `docs/`.
 Leé, en este orden, lo que aplique:
 
 0. `docs/handoff.md` y `docs/principios.md` — si arrancás una sesión nueva:
-   estado, cola, decisiones y la constitución del harness.
+   estado, cola, decisiones y los principios (S0, P1–P4, N1–N4).
 1. `docs/estado.md` — el tablero vivo: un hallazgo por fila (A/H/R/X) con
    estado, evidencia y el test que lo cubre. **Empezá por acá.**
 2. `docs/design.md` — lo que es verdad hoy: grafos, contratos de `shared`,
@@ -75,6 +75,14 @@ nombra el gate que la hace cumplir.
   feat), cuerpo con la medición y el gate corrido.
 - **Idioma**: docs, comentarios, nombres de tests y mensajes en español
   rioplatense, como el resto del repo.
+
+## Método: cómo se decide (antes M3–M11 de `docs/principios.md`)
+
+- **Pre-registrar antes de medir**: criterios en `banco/specs/` antes del código; un cambio es un desvío declarado.
+- **Lo que cambia conducta pasa un A/B** con el cómputo igualado; si falla, se revierte y no vuelve como parche.
+- **Lo medido no es lo estimado** y **la historia como fue**: el número honesto, y los errores quedan escritos.
+- **Arreglar el instrumento antes que la métrica**, aunque la métrica empeore.
+- **El denominador se declara y es simétrico** entre brazos.
 
 ## Código: forma humana (evidencia, no opinión)
 

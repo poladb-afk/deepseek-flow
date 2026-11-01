@@ -1,6 +1,6 @@
 # exp/103 — el loop fractal contra el loop solo, con el presupuesto igualado (pre-registro)
 
-Escrito ANTES de correr nada (M3). Si algo cambia al correrlo, va como desvío
+Escrito ANTES de correr nada (pre-registro, `AGENTS.md`). Si algo cambia al correrlo, va como desvío
 declarado al final, sin retocar los criterios.
 
 ## La pregunta
@@ -15,7 +15,7 @@ secuencial). Y con el presupuesto igualado, el agente solo iguala o gana
 (arXiv 2604.02460): sin control de cómputo, una mejora del fractal puede ser
 solo más tokens.
 
-## Brazos (en la rama `exp/103`; nada entra al producto antes del veredicto, M4)
+## Brazos (en la rama `exp/103`; nada entra al producto antes del veredicto)
 
 | Brazo | Qué es |
 |---|---|
@@ -25,7 +25,7 @@ solo más tokens.
 
 `dividir` vive en un módulo de la rama (`modules/dividir.py`); quitarlo es
 borrarlo. Su descripción dice qué hace, no cuándo conviene: decidir si se
-divide es del modelo (D5, y la regla de no arreglar conductas por prompt).
+divide es del modelo (N2 y N3).
 
 ## Escenarios (los de `banco/fable/escenarios`, puntuador determinista de `banco/probes/bench_fable.py`)
 
@@ -63,7 +63,7 @@ una copia que cierra sin tools gasta una llamada que ninguna ronda registra
   chat (hoy el padre y el hijo tienen techos separados, ver desvío 1).
 - **No pasa**: `recursivo` se queda como primitiva del kernel con sus tests,
   sin uso en producción (como `agente()` después de H3-B), y la rama se borra.
-  Lo que no pasó no vuelve como parche (M4).
+  Lo que no pasó no vuelve como parche (N1).
 
 ## Desvíos declarados desde el inicio
 

@@ -6221,3 +6221,28 @@ F/C siguen siendo los gates; cada patrón dice cuál lo cubre.
 conviene replicarse se decide midiendo: `banco/specs/exp103_fractal.md`, con
 el control de cómputo (A+) que pide la evidencia de 2026 con el presupuesto
 igualado.
+
+
+---
+
+## X118: los principios del operador, nueve en vez de treinta y ocho (2026-11-01)
+
+**Decisión del operador**: cuatro principios (P1 minimalismo elegante, P2 grafo
+con fractalidad asimétrica, P3 modularidad, P4 complejidad emergente), cuatro
+prohibiciones (N1 parches situacionales, N2 keywords o hints, N3 soluciones
+por prompt, N4 duplicidad) y la seguridad como restricción por encima (S0).
+Fuentes: PocketFlow, 12-Factor Agents, Pi y fable-method, más la búsqueda de
+evidencia de 2026 (Databricks sobre Pi, RLM, RAH, Kim et al., Tran y Kiela, DIG).
+
+**Lo que cambió**: `docs/principios.md` pasa de tres capas a nueve entradas,
+cada una con su gate o con "sin gate" y lo que falta. Las reglas de proceso
+(pre-registro, A/B, denominador) pasan a `AGENTS.md`, sección "Método".
+`tests/test_handoff.py` exige ahora exactamente S0, P1–P4 y N1–N4. Las citas
+a D11, M1, M3, M4 y D5 en el handoff y en el pre-registro del exp/103 se
+tradujeron a la lista nueva.
+
+**Lo medido que motiva P2**: con un LLM guionado que pide K copias en una
+ronda, el kernel hizo 412 llamadas con saldo 8 (K = 50, profundidad 2): las
+rondas se cobran, las copias no. Cobrando 1 por copia, las llamadas quedaron
+≤ 2R + 1 en las cinco configuraciones probadas. El arreglo no entra en X118:
+queda como pendiente de P2.
