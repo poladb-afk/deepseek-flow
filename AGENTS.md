@@ -25,7 +25,8 @@ Leé, en este orden, lo que aplique:
 4. `docs/roadmap.md` — qué falta y en qué orden.
 
 Si el pedido toca un flujo, un módulo o una policy: buscá su sección en
-`docs/design.md` **antes** de leer el código.
+`docs/design.md` **antes** de leer el código. Para orientarte en el repo entero:
+`docs/agents/mapa.md`.
 
 ## Reglas no negociables (cada una tiene un gate)
 
