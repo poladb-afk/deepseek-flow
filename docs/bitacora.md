@@ -5998,8 +5998,8 @@ settings `SKILLS`/`PROMPT_FORMA`/`PROMPT_FABLE`/`PROMPT_AUDITORIA`)
 contra su base `3273a84^`. El pre-registro pedía rama hasta el A/B; se
 mergeó a `main` en `3273a84` antes de correrlo (desvío que quedó
 registrado) y el remedio pre-registrado era revertir si fallaba un criterio.
-El patch del autor queda en `docs/informes/x111_fase5b.patch`: se revierte
-el código, no el registro.
+El patch del autor queda en `docs/informes/x111_fase5b.patch` (sigue en la
+historia de git): se revierte el código, no el registro.
 
 **Cómo se corrió**: dos worktrees con su `.runs` desde el principio (base
 `3273a84^`, 5b `3273a84`), mismo `.env` y `.modelos` por symlink, modelo

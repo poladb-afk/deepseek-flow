@@ -107,7 +107,7 @@ cuenta como configuración de pytest o solo cuando trae `[tool.pytest]`.
 |---|---|---|---|---|
 | 1 | Aplicar X112 + X113; la clave por vocabulario 3 → 5 | no | — | — |
 | 2 | **X114, seguridad (va primero, D11):** el `auto` de pytest pasa a lista blanca de opciones; tras escribir la configuración de pytest, el próximo `pytest` pregunta (X115) | **sí**, solo sube fricción | 1 | ver "X114 en detalle" abajo |
-| 3 | X115-orden: borrar los `.patch` de `docs/informes/` (3,4 MB: 3.378.765 B; el 4,3 MB del plan original era el total de `docs/informes/` en X113, `95c7efb`) y el test_auditoria_2026_10_26.py viejo de esa carpeta (casi duplica `tests/test_auditoria_2026_10_26.py`: 27 líneas de diferencia, 209 vs 232, importa `banco.banco` y usa `shared["_huellas_vistas"]`); un candado de tamaño; separar las dependencias de desarrollo y las opcionales de `requirements.txt` | no | 1 | la CI (`.github/workflows/calidad.yml`) se toca en el mismo paso |
+| 3 | X115-orden (resto): los `.patch` de `docs/informes/` y el test_auditoria_2026_10_26.py viejo se borraron el 2026-11-01 (3.387.314 B: 3.378.765 B de los 47 `.patch` + 8.549 B del test; siguen en la historia de git); queda un candado de tamaño y separar las dependencias de desarrollo y las opcionales de `requirements.txt` | no | 1 | la CI (`.github/workflows/calidad.yml`) se toca en el mismo paso |
 | 4 | Imports perezosos → ≤ 40, con `python -X importtime` como gate | no | 1 | 12 stdlib, 8 opcionales, 2 obligatorias y 59 internos (sobre 81) |
 | 5 | Pre-registro y A/B de S6 (un solo techo de rondas) | **sí** | 1 | s9: 5 de 6 sin terminar, 0 deploys |
 | 6 | 5c-a: los prefiltros como un mecanismo con un setting | depende | 1 | 5 settings hoy |
