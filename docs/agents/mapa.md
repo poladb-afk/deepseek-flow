@@ -39,7 +39,7 @@ Si ya sabés qué buscás:
 | Si algo ya se midió, falló o se revirtió | `docs/estado.md` (fila por hallazgo) y `docs/bitacora.md` |
 | Tocar un nodo o un contrato de `shared` | La sección de `docs/design.md`, después el código |
 | Agregar o quitar una capacidad | `docs/design.md` (módulos); un test nuevo se suma al inventario |
-| Medir un cambio de conducta | Una spec en `banco/specs/` primero (M3), después el bench |
+| Medir un cambio de conducta | Una spec en `banco/specs/` primero —pre-registrar antes de medir, el Método de `AGENTS.md`—, después el bench |
 | Saber qué gate te va a frenar | La sección de abajo |
 
 ## Dónde viven los guardrails
@@ -49,7 +49,7 @@ Si ya sabés qué buscás:
   con exit 0, y no se corre un subconjunto (R1).
 - **`ratchet.py` + `ratchets/baseline.json`**: cada métrica tiene dirección;
   empeorar exige la clave del operador (`ratchets/clave_operador.sha256`,
-  R6/M5). Mejorar lo baja solo.
+  R6 y el Método de `AGENTS.md`). Mejorar lo baja solo.
 - **`tests/`**: `test_inventario.py` (R2, el total no baja),
   `test_deriva_reglas.py` y `test_docs_sin_deriva.py` (R3, los docs no
   mienten), `test_contratos.py` (R8), `test_estilo_humano.py` (R9/R10),
