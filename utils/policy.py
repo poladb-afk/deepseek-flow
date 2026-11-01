@@ -40,7 +40,9 @@ Límite conocido de la whitelist (A45): `pytest` ejecuta `conftest.py` y
 plugins del repo, y escribe cachés (`.pytest_cache`, `__pycache__`): "auto"
 no es solo-lectura en sentido estricto. Se ACEPTA porque correr tests es el
 flujo normal del agente; para exigir aprobación ante ejecución de código,
-HITL_AUTO=0 vuelve todo a s/n. El costo se documenta, no se esconde.
+HITL_AUTO=0 vuelve todo a s/n. El costo se documenta, no se esconde. Desde
+X114 sus opciones pasan por lista blanca (`opciones_auto`): el prefijo solo
+no alcanza y un flag de pytest no declarado pregunta (D11, falla cerrada).
 
 Orden de evaluación: whitelist primero, negra después, default preguntar.
 """
@@ -61,8 +63,8 @@ CONFIRMAR_DOBLE = "confirmar_doble"
 # una sola confirmación). Sin setting para la ruta: no es configurable.
 _ARCHIVO = Path(__file__).with_name("politica_comandos.json")
 _NIVELES = (AUTO, PREGUNTAR, CONFIRMAR_DOBLE)
-_CLAVES = {"prefijos": list, "flags_peligrosos": dict, "bases_modulo": list,
-           "envoltorios": dict, "git_globales_con_valor": list}
+_CLAVES = {"prefijos": list, "flags_peligrosos": dict, "opciones_auto": dict,
+           "bases_modulo": list, "envoltorios": dict, "git_globales_con_valor": list}
 
 
 def _exigir(condicion, motivo):
@@ -100,6 +102,14 @@ def _validar_politica(datos):
         flags = entrada.get("flags") if isinstance(entrada, dict) else None
         _exigir(isinstance(flags, list) and flags and all(_es_token(f) and f.startswith("-") for f in flags),
                 f"flags de {base}")
+    for base, entrada in datos["opciones_auto"].items():
+        _exigir(_es_token(base) and isinstance(entrada, dict), f"opciones_auto: {base!r}")
+        for grupo in ("flags", "con_valor"):
+            opciones = entrada.get(grupo)
+            _exigir(isinstance(opciones, list) and all(_es_token(o) and o.startswith("-") for o in opciones),
+                    f"opciones_auto[{base}].{grupo}")
+        _exigir(isinstance(entrada.get("nota"), str) and entrada["nota"].strip(),
+                f"opciones_auto[{base}] sin nota")
     for entrada in datos["bases_modulo"]:
         _exigir(isinstance(entrada, dict) and all(map(_es_token, entrada.get("prefijo") or [None]))
                 and _es_token(entrada.get("base")), f"base de módulo: {entrada!r}")
@@ -166,6 +176,13 @@ _SEPARADORES = re.compile(r"&&|\|\||\||&|;|\n|\r")
 # whitelist; el porqué de cada base va en su `nota` del archivo.
 _FLAGS_PELIGROSOS = {base: tuple(e["flags"]) for base, e in _POLITICA["flags_peligrosos"].items()}
 
+# Lista blanca de opciones POR BASE (X114, D11): el prefijo ya no alcanza; sus
+# opciones también se declaran, porque pytest y sus plugins suman flags y la
+# negra perdió tres veces (E1 `sort --compress-program`, E2 `pytest -o`,
+# `--pastebin`). Lo que no está acá pregunta.
+_OPCIONES_AUTO = {base: (tuple(e["flags"]), tuple(e["con_valor"]))
+                  for base, e in _POLITICA["opciones_auto"].items()}
+
 
 
 # Descarte de stderr/stdout a /dev/null: escribir ahí no escribe en el
@@ -197,6 +214,34 @@ def _empieza_con(tokens, prefijo):
     return tuple(tokens[: len(prefijo)]) == prefijo
 
 
+def _opcion_fuera_de_lista(tokens):
+    """True si la base tiene lista blanca de opciones y algún token no está en
+    ella (D11: lo no declarado pregunta). Lo que no empieza con `-` es ruta o
+    nodeid, como en la terminal. Una opción con valor lo admite separado o con
+    `=`; la corta también pegado (`-kexpr`, `-rA`)."""
+    prefijo = next((p for p in _WHITELIST_PREFIJOS if _empieza_con(tokens, p)), None)
+    if prefijo is None:
+        return False
+    regla = _OPCIONES_AUTO.get(_BASES_MODULO.get(tuple(tokens[:3]), tokens[0]))
+    if regla is None:
+        return False
+    flags, con_valor = regla
+    resto = tokens[len(prefijo):]
+    i = 0
+    while i < len(resto):
+        tok = resto[i]
+        if not tok.startswith("-") or tok in flags:
+            i += 1
+        else:
+            nombre = next((n for n in con_valor
+                           if tok == n or tok.startswith(n + "=")
+                           or (len(n) == 2 and tok.startswith(n))), None)
+            if nombre is None:
+                return True
+            i += 2 if tok == nombre else 1
+    return i > len(resto)  # una opción con valor se quedó sin su valor
+
+
 def _segmento_es_auto(segmento):
     segmento = segmento.strip()
     if not segmento:
@@ -216,7 +261,9 @@ def _segmento_es_auto(segmento):
         return False
     if _tiene_flag_peligroso(tokens):
         return False
-    return any(_empieza_con(tokens, prefijo) for prefijo in _WHITELIST_PREFIJOS)
+    if not any(_empieza_con(tokens, prefijo) for prefijo in _WHITELIST_PREFIJOS):
+        return False
+    return not _opcion_fuera_de_lista(tokens)
 
 
 # Formas `python3 -m X`: el veto de flags mira el MÓDULO, no el intérprete
@@ -418,6 +465,8 @@ def explicar(comando):
             return texto
     if nivel == PREGUNTAR and _tiene_flag_peligroso(_tokens(peor)):
         return "flag que escribe, ejecuta o no termina: pide aprobación"
+    if nivel == PREGUNTAR and _opcion_fuera_de_lista(_tokens(peor)):
+        return "opción fuera de la lista blanca de la base: pide aprobación"
     if nivel == AUTO:
         return "sin efectos destructivos conocidos: no pide aprobación (puede escribir cachés si el comando lo hace)"
     if nivel == CONFIRMAR_DOBLE:

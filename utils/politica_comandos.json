@@ -1,5 +1,5 @@
 {
-  "_doc": "Política de comandos de utils/policy.py como DATOS (fase 5a, banco/specs/fase5a.md). El mecanismo (tokenizar, segmentos, envoltorios, orden de evaluación) vive en el código; acá solo qué prefijo merece qué fricción y por qué. Sin `nivel` = solo explicación (clasifica al default preguntar). Un prefijo que es inicio de otro va DESPUÉS (rm -rf antes que rm). Cambiar una decisión es un PR con su test de bypass (R7).",
+  "_doc": "Política de comandos de utils/policy.py como DATOS (fase 5a, banco/specs/fase5a.md). El mecanismo (tokenizar, segmentos, envoltorios, orden de evaluación) vive en el código; acá solo qué prefijo merece qué fricción y por qué. Sin `nivel` = solo explicación (clasifica al default preguntar). Un prefijo que es inicio de otro va DESPUÉS (rm -rf antes que rm). `opciones_auto` es la lista blanca de opciones POR BASE (X114): el prefijo solo ya no alcanza, lo no declarado pregunta. Cambiar una decisión es un PR con su test de bypass (R7).",
   "prefijos": [
     {"tokens": ["pytest"], "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"},
     {"tokens": ["python3", "-m", "pytest"], "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"},
@@ -45,6 +45,13 @@
     "pytest": {"flags": ["-p", "--basetemp", "--rootdir", "-c", "--confcutdir", "-o", "--override-ini"], "nota": "-p carga plugins; --basetemp borra el directorio que le pases; -o/--override-ini reinyecta cualquier flag (E2)"},
     "ruff": {"flags": ["--fix", "--fix-only", "-w", "--watch", "--add-noqa", "-o", "--output-file"], "nota": "lo que ESCRIBE (--fix, --fix-only, --add-noqa, -o/--output-file) o cuelga (-w/--watch); `ruff check` a secas solo parsea (exp/92)"},
     "grep": {"flags": ["-R", "--dereference-recursive"], "nota": "-R/--dereference-recursive siguen symlinks (auditoría F2)"}
+  },
+  "opciones_auto": {
+    "pytest": {
+      "flags": ["-q", "-v", "-x", "-s", "--lf", "--ff", "--co", "--collect-only", "--no-header", "--version"],
+      "con_valor": ["-k", "-m", "--tb", "--maxfail", "--durations", "-W", "-r"],
+      "nota": "lista blanca (X114, D11): lo que no está acá pregunta, porque pytest y sus plugins suman opciones y la negra perdió tres veces (E1 sort, E2 -o, --pastebin). --version solo imprime la versión (uso común). Las opciones con valor van separadas o con = (--tb=short, -k expr); -rA pegado también vale."
+    }
   },
   "bases_modulo": [
     {"prefijo": ["python3", "-m", "pytest"], "base": "pytest"},

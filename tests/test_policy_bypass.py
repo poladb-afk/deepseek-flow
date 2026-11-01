@@ -47,6 +47,51 @@ def test_policy_lectura_legitima_sigue_auto(comando):
     assert policy.clasificar(comando) == "auto"
 
 
+# X114: el `auto` de pytest pasa por lista blanca (`opciones_auto`). La negra
+# perdió tres veces (E1 sort, E2 pytest -o, --pastebin), así que lo no
+# declarado pregunta, incluido un flag que todavía no existe.
+@pytest.mark.parametrize("comando", [
+    "pytest --pastebin=all",
+    "python3 -m pytest --pastebin=all",
+    "pytest --junitxml=salida.xml",
+    "python3 -m pytest --junit-xml=salida.xml",
+    "pytest --report-log=salida.jsonl",
+    "pytest --debug",
+    "pytest --debug=salida.jsonl",
+    "pytest --cache-clear",
+    "pytest --futuro=1",
+])
+def test_pytest_fuera_de_la_lista_blanca_pregunta(comando):
+    """Falla cerrada: una opción de pytest no declarada no es auto."""
+    assert policy.clasificar(comando) == "preguntar"
+
+
+@pytest.mark.parametrize("comando", [
+    "pytest",
+    "pytest -q",
+    "pytest -v -x -s",
+    "pytest tests/",
+    "pytest tests/test_policy.py::test_policy_bypass_cerrados",
+    "pytest -k expresion",
+    "pytest -m marcador",
+    "pytest --lf",
+    "pytest --ff",
+    "pytest --co",
+    "pytest --collect-only -q",
+    "pytest --tb=short",
+    "pytest -rA",
+    "pytest --maxfail=2",
+    "pytest --durations=10",
+    "pytest -W error",
+    "pytest --no-header",
+    "pytest --version",
+    "python3 -m pytest tests/ -q",
+])
+def test_pytest_lista_blanca_sigue_auto(comando):
+    """Lo declarado en `opciones_auto`, y las rutas/nodeid, no suman fricción."""
+    assert policy.clasificar(comando) == "auto"
+
+
 def _tool_call(comando):
     return {
         "role": "assistant",
