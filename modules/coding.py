@@ -33,7 +33,7 @@ from utils.aprobaciones import registrar as registrar_aprobacion
 from utils.call_llm import _setting
 from utils.estado_sesion import ultimo_usuario
 from utils.fs_tools import _resolve, escribir_atomico
-from utils.policy import clasificar_con_sesion, explicar, marcar_config_editada, segmentos
+from utils.policy import clasificar_con_sesion, explicar, marcar_config_editada, marcar_si_redirige_config, segmentos
 from utils.riesgo import registrar as registrar_riesgo
 from utils.terminal import colorear, highlight_diff, recortar_chars
 
@@ -317,6 +317,9 @@ def run_command(command):
     aprobado, motivo = _aprobar(command, nivel)           # auto / s-n / doble s-n
     if not aprobado:
         return motivo
+    # X115 por la puerta del shell: una redirección APROBADA a un archivo de
+    # configuración de pytest (echo … > tests/conftest.py) también suma el aviso.
+    marcar_si_redirige_config(command)
     return _ejecutar(command)                             # subprocess + timeout + recorte
 
 

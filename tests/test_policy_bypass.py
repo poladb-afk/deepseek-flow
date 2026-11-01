@@ -66,6 +66,22 @@ def test_pytest_fuera_de_la_lista_blanca_pregunta(comando):
     assert policy.clasificar(comando) == "preguntar"
 
 
+# X114b (R7): el shell saca comillas y escapes, así que `pytest "--pastebin=all"`
+# le entrega la opción real. Citar o escapar no puede convertirla en "ruta".
+@pytest.mark.parametrize("comando", [
+    'pytest "--pastebin=all"',
+    "pytest '--junitxml=x.xml'",
+    "pytest \\-\\-pastebin=all",
+    'pytest "-o" "addopts=--pastebin=all"',
+    'pytest "-p" "no:cacheprovider"',
+    'pytest "--basetemp=/tmp/x"',
+    'pytest "--debug"',
+])
+def test_pytest_citado_o_escapado_pregunta(comando):
+    """La lista blanca decide sobre el token sin comillas (el que ve pytest)."""
+    assert policy.clasificar(comando) == "preguntar"
+
+
 @pytest.mark.parametrize("comando", [
     "pytest",
     "pytest -q",
@@ -85,6 +101,11 @@ def test_pytest_fuera_de_la_lista_blanca_pregunta(comando):
     "pytest -W error",
     "pytest --no-header",
     "pytest --version",
+    "pytest -kexpresion",
+    "pytest -mfoo",
+    "pytest -Wignore::DeprecationWarning",
+    'pytest "tests/"',
+    'pytest -k "expresion"',
     "python3 -m pytest tests/ -q",
 ])
 def test_pytest_lista_blanca_sigue_auto(comando):
@@ -253,3 +274,18 @@ def test_escritura_rechazada_no_marca(tmp_path, monkeypatch):
     """(e) Un rechazo no toca el disco y tampoco marca."""
     _escribir(tmp_path, tmp_path / "conftest.py", False, monkeypatch)
     assert policy.clasificar_con_sesion("pytest -q") == "auto"
+
+
+# X115 por la puerta del shell: la redirección APROBADA a un archivo de
+# configuración de pytest también suma el aviso (Auditor, R7).
+@pytest.mark.parametrize(("destino", "aprobado", "marca"), [
+    ("tests/conftest.py", True, True),
+    ("tests/conftest.py", False, False),
+    ("modulo.py", True, False),
+])
+def test_redireccion_del_shell_marca_solo_config_aprobada(tmp_path, monkeypatch, destino, aprobado, marca):
+    """Un rechazo o un destino común no marcan; la config de pytest sí."""
+    monkeypatch.setattr(coding, "_approve", lambda pedido: aprobado)
+    monkeypatch.setattr(coding, "_ejecutar", lambda command: "ok")
+    coding.run_command(f"echo x > {tmp_path / destino}")
+    assert (policy.clasificar_con_sesion("pytest -q") == "preguntar") is marca

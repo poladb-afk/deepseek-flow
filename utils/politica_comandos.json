@@ -42,7 +42,6 @@
     "sort": {"flags": ["-o", "--output", "--compress-program"], "nota": "-o/--output escriben; --compress-program EJECUTA el programa que se le pasa (GNU sort, E1)"},
     "tail": {"flags": ["-f", "-F", "--follow", "--retry"], "nota": "-f/-F no terminan: en auto el agente queda colgado hasta TIMEOUT_S"},
     "git": {"flags": ["--output", "--ext-diff", "--textconv"], "nota": "--output escribe; --ext-diff/--textconv ejecutan programas configurados"},
-    "pytest": {"flags": ["-p", "--basetemp", "--rootdir", "-c", "--confcutdir", "-o", "--override-ini"], "nota": "-p carga plugins; --basetemp borra el directorio que le pases; -o/--override-ini reinyecta cualquier flag (E2)"},
     "ruff": {"flags": ["--fix", "--fix-only", "-w", "--watch", "--add-noqa", "-o", "--output-file"], "nota": "lo que ESCRIBE (--fix, --fix-only, --add-noqa, -o/--output-file) o cuelga (-w/--watch); `ruff check` a secas solo parsea (exp/92)"},
     "grep": {"flags": ["-R", "--dereference-recursive"], "nota": "-R/--dereference-recursive siguen symlinks (auditoría F2)"}
   },

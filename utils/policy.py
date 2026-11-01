@@ -219,11 +219,21 @@ def _empieza_con(tokens, prefijo):
     return tuple(tokens[: len(prefijo)]) == prefijo
 
 
+def _sin_comillas(tok):
+    """El token como lo recibe el programa: el shell saca comillas y escapes.
+    `pytest "--pastebin=all"` llega a pytest como `--pastebin=all`, así que la
+    lista blanca decide sobre ESTA forma (X114b, R7: sin esto, citar la opción
+    la volvía "ruta" y pasaba auto)."""
+    if len(tok) >= 2 and tok[0] == tok[-1] and tok[0] in "\"'":
+        tok = tok[1:-1]
+    return tok.replace("\\", "")
+
+
 def _opcion_fuera_de_lista(tokens):
     """True si la base tiene lista blanca de opciones y algún token no está en
-    ella (D11: lo no declarado pregunta). Lo que no empieza con `-` es ruta o
-    nodeid, como en la terminal. Una opción con valor lo admite separado o con
-    `=`; la corta también pegado (`-kexpr`, `-rA`)."""
+    ella (D11: lo no declarado pregunta). Lo que no empieza con `-` (ya sin
+    comillas) es ruta o nodeid, como en la terminal. Una opción con valor lo
+    admite separado o con `=`; la corta también pegado (`-kexpr`, `-rA`)."""
     prefijo = next((p for p in _WHITELIST_PREFIJOS if _empieza_con(tokens, p)), None)
     if prefijo is None:
         return False
@@ -234,7 +244,7 @@ def _opcion_fuera_de_lista(tokens):
     resto = tokens[len(prefijo):]
     i = 0
     while i < len(resto):
-        tok = resto[i]
+        tok = _sin_comillas(resto[i])
         if not tok.startswith("-") or tok in flags:
             i += 1
         else:
@@ -459,6 +469,21 @@ def marcar_config_editada(ruta):
     global _config_editada
     if Path(str(ruta)).name in _CONFIG_PYTEST:
         _config_editada = True
+
+
+# Destino de una redirección del shell (`>`, `>>`, `2>`, `&>`), con o sin
+# comillas. El descarte a /dev/null lo quita `_sin_dup_stderr` antes.
+_REDIRECCION = re.compile(r"(?:[12&]?>>?)\s*(\"[^\"]*\"|'[^']*'|\S+)")
+
+
+def marcar_si_redirige_config(comando):
+    """X115 por la puerta del shell: `echo … > tests/conftest.py` también
+    cambia cómo corre pytest. Se mira el destino de la redirección de un
+    comando YA APROBADO; se reusa la tokenización de la política."""
+    for destino in _REDIRECCION.findall(_sin_dup_stderr(str(comando))):
+        if Path(_sin_comillas(destino)).name in _CONFIG_PYTEST:
+            marcar_config_editada(destino)
+            return
 
 
 def _es_pytest(comando):

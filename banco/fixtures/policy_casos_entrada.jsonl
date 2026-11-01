@@ -212,46 +212,46 @@
 {"comando": "pip3", "nivel": "preguntar", "explicacion": "instala paquetes (modifica el entorno)"}
 {"comando": "pip3 x", "nivel": "preguntar", "explicacion": "instala paquetes (modifica el entorno)"}
 {"comando": "pytest", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
-{"comando": "pytest --basetemp x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest --basetemp=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest --confcutdir x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest --confcutdir=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest --override-ini x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest --override-ini=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest --rootdir x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest --rootdir=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest -c x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest -c=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest -o x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest -o=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest -p x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest -p=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest -qc x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest -qo x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "pytest -qp x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "pytest --basetemp x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest --basetemp=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest --confcutdir x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest --confcutdir=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest --override-ini x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest --override-ini=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest --rootdir x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest --rootdir=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest -c x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest -c=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest -o x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest -o=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest -p x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest -p=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest -qc x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest -qo x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest -qp x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
 {"comando": "pytest x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
 {"comando": "python -c", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
 {"comando": "python -c x", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
 {"comando": "python3 -c", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
 {"comando": "python3 -c x", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
 {"comando": "python3 -m pytest", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
-{"comando": "python3 -m pytest --basetemp x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest --basetemp=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest --confcutdir x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest --confcutdir=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest --override-ini x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest --override-ini=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest --rootdir x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest --rootdir=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest -c x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest -c=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest -o x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest -o=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest -p x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest -p=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest -qc x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest -qo x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
-{"comando": "python3 -m pytest -qp x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
+{"comando": "python3 -m pytest --basetemp x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest --basetemp=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest --confcutdir x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest --confcutdir=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest --override-ini x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest --override-ini=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest --rootdir x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest --rootdir=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest -c x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest -c=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest -o x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest -o=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest -p x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest -p=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest -qc x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest -qo x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest -qp x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
 {"comando": "python3 -m pytest x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
 {"comando": "python3 -m ruff check", "nivel": "auto", "explicacion": "lintea — parsea el código SIN ejecutarlo (escribe caché)"}
 {"comando": "python3 -m ruff check --add-noqa x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
