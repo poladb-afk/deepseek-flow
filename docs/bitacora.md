@@ -6181,9 +6181,11 @@ demás por D11.
 
 **Orden** (cola #3 y #12): los `.patch` de `docs/informes/` pesan 4,3 MB y
 duplican el historial de git (dos de X106 suman 1,3 MB); el
-`test_auditoria_2026_10_26.py` de `docs/informes/` duplica el de `tests/`;
-`requirements.txt` mezcla producto, desarrollo y opcionales; la bitácora
-pasa las 6000 líneas.
+`test_auditoria_2026_10_26.py` de `docs/informes/` casi duplica el de `tests/`
+(27 líneas de diferencia, 209 vs 232); `requirements.txt` mezcla producto,
+desarrollo y opcionales; la bitácora pasa las 6000 líneas. Medido después: los
+`.patch` solos son 3,4 MB (3.378.765 B); el 4,3 MB era el total de
+`docs/informes/` en X113 (`95c7efb`, 4.327.777 B).
 
 ---
 

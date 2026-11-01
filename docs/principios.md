@@ -104,7 +104,7 @@ escribirlas**: el operador las confirma (o corrige) al aplicar. Las de X116
 | Rich Sutton, *The Bitter Lesson* | http://www.incompleteideas.net/IncIdeas/BitterLesson.html | Las capas que tapan debilidades del modelo envejecen; lo general escala | D6, M2 |
 | mini-swe-agent | https://github.com/SWE-agent/mini-swe-agent | Un agente útil en ~100 líneas | D1 |
 | SWE-agent (Yang et al., 2024) | https://arxiv.org/abs/2405.15793 | La interfaz agente–computadora; el linter en la edición como guardrail medido | hook `py_compile`, D9 |
-| *Show and Tell* | https://arxiv.org/abs/2511.13972 | Instrucciones explícitas de concisión bajan 56–70 % los tokens del código | `DIRECTIVA_FORMA`, exp/51 |
+| *Show and Tell* | https://arxiv.org/abs/2511.13972 | Directivas explícitas de concisión bajan 56 % los tokens del código (2.560 → 1.113); directivas más ejemplos, 70 % (759) | `DIRECTIVA_FORMA`, exp/51 |
 | D. L. Parnas, *On the criteria to be used in decomposing systems into modules* (1972) | https://doi.org/10.1145/361598.361623 | Un módulo esconde una decisión de diseño | D2 |
 | Robert C. Martin, *The Clean Architecture* | https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html | La regla de dependencias: hacia adentro | D2 (F5) |
 | Gary Bernhardt, *Functional Core, Imperative Shell* | https://www.destroyallsoftware.com/screencasts/catalog/functional-core-imperative-shell | Núcleo puro, efectos en el borde | E5 (C2) |
