@@ -220,13 +220,10 @@ def _empieza_con(tokens, prefijo):
 
 
 def _sin_comillas(tok):
-    """El token como lo recibe el programa: el shell saca comillas y escapes.
-    `pytest "--pastebin=all"` llega a pytest como `--pastebin=all`, así que la
-    lista blanca decide sobre ESTA forma (X114b, R7: sin esto, citar la opción
-    la volvía "ruta" y pasaba auto)."""
-    if len(tok) >= 2 and tok[0] == tok[-1] and tok[0] in "\"'":
-        tok = tok[1:-1]
-    return tok.replace("\\", "")
+    """El token como lo recibe el programa: el shell saca TODAS las comillas y
+    los escapes, así que `pytest ""--pastebin=all""` también llega como
+    `--pastebin=all` y la lista blanca decide sobre esta forma (X114b, R7)."""
+    return tok.replace('"', "").replace("'", "").replace("\\", "")
 
 
 def _opcion_fuera_de_lista(tokens):
@@ -471,15 +468,18 @@ def marcar_config_editada(ruta):
         _config_editada = True
 
 
-# Destino de una redirección del shell (`>`, `>>`, `2>`, `&>`), con o sin
-# comillas. El descarte a /dev/null lo quita `_sin_dup_stderr` antes.
-_REDIRECCION = re.compile(r"(?:[12&]?>>?)\s*(\"[^\"]*\"|'[^']*'|\S+)")
+# Destino de una redirección del shell (`>`, `>>`, `>|`, `2>`, `&>`), con o
+# sin comillas. El descarte a /dev/null lo quita `_sin_dup_stderr` antes.
+_REDIRECCION = re.compile(r"(?:[12&]?>>?\|?)\s*(\"[^\"]*\"|'[^']*'|\S+)")
 
 
 def marcar_si_redirige_config(comando):
     """X115 por la puerta del shell: `echo … > tests/conftest.py` también
     cambia cómo corre pytest. Se mira el destino de la redirección de un
-    comando YA APROBADO; se reusa la tokenización de la política."""
+    comando YA APROBADO; se reusa la tokenización de la política.
+
+    Límite declarado: el alcance es la REDIRECCIÓN. `tee`, `cp` y
+    `python3 -c "open(...)"` escriben sin marca (decisión, no agujero tapado)."""
     for destino in _REDIRECCION.findall(_sin_dup_stderr(str(comando))):
         if Path(_sin_comillas(destino)).name in _CONFIG_PYTEST:
             marcar_config_editada(destino)
