@@ -13,8 +13,10 @@ precedencia declarada. El resto de la capa 1 sale de lo que el repo ya tenía
 escrito (README, `docs/design.md`, `docs/elegancia.md`, `AGENTS.md`) y de
 cómo el operador decidió en el refactor.
 
-[PENDIENTE: operador] ¿Estos cuatro son la lista completa de principios de
-diseño y el resto de la capa 1 queda como reglas derivadas, o falta alguno?
+**Decisión del operador, 2026-11-01: la lista está cerrada.** Los cuatro son
+la lista completa de principios de diseño y el resto de la capa 1 son reglas
+derivadas. Observabilidad no entra como quinto principio: ya vive como
+mecanismo con sus gates (A33, A34, X52).
 
 ## Precedencia cuando chocan
 
@@ -81,7 +83,7 @@ Acá, una línea por regla para tenerlas juntas.
 | M8 | **La historia como fue** | Los errores y las decisiones del operador que revierten las del autor quedan escritos tal cual | `tests/test_deriva_reglas.py` |
 | M9 | **Arreglar el instrumento antes que la métrica** | Si el instrumento no ve algo, se arregla aunque la métrica empeore (vocabulario 3 → 5 en X112) | `tests/test_ratchet_elegancia.py` |
 | M10 | **Borrar antes que agregar** | Un arreglo elegante borra un caso; lo que no decide nada se va | `codigo_muerto_privado`, `settings_leidos` |
-| M11 | **El denominador se declara y es simétrico** | Los casos que cuentan se fijan antes y son los mismos para los dos brazos; una celda sale del promedio solo por una causa que el brazo medido no puede provocar, y el agregado dice sobre cuántos casos calculó | sin gate (el denominador se publica donde se reporta tasa: `banco/bench_supervisor.py:441-446` ok/n/saltadas, `bench_juez.py:231-238` n y n_con_cita, `banco/probes/ab_skills.py:160` válidas contra el `n` de intentos en :257, `banco/probes/ab_novedad.py:100-104` sesiones OK, `banco/probes/verdict_juez.py:208-210` válidas/inválidas, `banco/probes/bench_fable.py:860-878` una fila por corrida; sigue abierto que la exclusión no la pueda provocar el brazo, X117) |
+| M11 | **El denominador se declara y es simétrico** | Los casos que cuentan se fijan antes y son los mismos para los dos brazos; una celda sale del promedio solo por una causa que el brazo medido no puede provocar, y el agregado dice sobre cuántos casos calculó | sin gate (el denominador se publica donde se reporta tasa: `banco/bench_supervisor.py:441-446` ok/n/saltadas, `bench_juez.py:231-238` n y n_con_cita, `banco/probes/ab_skills.py:160` válidas contra el `n` de intentos en :254, `banco/probes/ab_novedad.py:100-104` sesiones OK, `banco/probes/verdict_juez.py:208-210` válidas/inválidas, `banco/probes/bench_fable.py:860-878` una fila por corrida; sigue abierto que la exclusión no la pueda provocar el brazo, X117) |
 
 ## Fuentes
 
