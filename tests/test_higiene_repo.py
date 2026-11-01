@@ -70,3 +70,28 @@ def test_higiene_del_arbol_trackeado():
     assert not violaciones, "archivos trackeados que violan la higiene (X118): " + "; ".join(
         f"{rel} ({motivo})" for rel, motivo in sorted(violaciones.items())
     )
+
+
+@pytest.mark.parametrize(
+    ("rel", "motivo"),
+    [
+        ("docs/informes/probe.zip", "artefacto de corrida"),
+        ("docs/informes/probe.patch", "artefacto de corrida"),
+        ("docs/informes/calidad_2026-11-01.txt", "salida de gate"),
+        ("salidas/corrida.json", "carpeta de artefactos"),
+        ("memoria/nota.md", "carpeta de artefactos"),
+        ("trazas.db", "carpeta de artefactos"),
+        ("NOTAS.md", "markdown en la raíz"),
+    ],
+)
+def test_el_candado_rechaza_cada_familia(rel, motivo):
+    """Una por familia de la spec: el candado puede fallar y se ve en la suite."""
+    assert motivo in _motivo(rel)
+
+
+def test_el_candado_rechaza_un_archivo_de_mas_de_1_mb(monkeypatch):
+    """La regla de tamaño con el umbral bajado: no hace falta un archivo real de 1 MB."""
+    monkeypatch.setattr("test_higiene_repo.MAX_BYTES", 1)
+    motivo = _motivo("docs/bitacora.md")
+    assert motivo and motivo.startswith("supera")
+
