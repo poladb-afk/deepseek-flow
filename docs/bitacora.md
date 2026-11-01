@@ -6246,3 +6246,30 @@ ronda, el kernel hizo 412 llamadas con saldo 8 (K = 50, profundidad 2): las
 rondas se cobran, las copias no. Cobrando 1 por copia, las llamadas quedaron
 ≤ 2R + 1 en las cinco configuraciones probadas. El arreglo no entra en X118:
 queda como pendiente de P2.
+
+---
+
+## X119: cada copia paga su lugar en el saldo (2026-11-01)
+
+**El hallazgo** (X118): `Ledger.tomar()` cobraba las rondas, no las copias.
+Un mensaje con K llamadas a `dividir` pagaba 1 y arrancaba K loops. Con un LLM
+guionado que siempre se divide, saldo 8 y profundidad 2, el árbol hizo 412
+llamadas al modelo.
+
+**La raíz y el arreglo**: la copia es un costo del árbol igual que una ronda.
+`agente()` toma 1 del saldo antes de correr el loop hijo; sin saldo devuelve
+`NO_EJECUTADA`, la misma respuesta de la arista `cerrar`. Son dos líneas y
+ningún caso nuevo: el mismo `tomar()` de siempre, en el lugar donde nace el
+costo.
+
+**Medido** (`test_el_arbol_no_pasa_de_2r_mas_1_llamadas_con_cualquier_abanico`,
+cinco configuraciones de abanico, saldo y profundidad): con el kernel anterior
+el test falla en las cinco (18, 64, 52, 358 y 136 llamadas contra cotas de 17,
+17, 5, 17 y 33); con el arreglo pasa en las cinco. Un caso que tenía fijado el
+saldo viejo (`test_un_agente_es_una_tool_con_contexto_fresco_y_el_mismo_saldo`)
+pasa de 3 a 2 rondas restantes: la copia ahora paga la suya. Es el cambio de
+conducta que se buscaba, no un test debilitado.
+
+**Producción**: sin cambio. El único usuario del kernel es el supervisor y no
+tiene agentes entre sus tools. Afecta al exp/103: el `Ledger` de `dividir`
+ahora limita el abanico, no solo las rondas.

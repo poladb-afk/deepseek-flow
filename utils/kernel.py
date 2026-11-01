@@ -34,9 +34,11 @@ PARALELO_MAX = 8
 
 @dataclass
 class Ledger:
-    """Lo que le queda y lo que gastó TODO el árbol de agentes. Los hermanos
-    corren en hilos y comparten el saldo: chequear y descontar va bajo el lock
-    del árbol; sin él, dos toman la última ronda y el saldo queda negativo."""
+    """Lo que le queda y lo que gastó TODO el árbol de agentes. Cada ronda y
+    cada copia descuentan 1: con cualquier abanico y profundidad, las llamadas
+    al modelo no pasan de 2R + 1. Los hermanos corren en hilos y comparten el
+    saldo: chequear y descontar va bajo el lock del árbol; sin él, dos toman la
+    última ronda y el saldo queda negativo."""
 
     rondas: int
     llamadas: int = 0  # llamadas al modelo del árbol: el costo que las rondas no cuentan
@@ -229,6 +231,8 @@ def agente(nombre, descripcion, system, tools, parametro="pedido", recursivo=Fal
         pedido = str(args.get(parametro, "") if isinstance(args, dict) else "").strip()
         if not pedido:
             return f"ERROR: {nombre} necesita `{parametro}`"
+        if not ctx.ledger.tomar():  # una copia cuesta 1 del saldo del árbol, como una ronda
+            return NO_EJECUTADA
         respuesta, _ = correr(armar(pedido), pedido, tools, ctx.hijo())
         return respuesta
 

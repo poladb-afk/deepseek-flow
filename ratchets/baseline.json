@@ -432,7 +432,7 @@
         "tests/test_higiene_repo.py": 9,
         "tests/test_hitl.py": 23,
         "tests/test_inventario.py": 3,
-        "tests/test_kernel.py": 21,
+        "tests/test_kernel.py": 26,
         "tests/test_laya.py": 5,
         "tests/test_laya_cache_reintento.py": 5,
         "tests/test_llm.py": 13,
@@ -469,7 +469,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1096
+      "metrica": 1101
     },
     "texto_de_prompt": {
       "detalle": {

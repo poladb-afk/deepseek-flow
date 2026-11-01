@@ -948,7 +948,10 @@ como una `Tool` que otro loop puede llamar. Leyes por construcción:
   `banco/specs/exp103_fractal.md`.
 - **El saldo cuenta lo que cuesta**: `Ledger.tomar()` chequea y descuenta bajo
   un lock (los hermanos corren en hilos) y `Ledger.llamadas` cuenta las
-  llamadas al modelo de todo el árbol, que las rondas no ven.
+  llamadas al modelo de todo el árbol, que las rondas no ven. Cada copia que
+  arranca un agente también descuenta 1 (X119): sin saldo, la copia vuelve
+  como no ejecutada. Así las llamadas del árbol no pasan de 2R + 1 con
+  cualquier abanico y profundidad.
 - **Las tools del CORE pasan por `run_tool_call`** (`desde_fs`): hooks,
   denylist y contención de siempre.
 - **El proveedor se normaliza en el adaptador**: DSML → tool calls y

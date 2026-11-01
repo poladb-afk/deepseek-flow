@@ -4,6 +4,8 @@ import threading
 import time
 from types import SimpleNamespace as NS
 
+import pytest
+
 from utils.compaccion import validar_historial
 from utils.kernel import Ctx, Ledger, Tool, agente, correr, desde_fs
 
@@ -127,7 +129,7 @@ def test_un_agente_es_una_tool_con_contexto_fresco_y_el_mismo_saldo():
     ctx = Ctx(llm, ledger)
     respuesta, mensajes = correr("raíz", "auditá", [hijo], ctx, wait=0)
     assert respuesta == "síntesis: hallazgo en a.py:3"
-    assert ledger.rondas == 3                      # 1 del padre + 1 del hijo
+    assert ledger.rondas == 2                      # 1 del padre + 1 de la copia + 1 del hijo (P2, Ley 1)
     assert ctx.traza == [(1, "leer"), (0, "sub")]
     assert hijo.efecto == "lectura"
 
@@ -361,3 +363,21 @@ def test_la_profundidad_y_el_saldo_frenan_la_replicacion():
     _, ctx, hilos, _ = _sumar_del_1_al_16(saldo=3, max_profundidad=3)
     assert max(p for p, _ in ctx.traza) <= 1 and ctx.ledger.rondas <= 1
     assert len(hilos) < 1 + 2 * 14
+
+
+@pytest.mark.parametrize(("copias", "saldo", "max_profundidad"),
+                         [(2, 8, 3), (8, 8, 3), (50, 2, 1), (50, 8, 2), (8, 16, 3)])
+def test_el_arbol_no_pasa_de_2r_mas_1_llamadas_con_cualquier_abanico(copias, saldo, max_profundidad):
+    """P2, Ley 1: cada ronda y cada copia descuentan del mismo saldo. Antes las
+    copias no pagaban: con saldo 8 y 50 copias por ronda, el árbol hacía 412
+    llamadas al modelo (X118). Con el cobro, la cota no depende del abanico."""
+    def llm(mensajes, tools=None):
+        if tools and not any(m["role"] == "tool" for m in mensajes):
+            return msg(None, *[llamada("dividir", n, pedido="parte") for n in range(copias)])
+        return msg("ok")
+
+    dividir = agente("dividir", "d", "s", [], recursivo=True)
+    ctx = Ctx(llm, Ledger(saldo), max_profundidad=max_profundidad)
+    respuesta, mensajes = correr("s", "q", [dividir], ctx, wait=0)
+    assert respuesta == "ok" and validar_historial(mensajes) == []
+    assert ctx.ledger.llamadas <= 2 * saldo + 1 and ctx.ledger.rondas >= 0
