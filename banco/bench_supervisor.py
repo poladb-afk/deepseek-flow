@@ -422,25 +422,31 @@ def correr(tareas, vias=("supervisor", "plano"), runner_sup=None, runner_plano=N
 
 
 def _tasa(filas):
-    """Fracción de celdas `ok=True` sobre las EVALUABLES (ok no None). 0.0 si
-    no hay evaluables."""
+    """Fracción de celdas `ok=True` sobre las EVALUABLES (ok no None). None si
+    no hay evaluables: "sin datos" no es lo mismo que 0% de entregas."""
     evaluables = [f for f in filas if f["ok"] is not None]
-    return round(sum(1 for f in evaluables if f["ok"]) / len(evaluables), 4) if evaluables else 0.0
+    return round(sum(1 for f in evaluables if f["ok"]) / len(evaluables), 4) if evaluables else None
 
 
 def agregar(filas):
-    """Métricas agregadas por vía (calidad, llamadas, segundos y tope de
-    llamadas) y el veredicto agregado del bench."""
+    """Métricas agregadas por vía (calidad con su denominador, llamadas,
+    segundos y tope de llamadas) y el veredicto agregado del bench. `n` son
+    las celdas EVALUABLES y `saltadas` las que quedaron afuera: n + saltadas es
+    el total corrido, y así la calidad no puede publicarse sobre un conjunto
+    que el lector no ve (X117)."""
     por_via = {}
     for via in ("supervisor", "plano"):
         sub = [f for f in filas if f["via"] == via]
         if sub:
+            saltadas = sum(1 for f in sub if f["ok"] is None)
             por_via[via] = {
                 "calidad": _tasa(sub),
+                "ok": sum(1 for f in sub if f["ok"] is True),
+                "n": len(sub) - saltadas,
+                "saltadas": saltadas,
                 "llamadas": sum(f["llamadas"] for f in sub),
                 "seg": round(sum(f["seg"] for f in sub), 2),
                 "tope_llamadas": max(f["llamadas"] for f in sub),
-                "n": len(sub),
             }
     return {"por_via": por_via, "veredicto": veredicto_plano(por_via)}
 
@@ -448,10 +454,12 @@ def agregar(filas):
 def veredicto_plano(por_via):
     """Lectura del gate: si el plano EMPATA o GANA en calidad con menos
     llamadas → el despacho se simplifica. El supervisor gana solo si su
-    calidad es MAYOR."""
+    calidad es MAYOR. Una vía sin evaluables no se compara: "sin datos"."""
     sup = por_via.get("supervisor")
     plano = por_via.get("plano")
     if not sup or not plano:
+        return "sin datos"
+    if sup["calidad"] is None or plano["calidad"] is None:
         return "sin datos"
     if plano["calidad"] >= sup["calidad"]:
         return "plano empata o gana → el despacho se simplifica"
@@ -464,8 +472,10 @@ def comparar_baseline(nuevo, ruta=BASELINE):
     """Compara contra el baseline guardado si existe. Delta por vía y
     veredicto: PRIMERA CORRIDA (no había baseline), REGRESIÓN (bajó la
     calidad de alguna vía, tolerancia 1e-9) u OK. Un baseline ilegible o sin
-    métricas no cuenta como referencia."""
-    comparacion = {"veredicto": "PRIMERA CORRIDA", "anterior": None, "delta": {}}
+    métricas no cuenta como referencia. Una vía sin calidad (0 evaluables) no
+    se resta: se declara SIN REFERENCIA en vez de romper (X117)."""
+    comparacion = {"veredicto": "PRIMERA CORRIDA", "anterior": None, "delta": {},
+                   "sin_referencia": []}
     if not Path(ruta).is_file():
         return comparacion
     try:
@@ -477,17 +487,25 @@ def comparar_baseline(nuevo, ruta=BASELINE):
 
     comparacion["anterior"] = anterior
     delta = {}
+    sin_referencia = []
     regresion = False
     for via, actual in nuevo.get("por_via", {}).items():
         prev = anterior["por_via"].get(via)
         if not prev:
+            continue
+        if actual.get("calidad") is None or prev.get("calidad") is None:
+            sin_referencia.append(via)
             continue
         d = actual["calidad"] - prev["calidad"]
         delta[via] = round(d, 4)
         if d < -1e-9:
             regresion = True
     comparacion["delta"] = delta
-    comparacion["veredicto"] = "REGRESIÓN" if regresion else "OK"
+    comparacion["sin_referencia"] = sin_referencia
+    if sin_referencia and not delta:
+        comparacion["veredicto"] = "SIN REFERENCIA"
+    else:
+        comparacion["veredicto"] = "REGRESIÓN" if regresion else "OK"
     return comparacion
 
 
@@ -536,7 +554,10 @@ def informe_markdown(bench, comparacion, sha, fecha):
         if via not in por_via:
             continue
         m = por_via[via]
-        L.append(f"- **{via}**: calidad {pct(m['calidad'])} · "
+        calidad = "sin datos" if m["calidad"] is None else pct(m["calidad"])
+        plural = "" if m["saltadas"] == 1 else "s"
+        L.append(f"- **{via}**: calidad {calidad} ({m['ok']}/{m['n']} · "
+                 f"{m['saltadas']} saltada{plural} de {m['n'] + m['saltadas']}) · "
                  f"{m['llamadas']} llamadas remotas · {m['seg']:.1f}s "
                  f"(tope por tarea {m['tope_llamadas']})")
     L.append("")
@@ -560,6 +581,9 @@ def informe_markdown(bench, comparacion, sha, fecha):
                  f"· {a.get('veredicto', '?')}")
         for via, d in comparacion["delta"].items():
             L.append(f"- Delta calidad {via}: {d:+.4f}")
+        if comparacion["sin_referencia"]:
+            L.append(f"- Sin referencia (calidad sin datos): "
+                     f"{', '.join(comparacion['sin_referencia'])}")
     L.append("")
     fallos = [f for f in bench["filas"] if f["error"] or f["ok"] is False]
     saltadas = [f for f in bench["filas"] if f["ok"] is None]

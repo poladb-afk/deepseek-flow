@@ -591,6 +591,66 @@ def test_bench_supervisor_generar_escribe_md_y_jsonl(tmp_path):
     assert _baseline() == antes, "generar() sin --actualizar-baseline tocó el baseline real"
 
 
+def _fila_bench_sup(id_tarea, via, ok):
+    """Fila cruda del bench en la forma que arma `_celda`: los campos que leen
+    `agregar` y el informe."""
+    return {"id": id_tarea, "via": via, "ok": ok, "llamadas": 1, "seg": 0.5,
+            "motivo": None if ok is not None else "archivo ausente",
+            "error": False, "respuesta": ""}
+
+def test_bench_supervisor_publica_el_denominador_de_la_calidad(tmp_path):
+    """X117: la calidad se publica con sus evaluables y sus saltadas —3/5 no
+    se lee igual que 6/6— y los totales cierran (n + saltadas = corridas)."""
+    import sys
+
+    sys.path.insert(0, str(RAIZ / "banco"))
+    import bench_supervisor as bs
+
+    filas = [_fila_bench_sup(f"t{i}", "supervisor", ok)
+             for i, ok in enumerate([True, True, True, False, False, None])]
+    bench = {"filas": filas, **bs.agregar(filas)}
+    sup = bench["por_via"]["supervisor"]
+    assert (sup["ok"], sup["n"], sup["saltadas"]) == (3, 5, 1)
+    assert sup["calidad"] == 0.6
+    assert sup["n"] + sup["saltadas"] == 6
+
+    texto = bs.informe_markdown(bench, bs.comparar_baseline(bench, ruta=tmp_path / "no.json"),
+                                "deadbeef", "2026-11-01")
+    assert "calidad 60.0% (3/5 · 1 saltada de 6)" in texto
+
+def test_bench_supervisor_sin_evaluables_es_sin_datos_no_cero(tmp_path):
+    """Un brazo con todas las celdas saltadas no saca 0%: publica "sin datos",
+    el veredicto no compara y contra un baseline se declara sin referencia."""
+    import json as _json
+    import sys
+
+    sys.path.insert(0, str(RAIZ / "banco"))
+    import bench_supervisor as bs
+
+    filas = [_fila_bench_sup("t1", "supervisor", None),
+             _fila_bench_sup("t1", "plano", True)]
+    bench = {"filas": filas, **bs.agregar(filas)}
+    sup = bench["por_via"]["supervisor"]
+    assert (sup["calidad"], sup["n"], sup["saltadas"]) == (None, 0, 1)
+    assert bench["veredicto"] == "sin datos"
+
+    texto = bs.informe_markdown(bench, bs.comparar_baseline(bench, ruta=tmp_path / "no.json"),
+                                "deadbeef", "2026-11-01")
+    assert "calidad sin datos (0/0 · 1 saltada de 1)" in texto
+    assert "calidad 0.0%" not in texto
+
+    ruta = tmp_path / "bench_supervisor.json"
+    ruta.write_text(_json.dumps({"por_via": {"supervisor": {"calidad": 1.0},
+                                             "plano": {"calidad": 1.0}}}), encoding="utf-8")
+    comp = bs.comparar_baseline(bench, ruta=ruta)
+    assert comp["sin_referencia"] == ["supervisor"]
+    assert comp["delta"] == {"plano": 0.0}
+    assert "- Sin referencia (calidad sin datos): supervisor" in bs.informe_markdown(
+        bench, comp, "deadbeef", "2026-11-01")
+    assert bs.comparar_baseline({"por_via": {"supervisor": {"calidad": None}}},
+                                ruta=ruta)["veredicto"] == "SIN REFERENCIA"
+
+
 def test_bench_cita_ok_ventana_de_grading(tmp_path):
     """A65: el grading ahora tolera ±VENTANA_GRADING líneas (drift del
     modelo): cita a 10 líneas de la evidencia → True; a 11 → False."""

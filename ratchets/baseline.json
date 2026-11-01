@@ -397,7 +397,7 @@
         "tests/test_absurdos_funcionales.py": 44,
         "tests/test_auditoria_2026_10_26.py": 39,
         "tests/test_banco.py": 21,
-        "tests/test_bench.py": 18,
+        "tests/test_bench.py": 20,
         "tests/test_caracterizacion_chat.py": 12,
         "tests/test_chat_flujo.py": 24,
         "tests/test_citas.py": 7,
@@ -468,7 +468,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1027
+      "metrica": 1029
     },
     "texto_de_prompt": {
       "detalle": {

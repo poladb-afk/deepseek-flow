@@ -57,12 +57,21 @@ script (dict id → callable(texto) -> bool) — código puro, testeable.
   `utils.call_llm.call_llm_agent` con contadores (decorador en el bench;
   el contador es función pura testeable).
 - **tiempo de reloj** por tarea.
-- **calidad**: la verificación determinista (1/0) por tarea.
+- **calidad**: la verificación determinista (1/0) por tarea, promediada sobre
+  las celdas EVALUABLES. El agregado publica `ok` (celdas True), `n`
+  (evaluables) y `saltadas` (celdas sin verificación): `n + saltadas` son las
+  celdas corridas, así la calidad no se lee sobre un conjunto invisible
+  (X117). Sin evaluables la calidad es "sin datos", no 0%.
+
+Una celda sale del denominador solo cuando el archivo que verifica la tarea no
+existe al graduar (se salta con motivo, como ya queda pre-registrado para
+`conteo-routing`); la entrega fallida o vacía NO se salta: gradúa 0.
 
 Salida: markdown `salidas/evals/bench_supervisor_FECHA.md` con la tabla
-(tarea | vía | ok | llamadas | seg) + totales y el veredicto agregado, y el
-JSONL crudo al lado. Baseline al estilo de la casa: comparar sin pisar
-(`--actualizar-baseline` explícito; default es solo comparar/informar).
+(tarea | vía | ok | llamadas | seg) + totales (`calidad 60.0% (3/5 · 1 saltada
+de 6)`) y el veredicto agregado, y el JSONL crudo al lado. Baseline al estilo
+de la casa: comparar sin pisar (`--actualizar-baseline` explícito; default es
+solo comparar/informar); una vía sin evaluables se declara sin referencia.
 
 Contención: un crash de una vía en una tarea NO tira el bench (ese celda
 queda "error" con el motivo, patrón exp/20).
