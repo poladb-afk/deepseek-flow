@@ -1,0 +1,523 @@
+--- a/.github/workflows/calidad.yml
++++ b/.github/workflows/calidad.yml
+@@ -17,7 +17,7 @@
+       # Dependencias LIVIANAS: es requirements.txt sin las pesadas/opcionales
+       # (laya, fastembed, fastmcp, ddgs). La suite las saltea o las simula —
+       # verificado en un venv mínimo: 517 passed, 1 skipped, 0 failed.
+-      - run: pip install pocketflow openai pyyaml numpy requests pytest "ruff==0.17.1"
++      - run: pip install "pocketflow==0.0.3" openai pyyaml numpy requests pytest "ruff==0.17.1"
+       # OJO: no forzar TRACE=0 ni THREAD_PERSIST=0. Los tests de persistencia y
+       # de traza los encienden ellos mismos, y apagarlos desde el entorno deja
+       # 10 rojos (medido). PREGUNTAS_LOG=0 alcanza para no escribir artefactos.
+--- /dev/null
++++ b/banco/specs/exp103_fractal.md
+@@ -0,0 +1,82 @@
++# exp/103 — el loop fractal contra el loop solo, con el presupuesto igualado (pre-registro)
++
++Escrito ANTES de correr nada (M3). Si algo cambia al correrlo, va como desvío
++declarado al final, sin retocar los criterios.
++
++## La pregunta
++
++`utils/kernel.py` ya puede fractalizarse (X116: `agente(..., recursivo=True)`).
++¿Le conviene al chat que el modelo pueda replicarse? La evidencia de 2026 tira
++para los dos lados: replicarse paga en trabajo **ancho** que excede el contexto
++(RLM, arXiv 2512.24601; RAH, arXiv 2606.13643; RAO, arXiv 2605.06639) y daña en
++trabajo **secuencial** o cuando el agente solo ya resuelve bien (Kim et al.,
++*Towards a Science of Scaling Agent Systems*, 2026: −39 % a −70 % en
++secuencial). Y con el presupuesto igualado, el agente solo iguala o gana
++(arXiv 2604.02460): sin control de cómputo, una mejora del fractal puede ser
++solo más tokens.
++
++## Brazos (en la rama `exp/103`; nada entra al producto antes del veredicto, M4)
++
++| Brazo | Qué es |
++|---|---|
++| A | El chat de hoy: `SKILLS=0`, `MAX_TOOL_ROUNDS=8` |
++| A+ | El control de cómputo: A con `MAX_TOOL_ROUNDS=16` (el techo que F suma entre padre e hijos) |
++| F | A más una tool `dividir`: `agente(recursivo=True)` con `read_file`, `list_files` y `search_files` por `desde_fs` (solo lee, así que las copias hermanas van en paralelo), `max_profundidad=2` |
++
++`dividir` vive en un módulo de la rama (`modules/dividir.py`); quitarlo es
++borrarlo. Su descripción dice qué hace, no cuándo conviene: decidir si se
++divide es del modelo (D5, y la regla de no arreglar conductas por prompt).
++
++## Escenarios (los de `banco/fable/escenarios`, puntuador determinista de `banco/probes/bench_fable.py`)
++
++| Familia | Escenarios | Por qué |
++|---|---|---|
++| Ancha | `s17-scale-audit` (20 módulos, 5 bugs), `s13-twin-fleet` (barrido de 5 copias), `s19-real-audit-2`, `s20-real-audit-3` | Partes independientes: el terreno de RLM y RAH |
++| Secuencial | `s2-surprise-trap`, `s3-utc-bucketing`, `s10-recall-trap`, `s9-unauthorized-action` | Cada paso depende del anterior; s9 además mide seguridad |
++
++Tres seeds por brazo y escenario: 3 × 8 × 3 = 72 corridas, con
++`correr_uno(..., salir=True)` para tener la línea `[tokens] sesión`.
++
++## Cómo se iguala el presupuesto
++
++El costo es el **total de tokens de la sesión** (prompt + completion), que
++`utils/call_llm.py` acumula por proceso: las llamadas de las copias de
++`dividir` corren en el mismo proceso y cuentan. Las rondas no son la medida:
++una copia que cierra sin tools gasta una llamada que ninguna ronda registra
++(por eso `Ledger.llamadas`, X116).
++
++## Criterios (todos, o no pasa)
++
++1. **Adopción**: `dividir` se llama en al menos 2 de las 3 seeds de cada
++   escenario ancho. Si el modelo no la usa, no hay nada que medir (exp/97).
++2. **Ancha, contra el control**: la media de `correct_action` de F supera a la
++   de A+ por ≥ +0,33 (un escalón en una de cada tres seeds) con tokens de F
++   ≤ 1,0 × los de A+. Ganarle solo a A no alcanza: puede ser cómputo.
++3. **Secuencial, sin daño**: la media de `correct_action` de F no baja de la de
++   A, y sus tokens no pasan de 1,2 × los de A.
++4. **Seguridad**: en `s9-unauthorized-action`, F hace 0 deploys en las tres
++   seeds (las copias solo leen: si aparece uno, es un bug del brazo).
++
++## Decisión atada al resultado
++
++- **Pasa**: `dividir` entra como módulo; S9b lo integra con el saldo único del
++  chat (hoy el padre y el hijo tienen techos separados, ver desvío 1).
++- **No pasa**: `recursivo` se queda como primitiva del kernel con sus tests,
++  sin uso en producción (como `agente()` después de H3-B), y la rama se borra.
++  Lo que no pasó no vuelve como parche (M4).
++
++## Desvíos declarados desde el inicio
++
++1. Hasta S9b el chat no corre sobre el kernel: el `Ledger` de `dividir` es
++   propio (8 rondas), no el del chat. Por eso el criterio compara tokens
++   totales y no rondas.
++2. Los puntuadores de fable deciden por keywords y citas: son el instrumento
++   de siempre (exp/72–80), no se tocan para este experimento.
++
++## Fuera de este pre-registro
++
++- `debate`: la medición de 2026 lo da como más caro sin más precisión
++  (arXiv 2606.05670: 1,39 × tokens con la precisión abajo). Va en su propio
++  pre-registro: debate contra una sola llamada con el mismo presupuesto.
++- Escrituras en paralelo con un worktree por copia (Plasma `fractal`,
++  TinyAGI `fractals`): sin evidencia de que hagan falta acá.
+--- a/docs/bitacora.md
++++ b/docs/bitacora.md
+@@ -6184,3 +6184,38 @@
+ `test_auditoria_2026_10_26.py` de `docs/informes/` duplica el de `tests/`;
+ `requirements.txt` mezcla producto, desarrollo y opcionales; la bitácora
+ pasa las 6000 líneas.
++
++---
++
++## X116: la definición de elegancia y el kernel que se fractaliza (2026-10-31)
++
++**La definición** (`docs/elegancia.md`, sección "Definición"): lo que
++PocketFlow, 12-Factor Agents y Laya tienen en común, en nueve patrones (P1–P9),
++más las tres prohibiciones del operador como prueba que se puede correr.
++F/C siguen siendo los gates; cada patrón dice cuál lo cubre.
++
++**El kernel** (`utils/kernel.py`), sin cambio de conducta en producción
++(el supervisor declara el efecto de todas sus tools):
++
++- `Tool.efecto` por default es `escritura`. Antes era `lectura` y el
++  comentario decía lo contrario: una tool nueva sin declarar corría en
++  paralelo (P8, D11).
++- `Ledger.tomar()` chequea y descuenta bajo un lock. Medido sin el lock:
++  con un `time.sleep(0)` entre el chequeo y la resta, 16 hilos sobre 50
++  rondas tomaron 56–58 (saldo −6 a −8); sin el sleep el GIL lo tapó en 20 de
++  20 corridas. Es una carrera real y rara: el test fija la exclusión, no la
++  frecuencia.
++- `Ledger.llamadas`: las llamadas al modelo del árbol. Una copia que cierra
++  sin tools gasta una llamada que ninguna ronda cuenta.
++- `agente(..., recursivo=True)`: el agente se suma a sus propias tools. Un
++  loop, N instancias; los frenos son datos (profundidad, saldo y efecto).
++  Guionado: 16 números → 2, 4 y 8 copias por nivel, hermanas en paralelo;
++  con profundidad 1 la copia se niega y con saldo 3 el árbol no pasa de dos
++  niveles, y la suma sale bien en los tres casos (`tests/test_kernel.py`).
++- `pocketflow==0.0.3` fijo: el harness depende de `_run`, `_orch` y
++  `successors` (`utils/tracing.py`, `effective_n.py`, `replay.py`).
++
++**Lo que no se hizo**: el chat sigue sin correr sobre el kernel (S9b). Si le
++conviene replicarse se decide midiendo: `banco/specs/exp103_fractal.md`, con
++el control de cómputo (A+) que pide la evidencia de 2026 con el presupuesto
++igualado.
+--- a/docs/design.md
++++ b/docs/design.md
+@@ -937,9 +937,18 @@
+   por la arista `cerrar`, que la responde como no ejecutada (historial válido).
+ - **Paralelo solo para lecturas** (`Tool.efecto`): si todas las llamadas de una
+   ronda leen, corren en hilos (`PARALELO_MAX=8`); si alguna escribe, todas en
+-  orden. Un agente es de lectura si todas sus tools lo son.
++  orden. Un agente es de lectura si todas sus tools lo son. Lo no declarado
++  escribe (X116: el default era `lectura` y una tool nueva corría en paralelo).
+ - **Profundidad acotada** (`max_profundidad=1`): un agente puede llamar
+   agentes; esos no (evidencia: RLM con profundidad 2 empeora).
++- **Recursión acotada** (X116): `agente(..., recursivo=True)` se suma a sus
++  propias tools y el MISMO loop se replica. Los frenos son datos del árbol
++  (profundidad, saldo y efecto) y el caso base es la arista de siempre: sin
++  saldo, la copia responde sin tools. Si conviene usarlo lo decide
++  `banco/specs/exp103_fractal.md`.
++- **El saldo cuenta lo que cuesta**: `Ledger.tomar()` chequea y descuenta bajo
++  un lock (los hermanos corren en hilos) y `Ledger.llamadas` cuenta las
++  llamadas al modelo de todo el árbol, que las rondas no ven.
+ - **Las tools del CORE pasan por `run_tool_call`** (`desde_fs`): hooks,
+   denylist y contención de siempre.
+ - **El proveedor se normaliza en el adaptador**: DSML → tool calls y
+--- a/docs/elegancia.md
++++ b/docs/elegancia.md
+@@ -9,6 +9,37 @@
+ > Si el fix suma una palabra a una lista, una regex o una frase al prompt, no
+ > fue a la raíz.
+ 
++## Definición (X116)
++
++> **Funcional:** el comportamiento sale de una primitiva que se contiene a sí
++> misma (agente = Flow = Node = Tool), con las decisiones como datos tipados,
++> tomadas aparte de los efectos y sobre un solo estado serializable.
++>
++> **De código:** las variaciones salen de componer y de datos, no de casos;
++> cada cambio borra algo, falla hacia lo seguro y declara sus límites.
++
++La definición es lo que las tres fuentes de diseño tienen en común:
++
++| # | Patrón | PocketFlow | 12-Factor Agents | Laya | Acá |
++|---|---|---|---|---|---|
++| P1 | Una primitiva que se contiene a sí misma | `Flow` hereda de `BaseNode`: un flujo es un nodo | el agente como `foldl` (factor 12) | tres tipos (`noul`, `choice`, `score`) para todo `if` semántico | F4 |
++| P2 | El control es un dato | `post` devuelve la acción; `-` y `>>` arman la topología | intents como unión tipada (factores 1 y 4) | `choice` como arista condicional | F3 |
++| P3 | Decidir no es ejecutar | `exec` no recibe `shared`; el retry envuelve solo a `exec` | "the LLM decides, your code controls" | devuelve una distribución; actúa el que llama | C2 |
++| P4 | Un solo estado serializable | `shared` | el thread; el estado de ejecución se deriva (factor 5) | sin estado: estado → respuesta | F3 |
++| P5 | Composición ortogonal, no casos | Batch × Async × Parallel por herencia | HITL, errores y pausa: eventos del mismo loop | hooks: cualquier subconjunto de métodos | C1 |
++| P6 | Lo particular es dato del que llama | `params` y utilidades propias | own your prompts; el pre-fetch como dato (apéndice 13) | la pregunta es un dict | F1 |
++| P7 | Elegancia por borrado | sin proveedores ni dependencias | el diff del pre-fetch: casi todo `-` | no genera texto: nada que parsear | regla madre |
++| P8 | El default es el seguro | `exec_fallback`; aviso de arista faltante | escalar al humano | se abstiene; un hook sin definir es no-op | F6, `Tool.efecto` |
++| P9 | Los límites se declaran | `warnings.warn` en vez de cortar callado | agentes de 3 a 20 pasos (factor 10) | publica su ECE y su recorte de contexto | C5 |
++
++Las tres prohibiciones del operador, como prueba que se puede correr:
++
++| Prohibido | Prueba | Lo legítimo |
++|---|---|---|
++| Parche | ¿El diff borra un caso o lo agrega? ¿Con otro modelo, seguiría haciendo falta? | Nada: si la medición obliga a dejarlo, es deuda medida con su A/B de salida |
++| Hardcodeo | ¿Hay un literal que sirve para un caso particular (palabra, extensión, pista)? | En el borde, como datos y con dueño (`utils/politica_comandos.json`, `utils/proveedor.py`) |
++| Arreglo por system prompt | Borrá la frase: ¿un mecanismo (tool, política, nodo, gate) sostiene la conducta? | El prompt describe entorno y formato |
++
+ ## Elegancia funcional
+ 
+ El comportamiento sale de pocos mecanismos generales, cada decisión la toma
+@@ -19,7 +50,7 @@
+ | F1 | **Generalidad**: ningún mecanismo conoce casos particulares | ¿Si cambio idioma, redacción o dominio del pedido, la decisión sigue andando? | `vocabulario_hardcodeado` |
+ | F2 | **Decisión en su lugar**: lo exacto lo cuenta el código, lo semántico lo juzga un modelo, lo irreversible lo decide un humano | ¿Hay una regex juzgando significado? | `vocabulario_hardcodeado` |
+ | F3 | **El grafo dice la verdad**: el control vive en las aristas | ¿Se explica un turno leyendo `python3 main.py grafo`? | `nodos_largos`, `test_el_diagrama_del_readme_es_el_grafo_del_chat` |
+-| F4 | **Fractal**: una primitiva a toda escala (chat = sub-agente = supervisor) | ¿Una política nueva llega gratis a los sub-agentes? | fase 2 (un solo loop) |
++| F4 | **Fractal**: una definición del loop, N instancias (chat = sub-agente = supervisor = copia de sí mismo); difieren solo en datos y la recursión tiene tres frenos: profundidad, saldo y efecto | ¿Una política nueva llega gratis a los sub-agentes? ¿Anidar el loop en sí mismo necesita código nuevo? | `test_un_agente_que_se_llama_a_si_mismo_reparte_y_suma`; el chat, con S9b |
+ | F5 | **Dependencias hacia adentro**: los módulos dependen del CORE; el CORE no los conoce | ¿Borrar cualquier archivo de `modules/` deja el chat andando? | `core_importa_modulos` |
+ | F6 | **Errores reversibles**: el smart-if decide perillas cuyo error se autocorrige, nunca le quita capacidades al agente | ¿Si Laya se equivoca, el siguiente paso lo corrige solo? | fase 3 (`banco/specs/fase3b_4a.md`) |
+ | F7 | **Producto ≠ laboratorio**: el producto no sabe que existe el banco | ¿Aparecen `banco`, `BANCO`, `DELEGADO` o `GROUND-TRUTH` en producción? | `producto_conoce_lab` |
+@@ -48,7 +79,10 @@
+ quitar tools en caliente); Agent Skills (divulgación progresiva por
+ descripción); la bitter lesson aplicada a harnesses (las capas que tapan
+ debilidades del modelo envejecen); mini-swe-agent (~100 líneas de clase de
+-agente); SWE-agent (el linter en la edición como guardrail medido). Detalle y
++agente); SWE-agent (el linter en la edición como guardrail medido). El
++fractal (X116): RAO, RAH y RLM a favor de un loop que se replica; en contra,
++los estudios de escala de 2026 con el presupuesto igualado (el A/B que lo
++decide para este harness: `banco/specs/exp103_fractal.md`). Detalle y
+ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91). Con URL y la capa a la que fundamenta cada una: `docs/principios.md`.
+ 
+ ## Línea de base (fase 0, 2026-10-27)
+--- a/docs/estado.md
++++ b/docs/estado.md
+@@ -136,6 +136,7 @@
+ | X87 | — | El camino para que H3-G2 gane es reentrenar `router_voto` (c01 0,94 y c02 0,76 directo), pero el gate usa los 18 casos conocidos del bench: si entran al entrenamiento, aunque sea reescritos, el bench mide memoria y no aprendizaje (misma familia que X82) | ✅ 2026-10-27 (corrido con r3: NO GANA, X89) | `banco/specs/voto_reentreno.md`: anti-fuga determinista (`banco/probes/voto_antifuga.py`, Jaccard ≥ 0,6 contra bench + control), control fuera de muestra `banco/voto_control.jsonl` (≥10 herramientas + ≥4 trampas inversas, etiqueta humana, commiteado ANTES de generar datos) y `bench_voto.veredicto_reentreno` (H3-G2 + control sin falsos directos + trampas bien + 0 fugas) | (retirados con el voto en X106) |
+ | X88 | — | El smoke del operador mostró que el voto de producción pasaba el control fuera de muestra entero (0 falsos directos, 6/6 trampas): con ese control, un checkpoint que memorice c01/c02 se habría promovido. Además, el control de `7897a4f` lo escribió un agente, no el operador | ✅ 2026-10-27 (control firmado; discriminó con r2: 9 falsos directos) | Sexta condición `control_discrimina` en `bench_voto.veredicto_reentreno`: el voto de producción tiene que fallar al menos un caso del control, registrado antes de entrenar con `--registrar-baseline` (`banco/voto_control_baseline.json`, atado al sha256 del control). El control se amplía con las familias de c01/c02 y lo firma el operador | (retirados con el voto en X106) |
+ | X89 | — | H3-G2 no ganó con r2 ni con r3 (reentreno pre-registrado: 858 casos, 0 fugas, held-out 28/30; c02 sigue en directo y el control tiene 5 falsos directos: k13 k15 k21 k22 f04). La recencia ("último X") no se movió con datos: es el límite de familia que exp/46 había declarado (sin fechas en el prompt) | ✅ 2026-10-27 (decisión del operador) | H3-G2 cerrado: las reglas temporal e imperativo pasan a ser cobertura permanente. Se borra el patch aparcado del borrado (`h3g_borrar_reglas.patch`). r3 queda como candidato local sin promover: promoverlo es otra decisión con su propio criterio, y exigiría recalibrar `LAYA_CALIBRACION_VOTO` | (retirado con el voto en X106) |
++| X116 | — | El kernel fractal no se podía fractalizar del todo y tenía dos defaults inseguros: una tool sin `efecto` declarado corría en paralelo (el default era `lectura`, contra su propio comentario), `Ledger.tomar()` chequeaba y descontaba sin lock con hermanos en hilos, y el saldo contaba rondas pero no llamadas al modelo | ✅ 2026-10-31 | `utils/kernel.py`: `efecto="escritura"` por default, `Ledger` con lock y `llamadas`, `agente(..., recursivo=True)`; `pocketflow==0.0.3` fijo; el uso en el chat se decide en `banco/specs/exp103_fractal.md` | `test_una_tool_sin_efecto_declarado_escribe_y_corre_en_orden`, `test_el_saldo_se_toma_bajo_el_lock_del_arbol`, `test_un_agente_que_se_llama_a_si_mismo_reparte_y_suma`, `test_la_profundidad_y_el_saldo_frenan_la_replicacion` |
+ | X114 | — | Auditoría del operador sobre X113 (reproducida por el autor): `pytest --pastebin=all` (sube la salida a bpaste.net), `--junitxml`/`--junit-xml` y `--report-log` (escriben en cualquier ruta), `--debug` y `--cache-clear` corren en `auto`. Causa: los flags de pytest son una lista negra y pytest tiene cientos de opciones más las de cada plugin | ⏳ abierto: lo cierra X114 (handoff, cola #2: lista blanca de opciones para el `auto` de pytest) | reproducido sobre el zip de X113 con `utils.policy.clasificar` | — |
+ | X115 | — | A45 sigue abierto por otro camino: `conftest.py`, `pytest.ini`, `setup.cfg`, `tox.ini` o `[tool.pytest]` de `pyproject.toml` pueden inyectar `addopts = --pastebin=all` o `-p plugin`; si el agente los edita (con un s/n aprobado), el siguiente `pytest` en `auto` lo ejecuta sin preguntar | ⏳ abierto: lo cierra X114 (handoff, cola #2: tras escribir esos archivos, el próximo `pytest` pregunta) | razonamiento sobre `utils/policy.py` y la mecánica de pytest; sin reproducción en vivo | — |
+ | X113 | — | No había un lugar que juntara los principios del harness (diseño repartido en cuatro docs, método sin escribir) ni un handoff para una sesión nueva: el contexto vivía solo en las conversaciones | ✅ 2026-10-31 | `docs/principios.md` (tres capas con gate, precedencia y fuentes) y `docs/handoff.md` (estado, cola, decisiones, aprendizajes, método, glosario); los dos en `DOCS_DE_ARRANQUE` | `test_handoff_y_principios_citan_rutas_y_tests_que_existen`, `test_cada_principio_nombra_su_gate_o_dice_sin_gate`, `test_cada_fuente_tiene_url_y_dice_donde_se_aplica` |
+--- a/docs/handoff.md
++++ b/docs/handoff.md
+@@ -5,7 +5,7 @@
+ `docs/bitacora.md`. Acá va lo que hoy solo vivía en las conversaciones.
+ `tests/test_handoff.py` verifica que lo que cita exista.
+ 
+-**Al día con:** X113, aplicado sobre X112 sobre `cca1f28`, más la auditoría del
++**Al día con:** X116 (la definición de elegancia y el kernel fractal) sobre X113, aplicado sobre X112 sobre `cca1f28`, más la auditoría del
+ operador sobre ese árbol (2026-10-31): dos hallazgos de seguridad abiertos
+ (X114 y X115 en `docs/estado.md`) y cuatro de orden, todos en la cola.
+ 
+@@ -117,6 +117,7 @@
+ | 10 | S3: esquema de tools fijo y cierre por arista | mínimo | **bloqueado** | la prueba de `tool_choice="none"` en DeepSeek |
+ | 11 | Fase 6: piezas sueltas | no | — | 10 nodos largos, `TOOL_CONTEXTO_RE` |
+ | 12 | Archivar `docs/bitacora.md` por mes (6145 líneas) | no | después de 1–5 | mueve rutas que citan el tablero y los principios: el gate lo tiene que ver |
++| 13 | exp/103: el loop fractal contra el loop solo, con el presupuesto igualado | **sí** | 1 (con el desvío declarado: el saldo único llega con 9) | `banco/specs/exp103_fractal.md` |
+ 
+ ### X114 en detalle (lo que la sesión nueva escribe primero)
+ 
+--- a/docs/principios.md
++++ b/docs/principios.md
+@@ -28,7 +28,7 @@
+ |---|---|---|---|---|---|
+ | D1 | **Minimalista (KISS)** | El mínimo que funciona: un framework de 100 líneas, dependencias mínimas y nada especulativo | Cada línea y cada setting es algo que alguien tiene que entender | `texto_de_prompt`, `settings_leidos`, `tests/test_estilo_humano.py` | Seguridad (la falla cerrada de la política) y la medición |
+ | D2 | **Modular** | CORE + módulos: un módulo es un archivo con `TOOLS` e `IMPL` (y `HOOKS`); agregar es dejarlo y quitar es borrarlo | Una capacidad se suma o se saca sin tocar el CORE | `core_importa_modulos`, `tests/test_core_sin_modulos.py` | Nada: el CORE nunca nombra un módulo concreto |
+-| D3 | **Fractal** | Una primitiva a toda escala: agente = Flow = Node = Tool; chat = sub-agente = supervisor, con un solo saldo | Una política nueva llega gratis a todas las escalas | `tests/test_kernel.py` (el chat todavía no es `kernel.loop`: lo completa S9b) | La medición: un sub-agente entra solo si mejora algo (el explorador se borró en H3-B) |
++| D3 | **Fractal** | Una definición del loop, N instancias: agente = Flow = Node = Tool; chat = sub-agente = supervisor = copia de sí mismo (`recursivo`), con un solo saldo y la recursión acotada por datos (profundidad, saldo, efecto) | Una política nueva llega gratis a todas las escalas | `tests/test_kernel.py` (el chat todavía no es `kernel.loop`: lo completa S9b) | La medición: un sub-agente entra solo si mejora algo (el explorador se borró en H3-B) |
+ | D4 | **El grafo dice la verdad** | El control vive en las aristas; el `shared` guarda solo datos JSON | Un turno se explica leyendo `python3 main.py grafo` | `nodos_largos`, `test_el_diagrama_del_readme_es_el_grafo_del_chat` | El bookkeeping (checkpoint, traza) puede vivir en `post`: no decide |
+ | D5 | **Cada decisión en su lugar** | Lo exacto lo cuenta el código, lo semántico lo juzga un modelo, lo irreversible lo decide un humano | Una regex juzgando significado falla con otro idioma o redacción | `vocabulario_hardcodeado` | Nada |
+ | D6 | **Generalidad** | Ningún mecanismo conoce casos particulares | Lo particular envejece y no transfiere | `vocabulario_hardcodeado` | Seguridad: la whitelist de comandos es particular a propósito (datos, no vocabulario: `utils/politica_comandos.json`) |
+@@ -81,7 +81,8 @@
+ 
+ Las del repo hasta X112 más las que fundamentan principios que no tenían
+ fuente escrita. **Las URL agregadas en X113 no se verificaron en línea al
+-escribirlas**: el operador las confirma (o corrige) al aplicar.
++escribirlas**: el operador las confirma (o corrige) al aplicar. Las de X116
++(Laya y la evidencia del fractal) salen de una búsqueda del 2026-10-31.
+ 
+ | Fuente | URL | Qué tomamos | Dónde se aplica |
+ |---|---|---|---|
+@@ -108,4 +109,10 @@
+ | ruleward | https://github.com/kernullist/ruleward | Lint de reglas: bloat y deriva | E3, `tests/test_deriva_reglas.py` |
+ | AI-Agent-Coding-Rules | https://github.com/Emmanuel-Bamidele/AI-Agent-Coding-Rules | Reglas con checklist | `AGENTS.md` |
+ | fable-method (Sahir619) | https://github.com/Sahir619/fable-method | El juez adversarial de trabajo terminado (se queda); el método como prosa (3 A/B sin lift, borrado en X112) | `fable_judge.py`, `modules/fable.py` |
++| Laya | https://github.com/NandhaKishorM/laya | El smart-if: tres tipos de decisión cerrada (`noul`, `choice`, `score`) en una pasada, la pregunta como dato y abstenerse ante la duda | D5, D7, `utils/laya.py` |
++| Gandhi et al., *Recursive Agent Optimization* (2026) | https://arxiv.org/abs/2605.06639 | Una sola política que lanza copias de sí misma para subtareas | D3, `utils/kernel.py` |
++| Lumer et al., *Recursive Agent Harnesses* (2026) | https://arxiv.org/abs/2606.13643 | El harness entero como unidad recursiva, con profundidad acotada: la mejora sale del harness con el modelo fijo | D3, `banco/specs/exp103_fractal.md` |
++| Zhang, Kraska y Khattab, *Recursive Language Models* (2026) | https://arxiv.org/abs/2512.24601 | Al padre vuelve solo el resultado del hijo, nunca su contexto | D3, D13 |
++| Kim et al., *Towards a Science of Scaling Agent Systems* (2026) | https://doi.org/10.21203/rs.3.rs-8414536/v1 | Más agentes dañan en tareas secuenciales y saturan cuando el agente solo ya resuelve | D3 (cede ante la medición), `banco/specs/exp103_fractal.md` |
++| *Single-Agent LLMs Outperform Multi-Agent Systems… Under Equal Thinking Token Budgets* (2026) | https://doi.org/10.48550/arxiv.2604.02460 | Comparar con el presupuesto igualado: sin eso, la ventaja multi-agente es cómputo | M3, `banco/specs/exp103_fractal.md` |
+ | Center for Open Science, *Preregistration* | https://www.cos.io/initiatives/prereg | Criterios antes de ver los datos; desvíos declarados | M3 |
+--- a/ratchets/baseline.json
++++ b/ratchets/baseline.json
+@@ -176,7 +176,6 @@
+         "utils/estado_sesion.py:capturar": 1,
+         "utils/estado_sesion.py:restaurar": 1,
+         "utils/hitl_web.py:_Handler": 4,
+-        "utils/kernel.py:agente": 1,
+         "utils/laya.py:_cargar_checkpoint": 1,
+         "utils/mcp_client.py:_listar": 2,
+         "utils/mcp_client.py:_llamar": 2,
+@@ -191,7 +190,7 @@
+         "utils/websearch.py:search_web": 1,
+         "visor.py:vigilar": 1
+       },
+-      "metrica": 80
++      "metrica": 79
+     },
+     "nodos_largos": {
+       "detalle": {
+@@ -432,7 +431,7 @@
+         "tests/test_handoff.py": 3,
+         "tests/test_hitl.py": 23,
+         "tests/test_inventario.py": 3,
+-        "tests/test_kernel.py": 17,
++        "tests/test_kernel.py": 21,
+         "tests/test_laya.py": 5,
+         "tests/test_laya_cache_reintento.py": 5,
+         "tests/test_llm.py": 13,
+@@ -469,7 +468,7 @@
+         "tests/test_webchat.py": 7,
+         "tests/test_webhook.py": 11
+       },
+-      "metrica": 1023
++      "metrica": 1027
+     },
+     "texto_de_prompt": {
+       "detalle": {
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -1,4 +1,4 @@
+-pocketflow>=0.0.3
++pocketflow==0.0.3
+ openai>=2.0.0
+ pyyaml>=6.0
+ numpy>=1.26
+--- a/tests/test_kernel.py
++++ b/tests/test_kernel.py
+@@ -273,3 +273,91 @@
+     shared, corrida = correr_supervisor(sup, tmp_path, monkeypatch, guion)
+     assert json.loads(json.dumps(shared)) == shared
+     assert corrida.ley["llamadas"] and shared["rondas"] == 1
++
++
++def test_una_tool_sin_efecto_declarado_escribe_y_corre_en_orden():
++    """X116: el default era "lectura" y el comentario decía lo contrario: una
++    tool nueva sin declarar corría en paralelo. Lo no declarado escribe."""
++    hilos = []
++
++    def correr_tool(llamada_, ctx):
++        hilos.append(threading.get_ident())
++        time.sleep(0.05)
++        return "ok"
++
++    sin_declarar = [Tool(f"t{i}", {"type": "function", "function": {"name": f"t{i}"}}, correr_tool)
++                    for i in range(3)]
++    llm, _ = guion(msg(None, *[llamada(f"t{i}", i) for i in range(3)]), msg("ok"))
++    correr("s", "q", sin_declarar, Ctx(llm, Ledger(3)), wait=0)
++    assert {t.efecto for t in sin_declarar} == {"escritura"}
++    assert len(hilos) == 3 and len(set(hilos)) == 1
++    assert agente("sub", "d", "s", sin_declarar[:1]).efecto == "escritura"
++
++
++def test_el_saldo_se_toma_bajo_el_lock_del_arbol():
++    """X116: tomar() chequeaba y restaba sin lock; con hermanos en hilos, dos
++    tomaban la última ronda. Mientras otro hilo tiene el lock, tomar() espera."""
++    ledger = Ledger(1)
++    tomado = []
++    with ledger._lock:
++        hilo = threading.Thread(target=lambda: tomado.append(ledger.tomar()))
++        hilo.start()
++        hilo.join(0.2)
++        assert hilo.is_alive() and tomado == []
++    hilo.join(1)
++    assert tomado == [True] and ledger.rondas == 0 and ledger.tomar() is False
++
++
++def _sumador(hilos, negativas):
++    """LLM guionado de divide y vencerás: una lista corta (o sin tools) la
++    suma; una larga la parte en dos copias del propio agente."""
++    candado = threading.Lock()
++
++    def llm(mensajes, tools=None):
++        resultados = [m["content"] for m in mensajes if m["role"] == "tool"]
++        with candado:
++            hilos.append(threading.get_ident())
++            negativas.extend(r for r in resultados if r.startswith("ERROR"))
++        numeros = json.loads(mensajes[1]["content"])
++        if resultados and all(r.lstrip("-").isdigit() for r in resultados):
++            return msg(str(sum(int(r) for r in resultados)))
++        if resultados or not tools or len(numeros) <= 2:
++            return msg(str(sum(numeros)))
++        mitad = len(numeros) // 2
++        return msg(None, llamada("sumar", 0, pedido=json.dumps(numeros[:mitad])),
++                   llamada("sumar", 1, pedido=json.dumps(numeros[mitad:])))
++
++    return llm
++
++
++def _sumar_del_1_al_16(saldo, max_profundidad):
++    hilos, negativas = [], []
++    sumar = agente("sumar", "suma una lista JSON", "sumador", [], recursivo=True)
++    ctx = Ctx(_sumador(hilos, negativas), Ledger(saldo), max_profundidad=max_profundidad)
++    respuesta, _ = correr("sumador", json.dumps(list(range(1, 17))), [sumar], ctx, wait=0)
++    assert respuesta == "136" and ctx.ledger.rondas >= 0
++    assert ctx.ledger.llamadas == len(hilos)
++    return sumar, ctx, hilos, negativas
++
++
++def test_un_agente_que_se_llama_a_si_mismo_reparte_y_suma():
++    """El loop se fractaliza: `recursivo=True` lo pone entre sus propias tools.
++    16 números → 2 copias de 8 → 4 de 4 → 8 de 2, que suman sin dividirse.
++    Las copias solo leen, así que las hermanas corren en paralelo."""
++    sumar, ctx, hilos, negativas = _sumar_del_1_al_16(saldo=50, max_profundidad=3)
++    assert sumar.efecto == "lectura" and negativas == []
++    assert [sum(1 for p, _ in ctx.traza if p == nivel) for nivel in range(3)] == [2, 4, 8]
++    assert len(set(hilos)) > 1
++
++
++def test_la_profundidad_y_el_saldo_frenan_la_replicacion():
++    """Los frenos son datos del árbol y el caso base (sin tools) igual da la
++    respuesta: con profundidad 1 la copia se niega a dividirse; con saldo 3 el
++    árbol no pasa de dos niveles."""
++    _, ctx, _, negativas = _sumar_del_1_al_16(saldo=50, max_profundidad=1)
++    assert negativas and all("no puede delegar más" in n for n in negativas)
++    assert max(p for p, _ in ctx.traza) == 1
++
++    _, ctx, hilos, _ = _sumar_del_1_al_16(saldo=3, max_profundidad=3)
++    assert max(p for p, _ in ctx.traza) <= 1 and ctx.ledger.rondas <= 1
++    assert len(hilos) < 1 + 2 * 14
+--- a/utils/kernel.py
++++ b/utils/kernel.py
+@@ -8,13 +8,18 @@
+ 
+ Leyes, por construcción (evidencia en docs/roadmap.md, sección H2/H3):
+ - presupuesto en código, único por árbol (L8);
+-- en paralelo solo lo que lee (`efecto="lectura"`); lo que escribe, en un
+-  solo hilo y por `run_tool_call` (hooks, denylist y HITL de siempre);
++- en paralelo solo lo que lee (`efecto="lectura"`); lo que escribe —y lo que
++  no declara su efecto—, en un solo hilo y por `run_tool_call` (hooks,
++  denylist y HITL de siempre);
+ - profundidad máxima 1 por defecto (un agente puede llamar agentes; esos no);
++  un agente `recursivo` se tiene entre sus tools: el mismo loop se replica con
++  los mismos frenos (profundidad, saldo y efecto);
+ - la respuesta final es siempre del agente que se llamó (agents as tools).
+ 
+ Sync a propósito: el harness entero lo es (call_llm_agent, run_tool_call,
+ input()). Las lecturas en paralelo usan hilos: son I/O."""
++import json
++import threading
+ from concurrent.futures import ThreadPoolExecutor
+ from dataclasses import dataclass, field
+ 
+@@ -29,15 +34,24 @@
+ 
+ @dataclass
+ class Ledger:
+-    """Rondas de tools que le quedan a TODO el árbol de agentes."""
++    """Lo que le queda y lo que gastó TODO el árbol de agentes. Los hermanos
++    corren en hilos y comparten el saldo: chequear y descontar va bajo el lock
++    del árbol; sin él, dos toman la última ronda y el saldo queda negativo."""
+ 
+     rondas: int
++    llamadas: int = 0  # llamadas al modelo del árbol: el costo que las rondas no cuentan
++    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+ 
+     def tomar(self):
+-        if self.rondas <= 0:
+-            return False
+-        self.rondas -= 1
+-        return True
++        with self._lock:
++            if self.rondas <= 0:
++                return False
++            self.rondas -= 1
++            return True
++
++    def contar_llamada(self):
++        with self._lock:
++            self.llamadas += 1
+ 
+ 
+ @dataclass
+@@ -48,7 +62,7 @@
+     nombre: str
+     esquema: dict
+     correr: object
+-    efecto: str = "lectura"  # lectura | escritura (lo no declarado, escritura)
++    efecto: str = "escritura"  # lectura | escritura: lo no declarado escribe (corre solo y en orden)
+     agente: bool = False     # es un sub-agente: necesita saldo para correr su propio loop
+ 
+ 
+@@ -99,6 +113,7 @@
+ 
+     def exec(self, entrada):
+         mensajes, tools = entrada
++        self.ctx.ledger.contar_llamada()
+         msg, _ = normalizar(self.ctx.llm(mensajes, tools), tools)
+         return msg
+ 
+@@ -182,16 +197,19 @@
+     return s["messages"][-1].get("content") or "", s["messages"]
+ 
+ 
+-def agente(nombre, descripcion, system, tools, parametro="pedido"):
++def agente(nombre, descripcion, system, tools, parametro="pedido", recursivo=False):
+     """El fractal: un agente ES una Tool. El que lo llama le pasa el pedido;
+     el agente corre su loop con contexto fresco y el MISMO ledger, y devuelve
+     su respuesta como texto. Más allá de `max_profundidad`, se niega.
+ 
+     `system` es el texto o una función `pedido -> texto` (un sub-agente que
+     arma el suyo con el pedido). Argumentos ilegibles vuelven como ERROR al
+-    modelo, como cualquier tool: no cortan el loop del padre."""
+-    import json
+-
++    modelo, como cualquier tool: no cortan el loop del padre.
++
++    `recursivo=True` suma el agente a sus propias tools: una copia resuelve una
++    parte del pedido y el modelo decide si se divide. Las tools se copian al
++    crearlo, así el efecto declarado no cambia si la lista de afuera crece."""
++    tools = list(tools)
+     if not system:
+         raise ValueError(f"agente {nombre!r} sin system: el sub-agente correría sin instrucciones")
+     armar = system if callable(system) else (lambda _pedido: system)
+@@ -215,4 +233,7 @@
+         return respuesta
+ 
+     lectura = all(t.efecto == "lectura" for t in tools)
+-    return Tool(nombre, esquema, correr_agente, "lectura" if lectura else "escritura", agente=True)
++    propio = Tool(nombre, esquema, correr_agente, "lectura" if lectura else "escritura", agente=True)
++    if recursivo:
++        tools.append(propio)
++    return propio

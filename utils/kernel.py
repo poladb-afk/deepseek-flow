@@ -8,13 +8,18 @@ es UNO para todo el árbol: un sub-agente gasta del mismo saldo que su padre.
 
 Leyes, por construcción (evidencia en docs/roadmap.md, sección H2/H3):
 - presupuesto en código, único por árbol (L8);
-- en paralelo solo lo que lee (`efecto="lectura"`); lo que escribe, en un
-  solo hilo y por `run_tool_call` (hooks, denylist y HITL de siempre);
+- en paralelo solo lo que lee (`efecto="lectura"`); lo que escribe —y lo que
+  no declara su efecto—, en un solo hilo y por `run_tool_call` (hooks,
+  denylist y HITL de siempre);
 - profundidad máxima 1 por defecto (un agente puede llamar agentes; esos no);
+  un agente `recursivo` se tiene entre sus tools: el mismo loop se replica con
+  los mismos frenos (profundidad, saldo y efecto);
 - la respuesta final es siempre del agente que se llamó (agents as tools).
 
 Sync a propósito: el harness entero lo es (call_llm_agent, run_tool_call,
 input()). Las lecturas en paralelo usan hilos: son I/O."""
+import json
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
@@ -29,15 +34,24 @@ PARALELO_MAX = 8
 
 @dataclass
 class Ledger:
-    """Rondas de tools que le quedan a TODO el árbol de agentes."""
+    """Lo que le queda y lo que gastó TODO el árbol de agentes. Los hermanos
+    corren en hilos y comparten el saldo: chequear y descontar va bajo el lock
+    del árbol; sin él, dos toman la última ronda y el saldo queda negativo."""
 
     rondas: int
+    llamadas: int = 0  # llamadas al modelo del árbol: el costo que las rondas no cuentan
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def tomar(self):
-        if self.rondas <= 0:
-            return False
-        self.rondas -= 1
-        return True
+        with self._lock:
+            if self.rondas <= 0:
+                return False
+            self.rondas -= 1
+            return True
+
+    def contar_llamada(self):
+        with self._lock:
+            self.llamadas += 1
 
 
 @dataclass
@@ -48,7 +62,7 @@ class Tool:
     nombre: str
     esquema: dict
     correr: object
-    efecto: str = "lectura"  # lectura | escritura (lo no declarado, escritura)
+    efecto: str = "escritura"  # lectura | escritura: lo no declarado escribe (corre solo y en orden)
     agente: bool = False     # es un sub-agente: necesita saldo para correr su propio loop
 
 
@@ -99,6 +113,7 @@ class Paso(_DelLoop):
 
     def exec(self, entrada):
         mensajes, tools = entrada
+        self.ctx.ledger.contar_llamada()
         msg, _ = normalizar(self.ctx.llm(mensajes, tools), tools)
         return msg
 
@@ -182,16 +197,19 @@ def correr(system, pedido, tools, ctx, max_retries=3, wait=5):
     return s["messages"][-1].get("content") or "", s["messages"]
 
 
-def agente(nombre, descripcion, system, tools, parametro="pedido"):
+def agente(nombre, descripcion, system, tools, parametro="pedido", recursivo=False):
     """El fractal: un agente ES una Tool. El que lo llama le pasa el pedido;
     el agente corre su loop con contexto fresco y el MISMO ledger, y devuelve
     su respuesta como texto. Más allá de `max_profundidad`, se niega.
 
     `system` es el texto o una función `pedido -> texto` (un sub-agente que
     arma el suyo con el pedido). Argumentos ilegibles vuelven como ERROR al
-    modelo, como cualquier tool: no cortan el loop del padre."""
-    import json
+    modelo, como cualquier tool: no cortan el loop del padre.
 
+    `recursivo=True` suma el agente a sus propias tools: una copia resuelve una
+    parte del pedido y el modelo decide si se divide. Las tools se copian al
+    crearlo, así el efecto declarado no cambia si la lista de afuera crece."""
+    tools = list(tools)
     if not system:
         raise ValueError(f"agente {nombre!r} sin system: el sub-agente correría sin instrucciones")
     armar = system if callable(system) else (lambda _pedido: system)
@@ -215,4 +233,7 @@ def agente(nombre, descripcion, system, tools, parametro="pedido"):
         return respuesta
 
     lectura = all(t.efecto == "lectura" for t in tools)
-    return Tool(nombre, esquema, correr_agente, "lectura" if lectura else "escritura", agente=True)
+    propio = Tool(nombre, esquema, correr_agente, "lectura" if lectura else "escritura", agente=True)
+    if recursivo:
+        tools.append(propio)
+    return propio

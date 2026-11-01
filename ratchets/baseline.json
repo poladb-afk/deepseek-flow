@@ -176,7 +176,6 @@
         "utils/estado_sesion.py:capturar": 1,
         "utils/estado_sesion.py:restaurar": 1,
         "utils/hitl_web.py:_Handler": 4,
-        "utils/kernel.py:agente": 1,
         "utils/laya.py:_cargar_checkpoint": 1,
         "utils/mcp_client.py:_listar": 2,
         "utils/mcp_client.py:_llamar": 2,
@@ -191,7 +190,7 @@
         "utils/websearch.py:search_web": 1,
         "visor.py:vigilar": 1
       },
-      "metrica": 80
+      "metrica": 79
     },
     "nodos_largos": {
       "detalle": {
@@ -432,7 +431,7 @@
         "tests/test_handoff.py": 3,
         "tests/test_hitl.py": 23,
         "tests/test_inventario.py": 3,
-        "tests/test_kernel.py": 17,
+        "tests/test_kernel.py": 21,
         "tests/test_laya.py": 5,
         "tests/test_laya_cache_reintento.py": 5,
         "tests/test_llm.py": 13,
@@ -469,7 +468,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1023
+      "metrica": 1027
     },
     "texto_de_prompt": {
       "detalle": {

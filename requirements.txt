@@ -1,4 +1,4 @@
-pocketflow>=0.0.3
+pocketflow==0.0.3
 openai>=2.0.0
 pyyaml>=6.0
 numpy>=1.26

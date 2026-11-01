@@ -273,3 +273,91 @@ def test_el_shared_del_supervisor_es_json(tmp_path, monkeypatch):
     shared, corrida = correr_supervisor(sup, tmp_path, monkeypatch, guion)
     assert json.loads(json.dumps(shared)) == shared
     assert corrida.ley["llamadas"] and shared["rondas"] == 1
+
+
+def test_una_tool_sin_efecto_declarado_escribe_y_corre_en_orden():
+    """X116: el default era "lectura" y el comentario decía lo contrario: una
+    tool nueva sin declarar corría en paralelo. Lo no declarado escribe."""
+    hilos = []
+
+    def correr_tool(llamada_, ctx):
+        hilos.append(threading.get_ident())
+        time.sleep(0.05)
+        return "ok"
+
+    sin_declarar = [Tool(f"t{i}", {"type": "function", "function": {"name": f"t{i}"}}, correr_tool)
+                    for i in range(3)]
+    llm, _ = guion(msg(None, *[llamada(f"t{i}", i) for i in range(3)]), msg("ok"))
+    correr("s", "q", sin_declarar, Ctx(llm, Ledger(3)), wait=0)
+    assert {t.efecto for t in sin_declarar} == {"escritura"}
+    assert len(hilos) == 3 and len(set(hilos)) == 1
+    assert agente("sub", "d", "s", sin_declarar[:1]).efecto == "escritura"
+
+
+def test_el_saldo_se_toma_bajo_el_lock_del_arbol():
+    """X116: tomar() chequeaba y restaba sin lock; con hermanos en hilos, dos
+    tomaban la última ronda. Mientras otro hilo tiene el lock, tomar() espera."""
+    ledger = Ledger(1)
+    tomado = []
+    with ledger._lock:
+        hilo = threading.Thread(target=lambda: tomado.append(ledger.tomar()))
+        hilo.start()
+        hilo.join(0.2)
+        assert hilo.is_alive() and tomado == []
+    hilo.join(1)
+    assert tomado == [True] and ledger.rondas == 0 and ledger.tomar() is False
+
+
+def _sumador(hilos, negativas):
+    """LLM guionado de divide y vencerás: una lista corta (o sin tools) la
+    suma; una larga la parte en dos copias del propio agente."""
+    candado = threading.Lock()
+
+    def llm(mensajes, tools=None):
+        resultados = [m["content"] for m in mensajes if m["role"] == "tool"]
+        with candado:
+            hilos.append(threading.get_ident())
+            negativas.extend(r for r in resultados if r.startswith("ERROR"))
+        numeros = json.loads(mensajes[1]["content"])
+        if resultados and all(r.lstrip("-").isdigit() for r in resultados):
+            return msg(str(sum(int(r) for r in resultados)))
+        if resultados or not tools or len(numeros) <= 2:
+            return msg(str(sum(numeros)))
+        mitad = len(numeros) // 2
+        return msg(None, llamada("sumar", 0, pedido=json.dumps(numeros[:mitad])),
+                   llamada("sumar", 1, pedido=json.dumps(numeros[mitad:])))
+
+    return llm
+
+
+def _sumar_del_1_al_16(saldo, max_profundidad):
+    hilos, negativas = [], []
+    sumar = agente("sumar", "suma una lista JSON", "sumador", [], recursivo=True)
+    ctx = Ctx(_sumador(hilos, negativas), Ledger(saldo), max_profundidad=max_profundidad)
+    respuesta, _ = correr("sumador", json.dumps(list(range(1, 17))), [sumar], ctx, wait=0)
+    assert respuesta == "136" and ctx.ledger.rondas >= 0
+    assert ctx.ledger.llamadas == len(hilos)
+    return sumar, ctx, hilos, negativas
+
+
+def test_un_agente_que_se_llama_a_si_mismo_reparte_y_suma():
+    """El loop se fractaliza: `recursivo=True` lo pone entre sus propias tools.
+    16 números → 2 copias de 8 → 4 de 4 → 8 de 2, que suman sin dividirse.
+    Las copias solo leen, así que las hermanas corren en paralelo."""
+    sumar, ctx, hilos, negativas = _sumar_del_1_al_16(saldo=50, max_profundidad=3)
+    assert sumar.efecto == "lectura" and negativas == []
+    assert [sum(1 for p, _ in ctx.traza if p == nivel) for nivel in range(3)] == [2, 4, 8]
+    assert len(set(hilos)) > 1
+
+
+def test_la_profundidad_y_el_saldo_frenan_la_replicacion():
+    """Los frenos son datos del árbol y el caso base (sin tools) igual da la
+    respuesta: con profundidad 1 la copia se niega a dividirse; con saldo 3 el
+    árbol no pasa de dos niveles."""
+    _, ctx, _, negativas = _sumar_del_1_al_16(saldo=50, max_profundidad=1)
+    assert negativas and all("no puede delegar más" in n for n in negativas)
+    assert max(p for p, _ in ctx.traza) == 1
+
+    _, ctx, hilos, _ = _sumar_del_1_al_16(saldo=3, max_profundidad=3)
+    assert max(p for p, _ in ctx.traza) <= 1 and ctx.ledger.rondas <= 1
+    assert len(hilos) < 1 + 2 * 14

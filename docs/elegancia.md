@@ -9,6 +9,37 @@ bajar esos números **borrando**, no agregando.
 > Si el fix suma una palabra a una lista, una regex o una frase al prompt, no
 > fue a la raíz.
 
+## Definición (X116)
+
+> **Funcional:** el comportamiento sale de una primitiva que se contiene a sí
+> misma (agente = Flow = Node = Tool), con las decisiones como datos tipados,
+> tomadas aparte de los efectos y sobre un solo estado serializable.
+>
+> **De código:** las variaciones salen de componer y de datos, no de casos;
+> cada cambio borra algo, falla hacia lo seguro y declara sus límites.
+
+La definición es lo que las tres fuentes de diseño tienen en común:
+
+| # | Patrón | PocketFlow | 12-Factor Agents | Laya | Acá |
+|---|---|---|---|---|---|
+| P1 | Una primitiva que se contiene a sí misma | `Flow` hereda de `BaseNode`: un flujo es un nodo | el agente como `foldl` (factor 12) | tres tipos (`noul`, `choice`, `score`) para todo `if` semántico | F4 |
+| P2 | El control es un dato | `post` devuelve la acción; `-` y `>>` arman la topología | intents como unión tipada (factores 1 y 4) | `choice` como arista condicional | F3 |
+| P3 | Decidir no es ejecutar | `exec` no recibe `shared`; el retry envuelve solo a `exec` | "the LLM decides, your code controls" | devuelve una distribución; actúa el que llama | C2 |
+| P4 | Un solo estado serializable | `shared` | el thread; el estado de ejecución se deriva (factor 5) | sin estado: estado → respuesta | F3 |
+| P5 | Composición ortogonal, no casos | Batch × Async × Parallel por herencia | HITL, errores y pausa: eventos del mismo loop | hooks: cualquier subconjunto de métodos | C1 |
+| P6 | Lo particular es dato del que llama | `params` y utilidades propias | own your prompts; el pre-fetch como dato (apéndice 13) | la pregunta es un dict | F1 |
+| P7 | Elegancia por borrado | sin proveedores ni dependencias | el diff del pre-fetch: casi todo `-` | no genera texto: nada que parsear | regla madre |
+| P8 | El default es el seguro | `exec_fallback`; aviso de arista faltante | escalar al humano | se abstiene; un hook sin definir es no-op | F6, `Tool.efecto` |
+| P9 | Los límites se declaran | `warnings.warn` en vez de cortar callado | agentes de 3 a 20 pasos (factor 10) | publica su ECE y su recorte de contexto | C5 |
+
+Las tres prohibiciones del operador, como prueba que se puede correr:
+
+| Prohibido | Prueba | Lo legítimo |
+|---|---|---|
+| Parche | ¿El diff borra un caso o lo agrega? ¿Con otro modelo, seguiría haciendo falta? | Nada: si la medición obliga a dejarlo, es deuda medida con su A/B de salida |
+| Hardcodeo | ¿Hay un literal que sirve para un caso particular (palabra, extensión, pista)? | En el borde, como datos y con dueño (`utils/politica_comandos.json`, `utils/proveedor.py`) |
+| Arreglo por system prompt | Borrá la frase: ¿un mecanismo (tool, política, nodo, gate) sostiene la conducta? | El prompt describe entorno y formato |
+
 ## Elegancia funcional
 
 El comportamiento sale de pocos mecanismos generales, cada decisión la toma
@@ -19,7 +50,7 @@ quien tiene la información para tomarla, y el grafo muestra todo el control.
 | F1 | **Generalidad**: ningún mecanismo conoce casos particulares | ¿Si cambio idioma, redacción o dominio del pedido, la decisión sigue andando? | `vocabulario_hardcodeado` |
 | F2 | **Decisión en su lugar**: lo exacto lo cuenta el código, lo semántico lo juzga un modelo, lo irreversible lo decide un humano | ¿Hay una regex juzgando significado? | `vocabulario_hardcodeado` |
 | F3 | **El grafo dice la verdad**: el control vive en las aristas | ¿Se explica un turno leyendo `python3 main.py grafo`? | `nodos_largos`, `test_el_diagrama_del_readme_es_el_grafo_del_chat` |
-| F4 | **Fractal**: una primitiva a toda escala (chat = sub-agente = supervisor) | ¿Una política nueva llega gratis a los sub-agentes? | fase 2 (un solo loop) |
+| F4 | **Fractal**: una definición del loop, N instancias (chat = sub-agente = supervisor = copia de sí mismo); difieren solo en datos y la recursión tiene tres frenos: profundidad, saldo y efecto | ¿Una política nueva llega gratis a los sub-agentes? ¿Anidar el loop en sí mismo necesita código nuevo? | `test_un_agente_que_se_llama_a_si_mismo_reparte_y_suma`; el chat, con S9b |
 | F5 | **Dependencias hacia adentro**: los módulos dependen del CORE; el CORE no los conoce | ¿Borrar cualquier archivo de `modules/` deja el chat andando? | `core_importa_modulos` |
 | F6 | **Errores reversibles**: el smart-if decide perillas cuyo error se autocorrige, nunca le quita capacidades al agente | ¿Si Laya se equivoca, el siguiente paso lo corrige solo? | fase 3 (`banco/specs/fase3b_4a.md`) |
 | F7 | **Producto ≠ laboratorio**: el producto no sabe que existe el banco | ¿Aparecen `banco`, `BANCO`, `DELEGADO` o `GROUND-TRUTH` en producción? | `producto_conoce_lab` |
@@ -48,7 +79,10 @@ rígido; tools mínimas; compaction); Manus, *Context engineering* (no agregar n
 quitar tools en caliente); Agent Skills (divulgación progresiva por
 descripción); la bitter lesson aplicada a harnesses (las capas que tapan
 debilidades del modelo envejecen); mini-swe-agent (~100 líneas de clase de
-agente); SWE-agent (el linter en la edición como guardrail medido). Detalle y
+agente); SWE-agent (el linter en la edición como guardrail medido). El
+fractal (X116): RAO, RAH y RLM a favor de un loop que se replica; en contra,
+los estudios de escala de 2026 con el presupuesto igualado (el A/B que lo
+decide para este harness: `banco/specs/exp103_fractal.md`). Detalle y
 citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91). Con URL y la capa a la que fundamenta cada una: `docs/principios.md`.
 
 ## Línea de base (fase 0, 2026-10-27)

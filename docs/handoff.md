@@ -5,7 +5,7 @@ Documento vivo: se actualiza en cada hito (X*n*). Lo estable está en
 `docs/bitacora.md`. Acá va lo que hoy solo vivía en las conversaciones.
 `tests/test_handoff.py` verifica que lo que cita exista.
 
-**Al día con:** X113, aplicado sobre X112 sobre `cca1f28`, más la auditoría del
+**Al día con:** X116 (la definición de elegancia y el kernel fractal) sobre X113, aplicado sobre X112 sobre `cca1f28`, más la auditoría del
 operador sobre ese árbol (2026-10-31): dos hallazgos de seguridad abiertos
 (X114 y X115 en `docs/estado.md`) y cuatro de orden, todos en la cola.
 
@@ -117,6 +117,7 @@ cuenta como configuración de pytest o solo cuando trae `[tool.pytest]`.
 | 10 | S3: esquema de tools fijo y cierre por arista | mínimo | **bloqueado** | la prueba de `tool_choice="none"` en DeepSeek |
 | 11 | Fase 6: piezas sueltas | no | — | 10 nodos largos, `TOOL_CONTEXTO_RE` |
 | 12 | Archivar `docs/bitacora.md` por mes (6145 líneas) | no | después de 1–5 | mueve rutas que citan el tablero y los principios: el gate lo tiene que ver |
+| 13 | exp/103: el loop fractal contra el loop solo, con el presupuesto igualado | **sí** | 1 (con el desvío declarado: el saldo único llega con 9) | `banco/specs/exp103_fractal.md` |
 
 ### X114 en detalle (lo que la sesión nueva escribe primero)
 

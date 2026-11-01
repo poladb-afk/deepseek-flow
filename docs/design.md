@@ -937,9 +937,18 @@ como una `Tool` que otro loop puede llamar. Leyes por construcción:
   por la arista `cerrar`, que la responde como no ejecutada (historial válido).
 - **Paralelo solo para lecturas** (`Tool.efecto`): si todas las llamadas de una
   ronda leen, corren en hilos (`PARALELO_MAX=8`); si alguna escribe, todas en
-  orden. Un agente es de lectura si todas sus tools lo son.
+  orden. Un agente es de lectura si todas sus tools lo son. Lo no declarado
+  escribe (X116: el default era `lectura` y una tool nueva corría en paralelo).
 - **Profundidad acotada** (`max_profundidad=1`): un agente puede llamar
   agentes; esos no (evidencia: RLM con profundidad 2 empeora).
+- **Recursión acotada** (X116): `agente(..., recursivo=True)` se suma a sus
+  propias tools y el MISMO loop se replica. Los frenos son datos del árbol
+  (profundidad, saldo y efecto) y el caso base es la arista de siempre: sin
+  saldo, la copia responde sin tools. Si conviene usarlo lo decide
+  `banco/specs/exp103_fractal.md`.
+- **El saldo cuenta lo que cuesta**: `Ledger.tomar()` chequea y descuenta bajo
+  un lock (los hermanos corren en hilos) y `Ledger.llamadas` cuenta las
+  llamadas al modelo de todo el árbol, que las rondas no ven.
 - **Las tools del CORE pasan por `run_tool_call`** (`desde_fs`): hooks,
   denylist y contención de siempre.
 - **El proveedor se normaliza en el adaptador**: DSML → tool calls y

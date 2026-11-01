@@ -6184,3 +6184,38 @@ duplican el historial de git (dos de X106 suman 1,3 MB); el
 `test_auditoria_2026_10_26.py` de `docs/informes/` duplica el de `tests/`;
 `requirements.txt` mezcla producto, desarrollo y opcionales; la bitácora
 pasa las 6000 líneas.
+
+---
+
+## X116: la definición de elegancia y el kernel que se fractaliza (2026-10-31)
+
+**La definición** (`docs/elegancia.md`, sección "Definición"): lo que
+PocketFlow, 12-Factor Agents y Laya tienen en común, en nueve patrones (P1–P9),
+más las tres prohibiciones del operador como prueba que se puede correr.
+F/C siguen siendo los gates; cada patrón dice cuál lo cubre.
+
+**El kernel** (`utils/kernel.py`), sin cambio de conducta en producción
+(el supervisor declara el efecto de todas sus tools):
+
+- `Tool.efecto` por default es `escritura`. Antes era `lectura` y el
+  comentario decía lo contrario: una tool nueva sin declarar corría en
+  paralelo (P8, D11).
+- `Ledger.tomar()` chequea y descuenta bajo un lock. Medido sin el lock:
+  con un `time.sleep(0)` entre el chequeo y la resta, 16 hilos sobre 50
+  rondas tomaron 56–58 (saldo −6 a −8); sin el sleep el GIL lo tapó en 20 de
+  20 corridas. Es una carrera real y rara: el test fija la exclusión, no la
+  frecuencia.
+- `Ledger.llamadas`: las llamadas al modelo del árbol. Una copia que cierra
+  sin tools gasta una llamada que ninguna ronda cuenta.
+- `agente(..., recursivo=True)`: el agente se suma a sus propias tools. Un
+  loop, N instancias; los frenos son datos (profundidad, saldo y efecto).
+  Guionado: 16 números → 2, 4 y 8 copias por nivel, hermanas en paralelo;
+  con profundidad 1 la copia se niega y con saldo 3 el árbol no pasa de dos
+  niveles, y la suma sale bien en los tres casos (`tests/test_kernel.py`).
+- `pocketflow==0.0.3` fijo: el harness depende de `_run`, `_orch` y
+  `successors` (`utils/tracing.py`, `effective_n.py`, `replay.py`).
+
+**Lo que no se hizo**: el chat sigue sin correr sobre el kernel (S9b). Si le
+conviene replicarse se decide midiendo: `banco/specs/exp103_fractal.md`, con
+el control de cómputo (A+) que pide la evidencia de 2026 con el presupuesto
+igualado.

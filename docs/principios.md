@@ -28,7 +28,7 @@ Ejemplos: la validación de falla cerrada sumó ~60 líneas a `utils/policy.py`
 |---|---|---|---|---|---|
 | D1 | **Minimalista (KISS)** | El mínimo que funciona: un framework de 100 líneas, dependencias mínimas y nada especulativo | Cada línea y cada setting es algo que alguien tiene que entender | `texto_de_prompt`, `settings_leidos`, `tests/test_estilo_humano.py` | Seguridad (la falla cerrada de la política) y la medición |
 | D2 | **Modular** | CORE + módulos: un módulo es un archivo con `TOOLS` e `IMPL` (y `HOOKS`); agregar es dejarlo y quitar es borrarlo | Una capacidad se suma o se saca sin tocar el CORE | `core_importa_modulos`, `tests/test_core_sin_modulos.py` | Nada: el CORE nunca nombra un módulo concreto |
-| D3 | **Fractal** | Una primitiva a toda escala: agente = Flow = Node = Tool; chat = sub-agente = supervisor, con un solo saldo | Una política nueva llega gratis a todas las escalas | `tests/test_kernel.py` (el chat todavía no es `kernel.loop`: lo completa S9b) | La medición: un sub-agente entra solo si mejora algo (el explorador se borró en H3-B) |
+| D3 | **Fractal** | Una definición del loop, N instancias: agente = Flow = Node = Tool; chat = sub-agente = supervisor = copia de sí mismo (`recursivo`), con un solo saldo y la recursión acotada por datos (profundidad, saldo, efecto) | Una política nueva llega gratis a todas las escalas | `tests/test_kernel.py` (el chat todavía no es `kernel.loop`: lo completa S9b) | La medición: un sub-agente entra solo si mejora algo (el explorador se borró en H3-B) |
 | D4 | **El grafo dice la verdad** | El control vive en las aristas; el `shared` guarda solo datos JSON | Un turno se explica leyendo `python3 main.py grafo` | `nodos_largos`, `test_el_diagrama_del_readme_es_el_grafo_del_chat` | El bookkeeping (checkpoint, traza) puede vivir en `post`: no decide |
 | D5 | **Cada decisión en su lugar** | Lo exacto lo cuenta el código, lo semántico lo juzga un modelo, lo irreversible lo decide un humano | Una regex juzgando significado falla con otro idioma o redacción | `vocabulario_hardcodeado` | Nada |
 | D6 | **Generalidad** | Ningún mecanismo conoce casos particulares | Lo particular envejece y no transfiere | `vocabulario_hardcodeado` | Seguridad: la whitelist de comandos es particular a propósito (datos, no vocabulario: `utils/politica_comandos.json`) |
@@ -81,7 +81,8 @@ Acá, una línea por regla para tenerlas juntas.
 
 Las del repo hasta X112 más las que fundamentan principios que no tenían
 fuente escrita. **Las URL agregadas en X113 no se verificaron en línea al
-escribirlas**: el operador las confirma (o corrige) al aplicar.
+escribirlas**: el operador las confirma (o corrige) al aplicar. Las de X116
+(Laya y la evidencia del fractal) salen de una búsqueda del 2026-10-31.
 
 | Fuente | URL | Qué tomamos | Dónde se aplica |
 |---|---|---|---|
@@ -108,4 +109,10 @@ escribirlas**: el operador las confirma (o corrige) al aplicar.
 | ruleward | https://github.com/kernullist/ruleward | Lint de reglas: bloat y deriva | E3, `tests/test_deriva_reglas.py` |
 | AI-Agent-Coding-Rules | https://github.com/Emmanuel-Bamidele/AI-Agent-Coding-Rules | Reglas con checklist | `AGENTS.md` |
 | fable-method (Sahir619) | https://github.com/Sahir619/fable-method | El juez adversarial de trabajo terminado (se queda); el método como prosa (3 A/B sin lift, borrado en X112) | `fable_judge.py`, `modules/fable.py` |
+| Laya | https://github.com/NandhaKishorM/laya | El smart-if: tres tipos de decisión cerrada (`noul`, `choice`, `score`) en una pasada, la pregunta como dato y abstenerse ante la duda | D5, D7, `utils/laya.py` |
+| Gandhi et al., *Recursive Agent Optimization* (2026) | https://arxiv.org/abs/2605.06639 | Una sola política que lanza copias de sí misma para subtareas | D3, `utils/kernel.py` |
+| Lumer et al., *Recursive Agent Harnesses* (2026) | https://arxiv.org/abs/2606.13643 | El harness entero como unidad recursiva, con profundidad acotada: la mejora sale del harness con el modelo fijo | D3, `banco/specs/exp103_fractal.md` |
+| Zhang, Kraska y Khattab, *Recursive Language Models* (2026) | https://arxiv.org/abs/2512.24601 | Al padre vuelve solo el resultado del hijo, nunca su contexto | D3, D13 |
+| Kim et al., *Towards a Science of Scaling Agent Systems* (2026) | https://doi.org/10.21203/rs.3.rs-8414536/v1 | Más agentes dañan en tareas secuenciales y saturan cuando el agente solo ya resuelve | D3 (cede ante la medición), `banco/specs/exp103_fractal.md` |
+| *Single-Agent LLMs Outperform Multi-Agent Systems… Under Equal Thinking Token Budgets* (2026) | https://doi.org/10.48550/arxiv.2604.02460 | Comparar con el presupuesto igualado: sin eso, la ventaja multi-agente es cómputo | M3, `banco/specs/exp103_fractal.md` |
 | Center for Open Science, *Preregistration* | https://www.cos.io/initiatives/prereg | Criterios antes de ver los datos; desvíos declarados | M3 |
