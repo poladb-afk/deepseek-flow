@@ -6273,3 +6273,20 @@ conducta que se buscaba, no un test debilitado.
 **Producción**: sin cambio. El único usuario del kernel es el supervisor y no
 tiene agentes entre sus tools. Afecta al exp/103: el `Ledger` de `dividir`
 ahora limita el abanico, no solo las rondas.
+
+---
+
+## X120: el exp/103 con el cómputo igualado de verdad (2026-11-01)
+
+**El hallazgo**: con las tareas exactas del bench, `nodes.presupuesto` da
+16 a A y 16 a A+ en s13, s17, s19 y s20 (`alcance_amplio()` ya sube A al
+techo amplio), y 8 contra 16 en s2, s3, s9 y s10. El control A+ solo cambiaba
+los secuenciales, donde ningún criterio lo usa.
+
+**Las tres correcciones** (antes de la primera corrida, declaradas en el
+pre-registro): A+ suma `MAX_TOOL_ROUNDS_AMPLIO=24` y da 24 en los anchos y 16
+en los secuenciales, que es lo que F suma entre el padre y el `Ledger(8)` de
+`dividir` (medido con el mismo `nodes.presupuesto`); ese `Ledger` es uno por
+corrida y cobra copias desde X119, así que el árbol de `dividir` no pasa de
+17 llamadas; y el criterio 2 exige además que F ≥ A+ en 3 de los 4 anchos,
+para que no lo decida una seed.
