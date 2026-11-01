@@ -443,7 +443,7 @@
         "tests/test_novedad.py": 7,
         "tests/test_pendientes.py": 35,
         "tests/test_policy.py": 26,
-        "tests/test_policy_bypass.py": 63,
+        "tests/test_policy_bypass.py": 73,
         "tests/test_policy_datos.py": 14,
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
@@ -469,7 +469,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1066
+      "metrica": 1076
     },
     "texto_de_prompt": {
       "detalle": {

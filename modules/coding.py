@@ -33,7 +33,7 @@ from utils.aprobaciones import registrar as registrar_aprobacion
 from utils.call_llm import _setting
 from utils.estado_sesion import ultimo_usuario
 from utils.fs_tools import _resolve, escribir_atomico
-from utils.policy import clasificar, explicar, segmentos
+from utils.policy import clasificar_con_sesion, explicar, marcar_config_editada, segmentos
 from utils.riesgo import registrar as registrar_riesgo
 from utils.terminal import colorear, highlight_diff, recortar_chars
 
@@ -238,8 +238,9 @@ def _nivel(command):
     el comando (transparencia: el usuario lo ve igual) — y 'auto' solo vale
     DENTRO del proyecto: un cat/grep/find a una ruta fuera de
     AGENT_ALLOWED_DIRS vuelve a pedir aprobación. HITL_AUTO=0 devuelve el s/n
-    de siempre."""
-    nivel = clasificar(command)
+    de siempre. X115: si la sesión escribió configuración de pytest, el primer
+    pytest pregunta (lo consume `clasificar_con_sesion`)."""
+    nivel = clasificar_con_sesion(command)
     if nivel == "auto" and _sale_de_raices(command):
         nivel = "preguntar"
     if _setting("HITL_AUTO", "1") != "1":
@@ -487,6 +488,8 @@ def edit_file(path, old_string, new_string):
         escribir_atomico(resolved, nuevo)
     except OSError as e:
         return f"ERROR al escribir: {e.strerror}"
+    # X115: si lo editado es configuración de pytest, el próximo pytest pregunta.
+    marcar_config_editada(resolved)
     return f"Editado: {resolved} ({len(diff.splitlines())} líneas de diff)"
 
 

@@ -12,7 +12,7 @@ import json
 import pytest
 from conftest import RAIZ
 
-from modules import coding
+from modules import coding, escritura
 from utils import policy
 
 
@@ -198,3 +198,58 @@ def test_auto_no_sigue_symlinks_fuera_de_raices(monkeypatch, tmp_path):
     salida = coding.run_command("cat link")
     assert salida.startswith("RECHAZADO")
     assert "SECRETO-FUERA" not in salida
+
+
+# X115: la configuración de pytest escrita con aprobación suma fricción UNA
+# vez, en el pytest siguiente. El aviso es de sesión y el fixture lo resetea.
+@pytest.fixture(autouse=True)
+def _aviso_de_config_limpio(monkeypatch):
+    """El aviso de sesión de X115 no se arrastra entre tests."""
+    monkeypatch.setattr(policy, "_config_editada", False)
+
+
+def _escribir(tmp_path, ruta, aprobado, monkeypatch):
+    monkeypatch.setattr(escritura, "_approve", lambda pedido: aprobado)
+    return escritura.write_file(str(ruta), "x = 1\n")
+
+
+@pytest.mark.parametrize("nombre", ["conftest.py", "pytest.ini", "setup.cfg", "tox.ini", "pyproject.toml"])
+def test_escribir_config_de_pytest_hace_preguntar_el_siguiente(tmp_path, monkeypatch, nombre):
+    """(a)(b)(c) La escritura aprobada marca; el pytest siguiente pregunta y consume."""
+    _escribir(tmp_path, tmp_path / nombre, True, monkeypatch)
+    assert policy.clasificar_con_sesion("pytest -q") == "preguntar"
+    assert policy.clasificar_con_sesion("pytest -q") == "auto"
+
+
+def test_un_conftest_en_cualquier_carpeta_marca(tmp_path, monkeypatch):
+    """Se compara por nombre: cualquier conftest del árbol cuenta (X115)."""
+    _escribir(tmp_path, tmp_path / "tests" / "conftest.py", True, monkeypatch)
+    assert policy.clasificar_con_sesion("pytest tests/ -q") == "preguntar"
+
+
+def test_editar_config_de_pytest_tambien_marca(tmp_path, monkeypatch):
+    """`edit_file` es el otro camino de escritura: también marca."""
+    destino = tmp_path / "pyproject.toml"
+    destino.write_text("x = 1\n", encoding="utf-8")
+    monkeypatch.setattr(coding, "_approve", lambda pedido: True)
+    coding.edit_file(str(destino), "x = 1", "x = 2")
+    assert policy.clasificar_con_sesion("python3 -m pytest -q") == "preguntar"
+
+
+def test_solo_el_pytest_consume_el_aviso(tmp_path, monkeypatch):
+    """Un comando que no es pytest no gasta el aviso: pregunta el pytest siguiente."""
+    _escribir(tmp_path, tmp_path / "conftest.py", True, monkeypatch)
+    assert policy.clasificar_con_sesion("ls") == "auto"
+    assert policy.clasificar_con_sesion("pytest -q") == "preguntar"
+
+
+def test_otro_archivo_no_marca(tmp_path, monkeypatch):
+    """(d) Escribir código cualquiera no suma fricción al pytest."""
+    _escribir(tmp_path, tmp_path / "modulo.py", True, monkeypatch)
+    assert policy.clasificar_con_sesion("pytest -q") == "auto"
+
+
+def test_escritura_rechazada_no_marca(tmp_path, monkeypatch):
+    """(e) Un rechazo no toca el disco y tampoco marca."""
+    _escribir(tmp_path, tmp_path / "conftest.py", False, monkeypatch)
+    assert policy.clasificar_con_sesion("pytest -q") == "auto"

@@ -53,6 +53,10 @@
       "nota": "lista blanca (X114, D11): lo que no está acá pregunta, porque pytest y sus plugins suman opciones y la negra perdió tres veces (E1 sort, E2 -o, --pastebin). --version solo imprime la versión (uso común). Las opciones con valor van separadas o con = (--tb=short, -k expr); -rA pegado también vale."
     }
   },
+  "config_pytest": {
+    "nombres": ["conftest.py", "pytest.ini", "setup.cfg", "tox.ini", "pyproject.toml"],
+    "nota": "escribir o editar (con aprobación) cualquiera de estos archivos cambia cómo corre pytest la próxima vez (X115): ese próximo pytest de la sesión pregunta y consume el aviso. Se compara por NOMBRE, así vale cualquier conftest y en cualquier profundidad; un rechazo o otro archivo no marcan nada."
+  },
   "bases_modulo": [
     {"prefijo": ["python3", "-m", "pytest"], "base": "pytest"},
     {"prefijo": ["python3", "-m", "ruff"], "base": "ruff"}

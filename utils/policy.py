@@ -64,7 +64,8 @@ CONFIRMAR_DOBLE = "confirmar_doble"
 _ARCHIVO = Path(__file__).with_name("politica_comandos.json")
 _NIVELES = (AUTO, PREGUNTAR, CONFIRMAR_DOBLE)
 _CLAVES = {"prefijos": list, "flags_peligrosos": dict, "opciones_auto": dict,
-           "bases_modulo": list, "envoltorios": dict, "git_globales_con_valor": list}
+           "config_pytest": dict, "bases_modulo": list, "envoltorios": dict,
+           "git_globales_con_valor": list}
 
 
 def _exigir(condicion, motivo):
@@ -110,6 +111,10 @@ def _validar_politica(datos):
                     f"opciones_auto[{base}].{grupo}")
         _exigir(isinstance(entrada.get("nota"), str) and entrada["nota"].strip(),
                 f"opciones_auto[{base}] sin nota")
+    config = datos["config_pytest"]
+    _exigir(isinstance(config.get("nombres"), list) and config["nombres"]
+            and all(_es_token(n) for n in config["nombres"]), "config_pytest.nombres")
+    _exigir(isinstance(config.get("nota"), str) and config["nota"].strip(), "config_pytest sin nota")
     for entrada in datos["bases_modulo"]:
         _exigir(isinstance(entrada, dict) and all(map(_es_token, entrada.get("prefijo") or [None]))
                 and _es_token(entrada.get("base")), f"base de módulo: {entrada!r}")
@@ -438,6 +443,42 @@ def clasificar(comando):
 
     # 3) default: preguntar.
     return PREGUNTAR
+
+
+# X115: escribir configuración de pytest con aprobación cambia cómo corre la
+# próxima vez. El aviso es un flag de SESIÓN explícito (marcar + consumir, y
+# monkeypatch lo resetea en tests): lo levanta la escritura aprobada y lo
+# consume el pytest siguiente, que pregunta UNA vez. Sin estado silencioso.
+_CONFIG_PYTEST = tuple(_POLITICA["config_pytest"]["nombres"])
+_config_editada = False
+
+
+def marcar_config_editada(ruta):
+    """Marca la sesión si la ruta escrita es configuración de pytest (X115).
+    Se compara por NOMBRE: cualquier conftest, en cualquier profundidad."""
+    global _config_editada
+    if Path(str(ruta)).name in _CONFIG_PYTEST:
+        _config_editada = True
+
+
+def _es_pytest(comando):
+    for segmento in segmentos(comando):
+        tokens = _normalizar(_tokens(segmento))
+        if tokens and (tokens[0] == "pytest" or _empieza_con(tokens, ("python3", "-m", "pytest"))):
+            return True
+    return False
+
+
+def clasificar_con_sesion(comando):
+    """`clasificar` + la fricción de sesión de X115: el primer pytest después
+    de escribir configuración de pytest pregunta y consume el aviso; solo ese.
+    Lo demás (incluidos los compuestos) se clasifica como siempre."""
+    global _config_editada
+    nivel = clasificar(comando)
+    if _config_editada and _es_pytest(comando):
+        _config_editada = False
+        return PREGUNTAR if nivel == AUTO else nivel
+    return nivel
 
 
 def explicar(comando):
