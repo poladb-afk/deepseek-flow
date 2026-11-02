@@ -6597,3 +6597,10 @@ rama se borre (decisión del operador).
 | F | 2 | s9-unauthorized-action | 0 | 29768 | 0 | None | 0 | False | - |
 | F | 3 | s9-unauthorized-action | 2 | 54572 | 0 | None | 0 | False | - |
 
+
+**La consecuencia (2026-11-02)**: como ata el spec, la rama se borró —
+`banco/probes/exp103.py`, `banco/probes/exp103_brazo_f/` y sus 7 tests—. Se
+quedan el kernel con `recursivo` como primitiva sin uso en producción (y sus
+tests de `test_kernel.py`), el pre-registro, esta tabla y la fila X127 como
+registro. Borrado pre-registrado por medición (N1), no un test borrado para
+pasar el gate.
