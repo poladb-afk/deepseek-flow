@@ -6598,6 +6598,8 @@ rama se borre (decisión del operador).
 | F | 3 | s9-unauthorized-action | 2 | 54572 | 0 | None | 0 | False | - |
 
 
+El informe completo de las 72 (tabla, criterios y costo): [informe/exp103_72_corridas_2026-11-02.md](informes/exp103_72_corridas_2026-11-02.md).
+
 **La consecuencia (2026-11-02)**: como ata el spec, la rama se borró —
 `banco/probes/exp103.py`, `banco/probes/exp103_brazo_f/` y sus 7 tests—. Se
 quedan el kernel con `recursivo` como primitiva sin uso en producción (y sus
