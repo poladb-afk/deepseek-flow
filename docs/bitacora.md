@@ -6606,3 +6606,36 @@ quedan el kernel con `recursivo` como primitiva sin uso en producción (y sus
 tests de `test_kernel.py`), el pre-registro, esta tabla y la fila X127 como
 registro. Borrado pre-registrado por medición (N1), no un test borrado para
 pasar el gate.
+
+---
+
+## X128: la verificación de X127 y el pre-registro del exp/104 (2026-11-02)
+
+**El juez** (fable-judge sobre el árbol del operador): el veredicto del exp/103
+se reproduce exacto aplicando el `veredicto()` del runner a las 72 filas del
+informe (NO PASA por adopción; los otros tres criterios ✅). El borrado de la
+rama es el pre-registrado. Dos afirmaciones no aguantaron:
+
+- **"La diferencia de calidad es varianza de 3 seeds"** (informe y X127, más
+  arriba en esta bitácora; se deja como se escribió). Permutación estratificada
+  por escenario, 20.000 permutaciones: F − A = +0,458 (p ≈ 0,011), F − A+ =
+  +0,417 (p ≈ 0,014), A+ − A = +0,042 (p ≈ 0,50). Post hoc y sobre un
+  puntaje por keywords: no prueba un efecto, pero tampoco lo descarta. Se
+  concentra en s13, s17, s19 y s9; los otros cuatro empatan exacto en los tres
+  brazos.
+- **"El gate está verde"**: en un checkout limpio, 1 rojo.
+  `test_bench_supervisor_sqlite_ilegible_cuenta_incumplida` parcheaba
+  `sqlite3.connect`, pero sin `trazas.db` la función salía por "no existe"
+  antes de tocar sqlite. Pasaba solo en una máquina con la base.
+
+**Lo que se hizo**: el test fija su base en tmp. Medido: pasa con y sin
+`trazas.db`, y falla con el mutante que cambia el `return False` del `except`
+por `None`. El informe conserva la frase y agrega la corrección.
+
+**El exp/104** (`banco/specs/exp104_tool_inerte.md`, sin correr): ¿una tool que
+no se usa cambia la calidad? Brazos A, F0 (el esquema de `dividir` byte a byte,
+462 bytes, con implementación inerte) y N (una tool neutra de 465 bytes que no
+habla de delegar). Los cuatro escenarios que discriminaron, seeds 11 a 18, 96
+corridas, unos US$0,50. Potencia simulada remuestreando el exp/103: 100 % si el
+efecto es del tamaño observado, 64 % si es la mitad, 3 % de falso positivo.
+Ningún resultado entra al producto: si es del texto, N3 lo prohíbe.
