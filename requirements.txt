@@ -1,11 +1,9 @@
+# Runtime real del harness: lo que el producto importa para arrancar.
+# Las capacidades opcionales (fastembed, fastmcp, ddgs, laya) son import
+# perezoso y la suite las saltea: ver requirements-opcionales.txt.
+# El gate completo se instala con requirements-dev.txt.
 pocketflow==0.0.3
 openai>=2.0.0
 pyyaml>=6.0
 numpy>=1.26
-fastembed>=0.4
-fastmcp>=3.0
-ddgs>=9.0
-laya==0.3.20
 requests>=2.31
-pytest>=8.0
-ruff==0.17.1

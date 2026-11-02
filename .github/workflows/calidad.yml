@@ -14,10 +14,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      # Dependencias LIVIANAS: es requirements.txt sin las pesadas/opcionales
-      # (laya, fastembed, fastmcp, ddgs). La suite las saltea o las simula —
-      # verificado en un venv mínimo: 517 passed, 1 skipped, 0 failed.
-      - run: pip install "pocketflow==0.0.3" openai pyyaml numpy requests pytest "ruff==0.17.1"
+      # requirements-dev.txt = runtime (requirements.txt) + pytest + ruff
+      # pinneado. Las opcionales (laya, fastembed, fastmcp, ddgs) quedan
+      # afuera: la suite las saltea o las simula.
+      - run: pip install -r requirements-dev.txt
       # OJO: no forzar TRACE=0 ni THREAD_PERSIST=0. Los tests de persistencia y
       # de traza los encienden ellos mismos, y apagarlos desde el entorno deja
       # 10 rojos (medido). PREGUNTAS_LOG=0 alcanza para no escribir artefactos.

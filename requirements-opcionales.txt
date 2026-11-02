@@ -1,0 +1,6 @@
+# Capacidades opcionales: import perezoso, el harness degrada sin ellas y la
+# suite las saltea o las simula. Piden red o modelos; no entran al CI.
+fastembed>=0.4
+fastmcp>=3.0
+ddgs>=9.0
+laya==0.3.20

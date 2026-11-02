@@ -1,0 +1,5 @@
+# Gate y desarrollo: la suite más el linter con la versión pinneada.
+# `pip install -r requirements-dev.txt` es lo que instala el CI.
+-r requirements.txt
+pytest>=8.0
+ruff==0.17.1

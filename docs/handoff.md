@@ -110,7 +110,7 @@ puede ajustarla (es un dato de `utils/politica_comandos.json`).
 |---|---|---|---|---|
 | 1 | Aplicar X112 + X113; la clave por vocabulario 3 → 5 | no | — | — |
 | 2 | ✅ **X114, seguridad (S0):** hecho el 2026-11-01 con X115 y X121 (ver `docs/estado.md`) | **sí**, solo sube fricción | 1 | ver "X114 en detalle" abajo |
-| 3 | X115-orden (resto): los `.patch` de `docs/informes/` y el test_auditoria_2026_10_26.py viejo se borraron el 2026-11-01 (3.387.314 B: 3.378.765 B de los 47 `.patch` + 8.549 B del test; siguen en la historia de git); el candado de tamaño y artefactos ya existe (`tests/test_higiene_repo.py`, X122); queda separar las dependencias de desarrollo y las opcionales de `requirements.txt` | no | 1 | la CI (`.github/workflows/calidad.yml`) se toca en el mismo paso |
+| 3 | ✅ **X115-orden hecho (2026-11-02):** los `.patch` y el test viejo se borraron (quedan en la historia de git), el candado de higiene es `tests/test_higiene_repo.py` (X122) y las dependencias quedaron separadas: `requirements.txt` (runtime), `requirements-dev.txt` (`-r requirements.txt` + pytest + ruff) y `requirements-opcionales.txt`; el CI instala `requirements-dev.txt` | no | 1 | hecho |
 | 4 | Imports perezosos → ≤ 40, con `python -X importtime` como gate | no | 1 | 12 stdlib, 8 opcionales, 2 obligatorias y 59 internos (sobre 81) |
 | 5 | Pre-registro y A/B de S6 (un solo techo de rondas) | **sí** | 1 | s9: 5 de 6 sin terminar, 0 deploys |
 | 6 | 5c-a: los prefiltros como un mecanismo con un setting | depende | 1 | 5 settings hoy |

@@ -67,7 +67,10 @@ Heredada de PocketFlow y de [bmo](../bmo) (el harness que inspiró los módulos)
 ## Quickstart
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt   # runtime
+pip install -r requirements-dev.txt  # + pytest y ruff (el gate)
+# opcionales (Laya, RAG, MCP, búsqueda):
+#   pip install -r requirements-opcionales.txt
 cp .env.example .env        # ajusta lo que quieras
 export DEEPSEEK_API_KEY=sk-...
 python3 main.py             # el chat
