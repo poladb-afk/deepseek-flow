@@ -47,7 +47,7 @@ def test_policy_lectura_legitima_sigue_auto(comando):
     assert policy.clasificar(comando) == "auto"
 
 
-# X114: el `auto` de pytest pasa por lista blanca (`opciones_auto`). La negra
+# X114: el `auto` de pytest pasa por lista blanca (`opciones_permitidas`). La negra
 # perdió tres veces (E1 sort, E2 pytest -o, --pastebin), así que lo no
 # declarado pregunta, incluido un flag que todavía no existe.
 @pytest.mark.parametrize("comando", [
@@ -107,7 +107,7 @@ def test_las_comillas_no_esconden_un_flag(comando, esperado):
     'pytest "tests/"', 'pytest -k "expresion"', "python3 -m pytest tests/ -q",
 ])
 def test_pytest_con_opciones_de_la_lista_sigue_auto(comando):
-    """Lo declarado en `opciones_auto`, y las rutas/nodeid, no suman fricción."""
+    """Lo declarado en `opciones_permitidas`, y las rutas/nodeid, no suman fricción."""
     assert policy.clasificar(comando) == "auto"
 
 
