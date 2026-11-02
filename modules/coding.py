@@ -28,12 +28,12 @@ import re as _re
 import subprocess
 from pathlib import Path
 
-from utils.aprobaciones import Pedido, pedir_aprobacion
+from utils.aprobaciones import Pedido, eventos, pedir_aprobacion
 from utils.aprobaciones import registrar as registrar_aprobacion
 from utils.call_llm import _setting
 from utils.estado_sesion import ultimo_usuario
 from utils.fs_tools import _resolve, escribir_atomico
-from utils.policy import clasificar_con_sesion, explicar, marcar_config_editada, marcar_si_redirige_config, segmentos
+from utils.policy import clasificar, configuracion, explicar, segmentos
 from utils.riesgo import registrar as registrar_riesgo
 from utils.terminal import colorear, highlight_diff, recortar_chars
 
@@ -231,6 +231,28 @@ RECHAZO_DOBLE = ("RECHAZADO por el usuario: el comando no se ejecutó (segunda c
                  "Puedes proponer otro o preguntar qué cambiaría.")
 
 
+def _configuracion_editada(command):
+    """True si, desde el último `command` de la misma base aprobado con s/n,
+    una escritura, edición o comando aprobado nombró uno de sus archivos de
+    configuración (X115): `addopts = -p plugin` en un conftest entra sin pasar
+    por la línea de comandos. Lee el historial de aprobaciones de la sesión
+    (sobrevive al resume). Un resumen truncado no muestra el nombre: cuenta
+    como tocado. Límite: un script aprobado que escribe el archivo sin
+    nombrarlo no se ve; `HITL_AUTO=0` es el modo estricto."""
+    nombres = configuracion(command)
+    if not nombres:
+        return False
+    for e in reversed(eventos()):
+        if not e["decision"]:
+            continue
+        if e["tipo"] == "run_command" and configuracion(e["resumen"]) & nombres:
+            return False
+        nombrados = {Path(t).name for t in e["resumen"].split()}
+        if nombrados & nombres or len(e["resumen"]) >= 200:
+            return True
+    return False
+
+
 def _nivel(command):
     """Clasificación del comando + los dos ajustes de la casa.
 
@@ -238,10 +260,10 @@ def _nivel(command):
     el comando (transparencia: el usuario lo ve igual) — y 'auto' solo vale
     DENTRO del proyecto: un cat/grep/find a una ruta fuera de
     AGENT_ALLOWED_DIRS vuelve a pedir aprobación. HITL_AUTO=0 devuelve el s/n
-    de siempre. X115: si la sesión escribió configuración de pytest, el primer
-    pytest pregunta (lo consume `clasificar_con_sesion`)."""
-    nivel = clasificar_con_sesion(command)
-    if nivel == "auto" and _sale_de_raices(command):
+    de siempre. Tras editar la configuración de pytest, el próximo pytest
+    pregunta (X115)."""
+    nivel = clasificar(command)
+    if nivel == "auto" and (_sale_de_raices(command) or _configuracion_editada(command)):
         nivel = "preguntar"
     if _setting("HITL_AUTO", "1") != "1":
         nivel = "preguntar"
@@ -317,9 +339,6 @@ def run_command(command):
     aprobado, motivo = _aprobar(command, nivel)           # auto / s-n / doble s-n
     if not aprobado:
         return motivo
-    # X115 por la puerta del shell: una redirección APROBADA a un archivo de
-    # configuración de pytest (echo … > tests/conftest.py) también suma el aviso.
-    marcar_si_redirige_config(command)
     return _ejecutar(command)                             # subprocess + timeout + recorte
 
 
@@ -491,8 +510,6 @@ def edit_file(path, old_string, new_string):
         escribir_atomico(resolved, nuevo)
     except OSError as e:
         return f"ERROR al escribir: {e.strerror}"
-    # X115: si lo editado es configuración de pytest, el próximo pytest pregunta.
-    marcar_config_editada(resolved)
     return f"Editado: {resolved} ({len(diff.splitlines())} líneas de diff)"
 
 

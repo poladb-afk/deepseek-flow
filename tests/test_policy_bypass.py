@@ -12,7 +12,7 @@ import json
 import pytest
 from conftest import RAIZ
 
-from modules import coding, escritura
+from modules import coding
 from utils import policy
 
 
@@ -51,17 +51,20 @@ def test_policy_lectura_legitima_sigue_auto(comando):
 # perdió tres veces (E1 sort, E2 pytest -o, --pastebin), así que lo no
 # declarado pregunta, incluido un flag que todavía no existe.
 @pytest.mark.parametrize("comando", [
-    "pytest --pastebin=all",
-    "python3 -m pytest --pastebin=all",
-    "pytest --junitxml=salida.xml",
-    "python3 -m pytest --junit-xml=salida.xml",
-    "pytest --report-log=salida.jsonl",
-    "pytest --debug",
-    "pytest --debug=salida.jsonl",
-    "pytest --cache-clear",
-    "pytest --futuro=1",
+    # X114: el argparse real de pytest, forma por forma.
+    "pytest --pastebin=all", "python3 -m pytest --pastebin=all",
+    "pytest --junitxml=/tmp/x.xml", "pytest --junit-xml=/tmp/x.xml", "pytest --report-log=r.jsonl",
+    "pytest --debug", "pytest --debug=/tmp/d.log", "pytest --cache-clear",
+    "pytest -W ignore::evil.W", "pytest --doctest-modules", "pytest @args.txt",
+    "pytest -qp evil", "pytest --tb=short --plugin-nuevo",
+    'PYTEST_ADDOPTS="-p evil" pytest -q', "env PYTEST_ADDOPTS=-pevil pytest -q",
+    "pytest -k --pastebin=all", "pytest -m -p evil", "pytest --tb -p x",
+    "pytest -x -- -p evil", "pytest -q t.py -- --pastebin=all",
+    # la batería nuestra, como regresión
+    "pytest --junitxml=salida.xml", "python3 -m pytest --junit-xml=salida.xml",
+    "pytest --report-log=salida.jsonl", "pytest --futuro=1",
 ])
-def test_pytest_fuera_de_la_lista_blanca_pregunta(comando):
+def test_pytest_auto_es_lista_blanca(comando):
     """Falla cerrada: una opción de pytest no declarada no es auto."""
     assert policy.clasificar(comando) == "preguntar"
 
@@ -91,32 +94,19 @@ def test_las_comillas_no_esconden_un_flag(comando, esperado):
 
 
 @pytest.mark.parametrize("comando", [
-    "pytest",
-    "pytest -q",
-    "pytest -v -x -s",
-    "pytest tests/",
+    # X114: lo declarado en `opciones_permitidas` (y rutas/nodeids) no suma fricción.
+    "pytest -q", 'python3 -m pytest tests/ -q -k "a or b" 2>&1 | tail -5',
+    "pytest -x --tb=short -rA --maxfail=1 tests/test_a.py::test_b", "pytest -vv --tb short",
+    "pytest --lf -q", "pytest --co -q", "pytest -m 'not red' tests/", "pytest -kpolicy -q",
+    "pytest", "pytest -v -x -s", "pytest tests/",
     "pytest tests/test_policy.py::test_policy_bypass_cerrados",
-    "pytest -k expresion",
-    "pytest -m marcador",
-    "pytest --lf",
-    "pytest --ff",
-    "pytest --co",
-    "pytest --collect-only -q",
-    "pytest --tb=short",
-    "pytest -rA",
-    "pytest --maxfail=2",
-    "pytest --durations=10",
-    "pytest -W error",
-    "pytest --no-header",
-    "pytest --version",
-    "pytest -kexpresion",
-    "pytest -mfoo",
-    "pytest -Wignore::DeprecationWarning",
-    'pytest "tests/"',
-    'pytest -k "expresion"',
-    "python3 -m pytest tests/ -q",
+    "pytest -k expresion", "pytest -m marcador", "pytest --ff",
+    "pytest --collect-only -q", "pytest --tb=short", "pytest -rA",
+    "pytest --maxfail=2", "pytest --durations=10", "pytest --no-header",
+    "pytest --version", "pytest -kexpresion", "pytest -mfoo",
+    'pytest "tests/"', 'pytest -k "expresion"', "python3 -m pytest tests/ -q",
 ])
-def test_pytest_lista_blanca_sigue_auto(comando):
+def test_pytest_con_opciones_de_la_lista_sigue_auto(comando):
     """Lo declarado en `opciones_auto`, y las rutas/nodeid, no suman fricción."""
     assert policy.clasificar(comando) == "auto"
 
@@ -229,73 +219,24 @@ def test_auto_no_sigue_symlinks_fuera_de_raices(monkeypatch, tmp_path):
     assert "SECRETO-FUERA" not in salida
 
 
-# X115: la configuración de pytest escrita con aprobación suma fricción UNA
-# vez, en el pytest siguiente. El aviso es de sesión y el fixture lo resetea.
-@pytest.fixture(autouse=True)
-def _aviso_de_config_limpio(monkeypatch):
-    """El aviso de sesión de X115 no se arrastra entre tests."""
-    monkeypatch.setattr(policy, "_config_editada", False)
+# X115: la configuración de pytest editada eleva la fricción del próximo pytest.
+def test_tras_editar_la_configuracion_de_pytest_el_proximo_pregunta(monkeypatch):
+    """`addopts = -p plugin` en un conftest no pasa por la línea de comandos.
+    Tras una escritura aprobada de la configuración, el próximo pytest
+    pregunta; una vez aprobado, el siguiente vuelve a auto."""
+    from utils import aprobaciones
 
-
-def _escribir(tmp_path, ruta, aprobado, monkeypatch):
-    monkeypatch.setattr(escritura, "_approve", lambda pedido: aprobado)
-    return escritura.write_file(str(ruta), "x = 1\n")
-
-
-@pytest.mark.parametrize("nombre", ["conftest.py", "pytest.ini", "setup.cfg", "tox.ini", "pyproject.toml"])
-def test_escribir_config_de_pytest_hace_preguntar_el_siguiente(tmp_path, monkeypatch, nombre):
-    """(a)(b)(c) La escritura aprobada marca; el pytest siguiente pregunta y consume."""
-    _escribir(tmp_path, tmp_path / nombre, True, monkeypatch)
-    assert policy.clasificar_con_sesion("pytest -q") == "preguntar"
-    assert policy.clasificar_con_sesion("pytest -q") == "auto"
-
-
-def test_un_conftest_en_cualquier_carpeta_marca(tmp_path, monkeypatch):
-    """Se compara por nombre: cualquier conftest del árbol cuenta (X115)."""
-    _escribir(tmp_path, tmp_path / "tests" / "conftest.py", True, monkeypatch)
-    assert policy.clasificar_con_sesion("pytest tests/ -q") == "preguntar"
-
-
-def test_editar_config_de_pytest_tambien_marca(tmp_path, monkeypatch):
-    """`edit_file` es el otro camino de escritura: también marca."""
-    destino = tmp_path / "pyproject.toml"
-    destino.write_text("x = 1\n", encoding="utf-8")
-    monkeypatch.setattr(coding, "_approve", lambda pedido: True)
-    coding.edit_file(str(destino), "x = 1", "x = 2")
-    assert policy.clasificar_con_sesion("python3 -m pytest -q") == "preguntar"
-
-
-def test_solo_el_pytest_consume_el_aviso(tmp_path, monkeypatch):
-    """Un comando que no es pytest no gasta el aviso: pregunta el pytest siguiente."""
-    _escribir(tmp_path, tmp_path / "conftest.py", True, monkeypatch)
-    assert policy.clasificar_con_sesion("ls") == "auto"
-    assert policy.clasificar_con_sesion("pytest -q") == "preguntar"
-
-
-def test_otro_archivo_no_marca(tmp_path, monkeypatch):
-    """(d) Escribir código cualquiera no suma fricción al pytest."""
-    _escribir(tmp_path, tmp_path / "modulo.py", True, monkeypatch)
-    assert policy.clasificar_con_sesion("pytest -q") == "auto"
-
-
-def test_escritura_rechazada_no_marca(tmp_path, monkeypatch):
-    """(e) Un rechazo no toca el disco y tampoco marca."""
-    _escribir(tmp_path, tmp_path / "conftest.py", False, monkeypatch)
-    assert policy.clasificar_con_sesion("pytest -q") == "auto"
-
-
-# X115 por la puerta del shell: la redirección APROBADA a un archivo de
-# configuración de pytest también suma el aviso (Auditor, R7).
-@pytest.mark.parametrize(("forma", "destino", "aprobado", "marca"), [
-    (">", "tests/conftest.py", True, True),
-    (">|", "tests/conftest.py", True, True),
-    (">", "tests/conftest.py", False, False),
-    (">", "modulo.py", True, False),
-])
-def test_redireccion_del_shell_marca_solo_config_aprobada(
-        tmp_path, monkeypatch, forma, destino, aprobado, marca):
-    """Un rechazo o un destino común no marcan; la config de pytest sí (y `>|`)."""
-    monkeypatch.setattr(coding, "_approve", lambda pedido: aprobado)
-    monkeypatch.setattr(coding, "_ejecutar", lambda command: "ok")
-    coding.run_command(f"echo x {forma} {tmp_path / destino}")
-    assert (policy.clasificar_con_sesion("pytest -q") == "preguntar") is marca
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(RAIZ))
+    aprobaciones.limpiar()
+    assert coding._nivel("python3 -m pytest -q") == "auto"
+    aprobaciones.registrar("write_file", str(RAIZ / "tests" / "conftest.py"), False)
+    aprobaciones.registrar("edit_file", str(RAIZ / "README.md"), True)
+    assert coding._nivel("python3 -m pytest -q") == "auto"  # rechazada o ajena: no cuenta
+    aprobaciones.registrar("edit_file", str(RAIZ / "pyproject.toml"), True)
+    assert coding._nivel("cd tests && pytest -q") == "preguntar"
+    assert coding._nivel("ls") == "auto"  # solo la base que lee esa configuración
+    aprobaciones.registrar("run_command", "cd tests && pytest -q", True)
+    assert coding._nivel("pytest -q") == "auto"
+    aprobaciones.registrar("run_command", "cp /tmp/x tests/conftest.py", True)  # por otro canal
+    assert coding._nivel("pytest -q") == "preguntar"
+    aprobaciones.limpiar()

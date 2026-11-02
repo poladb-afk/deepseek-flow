@@ -1,5 +1,5 @@
 {
-  "_doc": "Política de comandos de utils/policy.py como DATOS (fase 5a, banco/specs/fase5a.md). El mecanismo (tokenizar, segmentos, envoltorios, orden de evaluación) vive en el código; acá solo qué prefijo merece qué fricción y por qué. Sin `nivel` = solo explicación (clasifica al default preguntar). Un prefijo que es inicio de otro va DESPUÉS (rm -rf antes que rm). `opciones_auto` es la lista blanca de opciones POR BASE (X114): el prefijo solo ya no alcanza, lo no declarado pregunta. Cambiar una decisión es un PR con su test de bypass (R7).",
+  "_doc": "Política de comandos de utils/policy.py como DATOS (fase 5a, banco/specs/fase5a.md). El mecanismo (tokenizar, segmentos, envoltorios, orden de evaluación) vive en el código; acá solo qué prefijo merece qué fricción y por qué. Sin `nivel` = solo explicación (clasifica al default preguntar). Un prefijo que es inicio de otro va DESPUÉS (rm -rf antes que rm). `opciones_permitidas` es la lista BLANCA de opciones POR BASE (X114) y los archivos de configuración que la base lee (X115): el prefijo solo ya no alcanza, lo no declarado pregunta. Cambiar una decisión es un PR con su test de bypass (R7).",
   "prefijos": [
     {"tokens": ["pytest"], "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"},
     {"tokens": ["python3", "-m", "pytest"], "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"},
@@ -45,16 +45,8 @@
     "ruff": {"flags": ["--fix", "--fix-only", "-w", "--watch", "--add-noqa", "-o", "--output-file"], "nota": "lo que ESCRIBE (--fix, --fix-only, --add-noqa, -o/--output-file) o cuelga (-w/--watch); `ruff check` a secas solo parsea (exp/92)"},
     "grep": {"flags": ["-R", "--dereference-recursive"], "nota": "-R/--dereference-recursive siguen symlinks (auditoría F2)"}
   },
-  "opciones_auto": {
-    "pytest": {
-      "flags": ["-q", "-v", "-x", "-s", "--lf", "--ff", "--co", "--collect-only", "--no-header", "--version"],
-      "con_valor": ["-k", "-m", "--tb", "--maxfail", "--durations", "-W", "-r"],
-      "nota": "lista blanca (X114, D11): lo que no está acá pregunta, porque pytest y sus plugins suman opciones y la negra perdió tres veces (E1 sort, E2 -o, --pastebin). --version solo imprime la versión (uso común). Las opciones con valor van separadas o con = (--tb=short, -k expr); -rA pegado también vale."
-    }
-  },
-  "config_pytest": {
-    "nombres": ["conftest.py", "pytest.ini", "setup.cfg", "tox.ini", "pyproject.toml"],
-    "nota": "escribir o editar (con aprobación) cualquiera de estos archivos cambia cómo corre pytest la próxima vez (X115): ese próximo pytest de la sesión pregunta y consume el aviso. Se compara por NOMBRE, así vale cualquier conftest y en cualquier profundidad; un rechazo o otro archivo no marcan nada."
+  "opciones_permitidas": {
+    "pytest": {"opciones": ["-q", "--quiet", "-v", "--verbose", "-x", "--exitfirst", "-s", "-l", "--showlocals", "--lf", "--last-failed", "--ff", "--failed-first", "--sw", "--stepwise", "--co", "--collect-only", "--no-header", "--version", "-h", "--help"], "con_valor": ["-k", "-m", "-r", "--tb", "--maxfail", "--durations", "--ignore", "--deselect"], "configuracion": ["conftest.py", "pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "pyproject.toml", "setup.cfg", "tox.ini"], "nota": "lista BLANCA (X114): lo que no está pregunta. Afuera a propósito: --pastebin publica, --junitxml/--report-log/--debug escriben, --cache-clear borra, -p carga plugins, -c/-o/--rootdir/--confcutdir cambian la configuración, --basetemp borra su directorio, -W importa el módulo de la categoría y --doctest-modules importa todo módulo. `configuracion`: lo que pytest lee al arrancar (pyproject.toml entero, aunque no traiga [tool.pytest]); tras escribirlo con aprobación, el próximo pytest pregunta (X115)"}
   },
   "bases_modulo": [
     {"prefijo": ["python3", "-m", "pytest"], "base": "pytest"},

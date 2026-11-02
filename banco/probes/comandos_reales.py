@@ -22,7 +22,7 @@ que se versiona, para revisarla a mano ANTES de commitear.
 
 `--casos` escribe la otra mitad del instrumento de la 5a: UN caso sintético
 por entrada de la política (cada prefijo, cada flag peligroso con cada
-prefijo de su base, cada envoltorio con cada opción, cada opción global de
+prefijo de su base, cada opción de la lista blanca (y una que no está), cada envoltorio con cada opción, cada opción global de
 git), derivado mecánicamente de las listas, con el nivel y el texto de la
 política del árbol donde se corre. Así ninguna entrada queda sin ejercitar
 aunque el tráfico real no la use.
@@ -134,6 +134,11 @@ def casos_por_entrada():
                 casos |= {f"{texto} {flag} x", f"{texto} {flag}=x"}
                 if len(flag) == 2:
                     casos.add(f"{texto} -q{flag[1]} x")
+    for base, (opciones, con_valor) in policy._OPCIONES.items():
+        for prefijo in (p for p in auto if _base_efectiva(p) == base):
+            texto = " ".join(prefijo)
+            casos |= {f"{texto} {o} x" for o in opciones} | {f"{texto} {o} v x" for o in con_valor}
+            casos |= {f"{texto} --no-es-una-opcion x", f"{texto} @args.txt"}
     for envoltorio in sorted(policy._ENVOLTORIOS):
         casos |= {f"{envoltorio} rm -rf x", f"{envoltorio} ls"}
         for opcion in policy._OPCIONES_CON_VALOR.get(envoltorio, ()):

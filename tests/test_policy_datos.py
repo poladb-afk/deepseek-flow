@@ -47,7 +47,8 @@ def test_falla_cerrada_si_el_archivo_falta_o_no_es_json(tmp_path, contenido):
 
 
 @pytest.mark.parametrize("rotura", ["nivel_desconocido", "repetido", "tapado", "sin_negra_doble",
-                                    "sin_explicacion", "token_con_espacio", "sin_clave", "flag_sin_guion"])
+                                    "sin_explicacion", "token_con_espacio", "sin_clave", "flag_sin_guion",
+                                    "opcion_sin_guion"])
 def test_falla_cerrada_si_los_datos_no_validan(tmp_path, rotura):
     datos = json.loads(policy._ARCHIVO.read_text(encoding="utf-8"))
     prefijos = datos["prefijos"]
@@ -66,8 +67,10 @@ def test_falla_cerrada_si_los_datos_no_validan(tmp_path, rotura):
         prefijos[0]["tokens"] = ["git push"]
     elif rotura == "sin_clave":
         del datos["envoltorios"]
-    else:
+    elif rotura == "flag_sin_guion":
         datos["flags_peligrosos"]["find"]["flags"].append("delete")
+    else:
+        datos["opciones_permitidas"]["pytest"]["opciones"].append("q")
     with pytest.raises(ValueError):
         policy._leer_politica(_escribir(tmp_path, datos))
 

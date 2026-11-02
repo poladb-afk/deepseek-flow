@@ -9,7 +9,6 @@ import difflib
 from utils.aprobaciones import Pedido, pedir_aprobacion
 from utils.aprobaciones import registrar as registrar_aprobacion
 from utils.fs_tools import _resolve, escribir_atomico
-from utils.policy import marcar_config_editada
 from utils.terminal import highlight_diff, recortar_lineas
 
 PREVIEW_LINES = 30
@@ -84,8 +83,6 @@ def write_file(path, content):
         escribir_atomico(resolved, content)
     except OSError as e:
         return f"ERROR al escribir: {e.strerror}"
-    # X115: si lo escrito es configuración de pytest, el próximo pytest pregunta.
-    marcar_config_editada(resolved)
     return f"Escrito: {resolved} ({len(content)} caracteres)"
 
 

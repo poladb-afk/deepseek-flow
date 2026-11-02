@@ -212,46 +212,74 @@
 {"comando": "pip3", "nivel": "preguntar", "explicacion": "instala paquetes (modifica el entorno)"}
 {"comando": "pip3 x", "nivel": "preguntar", "explicacion": "instala paquetes (modifica el entorno)"}
 {"comando": "pytest", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
-{"comando": "pytest --basetemp x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest --basetemp=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest --confcutdir x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest --confcutdir=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest --override-ini x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest --override-ini=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest --rootdir x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest --rootdir=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest -c x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest -c=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest -o x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest -o=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest -p x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest -p=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest -qc x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest -qo x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "pytest -qp x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "pytest --co x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --collect-only x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --deselect v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --durations v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --exitfirst x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --failed-first x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --ff x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --help x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --ignore v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --last-failed x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --lf x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --maxfail v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --no-es-una-opcion x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca del comando: pide aprobación"}
+{"comando": "pytest --no-header x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --quiet x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --showlocals x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --stepwise x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --sw x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --tb v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --verbose x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest --version x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest -h x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest -k v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest -l x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest -m v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest -q x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest -r v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest -s x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest -v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest -x x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "pytest @args.txt", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca del comando: pide aprobación"}
 {"comando": "pytest x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
 {"comando": "python -c", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
 {"comando": "python -c x", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
 {"comando": "python3 -c", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
 {"comando": "python3 -c x", "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"}
 {"comando": "python3 -m pytest", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
-{"comando": "python3 -m pytest --basetemp x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest --basetemp=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest --confcutdir x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest --confcutdir=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest --override-ini x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest --override-ini=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest --rootdir x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest --rootdir=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest -c x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest -c=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest -o x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest -o=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest -p x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest -p=x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest -qc x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest -qo x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
-{"comando": "python3 -m pytest -qp x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca de la base: pide aprobación"}
+{"comando": "python3 -m pytest --co x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --collect-only x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --deselect v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --durations v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --exitfirst x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --failed-first x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --ff x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --help x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --ignore v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --last-failed x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --lf x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --maxfail v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --no-es-una-opcion x", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca del comando: pide aprobación"}
+{"comando": "python3 -m pytest --no-header x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --quiet x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --showlocals x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --stepwise x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --sw x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --tb v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --verbose x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest --version x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest -h x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest -k v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest -l x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest -m v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest -q x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest -r v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest -s x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest -v x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest -x x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
+{"comando": "python3 -m pytest @args.txt", "nivel": "preguntar", "explicacion": "opción fuera de la lista blanca del comando: pide aprobación"}
 {"comando": "python3 -m pytest x", "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"}
 {"comando": "python3 -m ruff check", "nivel": "auto", "explicacion": "lintea — parsea el código SIN ejecutarlo (escribe caché)"}
 {"comando": "python3 -m ruff check --add-noqa x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}

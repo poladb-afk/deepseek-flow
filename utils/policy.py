@@ -40,9 +40,10 @@ Límite conocido de la whitelist (A45): `pytest` ejecuta `conftest.py` y
 plugins del repo, y escribe cachés (`.pytest_cache`, `__pycache__`): "auto"
 no es solo-lectura en sentido estricto. Se ACEPTA porque correr tests es el
 flujo normal del agente; para exigir aprobación ante ejecución de código,
-HITL_AUTO=0 vuelve todo a s/n. El costo se documenta, no se esconde. Desde
-X114 sus opciones pasan por lista blanca (`opciones_auto`): el prefijo solo
-no alcanza y un flag de pytest no declarado pregunta (D11, falla cerrada).
+HITL_AUTO=0 vuelve todo a s/n. El costo se documenta, no se esconde. Lo
+acotan dos cosas (X114, X115): sus opciones van en lista BLANCA (lo que no
+está pregunta) y, tras editar su configuración con aprobación, el próximo
+pytest pregunta (`configuracion()`, que vigila `modules/coding.py`).
 
 Orden de evaluación: whitelist primero, negra después, default preguntar.
 """
@@ -64,9 +65,8 @@ CONFIRMAR_DOBLE = "confirmar_doble"
 # una sola confirmación). Sin setting para la ruta: no es configurable.
 _ARCHIVO = Path(__file__).with_name("politica_comandos.json")
 _NIVELES = (AUTO, PREGUNTAR, CONFIRMAR_DOBLE)
-_CLAVES = {"prefijos": list, "flags_peligrosos": dict, "opciones_auto": dict,
-           "config_pytest": dict, "bases_modulo": list, "envoltorios": dict,
-           "git_globales_con_valor": list}
+_CLAVES = {"prefijos": list, "flags_peligrosos": dict, "opciones_permitidas": dict,
+           "bases_modulo": list, "envoltorios": dict, "git_globales_con_valor": list}
 
 
 def _exigir(condicion, motivo):
@@ -104,18 +104,11 @@ def _validar_politica(datos):
         flags = entrada.get("flags") if isinstance(entrada, dict) else None
         _exigir(isinstance(flags, list) and flags and all(_es_token(f) and f.startswith("-") for f in flags),
                 f"flags de {base}")
-    for base, entrada in datos["opciones_auto"].items():
-        _exigir(_es_token(base) and isinstance(entrada, dict), f"opciones_auto: {base!r}")
-        for grupo in ("flags", "con_valor"):
-            opciones = entrada.get(grupo)
-            _exigir(isinstance(opciones, list) and all(_es_token(o) and o.startswith("-") for o in opciones),
-                    f"opciones_auto[{base}].{grupo}")
-        _exigir(isinstance(entrada.get("nota"), str) and entrada["nota"].strip(),
-                f"opciones_auto[{base}] sin nota")
-    config = datos["config_pytest"]
-    _exigir(isinstance(config.get("nombres"), list) and config["nombres"]
-            and all(_es_token(n) for n in config["nombres"]), "config_pytest.nombres")
-    _exigir(isinstance(config.get("nota"), str) and config["nota"].strip(), "config_pytest sin nota")
+    for base, entrada in datos["opciones_permitidas"].items():
+        listas = [entrada.get(k) for k in ("opciones", "con_valor")] if isinstance(entrada, dict) else [None]
+        _exigir(all(isinstance(lista, list) and all(_es_token(o) and o.startswith("-") for o in lista)
+                    for lista in listas), f"opciones permitidas de {base}")
+        _exigir(all(map(_es_token, entrada.get("configuracion", []))), f"configuración de {base}")
     for entrada in datos["bases_modulo"]:
         _exigir(isinstance(entrada, dict) and all(map(_es_token, entrada.get("prefijo") or [None]))
                 and _es_token(entrada.get("base")), f"base de módulo: {entrada!r}")
@@ -186,8 +179,8 @@ _FLAGS_PELIGROSOS = {base: tuple(e["flags"]) for base, e in _POLITICA["flags_pel
 # opciones también se declaran, porque pytest y sus plugins suman flags y la
 # negra perdió tres veces (E1 `sort --compress-program`, E2 `pytest -o`,
 # `--pastebin`). Lo que no está acá pregunta.
-_OPCIONES_AUTO = {base: (tuple(e["flags"]), tuple(e["con_valor"]))
-                  for base, e in _POLITICA["opciones_auto"].items()}
+_OPCIONES = {base: (set(e["opciones"]), set(e["con_valor"]))
+             for base, e in _POLITICA["opciones_permitidas"].items()}
 
 
 
@@ -224,39 +217,58 @@ def _empieza_con(tokens, prefijo):
     return tuple(tokens[: len(prefijo)]) == prefijo
 
 
-def _sin_comillas(tok):
-    """El token como lo recibe el programa: el shell saca TODAS las comillas y
-    los escapes, así que `pytest ""--pastebin=all""` también llega como
-    `--pastebin=all` y la lista blanca decide sobre esta forma (X114b, R7)."""
-    return tok.replace('"', "").replace("'", "").replace("\\", "")
-
-
-def _opcion_fuera_de_lista(tokens):
-    """True si la base tiene lista blanca de opciones y algún token no está en
-    ella (D11: lo no declarado pregunta). Lo que no empieza con `-` (ya sin
-    comillas) es ruta o nodeid, como en la terminal. Una opción con valor lo
-    admite separado o con `=`; la corta también pegado (`-kexpr`, `-rA`)."""
-    prefijo = next((p for p in _WHITELIST_PREFIJOS if _empieza_con(tokens, p)), None)
-    if prefijo is None:
-        return False
-    regla = _OPCIONES_AUTO.get(_BASES_MODULO.get(tuple(tokens[:3]), tokens[0]))
-    if regla is None:
-        return False
-    flags, con_valor = regla
-    resto = tokens[len(prefijo):]
+def _opciones_permitidas(tokens):
+    """True si cada opción del comando está en su lista blanca (o si su base
+    no tiene una). Lee las opciones como argparse: `--op=v`, `--op v`, grupos
+    cortos `-qx` y el valor pegado `-kexpr`. `@archivo` lee argumentos de un
+    archivo que la política no ve: no es auto."""
+    prefijo = 3 if tuple(tokens[:3]) in _BASES_MODULO else 1
+    base = _BASES_MODULO.get(tuple(tokens[:3]), tokens[0] if tokens else "")
+    if base not in _OPCIONES:
+        return True
+    resto = list(tokens[prefijo:])
     i = 0
     while i < len(resto):
-        tok = _sin_comillas(resto[i])
-        if not tok.startswith("-") or tok in flags:
-            i += 1
-        else:
-            nombre = next((n for n in con_valor
-                           if tok == n or tok.startswith(n + "=")
-                           or (len(n) == 2 and tok.startswith(n))), None)
-            if nombre is None:
-                return True
-            i += 2 if tok == nombre else 1
-    return i > len(resto)  # una opción con valor se quedó sin su valor
+        saltar = _opcion_permitida(resto[i], resto[i + 1:i + 2], *_OPCIONES[base])
+        if saltar is None:
+            return False
+        i += 1 + saltar
+    return True
+
+
+def _opcion_permitida(tok, siguiente, opciones, con_valor):
+    """Cuántos tokens consume `tok` como valor (0 o 1), o None si no está en
+    la lista. `--` no corta: pytest igual lee `-- -p evil` (medido)."""
+    if tok == "--" or not tok.startswith("-") or len(tok) == 1:
+        return None if tok.startswith("@") else 0
+    if tok.startswith("--"):
+        nombre, igual, _ = tok.partition("=")
+        if nombre in con_valor:
+            return 0 if igual else _toma_valor(siguiente)
+        return 0 if nombre in opciones and not igual else None
+    for j, letra in enumerate(tok[1:], 1):
+        if f"-{letra}" in con_valor:
+            return 0 if tok[j + 1:] else _toma_valor(siguiente)
+        if f"-{letra}" not in opciones:
+            return None
+    return 0
+
+
+def _toma_valor(siguiente):
+    """1 si el token siguiente es el valor de la opción. Uno que empieza con
+    `-` no es valor: se revisa como opción (argparse tampoco lo toma)."""
+    return 1 if siguiente and not siguiente[0].startswith("-") else 0
+
+
+def configuracion(comando):
+    """Los archivos de configuración que leen las bases que corre `comando`
+    (vacío si ninguna declara los suyos): `run_command` los vigila (X115)."""
+    nombres = set()
+    for seg in segmentos(comando):
+        tokens = _sin_envoltorios(_tokens(seg) or seg.split())
+        base = _BASES_MODULO.get(tuple(tokens[:3]), tokens[0] if tokens else "")
+        nombres |= set(_POLITICA["opciones_permitidas"].get(base, {}).get("configuracion", ()))
+    return nombres
 
 
 def _segmento_es_auto(segmento):
@@ -278,11 +290,9 @@ def _segmento_es_auto(segmento):
     # Redirección / sustitución / expansión / xargs: nunca auto, ni para echo.
     if opaco(segmento):
         return False
-    if _tiene_flag_peligroso(tokens):
+    if _tiene_flag_peligroso(tokens) or not _opciones_permitidas(tokens):
         return False
-    if not any(_empieza_con(tokens, prefijo) for prefijo in _WHITELIST_PREFIJOS):
-        return False
-    return not _opcion_fuera_de_lista(tokens)
+    return any(_empieza_con(tokens, prefijo) for prefijo in _WHITELIST_PREFIJOS)
 
 
 # Formas `python3 -m X`: el veto de flags mira el MÓDULO, no el intérprete
@@ -463,56 +473,6 @@ def clasificar(comando):
 # próxima vez. El aviso es un flag de SESIÓN explícito (marcar + consumir, y
 # monkeypatch lo resetea en tests): lo levanta la escritura aprobada y lo
 # consume el pytest siguiente, que pregunta UNA vez. Sin estado silencioso.
-_CONFIG_PYTEST = tuple(_POLITICA["config_pytest"]["nombres"])
-_config_editada = False
-
-
-def marcar_config_editada(ruta):
-    """Marca la sesión si la ruta escrita es configuración de pytest (X115).
-    Se compara por NOMBRE: cualquier conftest, en cualquier profundidad."""
-    global _config_editada
-    if Path(str(ruta)).name in _CONFIG_PYTEST:
-        _config_editada = True
-
-
-# Destino de una redirección del shell (`>`, `>>`, `>|`, `2>`, `&>`), con o
-# sin comillas. El descarte a /dev/null lo quita `_sin_dup_stderr` antes.
-_REDIRECCION = re.compile(r"(?:[12&]?>>?\|?)\s*(\"[^\"]*\"|'[^']*'|\S+)")
-
-
-def marcar_si_redirige_config(comando):
-    """X115 por la puerta del shell: `echo … > tests/conftest.py` también
-    cambia cómo corre pytest. Se mira el destino de la redirección de un
-    comando YA APROBADO; se reusa la tokenización de la política.
-
-    Límite declarado: el alcance es la REDIRECCIÓN. `tee`, `cp` y
-    `python3 -c "open(...)"` escriben sin marca (decisión, no agujero tapado)."""
-    for destino in _REDIRECCION.findall(_sin_dup_stderr(str(comando))):
-        if Path(_sin_comillas(destino)).name in _CONFIG_PYTEST:
-            marcar_config_editada(destino)
-            return
-
-
-def _es_pytest(comando):
-    for segmento in segmentos(comando):
-        tokens = _normalizar(_tokens(segmento) or segmento.split())
-        if tokens and (tokens[0] == "pytest" or _empieza_con(tokens, ("python3", "-m", "pytest"))):
-            return True
-    return False
-
-
-def clasificar_con_sesion(comando):
-    """`clasificar` + la fricción de sesión de X115: el primer pytest después
-    de escribir configuración de pytest pregunta y consume el aviso; solo ese.
-    Lo demás (incluidos los compuestos) se clasifica como siempre."""
-    global _config_editada
-    nivel = clasificar(comando)
-    if _config_editada and _es_pytest(comando):
-        _config_editada = False
-        return PREGUNTAR if nivel == AUTO else nivel
-    return nivel
-
-
 def explicar(comando):
     """Explicación corta (una línea) de por qué `comando` tiene el nivel que
     tiene. El NIVEL sale de `clasificar` (misma política, composición incluida);
@@ -539,8 +499,8 @@ def explicar(comando):
             return texto
     if nivel == PREGUNTAR and _tiene_flag_peligroso(tokens):
         return "flag que escribe, ejecuta o no termina: pide aprobación"
-    if nivel == PREGUNTAR and _opcion_fuera_de_lista(tokens):
-        return "opción fuera de la lista blanca de la base: pide aprobación"
+    if nivel == PREGUNTAR and not _opciones_permitidas(tokens):
+        return "opción fuera de la lista blanca del comando: pide aprobación"
     if nivel == AUTO:
         return "sin efectos destructivos conocidos: no pide aprobación (puede escribir cachés si el comando lo hace)"
     if nivel == CONFIRMAR_DOBLE:

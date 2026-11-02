@@ -48,6 +48,9 @@ def test_hay_un_caso_por_cada_entrada_de_la_politica():
         assert " ".join(prefijo) in comandos
     for base, flags in policy._FLAGS_PELIGROSOS.items():
         assert all(any(f" {flag} x" in c and c.split()[0] in (base, "python3") for c in comandos) for flag in flags)
+    for base, (opciones, con_valor) in policy._OPCIONES.items():
+        assert all(any(f" {o} " in c and c.split()[0] in (base, "python3") for c in comandos)
+                   for o in opciones | con_valor)
     for envoltorio, opciones in policy._OPCIONES_CON_VALOR.items():
         assert all(f"{envoltorio} {o} v rm -rf x" in comandos for o in opciones)
     assert all(f"git {o} v push" in comandos for o in policy._GIT_GLOBAL_CON_VALOR)

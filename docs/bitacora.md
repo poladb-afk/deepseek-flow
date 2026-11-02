@@ -6290,3 +6290,37 @@ en los secuenciales, que es lo que F suma entre el padre y el `Ledger(8)` de
 corrida y cobra copias desde X119, así que el árbol de `dividir` no pasa de
 17 llamadas; y el criterio 2 exige además que F ≥ A+ en 3 de los 4 anchos,
 para que no lo decida una seed.
+
+---
+
+## X114, X115 y X121: pytest en lista blanca, su configuración vigilada y las comillas del shell (2026-11-01)
+
+**X121, hallado al preparar X114**: `_tokens` partía por espacios y el
+shell por comillas. `find . "-delete"` clasificaba `auto` y borraba (medido
+en un directorio temporal); lo mismo `ruff check "--fix"`, `git diff
+"--output=x"` y `pytest "-p" evil`. La raíz no era una lista: la política y
+el shell veían argumentos distintos. Ahora `_tokens` es `shlex.split`.
+
+**X114**: la negra de pytest se borra y sus opciones pasan a una lista
+blanca en `utils/politica_comandos.json` (dato, no vocabulario: enumera lo
+permitido y lo demás pregunta). El lector entiende la forma de argparse: un
+valor que empieza con `-` no se come (`-k --pastebin=all` pregunta) y `--`
+no corta, porque pytest lee `-- -p evil` igual (medido: intentó importar el
+plugin). Un fuzz de 60.000 comandos armados con opciones peligrosas, contra
+el argparse real de pytest 9.2, no dejó ninguno en `auto` con una opción
+peligrosa activa.
+
+**X115**: tras una escritura, edición o comando aprobado que nombre un
+archivo de configuración de pytest, el próximo pytest pregunta; una vez
+aprobado, el siguiente vuelve a `auto`. `pyproject.toml` cuenta entero
+(pytest lo lee aunque no traiga la sección). Límite declarado: un script
+aprobado que escriba el archivo sin nombrarlo no se ve.
+
+**Las fotos**: la real (445 comandos) se reclasificó con los mismos
+comandos. Cambia el nivel de 1: `pytest -q --doctest-modules votacion.py`,
+de auto a preguntar (importa todo módulo; queda afuera a propósito). Cambia
+el texto de 7 que ya preguntaban (`-p no:cacheprovider` y `-o addopts=`:
+ahora dicen "opción fuera de la lista blanca"). Los casos por entrada se
+regeneraron: salen 34 de la negra de pytest y entran 62 de la lista blanca
+(58 auto y 4 que preguntan: una opción inventada y `@args.txt`). En los
+casos comunes, 0 cambios de nivel.

@@ -5,7 +5,7 @@ Documento vivo: se actualiza en cada hito (X*n*). Lo estable está en
 `docs/bitacora.md`. Acá va lo que hoy solo vivía en las conversaciones.
 `tests/test_handoff.py` verifica que lo que cita exista.
 
-**Al día con:** X120 (el exp/103 con el cómputo igualado), X119 (cada copia descuenta del saldo) y X118 (los principios S0, P1–P4, N1–N4), sobre X116 (la definición de elegancia y el kernel fractal) sobre X113, aplicado sobre X112 sobre `cca1f28`, más la auditoría del
+**Al día con:** X114, X115 y X121 (pytest en lista blanca, su configuración vigilada y las comillas del shell), X120 (el exp/103 con el cómputo igualado), X119 (cada copia descuenta del saldo) y X118 (los principios S0, P1–P4, N1–N4), sobre X116 (la definición de elegancia y el kernel fractal) sobre X113, aplicado sobre X112 sobre `cca1f28`, más la auditoría del
 operador sobre ese árbol (2026-10-31): dos hallazgos de seguridad abiertos
 (X114 y X115 en `docs/estado.md`) y cuatro de orden, todos en la cola.
 
@@ -81,9 +81,9 @@ proceso viven en `AGENTS.md`.
 | Meta de `texto_de_prompt` 1542 | Lo fijo + la forma + el checklist; no se recorta para el número | X112 |
 
 **Abiertas.** `HITL_SCOPE` y `HUMANO_RESPUESTA` como contrato con un nombre
-neutro. F2 de fable (compuertas en código) solo si un dato lo pide. En X114:
-la lista blanca exacta de opciones de pytest y si `pyproject.toml` entero
-cuenta como configuración de pytest o solo cuando trae `[tool.pytest]`.
+neutro. F2 de fable (compuertas en código) solo si un dato lo pide. X114 decidió
+la lista blanca de pytest y que `pyproject.toml` cuenta entero; el operador
+puede ajustarla (es un dato de `utils/politica_comandos.json`).
 
 ## 6. Lo aprendido (una línea por veredicto)
 
@@ -109,7 +109,7 @@ cuenta como configuración de pytest o solo cuando trae `[tool.pytest]`.
 | # | Paso | Cambia conducta | Depende de | Dato de entrada |
 |---|---|---|---|---|
 | 1 | Aplicar X112 + X113; la clave por vocabulario 3 → 5 | no | — | — |
-| 2 | **X114 + X115 hechos (2026-11-01):** el `auto` de pytest pasa a lista blanca (`opciones_auto`, X114, con el token ya sin comillas/escapes) y escribir o editar configuración de pytest con aprobación —por tool o por redirección del shell— hace preguntar al `pytest` siguiente (`config_pytest`, X115) | **sí**, solo sube fricción | 1 | hecho; el detalle queda abajo como pre-registro |
+| 2 | ✅ **X114, seguridad (S0):** hecho el 2026-11-01 con X115 y X121 (ver `docs/estado.md`) | **sí**, solo sube fricción | 1 | ver "X114 en detalle" abajo |
 | 3 | X115-orden (resto): los `.patch` de `docs/informes/` y el test_auditoria_2026_10_26.py viejo se borraron el 2026-11-01 (3.387.314 B: 3.378.765 B de los 47 `.patch` + 8.549 B del test; siguen en la historia de git); el candado de tamaño y artefactos ya existe (`tests/test_higiene_repo.py`, X122); queda separar las dependencias de desarrollo y las opcionales de `requirements.txt` | no | 1 | la CI (`.github/workflows/calidad.yml`) se toca en el mismo paso |
 | 4 | Imports perezosos → ≤ 40, con `python -X importtime` como gate | no | 1 | 12 stdlib, 8 opcionales, 2 obligatorias y 59 internos (sobre 81) |
 | 5 | Pre-registro y A/B de S6 (un solo techo de rondas) | **sí** | 1 | s9: 5 de 6 sin terminar, 0 deploys |
