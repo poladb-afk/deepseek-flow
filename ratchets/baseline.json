@@ -404,6 +404,7 @@
         "tests/test_estilo_humano.py": 8,
         "tests/test_evals.py": 15,
         "tests/test_exp104.py": 11,
+        "tests/test_exp105.py": 8,
         "tests/test_f_prompt.py": 9,
         "tests/test_fable.py": 30,
         "tests/test_fable_dominios.py": 6,
@@ -459,7 +460,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1145
+      "metrica": 1153
     },
     "texto_de_prompt": {
       "detalle": {
