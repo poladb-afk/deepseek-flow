@@ -6,6 +6,7 @@ veredicto pre-registrado. No corren el banco.
 """
 import sys
 
+import pytest
 from conftest import RAIZ
 
 sys.path.insert(0, str(RAIZ / "banco" / "probes"))
@@ -105,6 +106,20 @@ def test_veredicto_falla_si_un_brazo_pierde_filas_validas():
     """X123: el denominador tiene que ser el mismo en los dos brazos."""
     cumple, fallas = sonda.veredicto(_resumen({}, {"filas": 1}))
     assert not cumple and any("(0)" in falla for falla in fallas)
+
+
+@pytest.mark.parametrize("filas", [1, 2])
+def test_veredicto_falla_bajo_el_n_pre_registrado(filas):
+    """X123/R10: con una sola fila válida por brazo el veredicto pasaba (los
+    denominadores eran simétricos); el n pre-registrado es 3 y no baja."""
+    cumple, fallas = sonda.veredicto(_resumen({"filas": filas}, {"filas": filas}))
+    assert not cumple and any("(0)" in falla and "pre-registrado" in falla for falla in fallas)
+
+
+def test_veredicto_pasa_con_el_n_pre_registrado():
+    """El borde de (0): 3 contra 3 filas válidas no es falla."""
+    cumple, fallas = sonda.veredicto(_resumen({}, {}))
+    assert cumple and fallas == []
 
 
 def test_veredicto_sin_filas_validas():

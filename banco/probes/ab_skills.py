@@ -5,7 +5,10 @@ plantados (global muerta + parámetro sin usar; `except` amplio mudo; docstring
 que miente), medido con señales DETERMINISTAS (sin juez LLM)?
 
 **Criterio PRE-REGISTRADO (fijado antes de correr; está en `CRITERIO` y en
-el artefacto):** con n=3 por brazo, la skill sirve si:
+el artefacto):** con n=3 por brazo (`--runs` lo puede subir, no bajar), la
+skill sirve si:
+0. los dos brazos tienen el mismo denominador de filas válidas, y ≥ 3 (el n
+   pre-registrado);
 1. detección media de los 3 issues ≥ control + 1;
 2. proporción de citas archivo:línea VÁLIDAS contra el disco (utils/citas) en
    el brazo skill ≥ control;
@@ -101,8 +104,12 @@ ISSUES_56B = {
 EXPERIMENTOS["56"]["issues"] = ISSUES_56
 EXPERIMENTOS["56b"]["issues"] = ISSUES_56B
 
+FILAS_MINIMAS = 3  # n pre-registrado por brazo: --runs lo puede subir, no bajar
+
 CRITERIO = (
-    "con n=3 por brazo: (1) detección media skill >= control + 1; "
+    "con n=3 por brazo (--runs lo puede subir, no bajar): "
+    "(0) mismo denominador de filas válidas en ambos brazos, y >= 3 (n pre-registrado); "
+    "(1) detección media skill >= control + 1; "
     "(2) citas válidas skill >= control; (3) citas inválidas skill = 0; "
     "(4) palabras skill <= 1.4x control"
 )
@@ -175,10 +182,14 @@ def veredicto(resumenes):
     if not off.get("filas") or not on.get("filas"):
         return False, ["sin filas válidas en un brazo"]
     fallas = []
-    # El denominador tiene que ser el mismo en los dos brazos (X123): un brazo
-    # que pierde filas válidas no puede pasar solo porque sus medias mejoran.
+    # El denominador tiene que ser el mismo en los dos brazos y no bajar del n
+    # pre-registrado (X123): un brazo que pierde filas válidas no puede pasar
+    # solo porque sus medias mejoran.
     if off.get("filas") != on.get("filas"):
         fallas.append(f"(0) filas válidas asimétricas: on {on.get('filas')} vs off {off.get('filas')}")
+    if off.get("filas") < FILAS_MINIMAS or on.get("filas") < FILAS_MINIMAS:
+        fallas.append(f"(0) {off.get('filas')} y {on.get('filas')} filas válidas "
+                      f"< {FILAS_MINIMAS} (n pre-registrado)")
     if on["issues_media"] < off["issues_media"] + 1:
         fallas.append(f"(1) detección {on['issues_media']} < control {off['issues_media']} + 1")
     if on["citas_ok_ratio"] < off["citas_ok_ratio"]:

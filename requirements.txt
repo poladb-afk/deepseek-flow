@@ -1,4 +1,5 @@
-# Runtime real del harness: lo que el producto importa para arrancar.
+# Runtime real del harness: lo que el producto importa para correr el chat y
+# el RAG (numpy entra por el RAG, no por el arranque del chat).
 # Las capacidades opcionales (fastembed, fastmcp, ddgs, laya) son import
 # perezoso y la suite las saltea: ver requirements-opcionales.txt.
 # El gate completo se instala con requirements-dev.txt.

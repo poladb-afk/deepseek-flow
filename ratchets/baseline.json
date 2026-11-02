@@ -430,7 +430,7 @@
     },
     "tests_definidos": {
       "detalle": {
-        "tests/test_ab_skills.py": 10,
+        "tests/test_ab_skills.py": 13,
         "tests/test_absurdos_funcionales.py": 44,
         "tests/test_auditoria_2026_10_26.py": 39,
         "tests/test_banco.py": 21,
@@ -507,7 +507,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1129
+      "metrica": 1132
     },
     "texto_de_prompt": {
       "detalle": {
