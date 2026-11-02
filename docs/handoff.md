@@ -18,16 +18,31 @@ operador sobre ese árbol (2026-10-31): dos hallazgos de seguridad abiertos
 
 ## 1. Para qué es el harness
 
-[PENDIENTE: operador] Quién lo usa, para qué tareas, qué es "funcionar bien"
-y hacia dónde va (uso personal, producto, investigación, otro modelo). Sin
-esto, una sesión nueva optimiza ratchets. Lo que dice el README hoy: un
-agente de terminal sobre PocketFlow con DeepSeek, para pedidos sobre tus
-archivos y tu código, con CORE + módulos.
+**Qué es.** Un harness de agente minimalista en el que un solo grafo se compone
+consigo mismo: el chat, el supervisor y cada capacidad son el mismo loop con
+otros datos. La complejidad emerge de piezas mínimas interconectadas, no de
+mecanismos agregados; el núcleo no conoce sus módulos y un módulo es una
+capacidad.
+
+**Quién lo usa.** El operador, solo, con este equipo de bots como ejecutores.
+
+**Para qué.** Programar y auditar repos con HITL, y experimentar sobre
+arquitecturas de agentes.
+
+**Qué es funcionar bien.** La tarea termina con evidencia y sin ninguna acción
+no autorizada, a un costo medido; cada pieza nueva entra solo si una medición
+la justifica.
+
+Definido el 2026-11-02 sobre la intención del operador: cierra el
+`[PENDIENTE: operador]` que abrió X113. Lo que dice el README hoy: un agente
+de terminal sobre PocketFlow con DeepSeek, para pedidos sobre tus archivos y
+tu código, con CORE + módulos.
 
 ## 2. Principios
 
 Desde X118: una restricción (S0, seguridad), cuatro principios (P1
-minimalismo, P2 fractalidad asimétrica, P3 modularidad, P4 complejidad
+minimalismo, P2 fractalidad —por construcción en P2a, replicación medida en
+P2b—, P3 modularidad, P4 complejidad
 emergente) y cuatro prohibiciones (N1 parches, N2 keywords, N3 prompt, N4
 duplicidad), con su gate y sus fuentes: `docs/principios.md`. Las reglas de
 proceso viven en `AGENTS.md`.
