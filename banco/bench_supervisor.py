@@ -239,7 +239,9 @@ def _verificar_tablas_trazas(texto):
         finally:
             con.close()
     except sqlite3.Error:
-        return None
+        # La base no se pudo leer al graduar (p. ej. quedó trabada): cuenta
+        # como incumplida, no desaparece del denominador (X117a, X123).
+        return False
     return _contiene_numero(texto, n)
 
 

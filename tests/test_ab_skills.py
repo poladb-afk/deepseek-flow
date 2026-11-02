@@ -101,6 +101,12 @@ def test_veredicto_falla_cada_punto():
     assert any("(4)" in falla for falla in fallas)
 
 
+def test_veredicto_falla_si_un_brazo_pierde_filas_validas():
+    """X123: el denominador tiene que ser el mismo en los dos brazos."""
+    cumple, fallas = sonda.veredicto(_resumen({}, {"filas": 1}))
+    assert not cumple and any("(0)" in falla for falla in fallas)
+
+
 def test_veredicto_sin_filas_validas():
     cumple, fallas = sonda.veredicto({"off": {"filas": 0}, "on": {"filas": 0}})
     assert not cumple and "sin filas" in fallas[0]

@@ -175,6 +175,10 @@ def veredicto(resumenes):
     if not off.get("filas") or not on.get("filas"):
         return False, ["sin filas válidas en un brazo"]
     fallas = []
+    # El denominador tiene que ser el mismo en los dos brazos (X123): un brazo
+    # que pierde filas válidas no puede pasar solo porque sus medias mejoran.
+    if off.get("filas") != on.get("filas"):
+        fallas.append(f"(0) filas válidas asimétricas: on {on.get('filas')} vs off {off.get('filas')}")
     if on["issues_media"] < off["issues_media"] + 1:
         fallas.append(f"(1) detección {on['issues_media']} < control {off['issues_media']} + 1")
     if on["citas_ok_ratio"] < off["citas_ok_ratio"]:

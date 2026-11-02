@@ -233,7 +233,7 @@ def correr(casos, responder=None):
         "n": n,
         "respuesta_ok": round(sum(f["respuesta_ok"] for f in filas) / n, 4) if n else 0.0,
         "cita_ok": (round(sum(f["cita_ok"] for f in con_cita) / len(con_cita), 4)
-                    if con_cita else 0.0),
+                    if con_cita else None),
         "n_con_cita": len(con_cita),
         "filas": filas,
     }
@@ -258,8 +258,12 @@ def comparar_baseline(nuevo, ruta=BASELINE):
 
     comparacion["anterior"] = anterior
     delta_resp = nuevo["respuesta_ok"] - anterior["respuesta_ok"]
+    # Sin casos evaluables no hay número que restar (X123): "sin datos" no
+    # se compara contra 0 ni contra el baseline.
     cita_ant = anterior.get("cita_ok")
-    delta_cita = (nuevo["cita_ok"] - cita_ant) if cita_ant is not None else None
+    cita_nuevo = nuevo.get("cita_ok")
+    delta_cita = (cita_nuevo - cita_ant
+                  if cita_ant is not None and cita_nuevo is not None else None)
     comparacion["delta"] = {
         "respuesta_ok": round(delta_resp, 4),
         "cita_ok": round(delta_cita, 4) if delta_cita is not None else None,
@@ -309,8 +313,9 @@ def informe_markdown(bench, comparacion, sha, fecha):
     L.append("")
     L.append(f"- Casos: **{bench['n']}**")
     L.append(f"- `respuesta_ok` (principal): **{pct(bench['respuesta_ok'])}**")
-    L.append(f"- `cita_ok` (sobre {bench['n_con_cita']} que aplican): "
-             f"**{pct(bench['cita_ok'])}**")
+    cita = ("**sin datos**" if bench["cita_ok"] is None
+            else f"**{pct(bench['cita_ok'])}**")
+    L.append(f"- `cita_ok` (sobre {bench['n_con_cita']} que aplican): {cita}")
     total_seg = sum(f["seg"] for f in bench["filas"])
     L.append(f"- Tiempo total: {total_seg:.1f}s")
     L.append("")

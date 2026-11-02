@@ -65,7 +65,8 @@ script (dict id → callable(texto) -> bool) — código puro, testeable.
 
 Una celda sale del denominador solo cuando el archivo que verifica la tarea no
 existe al graduar (se salta con motivo, como ya queda pre-registrado para
-`conteo-routing`); la entrega fallida o vacía NO se salta: gradúa 0.
+`conteo-routing`); la entrega fallida o vacía NO se salta: gradúa 0, y una
+base que no se puede leer tampoco (cuenta incumplida, X117a/X123).
 
 Salida: markdown `salidas/evals/bench_supervisor_FECHA.md` con la tabla
 (tarea | vía | ok | llamadas | seg) + totales (`calidad 60.0% (3/5 · 1 saltada

@@ -168,6 +168,31 @@ def test_bench_cargar_casos_errores_claros(tmp_path):
     casos = bj.cargar_casos(ok)
     assert [c["id"] for c in casos] == ["a", "b"]
 
+def test_bench_cita_ok_sin_evaluables_es_sin_datos():
+    """X123: sin casos que pidan cita no es 0%: es "sin datos"."""
+    import bench_juez as bj
+
+    casos = [{"id": "q", "pregunta": "p", "contiene": ["ok"]}]
+    bench = bj.correr(casos, responder=lambda pregunta: ("ok", None))
+    assert bench["cita_ok"] is None and bench["n_con_cita"] == 0
+    comparacion = {"veredicto": "PRIMERA CORRIDA", "anterior": None, "delta": {}}
+    texto = bj.informe_markdown(bench, comparacion, "deadbeef", "2026-11-02")
+    assert "que aplican): **sin datos**" in texto
+    assert "**0.0%**" not in texto
+
+
+def test_bench_baseline_sin_cita_no_resta_contra_un_numero(tmp_path):
+    """X123: con cita_ok None no hay referencia: no se resta ni rompe."""
+    import bench_juez as bj
+
+    ruta = tmp_path / "bench_juez.json"
+    bj.guardar_baseline({"n": 1, "respuesta_ok": 0.9, "cita_ok": 0.8, "n_con_cita": 2},
+                        ruta=ruta, sha="abc123")
+    comp = bj.comparar_baseline({"respuesta_ok": 0.9, "cita_ok": None}, ruta=ruta)
+    assert comp["delta"]["cita_ok"] is None
+    assert comp["veredicto"] == "OK"
+
+
 def test_bench_correr_evalua_y_agrega_con_responder_fake(tmp_path):
     """El runner secuencial con un `responder` inyectado (sin LLM) evalúa
     cada caso con código puro y agrega las métricas. También cubre que
@@ -338,6 +363,20 @@ def test_bench_supervisor_verificaciones_pasan_y_fallan():
     # id sin verificación → KeyError (nunca un silencio)
     with pytest.raises(KeyError):
         bs.verificar("no-existe", "texto")
+
+def test_bench_supervisor_sqlite_ilegible_cuenta_incumplida(monkeypatch):
+    """X123: una trazas.db que no se puede leer al graduar cuenta 0, no desaparece."""
+    import sys
+
+    sys.path.insert(0, str(RAIZ / "banco"))
+    import bench_supervisor as bs
+
+    def rompe(*args, **kwargs):
+        raise bs.sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(bs.sqlite3, "connect", rompe)
+    assert bs.verificar("tablas-trazas", "lo que sea") is False
+
 
 def test_bench_supervisor_contador_envuelve_y_cuenta():
     """El contador envuelve call_llm y call_llm_agent con fakes (sin red) y
