@@ -64,6 +64,9 @@ declara "sin gate" con lo que falta: así no se disfraza de regla (lo verifica
 Las de X113 y X116 con su "dónde" traducido a la lista nueva, más las de la
 investigación del 2026-11-01 (P1–P4 contra la evidencia de 2026). Leídas por
 resumen y abstract: los números son de sus autores, no se reprodujeron acá.
+URLs verificadas el 2026-11-02: 33 de 35 responden 200 —una estaba mal escrita
+y se corrigió—, el DOI de Parnas es válido por Crossref aunque ACM da 403 a los
+bots, y `solosoft.dev` no responde desde esta red.
 
 | Fuente | URL | Qué tomamos | Dónde se aplica |
 |---|---|---|---|

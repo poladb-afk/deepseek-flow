@@ -6368,10 +6368,14 @@ dependencias obligatorias (yaml, pocketflow), 58 internos y 8 de opcionales.
 La pregunta era cuántos esquivaban un ciclo y cuántos eran deuda. Se armó el
 grafo de imports de nivel superior del harness (raíz + `utils/` + `modules/`)
 y se probó, para cada arista perezosa A→B, si B alcanza A por imports de
-módulo: **cero aristas creaban ciclo**. El único ciclo real es
-`utils.aprobaciones` → `utils.hitl_web`, y va en ese sentido porque
-`hitl_web` importa `Decision` de `aprobaciones` en el tope. Los otros 78
-escondían dependencias sin motivo.
+módulo: **cero aristas creaban ciclo top-level**. Hay ciclos que ese grafo
+estático no ve: `utils.aprobaciones` → `utils.hitl_web` (va en ese sentido
+porque `hitl_web` importa `Decision` de `aprobaciones` en el tope), `juez` →
+`nodes` (el registro se arma en `nodes.py:288` con `discover()`; el ciclo
+`juez → nodes → discover() → modules/juez → juez` haría que `discover()`
+saltee el módulo en silencio) y `modules/supervisor` → `supervisor`
+(inicialización parcial: `supervisor.py:47` corre `discover()` al importarse).
+Los otros escondían dependencias sin motivo.
 
 **Qué se hizo.** 65 imports se movieron al tope del archivo que los usa (29
 archivos); los cuerpos de las funciones quedan con la misma lógica. Quedan
