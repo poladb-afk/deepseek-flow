@@ -15,6 +15,7 @@ from utils.compaccion import PREFIJO_COMPACCION, compactar, huella, recortar_too
 from utils.costos import delta_desglose
 from utils.fs_tools import MAX_TOOL_ROUNDS, allowed_roots, run_tool_call
 from utils.fs_tools import TOOLS as CORE_TOOLS
+from utils.historial import historiar
 from utils.prefetch import PREFIJO_PREFETCH, decidir
 from utils.prefetch import mensaje as mensaje_prefetch
 from utils.proveedor import (  # noqa: F401  (re-export: tests y banco los importan de nodes)
@@ -269,20 +270,6 @@ AVISO_CIERRE = (
     "información, decilo como límite."
 )
 
-
-def historiar(msg):
-    """El mensaje del asistente en forma canónica para el historial: solo
-    role/content/tool_calls. El reasoning_content del modo thinking NO
-    viaja — arrastrarlo a una vuelta sin thinking rompe la API (400
-    'reasoning_content must be passed back', medido en producción)."""
-    m = {"role": "assistant", "content": msg.content}
-    if getattr(msg, "tool_calls", None):
-        m["tool_calls"] = [
-            {"id": tc.id, "type": "function",
-             "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-            for tc in msg.tool_calls
-        ]
-    return m
 
 # Action space = capacidades base del CORE + lo que aporten los módulos.
 MODULE_TOOLS, MODULE_IMPLS = discover()

@@ -76,7 +76,7 @@
           72
         ],
         "nodes.py": [
-          66
+          67
         ],
         "research.py": [
           78
@@ -174,10 +174,10 @@
     "lineas_del_loop": {
       "detalle": {
         "flow.py": 41,
-        "nodes.py": 533,
+        "nodes.py": 521,
         "utils/kernel.py": 195
       },
-      "metrica": 769
+      "metrica": 757
     },
     "nodos_largos": {
       "detalle": {

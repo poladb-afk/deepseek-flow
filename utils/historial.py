@@ -16,6 +16,9 @@ def as_dict(tc):
 
 
 def historiar(msg):
+    """El reasoning_content del modo thinking NO viaja: arrastrarlo a una
+    vuelta sin thinking rompe la API (400 'reasoning_content must be passed
+    back', medido en producción)."""
     m = {"role": "assistant", "content": getattr(msg, "content", None)}
     if getattr(msg, "tool_calls", None):
         m["tool_calls"] = [

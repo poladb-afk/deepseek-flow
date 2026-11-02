@@ -6407,3 +6407,30 @@ el docstring lo justificaba con un ciclo que ya no existía); los de
 `modules/delegar` y `fable_judge` se quedan, y sus comentarios se corrigieron
 para que digan el motivo real (costo del driver PTY; el producto no importa
 módulos al cargar).
+
+---
+
+## X126: S9b, el primer paso y el bloqueo medido (2026-11-01)
+
+**Hecho, sin cambio de conducta**: `nodes.historiar` era una copia de
+`utils/historial.historiar`, la que usa el kernel (la única diferencia:
+`msg.content` contra `getattr(msg, "content", None)`, que da lo mismo para
+todo mensaje real). El chat importa la del kernel y `nodes.historiar` sigue
+resolviendo como re-export para `tests/test_streaming.py:93`. `lineas_del_loop`
+baja de 769 a 757 (`nodes.py` 533 → 521). `tests/test_caracterizacion_chat.py`
+sigue sin tocar: 12 de 12.
+
+**Lo que frena el resto del plan**: borrar `AgentStep`, `ExecuteTools` y
+`Cierre` (lo que hace que el chat corra sobre `kernel.loop`) toca 56 tests
+que nombran esos nodos (test_evals 10, test_chat_flujo 8, test_replay 7,
+test_streaming 6, test_thread_store 6, entre otros: contados por AST) y
+cambia los nombres que leen `replay.py` (`NODOS_CHAT`, las aristas
+transitivas), `evals.py` (el linter de invariantes) y los checkpoints de
+thread. Reescribirlos es mover tests (R2): lo decide el operador. Además el
+chat tiene conducta que el kernel no: streaming, un evento de traza por tool,
+el anuncio de cada tool, el filtro de skills, la compacción antes de cada
+llamada y un cierre con aviso efímero.
+
+**Lo probado para el diseño**: PocketFlow 0.0.3 anida un `Flow` como nodo y
+la acción que devuelve el último nodo interno elige la arista del externo
+(guionado: A → B dentro de un Flow, que sale por `fin` a C fuera).
