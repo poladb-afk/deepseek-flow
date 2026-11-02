@@ -159,12 +159,20 @@ def veredicto(filas):
 
 
 def resultado(veredicto_):
-    """La lectura del pre-registro, en una línea."""
+    """La lectura del pre-registro, en una línea. Si H1 se replica pero el costo
+    de F0 se pasó de 1,2× A, la línea lo dice: el spec no lo cuenta como mejora."""
     if veredicto_["h1"] and veredicto_["h2"]:
-        return "H1 y H2: la descripción de la tool mejora la calidad aunque no se use"
-    if veredicto_["h1"]:
-        return "H1 sí y H2 no: tener una tool más del mismo tamaño cambia la calidad"
-    return "H1 no se replica: la diferencia del exp/103 queda como ruido"
+        lectura = "H1 y H2: la descripción de la tool mejora la calidad aunque no se use"
+    elif veredicto_["h1"]:
+        lectura = "H1 sí y H2 no: tener una tool más del mismo tamaño cambia la calidad"
+    else:
+        lectura = "H1 no se replica: la diferencia del exp/103 queda como ruido"
+    if veredicto_["h1"] and not veredicto_["criterios"]["3_sin_costo_escondido"]:
+        tokens = veredicto_["tokens"]
+        detalle = ("sin línea de tokens" if None in (tokens["F0"], tokens["A"])
+                   else f"tokens medios F0 {tokens['F0']:.0f} vs A {tokens['A']:.0f}")
+        lectura += f" — H1 se informa pero NO cuenta como mejora: costo fuera de 1,2× A ({detalle})"
+    return lectura
 
 
 def resumen(filas):

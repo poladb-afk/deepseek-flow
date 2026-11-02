@@ -149,6 +149,13 @@ def test_la_lectura_del_veredicto_distingue_los_tres_casos():
     assert "no se replica" in exp104.resultado(exp104.veredicto(_diseno(valor_f0=1.1)))
 
 
+def test_la_lectura_avisa_cuando_el_costo_deja_de_contar():
+    """Presentación: H1 puede replicarse y el costo pasarse; la línea lo dice."""
+    caro = exp104.resultado(exp104.veredicto(_diseno(tokens_f0=130)))
+    assert "H1 y H2" in caro and "NO cuenta como mejora" in caro
+    assert "1,2× A" in caro
+
+
 def test_sin_tokens_cuenta_cero_y_sigue_en_el_denominador():
     """La ley de AGENTS.md: la corrida sin `[tokens]` cuenta 0 en calidad, no sale."""
     filas = _diseno(sin_tokens=True)
