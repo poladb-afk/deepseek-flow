@@ -216,7 +216,9 @@ def test_punto_seguro_executetools_post(tmp_path, monkeypatch):
     monkeypatch.setattr(nodes, "thread_id", lambda: "chat2")
     # ejecución de tools simulada: el post solo mira los resultados y el fingerprint
     shared = {"messages": [], "tool_rounds": 0}
-    prep_res = [{"function": {"name": "read_file", "arguments": "{}"}}]
+    prep_res = [{"paso": "1.a", "id": "a", "function": {"name": "read_file", "arguments": "{}"}}]
+    # exp/49: el despacho ahora es ActuarChat; el "default" viejo es "paso"
+    assert nodes.ActuarChat(ctx_chat(), []).post(shared, prep_res, ["ok"]) == "paso"
     assert _contar(tmp_path, "chat2") == 0  # X96: el punto seguro es Observar
     assert nodes.Observar().post(shared, prep_res, None) == "default"
     assert _contar(tmp_path, "chat2") == 1

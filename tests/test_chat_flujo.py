@@ -329,8 +329,8 @@ def test_post_verifica_citas_y_corrige(monkeypatch, capsys):
                              {"role": "user", "content": "auditá"}]}
     contenido = "hallazgo en utils/tracing.py:1 y malo en utils/tracing.py:99999"
     exec_res = SimpleNamespace(content=contenido, tool_calls=None)
-    # F6: la verificación es un NODO del grafo (answer → citas → ask), con retry
-    shared["messages"].append(nodes.historiar(exec_res))
+    # F6: la verificación es un NODO del grafo (respuesta → citas → ask), con retry
+    assert nodes.PasoChat(ctx_chat(), [], max_retries=1).post(shared, None, exec_res) == "respuesta"
     nodes.VerificarCitas()._run(shared)
 
     assert shared["messages"][-1]["content"] == "corregido en utils/tracing.py:1"
@@ -357,7 +357,7 @@ def test_post_no_corrige_si_las_citas_estan_bien(monkeypatch):
     shared = {"messages": [{"role": "system", "content": "s"},
                              {"role": "user", "content": "auditá"}]}
     exec_res = SimpleNamespace(content="hallazgo en utils/tracing.py:1", tool_calls=None)
-    shared["messages"].append(nodes.historiar(exec_res))
+    assert nodes.PasoChat(ctx_chat(), [], max_retries=1).post(shared, None, exec_res) == "respuesta"
     nodes.VerificarCitas()._run(shared)
     assert shared["messages"][-1]["content"] == "hallazgo en utils/tracing.py:1"
 

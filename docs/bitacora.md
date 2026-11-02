@@ -6989,3 +6989,12 @@ parecería de otro producto.
 +16 por la costura; el neto es chico porque el loop ya era chico),
 `nodos_largos` **13 → 12**, `settings_leidos` 52 y `imports_perezosos` 14 en
 IGUAL. Gate completo verde en la rama, sin tocar `main`.
+
+**Deltas declarados** (ninguno toca el camino normal; los levantó el dictamen
+de Auditor): (a) una tool **desconocida** ya no emite `evento_tool` ni imprime
+`→ nombre` —el kernel corta en `Actuar` antes de llamar al despachador—; el
+texto que ve el modelo es idéntico, la traza pierde ese evento (delta de traza).
+(b) con `MAX_TOOL_ROUNDS=0` el loop entra sin tools y **sin el aviso A38** (el
+flujo viejo iba a `Cierre`): configuración sin test ni uso hoy. (c) deuda R10
+(N4): `PasoChat.post` reimplementa el `Paso.post` del kernel en vez de
+extenderlo; si el kernel cambia, hay que mover las dos.

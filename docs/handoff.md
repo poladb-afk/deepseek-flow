@@ -72,8 +72,8 @@ proceso viven en `AGENTS.md`.
 
 | Pieza | Qué hace | Dónde |
 |---|---|---|
-| Grafo del chat | `GetQuestion → PreFetch → Skills → Contexto → AgentStep ⇄ ExecuteTools → Observar`; `Cierre` por presupuesto; `VerificarCitas` antes de volver a preguntar | `flow.py`, `nodes.py` |
-| Kernel fractal | `Ctx`, `Ledger` (un saldo), `Tool`, `loop`, `agente`: el supervisor ya es un loop del kernel; el chat todavía no (S9b) | `utils/kernel.py`, `supervisor.py` |
+| Grafo del chat | `GetQuestion → PreFetch → Skills → Contexto → kernel.loop` (`PasoChat ⇄ ActuarChat`, con `Observar`/`Contexto` como políticas); `CierreChat` por presupuesto; `VerificarCitas` antes de volver a preguntar | `flow.py`, `nodes.py` |
+| Kernel fractal | `Ctx`, `Ledger` (un saldo), `Tool`, `loop`, `agente`: el supervisor **y el chat** (S9b A′) son instancias de `kernel.loop` | `utils/kernel.py`, `supervisor.py`, `flow.py` |
 | Registro de módulos | `discover()` arma `TOOLS` e `IMPL`; `ganchos()` recorre los `HOOKS` | `modules/__init__.py` |
 | Skills | YAML con `condicion` regex (la 5b no la pudo reemplazar) | `utils/skills.py`, `skills/revision.yaml` |
 | Política de comandos | Mecanismo en código, listas como datos, falla cerrada | `utils/policy.py`, `utils/politica_comandos.json` |
@@ -152,7 +152,7 @@ puede ajustarla (es un dato de `utils/politica_comandos.json`).
 | 6 | 5c-a: los prefiltros como un mecanismo con un setting | depende | 1 | 5 settings hoy |
 | 7 | 5c-b: Laya 0.4 | sí | **bloqueado** | que esté instalada |
 | 8 | S9a: continuación por estado del thread | sí | 9 | vocabulario 5 → 4 |
-| 9 | **S9b A′ (aprobado el 2026-11-02):** el chat como `kernel.loop`, con la reescritura de los 22 tests que nombran `AgentStep`/`ExecuteTools`/`Cierre` autorizada por el operador (R2). En curso | mínimo | 5 | los 3 nodos largos de `nodes.py` y los imports de `main.py` |
+| 9 | ✅ **S9b A′ hecho (X126):** el chat corre sobre `kernel.loop`; los 22 tests que nombraban `AgentStep`/`ExecuteTools`/`Cierre` reescritos 1:1 (R2 autorizada), y mapa de compatibilidad para trazas/checkpoints viejos | mínimo | 5 | hecho |
 | 10 | S3: esquema de tools fijo y cierre por arista | mínimo | **bloqueado** | la prueba de `tool_choice="none"` en DeepSeek |
 | 11 | Fase 6: piezas sueltas | no | — | 10 nodos largos, `TOOL_CONTEXTO_RE` |
 | 12 | Archivar `docs/bitacora.md` por mes (6900+ líneas) | no | 11 | mueve rutas que citan el tablero y los principios: el gate lo tiene que ver |

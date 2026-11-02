@@ -18,7 +18,7 @@ flowchart TD
     q[GetQuestion] -->|continue| p[PreFetch]
     p -->|continue| k[Skills]
     k -->|continue| ct[Contexto]
-    ct -->|default| L[LoopChat = kernel.loop]
+    ct -->|default| L[kernel.loop]
     ct -->|cierre| L
     L -->|default| c[VerificarCitas]
     c --> q
@@ -27,9 +27,11 @@ flowchart TD
 
 Es el patrón Agent (decidir → actuar → volver a decidir) implementado con
 **tool calling nativo** de DeepSeek en vez de YAML. Desde S9b A′ el loop es el
-**del kernel** (una instancia por pregunta, `flow.LoopChat`): `PasoChat` manda
-el historial + las tools; si el modelo pide tools, `ActuarChat` las ejecuta
-(despacha por `run_tool_call`: hooks, denylist y HITL) y las políticas
+**del kernel**: un `Flow` de `kernel.loop`, **una instancia por proceso**, y
+`PasoChat.prep` (`nodes.py:392-397`) resetea el `Ledger` y las tools del skill en
+la primera ronda de cada pregunta. `PasoChat` manda el historial + las tools; si
+el modelo pide tools, `ActuarChat` las ejecuta (despacha por `run_tool_call`:
+hooks, denylist y HITL) y las políticas
 `Observar` y `Contexto` corren entre rondas; si responde texto, el loop termina
 y la respuesta pasa por `VerificarCitas` antes de la próxima pregunta.
 
@@ -69,7 +71,7 @@ explotar.
 `PasoChat.exec` (y por herencia `CierreChat`) usa la
 versión stream cuando `CHAT_STREAM == "1"` (default) y la clásica con `0`.
 El resto del flujo no cambia (historiar, recuperación DSML, sanitizar,
-ExecuteTools). Como con streaming el contenido crudo ya se imprimió en
+despacho). Como con streaming el contenido crudo ya se imprimió en
 vivo, si `sanitizar` corta, tras el aviso existente se imprime también la
 versión limpia (`DeepSeek (limpio): …`). Y como ya salió en vivo, `post()`
 NO reimprime la respuesta completa: con stream solo cierra la línea (los
@@ -122,7 +124,6 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | PasoChat | Node (max_retries=3, wait=5), hereda `kernel.Paso` | historial + tools del kernel (subset del skill) | `responder_llm` (o stream, con `CHAT_STREAM=1`) | agrega el mensaje del asistente y el checkpoint de la SELECCIÓN; con `tool_calls` → `actuar`; si no, imprime → `respuesta` (con streaming el `print` solo cierra la línea) — S9b A′ |
 | ActuarChat | Node, hereda `kernel.Actuar` | último `tool_calls` | despacha cada `Tool` (que anuncia y traza su evento) | agrega los mensajes tool → `paso` — S9b A′ |
 | CierreChat | Node (max_retries=3, wait=5), hereda `PasoChat` | historial + `AVISO_CIERRE` efímero, **sin tools** | igual que PasoChat | la respuesta de un turno que agotó el presupuesto → `respuesta` — A38 |
-| LoopChat | Flow (plantilla + instancia por pregunta) | — | — | `kernel.loop` por pregunta con `Observar` y `Contexto` como políticas; no emite evento propio (X130) |
 | VerificarCitas | Node (max_retries=2, wait=2) | la última respuesta (si `CITAS_VERIFICAR=1` y no trae `tool_calls`) | verifica `ruta:línea` contra el disco; si alguna falla, UNA corrección sin tools (`exec_fallback`: si la corrección revienta, queda la respuesta) | reemplaza el contenido corregido → `default` (antes vivía en `AgentStep.post`, sin retry: auditoría F6) |
 | ExitChat | Node | — | — | imprime despedida |
 
@@ -161,7 +162,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Límite | Qué | Dónde |
 |---|---|---|
 | Contención | Ninguna ruta sale de `AGENT_ALLOWED_DIRS` (resueltas con `Path.resolve`) | `fs_tools._resolve` |
-| Rondas | un `kernel.Ledger` por pregunta (init = `presupuesto(shared)`: override > `MAX_TOOL_ROUNDS` = **16**, el techo único desde S6/X132); al llegar, la política `Contexto` sale a `CierreChat`, que llama sin tools y el modelo debe responder (X96). Se reinicia con cada pregunta nueva del usuario | `flow.LoopChat`, `nodes.presupuesto` |
+| Rondas | un `kernel.Ledger` por pregunta (init = `presupuesto(shared)`: override > `MAX_TOOL_ROUNDS` = **16**, el techo único desde S6/X132); al llegar, la política `Contexto` sale a `CierreChat`, que llama sin tools y el modelo debe responder (X96). Se reinicia con cada pregunta nueva del usuario. **Límite conocido:** con `MAX_TOOL_ROUNDS=0` el loop entra sin tools y sin el aviso A38 (la arista `Contexto -cierre->` del flujo viejo no existe; sin uso ni test hoy) | `flow.create_agent_flow`, `nodes.presupuesto` |
 | Contexto | `READ_MAX_CHARS` por lectura, listados truncados | `fs_tools` |
 
 ## Segundo flujo: informe map-reduce
