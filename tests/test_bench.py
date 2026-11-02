@@ -364,8 +364,10 @@ def test_bench_supervisor_verificaciones_pasan_y_fallan():
     with pytest.raises(KeyError):
         bs.verificar("no-existe", "texto")
 
-def test_bench_supervisor_sqlite_ilegible_cuenta_incumplida(monkeypatch):
-    """X123: una trazas.db que no se puede leer al graduar cuenta 0, no desaparece."""
+def test_bench_supervisor_sqlite_ilegible_cuenta_incumplida(monkeypatch, tmp_path):
+    """X123: una trazas.db que no se puede leer al graduar cuenta 0, no desaparece.
+    La base se fija en tmp (X128): sin ella, en un checkout limpio la función
+    salía por "no existe" antes de tocar sqlite y el test fallaba."""
     import sys
 
     sys.path.insert(0, str(RAIZ / "banco"))
@@ -374,6 +376,9 @@ def test_bench_supervisor_sqlite_ilegible_cuenta_incumplida(monkeypatch):
     def rompe(*args, **kwargs):
         raise bs.sqlite3.OperationalError("database is locked")
 
+    db = tmp_path / "trazas.db"
+    db.write_bytes(b"")
+    monkeypatch.setattr(bs, "_buscar_db_trazas", lambda: db)
     monkeypatch.setattr(bs.sqlite3, "connect", rompe)
     assert bs.verificar("tablas-trazas", "lo que sea") is False
 
