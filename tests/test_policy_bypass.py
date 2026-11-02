@@ -66,26 +66,28 @@ def test_pytest_fuera_de_la_lista_blanca_pregunta(comando):
     assert policy.clasificar(comando) == "preguntar"
 
 
-# X114b (R7): el shell saca comillas y escapes, así que `pytest "--pastebin=all"`
-# le entrega la opción real. Citar o escapar no puede convertirla en "ruta".
-@pytest.mark.parametrize("comando", [
-    'pytest "--pastebin=all"',
-    "pytest '--junitxml=x.xml'",
-    "pytest \\-\\-pastebin=all",
-    'pytest "-o" "addopts=--pastebin=all"',
-    'pytest "-p" "no:cacheprovider"',
-    'pytest "--basetemp=/tmp/x"',
-    'pytest "--debug"',
-    # El shell colapsa la doble capa: `""x""` es `x`. El dequoting no puede
-    # sacar una sola (Auditor, R7 residual).
-    'pytest ""--pastebin=all""',
-    "pytest ''--pastebin=all''",
-    'pytest ""-o"" addopts=--pastebin=all',
-    'pytest ""-p"" no:cacheprovider',
+# X121 (y el R7 residual de X114b): el shell saca comillas y escapes, así que
+# `find . "-delete"` o `pytest "--pastebin=all"` le entregan el flag real. La
+# política tiene que ver los MISMOS argumentos que el shell.
+@pytest.mark.parametrize("comando, esperado", [
+    ('find . "-delete"', "preguntar"), ("find . -dele''te", "preguntar"),
+    ("find . -dele\\te", "preguntar"), ('ruff check "--fix" .', "preguntar"),
+    ('git diff "--output=x"', "preguntar"), ('pytest "-p" evil', "preguntar"),
+    ('"rm" -rf x', "confirmar_doble"), ("grep 'x", "preguntar"),
+    ('pytest "--pastebin=all"', "preguntar"), ("pytest '--junitxml=x.xml'", "preguntar"),
+    ("pytest \\-\\-pastebin=all", "preguntar"),
+    ('pytest "-o" "addopts=--pastebin=all"', "preguntar"),
+    ('pytest "-p" "no:cacheprovider"', "preguntar"), ('pytest "--basetemp=/tmp/x"', "preguntar"),
+    ('pytest "--debug"', "preguntar"),
+    # El shell colapsa la doble capa: `""x""` es `x`.
+    ('pytest ""--pastebin=all""', "preguntar"), ("pytest ''--pastebin=all''", "preguntar"),
+    ('pytest ""-o"" addopts=--pastebin=all', "preguntar"),
+    ('pytest ""-p"" no:cacheprovider', "preguntar"),
 ])
-def test_pytest_citado_o_escapado_pregunta(comando):
-    """La lista blanca decide sobre el token sin comillas (el que ve pytest)."""
-    assert policy.clasificar(comando) == "preguntar"
+def test_las_comillas_no_esconden_un_flag(comando, esperado):
+    """X121: la política partía por espacios y el shell por comillas. Ahora los
+    tokens son los del shell; comillas desbalanceadas no son auto."""
+    assert policy.clasificar(comando) == esperado
 
 
 @pytest.mark.parametrize("comando", [

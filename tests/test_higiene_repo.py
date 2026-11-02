@@ -1,4 +1,4 @@
-"""Candado de higiene del árbol trackeado (X121).
+"""Candado de higiene del árbol trackeado (X122).
 
 Spec pre-registrada por el operador el 2026-11-01, ANTES de escribir este test
 (M3): la higiene se venía haciendo a mano —`.gitignore` oculta artefactos pero
@@ -64,7 +64,7 @@ def test_higiene_del_arbol_trackeado():
     """La spec entera en un solo gate: si falla, el mensaje dice archivo y motivo."""
     trackeados = _trackeados()
     # Una excepción cuyo archivo deja de estar trackeado quedaría viva para
-    # siempre: el candado se ataría a sí mismo a un fantasma (Auditor, X121).
+    # siempre: el candado se ataría a sí mismo a un fantasma (Auditor, X122).
     sueltas = sorted(set(EXCEPCIONES) - set(trackeados))
     assert not sueltas, f"excepciones sin archivo trackeado, borralas: {sueltas}"
     violaciones = {
@@ -72,7 +72,7 @@ def test_higiene_del_arbol_trackeado():
         for rel in trackeados
         if rel not in EXCEPCIONES and (motivo := _motivo(rel)) is not None
     }
-    assert not violaciones, "archivos trackeados que violan la higiene (X121): " + "; ".join(
+    assert not violaciones, "archivos trackeados que violan la higiene (X122): " + "; ".join(
         f"{rel} ({motivo})" for rel, motivo in sorted(violaciones.items())
     )
 

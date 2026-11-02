@@ -49,6 +49,7 @@ Orden de evaluación: whitelist primero, negra después, default preguntar.
 
 import json
 import re
+import shlex
 from pathlib import Path
 
 # Niveles de riesgo, de menor a mayor fricción humana.
@@ -209,10 +210,14 @@ def _sin_dup_stderr(segmento):
 
 
 def _tokens(segmento):
-    """Tokens del segmento, sin espacios vacíos. No interpretamos quoting:
-    el prefijo se compara literal (conservador — cualquier rareza que
-    cambie el primer token visible cae en el default 'preguntar')."""
-    return segmento.split()
+    """Los argumentos como los arma el shell: con sus comillas y escapes.
+    Antes era `split()` y el shell veía otra cosa que la política: `find .
+    "-delete"` o `ruff check "--fix"` pasaban como auto (X121). Comillas
+    desbalanceadas no se pueden clasificar: None, y el segmento no es auto."""
+    try:
+        return shlex.split(segmento)
+    except ValueError:
+        return None
 
 
 def _empieza_con(tokens, prefijo):
@@ -259,6 +264,8 @@ def _segmento_es_auto(segmento):
     if not segmento:
         return True  # segmento vacío (p. ej. trailing &&) no aporta riesgo
     tokens = _tokens(segmento)
+    if tokens is None:
+        return False
     if not tokens:
         return True
     # `2>&1` es una duplicación de descriptor de LECTURA (manda stderr al
@@ -386,7 +393,7 @@ def _segmento_nivel(segmento):
     segmento = segmento.strip()
     if not segmento:
         return None
-    tokens = _normalizar(_tokens(segmento))
+    tokens = _normalizar(_tokens(segmento) or segmento.split())
     # La negra de doble confirmación gana sobre cualquier otra cosa.
     for prefijo in _NEGRA_DOBLE:
         if _empieza_con(tokens, prefijo):
@@ -488,7 +495,7 @@ def marcar_si_redirige_config(comando):
 
 def _es_pytest(comando):
     for segmento in segmentos(comando):
-        tokens = _normalizar(_tokens(segmento))
+        tokens = _normalizar(_tokens(segmento) or segmento.split())
         if tokens and (tokens[0] == "pytest" or _empieza_con(tokens, ("python3", "-m", "pytest"))):
             return True
     return False
@@ -522,16 +529,17 @@ def explicar(comando):
     # En un compuesto se explica el segmento que fija el nivel, no el primero:
     # es lo que lee el humano al aprobar (`ls && rm -rf /` no es "lista").
     peor = next((x for x in segmentos(comando) if clasificar(x) == nivel), comando)
+    tokens = _tokens(peor) or peor.split()
     if nivel == AUTO:
         for prefijo, texto in _LECTURA:
-            if _empieza_con(_tokens(peor), prefijo):
+            if _empieza_con(tokens, prefijo):
                 return texto
     for prefijo, texto in _EXPLICACIONES:
-        if _empieza_con(_normalizar(_tokens(peor)), prefijo):
+        if _empieza_con(_normalizar(tokens), prefijo):
             return texto
-    if nivel == PREGUNTAR and _tiene_flag_peligroso(_tokens(peor)):
+    if nivel == PREGUNTAR and _tiene_flag_peligroso(tokens):
         return "flag que escribe, ejecuta o no termina: pide aprobación"
-    if nivel == PREGUNTAR and _opcion_fuera_de_lista(_tokens(peor)):
+    if nivel == PREGUNTAR and _opcion_fuera_de_lista(tokens):
         return "opción fuera de la lista blanca de la base: pide aprobación"
     if nivel == AUTO:
         return "sin efectos destructivos conocidos: no pide aprobación (puede escribir cachés si el comando lo hace)"
