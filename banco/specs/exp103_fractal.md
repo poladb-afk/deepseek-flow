@@ -23,8 +23,8 @@ solo más tokens.
 | A+ | El control de cómputo: A con `MAX_TOOL_ROUNDS=16` y `MAX_TOOL_ROUNDS_AMPLIO=24`, el mismo techo que F suma entre el padre y el saldo de `dividir`: 24 en los anchos y 16 en los secuenciales (corrección 1) |
 | F | A más una tool `dividir`: `agente(recursivo=True)` con `read_file`, `list_files` y `search_files` por `desde_fs` (solo lee, así que las copias hermanas van en paralelo), `max_profundidad=2` y un `Ledger(8)` por corrida que cobra rondas y copias (X119; corrección 2) |
 
-`dividir` vive en un módulo de la rama (`modules/dividir.py`); quitarlo es
-borrarlo. Su descripción dice qué hace, no cuándo conviene: decidir si se
+`dividir` vive en `banco/probes/exp103_brazo_f/modulo/dividir.py` y solo lo
+monta el brazo F (desvío 3); quitarlo es borrarlo. Su descripción dice qué hace, no cuándo conviene: decidir si se
 divide es del modelo (N2 y N3).
 
 ## Escenarios (los de `banco/fable/escenarios`, puntuador determinista de `banco/probes/bench_fable.py`)
@@ -75,6 +75,12 @@ una copia que cierra sin tools gasta una llamada que ninguna ronda registra
    criterio compara tokens totales y no rondas.
 2. Los puntuadores de fable deciden por keywords y citas: son el instrumento
    de siempre (exp/72–80), no se tocan para este experimento.
+3. (X127) `dividir` no vive en `modules/`: ahí lo descubrirían también A y A+.
+   El brazo F pone `banco/probes/exp103_brazo_f/` en PYTHONPATH y su
+   `sitecustomize.py` suma `modulo/` al paquete `modules` solo en el proceso
+   del chat; los scripts y el pytest de los fixtures heredan el entorno y no
+   lo montan. El runner es `banco/probes/exp103.py`, que pide
+   `correr_uno(..., salir=True)` por cada corrida.
 
 ## Correcciones antes de la primera corrida (X120, 2026-11-01)
 

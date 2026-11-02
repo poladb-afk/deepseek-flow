@@ -5,7 +5,7 @@ Documento vivo: se actualiza en cada hito (X*n*). Lo estable está en
 `docs/bitacora.md`. Acá va lo que hoy solo vivía en las conversaciones.
 `tests/test_handoff.py` verifica que lo que cita exista.
 
-**Al día con:** X126 (S9b: el primer paso y el bloqueo medido), X125 (los imports perezosos: 79 → 14, con `python -X importtime` como gate del arranque), X124 (los instrumentos: bytes del primer request, líneas del loop, D y las fallas de DIG sobre la traza), X123 (la medición honesta: "sin datos" ≠ 0 y denominador simétrico), X114, X115 y X121 (pytest en lista blanca, su configuración vigilada y las comillas del shell), X120 (el exp/103 con el cómputo igualado), X119 (cada copia descuenta del saldo) y X118 (los principios S0, P1–P4, N1–N4), sobre X116 (la definición de elegancia y el kernel fractal) sobre X113, aplicado sobre X112 sobre `cca1f28`, más la auditoría del
+**Al día con:** X127 (la rama del exp/103, lista para correr), X126 (S9b: el primer paso y el bloqueo medido), X125 (los imports perezosos: 79 → 14, con `python -X importtime` como gate del arranque), X124 (los instrumentos: bytes del primer request, líneas del loop, D y las fallas de DIG sobre la traza), X123 (la medición honesta: "sin datos" ≠ 0 y denominador simétrico), X114, X115 y X121 (pytest en lista blanca, su configuración vigilada y las comillas del shell), X120 (el exp/103 con el cómputo igualado), X119 (cada copia descuenta del saldo) y X118 (los principios S0, P1–P4, N1–N4), sobre X116 (la definición de elegancia y el kernel fractal) sobre X113, aplicado sobre X112 sobre `cca1f28`, más la auditoría del
 operador sobre ese árbol (2026-10-31): dos hallazgos de seguridad abiertos
 (X114 y X115 en `docs/estado.md`) y cuatro de orden, todos en la cola.
 
@@ -120,7 +120,7 @@ puede ajustarla (es un dato de `utils/politica_comandos.json`).
 | 10 | S3: esquema de tools fijo y cierre por arista | mínimo | **bloqueado** | la prueba de `tool_choice="none"` en DeepSeek |
 | 11 | Fase 6: piezas sueltas | no | — | 10 nodos largos, `TOOL_CONTEXTO_RE` |
 | 12 | Archivar `docs/bitacora.md` por mes (6145 líneas) | no | después de 1–5 | mueve rutas que citan el tablero y los principios: el gate lo tiene que ver |
-| 13 | exp/103: el loop fractal contra el loop solo, con el presupuesto igualado | **sí** | 1 (con el desvío declarado: el saldo único llega con 9). A+ corregido en X120: el mismo techo que F | `banco/specs/exp103_fractal.md` |
+| 13 | exp/103: el loop fractal contra el loop solo, con el presupuesto igualado. Rama lista (X127): `python3 banco/probes/exp103.py` | **sí** | 1 (con el desvío declarado: el saldo único llega con 9). A+ corregido en X120: el mismo techo que F | `banco/specs/exp103_fractal.md` |
 
 ### X114 en detalle (lo que la sesión nueva escribe primero)
 

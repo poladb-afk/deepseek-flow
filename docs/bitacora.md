@@ -6434,3 +6434,43 @@ llamada y un cierre con aviso efímero.
 **Lo probado para el diseño**: PocketFlow 0.0.3 anida un `Flow` como nodo y
 la acción que devuelve el último nodo interno elige la arista del externo
 (guionado: A → B dentro de un Flow, que sale por `fin` a C fuera).
+
+---
+
+## X127: la rama del exp/103, lista para correr (2026-11-01)
+
+**Decisión del operador**: correr el exp/103 antes de unificar el loop (S9b
+A′), porque hoy los dos loops ya se comportan igual (medido en X126: 5
+llamadas, 4 con tools y 4 tools ejecutadas en los dos con el mismo guion).
+
+**Lo que se armó**, fuera de `modules/` para que A y A+ no vean la tool:
+
+- `banco/probes/exp103_brazo_f/modulo/dividir.py`: `agente(recursivo=True)`
+  con `read_file`, `list_files` y `search_files` por `desde_fs`, un
+  `Ledger(8)` por proceso que cobra rondas y copias (X119) y
+  `max_profundidad=2`. Al salir deja la traza del árbol al lado del directorio
+  de la corrida (`<corrida>-dividir.json`): adentro contaría como un archivo
+  que creó el agente.
+- `banco/probes/exp103_brazo_f/sitecustomize.py`: lo monta solo si el
+  proceso es el `main.py` del repo. Un script de fixture con el mismo entorno
+  no lo ve.
+- `banco/probes/exp103.py`: los brazos A, A+ (`MAX_TOOL_ROUNDS=16`,
+  `MAX_TOOL_ROUNDS_AMPLIO=24`: el techo de F en cada familia, X120) y F; la
+  fila por corrida (calidad, tokens de `[tokens] sesión`, adopción, deploy,
+  D y fallas con `banco/probes/fractal.py`) y el veredicto con los cuatro
+  criterios.
+
+**Probado sin red**: con un LLM guionado, el chat de F ofrece `dividir`, la
+llama dos veces, cada copia lee su archivo, y la traza da `dividir=2`, D = 1
+y 0 fallas. El chat sin el sitecustomize no la ofrece. El veredicto falla
+cada criterio por separado cuando se rompe solo ese, y no se evalúa el costo
+de F sin su línea de tokens.
+
+**Hand-merge (nuestro árbol)**: el test del montaje hereda `HOME` en el
+subproceso (acá las dependencias están en el user-site y el `HOME` falso las
+escondía) y el test de la traza da de baja el `atexit` de la sonda al
+importarla (sin eso escribía el árbol junto a la primera raíz permitida, fuera
+de la corrida).
+
+**Lo que queda**: las 72 corridas contra DeepSeek (`python3
+banco/probes/exp103.py`), que corre el operador.
