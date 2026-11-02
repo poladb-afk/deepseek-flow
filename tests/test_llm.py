@@ -7,10 +7,12 @@ def test_historial_canonico_sin_reasoning():
     puede viajar a vueltas sin thinking. El historial es dict canónico."""
     from types import SimpleNamespace
 
-    from nodes import AgentStep, ExecuteTools
+    from conftest import ctx_chat
+
+    from nodes import PasoChat
     from utils.fs_tools import run_tool_call
 
-    paso = AgentStep()
+    paso = PasoChat(ctx_chat(), [], max_retries=1)
     mensaje = SimpleNamespace(
         content="¡Hola! 👋", tool_calls=None,
         reasoning_content="cadena de razonamiento del modo thinking",
@@ -29,7 +31,7 @@ def test_historial_canonico_sin_reasoning():
         "tool_calls": [{"id": "call_1", "type": "function",
                         "function": {"name": "list_files", "arguments": "{}"}}],
     })
-    tcs = ExecuteTools().prep(shared)
+    tcs = shared["messages"][-1]["tool_calls"]
     resultado = run_tool_call(tcs[0])
     assert resultado["role"] == "tool"
     assert resultado["tool_call_id"] == "call_1"

@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace as NS
 
 import pytest
+from conftest import ctx_chat
 
 
 # 1 prefiltro
@@ -123,8 +124,9 @@ def test_presupuesto_agotado_ignora_tool_calls_nativos(monkeypatch, contenido):
               "turno": {**nodes.nuevo_turno(), "rondas": 99}}
     # X96: con el presupuesto agotado Contexto sale a Cierre, que va sin tools
     assert nodes.Contexto()._run(shared) == "cierre"
-    accion = nodes.Cierre()._run(shared)
-    assert accion == "answer"
+    cierre = nodes.CierreChat(ctx_chat(rondas=0), [], max_retries=1)
+    accion = cierre._run(shared)
+    assert accion == "respuesta"
     ultimo = shared["messages"][-1]
     assert "tool_calls" not in ultimo
     assert ultimo["content"] == (contenido or nodes.MENSAJE_DSML_AGOTADO)

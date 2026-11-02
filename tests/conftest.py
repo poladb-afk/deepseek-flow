@@ -91,3 +91,20 @@ def tc(nombre, args):
     """Tool call con la envoltura exacta que arma el modelo (OpenAI)."""
     return {"id": "call_x", "type": "function",
             "function": {"name": nombre, "arguments": json.dumps(args)}}
+
+def ctx_chat(llm=None, rondas=8, tools=()):
+    """Un `Ctx` del kernel con el responder del chat, para probar `PasoChat`,
+    `ActuarChat` y `CierreChat` sin armar el flujo entero."""
+    import nodes
+    from utils.kernel import Ctx, Ledger
+
+    return Ctx(llm or nodes.responder_llm, Ledger(rondas))
+
+
+def tool_chat(nombre="read_file", esquema=None):
+    """Una `Tool` del kernel con el nombre/esquema pedidos (despacho no-op)."""
+    from utils.kernel import Tool
+
+    esquema = esquema or {"type": "function", "function": {"name": nombre, "parameters": {}}}
+    return Tool(nombre, esquema, lambda llamada, _ctx: "ok")
+

@@ -1,0 +1,15 @@
+{"ts": 1793631265.295, "nodo": "GetQuestion", "accion": "continue", "seg": 0.102}
+{"ts": 1793631265.295, "nodo": "PreFetch", "accion": "continue", "seg": 0.0}
+{"ts": 1793631265.295, "nodo": "Skills", "accion": "continue", "seg": 0.0}
+{"ts": 1793631265.297, "nodo": "Contexto", "accion": "herramientas", "seg": 0.001}
+{"ts": 1793631266.99, "nodo": "llm", "accion": "usage", "seg": 0.0, "prompt_tokens": 5482, "completion_tokens": 103, "cache_hit": 0, "llamador": "AgentStep"}
+{"ts": 1793631266.991, "nodo": "AgentStep", "accion": "tool", "seg": 1.694}
+{"ts": 1793631266.993, "nodo": "list_files", "accion": "ok", "seg": 0.002, "huella": "81306beb"}
+{"ts": 1793631266.993, "nodo": "ExecuteTools", "accion": "default", "seg": 0.002}
+{"ts": 1793631266.995, "nodo": "Observar", "accion": "default", "seg": 0.001}
+{"ts": 1793631266.996, "nodo": "Contexto", "accion": "herramientas", "seg": 0.001}
+{"ts": 1793631267.546, "nodo": "llm", "accion": "usage", "seg": 0.0, "prompt_tokens": 0, "completion_tokens": 0, "llamador": "AgentStep"}
+{"ts": 1793631267.548, "nodo": "AgentStep", "accion": "answer", "seg": 0.552}
+{"ts": 1793631267.548, "nodo": "VerificarCitas", "accion": "None", "seg": 0.0}
+{"ts": 1793631267.757, "nodo": "GetQuestion", "accion": "exit", "seg": 0.209}
+{"ts": 1793631267.757, "nodo": "ExitChat", "accion": "None", "seg": 0.0}

@@ -383,3 +383,70 @@ def test_el_arbol_no_pasa_de_2r_mas_1_llamadas_con_cualquier_abanico(copias, sal
     respuesta, mensajes = correr("s", "q", [dividir], ctx, wait=0)
     assert respuesta == "ok" and validar_historial(mensajes) == []
     assert ctx.ledger.llamadas <= 2 * saldo + 1 and ctx.ledger.rondas >= 0
+
+# S9b A′ — las dos costuras del loop: políticas entre rondas y nodo de cierre
+
+
+def test_el_loop_sin_costuras_deja_el_grafo_de_siempre():
+    from utils.kernel import loop
+
+    flujo = loop(Ctx(None, Ledger(1)), [])
+    paso = flujo.start_node
+    assert {a: type(n).__name__ for a, n in paso.successors.items()} == {
+        "actuar": "Actuar", "cerrar": "Cerrar", "respuesta": "Fin"}
+    assert paso.successors["actuar"].successors["paso"] is paso
+    assert paso.successors["cerrar"].successors["paso"] is paso
+
+
+def test_las_politicas_corren_entre_rondas_en_orden():
+    from pocketflow import Node
+
+    from utils.kernel import loop
+
+    vistas = []
+
+    class Politica(Node):
+        def __init__(self, nombre):
+            super().__init__()
+            self.nombre = nombre
+
+        def post(self, shared, prep_res, exec_res):
+            vistas.append((self.nombre, len([m for m in shared["messages"] if m.get("role") == "tool"])))
+            return "default"
+
+    llm, _ = guion(msg(None, llamada("leer", 0)), msg("listo"))
+    shared = {"messages": [{"role": "user", "content": "q"}]}
+    loop(Ctx(llm, Ledger(3)), [tool("leer")], wait=0,
+         politicas=[Politica("uno"), Politica("dos")]).run(shared)
+    # las dos políticas, en orden, después de la ronda y antes de la 2ª llamada
+    assert vistas == [("uno", 1), ("dos", 1)]
+
+
+def test_una_politica_puede_cerrar_y_el_cierre_es_un_nodo():
+    from pocketflow import Node
+
+    from utils.kernel import loop
+
+    vistas = []
+
+    class Corta(Node):
+        def post(self, shared, prep_res, exec_res):
+            return "cierre"
+
+    class Cierra(Node):
+        def prep(self, shared):
+            vistas.append("cierre")
+            return None
+
+        def post(self, shared, prep_res, exec_res):
+            shared["messages"].append({"role": "assistant", "content": "cerrado"})
+            return "respuesta"
+
+    llm, llamadas = guion(msg(None, llamada("leer", 0)), msg("no deberia llegar"))
+    shared = {"messages": [{"role": "user", "content": "q"}]}
+    loop(Ctx(llm, Ledger(3)), [tool("leer")], wait=0,
+         politicas=[Corta()], cierre=Cierra()).run(shared)
+    assert vistas == ["cierre"]
+    assert len(llamadas) == 1  # el cierre lo hizo el nodo, no otra llamada al modelo
+    assert shared["messages"][-1]["content"] == "cerrado"
+

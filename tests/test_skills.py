@@ -67,11 +67,10 @@ def test_agent_step_anuncia_solo_el_subset_del_skill():
     revision = next(h for h in disponibles() if h.id == "revision")
     shared = {"messages": [{"role": "user", "content": "revisá el código"}],
               "turno": {**nodes.nuevo_turno(), "skill": revision.id}}
-    _, tools = nodes.AgentStep().prep(shared)
-    assert {tool["function"]["name"] for tool in tools} == set(revision.tools)
-    _, todos = nodes.AgentStep().prep({"messages": [{"role": "user", "content": "hola"}]})
-    assert {tool["function"]["name"] for tool in todos} == {
-        tool["function"]["name"] for tool in nodes.TOOLS}
+    tools = nodes.herramientas_de(shared)
+    assert {tool.nombre for tool in tools} == set(revision.tools)
+    todos = nodes.herramientas_de({"messages": [{"role": "user", "content": "hola"}]})
+    assert {tool.nombre for tool in todos} == {tool["function"]["name"] for tool in nodes.TOOLS}
 
 
 def test_preguntas_reales_no_cuentan_el_mensaje_de_skill():

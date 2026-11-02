@@ -59,6 +59,11 @@ ACCIONES_CANONICAS = {
     ("Cierre", "answer"), ("Cierre", "tool"),
     ("AgentStep", "tool"), ("AgentStep", "answer"),
     ("ExecuteTools", "default"),
+    # S9b A′: el loop del chat es el del kernel con su vocabulario propio (la
+    # clase propia distingue la traza del chat de la del supervisor)
+    ("Contexto", "default"),
+    ("PasoChat", "actuar"), ("PasoChat", "respuesta"), ("PasoChat", "cerrar"),
+    ("ActuarChat", "paso"), ("CierreChat", "respuesta"),
     ("ExitChat", "None"),
     # HISTÓRICAS: el router y la ruta directa (borrados en X106) siguen en las
     # trazas viejas de .runs; el linter juzga el cableado de cada traza, no si
@@ -128,21 +133,21 @@ def _accion_valida(nodo, accion):
 
 
 def _violaciones_a(eventos):
-    """(a) AgentStep tool debe tener un ExecuteTools antes del próximo AgentStep."""
+    """(a) un paso que pidió tools debe tener su despacho antes del próximo."""
     viol = []
     for i, e in enumerate(eventos):
-        if e["nodo"] != "AgentStep" or e["accion"] != "tool":
+        if (e["nodo"], e["accion"]) not in {("AgentStep", "tool"), ("PasoChat", "actuar")}:
             continue
-        if not _hay_execute_tools_antes_del_proximo_agentstep(eventos, i):
-            viol.append(("a", i, "AgentStep tool sin ExecuteTools antes del próximo AgentStep"))
+        if not _hay_despacho_antes_del_proximo_paso(eventos, i):
+            viol.append(("a", i, "paso con tool_calls sin despacho antes del próximo paso"))
     return viol
 
 
-def _hay_execute_tools_antes_del_proximo_agentstep(eventos, inicio):
+def _hay_despacho_antes_del_proximo_paso(eventos, inicio):
     for e in eventos[inicio + 1:]:
-        if e["nodo"] == "AgentStep":
+        if e["nodo"] in ("AgentStep", "PasoChat"):
             return False
-        if e["nodo"] == "ExecuteTools":
+        if e["nodo"] in ("ExecuteTools", "ActuarChat"):
             return True
     return False
 
@@ -159,7 +164,7 @@ def _violaciones_c(eventos):
 def _hay_tools_propias_antes(eventos, inicio):
     """Tools propias entre el AgentStep que pidió y el ExecuteTools (i)."""
     for e in reversed(eventos[:inicio]):
-        if e["nodo"] in ("AgentStep", "GetQuestion"):
+        if e["nodo"] in ("AgentStep", "PasoChat", "GetQuestion"):
             return False
         if e["nodo"] in TOOLS_CONOCIDAS:
             return True
@@ -170,7 +175,7 @@ def _violaciones_d(eventos, umbral_seg):
     """(d) ExecuteTools largo sin eventos de tools propias (ciego viejo)."""
     viol = []
     for i, e in enumerate(eventos):
-        if e["nodo"] != "ExecuteTools" or e.get("seg", 0) <= umbral_seg:
+        if e["nodo"] not in ("ExecuteTools", "ActuarChat") or e.get("seg", 0) <= umbral_seg:
             continue
         if not _hay_tools_propias_antes(eventos, i):
             viol.append(("d", i, f"ExecuteTools de {e['seg']:.1f}s sin eventos de tools propios"))

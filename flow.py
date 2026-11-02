@@ -1,50 +1,32 @@
+"""El grafo del chat (S9b A′): el loop es el `kernel.loop`.
+
+El chat aporta `PasoChat`/`CierreChat` y las políticas `Observar`/`Contexto`;
+el resto —aristas, saldo, historial canónico— es el del kernel.
+"""
 from pocketflow import Flow
 
-from nodes import (
-    AgentStep,
-    Cierre,
-    Contexto,
-    ExecuteTools,
-    ExitChat,
-    GetQuestion,
-    Observar,
-    PreFetch,
-    Skills,
-    VerificarCitas,
-)
+import nodes as n
+from utils.kernel import Ctx, Ledger, loop
 
 
 def create_agent_flow():
-    """Un solo camino (fase 3b, X106): toda pregunta llega al modelo con las
-    tools ofrecidas y él decide si usarlas. Antes un router (Laya + voto +
-    reglas de palabras) mandaba algunas a una llamada sin tools."""
-    ask = GetQuestion()
-    prefetch = PreFetch()
-    skills = Skills()  # el skill de la pregunta, una vez, a la entrada
-    contexto = Contexto()  # compacta antes de CADA llamada al modelo
-    step = AgentStep(max_retries=3, wait=5)
-    tools = ExecuteTools()
-    observar = Observar()  # cuenta la ronda: no-progreso, novedad, notas
-    cierre = Cierre(max_retries=3, wait=5)  # la última llamada, sin tools
-    bye = ExitChat()
-    # la respuesta pasa por la verificación de citas antes de la próxima
-    # pregunta: un nodo propio (con retry), no un paso escondido en post
-    citas = VerificarCitas(max_retries=2, wait=2)
+    """Un solo camino (X106): toda pregunta llega al modelo con las tools y él
+    decide si usarlas; `PasoChat.prep` resetea saldo y skill por pregunta."""
+    ctx, todas = Ctx(n.responder_llm, Ledger(n.presupuesto({}))), n.herramientas_de({})
+    paso = n.PasoChat(ctx, todas, max_retries=3, wait=5)
+    cerrar = n.CierreChat(ctx, todas, max_retries=3, wait=5)
+    agente = loop(ctx, todas, politicas=(n.Observar(), n.Contexto()), paso=paso,
+                  actuar=n.ActuarChat(ctx, todas), cierre=cerrar)
+    ask, prefetch, skills, contexto = n.GetQuestion(), n.PreFetch(), n.Skills(), n.Contexto()
+    citas, bye = n.VerificarCitas(max_retries=2, wait=2), n.ExitChat()
 
     ask - "continue" >> prefetch
     prefetch - "continue" >> skills
     skills - "continue" >> contexto
-    contexto - "herramientas" >> step
-    contexto - "cierre" >> cierre  # el presupuesto se acabó: la última llamada
-    step - "answer" >> citas  # respuesta entregada: se verifican sus citas
-    citas >> ask              # y vuelve a la siguiente pregunta
-    cierre - "answer" >> citas
-    # Cierre hereda el post de AgentStep, que puede devolver "tool": nunca
-    # pasa (las tools van retiradas) pero la arista existe
-    cierre - "tool" >> tools
-    step - "tool" >> tools  # pidió herramientas: ejecutarlas y volver a pensar
-    tools >> observar       # la ronda se cuenta
-    observar >> contexto    # y antes de pensar, el contexto otra vez
+    contexto - "default" >> agente
+    contexto - "cierre" >> agente  # imposible al entrar (rondas=0); el candado lo exige
+    agente >> citas
+    citas >> ask
     ask - "exit" >> bye
 
     return Flow(start=ask)

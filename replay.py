@@ -83,8 +83,28 @@ NO_NODOS_TOLERADOS = {
 # El router y la ruta directa (borrados en X106) siguen acá: sus trazas viejas
 # son del chat; sacarlos haría que B los saltee y "valide" aristas que nunca
 # existieron. PreFetch y Skills no: son pasajes (aristas transitivas abajo).
-NODOS_CHAT = {"GetQuestion", "LayaRouter", "Contexto", "DirectAnswer", "AgentStep",
-              "ExecuteTools", "Observar", "Cierre", "ExitChat", "VerificarCitas"}
+NODOS_CHAT = {"GetQuestion", "LayaRouter", "Contexto", "DirectAnswer", "PasoChat",
+              "ActuarChat", "Observar", "CierreChat", "ExitChat", "VerificarCitas"}
+
+# S9b A′: los tres nodos del loop viejo del chat se fueron con el refactor. Las
+# trazas, `.runs` y checkpoints ANTERIORES siguen siendo del chat: se mapean al
+# vocabulario nuevo para que el replay y el resume los sigan juzgando. Sin este
+# mapa, la primera traza vieja que se audite parecería de otro producto.
+NODOS_HISTORICOS = {"AgentStep": "PasoChat", "ExecuteTools": "ActuarChat", "Cierre": "CierreChat"}
+ACCIONES_HISTORICAS = {
+    ("AgentStep", "tool"): ("PasoChat", "actuar"),
+    ("AgentStep", "answer"): ("PasoChat", "respuesta"),
+    ("ExecuteTools", "default"): ("ActuarChat", "paso"),
+    ("Cierre", "answer"): ("CierreChat", "respuesta"),
+    ("Cierre", "tool"): ("CierreChat", "respuesta"),
+    ("Contexto", "herramientas"): ("Contexto", "default"),
+}
+
+
+def _historico(nodo, accion):
+    """El (nodo, accion) de una traza vieja, traducido al vocabulario del loop
+    actual; lo que no es histórico queda igual."""
+    return ACCIONES_HISTORICAS.get((nodo, accion), (NODOS_HISTORICOS.get(nodo, nodo), accion))
 
 
 # 1) GRAFOS VIVOS: clases, acciones cableadas y aristas del chat
@@ -181,7 +201,7 @@ def _grafos_vivos():
         for (a, accion, b) in aristas_chat
         if b == "Contexto"
         for (b2, salida, c) in aristas_chat
-        if b2 == "Contexto" and salida == "herramientas"
+        if b2 == "Contexto" and salida in ("herramientas", "default")
     }
     # X106: Skills es otro pasaje transparente a la entrada (PreFetch → Skills →
     # Contexto). Va ANTES de la regla de PreFetch, que la necesita resuelta.
@@ -215,6 +235,14 @@ def _grafos_vivos():
         for (b2, accion2, c) in aristas_chat
         if b2 == "VerificarCitas" and accion2 == "default"
     }
+    # S9b A′: el loop del chat termina en `Fin` (terminal del kernel) y la
+    # respuesta sigue por VerificarCitas; el paso del camino viejo era
+    # AgentStep/Cierre → citas. Misma regla transitiva.
+    aristas_chat |= {
+        (a, accion, "VerificarCitas")
+        for (a, accion, b) in aristas_chat
+        if b == "Fin" and a in ("PasoChat", "CierreChat")
+    }
     return clases, aristas_chat
 
 
@@ -241,6 +269,7 @@ def nivel_a(eventos, clases):
         nodo, accion = e.get("nodo"), str(e.get("accion"))
         if nodo in NO_NODOS_TOLERADOS or _es_error_trazado(accion):
             continue
+        nodo, accion = _historico(nodo, accion)
         aristas = clases.get(nodo)
         if aristas is None:
             continue  # ni clase: la clasifica el nivel C (tools) o es desconocida
@@ -259,7 +288,8 @@ def nivel_a_desconocidos(eventos, clases, herramientas):
     (accion ok/error) los juzga el nivel C: acá solo los huérfanos de grafo."""
     desconocidos = []
     for e in eventos:
-        nodo, accion = e.get("nodo"), str(e.get("accion"))
+        nodo, accion = _historico(e.get("nodo"), e.get("accion"))
+        accion = str(accion)
         if nodo in clases or nodo in herramientas or nodo in NO_NODOS_TOLERADOS:
             continue
         if _es_error_trazado(accion) or accion in ("ok", "error") or es_bookkeeping(nodo, accion):
@@ -275,16 +305,20 @@ def nivel_b_chat(eventos, clases, aristas_chat):
     el mismo archivo (son corridas de OTROS grafos) y los concurrentes
     intercalan corutinas — juzgarlos por adyacencia sería falso positivo.
     Los eventos de tools y los errores (el flujo aborta) se saltean."""
-    if not any(e.get("nodo") in NODOS_CHAT for e in eventos):
+    nodos = []
+    for e in eventos:
+        if _es_error_trazado(e.get("accion")):
+            continue
+        nodo, accion = _historico(e.get("nodo"), e.get("accion"))
+        if nodo in NODOS_CHAT:
+            nodos.append((nodo, str(accion)))
+    if not nodos:
         return []
-    nodos = [e for e in eventos
-             if e.get("nodo") in NODOS_CHAT and not _es_error_trazado(e.get("accion"))]
     rotas = []
-    for e1, e2 in zip(nodos, nodos[1:], strict=False):
-        accion = str(e1["accion"])
-        clave = "default" if accion == "None" else accion
-        if (e1["nodo"], clave, e2["nodo"]) not in aristas_chat:
-            rotas.append((e1["nodo"], accion, e2["nodo"]))
+    for (n1, a1), (n2, _a2) in zip(nodos, nodos[1:], strict=False):
+        clave = "default" if a1 == "None" else a1
+        if (n1, clave, n2) not in aristas_chat:
+            rotas.append((n1, a1, n2))
     return rotas
 
 

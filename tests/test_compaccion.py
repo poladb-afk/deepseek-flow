@@ -186,9 +186,10 @@ def test_un_typo_en_un_setting_numerico_no_mata_el_chat(monkeypatch):
         lambda nombre, default=None: "sesenta mil" if nombre == "COMPACTION_CHARS" else default,
     )
     shared = {"messages": [{"role": "system", "content": "s"}], "tool_rounds": 0}
-    assert nodes.Contexto()._run(shared) == "herramientas"   # no debe levantar
-    mensajes, tools = nodes.AgentStep().prep(shared)
-    assert mensajes and tools is not None
+    assert nodes.Contexto()._run(shared) == "default"   # no debe levantar
+    # la otra mitad del camino viejo (AgentStep.prep) tampoco lee el setting:
+    # desde S9b A′ las tools las arma el loop, no un prep que compacta
+    assert nodes.herramientas_de(shared)
 
 def test_compactar_no_devuelve_mas_contexto_del_que_recibio():
     """exp/37: si la ventana caliente sola pesa más que el tope, la compacción

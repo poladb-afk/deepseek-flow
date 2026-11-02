@@ -15,19 +15,23 @@ código: `DEEPSEEK_API_KEY` en el entorno o `LLM_API_KEY` en el `.env` del proye
 
 ```mermaid
 flowchart TD
-    q[GetQuestion] -->|continue| s[AgentStep]
-    s -->|answer| c[VerificarCitas]
+    q[GetQuestion] -->|continue| p[PreFetch]
+    p -->|continue| k[Skills]
+    k -->|continue| ct[Contexto]
+    ct -->|default| L[LoopChat = kernel.loop]
+    ct -->|cierre| L
+    L -->|default| c[VerificarCitas]
     c --> q
-    s -->|tool| t[ExecuteTools]
-    t --> s
     q -->|exit| x[ExitChat]
 ```
 
 Es el patrón Agent (decidir → actuar → volver a decidir) implementado con
-**tool calling nativo** de DeepSeek en vez de YAML: `AgentStep` manda el
-historial + definiciones de tools; si el modelo responde con `tool_calls`,
-la acción `tool` ejecuta y el bucle vuelve a `AgentStep`; si responde con
-texto, la acción `answer` imprime y vuelve a esperar la siguiente pregunta.
+**tool calling nativo** de DeepSeek en vez de YAML. Desde S9b A′ el loop es el
+**del kernel** (una instancia por pregunta, `flow.LoopChat`): `PasoChat` manda
+el historial + las tools; si el modelo pide tools, `ActuarChat` las ejecuta
+(despacha por `run_tool_call`: hooks, denylist y HITL) y las políticas
+`Observar` y `Contexto` corren entre rondas; si responde texto, el loop termina
+y la respuesta pasa por `VerificarCitas` antes de la próxima pregunta.
 
 ## Sanitizado de respuestas descarriladas y thinking selectivo
 
@@ -43,7 +47,7 @@ respuesta:
    original decía "API rechaza tools+thinking") solo aplica con tools.
    Sin tools ahora va con thinking normal; verificado en vivo: respuestas
    limpias en ambos caminos.
-2. **Defensa en profundidad**: `sanitizar()` en `AgentStep.post` corta
+2. **Defensa en profundidad**: `sanitizar()` en el responder del loop corta
    en markers de rol ajenos (`<system>`, `[INST]`…; si no queda nada,
    el reintento del nodo re-pregunta) y quita tags HTML espurios que
    parten palabras (`S<small>oy` → `Soy`), sin tocar markdown legítimo.
@@ -62,7 +66,7 @@ primer fragmento de cada llamada; `function.arguments` se acumula por
 concatenación). Si el stream se corta a mitad, devuelve lo acumulado sin
 explotar.
 
-`AgentStep.exec` (y por herencia `Cierre`) usa la
+`PasoChat.exec` (y por herencia `CierreChat`) usa la
 versión stream cuando `CHAT_STREAM == "1"` (default) y la clásica con `0`.
 El resto del flujo no cambia (historiar, recuperación DSML, sanitizar,
 ExecuteTools). Como con streaming el contenido crudo ya se imprimió en
@@ -90,7 +94,7 @@ corte benigno no agrega ruido.
 Medido en producción (2026-10-05): a veces DeepSeek emite las tool calls
 como TEXTO crudo con su markup interno (DSML, `<｜DSML｜｜ invoke …>`) en
 vez del canal estructurado — el chat las imprimía como respuesta y se
-quedaba esperando, sin ejecutar nada. `AgentStep.post` ahora lo detecta:
+quedaba esperando, sin ejecutar nada. `PasoChat.post` ahora lo detecta:
 sin `tool_calls` pero con la marca DSML en el contenido → `dsml_a_tool_calls`
 parsea de vuelta los invokes (misma forma que la API) y los INYECTA en el
 mensaje, con el markup limpiado para que el historial quede canónico. El
@@ -115,9 +119,10 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Skills | Node | la pregunta en curso (`pregunta_en_curso`) | `skill_para` (regex del YAML, sin LLM; `SKILLS=0` apaga) | si dispara: id en `turno["skill"]` y mensaje `[skill]` → `continue` — X106 (antes dentro del router) |
 | Contexto | Node | si el historial supera `COMPACTION_CHARS`: respaldo de la zona fría (gancho `al_compactar`), compacción, recorte de tool results viejos y aviso de ventana caliente | — | sale por `cierre` si `motivo_de_cierre` (el techo único de la pregunta, S6/X132); si no, por `herramientas` (un solo camino desde X106) — X95, X96 |
 | Observar | Node | la ronda recién ejecutada | — | cuenta la ronda y agrega al último resultado la nota de presupuesto; checkpoint (punto seguro 2) → `default` — X96, S6 |
-| Cierre | Node (max_retries=3, wait=5) | historial + `AVISO_CIERRE` efímero, **sin tools** | igual que AgentStep | la respuesta de un turno que agotó el presupuesto → `answer` — X96 |
-| AgentStep | Node (max_retries=3, wait=5) | historial + tools (el subset del skill si hay uno activo) | `call_llm_agent` (o `call_llm_agent_stream` con `CHAT_STREAM=1`) | agrega el mensaje del asistente; con `tool_calls` → `tool`; si no, imprime → `answer` (con streaming el `print` solo cierra la línea: la respuesta ya salió en vivo) |
-| ExecuteTools | Node | último `tool_calls` | ejecuta cada llamada (`run_tool_call`) | agrega los mensajes tool → `default` (la cuenta de la ronda es de Observar, X96) |
+| PasoChat | Node (max_retries=3, wait=5), hereda `kernel.Paso` | historial + tools del kernel (subset del skill) | `responder_llm` (o stream, con `CHAT_STREAM=1`) | agrega el mensaje del asistente y el checkpoint de la SELECCIÓN; con `tool_calls` → `actuar`; si no, imprime → `respuesta` (con streaming el `print` solo cierra la línea) — S9b A′ |
+| ActuarChat | Node, hereda `kernel.Actuar` | último `tool_calls` | despacha cada `Tool` (que anuncia y traza su evento) | agrega los mensajes tool → `paso` — S9b A′ |
+| CierreChat | Node (max_retries=3, wait=5), hereda `PasoChat` | historial + `AVISO_CIERRE` efímero, **sin tools** | igual que PasoChat | la respuesta de un turno que agotó el presupuesto → `respuesta` — A38 |
+| LoopChat | Flow (plantilla + instancia por pregunta) | — | — | `kernel.loop` por pregunta con `Observar` y `Contexto` como políticas; no emite evento propio (X130) |
 | VerificarCitas | Node (max_retries=2, wait=2) | la última respuesta (si `CITAS_VERIFICAR=1` y no trae `tool_calls`) | verifica `ruta:línea` contra el disco; si alguna falla, UNA corrección sin tools (`exec_fallback`: si la corrección revienta, queda la respuesta) | reemplaza el contenido corregido → `default` (antes vivía en `AgentStep.post`, sin retry: auditoría F6) |
 | ExitChat | Node | — | — | imprime despedida |
 
@@ -156,7 +161,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Límite | Qué | Dónde |
 |---|---|---|
 | Contención | Ninguna ruta sale de `AGENT_ALLOWED_DIRS` (resueltas con `Path.resolve`) | `fs_tools._resolve` |
-| Rondas | `presupuesto(shared)` por pregunta (override > `MAX_TOOL_ROUNDS` = **16**, el techo único desde S6/X132); al llegar, `Contexto` sale a `Cierre`, que llama sin tools y el modelo debe responder (X96: una arista, ya no un flag). Se reinicia con cada pregunta nueva del usuario (el comando `/aprobaciones` incluido, que no agrega mensaje) | `nodes.presupuesto`, `AgentStep.prep` |
+| Rondas | un `kernel.Ledger` por pregunta (init = `presupuesto(shared)`: override > `MAX_TOOL_ROUNDS` = **16**, el techo único desde S6/X132); al llegar, la política `Contexto` sale a `CierreChat`, que llama sin tools y el modelo debe responder (X96). Se reinicia con cada pregunta nueva del usuario | `flow.LoopChat`, `nodes.presupuesto` |
 | Contexto | `READ_MAX_CHARS` por lectura, listados truncados | `fs_tools` |
 
 ## Segundo flujo: informe map-reduce
@@ -204,7 +209,7 @@ sobre la pregunta), `instrucciones` (prompt que se inyecta con prefijo
 `[skill]`) y `tools` (subset que el loop anuncia mientras el skill está
 activo). `utils/skills.py` los carga (YAML roto se saltea) y expone funciones
 puras (`skill_para`, `mensaje`, `filtrar_tools`). El nodo `Skills` evalúa el disparo a la entrada de cada pregunta (X106; antes
-lo hacía el router en enforce): si matchea, inyecta el contexto y anuncia el skill; `AgentStep` recorta la lista de tools
+lo hacía el router en enforce): si matchea, inyecta el contexto y anuncia el skill; el loop recorta la lista de tools
 al subset. `SKILLS=0` apaga. El recorte de tools
 es GUÍA (no sandbox): el action space sigue completo y la seguridad sigue en
 HITL/policy. Dos skills iniciales: `revision` y `tdd`.
@@ -222,7 +227,7 @@ las herramientas que aporten los módulos. Un módulo es un archivo en
 - Ciclo de vida (X92): un módulo puede exportar además `HOOKS =
   {evento: función}` con `al_arrancar(shared)`, `al_compactar(mensajes,
   shared)` → ruta|None y `al_salir(shared)`. `modules.ganchos(evento)` los
-  junta y el CORE (`main`, `nodes.AgentStep`) los recorre sin nombrar a
+  junta y el CORE (`main`, `flow.create_agent_flow`) los recorre sin nombrar a
   nadie: la memoria (catálogo, respaldo de la zona fría, resumen de sesión)
   y el reporte de delegadas viven en su módulo. Borrar `modules/memoria.py`
   deja el chat andando sin biblioteca
@@ -962,10 +967,11 @@ como una `Tool` que otro loop puede llamar. Leyes por construcción:
   el chat y el kernel (antes estaban solo en `nodes.py`).
 
 Instancias: `supervisor.py` (PR 2); `explorador.py` (PR 1) se borró en H3-B por medición (X79). `agente()` queda como primitiva sin uso en producción: es la pieza que un experimento futuro de sub-agentes reusaría. El chat NO es
-una instancia (H2 PR 4b, X77): `AgentStep`/`ExecuteTools` son "el loop con
-políticas" —compactación, presupuesto por pregunta (un techo único, S6/X132),
-aviso de cierre, skills, checkpoints— y el kernel es "el loop mínimo para
-sub-agentes". Los dos comparten el contrato de respuesta: una sola
+una instancia (H2 PR 4b, X77) hasta S9b A′: ahora el chat corre sobre
+`kernel.loop` como una instancia más, y lo que aporta son sus nodos de
+política (compacción, ronda, cierre con aviso A38, skills, checkpoints) y su
+`PasoChat` (streaming/impresión). El loop —aristas, saldo único, historial
+canónico— es uno solo. Los dos comparten el contrato de respuesta: una sola
 normalización del proveedor (`utils.proveedor.normalizar`, X76), el mismo
 historial canónico y el mismo despacho por `run_tool_call`.
 

@@ -16,6 +16,7 @@ from utils.costos import delta_desglose
 from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
 from utils.fs_tools import TOOLS as CORE_TOOLS
 from utils.historial import historiar
+from utils.kernel import Actuar, Paso, Tool
 from utils.prefetch import PREFIJO_PREFETCH, decidir
 from utils.prefetch import mensaje as mensaje_prefetch
 from utils.proveedor import (  # noqa: F401  (re-export: tests y banco los importan de nodes)
@@ -335,69 +336,7 @@ class Contexto(Node):
     def post(self, shared, prep_res, exec_res):
         if motivo_de_cierre(shared):
             return "cierre"
-        return "herramientas"
-
-
-class AgentStep(Node):
-    def prep(self, shared):
-        # El cierre por presupuesto ya no pasa por acá: Contexto lo decide y
-        # sale a Cierre (X96). AgentStep siempre ofrece tools.
-        tools = TOOLS
-        skill_id = turno(shared)["skill"]
-        if skill_id:
-            # exp/55: mientras el skill está activo se anuncia SOLO su subset
-            # (guía, no sandbox: el action space completo sigue existiendo).
-            # En shared viaja el ID (JSON): el objeto Skill se guardaba como su
-            # repr y un resume lo cargaba roto (auditoría 2026-10-26, F4).
-            skill = next((h for h in disponibles() if h.id == skill_id), None)
-            tools = filtrar_tools(tools, skill) if skill else tools
-        return shared["messages"], tools
-
-    def exec(self, inputs):
-        messages, tools = inputs
-        stream = _setting("CHAT_STREAM", "1") == "1"
-        if stream:
-            # etiqueta antes del primer delta: sin ella las respuestas
-            # llegan sin rótulo (nit de UX de la mesa 8, medido en prod)
-            print("\nDeepSeek: ", end="", flush=True)
-            exec_res = call_llm_agent_stream(messages, tools)
-        else:
-            exec_res = call_llm_agent(messages, tools)
-        # La normalización va en exec, NO en post: los max_retries de
-        # PocketFlow envuelven exec(), así que un raise acá SÍ re-pregunta; en
-        # post() cortaría el chat (bug medido). Es la misma del kernel.
-        exec_res, avisos = normalizar(exec_res, tools)
-        for aviso in avisos:
-            if aviso in AVISOS:
-                print(colorear(AVISOS[aviso], "aviso"))
-        if stream and "sanitizado" in avisos:
-            # con streaming el crudo ya se imprimió en vivo (a veces con el
-            # descarrilo incluido): se imprime también la versión limpia
-            print(f"\nDeepSeek (limpio): {exec_res.content}")
-        if stream and "reemplazado" in avisos:
-            # con streaming el crudo ya se imprimió; si exec() lo REEMPLAZÓ
-            # (fallback/aviso), el usuario tiene que verlo o queda sin respuesta.
-            print(f"\nDeepSeek (aviso): {exec_res.content}")
-        return exec_res
-
-    def post(self, shared, prep_res, exec_res):
-        shared["messages"].append(historiar(exec_res))
-        if getattr(exec_res, "tool_calls", None):
-            # exp/49: punto seguro 4 — la SELECCIÓN: las llamadas quedaron
-            # elegidas pero no ejecutadas (la pausa exacta del factor 8).
-            # Con el cierre de ronda de exp/48 son dos checkpoints por ronda.
-            checkpoint(thread_id(), type(self).__name__, "tool", shared)
-            return "tool"
-        if _setting("CHAT_STREAM", "1") == "1":
-            # con streaming el contenido ya se imprimió en vivo (deltas sin
-            # salto): acá solo se cierra la línea, sin repetir la respuesta.
-            print()
-        else:
-            print(f"\nDeepSeek: {exec_res.content}")
-        # exp/48: punto seguro 3 — la respuesta quedó registrada (Cierre hereda
-        # este post y su checkpoint usa el nombre de la clase real).
-        checkpoint(thread_id(), type(self).__name__, "answer", shared)
-        return "answer"
+        return "default"
 
 
 _EXIT_NO_CERO = re.compile(r"^exit (?!0\b)-?\d+")
@@ -428,32 +367,90 @@ def codigo_error(contenido):
     return ""
 
 
-class ExecuteTools(Node):
-    def prep(self, shared):
-        return shared["messages"][-1]["tool_calls"]
+def responder_llm(mensajes, tools):
+    """El LLM del chat como `Ctx.llm`: stream, avisos y normalización."""
+    stream = _setting("CHAT_STREAM", "1") == "1"
+    if stream:
+        # etiqueta antes del primer delta: sin ella las respuestas llegan sin
+        # rótulo (nit de UX de la mesa 8, medido en prod)
+        print("\nDeepSeek: ", end="", flush=True)
+        respuesta = call_llm_agent_stream(mensajes, tools)
+    else:
+        respuesta = call_llm_agent(mensajes, tools)
+    mensaje, avisos = normalizar(respuesta, tools)
+    for aviso in avisos:
+        if aviso in AVISOS:
+            print(colorear(AVISOS[aviso], "aviso"))
+    for aviso, etiqueta in (("sanitizado", "limpio"), ("reemplazado", "aviso")):
+        if stream and aviso in avisos:  # el crudo ya salió: se muestra la versión final
+            print(f"\nDeepSeek ({etiqueta}): {mensaje.content}")
+    return mensaje
 
-    def exec(self, tool_calls):
-        # cada tool deja su evento propio en la traza (nombre + ok/error +
-        # código de causa; ver evento_tool): sin eso, una ronda larga es
-        # inatribuible desde .runs (auditoría)
-        resultados = []
-        for tc in tool_calls:
-            inicio = time.time()
-            nombre = (tc.get("function") or {}).get("name") or "?"  # A27: sin KeyError
-            # pulido de terminal (mesa 8): una ronda larga no debe parecer
-            # colgada, así que la tool EN CURSO se anuncia antes de correr.
-            print(colorear(f"  → {nombre}", "tool"), flush=True)
-            r = run_tool_call(tc, MODULE_IMPLS)
-            ok = resultado_ok(r["content"])
-            evento_tool(nombre, ok, time.time() - inicio,
-                        codigo=codigo_error(r["content"]),
-                        huella=huella_llamada(tc))
-            resultados.append(r)
-        return resultados
 
-    def post(self, shared, prep_res, exec_res):
-        shared["messages"].extend(exec_res)
-        return "default"
+def despachar_tool(llamada, _ctx):
+    """El despacho como `Tool.correr`: anuncia la tool y deja su evento."""
+    inicio = time.time()
+    nombre = (llamada.get("function") or {}).get("name") or "?"  # A27: sin KeyError
+    print(colorear(f"  → {nombre}", "tool"), flush=True)
+    r = run_tool_call(llamada, MODULE_IMPLS)
+    evento_tool(nombre, resultado_ok(r["content"]), time.time() - inicio,
+                codigo=codigo_error(r["content"]), huella=huella_llamada(llamada))
+    return r["content"]
+
+
+def herramientas_de(shared):
+    """Las tools del chat como objetos del kernel (en orden: efecto escritura)."""
+    skill_id = turno(shared).get("skill")
+    skill = next((h for h in disponibles() if h.id == skill_id), None) if skill_id else None
+    tools = filtrar_tools(TOOLS, skill) if skill else TOOLS
+    return [Tool(t["function"]["name"], t, despachar_tool) for t in tools]
+
+
+class PasoChat(Paso):
+    """El `Paso` del kernel con lo del chat: stream/avisos y checkpoints."""
+
+    def prep(self, s):
+        # Una sola instancia para todo el proceso (el loop del chat es estático
+        # para que el diagrama lo pueda leer): en el primer paso de cada
+        # pregunta se resetea el saldo y se recorta el menú al skill (exp/55).
+        if not turno(s)["rondas"]:
+            self.ctx.ledger.rondas = presupuesto(s)
+            self.tools = herramientas_de(s)
+        return super().prep(s)
+
+    def exec(self, entrada):
+        mensajes, tools = entrada
+        self.ctx.ledger.contar_llamada()
+        return responder_llm(mensajes, tools)
+
+    def post(self, s, entrada, msg):
+        s["messages"].append(historiar(msg))
+        if getattr(msg, "tool_calls", None):
+            # exp/49: punto seguro 4 — la SELECCIÓN: las llamadas quedaron
+            # elegidas pero no ejecutadas (la pausa exacta del factor 8).
+            checkpoint(thread_id(), type(self).__name__, "actuar", s)
+            return "actuar" if self.ctx.ledger.tomar() else "cerrar"
+        if _setting("CHAT_STREAM", "1") == "1":
+            # con streaming el contenido ya se imprimió en vivo (deltas sin
+            # salto): acá solo se cierra la línea, sin repetir la respuesta.
+            print()
+        else:
+            print(f"\nDeepSeek: {msg.content}")
+        # exp/48: punto seguro 3 — la respuesta quedó registrada.
+        checkpoint(thread_id(), type(self).__name__, "respuesta", s)
+        return "respuesta"
+
+
+class ActuarChat(Actuar):
+    """Nombre propio para que la traza del chat no se confunda con la del
+    supervisor, que corre el loop pelado del kernel."""
+
+
+class CierreChat(PasoChat):
+    """La última llamada de la pregunta (A38): aviso efímero y sin tools."""
+
+    def prep(self, s):
+        return list(s["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None
 
 
 class Observar(Node):
@@ -538,18 +535,3 @@ class VerificarCitas(Node):
 class ExitChat(Node):
     def post(self, shared, prep_res, exec_res):
         print("\n¡Chao! 👋")
-
-
-class Cierre(AgentStep):
-    """La última llamada de la pregunta: sin tools y con el aviso de cierre
-    (X96). Antes era un flag dentro de AgentStep.prep (`aviso_cierre`) para que
-    el aviso no se duplicara; ahora corre UNA vez por construcción — después
-    viene la respuesta. Las tool calls que el modelo emita igual se descartan
-    (normalizar con las tools retiradas, L8)."""
-
-    def prep(self, shared):
-        # Mensaje EFÍMERO (no entra al historial): medido en vivo, sin esto
-        # el modelo sigue emitiendo tool calls en vez de cerrar la respuesta.
-        return list(shared["messages"]) + [{"role": "user", "content": AVISO_CIERRE}], None
-
-

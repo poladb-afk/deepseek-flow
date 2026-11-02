@@ -10,6 +10,8 @@ un checkpoint (contador de líneas).
 import json
 from types import SimpleNamespace
 
+from conftest import ctx_chat
+
 from utils import thread_store
 from utils.compaccion import PREFIJO_COMPACCION
 
@@ -215,8 +217,6 @@ def test_punto_seguro_executetools_post(tmp_path, monkeypatch):
     # ejecución de tools simulada: el post solo mira los resultados y el fingerprint
     shared = {"messages": [], "tool_rounds": 0}
     prep_res = [{"function": {"name": "read_file", "arguments": "{}"}}]
-    exec_res = [{"role": "tool", "tool_call_id": "a", "content": "ok"}]
-    assert nodes.ExecuteTools().post(shared, prep_res, exec_res) == "default"
     assert _contar(tmp_path, "chat2") == 0  # X96: el punto seguro es Observar
     assert nodes.Observar().post(shared, prep_res, None) == "default"
     assert _contar(tmp_path, "chat2") == 1
@@ -233,10 +233,11 @@ def test_punto_seguro_agentstep_post_answer(tmp_path, monkeypatch):
     monkeypatch.setattr(nodes, "thread_id", lambda: "chat3")
     respuesta = SimpleNamespace(content="listo", tool_calls=None)
     shared = {"messages": [], "tool_rounds": 2}
-    assert nodes.AgentStep().post(shared, None, respuesta) == "answer"
+    paso = nodes.PasoChat(ctx_chat(), [], max_retries=1)
+    assert paso.post(shared, None, respuesta) == "respuesta"
     assert _contar(tmp_path, "chat3") == 1
     linea = json.loads(_lineas(tmp_path / "chat3.jsonl")[0])
-    assert linea["nodo"] == "AgentStep" and linea["accion"] == "answer"
+    assert linea["nodo"] == "PasoChat" and linea["accion"] == "respuesta"
 
 
 def test_punto_seguro_agentstep_checkpointea_la_seleccion(tmp_path, monkeypatch):
@@ -253,17 +254,19 @@ def test_punto_seguro_agentstep_checkpointea_la_seleccion(tmp_path, monkeypatch)
         tool_calls=[SimpleNamespace(id="x", function=SimpleNamespace(name="read_file", arguments="{}"))],
     )
     shared = {"messages": [], "tool_rounds": 0}
-    assert nodes.AgentStep().post(shared, None, respuesta) == "tool"
+    paso = nodes.PasoChat(ctx_chat(), [], max_retries=1)
+    assert paso.post(shared, None, respuesta) == "actuar"
     assert _contar(tmp_path, "chat4") == 1
     linea = json.loads(_lineas(tmp_path / "chat4.jsonl")[0])
-    assert linea["nodo"] == "AgentStep" and linea["accion"] == "tool"
-    # sin tool_calls: "answer" y NO "tool"
+    assert linea["nodo"] == "PasoChat" and linea["accion"] == "actuar"
+    # sin tool_calls: "respuesta" y NO "actuar"
     monkeypatch.setenv("CHAT_STREAM", "0")
     monkeypatch.setattr(nodes, "thread_id", lambda: "chat4b")
     respuesta_answer = SimpleNamespace(content="listo", tool_calls=None)
-    assert nodes.AgentStep().post({"messages": [], "tool_rounds": 0}, None, respuesta_answer) == "answer"
+    paso_b = nodes.PasoChat(ctx_chat(), [], max_retries=1)
+    assert paso_b.post({"messages": [], "tool_rounds": 0}, None, respuesta_answer) == "respuesta"
     linea = json.loads(_lineas(tmp_path / "chat4b.jsonl")[0])
-    assert linea["accion"] == "answer" and linea["accion"] != "tool"
+    assert linea["accion"] == "respuesta" and linea["accion"] != "actuar"
 
 
 # thread_id(): idempotente por proceso, mismo stem que el trace si hay tracing

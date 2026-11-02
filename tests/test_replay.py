@@ -30,12 +30,14 @@ def _caminata_chat():
     Incluye evento_tool intercalado (la forma real de la traza)."""
     return [
         _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"), _ev("Skills", "continue"),
-        _ev("Contexto", "herramientas"), _ev("AgentStep", "answer"), _ev("VerificarCitas", "default"),
+        _ev("Contexto", "default"), _ev("PasoChat", "respuesta"), _ev("Fin", "None"),
+        _ev("VerificarCitas", "default"),
         _ev("GetQuestion", "continue"), _ev("PreFetch", "continue"), _ev("Skills", "continue"),
-        _ev("Contexto", "herramientas"), _ev("AgentStep", "tool"),
-        _ev("read_file", "ok", 0.3),      # evento_tool entre AgentStep y ExecuteTools
-        _ev("ExecuteTools", "default"), _ev("Observar", "default"),
-        _ev("Contexto", "herramientas"), _ev("AgentStep", "answer"), _ev("VerificarCitas", "default"),
+        _ev("Contexto", "default"), _ev("PasoChat", "actuar"),
+        _ev("read_file", "ok", 0.3),      # evento_tool entre PasoChat y ActuarChat
+        _ev("ActuarChat", "paso"), _ev("Observar", "default"),
+        _ev("Contexto", "default"), _ev("PasoChat", "respuesta"), _ev("Fin", "None"),
+        _ev("VerificarCitas", "default"),
         _ev("GetQuestion", "exit"), _ev("ExitChat", "None"),
     ]
 
@@ -46,17 +48,21 @@ def _caminata_chat():
 def test_grafos_vivos_traen_el_chat_de_un_solo_camino(vivos):
     """X106: un solo grafo del chat, sin la variante ±router."""
     clases, aristas, _ = vivos
-    for nodo in ("GetQuestion", "PreFetch", "Skills", "Contexto", "AgentStep",
-                 "ExecuteTools", "Observar", "Cierre", "ExitChat"):
+    for nodo in ("GetQuestion", "PreFetch", "Skills", "Contexto", "PasoChat",
+                 "ActuarChat", "Observar", "CierreChat", "ExitChat"):
         assert nodo in clases, nodo
-    for nodo in ("LayaRouter", "DirectAnswer"):
+    for nodo in ("LayaRouter", "DirectAnswer", "AgentStep", "ExecuteTools", "Cierre"):
         assert nodo not in clases, nodo
     assert ("GetQuestion", "exit", "ExitChat") in aristas
     assert ("Skills", "continue", "Contexto") in aristas
-    assert ("AgentStep", "tool", "ExecuteTools") in aristas
+    assert ("PasoChat", "actuar", "ActuarChat") in aristas
+    assert ("ActuarChat", "paso", "Observar") in aristas
+    assert ("Observar", "default", "Contexto") in aristas
+    assert ("Contexto", "default", "PasoChat") in aristas
+    assert ("Contexto", "cierre", "CierreChat") in aristas
     # los pasajes transparentes: las caminatas sin PreFetch/Skills/Contexto valen
-    assert ("PreFetch", "continue", "AgentStep") in aristas
-    assert ("GetQuestion", "continue", "AgentStep") in aristas
+    assert ("PreFetch", "continue", "PasoChat") in aristas
+    assert ("GetQuestion", "continue", "PasoChat") in aristas
 
 
 def test_grafos_vivos_traen_los_inline_y_las_tools(vivos):
@@ -110,7 +116,7 @@ def test_accion_renombrada_no_es_emisible(vivos):
     clases, *_ = vivos
     eventos = [_ev("AgentStep", "respuesta_vieja"), _ev("Contexto", "directo")]
     assert sorted(replay.nivel_a(eventos, clases)) == [
-        ("AgentStep", "respuesta_vieja"), ("Contexto", "directo")]
+        ("Contexto", "directo"), ("PasoChat", "respuesta_vieja")]
 
 
 def test_error_trazado_y_terminales_son_emisibles(vivos):
@@ -132,9 +138,9 @@ def test_adyacencia_rota_del_chat(vivos):
     """Un salto que el chat actual no puede dar: continue directo a
     ExecuteTools (el bug de aristas faltantes, en su forma de replay)."""
     clases, aristas, _ = vivos
-    eventos = [_ev("GetQuestion", "continue"), _ev("ExecuteTools", "default")]
+    eventos = [_ev("GetQuestion", "continue"), _ev("ActuarChat", "default")]
     assert replay.nivel_b_chat(eventos, clases, aristas) == [
-        ("GetQuestion", "continue", "ExecuteTools")]
+        ("GetQuestion", "continue", "ActuarChat")]
 
 
 def test_no_chat_no_adyacencia(vivos):

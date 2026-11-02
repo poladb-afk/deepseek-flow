@@ -1,5 +1,6 @@
 """Streaming del chat: deltas en vivo, thinking pegajoso, interrupción y cortes (PR 4)."""
 import pytest
+from conftest import ctx_chat
 
 
 def test_call_llm_agent_stream(monkeypatch, capsys):
@@ -107,13 +108,13 @@ def test_stream_alimenta_historial_canonico_y_dsml(monkeypatch):
     monkeypatch.setattr(nodes, "call_llm_agent_stream", en_stream)
     monkeypatch.setenv("CHAT_STREAM", "1")
     # con tools OFRECIDAS la recuperación corre: markup → tool_calls
-    out = nodes.AgentStep().exec(([{"role": "user", "content": "esquema"}], ["tool"]))
+    out = nodes.responder_llm([{"role": "user", "content": "esquema"}], ["tool"])
     assert reactivado["via"]
     assert out.content is None  # el markup crudo no queda en el historial
     assert out.tool_calls[0].function.name == "db_schema"
     # con tools RETIRADAS (tope L8) el markup NO se re-arma (exp/12):
     # queda el mensaje honesto y no hay tool_calls que ejecutar
-    out2 = nodes.AgentStep().exec(([{"role": "user", "content": "esquema"}], None))
+    out2 = nodes.responder_llm([{"role": "user", "content": "esquema"}], None)
     assert out2.tool_calls is None
     assert "seguí" in out2.content
 
@@ -168,11 +169,11 @@ def test_agent_step_usa_stream_segun_setting(monkeypatch):
     monkeypatch.setattr(nodes, "call_llm_agent_stream", en_stream)
 
     monkeypatch.setenv("CHAT_STREAM", "0")
-    nodes.AgentStep().exec(([{"role": "user", "content": "x"}], None))
+    nodes.responder_llm([{"role": "user", "content": "x"}], None)
     assert elegido["via"] == "clasico"
 
     monkeypatch.setenv("CHAT_STREAM", "1")
-    nodes.AgentStep().exec(([{"role": "user", "content": "x"}], None))
+    nodes.responder_llm([{"role": "user", "content": "x"}], None)
     assert elegido["via"] == "stream"
 
 def test_agent_step_stream_imprime_limpio_si_sanitiza(monkeypatch, capsys):
@@ -194,7 +195,7 @@ def test_agent_step_stream_imprime_limpio_si_sanitiza(monkeypatch, capsys):
     monkeypatch.setattr(nodes, "call_llm_agent_stream", en_stream)
     monkeypatch.setenv("CHAT_STREAM", "1")
 
-    msg = nodes.AgentStep().exec(([{"role": "user", "content": "x"}], None))
+    msg = nodes.responder_llm([{"role": "user", "content": "x"}], None)
     assert ejecutado["stream"]
     assert msg.content == "¡Hola! ag"  # el historial queda limpio
     salida = capsys.readouterr().out
@@ -212,13 +213,13 @@ def test_agent_step_post_no_reimprime_con_stream(monkeypatch, capsys):
     mensaje = SimpleNamespace(content="respuesta en vivo", tool_calls=None)
 
     monkeypatch.setenv("CHAT_STREAM", "1")
-    nodes.AgentStep().post({"messages": []}, None, mensaje)
+    nodes.PasoChat(ctx_chat(), [], max_retries=1).post({"messages": []}, None, mensaje)
     salida = capsys.readouterr().out
     assert "respuesta en vivo" not in salida  # no se repite
     assert salida == "\n"  # solo cierra la línea
 
     monkeypatch.setenv("CHAT_STREAM", "0")
-    nodes.AgentStep().post({"messages": []}, None, mensaje)
+    nodes.PasoChat(ctx_chat(), [], max_retries=1).post({"messages": []}, None, mensaje)
     salida = capsys.readouterr().out
     assert "DeepSeek: respuesta en vivo" in salida
 
@@ -325,8 +326,8 @@ def test_stream_agrega_etiqueta_deepseek(monkeypatch, capsys):
 
     monkeypatch.setattr(nodes, "call_llm_agent_stream", fake_stream)
     shared = {"messages": [{"role": "user", "content": "q"}], "tool_rounds": 0}
-    accion = nodes.AgentStep()._run(shared)
-    assert accion == "answer"
+    accion = nodes.PasoChat(ctx_chat(), [], max_retries=1)._run(shared)
+    assert accion == "respuesta"
     salida = capsys.readouterr().out
     assert "DeepSeek: " in salida and "hola" in salida
 
@@ -376,7 +377,7 @@ def test_stream_fallback_vacio_se_imprime(monkeypatch, capsys):
     monkeypatch.setattr(nodes, "call_llm_agent_stream",
                         lambda msgs, tools=None: SimpleNamespace(content="", tool_calls=None))
     shared = {"messages": [{"role": "user", "content": "q"}], "tool_rounds": 0}
-    accion = nodes.AgentStep()._run(shared)
-    assert accion == "answer"
+    accion = nodes.PasoChat(ctx_chat(), [], max_retries=1)._run(shared)
+    assert accion == "respuesta"
     salida = capsys.readouterr().out
     assert nodes.MENSAJE_SIN_RESPUESTA in salida

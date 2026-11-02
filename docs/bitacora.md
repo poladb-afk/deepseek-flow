@@ -6950,3 +6950,42 @@ rama (procedimiento de `tests/test_inventario.py`, `tests_definidos` IGUAL); y
 la deuda del `README.md:203/:210-213`, que viaja en el commit del A/B. El
 informe completo, con las 52 filas y la reproducción, está en
 `docs/informes/s6_un_techo_2026-11-02.md`.
+---
+
+## X126: S9b A′ — el chat corre sobre `kernel.loop` (2026-11-02)
+
+**Qué se hizo**: el chat dejó de tener su propio loop. `flow.create_agent_flow`
+arma el grafo con un **`kernel.loop`** (una instancia para todo el proceso; el
+saldo y el subset del skill se resetean en el primer paso de cada pregunta) y
+el chat aporta solo sus nodos: `PasoChat` (hereda `kernel.Paso`: stream,
+sanitizado/avisos, impresión y checkpoints), `ActuarChat` (hereda `Actuar`;
+nombre propio para no confundir la traza con la del supervisor) y `CierreChat`
+(la última llamada con el aviso efímero A38). `Observar` y `Contexto` pasan a
+ser **políticas** del loop (nodos entre rondas): `Contexto` devuelve
+`default`/`cierre` y el loop lo manda al cierre. `kernel.loop` ganó tres
+costuras opcionales —`politicas`, `cierre`, `paso`/`actuar`—; sin ellas el grafo
+es idéntico al de siempre (test que lo fija). Se borraron `AgentStep`,
+`ExecuteTools` y `Cierre` con su código y sus tests: −130 líneas en `nodes.py`.
+
+**Sin cambio de conducta**: `tests/test_caracterizacion_chat.py` **sin tocar,
+12/12**; la suite entera pasa con el mismo contrato (A38, L8/S6, streaming,
+DSML, citas, skills, compacción, checkpoints, HITL) y `replay`/`evals` siguen
+reconociendo las trazas del chat.
+
+**R2 — la excepción aprobada, acotada**: los **22 tests** que instanciaban los
+tres nodos se reescribieron 1:1 (ninguno se borró ni perdió su aserción) y los
+**31 consumidores** se adaptaron por vocabulario; el único falso positivo
+(`test_llm.py:304`, una clase `Cierre` local del test) no se tocó. Tests
+definidos 1153 → 1159 (+3 de la costura del kernel, +3 de compatibilidad).
+
+**Compatibilidad hacia atrás**: `replay` traduce el vocabulario viejo
+(`NODOS_HISTORICOS`/`ACCIONES_HISTORICAS`: `AgentStep`/`ExecuteTools`/`Cierre`
+→ `PasoChat`/`ActuarChat`/`CierreChat`) con un `.runs` **real** del emisor y un
+checkpoint del formato previo a la caja `turno` como fixtures
+(`tests/test_s9b_compat.py`); sin ese mapa, la primera traza vieja auditada
+parecería de otro producto.
+
+**Los números**: `lineas_del_loop` **652 → 651** (nodes −2, flow −15, kernel
++16 por la costura; el neto es chico porque el loop ya era chico),
+`nodos_largos` **13 → 12**, `settings_leidos` 52 y `imports_perezosos` 14 en
+IGUAL. Gate completo verde en la rama, sin tocar `main`.

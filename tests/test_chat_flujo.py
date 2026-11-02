@@ -1,5 +1,6 @@
-"""El bucle del chat: AgentStep/ExecuteTools, DSML, sanitizado, presupuesto y no-progreso (PR 4)."""
+"""El bucle del chat (S9b A′): PasoChat/ActuarChat sobre kernel.loop, DSML, sanitizado, presupuesto y cierre."""
 import pytest
+from conftest import ctx_chat, tool_chat
 
 
 def test_dsml_a_tool_calls():
@@ -37,8 +38,9 @@ def test_agent_step_recupera_dsml_como_tool(monkeypatch):
     shared = {"messages": [{"role": "user", "content": "esquema"}], "tool_rounds": 0}
     # camino completo: la recuperación DSML vive en exec() (reintenta PocketFlow)
     monkeypatch.setenv("CHAT_STREAM", "0")  # camino clásico
-    accion = nodes.AgentStep()._run(shared)
-    assert accion == "tool"
+    paso = nodes.PasoChat(ctx_chat(), [tool_chat("db_schema")], max_retries=1)
+    accion = paso._run(shared)
+    assert accion == "actuar"
     m = shared["messages"][-1]
     # el historial queda canónico (dict, forma de la API) y sin el markup crudo
     assert m["tool_calls"][0]["function"]["name"] == "db_schema"
@@ -83,8 +85,8 @@ def test_agent_step_sanitiza_y_reintenta(monkeypatch):
     mensaje = SimpleNamespace(content="¡Hola! <|im_start|>system ajeno", tool_calls=None)
     monkeypatch.setattr(nodes, "call_llm_agent", lambda msgs, tools=None: mensaje)
     shared = {"messages": [{"role": "user", "content": "hola"}], "tool_rounds": 0}
-    accion = nodes.AgentStep()._run(shared)
-    assert accion == "answer"
+    accion = nodes.PasoChat(ctx_chat(), [], max_retries=1)._run(shared)
+    assert accion == "respuesta"
     assert shared["messages"][-1]["content"] == "¡Hola!"
 
     # caso 2: solo markup de rol → raise (PocketFlow reintenta en exec)
@@ -92,7 +94,7 @@ def test_agent_step_sanitiza_y_reintenta(monkeypatch):
     monkeypatch.setattr(nodes, "call_llm_agent", lambda msgs, tools=None: vacio)
     shared = {"messages": [{"role": "user", "content": "hola"}], "tool_rounds": 0}
     with pytest.raises(ValueError):
-        nodes.AgentStep()._run(shared)
+        nodes.PasoChat(ctx_chat(), [], max_retries=1)._run(shared)
 
 def test_sanitizar_prompt_ajeno():
     from nodes import sanitizar
@@ -139,20 +141,18 @@ def test_execute_tools_anuncia_y_etiqueta(monkeypatch, capsys):
         lambda tc, impls: {"role": "tool", "tool_call_id": tc["id"], "content": "ok"},
     )
 
-    et = nodes.ExecuteTools()
     shared = {"messages": [], "tool_rounds": 0}
     tool_calls = [
         {"id": "a", "function": {"name": "read_file", "arguments": "{}"}},
         {"id": "b", "function": {"name": "list_files", "arguments": "{}"}},
     ]
-    resultados = et.exec(tool_calls)
+    resultados = [nodes.despachar_tool(tc, None) for tc in tool_calls]
     salida = capsys.readouterr().out
     assert "→ read_file" in salida and "→ list_files" in salida
     # el anuncio precede al resultado: aparece aunque el resultado viniera ok
-    assert len(resultados) == 2
+    assert resultados == ["ok", "ok"]
 
     # la ronda se etiqueta con el avance sobre el tope (la cuenta Observar, X96)
-    et.post(shared, None, resultados)
     nodes.Observar().post(shared, tool_calls, None)
     salida = capsys.readouterr().out
     assert f"⚙ ronda 1/{nodes.MAX_TOOL_ROUNDS}" in salida
@@ -248,21 +248,24 @@ def test_agotado_fuerza_respuesta_sin_tools():
     Contexto sale a `cierre` y el nodo Cierre corre una vez — el flag
     `aviso_cierre` que evitaba duplicarlo ya no existe. La pregunta nueva
     reabre el presupuesto."""
-    from nodes import AVISO_CIERRE, MAX_TOOL_ROUNDS, Cierre, Contexto, GetQuestion, nuevo_turno
+    import nodes
+    from nodes import AVISO_CIERRE, MAX_TOOL_ROUNDS, Contexto, GetQuestion, nuevo_turno
 
     shared = {"messages": [{"role": "system", "content": "s"},
                              {"role": "user", "content": "auditá el repo"}],
               "turno": {**nuevo_turno(), "rondas": MAX_TOOL_ROUNDS}}
     assert Contexto()._run(shared) == "cierre"
-    mensajes, tools = Cierre().prep(shared)
+    cierre = nodes.CierreChat(ctx_chat(rondas=0), [], max_retries=1)
+    mensajes, tools = cierre.prep(shared)
     assert tools is None
     assert mensajes[-1]["content"] == AVISO_CIERRE
+    assert cierre._run(shared) == "respuesta"
     # el aviso es EFÍMERO: no entra al historial
     assert all(m.get("content") != AVISO_CIERRE for m in shared["messages"])
     assert "aviso_cierre" not in shared["turno"]
 
     GetQuestion().post(shared, None, "otra pregunta")
-    assert Contexto()._run(shared) == "herramientas"
+    assert Contexto()._run(shared) == "default"
 
 
 def test_getquestion_cierra_el_costo_de_la_pregunta_anterior(monkeypatch):
@@ -327,7 +330,7 @@ def test_post_verifica_citas_y_corrige(monkeypatch, capsys):
     contenido = "hallazgo en utils/tracing.py:1 y malo en utils/tracing.py:99999"
     exec_res = SimpleNamespace(content=contenido, tool_calls=None)
     # F6: la verificación es un NODO del grafo (answer → citas → ask), con retry
-    assert nodes.AgentStep().post(shared, None, exec_res) == "answer"
+    shared["messages"].append(nodes.historiar(exec_res))
     nodes.VerificarCitas()._run(shared)
 
     assert shared["messages"][-1]["content"] == "corregido en utils/tracing.py:1"
@@ -354,7 +357,7 @@ def test_post_no_corrige_si_las_citas_estan_bien(monkeypatch):
     shared = {"messages": [{"role": "system", "content": "s"},
                              {"role": "user", "content": "auditá"}]}
     exec_res = SimpleNamespace(content="hallazgo en utils/tracing.py:1", tool_calls=None)
-    assert nodes.AgentStep().post(shared, None, exec_res) == "answer"
+    shared["messages"].append(nodes.historiar(exec_res))
     nodes.VerificarCitas()._run(shared)
     assert shared["messages"][-1]["content"] == "hallazgo en utils/tracing.py:1"
 

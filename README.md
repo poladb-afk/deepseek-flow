@@ -16,16 +16,11 @@ flowchart TD
     GetQuestion_0 -->|continue| PreFetch_1
     PreFetch_1 -->|continue| Skills_2
     Skills_2 -->|continue| Contexto_3
-    Contexto_3 -->|herramientas| AgentStep_4
-    AgentStep_4 -->|answer| VerificarCitas_5
+    Contexto_3 -->|default| Flow_4
+    Flow_4 -->|default| VerificarCitas_5
     VerificarCitas_5 -->|default| GetQuestion_0
-    AgentStep_4 -->|tool| ExecuteTools_6
-    ExecuteTools_6 -->|default| Observar_7
-    Observar_7 -->|default| Contexto_3
-    Contexto_3 -->|cierre| Cierre_8
-    Cierre_8 -->|answer| VerificarCitas_5
-    Cierre_8 -->|tool| ExecuteTools_6
-    GetQuestion_0 -->|exit| ExitChat_9
+    Contexto_3 -->|cierre| Flow_4
+    GetQuestion_0 -->|exit| ExitChat_6
 ```
 
 ## Filosofía

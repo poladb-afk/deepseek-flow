@@ -717,7 +717,7 @@ def escanear_bytes_primer_request(raiz: Path) -> dict[str, int]:
     return dict(sorted(detalle.items()))
 
 
-LOOP = ("utils/kernel.py", "nodes.py", "flow.py")  # el loop del agente: hoy son dos (S9b los une)
+LOOP = ("utils/kernel.py", "nodes.py", "flow.py")  # el loop del agente: uno solo desde S9b A′ (el chat corre sobre kernel.loop)
 
 
 def escanear_lineas_del_loop(raiz: Path) -> dict[str, int]:

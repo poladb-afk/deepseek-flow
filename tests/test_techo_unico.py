@@ -7,7 +7,7 @@ son el reemplazo de los suyos (el conteo no baja) y cubren el techo único.
 """
 import json
 
-from conftest import RAIZ
+from conftest import RAIZ, ctx_chat
 
 import nodes
 
@@ -89,10 +89,10 @@ def test_contexto_sale_a_cierre_al_agotar_el_techo():
     """X96: al agotarse el techo, Contexto sale a `Cierre`, que llama sin
     tools y con el aviso efímero."""
     contexto = nodes.Contexto()
-    assert contexto._run(_shared(rondas=0)) == "herramientas"
+    assert contexto._run(_shared(rondas=0)) == "default"
     agotada = _shared(rondas=nodes.MAX_TOOL_ROUNDS)
     assert contexto._run(agotada) == "cierre"
-    mensajes, tools = nodes.Cierre().prep(agotada)
+    mensajes, tools = nodes.CierreChat(ctx_chat(rondas=0), []).prep(agotada)
     assert tools is None
     assert mensajes[-1]["content"] == nodes.AVISO_CIERRE
 

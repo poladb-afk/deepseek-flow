@@ -184,17 +184,34 @@ class Cerrar(Node):
         return "paso"
 
 
-def loop(ctx, tools, max_retries=3, wait=5):
-    """El grafo del agente. Es un Flow, así que también es un Node: otro flujo
-    lo encadena como un paso más (el supervisor: loop >> Auditar >> Sintetizar).
-    `ctx` y `tools` quedan en los nodos; del shared lee y escribe `messages`."""
-    paso, actuar, cerrar = Paso(ctx, tools, max_retries=max_retries, wait=wait), Actuar(ctx, tools), Cerrar()
-    paso - "actuar" >> actuar
-    paso - "cerrar" >> cerrar
-    paso - "respuesta" >> Fin()
-    actuar - "paso" >> paso
-    cerrar - "paso" >> paso
-    return Flow(start=paso)
+def loop(ctx, tools, max_retries=3, wait=5, politicas=(), cierre=None, paso=None, actuar=None):
+    """El grafo del agente (un Flow, así que también es un Node: el supervisor
+    lo encadena como un paso más). Del shared lee y escribe `messages`.
+
+    S9b A′: `politicas` corren entre rondas (por `default`; `cierre` va al
+    nodo de cierre), y `cierre`/`paso`/`actuar` reemplazan a los nodos del
+    kernel. Sin esos parámetros, grafo y conducta son los de siempre."""
+    paso_n = paso if paso is not None else Paso(ctx, tools, max_retries=max_retries, wait=wait)
+    actuar_n = actuar if actuar is not None else Actuar(ctx, tools)
+    cerrar = cierre if cierre is not None else Cerrar()
+    paso_n - "actuar" >> actuar_n
+    paso_n - "cerrar" >> cerrar
+    paso_n - "respuesta" >> Fin()
+    if cierre is None:
+        cerrar - "paso" >> paso_n
+    else:
+        for accion in ("respuesta", "actuar", "cerrar"):
+            cerrar - accion >> Fin()
+    for actual, siguiente in zip(politicas, politicas[1:], strict=False):
+        actual - "default" >> siguiente
+    if politicas:
+        actuar_n - "paso" >> politicas[0]
+        politicas[-1] - "default" >> paso_n
+        for politica in politicas:
+            politica - "cierre" >> cerrar
+    else:
+        actuar_n - "paso" >> paso_n
+    return Flow(start=paso_n)
 
 
 def semilla(system, pedido):
