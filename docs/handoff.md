@@ -38,6 +38,28 @@ Definido el 2026-11-02 sobre la intención del operador: cierra el
 de terminal sobre PocketFlow con DeepSeek, para pedidos sobre tus archivos y
 tu código, con CORE + módulos.
 
+**Objetivo final** (operador, 2026-11-02, textual): "harness minimo, de
+composición grafo fractal autoreplicante, en donde partes minimas -modulos-
+interconectados generan complejidad emergente."
+
+**Aclaración del mismo día** (operador, 2026-11-02, textual; tildes y guiones
+normalizados): "grafo fractal asimétrico — el modelo lleva el harness a donde
+lo necesita generando patrones; ahí está lo fractal". La fractalidad es
+**asimétrica y conductual**: quien lleva el harness a donde lo necesita es el
+modelo, no una regla del código. Esto contesta la pregunta de estructural vs
+conductual.
+
+`[PENDIENTE: operador]` La tensión que queda: el mecanismo que vuelve fractal
+al harness depende de una decisión que este modelo no toma —la división se
+ofreció y quedó en **0 de 72** en el exp/103; antes, el explorador en 0
+llamadas y las skills por descripción en 5 de 12—. Forzarla choca con los
+principios: un disparo por umbral del código choca con N1, y convencerlo con
+texto choca con N3. Queda elegir entre (a) cambiar de modelo y re-medir con el
+instrumento del exp/104, ya commiteado; (b) admitir un disparo por dato del
+código, reformulando N1 con su pre-registro; o (c) quedarse con la
+fractalidad estructural y tratar la conductual como capacidad en observación.
+El equipo recomienda (a) primero.
+
 ## 2. Principios
 
 Desde X118: una restricción (S0, seguridad), cuatro principios (P1
