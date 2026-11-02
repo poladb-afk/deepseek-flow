@@ -1,9 +1,11 @@
 # s6 — un solo techo de rondas (pre-registro del A/B)
 
 **Estado: pre-registro, escrito ANTES de correr nada y ANTES de que exista el
-código del brazo (2026-11-02).** Es un cambio de conducta: sin este documento
-no se toca el producto. Si algo cambia al correrlo, va como desvío declarado al
-final; los criterios no se retocan después de ver los datos.
+código del brazo (2026-11-02), con UNA enmienda pre-corrida del criterio 1
+(2026-11-02, antes de la primera corrida; ver "Enmienda pre-corrida").** Es un
+cambio de conducta: sin este documento no se toca el producto. Si algo cambia
+al correrlo, va como desvío declarado al final; los criterios no se retocan
+después de ver los datos.
 
 Paso 4 del orden de `docs/elegancia.md` (fila de la fase 4): "S6, el
 presupuesto por novedad — `CORTE_NOVEDAD`, `CORTE_NOVEDAD_MIN`,
@@ -104,15 +106,47 @@ exp/104 (X128).
   test, script que corre, informe con citas). Se informan además
   `sanitizado` + `dsml_ignorado` de los logs como dato secundario, no criterio.
 
+## Enmienda pre-corrida del criterio 1 (2026-11-02)
+
+**No se vio ninguna corrida de este A/B cuando se cambió el criterio: ni del
+brazo base ni del brazo S6.** Lo único que se miró fueron (a) los datos del
+**exp/105** —otro experimento, otro modelo, mismos 8 escenarios:
+`salidas/fable/resultados/exp105-fractal-v4pro.jsonl`, brazo A— y (b) el
+dry-run del instrumento con filas sintéticas, **sin LLM y sin gastar tokens**.
+No existía ninguna fila de este A/B.
+
+**Por qué.** El criterio original pedía, por familia, que el límite inferior del
+5% de un bootstrap estratificado de `media(S6) − media(base)` fuera ≥ −0,25.
+Con 3 seeds por escenario ese estadístico no sirve: el percentil 5 queda por
+debajo de la media nula y **falla por azar** aunque el mecanismo ande. Medido
+antes de correr:
+
+- con una distribución de varianza alta **asumida** (no es dato de este A/B),
+  el bootstrap fallaba 68% de las veces con margen −0,25 y 31% con −0,5;
+- resampleando el brazo A del exp/105 (20.000 réplicas, semilla 606) para
+  estimar con las varianzas reales del bench, la **regla de punto estimado**
+  falla por ruido 4% de las veces (global −0,25); la versión por familia con
+  −0,33 falla 22%, por eso el margen por familia queda como **guarda de 0,5**
+  y no como criterio principal.
+
+**Criterio 1 revisado** (el que implementa `banco/probes/s6.py --comparar`):
+global ≥ −0,25 **y** ninguna familia cae más de 0,5. Tasa de rechazo por ruido
+~4% con la calibración de arriba; el límite de potencia queda declarado.
+
 ## Criterios (todos, o no pasa)
 
-1. **Calidad no inferior**: para cada familia (ancha y secuencial), el límite
-   inferior del 5% de un bootstrap estratificado por escenario de
-   `media(S6) − media(base)` (20.000 remuestreos, semilla 606) es **≥ −0,25**.
-   No es una prueba de superioridad: no se espera que el techo único mejore la
-   calidad; se exige que no la rompa. El margen 0,25 se fija antes de correr
-   como 4× el ruido medido en exp/104 (F0−A = −0,062, p ≈ 0,67) sobre la misma
-   escala. Se informan las medias crudas por escenario y familia.
+1. **Calidad no inferior**, con dos condiciones (todas, o no pasa):
+   - **global**: `media(S6) − media(base)` sobre las 24 corridas de fable
+     **≥ −0,25**;
+   - **por familia**: ninguna de las dos familias (ancha, secuencial) cae más de
+     **0,5** respecto de la base.
+   No es una prueba de superioridad: se exige que el techo único no rompa la
+   calidad, no que la mejore. El margen 0,25 es 4× el ruido del exp/104
+   (F0−A = −0,062, p ≈ 0,67); el estadístico y su calibración están en
+   "Enmienda pre-corrida del criterio 1", con la constancia de que no se vio
+   ninguna corrida de este A/B. Límite declarado: con 3 seeds la potencia para
+   una caída real de 0,25 es ~50%; una caída menor no se detecta. Se informan
+   las medias crudas por escenario y familia.
 2. **Costo no mayor**: USD total del brazo S6 **≤ 1,0 ×** el de base, con el
    mismo denominador y la misma tarifa. Predicción registrada: S6 ≤ 1,05 × base,
    porque el cap no es gasto y solo pueden crecer las corridas que hoy agotan 8
@@ -172,8 +206,11 @@ colisiona).
   `banco/probes/bench_fable.py:940`), guarda una fila por corrida con brazo,
   seed, escenario, `correct_action`, tokens, rondas, tope, `checks`, `error` y
   las señales de descarrilo; `--comparar base.jsonl s6.jsonl` aplica los cinco
-  criterios con las funciones puras (permutación/bootstrap, sumas, conteos) y
-  escribe el resumen. Es el mismo patrón de `banco/probes/exp105.py`.
+  criterios con funciones puras (medias, sumas, conteos) y escribe el resumen.
+  Tiene guarda de árbol (`base` solo corre donde las tres políticas existen y el
+  techo default es 8; `S6` solo donde no existen y es 16), `--humo`, `--tanda`
+  y `--plan`; la tanda no arranca sin un humo de ese árbol bajo el techo de
+  gasto. Es el mismo patrón de `banco/probes/exp105.py`.
 - Cada brazo escribe su JSONL en el `salidas/` de su worktree (ignorado por
   git); para comparar se copian los dos a un directorio de trabajo y se corre
   `--comparar` una vez.
@@ -199,6 +236,23 @@ colisiona).
 6. El orden de ejecución es: Código cierra la rama con `./calidad.sh` verde y
    pasa el hash; recién ahí Laboratorio corre el humo y después la tanda. No se
    corren dos cosas a la vez sobre el mismo repo.
+7. **El inventario se editó en el commit de la rama**: Código dio de baja las 11
+   entradas de los tests de las políticas borradas y de alta las 12 nuevas,
+   siguiendo el procedimiento documentado de `tests/test_inventario.py`. El
+   criterio literal (≥859 líneas) se cumple y `tests_definidos` queda IGUAL
+   (1153), pero este spec decía "sin editar el inventario a mano": se declara
+   acá, levantado por Auditor. No invalida R2 (el neto lo confirma el baseline).
+8. **Deuda de docs de la rama, declarada antes del merge**: `README.md:203` y
+   `:210-213` todavía describen el presupuesto viejo (`MAX_TOOL_ROUNDS` default
+   8 y `MAX_TOOL_ROUNDS_AMPLIO`); el fix de un párrafo viaja en el commit del
+   merge si el A/B pasa (lo levantó Auditor; no afecta la medición).
+9. **Ajustes del instrumento, antes de correr y sin tocar producto**:
+   `banco/escenarios/s6-narrow.yaml` gana `verificar:` (cierre determinista de
+   la tarea, `banco/banco.py:253-335`) y `env: AGENT_ALLOWED_DIRS: {RAIZ}` para
+   que el chat solo escriba en el worktree que se mide; los dos brazos corren
+   el **mismo** archivo. El worktree del brazo base vive en
+   `salidas/worktrees/base` (ignorado por git) en `897f861`, con su `.env`
+   copiado y los dos archivos del instrumento copiados idénticos.
 
 ## Fuera de alcance
 

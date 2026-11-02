@@ -200,18 +200,17 @@ Cada corrida deja un trace por nodo en `.runs/*.jsonl`.
 
 ### Alcance y presupuesto del chat
 
-`MAX_TOOL_ROUNDS` (default 8) corta las rondas de tools por pregunta; al
-agotarse, el agente cierra igual con un aviso de cierre forzado (medido en
-vivo: antes podía quedar en silencio). Con LLM real: el alcance **medio** (un
-directorio, ~20 archivos) entra en 8 rondas; el alcance **amplio** (repo
-completo) agota 8 y 16 rondas leyendo. El presupuesto es dinámico y
-determinista (exp/86): un pedido de alcance amplio — un directorio
-mencionado con ≥10 archivos de código o ≥300 líneas mencionadas, contadas
-contra el disco — sube el tope solo
-(`MAX_TOOL_ROUNDS_AMPLIO`, default 16); la regla nunca baja el default
-(el tope es un cap, no un gasto). Alternativa manual: subir
-`MAX_TOOL_ROUNDS` o acotar el pedido. El agente declara el alcance que
-cubrió y lo que quedó afuera.
+`MAX_TOOL_ROUNDS` (default 16) es el **único** techo: corta las rondas de tools
+por pregunta con un saldo que se descuenta por ronda y se reinicia con cada
+pregunta nueva; al agotarse, el agente cierra igual con un aviso de cierre
+forzado (medido en vivo: antes podía quedar en silencio). El tope es un cap, no
+un gasto: con LLM real la pregunta media resuelve en ~2 rondas, el alcance
+**medio** (un directorio, ~20 archivos) entra holgado y el alcance **amplio**
+(repo completo) usa el headroom sin cortarse (exp/86 y X21: p90 = 16 rondas en
+480 ciclos reales). X132 midió el reemplazo: un solo techo de 16 conserva la
+calidad y no sube el costo. Alternativa manual: bajar `MAX_TOOL_ROUNDS` o
+acotar el pedido. El agente declara el alcance que cubrió y lo que quedó
+afuera.
 
 ## Estructura
 

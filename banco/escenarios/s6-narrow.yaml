@@ -6,6 +6,12 @@
 # `scratch:` borra el directorio al terminar (banco/banco.py:226-235).
 id: s6-narrow
 descripcion: tarea angosta de 2-3 rondas — el techo único no debe gastar más
+# El chat solo puede tocar SU worktree (`{RAIZ}` se expande por tree). Sin
+# esto hereda el AGENT_ALLOWED_DIRS del .env (00_IA) y una corrida podría
+# escribir fuera del árbol que se está midiendo. NO fija MAX_TOOL_ROUNDS: el
+# techo lo pone el árbol (base 8 / S6 16), que es lo que el A/B mide.
+env:
+  AGENT_ALLOWED_DIRS: "{RAIZ}"
 scratch:
   - prueba_techo
 turnos:
@@ -13,6 +19,15 @@ turnos:
     linea: "Leé utils/costos.py y creá prueba_techo/resumen.md con exactamente tres líneas: (1) cuántos modelos tiene PRECIOS_MILLON, (2) el precio de completion de deepseek-flash, (3) el precio cache-hit de deepseek-flash. No toques ningún otro archivo."
     hitl: s
     timeout: 420
+    # Cierre determinista (banco/banco.py:253-335): "ok" solo dice que el
+    # prompt volvió; `verificar` dice que la tarea está HECHA. El chequeo corre
+    # al cerrar el turno, ANTES del borrado de `scratch:`.
+    verificar:
+      - existe: prueba_techo/resumen.md
+      - comando: >-
+          test "$(grep -c . prueba_techo/resumen.md)" -eq 3 &&
+          grep -qE '0[.,]60' prueba_techo/resumen.md &&
+          grep -qE '0[.,]003' prueba_techo/resumen.md
   - id: salir
     linea: "salir"
     timeout: 60
