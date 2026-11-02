@@ -946,6 +946,11 @@ como una `Tool` que otro loop puede llamar. Leyes por construcción:
   (profundidad, saldo y efecto) y el caso base es la arista de siempre: sin
   saldo, la copia responde sin tools. Si conviene usarlo lo decide
   `banco/specs/exp103_fractal.md`.
+- **La traza dice la forma del árbol** (X124): cada llamada queda como
+  (profundidad, tool, dirección, argumentos); la dirección es el camino de ids
+  de tool call desde la raíz, así que las llamadas de una copia cuelgan de la
+  llamada que la creó. `banco/probes/fractal.py` mide con eso la división (D
+  de Σ rᵢᴰ = 1) y las fallas topológicas, sin LLM.
 - **El saldo cuenta lo que cuesta**: `Ledger.tomar()` chequea y descuenta bajo
   un lock (los hermanos corren en hilos) y `Ledger.llamadas` cuenta las
   llamadas al modelo de todo el árbol, que las rondas no ven. Cada copia que

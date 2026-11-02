@@ -130,7 +130,9 @@ def test_un_agente_es_una_tool_con_contexto_fresco_y_el_mismo_saldo():
     respuesta, mensajes = correr("raíz", "auditá", [hijo], ctx, wait=0)
     assert respuesta == "síntesis: hallazgo en a.py:3"
     assert ledger.rondas == 2                      # 1 del padre + 1 de la copia + 1 del hijo (P2, Ley 1)
-    assert ctx.traza == [(1, "leer"), (0, "sub")]
+    assert [e[:2] for e in ctx.traza] == [(1, "leer"), (0, "sub")]
+    (_, _, dir_hijo, _), (_, _, dir_sub, args_sub) = ctx.traza
+    assert dir_hijo[:-1] == dir_sub == ("1.sub-0",) and json.loads(args_sub) == {"pedido": "buscá X"}
     assert hijo.efecto == "lectura"
 
 
@@ -348,7 +350,7 @@ def test_un_agente_que_se_llama_a_si_mismo_reparte_y_suma():
     Las copias solo leen, así que las hermanas corren en paralelo."""
     sumar, ctx, hilos, negativas = _sumar_del_1_al_16(saldo=50, max_profundidad=3)
     assert sumar.efecto == "lectura" and negativas == []
-    assert [sum(1 for p, _ in ctx.traza if p == nivel) for nivel in range(3)] == [2, 4, 8]
+    assert [sum(1 for p, *_ in ctx.traza if p == nivel) for nivel in range(3)] == [2, 4, 8]
     assert len(set(hilos)) > 1
 
 
@@ -358,10 +360,10 @@ def test_la_profundidad_y_el_saldo_frenan_la_replicacion():
     árbol no pasa de dos niveles."""
     _, ctx, _, negativas = _sumar_del_1_al_16(saldo=50, max_profundidad=1)
     assert negativas and all("no puede delegar más" in n for n in negativas)
-    assert max(p for p, _ in ctx.traza) == 1
+    assert max(p for p, *_ in ctx.traza) == 1
 
     _, ctx, hilos, _ = _sumar_del_1_al_16(saldo=3, max_profundidad=3)
-    assert max(p for p, _ in ctx.traza) <= 1 and ctx.ledger.rondas <= 1
+    assert max(p for p, *_ in ctx.traza) <= 1 and ctx.ledger.rondas <= 1
     assert len(hilos) < 1 + 2 * 14
 
 

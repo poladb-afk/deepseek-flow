@@ -689,8 +689,50 @@ def escanear_texto_de_prompt(raiz: Path) -> dict[str, int]:
     return dict(sorted(detalle.items()))
 
 
+def _bytes_literales(nodo) -> int:
+    """Los bytes UTF-8 de todo el texto literal bajo `nodo` (claves, valores y
+    las partes fijas de un f-string). Lo interpolado no cuenta: depende de la
+    máquina, igual que en `texto_de_prompt`."""
+    return sum(len(n.value.encode("utf-8")) for n in ast.walk(nodo)
+               if isinstance(n, ast.Constant) and isinstance(n.value, str))
+
+
+def escanear_bytes_primer_request(raiz: Path) -> dict[str, int]:
+    """Lo fijo que viaja en CADA request antes del pedido (P1, X124): el texto
+    del system prompt y los esquemas de tools del CORE y de cada módulo. Es lo
+    que comparan las mediciones de harnesses de 2026 (prompt + esquemas); acá
+    se cuenta por AST, sin importar los módulos (uno opcional ausente no
+    cambia la métrica) y sin la serialización JSON."""
+    detalle = {f"main.py:{k}": v for k, v in escanear_texto_de_prompt(raiz).items()}
+    for ruta in [raiz / "utils" / "fs_tools.py", *sorted((raiz / "modules").glob("*.py"))]:
+        try:
+            arbol = ast.parse(ruta.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            continue
+        for sentencia in arbol.body:
+            if _nombre_de(sentencia) == "TOOLS" and getattr(sentencia, "value", None) is not None:
+                detalle[f"{_relativa(ruta, raiz)}:TOOLS"] = _bytes_literales(sentencia.value)
+    return dict(sorted(detalle.items()))
+
+
+LOOP = ("utils/kernel.py", "nodes.py", "flow.py")  # el loop del agente: hoy son dos (S9b los une)
+
+
+def escanear_lineas_del_loop(raiz: Path) -> dict[str, int]:
+    """Líneas no vacías y que no son solo comentario del loop del agente (P1,
+    X124). Los docstrings cuentan: también se leen."""
+    detalle = {}
+    for relativa in LOOP:
+        ruta = raiz / relativa
+        if ruta.is_file():
+            lineas = ruta.read_text(encoding="utf-8").splitlines()
+            detalle[relativa] = sum(1 for linea in lineas if linea.strip() and not linea.strip().startswith("#"))
+    return detalle
+
+
 ELEGANCIA = ("core_importa_modulos", "producto_conoce_lab", "vocabulario_hardcodeado",
-             "settings_leidos", "imports_perezosos", "nodos_largos", "texto_de_prompt")
+             "settings_leidos", "imports_perezosos", "nodos_largos", "texto_de_prompt",
+             "bytes_primer_request", "lineas_del_loop")
 
 
 def _metrica_suma(escanear):
@@ -792,6 +834,16 @@ METRICAS: dict[str, dict] = {
         "direccion": "menor_mejor",
         "descripcion": "chars literales del system prompt + directivas (el prompt no arregla conductas)",
         "calcular": _metrica_suma(escanear_texto_de_prompt),
+    },
+    "bytes_primer_request": {
+        "direccion": "menor_mejor",
+        "descripcion": "bytes literales fijos de cada request: system prompt + esquemas de tools (P1)",
+        "calcular": _metrica_suma(escanear_bytes_primer_request),
+    },
+    "lineas_del_loop": {
+        "direccion": "menor_mejor",
+        "descripcion": "líneas de código del loop del agente: kernel + chat (P1; S9b las une)",
+        "calcular": _metrica_suma(escanear_lineas_del_loop),
     },
 }
 

@@ -70,16 +70,22 @@ class Tool:
 
 @dataclass
 class Ctx:
-    """Lo que el árbol comparte: el LLM, el saldo y la traza."""
+    """Lo que el árbol comparte: el LLM, el saldo y la traza. Cada entrada de
+    la traza es (profundidad, tool, dirección, argumentos): la dirección es el
+    camino de pasos (`ronda.id` de cada tool call) desde la raíz, así que las llamadas de una copia
+    empiezan con la dirección de la llamada que la creó (`banco/probes/fractal.py`
+    mide la división con eso)."""
 
     llm: object
     ledger: Ledger
     profundidad: int = 0
     max_profundidad: int = 1
     traza: list = field(default_factory=list)
+    direccion: tuple = ()
 
-    def hijo(self):
-        return Ctx(self.llm, self.ledger, self.profundidad + 1, self.max_profundidad, self.traza)
+    def hijo(self, id_llamada=""):
+        return Ctx(self.llm, self.ledger, self.profundidad + 1, self.max_profundidad, self.traza,
+                   self.direccion + (id_llamada,))
 
 
 def desde_fs(nombre, efecto="lectura"):
@@ -131,7 +137,10 @@ class Actuar(_DelLoop):
     en paralelo; si alguna escribe, todas van en orden (un solo hilo)."""
 
     def prep(self, s):
-        return [as_dict(tc) for tc in s["messages"][-1]["tool_calls"]]
+        # el id de una tool call es único en su mensaje, no en el loop (el DSML
+        # numera desde 0 en cada ronda): el paso de la dirección lleva la ronda
+        ronda = sum(1 for m in s["messages"] if m.get("role") == "assistant")
+        return [{**as_dict(tc), "paso": f"{ronda}.{as_dict(tc)['id']}"} for tc in s["messages"][-1]["tool_calls"]]
 
     def exec(self, llamadas):
         por_nombre = {t.nombre: t for t in self.tools}
@@ -151,7 +160,9 @@ class Actuar(_DelLoop):
 
     def post(self, s, llamadas, contenidos):
         for llamada, contenido in zip(llamadas, contenidos, strict=True):
-            self.ctx.traza.append((self.ctx.profundidad, llamada["function"]["name"]))
+            funcion = llamada["function"]
+            self.ctx.traza.append((self.ctx.profundidad, funcion["name"],
+                                   self.ctx.direccion + (llamada["paso"],), funcion.get("arguments") or ""))
             s["messages"].append({"role": "tool", "tool_call_id": llamada["id"], "content": contenido})
         return "paso"
 
@@ -233,7 +244,7 @@ def agente(nombre, descripcion, system, tools, parametro="pedido", recursivo=Fal
             return f"ERROR: {nombre} necesita `{parametro}`"
         if not ctx.ledger.tomar():  # una copia cuesta 1 del saldo del árbol, como una ronda
             return NO_EJECUTADA
-        respuesta, _ = correr(armar(pedido), pedido, tools, ctx.hijo())
+        respuesta, _ = correr(armar(pedido), pedido, tools, ctx.hijo(llamada.get("paso", "")))
         return respuesta
 
     lectura = all(t.efecto == "lectura" for t in tools)

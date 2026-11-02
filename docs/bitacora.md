@@ -6324,3 +6324,37 @@ ahora dicen "opción fuera de la lista blanca"). Los casos por entrada se
 regeneraron: salen 34 de la negra de pytest y entran 62 de la lista blanca
 (58 auto y 4 que preguntan: una opción inventada y `@args.txt`). En los
 casos comunes, 0 cambios de nivel.
+
+---
+
+## X124: los instrumentos de los principios, antes de mover el loop (2026-11-01)
+
+**P1.** `bytes_primer_request` cuenta por AST los bytes literales del system
+prompt y de los esquemas de tools del CORE y de cada módulo: 16.606. Medido en
+vivo en este entorno (prompt real + `json.dumps(nodes.TOOLS)`, 28 de 31 tools
+porque faltan `ddgs` y `fastmcp`): 19.311. La diferencia es la puntuación del
+JSON y lo interpolado (CWD, raíces), que cambia por máquina; el ratchet mide lo
+que escribió una persona, como `texto_de_prompt`. Incluye la directiva de
+auditoría, que es opcional. `lineas_del_loop`: 773 (kernel 195, `nodes.py`
+537, `flow.py` 41). Es lo que S9b tiene que bajar.
+
+**P2 y P4.** La traza del kernel pasa de (profundidad, tool) a (profundidad,
+tool, dirección, argumentos). La dirección es el camino desde la raíz; cada
+paso es `ronda.id` de la tool call. El primer diseño usaba solo el id: un
+ataque al instrumento mostró que el DSML numera desde `dsml-0` en cada ronda,
+y dos copias de rondas distintas se fundían en una (D infinito y dos
+`subproblema_repetido` falsos). Con la ronda en el paso, el mismo árbol da
+D = 1 y ninguna falla. `banco/probes/fractal.py` mide sobre la traza:
+
+- D por nodo dividido, resolviendo Σ rᵢᴰ = 1 con rᵢ = alcance de la copia /
+  alcance del nodo (alcance = rutas `path` que leen el nodo y sus copias).
+  Guionado: partes disjuntas dan 1 sean simétricas o no; solapadas, 2,41;
+  una copia que relee todo, infinito.
+- Las fallas de DIG que se ven en una traza: `rama_vacia`,
+  `subproblema_repetido` y `reruteo`. La terminación faltante no aparece: el
+  saldo la impide (Ley 1).
+
+**Límites declarados.** El alcance solo ve `path`: `search_files` sin ruta
+no suma alcance. Una copia rechazada por saldo o profundidad cuenta como
+`rama_vacia`. El ratchet `lineas_del_loop` se sembró con las 4 líneas que
+este cambio agrega al kernel.

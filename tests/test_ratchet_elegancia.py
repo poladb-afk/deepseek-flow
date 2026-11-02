@@ -1,6 +1,6 @@
 """Ratchets de elegancia (fase 0 del refactor, `docs/elegancia.md`).
 
-Siete métricas que el refactor tiene que bajar y que hoy ningún gate miraba.
+Las métricas que el refactor tiene que bajar y que hoy ningún gate miraba.
 Estos tests fijan qué cuenta cada detector (y qué NO, para que el falso
 positivo no empuje a "arreglar" lo que está bien).
 """
@@ -89,6 +89,23 @@ def test_texto_de_prompt_mide_lo_literal_y_no_lo_interpolado(tmp_path):
               'DIRECTIVA_X = "abcde"\n\n'
               'def system_prompt():\n    cwd = "/una/ruta/larguisima"\n    return f"Hola {cwd} chau"\n')
     assert ratchet.escanear_texto_de_prompt(tmp_path) == {"DIRECTIVA_X": 5, "system_prompt": 10}
+
+
+def test_bytes_primer_request_suma_prompt_y_esquemas_sin_lo_interpolado(tmp_path):
+    """P1 (X124): lo fijo de cada request es el prompt MÁS los esquemas de
+    tools. Un esquema del CORE y uno de un módulo cuentan; lo interpolado no."""
+    _escribir(tmp_path, "main.py", 'def system_prompt():\n    return f"Hola {x}"\n')
+    _escribir(tmp_path, "utils/fs_tools.py", 'TOOLS = [{"name": "leer"}]\n')
+    _escribir(tmp_path, "modules/m.py", 'D = "/r"\nTOOLS = [{"description": f"ñ {D}"}]\nOTRA = ["no cuenta"]\n')
+    assert ratchet.escanear_bytes_primer_request(tmp_path) == {
+        "main.py:system_prompt": 5, "modules/m.py:TOOLS": len("description") + len("ñ ".encode()),
+        "utils/fs_tools.py:TOOLS": len("name") + len("leer")}
+
+
+def test_lineas_del_loop_cuenta_codigo_y_docstrings_no_comentarios(tmp_path):
+    _escribir(tmp_path, "utils/kernel.py", '"""doc"""\n# comentario\n\nx = 1\n')
+    _escribir(tmp_path, "flow.py", "y = 2\n")
+    assert ratchet.escanear_lineas_del_loop(tmp_path) == {"utils/kernel.py": 2, "flow.py": 1}
 
 
 def test_un_setting_nuevo_pone_rojo_aunque_otro_se_borre(tmp_path):

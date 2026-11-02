@@ -5,7 +5,7 @@ Documento vivo: se actualiza en cada hito (X*n*). Lo estable está en
 `docs/bitacora.md`. Acá va lo que hoy solo vivía en las conversaciones.
 `tests/test_handoff.py` verifica que lo que cita exista.
 
-**Al día con:** X114, X115 y X121 (pytest en lista blanca, su configuración vigilada y las comillas del shell), X120 (el exp/103 con el cómputo igualado), X119 (cada copia descuenta del saldo) y X118 (los principios S0, P1–P4, N1–N4), sobre X116 (la definición de elegancia y el kernel fractal) sobre X113, aplicado sobre X112 sobre `cca1f28`, más la auditoría del
+**Al día con:** X124 (los instrumentos: bytes del primer request, líneas del loop, D y las fallas de DIG sobre la traza), X123 (la medición honesta: "sin datos" ≠ 0 y denominador simétrico), X114, X115 y X121 (pytest en lista blanca, su configuración vigilada y las comillas del shell), X120 (el exp/103 con el cómputo igualado), X119 (cada copia descuenta del saldo) y X118 (los principios S0, P1–P4, N1–N4), sobre X116 (la definición de elegancia y el kernel fractal) sobre X113, aplicado sobre X112 sobre `cca1f28`, más la auditoría del
 operador sobre ese árbol (2026-10-31): dos hallazgos de seguridad abiertos
 (X114 y X115 en `docs/estado.md`) y cuatro de orden, todos en la cola.
 

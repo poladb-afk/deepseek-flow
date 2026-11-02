@@ -1,5 +1,34 @@
 {
   "ratchets": {
+    "bytes_primer_request": {
+      "detalle": {
+        "main.py:DIRECTIVA_AUDITORIA": 735,
+        "main.py:DIRECTIVA_FORMA": 279,
+        "main.py:system_prompt": 528,
+        "modules/a2a.py:TOOLS": 625,
+        "modules/auditoria.py:TOOLS": 528,
+        "modules/coding.py:TOOLS": 1149,
+        "modules/db.py:TOOLS": 580,
+        "modules/debate.py:TOOLS": 387,
+        "modules/delegar.py:TOOLS": 1225,
+        "modules/effective_n.py:TOOLS": 690,
+        "modules/escritura.py:TOOLS": 497,
+        "modules/evals.py:TOOLS": 405,
+        "modules/fable.py:TOOLS": 1031,
+        "modules/humano.py:TOOLS": 272,
+        "modules/informe.py:TOOLS": 479,
+        "modules/juez.py:TOOLS": 1171,
+        "modules/mcp.py:TOOLS": 669,
+        "modules/memoria.py:TOOLS": 1069,
+        "modules/rag.py:TOOLS": 852,
+        "modules/research.py:TOOLS": 454,
+        "modules/supervisor.py:TOOLS": 448,
+        "modules/vision.py:TOOLS": 850,
+        "modules/websearch.py:TOOLS": 413,
+        "utils/fs_tools.py:TOOLS": 1270
+      },
+      "metrica": 16606
+    },
     "codigo_muerto_privado": {
       "detalle": [],
       "metrica": 0
@@ -191,6 +220,14 @@
         "visor.py:vigilar": 1
       },
       "metrica": 79
+    },
+    "lineas_del_loop": {
+      "detalle": {
+        "flow.py": 41,
+        "nodes.py": 537,
+        "utils/kernel.py": 195
+      },
+      "metrica": 773
     },
     "nodos_largos": {
       "detalle": {
@@ -424,6 +461,7 @@
         "tests/test_fase5b.py": 3,
         "tests/test_flujos.py": 34,
         "tests/test_forma_larga.py": 5,
+        "tests/test_fractal.py": 8,
         "tests/test_fs_tools.py": 16,
         "tests/test_grafo_readme.py": 1,
         "tests/test_grafos_sin_calles_muertas.py": 3,
@@ -448,7 +486,7 @@
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
         "tests/test_ratchet.py": 35,
-        "tests/test_ratchet_elegancia.py": 17,
+        "tests/test_ratchet_elegancia.py": 19,
         "tests/test_replay.py": 16,
         "tests/test_riesgo.py": 9,
         "tests/test_rondas.py": 6,
@@ -469,7 +507,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1119
+      "metrica": 1129
     },
     "texto_de_prompt": {
       "detalle": {
