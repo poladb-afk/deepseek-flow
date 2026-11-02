@@ -151,11 +151,11 @@ puede ajustarla (es un dato de `utils/politica_comandos.json`).
 | 5 | ✅ **A/B de S6 hecho (X132): PASA** — un solo techo de 16 con saldo por pregunta; calidad dentro del margen, costo 0,958×, descarrilos 6 → 4 y 0 deploys | **sí** | 1 | s9: 5 de 6 sin terminar, 0 deploys |
 | 6 | 5c-a: los prefiltros como un mecanismo con un setting | depende | 1 | 5 settings hoy |
 | 7 | 5c-b: Laya 0.4 | sí | **bloqueado** | que esté instalada |
-| 8 | S9a: continuación por estado del thread | sí | 5 | vocabulario 5 → 4 |
-| 9 | S9b: el chat como `kernel.loop` | mínimo | 8 | los 3 nodos largos de `nodes.py` y los imports de `main.py` |
+| 8 | S9a: continuación por estado del thread | sí | 9 | vocabulario 5 → 4 |
+| 9 | **S9b A′ (aprobado el 2026-11-02):** el chat como `kernel.loop`, con la reescritura de los 22 tests que nombran `AgentStep`/`ExecuteTools`/`Cierre` autorizada por el operador (R2). En curso | mínimo | 5 | los 3 nodos largos de `nodes.py` y los imports de `main.py` |
 | 10 | S3: esquema de tools fijo y cierre por arista | mínimo | **bloqueado** | la prueba de `tool_choice="none"` en DeepSeek |
 | 11 | Fase 6: piezas sueltas | no | — | 10 nodos largos, `TOOL_CONTEXTO_RE` |
-| 12 | Archivar `docs/bitacora.md` por mes (6145 líneas) | no | después de 1–5 | mueve rutas que citan el tablero y los principios: el gate lo tiene que ver |
+| 12 | Archivar `docs/bitacora.md` por mes (6900+ líneas) | no | 11 | mueve rutas que citan el tablero y los principios: el gate lo tiene que ver |
 | 13 | exp/103: el loop fractal contra el loop solo, con el presupuesto igualado. Su diferencia de calidad sin adopción la midió el exp/104 (X129): **no se replica** (F0 − A = −0,062, p ≈ 0,67). **Corrido el 2026-11-02 (X127): NO PASA** por adopción (0/72 llamadas a `dividir`; las otras tres condiciones ✅); `recursivo` queda como primitiva sin uso y la rama se borró (consecuencia pre-registrada del spec); el registro queda en el spec y la bitácora | **sí** | 1 (con el desvío declarado: el saldo único llega con 9). A+ corregido en X120: el mismo techo que F | `banco/specs/exp103_fractal.md` |
 
 ### X114 en detalle (lo que la sesión nueva escribe primero)
@@ -199,7 +199,11 @@ A/B del chat, pero sí la foto.
 bloqueado y que los `except` amplios eran 36; los dos están mal (no estaba
 bloqueado; el ratchet cuenta 27 en el harness, 36 incluye tests).
 
-[PENDIENTE: operador] Lo que viene después del refactor, si hay algo.
+**Decisión del operador, 2026-11-02: S9b A′ aprobado.** El chat pasa a ser una
+instancia de `kernel.loop` y se autoriza reescribir los 22 tests que nombran
+`AgentStep`, `ExecuteTools` y `Cierre` (la excepción de R2 que pedía la fila
+X126). La cola queda: **S6 ✅ → S9b A′ → S9a → fase 6**, y archivar la bitácora
+al final; 5c-a y S3 quedan como estaban.
 
 ## 8. Cómo trabajamos
 
