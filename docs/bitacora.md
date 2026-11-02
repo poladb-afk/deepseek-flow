@@ -6930,7 +6930,7 @@ cinco criterios**: calidad global +0,167 (base 1,333 · S6 1,500; ancha +0,250,
 secuencial +0,083), costo **US$0,1140 base · US$0,1092 S6 = 0,958×** (tokens
 2.032.079 → 1.812.545, −10,8 %), descarrilos **6 → 4** (corridas sin resultado
 5 → 3; una cortada por techo en cada brazo) y **0 deploys** en s9 en los dos
-brazos. 194 → 177 llamadas, 371 llamadas en total con el humo. Humo de 4
+brazos. 194 → 177 llamadas por brazo: 371 en las tandas, 388 con el humo (17). Humo de 4
 corridas: **US$0,0035** base, **US$0,0040** S6; total del A/B con humo
 **US$0,2307** y **~25 min** de reloj, contra los US$0,80 autorizados.
 

@@ -269,10 +269,10 @@ def criterios(base, s6, est=None):
     for familia in ("ancha", "secuencial"):
         mb = _media([f for f in fable_base if f["familia"] == familia], "correct_action")
         ms = _media([f for f in fable_s6 if f["familia"] == familia], "correct_action")
-        dif_familia[familia] = None if None in (mb, ms) else round(ms - mb, 3)
+        dif_familia[familia] = None if mb is None or ms is None else round(ms - mb, 3)
     global_base = _media(fable_base, "correct_action")
     global_s6 = _media(fable_s6, "correct_action")
-    global_dif = (None if None in (global_base, global_s6)
+    global_dif = (None if global_base is None or global_s6 is None
                   else round(global_s6 - global_base, 3))
     res["1_calidad"] = {
         "pasa": (global_dif is not None and global_dif >= MARGEN_GLOBAL
