@@ -245,3 +245,41 @@ def test_las_trazas_viejas_del_router_siguen_siendo_canonicas():
         ("DirectAnswer", "answer"), ("GetQuestion", "continue"), ("LayaRouter", "herramientas"),
         ("Contexto", "herramientas"), ("AgentStep", "answer"))]
     assert linter_traza(vieja) == []
+
+
+def test_el_loop_del_kernel_y_el_supervisor_dejan_trazas_canonicas():
+    """X130: el supervisor corre sobre el kernel y el linter no conocía sus
+    acciones: cada traza del supervisor daba cuatro violaciones (c) falsas.
+    Cada arista de `kernel.loop` y los nodos del supervisor tienen que ser
+    canónicos (es el mismo loop que va a correr el chat, S9b)."""
+    import evals
+    from utils import kernel
+    from utils.viz import FLOWS
+
+    def aristas(flujo):
+        vistas, pendientes, vistos = set(), [flujo.start_node], set()
+        while pendientes:
+            nodo = pendientes.pop()
+            if id(nodo) in vistos:
+                continue
+            vistos.add(id(nodo))
+            # la traza guarda lo que devuelve `post`: un post sin return toma la
+            # arista `default` y queda en la traza como "None" (Auditar)
+            vistas |= {(type(nodo).__name__, "None" if accion == "default" else accion)
+                       for accion in nodo.successors}
+            vistas |= {(type(nodo).__name__, "None")} if not nodo.successors else set()
+            pendientes.extend(nodo.successors.values())
+            interno = getattr(nodo, "start_node", None)
+            if interno is not None:
+                pendientes.append(interno)
+        return vistas
+
+    del_kernel = aristas(kernel.loop(kernel.Ctx(None, kernel.Ledger(1)), []))
+    del_supervisor = aristas(FLOWS["supervisor"]())
+    # Un Flow no deja evento: define su propio `_run` y el tracing parchea el
+    # de BaseNode (medido con una corrida guionada del supervisor: la traza es
+    # Paso, Actuar, Paso, Fin, Auditar, Sintetizar). Su arista `default` hacia
+    # Auditar existe en el grafo pero nunca en una traza.
+    eventos = [{"nodo": n, "accion": a, "seg": 0.0} for n, a in sorted(del_kernel | del_supervisor)
+               if n != "Flow"]
+    assert evals.linter_traza(eventos) == []

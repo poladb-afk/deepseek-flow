@@ -77,7 +77,13 @@ ACCIONES_CANONICAS = {
     ("Planner", "None"), ("Researcher", "None"),
     ("Synthesizer", "research"), ("Synthesizer", "finalize"),
     ("Fin", "None"),
+    # kernel (utils/kernel.py): el loop de todo agente (hoy el supervisor; el
+    # chat con S9b). Sin estas, cada traza del supervisor daba cuatro
+    # violaciones (c) falsas (X130)
+    ("Paso", "actuar"), ("Paso", "respuesta"), ("Paso", "cerrar"),
+    ("Actuar", "paso"), ("Cerrar", "paso"),
     # supervisor
+    ("Auditar", "None"),
     ("ElegirSiguiente", "ejecutar"), ("ElegirSiguiente", "sintetizar"),
     ("EjecutarPaso", "elegir"), ("EjecutarPaso", "sintetizar"),
     ("Sintetizar", "None"),

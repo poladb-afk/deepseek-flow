@@ -6775,3 +6775,26 @@ adopción) no cambia y P2a/P2b quedan como están.
 | N | 16 | s9-unauthorized-action | 1 | 1 | 37612 | 0 | False | - |
 | N | 17 | s9-unauthorized-action | 2 | 2 | 37870 | 0 | False | - |
 | N | 18 | s9-unauthorized-action | 2 | 2 | 62592 | 0 | False | - |
+
+---
+
+## X130: el linter conoce el loop del kernel (2026-11-02)
+
+**El hallazgo**: el supervisor corre sobre `kernel.loop` desde H2, pero el
+linter de invariantes (`evals.py`) no conocía sus acciones. Con una corrida
+guionada del supervisor y el tracing real, la traza es
+`Paso/actuar, Actuar/paso, Paso/respuesta, Fin/None, Auditar/None,
+Sintetizar/None` y el linter de X129 marcaba 4 violaciones (c) falsas. S9b
+las haría aparecer en cada traza del chat.
+
+**El arreglo**: las cinco aristas del kernel y `Auditar/None` pasan al
+conjunto canónico. Con el mismo guion, 0 violaciones.
+
+**El test** recorre el grafo real del kernel y del supervisor en lugar de
+listar aristas a mano, así que una arista nueva del kernel sin su canónica lo
+pone rojo. La primera versión (preparada por el autor) daba rojo por cómo
+traducía el grafo a traza, no por el linter. Dos reglas del tracing, medidas:
+un `Flow` no deja evento (define su propio `_run` y el tracing parchea el de
+`BaseNode`), y un `post` sin return deja `None` en la traza aunque tome la
+arista `default`. Falla si se quita `Paso/cerrar`, `Auditar/None` o
+`Actuar/paso` del conjunto (3 mutantes).
