@@ -119,13 +119,15 @@ def test_checkpoint_ida_y_vuelta_es_identidad(tmp_path):
     assert all(json.loads(ln) for ln in (tmp_path / "t.jsonl").read_text().splitlines())
 
 
-def test_actualizar_novedad_queda_json():
+def test_el_turno_limpio_no_tiene_las_claves_de_las_politicas_viejas():
+    """S6 (X132): la novedad y el no-progreso se borraron del turno; lo que
+    queda (rondas, skill, uso_inicio) sigue siendo JSON."""
     import nodes
 
-    shared = {}
-    tc = {"function": {"name": "read_file", "arguments": "{}"}}
-    nodes.actualizar_novedad(shared, [tc, tc])
-    assert isinstance(shared["turno"]["huellas_vistas"], list) and len(shared["turno"]["huellas_vistas"]) == 1
+    shared = {"messages": []}
+    nodes.GetQuestion().post(shared, None, "hola")
+    assert set(shared["turno"]) == {"rondas", "skill", "uso_inicio"}
+    assert not ({"sin_progreso", "huella", "huellas_vistas", "racha_sin_novedad"} & set(shared["turno"]))
     json.dumps(shared)
 
 
@@ -171,15 +173,17 @@ def test_la_denylist_cubre_sufijos_env(ruta, prohibida):
     assert ruta_prohibida(ruta) is prohibida
 
 
-def test_alcance_amplio_no_recorre_fuera_de_las_raices(tmp_path, monkeypatch):
-    """F3: `/usr` se recorría entero (~3 s) en cada ronda."""
+def test_el_techo_no_recorre_el_disco(tmp_path, monkeypatch):
+    """F3 (antes: `alcance_amplio` no recorría fuera de las raíces). Desde S6
+    (X132) el techo no mira lo que el pedido menciona: no hay disco que
+    recorrer por ronda."""
     import time
 
     import nodes
 
     monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
     inicio = time.perf_counter()
-    assert nodes.alcance_amplio("revisá /usr y /etc", raiz=tmp_path) is False
+    assert nodes.presupuesto({"_objetivo": "revisá /usr y /etc"}) == nodes.MAX_TOOL_ROUNDS
     assert time.perf_counter() - inicio < 0.5
 
 

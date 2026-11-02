@@ -39,7 +39,6 @@ def test_lo_de_la_sesion_queda_fuera_de_la_caja():
 def test_la_caja_es_json():
     shared = {"messages": []}
     nodes.GetQuestion().post(shared, None, "hola")
-    nodes.actualizar_novedad(shared, [{"function": {"name": "read_file", "arguments": "{}"}}])
     assert json.loads(json.dumps(shared["turno"])) == shared["turno"]
 
 

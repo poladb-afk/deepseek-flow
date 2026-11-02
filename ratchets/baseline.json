@@ -174,10 +174,10 @@
     "lineas_del_loop": {
       "detalle": {
         "flow.py": 41,
-        "nodes.py": 521,
+        "nodes.py": 416,
         "utils/kernel.py": 195
       },
-      "metrica": 757
+      "metrica": 652
     },
     "nodos_largos": {
       "detalle": {
@@ -222,12 +222,6 @@
           "utils/terminal.py"
         ],
         "COMPACTION_CHARS": [
-          "nodes.py"
-        ],
-        "CORTE_NOVEDAD": [
-          "nodes.py"
-        ],
-        "CORTE_NOVEDAD_MIN": [
           "nodes.py"
         ],
         "DB_PATH": [
@@ -281,9 +275,6 @@
         ],
         "MAX_TOOL_ROUNDS": [
           "utils/fs_tools.py"
-        ],
-        "MAX_TOOL_ROUNDS_AMPLIO": [
-          "nodes.py"
         ],
         "MCP_EXPOSE": [
           "mcp_server.py"
@@ -351,9 +342,6 @@
         "TRACE": [
           "utils/tracing.py"
         ],
-        "UMBRAL_SIN_PROGRESO": [
-          "nodes.py"
-        ],
         "WEBCHAT": [
           "utils/webchat.py"
         ],
@@ -376,7 +364,7 @@
           "utils/hitl_web.py"
         ]
       },
-      "metrica": 56
+      "metrica": 52
     },
     "tests_definidos": {
       "detalle": {
@@ -386,7 +374,7 @@
         "tests/test_banco.py": 21,
         "tests/test_bench.py": 23,
         "tests/test_caracterizacion_chat.py": 12,
-        "tests/test_chat_flujo.py": 24,
+        "tests/test_chat_flujo.py": 17,
         "tests/test_citas.py": 7,
         "tests/test_comandos_reales.py": 5,
         "tests/test_compaccion.py": 25,
@@ -431,7 +419,7 @@
         "tests/test_memoria.py": 25,
         "tests/test_minar_errores.py": 16,
         "tests/test_modulos.py": 18,
-        "tests/test_novedad.py": 7,
+        "tests/test_novedad.py": 2,
         "tests/test_pendientes.py": 35,
         "tests/test_policy.py": 26,
         "tests/test_policy_bypass.py": 106,
@@ -449,6 +437,7 @@
         "tests/test_streaming.py": 11,
         "tests/test_supervisor_convergencia.py": 4,
         "tests/test_tablero.py": 2,
+        "tests/test_techo_unico.py": 12,
         "tests/test_thinking_tools.py": 7,
         "tests/test_thread_store.py": 26,
         "tests/test_tokens_runs.py": 5,

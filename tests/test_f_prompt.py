@@ -41,9 +41,9 @@ def test_el_runner_resuelto_no_vuelve_a_correr():
         f.main([])
 
 
-def test_los_amplios_de_f_son_los_que_alcance_amplio_clasifica(monkeypatch):
-    """La ventana de ALCANCE se verifica, no se supone: alcance_amplio da True
-    en s17–s20 y False en s15/s16."""
+def test_ningun_escenario_de_f_cambia_el_techo(monkeypatch):
+    """S6 (X132): el alcance amplio se borró; ninguna de las tareas del bench
+    de f (ni las que el exp/85 llamaba amplias) sube el techo único."""
     import os
 
     import nodes
@@ -54,7 +54,7 @@ def test_los_amplios_de_f_son_los_que_alcance_amplio_clasifica(monkeypatch):
         monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(fuente.resolve()))
         tarea = f.bf.TAREAS[escenario](os.path.relpath(fuente, RAIZ))
         monkeypatch.chdir(RAIZ)
-        assert nodes.alcance_amplio(tarea) is (escenario in f.AMPLIOS), escenario
+        assert nodes.presupuesto({"_objetivo": tarea}) == nodes.MAX_TOOL_ROUNDS, escenario
 
 
 def test_la_evidencia_sale_del_log():

@@ -202,144 +202,6 @@ def test_presupuesto_perfiles_por_operacion_y_precedencia(monkeypatch):
     monkeypatch.setattr(nodes, "MAX_TOOL_ROUNDS", 42)
     assert nodes.presupuesto({}) == 42
 
-def test_alcance_amplio_por_palabras_directorio_y_masa(tmp_path):
-    """exp/86: la regla es determinista (los datos exactos los cuenta el
-    código contra el disco). Desde X104 (fase 4b-mín) sin vocabulario: las
-    palabras de totalidad solas ya no deciden — el contrafáctico sobre los 14
-    escenarios y 36 preguntas reales midió que no decidían ningún caso."""
-    import nodes
-
-    # palabras de totalidad SIN ruta: ya no suben el tope (X104)
-    assert not nodes.alcance_amplio("revisá todo el repo buscando bugs", raiz=tmp_path)
-    assert not nodes.alcance_amplio("auditoría del proyecto completa", raiz=tmp_path)
-    # directorio mencionado con muchos archivos de código (s13: árbol exports)
-    arbol = tmp_path / "exports"
-    arbol.mkdir()
-    for i in range(12):
-        (arbol / f"mod_{i}.py").write_text("x = 1\n")
-    assert nodes.alcance_amplio(f"arreglá el bug en {arbol}", raiz=tmp_path)
-    # masa mencionada: 2 archivos pero ~600 líneas (s18: auditoría real)
-    denso = tmp_path / "policy.py"
-    denso.write_text("x = 1\n" * 300)
-    par = tmp_path / "votacion.py"
-    par.write_text("y = 2\n" * 300)
-    assert nodes.alcance_amplio(
-        f"revisá {tmp_path / 'policy.py'} y {tmp_path / 'votacion.py'}", raiz=tmp_path)
-    # acotado: un archivo chico (s1: una pregunta sobre cart.js)
-    chico = tmp_path / "cart.js"
-    chico.write_text("total += 1\n")
-    assert not nodes.alcance_amplio(f"qué pasa con el descuento en {chico}", raiz=tmp_path)
-    # ruta mencionada inexistente no opina
-    assert not nodes.alcance_amplio("mirá no/existe/dir y decime", raiz=tmp_path)
-
-
-def test_presupuesto_amplio_sube_el_tope_sin_tocar_la_precedencia(tmp_path, monkeypatch):
-    """exp/86: el tope amplio se aplica solo cuando no hay override (y como
-    la regla solo sube, no puede cortar nada: cap, no gasto). El pedido
-    amplio es uno que menciona un árbol grande (X104: sin palabras)."""
-    import nodes
-
-    arbol = tmp_path / "exports"
-    arbol.mkdir()
-    for i in range(12):
-        (arbol / f"mod_{i}.py").write_text("x = 1\n")
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
-    amplio = f"auditá {arbol}"
-    assert nodes.presupuesto({"_objetivo": amplio}) == nodes.MAX_TOOL_ROUNDS_AMPLIO
-    # el override sigue ganando
-    assert nodes.presupuesto({"_objetivo": amplio, "max_tool_rounds": 3}) == 3
-    # pregunta acotada: default de siempre
-    assert nodes.presupuesto({"_objetivo": "qué hace esta línea?"}) == nodes.MAX_TOOL_ROUNDS
-    # el tope amplio nunca BAJA del default si alguien lo configuró más alto
-    monkeypatch.setattr(nodes, "MAX_TOOL_ROUNDS", 20)
-    assert nodes.presupuesto({"_objetivo": amplio}) == 20
-
-
-def test_fingerprint_paginado_no_dispara_y_repetido_si():
-    """exp/13 (opción D): la huella de la ronda incluye los argumentos, así
-    la paginación legítima (offset distinto) da huella distinta y NO cuenta
-    como no-progreso; repetir la misma llamada SÍ."""
-    import nodes
-
-    def tc(path, offset=None):
-        args = {"path": path}
-        if offset is not None:
-            args["offset"] = offset
-        import json as _json
-        return [{"function": {"name": "read_file", "arguments": _json.dumps(args)}}]
-
-    assert nodes.fingerprint(tc("a", 1)) != nodes.fingerprint(tc("a", 2))
-    assert nodes.fingerprint(tc("a", 1)) == nodes.fingerprint(tc("a", 1))
-    # el orden de los tool_calls no altera la huella (misma ronda lógica)
-    dos = tc("a") + tc("b")
-    assert nodes.fingerprint(dos) == nodes.fingerprint(list(reversed(dos)))
-
-def test_execute_tools_post_acumula_y_resetea_no_progress():
-    """exp/13: la ronda incrementa no_progress ante ronda idéntica y lo
-    resetea cuando hay progreso real (huella distinta). El warning viaja en la
-    conversación (último resultado), no en la terminal. Desde X96 lo cuenta
-    Observar, tras ExecuteTools."""
-    import json as _json
-
-    from nodes import ExecuteTools, Observar, fingerprint
-
-    def tc(path):
-        return [{"function": {"name": "read_file",
-                              "arguments": _json.dumps({"path": path})}}]
-
-    ejecutar, observar = ExecuteTools(), Observar()
-    shared = {"messages": []}
-
-    def ronda(llamadas, resultado):
-        ejecutar.post(shared, llamadas, [{"role": "tool", "content": resultado}])
-        observar.post(shared, llamadas, None)
-
-    # ronda 1: mismo path → sin_progress 0 (primera vez)
-    ronda(tc("a"), "r1")
-    assert shared["turno"]["sin_progreso"] == 0
-    # ronda 2: idéntica → 1 y warning en el contenido
-    ronda(tc("a"), "r2")
-    assert shared["turno"]["sin_progreso"] == 1
-    assert "Sin progreso" in shared["messages"][-1]["content"]
-    # ronda 3: distinta → reset
-    ronda(tc("b"), "r3")
-    assert shared["turno"]["sin_progreso"] == 0
-    assert shared["turno"]["huella"] == fingerprint(tc("b"))
-
-def _corte_por_no_progreso():
-    """Deja la sesión en el estado del corte: contador en el umbral y el
-    presupuesto cerrado (Contexto sale a `cierre`, X96). Devuelve (shared,
-    contexto, ask) listos para postear la pregunta."""
-    import json as _json
-
-    from nodes import UMBRAL_SIN_PROGRESO, Contexto, ExecuteTools, GetQuestion, Observar
-
-    def tc(path):
-        return [{"function": {"name": "read_file",
-                              "arguments": _json.dumps({"path": path})}}]
-
-    tools_node, observar, contexto, ask = ExecuteTools(), Observar(), Contexto(), GetQuestion()
-    shared = {"messages": [{"role": "system", "content": "s"}]}
-    for i in range(UMBRAL_SIN_PROGRESO + 1):
-        tools_node.post(shared, tc("a.py"),
-                        [{"role": "tool", "tool_call_id": f"t{i}", "content": "r"}])
-        observar.post(shared, tc("a.py"), None)
-    assert shared["turno"]["sin_progreso"] == UMBRAL_SIN_PROGRESO
-    assert contexto._run(shared) == "cierre"   # corte: la próxima llamada cierra
-    return shared, contexto, ask
-
-def test_no_progress_se_resetea_con_la_pregunta_nueva():
-    """exp/13 (opción D): el corte por no-progreso es POR PREGUNTA (ley L8).
-    Sin el reset en GetQuestion.post el contador quedaba pegado, AgentStep
-    retiraba las tools para siempre y el protocolo de continuación de exp/4
-    ('un mensaje nuevo reinicia el presupuesto') era falso."""
-    shared, contexto, ask = _corte_por_no_progreso()
-    ask.post(shared, None, "otra pregunta")    # mensaje nuevo del usuario
-    assert shared["turno"]["sin_progreso"] == 0
-    assert contexto._run(shared) == "herramientas"   # el presupuesto se reinició
-
-
 def test_run_tool_call_devuelve_error_como_feedback():
     """Los fallos del lado del modelo no rompen el lote: tool inexistente
     (objeto alucinado), argumentos JSON inválidos (generación incompleta) y
@@ -386,11 +248,11 @@ def test_agotado_fuerza_respuesta_sin_tools():
     Contexto sale a `cierre` y el nodo Cierre corre una vez — el flag
     `aviso_cierre` que evitaba duplicarlo ya no existe. La pregunta nueva
     reabre el presupuesto."""
-    from nodes import AVISO_CIERRE, Cierre, Contexto, GetQuestion, nuevo_turno
+    from nodes import AVISO_CIERRE, MAX_TOOL_ROUNDS, Cierre, Contexto, GetQuestion, nuevo_turno
 
     shared = {"messages": [{"role": "system", "content": "s"},
                              {"role": "user", "content": "auditá el repo"}],
-              "turno": {**nuevo_turno(), "rondas": 8}}
+              "turno": {**nuevo_turno(), "rondas": MAX_TOOL_ROUNDS}}
     assert Contexto()._run(shared) == "cierre"
     mensajes, tools = Cierre().prep(shared)
     assert tools is None
@@ -497,22 +359,3 @@ def test_post_no_corrige_si_las_citas_estan_bien(monkeypatch):
     assert shared["messages"][-1]["content"] == "hallazgo en utils/tracing.py:1"
 
 
-def test_alcance_amplio_por_nombre_de_archivo_a_secas(tmp_path):
-    """F8 (dogfood): 'auditá fable_judge.py' menciona 800+ líneas SIN barra —
-    el token con extensión tiene que resolver igual."""
-    import nodes
-
-    grande = tmp_path / "fable_judge.py"
-    grande.write_text("x = 1\n" * 500)
-    assert nodes.alcance_amplio("Auditá el código de fable_judge.py buscando bugs",
-                                raiz=tmp_path)
-
-
-def test_todos_los_tests_pasa_no_es_totalidad(tmp_path):
-    """F9 (dogfood): 'todos los tests pasan' es un claim de verificación, no
-    de alcance. Desde X104 ninguna frase decide sola (ni esa ni "todos los
-    archivos"): el alcance lo cuenta el disco a partir de lo mencionado."""
-    import nodes
-
-    assert not nodes.alcance_amplio("arregló el bug y todos los tests pasan", raiz=tmp_path)
-    assert not nodes.alcance_amplio("revisá todos los archivos del paquete", raiz=tmp_path)

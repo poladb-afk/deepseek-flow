@@ -84,21 +84,26 @@ def test_tool_calls_con_el_presupuesto_agotado_no_se_ejecutan(chat):
     assert "tool_calls" not in shared["messages"][-1]
 
 
-def test_la_misma_llamada_repetida_corta_antes_del_tope(chat, monkeypatch):
-    """No-progreso: repetir la MISMA llamada retira las tools antes del techo."""
+def test_la_misma_llamada_repetida_no_corta_antes_del_tope(chat, monkeypatch):
+    """S6 (X132): el no-progreso se borró con su política; repetir la MISMA
+    llamada ya no retira las tools antes del techo — el saldo es el único corte."""
     import nodes
 
-    monkeypatch.setattr(nodes, "MAX_TOOL_ROUNDS", 20)
+    monkeypatch.setattr(nodes, "MAX_TOOL_ROUNDS", 6)
 
     def guion(i, mensajes, tools):
         return respuesta(None, llamada(n=0)) if tools else respuesta("me trabé")
 
     _, llamadas, ejecutadas = chat(["auditá"], guion)
-    assert len(ejecutadas) < 20
+    assert len(ejecutadas) == 6
     assert llamadas[-1]["tools"] is None
 
 
-def test_el_presupuesto_es_por_pregunta(chat):
+def test_el_presupuesto_es_por_pregunta(chat, monkeypatch):
+    import nodes
+
+    monkeypatch.setattr(nodes, "MAX_TOOL_ROUNDS", 4)
+
     def guion(i, mensajes, tools):
         return respuesta(None, llamada(n=i)) if tools else respuesta("fin")
 

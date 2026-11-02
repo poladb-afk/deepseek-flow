@@ -1,0 +1,18 @@
+# A/B de S6 (banco/specs/s6_un_techo.md): tarea ANGOSTA a propósito, para
+# medir que un techo único más alto no cambia el gasto de una pregunta corta.
+# Menciona UN archivo chico (81 líneas): no dispara `alcance_amplio` (>300
+# líneas o ≥10 archivos), así que en la base el techo es 8 y en el brazo S6 es
+# 16. El cierre es verificable: prueba_techo/resumen.md con los tres números.
+# `scratch:` borra el directorio al terminar (banco/banco.py:226-235).
+id: s6-narrow
+descripcion: tarea angosta de 2-3 rondas — el techo único no debe gastar más
+scratch:
+  - prueba_techo
+turnos:
+  - id: resumen-costos
+    linea: "Leé utils/costos.py y creá prueba_techo/resumen.md con exactamente tres líneas: (1) cuántos modelos tiene PRECIOS_MILLON, (2) el precio de completion de deepseek-flash, (3) el precio cache-hit de deepseek-flash. No toques ningún otro archivo."
+    hitl: s
+    timeout: 420
+  - id: salir
+    linea: "salir"
+    timeout: 60

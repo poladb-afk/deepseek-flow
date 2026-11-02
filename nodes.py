@@ -13,7 +13,7 @@ from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_str
 from utils.citas import reporte, verificar_citas
 from utils.compaccion import PREFIJO_COMPACCION, compactar, huella, recortar_tools_viejos, serializar
 from utils.costos import delta_desglose
-from utils.fs_tools import MAX_TOOL_ROUNDS, allowed_roots, run_tool_call
+from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
 from utils.fs_tools import TOOLS as CORE_TOOLS
 from utils.historial import historiar
 from utils.prefetch import PREFIJO_PREFETCH, decidir
@@ -33,7 +33,7 @@ from utils.skills import PREFIJO_SKILL, disponibles, filtrar_tools, skill_para
 from utils.skills import mensaje as mensaje_skill
 from utils.terminal import colorear, progreso_ronda
 from utils.thread_store import checkpoint
-from utils.tracing import evento_politica, evento_tool, thread_id
+from utils.tracing import evento_tool, thread_id
 
 EXIT_WORDS = {"salir", "exit", "quit"}
 
@@ -81,74 +81,11 @@ def nota_presupuesto(ronda, maximo):
     return None
 
 
-# repeticiones idénticas de una ronda de tools antes de cortar por inanición
-UMBRAL_SIN_PROGRESO = _entero("UMBRAL_SIN_PROGRESO", 3)
-
-# exp/86 — presupuesto dinámico determinista: un pedido AMPLIO sube el tope.
-# El tope es un CAP, no un gasto (X21: p50 2 rondas): bajarlo no ahorra nada
-# y solo arriesga cortar; el hueco real era el contrario (A37: el alcance
-# amplio agota 8 y queda corto). Por eso la regla solo puede SUBIR.
-MAX_TOOL_ROUNDS_AMPLIO = _entero("MAX_TOOL_ROUNDS_AMPLIO", 16)
-AMPLIO_ARCHIVOS = 10  # un directorio mencionado con esta cantidad ya es amplio
-# 300 calibrado por el contrafáctico de exp/86 sobre la masa que el agente
-# ve (el banco copia los fixtures sin la answer sheet): las familias que agotaban el cap quedan arriba
-# con margen (s18 347 · s19 587 · s20 930) y las cómodas muy abajo (máx 111).
-AMPLIO_LINEAS = 300
-# todo token del pedido que trae al menos una barra (archivo o directorio)...
-_TOKEN_RUTA = re.compile(r"[\w./~-]*/[\w./~-]+")
-# ...y también un nombre de archivo CON EXTENSIÓN a secas, sin barra (dogfood
-# exp/87: "auditá fable_judge.py" mencionaba 872 líneas y no resolvía)
-_TOKEN_ARCHIVO = re.compile(r"\b[\w.-]+\.(?:py|md|json|csv|js|yaml|jsonl|txt|sh)\b")
-_EXTS_ALCANCE = {".py", ".md", ".json", ".csv", ".js", ".yaml", ".jsonl", ".txt", ".sh"}
-
-
-def _lineas_de(ruta):
-    """La masa de los archivos de código mencionados. Corta al cruzar los
-    umbrales: la respuesta es amplio sí/no, no el conteo exacto, y
-    un directorio enorme se recorría entero en CADA ronda (auditoría F3)."""
-    total, archivos = 0, 0
-    for f in ruta.rglob("*"):
-        if archivos >= AMPLIO_ARCHIVOS or total >= AMPLIO_LINEAS:
-            break
-        if f.is_file() and f.suffix in _EXTS_ALCANCE:
-            archivos += 1
-            try:
-                total += len(f.read_text(errors="replace").splitlines())
-            except OSError:
-                continue
-    return archivos, total
-
-
-def alcance_amplio(pregunta, raiz=None):
-    """True si el pedido es de alcance amplio — DETERMINISTA, sin LLM: los
-    datos exactos (cuántos archivos, cuántas líneas) los cuenta el código
-    contra el disco. Dos señales: un directorio mencionado con
-    >=AMPLIO_ARCHIVOS archivos de código, o masa mencionada >=AMPLIO_LINEAS.
-    (Hasta X104 había una tercera, una regex de palabras de totalidad: el
-    contrafáctico de la fase 4b-mín midió que no decidía ningún caso.) Contrafáctico contra las corridas de exp/72-80 (bitácora
-    exp/86): las tareas que agotaban el cap clasifican amplio; las cómodas
-    no; y como la regla solo sube el tope, no puede cortar nada."""
-    raiz = Path(raiz) if raiz else Path.cwd()
-    texto = str(pregunta or "")
-    masa = 0  # suma de líneas de los ARCHIVOS mencionados (spec: la masa, no cada uno)
-    tokens = _TOKEN_RUTA.findall(texto) + _TOKEN_ARCHIVO.findall(texto)
-    roots = allowed_roots()
-    for token in dict.fromkeys(tokens):  # único: un nombre puede aparecer dos veces
-        p = (raiz / token.rstrip(".,;:)")).resolve()
-        # solo la masa que el agente PUEDE leer: `/usr` no es alcance del pedido
-        # (y recorrerlo costaba ~3 s por ronda, auditoría F3)
-        if not p.exists() or not any(p == r or r in p.parents for r in roots):
-            continue
-        if p.is_dir():
-            archivos, lineas = _lineas_de(p)
-            if archivos >= AMPLIO_ARCHIVOS or (archivos and lineas >= AMPLIO_LINEAS):
-                return True
-        elif p.suffix in _EXTS_ALCANCE:
-            try:
-                masa += len(p.read_text(errors="replace").splitlines())
-            except OSError:
-                continue
-    return masa >= AMPLIO_LINEAS
+# S6 (X132): un solo techo de rondas por pregunta (MAX_TOOL_ROUNDS, default
+# 16) y un único saldo en `turno`. Las tres políticas que había —alcance
+# amplio por disco (exp/86), no-progreso (exp/13) y corte por novedad
+# (exp/52-B)— se borraron con su código y sus settings; el A/B
+# (banco/specs/s6_un_techo.md) decide si el reemplazo entra.
 
 
 def nuevo_turno():
@@ -159,13 +96,11 @@ def nuevo_turno():
     `pop` se filtraba a la pregunta siguiente y nada lo detectaba (auditoría
     de elegancia, 2026-10-26). Lo de la sesión (`messages`, compacción,
     respaldo) y lo de la tarea (`_objetivo`, que sobrevive a un "seguí")
-    quedan fuera de la caja a propósito. Todo es JSON: viaja en el checkpoint."""
+    quedan fuera de la caja a propósito. Todo es JSON: viaja en el checkpoint.
+    Desde S6 (X132) `rondas` es el ÚNICO saldo de la pregunta: se descuenta
+    por ronda y el techo es el único corte."""
     return {
-        "rondas": 0,             # rondas de tools gastadas (ley L8)
-        "sin_progreso": 0,       # repeticiones de la MISMA ronda (exp/13)
-        "huella": None,          # huella de la última ronda
-        "huellas_vistas": [],    # novedad acumulada (exp/52-B)
-        "racha_sin_novedad": 0,
+        "rondas": 0,             # rondas de tools gastadas (L8): el saldo único
         "skill": None,           # id del skill activo (exp/55)
         "uso_inicio": None,      # desglose de tokens al empezar (exp/90)
     }
@@ -178,33 +113,13 @@ def turno(shared):
 
 def presupuesto(shared):
     """Techo de rondas de tools para ESTA pregunta: el override explícito de
-    shared['max_tool_rounds'] si lo hay; si no, un pedido de alcance amplio
-    sube a MAX_TOOL_ROUNDS_AMPLIO (exp/86); si no, MAX_TOOL_ROUNDS, leído EN
-    RUNTIME del global del módulo (patch('nodes.MAX_TOOL_ROUNDS') se respeta)."""
+    shared['max_tool_rounds'] si lo hay; si no, MAX_TOOL_ROUNDS, leído EN
+    RUNTIME del global del módulo (patch('nodes.MAX_TOOL_ROUNDS') se respeta).
+    Desde S6 (X132) es el ÚNICO techo: no hay presupuesto amplio."""
     override = shared.get("max_tool_rounds")
     if override is not None:
         return int(override)
-    # _objetivo es la tarea VIGENTE (GetQuestion; una continuación "seguí"
-    # no la pisa): el presupuesto amplio sobrevive a la continuación, que es
-    # justo cuando más rondas hacen falta.
-    if alcance_amplio(shared.get("_objetivo")):
-        # max(): si el default ya sube más que el tope amplio, se respeta
-        return max(MAX_TOOL_ROUNDS, MAX_TOOL_ROUNDS_AMPLIO)
     return MAX_TOOL_ROUNDS
-
-
-def fingerprint(tool_calls):
-    """Hash estable de (nombre, argumentos) de una ronda de tools. NO mira
-    el resultado: el resultado cambia aunque la llamada sea idéntica. Al
-    incluir arguments, la paginación legítima (offset=1,2,3) da hashes
-    distintos y NO dispara el no-progreso."""
-    pares = sorted(
-        (tc["function"]["name"], tc["function"].get("arguments") or "")
-        for tc in (tool_calls or [])
-    )
-    return hashlib.sha1(
-        json.dumps(pares, ensure_ascii=False).encode()
-    ).hexdigest()
 
 
 def huella_llamada(tc):
@@ -215,52 +130,14 @@ def huella_llamada(tc):
     return hashlib.sha1(clave.encode()).hexdigest()[:8]
 
 
-def actualizar_novedad(shared, tool_calls):
-    """exp/52-B: novedad ACUMULADA por pregunta (tool+argumentos).
-
-    A diferencia del no-progreso (misma ronda repetida), acá una ronda sin
-    NINGUNA llamada nueva (p. ej. A, B, A, B) también cuenta como sin novedad.
-    Devuelve True si la ronda no estrenó ninguna llamada.
-    """
-    t = turno(shared)
-    nuevas = [h for h in dict.fromkeys(huella_llamada(tc) for tc in tool_calls or [])
-              if h not in t["huellas_vistas"]]
-    t["huellas_vistas"].extend(nuevas)
-    t["racha_sin_novedad"] = 0 if nuevas else t["racha_sin_novedad"] + 1
-    return not nuevas
-
-
-def corte_por_novedad_activo(shared):
-    """exp/52-B: `CORTE_NOVEDAD=k` (default 0 = off) corta tras k rondas
-    consecutivas sin llamadas nuevas, con mínimo `CORTE_NOVEDAD_MIN` rondas.
-
-    Default OFF a propósito: la regla se activa recién cuando el A/B del banco
-    valide que baja rondas sin bajar turnos OK. Se lee en runtime para que el
-    banco la prenda por escenario.
-    """
-    k = _entero("CORTE_NOVEDAD", 0)
-    if k <= 0:
-        return False
-    minimo = _entero("CORTE_NOVEDAD_MIN", 3)
-    t = turno(shared)
-    return t["rondas"] >= minimo and t["racha_sin_novedad"] >= k
-
-
 def motivo_de_cierre(shared):
     """Por qué se acabó el presupuesto de ESTA pregunta (ley L8), o None si
-    sigue: el tope de rondas, la misma ronda repetida (no-progreso, exp/13) o,
-    con CORTE_NOVEDAD, rondas sin llamadas nuevas (exp/52-B). Lo evalúa
-    Contexto antes de cada llamada al modelo (X96). Un corte que NO es el
-    techo deja su evento de política: visible desde .runs."""
+    sigue: el techo único de rondas. Lo evalúa Contexto antes de cada llamada
+    al modelo (X96). Desde S6 (X132) es el único corte: no hay no-progreso ni
+    corte por novedad."""
     t = turno(shared)
     if t["rondas"] >= presupuesto(shared):
         return "tope"
-    if t["sin_progreso"] >= UMBRAL_SIN_PROGRESO:
-        evento_politica("corte_no_progreso")
-        return "sin_progreso"
-    if corte_por_novedad_activo(shared):
-        evento_politica("corte_sin_novedad", f"{t['racha_sin_novedad']} rondas sin llamadas nuevas")
-        return "sin_novedad"
     return None
 
 
@@ -299,9 +176,9 @@ class GetQuestion(Node):
         # exp/34: la pregunta real queda registrada: tráfico natural para
         # calibrar (bookkeeping; nunca corta el chat).
         registrar_pregunta(exec_res)
-        # Todo lo de la pregunta anterior muere acá, de una vez: presupuesto
-        # (L8), no-progreso, novedad y skill. El costo de la anterior se cierra
-        # con su `uso_inicio`.
+        # Todo lo de la pregunta anterior muere acá, de una vez: el saldo de
+        # rondas (L8) y el skill. El costo de la anterior se cierra con su
+        # `uso_inicio`.
         # (/aprobaciones no llega hasta acá: lo atiende exec(), sin gastar turno.)
         anterior = turno(shared)
         shared["turno"] = nuevo_turno()
@@ -580,12 +457,12 @@ class ExecuteTools(Node):
 
 
 class Observar(Node):
-    """Lo que deja una ronda de tools, contado por código (X96): la ronda, su
-    huella (no-progreso, exp/13), la novedad acumulada (exp/52-B) y lo que el
-    MODELO tiene que leer — el aviso de sin-progreso y la nota de presupuesto
-    viajan en el último resultado, porque la terminal no le llega. Después el
-    checkpoint (exp/48, punto seguro 2: la ronda quedó registrada). Si el
-    presupuesto se acabó lo decide Contexto, antes de la próxima llamada."""
+    """Lo que deja una ronda de tools, contado por código (X96): la ronda y lo
+    que el MODELO tiene que leer — la nota de presupuesto viaja en el último
+    resultado, porque la terminal no le llega. Después el checkpoint (exp/48,
+    punto seguro 2: la ronda quedó registrada). Si el presupuesto se acabó lo
+    decide Contexto, antes de la próxima llamada. Desde S6 (X132) el saldo es
+    uno solo: no hay aviso de no-progreso ni corte por novedad."""
 
     def prep(self, shared):
         return next((m["tool_calls"] for m in reversed(shared["messages"])
@@ -595,14 +472,7 @@ class Observar(Node):
         t = turno(shared)
         t["rondas"] += 1
         tope = presupuesto(shared)
-        huella_ronda = fingerprint(llamadas)
-        t["sin_progreso"] = t["sin_progreso"] + 1 if huella_ronda == t["huella"] else 0
-        t["huella"] = huella_ronda
-        actualizar_novedad(shared, llamadas)
         notas = [nota_presupuesto(t["rondas"], tope)]
-        if t["sin_progreso"]:
-            notas.insert(0, f"⚠ Sin progreso: repetiste la misma llamada {t['sin_progreso'] + 1}ª vez "
-                            "— cambiá de estrategia o cerrá el estado.")
         ultimo = shared["messages"][-1] if shared["messages"] else {}
         if ultimo.get("role") == "tool":
             ultimo["content"] = "\n".join([ultimo["content"], *filter(None, notas)])
