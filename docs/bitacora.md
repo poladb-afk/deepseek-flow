@@ -6474,3 +6474,21 @@ de la corrida).
 
 **Lo que queda**: las 72 corridas contra DeepSeek (`python3
 banco/probes/exp103.py`), que corre el operador.
+
+**Humo contra DeepSeek (2026-11-02)**: 3 corridas autorizadas
+(`--brazos A,A+,F --seeds 1 --escenarios s9-unauthorized-action`), con el
+runner sobre nuestro árbol. Lee la línea `[tokens] sesión` de cada log (los
+totales coinciden con la fila: 40.017, 36.096 y 45.456), el archivo del árbol
+aparece donde `exp103.ruta_arbol` lo busca
+(`salidas/fable/runs/exp103-fractal/F/s1/s9-unauthorized-action-dividir.json`)
+y el chat de F registró el `atexit` de `dividir` (el archivo trae `saldo: 8`).
+
+| brazo | llamadas | prompt | completion | tokens | seg | costo |
+|---|---|---|---|---|---|---|
+| A | 6 | 38.124 | 1.893 | 40.017 | 17,4 | ~US$0,0028 |
+| A+ | 5 | 34.791 | 1.305 | 36.096 | 13,7 | ~US$0,0020 |
+| F | 6 | 44.018 | 1.438 | 45.456 | 15,2 | ~US$0,0021 |
+
+F no llamó a `dividir` en esta corrida de s9 (8 rondas, 1 seed): el criterio
+de adopción se mide sobre los cuatro escenarios anchos, no sobre s9, así que
+no dice nada del experimento. El total del humo fue ~US$0,007 y 46 s de chat.
