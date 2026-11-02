@@ -23,7 +23,9 @@ import json
 import time
 from pathlib import Path
 
+from utils import compaccion
 from utils.call_llm import _setting
+from utils.estado_sesion import capturar
 
 _DEFAULT_DIR = "salidas/threads"
 
@@ -48,7 +50,6 @@ def checkpoint(id_thread, nodo, accion, shared, ruta_dir=None):
     try:
         destino = _ruta_dir(ruta_dir) / f"{id_thread}.jsonl"
         destino.parent.mkdir(parents=True, exist_ok=True)
-        from utils.estado_sesion import capturar
 
         linea = {
             "ts": round(time.time(), 3),
@@ -150,12 +151,10 @@ def valido(shared):
     Reusa `utils.compaccion.validar_historial` — los 4 invariantes del modo
     thinking. NUNCA levanta: ante cualquier problema estructural devuelve una
     violación descriptiva en vez de propagar la excepción."""
-    from utils.compaccion import validar_historial
-
     if not isinstance(shared, dict):
         return ["el shared no es un dict"]
     mensajes = shared.get("messages")
     try:
-        return validar_historial(mensajes)
+        return compaccion.validar_historial(mensajes)
     except Exception as e:  # el validador es un instrumento, no un candado  # noqa: BLE001 (el validador es un instrumento, no un candado)
         return [f"el validador falló: {type(e).__name__}: {e}"]

@@ -7,11 +7,16 @@ from pathlib import Path
 from pocketflow import Node
 
 from modules import discover, ganchos
-from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_stream
+from utils import estado_sesion
+from utils.aprobaciones import resumen
+from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_stream, desglose_de_sesion
+from utils.citas import reporte, verificar_citas
 from utils.compaccion import PREFIJO_COMPACCION, compactar, huella, recortar_tools_viejos, serializar
-from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
+from utils.costos import delta_desglose
+from utils.fs_tools import MAX_TOOL_ROUNDS, allowed_roots, run_tool_call
 from utils.fs_tools import TOOLS as CORE_TOOLS
-from utils.prefetch import PREFIJO_PREFETCH
+from utils.prefetch import PREFIJO_PREFETCH, decidir
+from utils.prefetch import mensaje as mensaje_prefetch
 from utils.proveedor import (  # noqa: F401  (re-export: tests y banco los importan de nodes)
     AVISOS,
     MENSAJE_DSML_AGOTADO,
@@ -22,6 +27,7 @@ from utils.proveedor import (  # noqa: F401  (re-export: tests y banco los impor
     normalizar,
     sanitizar,
 )
+from utils.riesgo import origen
 from utils.skills import PREFIJO_SKILL, disponibles, filtrar_tools, skill_para
 from utils.skills import mensaje as mensaje_skill
 from utils.terminal import colorear, progreso_ronda
@@ -48,7 +54,6 @@ def registrar_pregunta(texto, ruta=None):
     (`salidas/banco/`, X93) y no se mezcla con el humano."""
     if _setting("PREGUNTAS_LOG", "1") != "1":
         return
-    from utils.riesgo import origen
 
     try:
         destino = Path(ruta or _setting("PREGUNTAS_ARCHIVO", "salidas/preguntas.jsonl"))
@@ -126,8 +131,6 @@ def alcance_amplio(pregunta, raiz=None):
     texto = str(pregunta or "")
     masa = 0  # suma de líneas de los ARCHIVOS mencionados (spec: la masa, no cada uno)
     tokens = _TOKEN_RUTA.findall(texto) + _TOKEN_ARCHIVO.findall(texto)
-    from utils.fs_tools import allowed_roots
-
     roots = allowed_roots()
     for token in dict.fromkeys(tokens):  # único: un nombre puede aparecer dos veces
         p = (raiz / token.rstrip(".,;:)")).resolve()
@@ -298,8 +301,6 @@ class GetQuestion(Node):
             # modelo con el historial intacto y sin reiniciar el presupuesto
             # (medido en la barrida: una llamada extra no pedida).
             if text.strip().lower() == "/aprobaciones":
-                from utils.aprobaciones import resumen
-
                 print("\n" + resumen())
                 continue
             if text:
@@ -319,9 +320,7 @@ class GetQuestion(Node):
         shared["turno"] = nuevo_turno()
         # El último mensaje del usuario acompaña cada decisión HITL en el log
         # de riesgo (los módulos no ven `shared`). Plumbing, no decide nada.
-        from utils.estado_sesion import recordar_usuario
-
-        recordar_usuario(exec_res)
+        estado_sesion.recordar_usuario(exec_res)
         # Tarea vigente para la compacción: una continuación no pisa el objetivo.
         if exec_res.strip().lower() not in {"seguí", "segui", "continúa", "continua", "continue"}:
             shared["_objetivo"] = exec_res
@@ -330,9 +329,6 @@ class GetQuestion(Node):
         # "answer", así que la pregunta anterior ya respondió: su costo es
         # el delta del desglose desde su propio arranque. La última nunca
         # pasa de nuevo por acá: la cierra el reporte de salida.
-        from utils.call_llm import desglose_de_sesion
-        from utils.costos import delta_desglose
-
         if anterior["uso_inicio"] is not None:
             shared.setdefault("tokens_por_pregunta", []).append(
                 delta_desglose(anterior["uso_inicio"], desglose_de_sesion()))
@@ -370,18 +366,12 @@ class PreFetch(Node):
     def prep(self, shared):
         return pregunta_en_curso(shared.get("messages", []))
 
-    def exec(self, pregunta):
-        from utils.prefetch import decidir
-
-        return decidir(pregunta)
-
-    def post(self, shared, prep_res, exec_res):
-        from utils.prefetch import mensaje
-
-        texto = mensaje(exec_res)
+    def post(self, shared, prep_res, _exec_res):
+        decididos = decidir(prep_res)
+        texto = mensaje_prefetch(decididos)
         if texto:
             shared["messages"].append({"role": "user", "content": texto})
-            for path, _ in exec_res:
+            for path, _ in decididos:
                 print(colorear(f"  [pre-fetch] {path}", "info"))
         return "continue"
 
@@ -655,7 +645,6 @@ class VerificarCitas(Node):
     def exec(self, entrada):
         if entrada is None:
             return None
-        from utils.citas import reporte, verificar_citas
 
         mensajes, contenido = entrada
         resultado = verificar_citas(contenido)

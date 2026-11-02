@@ -99,8 +99,8 @@ resumen y abstract: los números son de sus autores, no se reprodujeron acá.
 | Center for Open Science, *Preregistration* | https://www.cos.io/initiatives/prereg | Criterios antes de ver los datos; desvíos declarados | Método |
 | Harness² (revisión externa, 2026-11-01) | (texto privado, sin URL) | El sesgo del denominador: la tarea que no entrega sale del promedio de un brazo y vale 0 en el otro | Método |
 | Pi (Mario Zechner) | https://pi-deep-dive.vercel.app/ | Cuatro tools, prompt corto, extensiones y lazy skills; se adopta el núcleo mínimo, no la falta de permisos | P1, P3, S0 |
-| Databricks vía SoloSoft, *Pi: 2x cheaper* (2026) | https://www.solosoft.dev/post/pi-minimal-coding-agent-harness/ | El harness cambia el costo por tarea más de 2× con la misma calidad | P1 |
-| *The 99 KB Hello World* (2026) | https://agenticcontrolplane.com/blog/what-coding-harnesss-send-before-your-prompt | Medir los bytes del primer request: prompt + esquemas de tools | P1 |
+| Databricks vía SoloSoft, *Pi: 2x cheaper* (2026) | https://www.solosoft.dev/post/pi-minimal-coding-agent-harness/ | El harness cambia el costo por tarea más de 2× con la misma calidad (no verificable desde esta red el 2026-11-02) | P1 |
+| *The 99 KB Hello World* (2026) | https://agenticcontrolplane.com/blog/what-coding-harnesses-send-before-your-prompt | Medir los bytes del primer request: prompt + esquemas de tools | P1 |
 | Nijholt, *Native harness tools* (2026) | https://www.nijho.lt/post/native-harness-tools/ | Lo que pesa son los tokens, no la familiaridad de las tools | P1 |
 | *Harness Engineering: eleven systems* (2026) | https://arxiv.org/pdf/2609.00006 | Siete subsistemas canónicos; ningún framework pesado en el runtime | P3, P4 |
 | DIG, *Dynamic Interaction Graph* (2026) | https://arxiv.org/abs/2603.00309 | Fallas topológicas de la colaboración, chequeables sobre la traza | P4 |

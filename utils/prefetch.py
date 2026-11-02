@@ -18,6 +18,7 @@ Setting PREFETCH (default "1"); "0" apaga TODO.
 import re
 
 from utils.call_llm import _setting
+from utils.fs_tools import _resolve
 
 # Prefijo FIJO e inconfundible del mensaje user sintético (patrón compacción).
 # Un solo lugar para cambiarlo; los tests y el router lo leen de acá.
@@ -44,8 +45,6 @@ def decidir(pregunta):
         return []
 
     # Una sola pasada por el resolvedor de contención que ya existe.
-    from utils.fs_tools import _resolve
-
     vistos = set()
     resultado = []
     for cruda in ARCHIVO_RE.findall(texto):

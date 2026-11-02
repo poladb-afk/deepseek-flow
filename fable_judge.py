@@ -902,8 +902,9 @@ def create_fable_judge_flow():
 
 def _ejecutar_por_policy(comando):
     """El ejecutor de producción: run_command del módulo coding (policy +
-    HITL graduado). Import perezoso: el top-level de modules/ corre
-    discover() al cargarse y un import al cargar colgaría el registro."""
+    HITL graduado). Import perezoso: el producto no importa la capa de
+    módulos al cargar — un módulo ausente no debe romper el juez, y el
+    ejecutor solo hace falta cuando se re-ejecuta."""
     from modules.coding import run_command
     return run_command(comando)
 

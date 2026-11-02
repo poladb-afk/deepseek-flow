@@ -48,13 +48,13 @@
     "excepts_amplios": {
       "detalle": {
         "bench_juez.py": [
-          194
+          191
         ],
         "carga_trazas.py": [
           104
         ],
         "heartbeat.py": [
-          81
+          80
         ],
         "juez.py": [
           555
@@ -69,14 +69,14 @@
           34
         ],
         "modules/memoria.py": [
-          147,
-          332
+          146,
+          329
         ],
         "modules/rag.py": [
-          74
+          72
         ],
         "nodes.py": [
-          61
+          66
         ],
         "research.py": [
           78
@@ -88,7 +88,7 @@
           311
         ],
         "utils/contexto.py": [
-          119
+          118
         ],
         "utils/embeddings.py": [
           28
@@ -99,7 +99,7 @@
           533
         ],
         "utils/hitl_web.py": [
-          577
+          570
         ],
         "utils/laya.py": [
           97
@@ -109,7 +109,7 @@
           96
         ],
         "utils/thread_store.py": [
-          160
+          159
         ],
         "utils/tracing.py": [
           194,
@@ -156,78 +156,28 @@
     },
     "imports_perezosos": {
       "detalle": {
-        "bench_juez.py:correr": 1,
         "fable_judge.py:_ejecutar_por_policy": 1,
-        "heartbeat.py:correr": 2,
-        "heartbeat.py:guardar_estado": 1,
-        "heartbeat.py:main": 1,
         "juez.py:_inventario_tools": 1,
-        "main.py:_reporte_tokens": 2,
-        "main.py:main": 1,
-        "mcp_server.py:envolver": 3,
         "mcp_server.py:main": 1,
-        "modules/auditoria.py:run_auditoria": 1,
-        "modules/coding.py:_registrar_hooks": 1,
-        "modules/coding.py:_sale_de_raices": 2,
-        "modules/coding.py:_vetar_comando_prohibido": 1,
         "modules/delegar.py:aviso_delegadas_al_cerrar": 1,
         "modules/delegar.py:estado_delegadas": 1,
-        "modules/effective_n.py:run_effective_n": 1,
-        "modules/fable.py:verificar_trabajo": 1,
-        "modules/humano.py:request_human_input": 1,
-        "modules/memoria.py:_prefiltrar": 1,
-        "modules/memoria.py:guardar_resumen_sesion": 1,
-        "modules/rag.py:_prefiltrar": 2,
-        "modules/supervisor.py:run_supervisor": 2,
-        "modules/vision.py:ver_pdf": 1,
-        "nodes.py:GetQuestion": 4,
-        "nodes.py:PreFetch": 2,
-        "nodes.py:VerificarCitas": 1,
-        "nodes.py:alcance_amplio": 1,
-        "nodes.py:registrar_pregunta": 1,
-        "rag.py:EmbedChunks": 1,
-        "rag.py:buscar": 1,
-        "rag.py:indexar": 1,
-        "ratchet.py:sembrar_clave": 1,
-        "ratchet.py:sha256": 1,
-        "replay.py:_grafo_debate": 1,
-        "replay.py:_grafo_rag": 1,
-        "replay.py:_grafos_vivos": 1,
-        "replay.py:_herramientas_vivas": 1,
-        "resume.py:main": 1,
-        "resume.py:migrar": 1,
-        "supervisor.py:system_prompt": 1,
-        "utils/aprobaciones.py:pedir_aprobacion": 2,
-        "utils/aprobaciones.py:registrar": 1,
-        "utils/call_llm.py:_contabilizar": 1,
-        "utils/contexto.py:_puntuar": 1,
+        "modules/supervisor.py:run_supervisor": 1,
+        "utils/aprobaciones.py:pedir_aprobacion": 1,
         "utils/embeddings.py:get_modelo": 1,
-        "utils/estado_sesion.py:capturar": 1,
-        "utils/estado_sesion.py:restaurar": 1,
-        "utils/hitl_web.py:_Handler": 4,
         "utils/laya.py:_cargar_checkpoint": 1,
         "utils/mcp_client.py:_listar": 2,
         "utils/mcp_client.py:_llamar": 2,
-        "utils/prefetch.py:decidir": 1,
-        "utils/skills.py:cargar_skills": 1,
-        "utils/thread_store.py:checkpoint": 1,
-        "utils/thread_store.py:valido": 1,
-        "utils/tracing.py:activar": 1,
-        "utils/webchat.py:_max_sesiones": 1,
-        "utils/webchat.py:_ttl": 1,
-        "utils/webchat.py:habilitado": 1,
-        "utils/websearch.py:search_web": 1,
-        "visor.py:vigilar": 1
+        "utils/websearch.py:search_web": 1
       },
-      "metrica": 79
+      "metrica": 14
     },
     "lineas_del_loop": {
       "detalle": {
         "flow.py": 41,
-        "nodes.py": 537,
+        "nodes.py": 533,
         "utils/kernel.py": 195
       },
-      "metrica": 773
+      "metrica": 769
     },
     "nodos_largos": {
       "detalle": {
@@ -241,8 +191,8 @@
         "juez_lote.py:CorrerJuez": 51,
         "juez_lote.py:JuezLoteFlow": 108,
         "nodes.py:AgentStep": 60,
-        "nodes.py:GetQuestion": 55,
-        "nodes.py:VerificarCitas": 53,
+        "nodes.py:GetQuestion": 48,
+        "nodes.py:VerificarCitas": 52,
         "research.py:Synthesizer": 60
       },
       "metrica": 13
@@ -469,6 +419,7 @@
         "tests/test_handoff.py": 3,
         "tests/test_higiene_repo.py": 9,
         "tests/test_hitl.py": 23,
+        "tests/test_imports.py": 1,
         "tests/test_inventario.py": 3,
         "tests/test_kernel.py": 26,
         "tests/test_laya.py": 5,
@@ -507,7 +458,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1132
+      "metrica": 1133
     },
     "texto_de_prompt": {
       "detalle": {

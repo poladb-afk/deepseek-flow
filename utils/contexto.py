@@ -17,6 +17,7 @@ setting (`LAYA_MODEL_PREFILTRO`). Sin checkpoint disponible (o con
 cualquier fallo), el filtro es no-op — cercado por tests. El checkpoint
 router_prefiltro existe desde exp/13 (fine-tune de la tarea declarada
 acá byte a byte); la ley de ausencia no cambia."""
+from utils import laya
 
 # Contrato del pre-filtro: una sola opción binaria ("¿este bloque ayuda a
 # responder la consulta?"). El estado es {"consulta", "bloque"}; el fine-tune
@@ -93,9 +94,7 @@ def _puntuar(consulta, unidades, setting_modelo, texto_de=None):
     Una sola llamada en lote (preguntar_lote → Agent.predict_batch): un
     forward compartido para N estados en vez de N pasadas secuenciales."""
     try:
-        from utils.laya import disponible, preguntar_lote
-
-        if not disponible(setting_modelo):
+        if not laya.disponible(setting_modelo):
             return None
         # Truncado fijo por estado: consulta 1000 chars, bloque 2000. Las
         # claves van en el orden declarado {"consulta", "bloque"} (contrato
@@ -110,7 +109,7 @@ def _puntuar(consulta, unidades, setting_modelo, texto_de=None):
             for unidad in unidades
         ]
         contrato = {"aporta_contexto": PREGUNTA_PREFILTRO["aporta_contexto"]}
-        respuestas = preguntar_lote(estados, contrato, setting=setting_modelo)
+        respuestas = laya.preguntar_lote(estados, contrato, setting=setting_modelo)
         puntajes = {}
         for i, fila in enumerate(respuestas):
             respuesta, confianza = fila["aporta_contexto"]

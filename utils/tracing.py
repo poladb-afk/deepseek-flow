@@ -11,6 +11,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import pocketflow
+
 _activo = False
 _salida = None
 _ruta_salida = None  # archivo planeado: se abre recién al primer evento
@@ -160,8 +162,6 @@ def activar(ruta_base=None):
         return
     _activo = True
     _id_thread = None  # el stem se resuelve del archivo PLANEADO
-
-    import pocketflow
 
     directorio = Path(ruta_base or Path(__file__).resolve().parent.parent / ".runs")
     directorio.mkdir(exist_ok=True)

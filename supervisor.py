@@ -38,7 +38,7 @@ from utils import fs_tools
 from utils.call_llm import call_llm, call_llm_agent
 from utils.convergencia import seco
 from utils.fs_tools import TOOLS as BASE_TOOLS
-from utils.fs_tools import escribir_salida
+from utils.fs_tools import allowed_roots, escribir_salida
 from utils.kernel import Ctx, Ledger, Tool, loop, semilla
 
 MAX_PASOS = 5
@@ -127,8 +127,6 @@ def system_prompt(tarea):
     """System prompt del sub-agente: corto y tarea-primero (estilo casa). La
     tarea del usuario, el objetivo, el presupuesto, el CWD y los directorios
     permitidos. El catálogo son los schemas (nada de menú en prosa)."""
-    from utils.fs_tools import allowed_roots
-
     roots = "\n".join(f"- {r}" for r in allowed_roots())
     cwd = Path.cwd()
     return (

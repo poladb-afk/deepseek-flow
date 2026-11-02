@@ -6358,3 +6358,48 @@ D = 1 y ninguna falla. `banco/probes/fractal.py` mide sobre la traza:
 no suma alcance. Una copia rechazada por saldo o profundidad cuenta como
 `rama_vacia`. El ratchet `lineas_del_loop` se sembró con las 4 líneas que
 este cambio agrega al kernel.
+
+---
+
+## X125: los imports perezosos al tope, con el arranque medido (2026-11-02)
+
+**Qué había.** 79 `import` dentro de funciones: 11 de stdlib, 2 de
+dependencias obligatorias (yaml, pocketflow), 58 internos y 8 de opcionales.
+La pregunta era cuántos esquivaban un ciclo y cuántos eran deuda. Se armó el
+grafo de imports de nivel superior del harness (raíz + `utils/` + `modules/`)
+y se probó, para cada arista perezosa A→B, si B alcanza A por imports de
+módulo: **cero aristas creaban ciclo**. El único ciclo real es
+`utils.aprobaciones` → `utils.hitl_web`, y va en ese sentido porque
+`hitl_web` importa `Decision` de `aprobaciones` en el tope. Los otros 78
+escondían dependencias sin motivo.
+
+**Qué se hizo.** 65 imports se movieron al tope del archivo que los usa (29
+archivos); los cuerpos de las funciones quedan con la misma lógica. Quedan
+**14**, todos con motivo declarado: los 8 de dependencias opcionales
+(`fastmcp` ×5, `fastembed`, `laya`, `ddgs`; se cargan en su punto de uso), el
+ciclo real de `hitl_web`, `juez`→`nodes` (el registro se arma al importar
+`nodes`), y la capa de módulos/piezas: `modules/supervisor`→`supervisor`
+(`supervisor.py:47` llama `discover()` al importarse), `modules/delegar`→
+`delegar` (el conductor arrastra el driver PTY) y `fable_judge`→
+`modules.coding` (el producto no importa la capa de módulos al cargar).
+
+**El gate, medido.** `python -X importtime -c "import main"`, 5 corridas
+antes y 5 después:
+
+| | antes | después |
+|---|---|---|
+| total del arranque | 840–935 ms | 859–903 ms |
+| opcionales en el grafo | ninguna | ninguna |
+
+El arranque no cambió (la diferencia entra en el ruido) y ninguna opcional
+viaja en el primer request: `tests/test_imports.py` lo verifica parseando la
+salida de `-X importtime`. El recuento lo gatea el ratchet
+(`imports_perezosos` 79 → 14).
+
+**Lo que se tocó de más, declarado.** Tres imports perezosos con motivo
+escrito (los de `modules/fable`, `fable_judge` y `modules/delegar`) se
+revisaron uno por uno: el de `modules/fable` se movió (no esquivaba nada y
+el docstring lo justificaba con un ciclo que ya no existía); los de
+`modules/delegar` y `fable_judge` se quedan, y sus comentarios se corrigieron
+para que digan el motivo real (costo del driver PTY; el producto no importa
+módulos al cargar).

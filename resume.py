@@ -13,6 +13,8 @@ rompería a la primera llamada, así que se avisa y se sale sin arrancar."""
 import sys
 
 from flow import create_agent_flow
+from main import system_prompt
+from nodes import nuevo_turno
 from utils.estado_sesion import restaurar
 from utils.thread_store import cargar, cargar_sesion, reparar_pendientes, valido
 
@@ -28,8 +30,6 @@ CLAVES_VIEJAS = {"tool_rounds": "rondas", "no_progress": "sin_progreso", "_fp": 
 def migrar(shared):
     """El shared de un checkpoint anterior a la caja `turno`, con su caja.
     PURA sobre el dict; idempotente."""
-    from nodes import nuevo_turno
-
     viejas = {nueva: shared.pop(vieja) for vieja, nueva in CLAVES_VIEJAS.items() if vieja in shared}
     if "turno" not in shared:
         shared["turno"] = {**nuevo_turno(), **viejas}
@@ -83,8 +83,6 @@ def main(args):
         return 1
     # Los faltantes se completan con setdefault, igual que main al sembrar el
     # shared: un checkpoint viejo (o parcial) no rompe el arranque.
-    from main import system_prompt
-
     shared.setdefault("messages", [{"role": "system", "content": system_prompt()}])
     _banner(id_thread, shared, reparadas)
     try:

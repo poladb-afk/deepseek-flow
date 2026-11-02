@@ -47,6 +47,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote_plus, urlsplit
 
+from utils import webchat
 from utils.aprobaciones import Decision
 from utils.call_llm import _setting
 
@@ -317,8 +318,6 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _get_chat(self):
         """GET /chat: página del chat web (WEBCHAT=1), solo loopback."""
-        from utils import webchat
-
         if not webchat.habilitado():
             self._responder(404, "<p>404</p>")
             return
@@ -329,10 +328,6 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _get_stream(self):
         """GET /chat/stream: SSE con la salida del chat (sesión + token)."""
-        from urllib.parse import parse_qs
-
-        from utils import webchat
-
         if not webchat.habilitado():
             self._responder(404, _json({"error": "webchat apagado (WEBCHAT=0)"}))
             return
@@ -360,8 +355,6 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _post_chat(self, ruta):
         """POST /chat/{sesion,mensaje,cerrar} con sesión+token (loopback)."""
-        from utils import webchat
-
         if not webchat.habilitado():
             self._responder(404, _json({"error": "webchat apagado (WEBCHAT=0)"}))
             return

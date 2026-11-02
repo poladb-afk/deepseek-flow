@@ -24,7 +24,9 @@ peligroso (git push, rm -rf) pide dos confirmaciones. Con HITL_AUTO=0
 todo vuelve al s/n de hoy (compatibilidad).
 """
 import difflib
+import json
 import re as _re
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -32,7 +34,7 @@ from utils.aprobaciones import Pedido, eventos, pedir_aprobacion
 from utils.aprobaciones import registrar as registrar_aprobacion
 from utils.call_llm import _setting
 from utils.estado_sesion import ultimo_usuario
-from utils.fs_tools import _resolve, escribir_atomico
+from utils.fs_tools import HOOKS_PRE, _resolve, allowed_roots, escribir_atomico
 from utils.policy import clasificar, configuracion, explicar, segmentos
 from utils.riesgo import registrar as registrar_riesgo
 from utils.terminal import colorear, highlight_diff, recortar_chars
@@ -65,10 +67,8 @@ def _vetar_comando_prohibido(tool_call):
     CANCELA la ejecución devolviendo el veto como texto (el modelo lo ve y
     se autocorrige); si no, devuelve None (no opina). Nunca lanza."""
 
-    import json as _json
-
     try:
-        args = _json.loads(tool_call["function"].get("arguments") or "{}")
+        args = json.loads(tool_call["function"].get("arguments") or "{}")
         comando = args.get("command") or ""
     except (ValueError, TypeError, AttributeError):  #  # noqa: BLE001 (argumentos del tool call: JSON no confiable)
         return None
@@ -89,8 +89,6 @@ def _vetar_comando_prohibido(tool_call):
 def _registrar_hooks():
     """Engancha el denylist de run_command al registro PRE del CORE. Se hace
     acá (no en fs_tools) para que la política de coding viaje con su módulo."""
-    from utils.fs_tools import HOOKS_PRE
-
     if _vetar_comando_prohibido not in HOOKS_PRE.get("run_command", []):
         HOOKS_PRE.setdefault("run_command", []).append(_vetar_comando_prohibido)
 
@@ -204,10 +202,6 @@ def _sale_de_raices(command):
     del subshell, y `--flag=/ruta` también se resuelve. Los segmentos salen
     del MISMO partidor que usa la policy: `cd ..;cat x` son dos comandos para
     el shell y para este chequeo (auditoría 2026-10-26, S3). Ante la duda, True."""
-    import shlex
-
-    from utils.fs_tools import allowed_roots
-
     roots = allowed_roots()
     cwd_efectivo = Path.cwd()
     for segmento in segmentos(command):

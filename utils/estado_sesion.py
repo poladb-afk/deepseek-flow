@@ -10,6 +10,8 @@ escribe junto al `shared`, y `restaurar()` las repone al rehidratar.
 Medido (auditoría de elegancia, F5): tras `resume`, el costo de la sesión,
 `/aprobaciones` y la intención del juez arrancaban de cero.
 """
+from utils import aprobaciones, call_llm
+
 _ultimo = {"mensaje": ""}
 
 
@@ -26,8 +28,6 @@ def ultimo_usuario():
 
 def capturar():
     """El estado de sesión del proceso, como dict JSON."""
-    from utils import aprobaciones, call_llm
-
     return {"usuario": _ultimo["mensaje"],
             "uso": dict(call_llm.USO),
             "uso_por_modelo": {m: dict(f) for m, f in call_llm.USO_POR_MODELO.items()},
@@ -38,8 +38,6 @@ def restaurar(estado):
     """Repone lo capturado (un checkpoint viejo sin sesión no cambia nada).
     Los acumuladores se REEMPLAZAN, no se suman: el proceso nuevo arranca de
     cero y el checkpoint trae el total de la sesión hasta ese punto."""
-    from utils import aprobaciones, call_llm
-
     if not isinstance(estado, dict):
         return
     _ultimo["mensaje"] = str(estado.get("usuario") or "")[:1000]

@@ -9,7 +9,7 @@ from effective_n import (
     EffectiveNMulti,
     create_effective_n_flow,
 )
-from utils.fs_tools import _resolve
+from utils.fs_tools import _resolve, salida_ya_existe
 
 TOOLS = [
     {
@@ -45,8 +45,6 @@ def run_effective_n(carpetas=None, glob="*.jsonl", salida=None):
     if salida is None:
         salida = "salidas/effective_n.md"
     else:
-        from utils.fs_tools import salida_ya_existe
-
         motivo = salida_ya_existe(salida)
         if motivo:
             return f"ERROR: {motivo}"

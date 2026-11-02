@@ -31,6 +31,11 @@ import json
 import time
 from pathlib import Path
 
+import supervisor
+import triaje_trazas
+from utils.fs_tools import escribir_atomico
+from utils.tracing import activar
+
 RAIZ = Path(__file__).resolve().parent
 ESTADO = RAIZ / ".heartbeat" / "estado.json"
 LOG = RAIZ / ".heartbeat" / "log.jsonl"
@@ -44,8 +49,6 @@ def cargar_estado():
 
 
 def guardar_estado(estado):
-    from utils.fs_tools import escribir_atomico
-
     ESTADO.parent.mkdir(exist_ok=True)
     # atómico: una corrida que muere a mitad no deja el estado truncado (el
     # próximo heartbeat leería un JSON roto y perdería los vencimientos)
@@ -64,19 +67,15 @@ def vencidas(tareas, estado, ahora=None):
 
 
 def correr(tarea):
-    from supervisor import supervisar
-
     destino = RAIZ / tarea["salida"]
     destino.parent.mkdir(parents=True, exist_ok=True)  # Sintetizar escribe directo
     inicio = time.time()
     try:
         if tarea.get("tipo") == "triaje":
-            import triaje_trazas
-
             destino_dir = (RAIZ / tarea["salida"]).parent
             informe = triaje_trazas.main(["--salida", str(destino_dir)])
             return {"ok": True, "informe": str(informe), "seg": round(time.time() - inicio, 1)}
-        informe = supervisar(tarea["tarea"], str(destino))
+        informe = supervisor.supervisar(tarea["tarea"], str(destino))
         return {"ok": True, "informe": informe, "seg": round(time.time() - inicio, 1)}
     except Exception as e:  # noqa: BLE001  (la corrida nocturna no muere por una tarea)
         return {"ok": False, "error": f"{type(e).__name__}: {e}", "seg": round(time.time() - inicio, 1)}
@@ -101,8 +100,6 @@ def main(argv=None):
     parser.add_argument("--ahora", action="store_true", help="correr todas sin esperar vencimiento")
     parser.add_argument("--seco", action="store_true", help="solo listar qué correría")
     args = parser.parse_args(argv)
-
-    from utils.tracing import activar
 
     activar()
     tareas = [json.loads(linea) for linea in Path(args.config).read_text(encoding="utf-8").splitlines() if linea.strip()]

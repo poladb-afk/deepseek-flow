@@ -16,6 +16,7 @@ import argparse
 import contextlib
 import html
 import json
+import time
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -184,8 +185,6 @@ def _vigilar_rutas(rutas, ultimo):
 def vigilar(rutas, intervalo):
     """Modo --watch: re-genera el HTML de cada traza cuando crece. Un Ctrl+C
     corta limpio. Pensado para correr al lado del chat en otra terminal."""
-    import time
-
     ultimo = {}  # ruta -> (n_eventos, mtime)
     print(colorear(
         f"[visor] watch: {', '.join(str(r) for r in rutas)} (cada {intervalo}s, Ctrl+C para salir)",

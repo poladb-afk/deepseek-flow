@@ -16,6 +16,8 @@ from types import SimpleNamespace
 
 from openai import AsyncOpenAI, OpenAI
 
+from utils import tracing
+
 DEFAULT_MODEL = "deepseek-flash"  # alias oficial de DeepSeek V4.1-Flash
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 PROJECT_ENV = Path(__file__).resolve().parent.parent / ".env"
@@ -127,10 +129,8 @@ def _contabilizar(usage, modelo=None):
     fila["cache_hit"] += hit
     fila["cache_miss"] += miss
     with contextlib.suppress(Exception):
-        from utils.tracing import evento_llm
-
         informado = getattr(usage, "prompt_cache_hit_tokens", None) is not None
-        evento_llm(pt, ct, cache_hit=hit if informado else None)
+        tracing.evento_llm(pt, ct, cache_hit=hit if informado else None)
 
 
 def call_llm(messages):

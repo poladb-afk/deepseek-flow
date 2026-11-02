@@ -5,6 +5,8 @@ elige la herramienta de cada paso; el mismo action space) y devuelve la
 síntesis con la ruta del informe. El import es perezoso: el top-level
 `supervisor` corre discover() al cargarse y un import mutuo colgaría
 el registro de módulos."""
+from utils.fs_tools import salida_ya_existe
+
 TOOLS = [
     {
         "type": "function",
@@ -26,7 +28,6 @@ TOOLS = [
 
 def run_supervisor(tarea, salida=None):
     from supervisor import supervisar
-    from utils.fs_tools import salida_ya_existe
 
     if salida is None:
         salida = "salidas/supervisor.md"

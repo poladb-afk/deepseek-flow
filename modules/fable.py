@@ -2,8 +2,9 @@
 
 Expone la pieza fable_judge.py (F1 del port de fable-method) como tool del
 chat: el reporte de un trabajo es un conjunto de claims que se juzgan por
-diff contra la referencia y por re-ejecución, no creyéndolos. El import de
-la pieza es perezoso (el top-level corre discover() al cargarse)."""
+diff contra la referencia y por re-ejecución, no creyéndolos."""
+from fable_judge import verificar_trabajo as juzgar
+
 TOOLS = [
     {
         "type": "function",
@@ -34,8 +35,6 @@ TOOLS = [
 
 
 def verificar_trabajo(trabajo, pristine=None, reporte=None, sector=None):
-    from fable_judge import verificar_trabajo as juzgar
-
     try:
         texto, advertencia = juzgar(trabajo, pristine, reporte, sector=sector)
     except ValueError as e:

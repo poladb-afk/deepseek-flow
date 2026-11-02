@@ -5,7 +5,7 @@ Documento vivo: se actualiza en cada hito (X*n*). Lo estable está en
 `docs/bitacora.md`. Acá va lo que hoy solo vivía en las conversaciones.
 `tests/test_handoff.py` verifica que lo que cita exista.
 
-**Al día con:** X124 (los instrumentos: bytes del primer request, líneas del loop, D y las fallas de DIG sobre la traza), X123 (la medición honesta: "sin datos" ≠ 0 y denominador simétrico), X114, X115 y X121 (pytest en lista blanca, su configuración vigilada y las comillas del shell), X120 (el exp/103 con el cómputo igualado), X119 (cada copia descuenta del saldo) y X118 (los principios S0, P1–P4, N1–N4), sobre X116 (la definición de elegancia y el kernel fractal) sobre X113, aplicado sobre X112 sobre `cca1f28`, más la auditoría del
+**Al día con:** X125 (los imports perezosos: 79 → 14, con `python -X importtime` como gate del arranque), X124 (los instrumentos: bytes del primer request, líneas del loop, D y las fallas de DIG sobre la traza), X123 (la medición honesta: "sin datos" ≠ 0 y denominador simétrico), X114, X115 y X121 (pytest en lista blanca, su configuración vigilada y las comillas del shell), X120 (el exp/103 con el cómputo igualado), X119 (cada copia descuenta del saldo) y X118 (los principios S0, P1–P4, N1–N4), sobre X116 (la definición de elegancia y el kernel fractal) sobre X113, aplicado sobre X112 sobre `cca1f28`, más la auditoría del
 operador sobre ese árbol (2026-10-31): dos hallazgos de seguridad abiertos
 (X114 y X115 en `docs/estado.md`) y cuatro de orden, todos en la cola.
 
@@ -54,7 +54,7 @@ proceso viven en `AGENTS.md`.
 | ratchet | fase 0 | hoy | meta |
 |---|---|---|---|
 | `settings_leidos` | 89 | 56 | ≤ 45 |
-| `imports_perezosos` | 137 | 80 | ≤ 40 |
+| `imports_perezosos` | 137 | 14 (X125) | ≤ 40 ✅ |
 | `nodos_largos` | 15 | 13 | ≤ 3 |
 | `vocabulario_hardcodeado` | 8 | 5 (el instrumento ve los YAML desde X112) | ≤ 2 |
 | `texto_de_prompt` | 2748 | 1542 | 1542 ✅ |
@@ -111,7 +111,7 @@ puede ajustarla (es un dato de `utils/politica_comandos.json`).
 | 1 | Aplicar X112 + X113; la clave por vocabulario 3 → 5 | no | — | — |
 | 2 | ✅ **X114, seguridad (S0):** hecho el 2026-11-01 con X115 y X121 (ver `docs/estado.md`) | **sí**, solo sube fricción | 1 | ver "X114 en detalle" abajo |
 | 3 | ✅ **X115-orden hecho (2026-11-02):** los `.patch` y el test viejo se borraron (quedan en la historia de git), el candado de higiene es `tests/test_higiene_repo.py` (X122) y las dependencias quedaron separadas: `requirements.txt` (runtime), `requirements-dev.txt` (`-r requirements.txt` + pytest + ruff) y `requirements-opcionales.txt`; el CI instala `requirements-dev.txt` | no | 1 | hecho |
-| 4 | Imports perezosos → ≤ 40, con `python -X importtime` como gate | no | 1 | 12 stdlib, 8 opcionales, 2 obligatorias y 59 internos (sobre 81) |
+| 4 | ✅ **X125 hecho (2026-11-02):** imports perezosos **79 → 14** (11 stdlib, 2 obligatorias y los internos al tope del archivo que los usa); quedan 8 opcionales, el único ciclo real (`hitl_web`) y 5 de la capa de módulos/piezas, con motivo declarado. Gate: `python -X importtime -c "import main"` (840–935 ms antes, 859–903 ms después) y `tests/test_imports.py` | no | 1 | hecho |
 | 5 | Pre-registro y A/B de S6 (un solo techo de rondas) | **sí** | 1 | s9: 5 de 6 sin terminar, 0 deploys |
 | 6 | 5c-a: los prefiltros como un mecanismo con un setting | depende | 1 | 5 settings hoy |
 | 7 | 5c-b: Laya 0.4 | sí | **bloqueado** | que esté instalada |

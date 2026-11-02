@@ -14,6 +14,7 @@ Sin HITL de aprobación (preguntar no es un efecto), sin timeout v1. Un
 Ctrl+C durante el input se propaga como siempre en el chat: Ctrl+C es
 del usuario, no del agente.
 """
+from utils.call_llm import _setting
 from utils.terminal import colorear
 
 TOOLS = [
@@ -48,8 +49,6 @@ def request_human_input(pregunta):
     `HUMANO_RESPUESTA` (banco/headless) devuelve ese texto sin leer stdin:
     el usuario está offline y el agente sigue con su supuesto."""
     print(colorear(f"  [humano] {pregunta}", "aviso"))
-    from utils.call_llm import _setting
-
     offline = _setting("HUMANO_RESPUESTA")
     if offline:
         return offline

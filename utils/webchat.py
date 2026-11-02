@@ -29,6 +29,8 @@ import threading
 import time
 from pathlib import Path
 
+from utils.call_llm import _entero, _setting
+
 RAIZ = Path(__file__).resolve().parent.parent
 MAX_SESIONES_DEFAULT = 3
 TTL_DEFAULT = 900
@@ -39,14 +41,10 @@ _gestor = None
 
 
 def _ttl():
-    from utils.call_llm import _entero
-
     return max(30, _entero("WEBCHAT_TTL", TTL_DEFAULT))
 
 
 def _max_sesiones():
-    from utils.call_llm import _entero
-
     return max(1, _entero("WEBCHAT_MAX_SESIONES", MAX_SESIONES_DEFAULT))
 
 
@@ -170,8 +168,6 @@ def gestor():
 
 
 def habilitado():
-    from utils.call_llm import _setting
-
     return _setting("WEBCHAT", "0") == "1"
 
 

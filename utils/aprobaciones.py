@@ -19,6 +19,8 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
+from utils import tracing
+from utils.call_llm import _setting
 from utils.policy import IRREVERSIBLES, PREGUNTAR, irreversible, opaco, segmentos
 
 _MAX = 200  # tope del buffer circular: una sesión larga no crece sin techo
@@ -41,8 +43,6 @@ def registrar(tipo, resumen, decision, nivel=PREGUNTAR):
         # Traza compacta para el tablero: tipo/nivel/decisión (seg queda 0:
         # registrar no mide duración), SIN resumen (F4: la tasa real de
         # rechazo HITL no era medible).
-        from utils import tracing
-
         tracing.evento_hitl(str(tipo), str(nivel), bool(decision))
     except Exception:  # noqa: BLE001  (UX: un fallo acá jamás corta la acción)
         pass
@@ -185,7 +185,6 @@ def pedir_aprobacion(pedido):
     Nunca lanza: EOF, Ctrl+C o un HITL_SCOPE ilegible son RECHAZO. El HITL
     web devuelve SU Decision (exp/102: también puede traer motivo)."""
     from utils import hitl_web
-    from utils.call_llm import _setting
 
     scope = _setting("HITL_SCOPE", "")
     if scope:

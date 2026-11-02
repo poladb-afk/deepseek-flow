@@ -10,6 +10,8 @@ Uso:
     # y desde cualquier cliente: MCP_SERVERS=deepseek::python3 .../main.py mcp-server
 """
 import argparse
+import functools
+import inspect
 import json
 import sys
 
@@ -75,10 +77,6 @@ def envolver(nombre, fn, impls):
     run_tool_call — el ÚNICO camino con HOOKS_PRE (denylist) y HOOKS_POST.
     Antes se registraba la implementación cruda y un run_command expuesto
     salteaba la denylist."""
-    import functools
-    import inspect
-    import json
-
     @functools.wraps(fn)
     def envuelta(**kwargs):
         tc = {"id": f"mcp-{nombre}", "type": "function",

@@ -5,9 +5,10 @@ from pathlib import Path
 
 from flow import create_agent_flow
 from modules import ganchos
-from utils.call_llm import _setting
-from utils.costos import costo_desglose
+from utils.call_llm import _setting, desglose_de_sesion, uso_de_sesion
+from utils.costos import costo_desglose, delta_desglose, precios
 from utils.fs_tools import allowed_roots
+from utils.tracing import activar
 
 WELCOME = "Agente con DeepSeek V4.1 Flash — pedidos sobre tus archivos y tu código ('salir' o Ctrl+C para terminar)."
 
@@ -104,8 +105,6 @@ SUBCOMANDOS = {
 
 
 def main():
-    from utils.tracing import activar
-
     activar()
     if len(sys.argv) > 1 and sys.argv[1] in SUBCOMANDOS:
         modulo = importlib.import_module(SUBCOMANDOS[sys.argv[1]])
@@ -159,9 +158,6 @@ def _reporte_tokens(shared):
     — costo_traza medía segundos. exp/90: además el costo estimado en
     dinero (off-peak) y el desglose por pregunta."""
     with contextlib.suppress(Exception):
-        from utils.call_llm import _setting, desglose_de_sesion, uso_de_sesion
-        from utils.costos import delta_desglose, precios
-
         uso = uso_de_sesion()
         if not uso["llamadas"]:
             return

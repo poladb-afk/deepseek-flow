@@ -20,6 +20,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from yaml import YAMLError, safe_load
+
 PREFIJO_SKILL = "[skill]"
 
 DIR_SKILLS = Path(__file__).resolve().parent.parent / "skills"
@@ -42,8 +44,6 @@ class Skill:
 def cargar_skills(raiz=None):
     """Skills válidos de `raiz` (default `skills/`); los inválidos se saltean
     con aviso a stderr para que un archivo roto no tumbe el chat."""
-    from yaml import YAMLError, safe_load
-
     directorio = Path(raiz or DIR_SKILLS)
     if not directorio.is_dir():
         return []

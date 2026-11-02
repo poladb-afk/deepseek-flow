@@ -6,6 +6,8 @@ rag_index/ del proyecto."""
 import re
 
 from rag import buscar, indexar
+from utils.call_llm import _setting
+from utils.contexto import elegir_por_laya
 
 TOOLS = [
     {
@@ -54,8 +56,6 @@ def _prefiltrar(consulta, salida, k):
     tangenciales ANTES de que viajen al modelo. Sin Laya disponible, o sin
     índice con fragmentos parseables, la salida queda intacta: el prefiltro
     es no-op y no se pierde recall (regla de hierro)."""
-    from utils.call_llm import _setting
-
     if _setting("RAG_PREFILTRO", "1") != "1":
         return salida
     try:
@@ -68,8 +68,6 @@ def _prefiltrar(consulta, salida, k):
     if fragments is None or len(fragments) <= maximo:
         return salida
     try:
-        from utils.contexto import elegir_por_laya
-
         elegidos = elegir_por_laya(consulta, fragments, maximo)
     except Exception:  # el prefiltro nunca rompe rag_search  # noqa: BLE001 (prefiltro Laya best-effort: nunca rompe rag_search)
         return salida

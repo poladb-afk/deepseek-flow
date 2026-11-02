@@ -25,6 +25,7 @@ from pathlib import Path
 from utils import call_llm as cliente
 from utils.call_llm import _setting
 from utils.compaccion import MAX_RESPALDO_CHARS, PREFIJO_COMPACCION, huella, serializar, zona_fria
+from utils.contexto import elegir_por_laya
 from utils.fs_tools import escribir_atomico
 from utils.prefetch import PREFIJO_PREFETCH
 from utils.skills import PREFIJO_SKILL
@@ -139,8 +140,6 @@ def _prefiltrar(query, archivos):
     if maximo <= 0 or len(archivos) <= maximo:
         return archivos, False
     try:
-        from utils.contexto import elegir_por_laya
-
         elegidos = elegir_por_laya(query, archivos, maximo,
                                    setting_modelo="LAYA_MODEL_PREFILTRO",
                                    texto_de=_texto_de_nota)
@@ -212,8 +211,6 @@ def guardar_resumen_sesion(contenido):
     # lexists, no exists: un symlink COLGANTE da exists()=False y write_text
     # lo seguía, creando el archivo fuera de memoria/ (medido)
     if os.path.lexists(destino):
-        from datetime import datetime
-
         marca = datetime.now().strftime("%H%M")
         destino = raiz / f"sesion_{date.today().isoformat()}-{marca}.md"
         n = 2

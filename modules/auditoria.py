@@ -3,6 +3,7 @@
 Corre el mismo flujo que `main.py auditoria` y devuelve la ruta del
 markdown generado."""
 from auditoria import auditar
+from utils.fs_tools import salida_ya_existe
 
 TOOLS = [
     {
@@ -25,8 +26,6 @@ TOOLS = [
 
 
 def run_auditoria(carpetas, glob="*.jsonl", salida=None):
-    from utils.fs_tools import salida_ya_existe
-
     if salida is None:
         salida = "salidas/auditoria.md"
     else:

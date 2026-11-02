@@ -75,6 +75,8 @@ from __future__ import annotations
 import argparse
 import ast
 import contextlib
+import getpass
+import hashlib
 import json
 import os
 import re
@@ -963,8 +965,6 @@ def _texto_de_git(raiz: Path, ref: str, ruta: Path) -> str | None:
 
 
 def sha256(texto: str) -> str:
-    import hashlib
-
     return hashlib.sha256(texto.encode("utf-8")).hexdigest()
 
 
@@ -988,8 +988,6 @@ def clave_valida(raiz: Path, clave: str | None, ruta_hash: Path | None = None) -
 
 def sembrar_clave(ruta_hash: Path = HASH_CLAVE, salida=print, leer=None) -> int:
     """Pide la clave por la TERMINAL (getpass) y escribe solo su sha256."""
-    import getpass
-
     leer = leer or getpass.getpass
     try:
         clave = leer("Clave del operador (no se guarda; solo su sha256): ").strip()

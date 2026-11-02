@@ -27,6 +27,7 @@ Sin dependencias nuevas: `requests` (ya presente). API key/base de los
 settings existentes (`LLM_API_KEY`/`LLM_BASE_URL`)."""
 import base64
 import subprocess
+import tempfile
 from pathlib import Path
 
 import requests
@@ -162,8 +163,6 @@ def ver_pdf(path, pregunta="¿Qué dice este PDF?"):
             f"ERROR: {resolved.name} no es un PDF (no empieza con la firma %PDF). "
             "El tipo se valida por el contenido del archivo."
         )
-
-    import tempfile
 
     with tempfile.TemporaryDirectory(prefix="vision_pdf_") as tmp:
         base = str(Path(tmp) / "pag")

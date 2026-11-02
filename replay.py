@@ -55,10 +55,14 @@ from collections import Counter
 from datetime import date, datetime
 from pathlib import Path
 
+from debate import Critico, FinAgente, JuezDebate, Proponente
+from nodes import MODULE_IMPLS, TOOLS
+from rag import ChunkDocs, EmbedChunks, SaveIndex
 from utils.git import sha_corto
 from utils.rutas import DIR_RUNS
 from utils.tracing import es_bookkeeping
 from utils.trazas import leer_eventos
+from utils.viz import FLOWS
 
 DIR_SALIDA = Path("salidas/evals")
 BASELINE = Path("salidas/evals/replay_baseline.json")
@@ -112,8 +116,6 @@ def _grafo_debate():
     igual que el fuente (Proponente/Critico se auto-apuntan). Devuelve las
     RAÍCES: P y C arrancan corutinas independientes, ninguno alcanza al
     otro."""
-    from debate import Critico, FinAgente, JuezDebate, Proponente
-
     p, c, fin = Proponente(), Critico(), FinAgente()
     p - "continue" >> p
     p - "end" >> fin
@@ -126,8 +128,6 @@ def _grafo_debate():
 
 def _grafo_rag():
     """El grafo inline de rag.py (indexar lo construye adentro)."""
-    from rag import ChunkDocs, EmbedChunks, SaveIndex
-
     chunk, embed_, save = ChunkDocs(), EmbedChunks(), SaveIndex()
     chunk >> embed_ >> save
     return [chunk]
@@ -136,8 +136,6 @@ def _grafo_rag():
 def _grafos_vivos():
     """(clases, aristas_chat): las clases VIVAS con sus acciones cableadas
     {nombre: set(acciones)} y las aristas del chat {(de, accion, a)}."""
-    from utils.viz import FLOWS
-
     clases = {}
     chat_nodos = []
 
@@ -223,8 +221,6 @@ def _grafos_vivos():
 def _herramientas_vivas():
     """Los nombres del action space VIVO: TOOLS (esquemas) + IMPL (implementaciones)
     importados de nodes — el registro real del que el chat despacha."""
-    from nodes import MODULE_IMPLS, TOOLS
-
     return {t["function"]["name"] for t in TOOLS} | set(MODULE_IMPLS)
 
 

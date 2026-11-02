@@ -34,7 +34,7 @@ import time
 from datetime import date, datetime
 from pathlib import Path
 
-from juez import CITA_RE
+from juez import CITA_RE, responder_con_juez
 from utils.formato import pct
 from utils.git import sha_o_motivo
 
@@ -177,10 +177,7 @@ def correr(casos, responder=None):
     `responder` es inyectable para los tests (fake sin LLM); en producción es
     `juez.responder_con_juez` (rondas default del juez). Devuelve el dict con
     filas y métricas agregadas."""
-    if responder is None:
-        from juez import responder_con_juez
-
-        responder = responder_con_juez
+    responder = responder or responder_con_juez
 
     filas = []
     n = len(casos)

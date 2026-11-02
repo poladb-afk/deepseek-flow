@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 from pocketflow import BatchNode, Flow, Node
 
+from utils.embeddings import embed, get_modelo
 from utils.fs_tools import SKIP_DIRS, _resolve, escribir_atomico, sin_enlaces
 
 INDICE_DIR = Path(__file__).resolve().parent / "rag_index"
@@ -99,7 +100,6 @@ class EmbedChunks(BatchNode):
         # el modo viaja en params (config de la tarea, no dato): lo setea indexar()
         if self.params.get("modo", "semantico") != "semantico" or not batch:
             return {"chunks": batch, "vectores": []}
-        from utils.embeddings import embed
 
         vectores = embed([c["texto"] for c in batch])
         return {"chunks": batch, "vectores": vectores}
@@ -154,8 +154,6 @@ def indexar(carpeta, glob="*"):
 
     modo = "semantico"
     try:
-        from utils.embeddings import get_modelo
-
         get_modelo()
     except (RuntimeError, ImportError):
         modo = "lexico"
@@ -237,8 +235,6 @@ def buscar(consulta, k=K_DEFAULT):
     if not chunks:
         return "El índice está vacío: reindexa con rag_index."
     if modo == "semantico":
-        from utils.embeddings import embed
-
         q = np.array(embed([consulta], consulta=True)[0], dtype=np.float32)
         qn = q / max(float(np.linalg.norm(q)), 1e-12)
         normas = np.linalg.norm(vectores, axis=1, keepdims=True)
