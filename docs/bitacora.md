@@ -6828,6 +6828,13 @@ primitiva. La consecuencia pre-registrada (retiro de la rama `exp/105`) queda
 para la decisión del operador; el registro completo está en
 `docs/informes/exp105_72_corridas_2026-11-02.md`.
 
+**Desvío declarado, post-dato (operador, 2026-11-02):** la rama `exp/105` se
+**conserva como banco** y se mergea a `main` con su instrumento y sus tests,
+para re-medir con GLM cuando haya endpoint; el pre-registro ataba el retiro de
+la rama al resultado. Es post-dato —se decide después de ver el veredicto— y
+por eso queda escrito acá. El veredicto no cambia (❌ por adopción) y nada del
+producto se toca: entran el arnés, sus 8 tests y el informe.
+
 ### Las 72 filas
 
 | brazo | seed | escenario | ca | tokens | dividir | D | fallas | deploy | error |

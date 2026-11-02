@@ -49,16 +49,15 @@ lo necesita generando patrones; ahí está lo fractal". La fractalidad es
 modelo, no una regla del código. Esto contesta la pregunta de estructural vs
 conductual.
 
-`[PENDIENTE: operador]` La tensión que queda: el mecanismo que vuelve fractal
-al harness depende de una decisión que este modelo no toma —la división se
-ofreció y quedó en **0 de 72** en el exp/103; antes, el explorador en 0
-llamadas y las skills por descripción en 5 de 12—. Forzarla choca con los
-principios: un disparo por umbral del código choca con N1, y convencerlo con
-texto choca con N3. Queda elegir entre (a) cambiar de modelo y re-medir con el
-instrumento del exp/104, ya commiteado; (b) admitir un disparo por dato del
-código, reformulando N1 con su pre-registro; o (c) quedarse con la
-fractalidad estructural y tratar la conductual como capacidad en observación.
-El equipo recomienda (a) primero.
+`[CERRADO: operador, 2026-11-02 — opción (c)]` La fractalidad es
+**estructural**: una instancia es parte de sí misma y no depende de que el
+modelo la elija. La conductual queda como capacidad **medida y no perseguida**:
+la división se ofreció y no la eligió ningún modelo —0/72 con `deepseek-flash`
+(exp/103) y 0/72 con `deepseek-v4-pro` (exp/105)—; antes, el explorador en 0
+llamadas y las skills por descripción en 5 de 12. Con eso: la opción (a),
+cambiar de modelo, quedó **descartada por medición en dos modelos**; la (b), un
+disparo por dato del código, queda como idea **pre-registrable** (tendría que
+reformular N1), no como trabajo en curso.
 
 ## 2. Principios
 
