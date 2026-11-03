@@ -28,7 +28,7 @@ flowchart TD
 Es el patrón Agent (decidir → actuar → volver a decidir) implementado con
 **tool calling nativo** de DeepSeek en vez de YAML. Desde S9b A′ el loop es el
 **del kernel**: un `Flow` de `kernel.loop`, **una instancia por proceso**, y
-`PasoChat.prep` (`nodes.py:392-397`) resetea el `Ledger` y las tools del skill en
+`PasoChat.prep` (`nodes.py:412-418`) resetea el `Ledger` y las tools del skill en
 la primera ronda de cada pregunta. `PasoChat` manda el historial + las tools; si
 el modelo pide tools, `ActuarChat` las ejecuta (despacha por `run_tool_call`:
 hooks, denylist y HITL) y las políticas
