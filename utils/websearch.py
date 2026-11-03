@@ -6,23 +6,29 @@ from utils.call_llm import _setting
 
 
 def search_web(consulta, k=5):
-    from ddgs import DDGS
-
     if _setting("SEARCH_PROVIDER", "ddgs") != "ddgs":
         return f"ERROR: SEARCH_PROVIDER={_setting('SEARCH_PROVIDER')} no implementado; usa ddgs"
 
     try:
+        # DENTRO del try (exp/37): ddgs es dependencia opcional y el import
+        # afuera lanzaba ModuleNotFoundError y cortaba la corrida entera
+        # (medido por la verificación del brazo research-agente); acá
+        # adentro también es texto de esa búsqueda. El ARMADO de las líneas
+        # va igual adentro (verificación, ronda 2): un resultado mal formado
+        # de ddgs (que no sea dict) también degrada a texto — la ley es
+        # "search_web no lanza".
+        from ddgs import DDGS
         resultados = DDGS().text(consulta, max_results=int(k)) or []
+        lineas = []
+        for r in resultados:
+            url = r.get("href") or r.get("url") or ""
+            titulo = r.get("title", "")
+            cuerpo = (r.get("body") or "")[:300]
+            lineas.append(f"- {titulo}\n  {url}\n  {cuerpo}")
     except Exception as e:  # noqa: BLE001  (degrada a texto: el resto del
         # harness no se cae por una búsqueda sin red; research ve el error
         # como dato y sigue con las queries que sí pueden salir)
         return f"ERROR: búsqueda web falló ({type(e).__name__}: {e})"
-    lineas = []
-    for r in resultados:
-        url = r.get("href") or r.get("url") or ""
-        titulo = r.get("title", "")
-        cuerpo = (r.get("body") or "")[:300]
-        lineas.append(f"- {titulo}\n  {url}\n  {cuerpo}")
     if not lineas:
         return f"Sin resultados para: {consulta}"
     return "\n\n".join(lineas)

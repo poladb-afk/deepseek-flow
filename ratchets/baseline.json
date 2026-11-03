@@ -113,7 +113,7 @@
           215
         ],
         "utils/websearch.py": [
-          16
+          28
         ]
       },
       "metrica": 26
@@ -391,7 +391,7 @@
         "tests/test_forma_larga.py": 5,
         "tests/test_fractal.py": 8,
         "tests/test_fs_tools.py": 16,
-        "tests/test_gate_fractal.py": 3,
+        "tests/test_gate_fractal.py": 7,
         "tests/test_grafo_readme.py": 1,
         "tests/test_grafos_sin_calles_muertas.py": 3,
         "tests/test_h3b_swarm.py": 6,
@@ -408,7 +408,7 @@
         "tests/test_mcp_laya.py": 11,
         "tests/test_memoria.py": 25,
         "tests/test_minar_errores.py": 16,
-        "tests/test_modulos.py": 18,
+        "tests/test_modulos.py": 20,
         "tests/test_novedad.py": 2,
         "tests/test_pendientes.py": 35,
         "tests/test_policy.py": 26,
@@ -440,7 +440,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1179
+      "metrica": 1185
     },
     "texto_de_prompt": {
       "detalle": {

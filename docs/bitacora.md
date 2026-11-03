@@ -7431,3 +7431,43 @@ del verificador (`c5f19f43…`, zipball de GitHub) difiere del `81f45f36…`
 (`git archive 12f378a`, determinista, mismo árbol). El commit intermedio
 `f0588d4` (que entró pese a un rojo de cuota de disco) fue reemplazado por
 el amend `3a5aece`: no es ancestro de `main` y ninguna rama lo contiene.
+
+---
+
+**Refutación externa (mismo día) y arreglo: la otra mitad de exp/37.** El
+verificador del brazo encontró que la reescritura cumplía la ley del tope
+(exp/28) y la L8, pero perdió la mitad de exp/37: el `Researcher` viejo
+envolvía la búsqueda en `try/except` — si `search_web` LANZABA, esa búsqueda
+quedaba como dato y la corrida seguía — y el re-test usaba una búsqueda que
+DEVOLVÍA el texto `ERROR:` y nunca probaba una que lance. Medido: sin `ddgs`
+instalado (dependencia opcional), `search_web` lanzaba `ModuleNotFoundError`
+— el `from ddgs import DDGS` estaba FUERA de su try — y cortaba la corrida
+entera. **Arreglo de raíz, sin ningún `except` nuevo**: el import pasó
+adentro del try de `utils.websearch.search_web` (el ÚNICO punto de búsqueda:
+también lo aprovechan el chat y el módulo websearch). El re-test vuelve a
+usar una búsqueda que lanza (import bloqueado vía `sys.modules`) y exige que
+la corrida termine con su informe; un unit test nueva cubre el path sin el
+paquete. `excepts_amplios` sigue en 26: el except ya existía, solo pasa a
+cubrir también el import. R2 declarada: `test_el_fallo_de_una_busqueda_es_
+dato_del_loop` se reemplaza por `test_una_busqueda_que_lanza_es_dato_y_la_
+corrida_termina`, más fuerte (misma ley, camino que lanza, corrida entera).
+Detalles menores aceptados: el criterio 6 tiene partes manuales (el
+instrumento ahora las imprime en `--comparar`) y el panel ciego exige
+aleatorizar el orden de los pares a mano.
+
+**Ronda 2 de la verificación (control de escritorio), aplicada**: (a) el
+ARMADO de las líneas de resultado pasó adentro del try de `search_web` — un
+resultado de ddgs que no sea dict degrada a texto en vez de cortar la
+corrida (el Researcher viejo lo cubría; candado nuevo:
+`test_search_web_con_resultado_mal_formado_degrada_a_texto`). La ley queda
+dicha como es: **"`search_web` no lanza"**, con un límite conocido y
+preexistente fuera de este brazo: `modules/websearch.run_search_web` hace
+`int(k)` ANTES de llamar (un `k` no numérico del modelo en la tool del CHAT
+lanza; research no lo toca, pasa `RESULTADOS_POR_QUERY` literal). El test de
+exp/37 y el de SinRed se verificaron en ambos órdenes (monkeypatch.setitem
+restaura: sin contaminación de `sys.modules`). Y una corrección al relato
+del rebase: el conflicto de `ratchets/baseline.json` se resolvió con la
+versión de la RAMA (1180), no con la de main (1175) — en un rebase,
+`--theirs` es el commit que se aplica; el reporte anterior decía "la de
+main" y estaba mal. No cambió el resultado: el ratchet re-derivó el número
+real de la rama rebasada y solo mejoró.

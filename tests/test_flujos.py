@@ -575,19 +575,39 @@ def test_el_tope_de_busquedas_del_run_lo_aplica_el_codigo(monkeypatch):
     assert research.tool_search().correr(rota, None).startswith("ERROR: argumentos ilegibles")
 
 
-def test_el_fallo_de_una_busqueda_es_dato_del_loop(monkeypatch):
-    """exp/37 (P6), re-expresado: el fallo de UNA búsqueda es un dato de esa
-    tool call (vuelve como texto y el loop sigue), no un motivo para
-    re-ejecutar la ronda entera y perder las búsquedas ya pagadas."""
+def test_una_busqueda_que_lanza_es_dato_y_la_corrida_termina(tmp_path, monkeypatch):
+    """exp/37 (P6), re-hecha: la ley ahora es "`search_web` NO LANZA" — el
+    import de ddgs y el armado de las líneas viven dentro de su try, y lo
+    que falla degrada a texto de ESA búsqueda. Este test fuerza el fallo más
+    temprano (el import) con `sys.modules["ddgs"] = None` vía monkeypatch
+    (se restaura solo: el test de SinRed del módulo corre igual después), el
+    loop ve el error como tool result y la corrida termina con su informe.
+    La primera versión del re-test usaba una búsqueda que DEVOLVÍA el error
+    y no cuidaba la mitad que lanza (refutación de la verificación externa)."""
+    import json as _json
+    import sys
+    from types import SimpleNamespace as NS
+
     import research
 
-    def falla(consulta, k=4):
-        return "ERROR: búsqueda web falló (RuntimeError: sin red)"
+    monkeypatch.setenv("SEARCH_PROVIDER", "ddgs")
+    # como si ddgs no estuviera instalado: el import LANZA, dentro del try
+    monkeypatch.setitem(sys.modules, "ddgs", None)
+    vistos = []
 
-    monkeypatch.setattr(research, "run_search_web", falla)
-    tool = research.tool_search()
-    llamada = {"function": {"name": "search_web", "arguments": '{"consulta": "q"}'}}
-    assert tool.correr(llamada, None).startswith("ERROR: búsqueda web falló")
+    def llm(mensajes, tools=None):
+        vistos.extend(m["content"] for m in mensajes if m.get("role") == "tool")
+        if tools and not any(m.get("role") == "tool" for m in mensajes):
+            return NS(content=None, tool_calls=[NS(
+                id="c1", function=NS(name="search_web",
+                                      arguments=_json.dumps({"consulta": "x"})))])
+        return NS(content="# Informe", tool_calls=None)
+
+    monkeypatch.setattr(research, "call_llm_agent", llm)
+    salida = tmp_path / "research.md"
+    research.investigar("tema", str(salida))
+    assert vistos[0].startswith("ERROR: búsqueda web falló")   # el modelo lo vio como texto
+    assert "# Informe" in salida.read_text(encoding="utf-8")   # y la corrida cerró con informe
 
 
 def test_investigar_corre_sobre_el_kernel_y_escribe_el_informe(tmp_path, monkeypatch):

@@ -450,3 +450,35 @@ def test_search_web_degrada_a_error_sin_red(monkeypatch):
     # si esto falla, el test no llegó a la llamada que debía reventar
     assert llamadas == [("x", 3)]
     assert isinstance(r, str) and r.startswith("ERROR: búsqueda web falló"), r
+
+def test_search_web_sin_el_paquete_degrada_a_texto(monkeypatch):
+    """exp/37 (refutación de research-agente): el import de ddgs quedó
+    DENTRO del try — sin el paquete instalado, search_web devuelve ERROR
+    como texto en vez de lanzar ModuleNotFoundError y cortar la corrida
+    entera (lo aprovechan research, el chat y el módulo: un solo punto)."""
+    import sys
+
+    monkeypatch.setenv("SEARCH_PROVIDER", "ddgs")
+    monkeypatch.setitem(sys.modules, "ddgs", None)
+    from utils.websearch import search_web
+
+    r = search_web("consulta", k=2)
+    assert r.startswith("ERROR: búsqueda web falló (ModuleNotFoundError")
+
+def test_search_web_con_resultado_mal_formado_degrada_a_texto(monkeypatch):
+    """exp/37, ronda 2 de la verificación: el ARMADO de las líneas también
+    vive dentro del try — un resultado de ddgs que no sea dict degrada a
+    texto de esa búsqueda en vez de cortar la corrida (el Researcher viejo
+    lo cubría; search_web no lanza en ningún caso)."""
+    import sys
+    from types import SimpleNamespace as NS
+
+    class Raro:
+        def text(self, consulta, max_results=5):
+            return ["no soy un dict"]
+
+    monkeypatch.setenv("SEARCH_PROVIDER", "ddgs")
+    monkeypatch.setitem(sys.modules, "ddgs", NS(DDGS=Raro))
+    from utils.websearch import search_web
+
+    assert search_web("consulta", k=2).startswith("ERROR: búsqueda web falló (AttributeError")

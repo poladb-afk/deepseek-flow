@@ -175,6 +175,11 @@ def main(argv=None):
         pasa, detalle = criterios(base, agente, args.preferencias)
         for nombre, (ok, texto) in detalle.items():
             print(f"{'✅' if ok else '❌'} {nombre}: {texto}")
+        print("\ncriterio 6, lo que queda MANUAL (el instrumento solo mira nombres e interfaz): "
+              "`./calidad.sh` verde en la rama, `tests_definidos` no baja y la traza con "
+              "Paso/Actuar — va en el reporte del A/B.")
+        print("panel ciego: aleatorizá el orden de los pares antes de leerlos "
+              "(el instrumento recibe las letras, no arma el orden).")
         print("\nexp/108: PASA" if pasa else "\nexp/108: NO PASA (la rama se revierte)")
         return 0 if pasa else 1
     parser.print_help()
