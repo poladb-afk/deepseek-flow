@@ -149,8 +149,10 @@ regex sino del verbo del borrador: `TOOL_CONTEXTO_RE` matchea `ejecut[aá]r?` e
 `invoc[aá]r?` (ejecutá/ejecutar, invocá/invocar) y el borrador dice "ejecuto" e
 "invoco", que no matchean — la línea no tiene contexto de herramienta y no se
 contrasta. Con la medición hecha, el baseline real es: **regex 2/3 de recall
-(falla H3, falso negativo) y 1/4 de precisión (en N2b marca tres nombres)**;
-el mecanismo semántico dio 3/3 y 4/4. La predicción equivocada queda declarada
+(falla H3, falso negativo) y tasa de falsos positivos 1/4** (N2b marca tres
+nombres: 2 aciertos sobre 5 alertas = 0,4); el mecanismo semántico dio 3/3 y
+4/4. "Precisión" no era el nombre: la fracción es por borrador limpio que
+dispara, no por alerta. La predicción equivocada queda declarada
 y **no cambia los criterios**: se decidió con lo que midió el instrumento, que
 es lo que el pre-registro evalúa.
 
@@ -183,6 +185,10 @@ inestable impida medir es un límite operativo, no un resultado.
   de citas reales en el prompt no se mide.
 - **La compuerta no se mide**: es determinista (membresía contra el
   inventario) y se cubre con tests en I2.
+- **Depende de que el modelo liste**: si el modelo omite `tools_usadas`,
+  `_validar` lo toma como `[]` y la compuerta no tiene qué contrastar; el
+  regex viejo escaneaba el texto aunque el modelo no cooperara. Se midió
+  14/14 de cumplimiento, y el diseño se aprobó con este límite escrito.
 - **El ahorro de tokens del inventario** (31 nombres más en cada llamada al
   juez) se reporta como dato de bytes, no como criterio.
 - El corpus está escrito por el laboratorio: los borradores reales los produce

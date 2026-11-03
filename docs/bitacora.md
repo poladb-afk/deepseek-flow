@@ -7156,10 +7156,13 @@ del intento 1, que un 503 del proveedor tiró y quedó declarado inválido sin
 evaluar criterios) = **US$0,0179** contra el techo US$0,05. El baseline del
 regex, medido en el mismo corpus, fue **peor de lo que predecía la tabla del
 spec**: recall 2/3 (en H3 devuelve `[]` porque "ejecuto"/"invoco" no matchean
-`ejecut[aá]r?`/`invoc[aá]r?`) y precisión 1/4 (en N2b marca `tool_calls`,
-`reasoning_content` y `mi_dato`). La predicción equivocada quedó declarada en
-el spec y no cambió los criterios. El corpus es sintético y de un solo modelo:
-mide viabilidad, no tasa de producción (límites en el spec).
+`ejecut[aá]r?`/`invoc[aá]r?`) y **tasa de falsos positivos 1/4** (en N2b marca
+`tool_calls`, `reasoning_content` y `mi_dato`: 2 aciertos sobre 5 alertas).
+La predicción equivocada quedó declarada en el spec y no cambió los criterios.
+El corpus es sintético y de un solo modelo: mide viabilidad, no tasa de
+producción. Y el mecanismo **depende de que el modelo liste**: si omite
+`tools_usadas`, la compuerta no tiene qué contrastar (el regex viejo escaneaba
+el texto igual); se midió 14/14 de cumplimiento y queda como límite declarado.
 
 **Conducta**: cambio pre-registrado de un evaluador (no del chat); el contrato
 observable del Judge sigue siendo el veredicto. El aviso "herramienta
