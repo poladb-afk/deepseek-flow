@@ -183,10 +183,9 @@
       "detalle": {
         "effective_n.py:HashFile": 47,
         "effective_n.py:WriteReport": 50,
-        "juez.py:Judge": 72,
-        "juez_lote.py:JuezLoteFlow": 53
+        "juez.py:Judge": 72
       },
-      "metrica": 4
+      "metrica": 3
     },
     "producto_conoce_lab": {
       "detalle": {},

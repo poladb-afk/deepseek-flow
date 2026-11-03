@@ -115,6 +115,83 @@ class CorrerJuez(AsyncNode):
               f"{exec_res['rounds']} rondas)")
 
 
+def informe_lote(resultados, seg_par):
+    """El markdown del lote: medición del speedup, detalle y una sección por
+    pregunta en el orden del archivo. Render de módulo como en los demás
+    flujos (`informe.tabla_markdown`, `effective_n.informe_conjunto`): el
+    nodo del batch orquesta y el texto no es una arista (fase 6, I4)."""
+    pasos = sorted(resultados, key=lambda r: r.get("indice", 0))
+    n = len(pasos)
+    # suma de tiempos individuales = costo si se hubieran verificado en
+    # serie; el reloj de pared real = costo paralelo. Speedup medido.
+    suma = sum(r["segundos"] for r in pasos)
+    speedup = (suma / seg_par) if seg_par > 0 else float("inf")
+
+    secciones = []
+    fallidas = 0
+    for i, r in enumerate(pasos):
+        if r.get("error"):
+            fallidas += 1
+            secciones.append(f"""## P{i + 1}. {r.get('pregunta', '')}
+
+**❌ Falló** (el juez no la pudo verificar):
+
+> {r['error']}
+
+- Rondas: {r.get('rounds', 0)} · Duración: {r.get('segundos', 0.0):.2f}s
+""")
+            continue
+        adv = (
+            f"\n\n> ⚠️  {r['advertencia']}"
+            if r.get("advertencia") else ""
+        )
+        secciones.append(f"""## P{i + 1}. {r.get('pregunta', '')}
+
+**Respuesta:**
+
+{r.get('respuesta') or '_(sin respuesta)_'}{adv}
+
+- Rondas: {r.get('rounds', 0)} · Duración: {r.get('segundos', 0.0):.2f}s
+""")
+    aviso_lote = (f"\n\n> ⚠️  {fallidas} de {n} preguntas fallaron y quedaron "
+                  "sin verificar (el resto del lote se conserva)." if fallidas else "")
+
+    tabla = "\n".join(
+        f"| P{i + 1} | {r.get('rounds', 0)} | {r['segundos']:.2f}s |"
+        for i, r in enumerate(pasos)
+    ) or "| — | — | — |"
+
+    return f"""# Juez en lote — {date.today().isoformat()}
+
+{date.today().isoformat()} · {n} preguntas verificadas en paralelo
+(AsyncParallelBatchFlow){aviso_lote}
+
+## Medición
+
+| Métrica | Valor |
+|---|---|
+| Preguntas | {n} |
+| Suma de tiempos individuales (secuencial) | {suma:.2f}s |
+| Tiempo de pared (paralelo) | {seg_par:.2f}s |
+| **Speedup medido** | **{speedup:.2f}×** |
+
+La suma de los tiempos individuales es el costo si cada pregunta se hubiera
+verificado en serie (una tras otra); el tiempo de pared es el reloj total del
+lote paralelo. `speedup = suma / pared` (>1 acelera; con una sola pregunta es
+~1, porque no hay nada que solapar).
+
+## Detalle por pregunta
+
+| Pregunta | Rondas | Duración |
+|---|---|---|
+{tabla}
+
+## Resultados
+
+{chr(10).join(secciones)}
+"""
+
+
 class JuezLoteFlow(AsyncParallelBatchFlow):
     """AsyncParallelBatchFlow: un job por pregunta, ramas en asyncio.gather,
     y el informe se escribe en el post del propio batch flow."""
@@ -134,82 +211,9 @@ class JuezLoteFlow(AsyncParallelBatchFlow):
             for i, q in enumerate(shared["preguntas"])
         ]
 
-    def _markdown(self, shared):
-        resultados = shared.get("resultados", [])
-        pasos = sorted(resultados, key=lambda r: r.get("indice", 0))
-        n = len(pasos)
-        # suma de tiempos individuales = costo si se hubieran verificado en
-        # serie; el reloj de pared real = costo paralelo. Speedup medido.
-        suma = sum(r["segundos"] for r in pasos)
-        speedup = (suma / self._seg_par) if self._seg_par > 0 else float("inf")
-
-        secciones = []
-        fallidas = 0
-        for i, r in enumerate(pasos):
-            if r.get("error"):
-                fallidas += 1
-                secciones.append(f"""## P{i + 1}. {r.get('pregunta', '')}
-
-**❌ Falló** (el juez no la pudo verificar):
-
-> {r['error']}
-
-- Rondas: {r.get('rounds', 0)} · Duración: {r.get('segundos', 0.0):.2f}s
-""")
-                continue
-            adv = (
-                f"\n\n> ⚠️  {r['advertencia']}"
-                if r.get("advertencia") else ""
-            )
-            secciones.append(f"""## P{i + 1}. {r.get('pregunta', '')}
-
-**Respuesta:**
-
-{r.get('respuesta') or '_(sin respuesta)_'}{adv}
-
-- Rondas: {r.get('rounds', 0)} · Duración: {r.get('segundos', 0.0):.2f}s
-""")
-        aviso_lote = (f"\n\n> ⚠️  {fallidas} de {n} preguntas fallaron y quedaron "
-                      "sin verificar (el resto del lote se conserva)." if fallidas else "")
-
-        tabla = "\n".join(
-            f"| P{i + 1} | {r.get('rounds', 0)} | {r['segundos']:.2f}s |"
-            for i, r in enumerate(pasos)
-        ) or "| — | — | — |"
-
-        return f"""# Juez en lote — {date.today().isoformat()}
-
-{date.today().isoformat()} · {n} preguntas verificadas en paralelo
-(AsyncParallelBatchFlow){aviso_lote}
-
-## Medición
-
-| Métrica | Valor |
-|---|---|
-| Preguntas | {n} |
-| Suma de tiempos individuales (secuencial) | {suma:.2f}s |
-| Tiempo de pared (paralelo) | {self._seg_par:.2f}s |
-| **Speedup medido** | **{speedup:.2f}×** |
-
-La suma de los tiempos individuales es el costo si cada pregunta se hubiera
-verificado en serie (una tras otra); el tiempo de pared es el reloj total del
-lote paralelo. `speedup = suma / pared` (>1 acelera; con una sola pregunta es
-~1, porque no hay nada que solapar).
-
-## Detalle por pregunta
-
-| Pregunta | Rondas | Duración |
-|---|---|---|
-{tabla}
-
-## Resultados
-
-{chr(10).join(secciones)}
-"""
-
     async def post_async(self, shared, prep_res, exec_res):
         self._seg_par = time.perf_counter() - self._t0
-        texto = self._markdown(shared)
+        texto = informe_lote(shared.get("resultados", []), self._seg_par)
         destino, err = escribir_salida(self.salida, texto)
         if err:
             raise ValueError(f"ERROR: {err}")

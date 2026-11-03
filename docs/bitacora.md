@@ -7225,3 +7225,36 @@ trazas nuevas. Si alguna lo hizo, sus números de rondas están en 0.
 exp/103–105 midieron tokens con `tokens_runs.py` y los tres corrieron sobre
 árboles anteriores a S9b A′, y X133–X135 verificaron estructuralmente, sin
 leer trazas del chat con `rondas.py`. Ningún número quedó en 0.
+
+---
+
+## X137: fase 6, I4 — el render del lote sale del nodo (2026-11-03)
+
+**El cierre de la fase 6.** Con la definición de X134 (líneas de código, no
+físicas) quedaban 4 nodos > 40: `juez.Judge` 72, `juez_lote.JuezLoteFlow` 53,
+`effective_n.WriteReport` 50 y `effective_n.HashFile` 47; la meta era ≤ 3.
+
+**El corte elegido**: `JuezLoteFlow` tenía el render del informe como MÉTODO
+(`_markdown`, 25 líneas de código) cuando el patrón del repo es render de
+módulo — `informe.tabla_markdown`, `effective_n.informe_conjunto`, y hasta
+`fable_judge.compuerta` como función de módulo. El nodo del batch hacía la
+orquestación (prep de jobs, post de escritura y métricas) Y el texto.
+`informe_lote(resultados, seg_par)` pasa a ser función de módulo (mismo
+cuerpo, `self._seg_par` por parámetro): `JuezLoteFlow` queda en 29 líneas de
+código.
+
+**Por qué no se tocó nada más**: X134a ya decidió que el corte
+plantilla/escritura de `WriteReport` es "un trabajo por convención del repo"
+(render en `exec`, efecto en `post`) y no se fuerza el número; `HashFile` es
+un solo pase de mapa con salida ancha; y `Judge` (72, con `exec` solo en 50)
+esconde la compuerta de hechos y el loop de reparación — su arreglo natural
+es la recomposición de P4 (juez como `kernel.agente()` con sus tools y su
+prompt), que lo reestructura entero, no un corte cosmético.
+
+**Conducta**: idéntica — el markdown del lote no cambia ni un byte (el cuerpo
+es el mismo); `test_juez_lote_informe_y_speedup` y `test_juez_lote_aisla_fallas`
+pasan sin tocarse.
+
+**Los números**: `nodos_largos` **4 → 3** (meta cumplida, el ratchet mejoró
+el baseline solo); el conteo físico (diagnóstico no gateado) pasó de 13 a 12.
+Gate completo verde.
