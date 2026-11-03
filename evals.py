@@ -45,6 +45,10 @@ ACCIONES_CANONICAS = {
     # exp/50 y F6: nunca entraron acá — toda traza real del chat desde
     # entonces daba dos violaciones (c) falsas (descubierto en X95)
     ("PreFetch", "continue"), ("VerificarCitas", "default"),
+    # su post no devuelve nada: la traza registra "None" aunque el grafo tome
+    # `default` (la misma regla que Auditar, X130). Cada respuesta del chat
+    # daba una violación (c) falsa (X136)
+    ("VerificarCitas", "None"),
     # marca de incidente del corte por no-progreso (nodes.py la emite con
     # evento_tool): no es una tool, pero viaja en la traza y el linter la
     # tiene que reconocer para no contarla como acción desconocida

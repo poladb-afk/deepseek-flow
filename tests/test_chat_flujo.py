@@ -1,4 +1,6 @@
 """El bucle del chat (S9b A′): PasoChat/ActuarChat sobre kernel.loop, DSML, sanitizado, presupuesto y cierre."""
+from types import SimpleNamespace as NS
+
 import pytest
 from conftest import ctx_chat, tool_chat
 
@@ -241,7 +243,7 @@ def test_codigo_error_discrimina_sin_contenido():
     assert codigo_error("hola") == ""
 
 
-def test_agotado_fuerza_respuesta_sin_tools():
+def test_agotado_fuerza_respuesta_sin_tools(monkeypatch):
     """Al agotarse el presupuesto la última llamada va sin tools y con un aviso
     efímero de cierre: medido en vivo, sin él el modelo sigue emitiendo tool
     calls en vez de responder (A38). Desde X96 lo garantiza la ESTRUCTURA:
@@ -255,6 +257,10 @@ def test_agotado_fuerza_respuesta_sin_tools():
                              {"role": "user", "content": "auditá el repo"}],
               "turno": {**nuevo_turno(), "rondas": MAX_TOOL_ROUNDS}}
     assert Contexto()._run(shared) == "cierre"
+    # el LLM se fija acá: con el responder real el test llegaba a la API y solo
+    # pasaba en una máquina con la clave en el .env (rojo en la CI, X136)
+    monkeypatch.setenv("CHAT_STREAM", "0")
+    monkeypatch.setattr(nodes, "call_llm_agent", lambda m, t: NS(content="cierro", tool_calls=None))
     cierre = nodes.CierreChat(ctx_chat(rondas=0), [], max_retries=1)
     mensajes, tools = cierre.prep(shared)
     assert tools is None

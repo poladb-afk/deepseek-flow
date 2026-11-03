@@ -95,13 +95,22 @@ def es_sesion_chat(eventos):
     return any(evento.get("nodo") == "GetQuestion" for evento in eventos)
 
 
-def ciclos(eventos):
-    """Agrupa los eventos en CICLOS por pregunta (GetQuestion → answer/exit).
+# El paso del modelo y el despacho de tools del chat, con su acción. Desde S9b
+# A′ el chat corre sobre `kernel.loop` (PasoChat/ActuarChat/CierreChat): sin
+# los nombres nuevos, cada traza del chat de hoy medía 0 rondas y "sin
+# responder" (X136). Los viejos quedan para las trazas anteriores.
+PASOS = {"AgentStep": ("tool", "answer"), "Cierre": ("tool", "answer"),
+         "PasoChat": ("actuar", "respuesta"), "CierreChat": ("actuar", "respuesta")}
+DESPACHOS = {"ExecuteTools", "ActuarChat"}
 
-    Devuelve por ciclo: rondas de tools (AgentStep/accion=tool), si respondió,
-    tiempo de agente (seg de AgentStep+ExecuteTools) y cantidad de eventos.
-    Los flujos anidados (informe, debate…) corren dentro de una ronda y no
-    abren ciclo propio: la pregunta del usuario sigue siendo la unidad.
+
+def ciclos(eventos):
+    """Agrupa los eventos en CICLOS por pregunta (GetQuestion → respuesta/exit).
+
+    Devuelve por ciclo: rondas de tools (un paso que pidió tools), si
+    respondió, tiempo de agente (seg de los pasos y despachos) y cantidad de
+    eventos. Los flujos anidados (informe, debate…) corren dentro de una ronda
+    y no abren ciclo propio: la pregunta del usuario sigue siendo la unidad.
     """
     salida = []
     actual = None
@@ -119,16 +128,17 @@ def ciclos(eventos):
         if actual is None:
             continue
         actual["eventos"] += 1
-        if nodo in ("AgentStep", "Cierre"):
-            # X96: Cierre es la última llamada (la respuesta del turno que
+        if nodo in PASOS:
+            # X96: el cierre es la última llamada (la respuesta del turno que
             # agotó el presupuesto): sin esto quedaba como "sin responder"
             actual["seg_agente"] += float(evento.get("seg") or 0.0)
-            if accion == "tool":
+            pidio_tools, respondio = PASOS[nodo]
+            if accion == pidio_tools:
                 actual["rondas"] += 1
                 actual["tools_por_ronda"].append([])
-            elif accion == "answer":
+            elif accion == respondio:
                 actual["respondio"] = True
-        elif nodo == "ExecuteTools":
+        elif nodo in DESPACHOS:
             actual["seg_agente"] += float(evento.get("seg") or 0.0)
         elif _es_tool(nodo, accion) and actual["tools_por_ronda"]:
             actual["tools_por_ronda"][-1].append(nodo)

@@ -7188,3 +7188,35 @@ el probe entran en este commit; el informe completo va en el cierre (X136).
 **Pendiente del cierre**: con las 2 regex de `skills/*.yaml` (deuda de S7) y el
 `YES` del HITL, el piso honesto de `vocabulario_hardcodeado` es **3**; la meta
 ≤2 se re-expresa en X136. Gate completo verde en la rama, `main` sin tocar.
+
+---
+
+## X136: los instrumentos leen la traza del chat real (2026-11-03)
+
+**El hallazgo** (fable-judge sobre el árbol del operador): con el chat real
+(`create_agent_flow()`, tracing de producción, un modelo guionado que siempre
+pide tools y techo 3, dos preguntas), la traza es la esperada
+(`PasoChat/actuar → read_file → ActuarChat/paso → Observar → Contexto`, tres
+veces, y `CierreChat/respuesta → Fin → VerificarCitas`). Dos instrumentos la
+leían mal:
+
+- `banco/probes/rondas.py` (la forma del loop) contaba **0 rondas y "sin
+  responder"** en las dos preguntas: buscaba los nombres del loop viejo. Sus 6
+  tests pasaban con trazas sintéticas de esos nombres.
+- El linter de `evals.py` daba una violación (c) `VerificarCitas/None` por
+  respuesta. Es anterior a S9b (en X129 tampoco era canónica): `post` no
+  devuelve nada y la traza registra `None`.
+
+**De paso**: `test_agotado_fuerza_respuesta_sin_tools` armaba `CierreChat` con
+el responder real y llegaba a la API. Sin clave, `./calidad.sh` daba rojo (1
+failed en un checkout limpio); con la clave del operador pasaba haciendo una
+llamada de verdad.
+
+**El arreglo**: `rondas.ciclos` lee el paso y el despacho por tabla (nombres
+viejos y nuevos), `evals.py` suma `VerificarCitas/None` y el test de cierre
+fija su LLM. **El candado**: `tests/test_instrumentos_chat_real.py` genera la
+traza con el grafo real; con los instrumentos de antes falla (0 rondas; la
+violación de `VerificarCitas`) y con los de ahora pasa.
+
+**No verificado**: si alguna medición posterior a X126 usó `rondas.py` sobre
+trazas nuevas. Si alguna lo hizo, sus números de rondas están en 0.
