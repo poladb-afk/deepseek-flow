@@ -7220,3 +7220,8 @@ violación de `VerificarCitas`) y con los de ahora pasa.
 
 **No verificado**: si alguna medición posterior a X126 usó `rondas.py` sobre
 trazas nuevas. Si alguna lo hizo, sus números de rondas están en 0.
+**Verificado antes de commitear (mismo día): ninguna lo hizo.** El A/B de S6
+(X132) midió con `banco/probes/s6.py` (sus cinco señales propias), los
+exp/103–105 midieron tokens con `tokens_runs.py` y los tres corrieron sobre
+árboles anteriores a S9b A′, y X133–X135 verificaron estructuralmente, sin
+leer trazas del chat con `rondas.py`. Ningún número quedó en 0.

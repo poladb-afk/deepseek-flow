@@ -42,7 +42,7 @@ declara "sin gate" con lo que falta: así no se disfraza de regla (lo verifica
 | N1 | **Parches situacionales**: el arreglo va a la raíz | El arreglo suma un caso: un umbral, una rama, un `if` sobre un nombre concreto | sin gate (review: ¿borra un caso o lo suma?) | Nada |
 | N2 | **Hardcodear keywords o hints** para volver determinista lo semántico | Una regex o una lista de palabras juzga significado. La lista blanca de comandos (`utils/politica_comandos.json`) no cuenta: enumera lo permitido y lo demás pregunta (S0). Las listas negras de flags sí: perdieron tres veces (E1, E2, X114) | `vocabulario_hardcodeado` (meta 0) | Nada |
 | N3 | **Soluciones por system prompt** | Una frase agregada al prompt para corregir una conducta | `texto_de_prompt` (solo baja) | Nada |
-| N4 | **Duplicidad** | Dos implementaciones del mismo concepto: dos loops, dos techos, dos helpers | `helpers_duplicados`, `cuerpos_duplicados`. Pendiente: un solo loop (S9b) | Nada |
+| N4 | **Duplicidad** | Dos implementaciones del mismo concepto: dos loops, dos techos, dos helpers | `helpers_duplicados`, `cuerpos_duplicados`. Un solo loop: cumplido (X126, S9b A′); el único pendiente de P2a es el test de la política agregada (ver P2) | Nada |
 
 ## De las tres capas de X113 a esta lista
 
