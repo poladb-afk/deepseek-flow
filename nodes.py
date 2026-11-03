@@ -96,10 +96,10 @@ def nuevo_turno():
     claves sueltas en `shared` y un `pop` por cada una: una clave nueva sin su
     `pop` se filtraba a la pregunta siguiente y nada lo detectaba (auditoría
     de elegancia, 2026-10-26). Lo de la sesión (`messages`, compacción,
-    respaldo) y lo de la tarea (`_objetivo`, que sobrevive a un "seguí")
-    quedan fuera de la caja a propósito. Todo es JSON: viaja en el checkpoint.
-    Desde S6 (X132) `rondas` es el ÚNICO saldo de la pregunta: se descuenta
-    por ronda y el techo es el único corte."""
+    respaldo) y la tarea (`_objetivo`: la conserva una continuación con la
+    anterior abierta, S9a) quedan fuera de la caja a propósito. Todo es JSON:
+    viaja en el checkpoint. Desde S6 (X132) `rondas` es el ÚNICO saldo de la
+    pregunta: se descuenta por ronda y el techo es el único corte."""
     return {
         "rondas": 0,             # rondas de tools gastadas (L8): el saldo único
         "skill": None,           # id del skill activo (exp/55)
