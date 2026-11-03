@@ -94,7 +94,7 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91). Con URL y la ca
 | `vocabulario_hardcodeado` | 8 → 7 (X104) → 3 (X106) → 5 (X112: el instrumento ahora lee la `condicion` de `skills/*.yaml`, que el AST no veía) → **4** (S9a/X133: la continuación salió de `GetQuestion`) | ≤ 2 (S7 cerrado sin remedio para este modelo: las 2 regex de los skills quedan como deuda medida; fase 6, `TOOL_CONTEXTO_RE`; queda el sí/no del HITL) |
 | `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) → 64 (X106) → 58 (X109) → 56 (X112) → **52 (S6/X132)** | ≤ 45 (fases 1–5, ver inventario) |
 | `imports_perezosos` | 137 → 126 (X92) → 90 (X106) → 81 (X109) → 80 (X112) | **≤ 40** (X112 deja sin efecto el ~60 del 2026-10-30: la clasificación de los 81 muestra 12 de stdlib y 2 de dependencias obligatorias sin motivo, y 59 internos que en su mayoría no esquivan ningún ciclo; paso propio de imports, con motivo visible para los que se quedan) |
-| `nodos_largos` | 15 → 14 (X96) → 13 (X106) | ≤ 3 |
+| `nodos_largos` | 15 → 14 (X96) → 13 (X106) → **12** (S9b A′/X126) | ≤ 3 |
 | `texto_de_prompt` | 2748 → 1542 (X112: sin la prosa de fable) | **1542** (decisión del operador, X112: lo fijo + la forma de exp/51 + el checklist de exp/78 como opción; ≤ 800 pedía borrar una directiva con efecto medido) ✅ |
 
 ## Plan

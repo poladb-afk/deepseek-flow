@@ -7002,7 +7002,7 @@ extenderlo; si el kernel cambia, hay que mover las dos.
 ## X133: S9a — la continuación por estado del thread (2026-11-02)
 
 **Qué se hizo**: `GetQuestion.post` ya no decide por palabras. `_objetivo` —la
-tarea vigente que la compacción conserva (A36; `nodes.py:325` →
+tarea vigente que la compacción conserva (A36; `nodes.py:328` →
 `utils/compaccion.py:215`)— se reemplaza en cada pregunta nueva salvo que la
 anterior haya quedado **abierta**, y abierta es estado del thread: sobre la caja
 `turno` **anterior**, antes de reemplazarla, `motivo_de_cierre(shared)` devuelve

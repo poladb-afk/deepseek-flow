@@ -89,9 +89,9 @@ proceso viven en `AGENTS.md`.
 
 | ratchet | fase 0 | hoy | meta |
 |---|---|---|---|
-| `settings_leidos` | 89 | 56 | ≤ 45 |
+| `settings_leidos` | 89 | 52 (S6/X132) | ≤ 45 |
 | `imports_perezosos` | 137 | 14 (X125) | ≤ 40 ✅ |
-| `nodos_largos` | 15 | 13 | ≤ 3 |
+| `nodos_largos` | 15 | 12 (S9b A′/X126) | ≤ 3 |
 | `vocabulario_hardcodeado` | 8 | **4** (S9a/X133: la continuación salió de `GetQuestion`) | ≤ 2 |
 | `texto_de_prompt` | 2748 | 1542 | 1542 ✅ |
 | `core_importa_modulos`, `producto_conoce_lab`, `funciones_complejas`, `codigo_muerto_privado` | — | 0 | 0 ✅ |
