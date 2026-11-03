@@ -7302,3 +7302,75 @@ es el saldo y no el cansancio del modelo).
 **Los números**: `tests_definidos` +3 (el ratchet mejora el baseline solo);
 sin cambio de conducta del producto (solo tests y docs). Gate completo
 verde.
+
+---
+
+## X140: un solo freno de presupuesto en el chat (2026-11-03)
+
+**El hallazgo** (fable-judge sobre X138): el gate fractal atrapaba 5 de 6
+mutantes; pasaba M4 — en `PasoChat.post`, sacar el `else "cerrar"` del
+`tomar()`. El chat tenía DOS frenos del mismo presupuesto: el `Ledger` del
+kernel (reseteado al abrir la pregunta, descontado por `tomar`) y
+`turno["rondas"]` (contado por `Observar`, leído por el corte de `Contexto`
+y por S9a).
+
+**Las mediciones pedidas antes de editar** (chat real, modelo guionado que
+siempre pide tools, techo 3):
+
+- **(a) quién decide hoy**: `tomar()` devolvió True con saldo 3, 2 y 1 — en
+  el chat NUNCA dice cerrar. Corta `Contexto` (`rondas >= tope` → `cierre` →
+  `CierreChat`), y la última llamada va sin tools CON `AVISO_CIERRE`. En cada
+  llamada el Ledger valía exactamente `presupuesto − rondas`: lockstep.
+- **(b) resume a mitad de pregunta** (turno rehidratado con rondas=2 +
+  "seguí"): `GetQuestion` reemplaza el turno ENTERO en el primer mensaje
+  (exp/4: un mensaje nuevo reinicia el presupuesto, el docstring de
+  `resume.py` lo dice). El turno nuevo corre su techo completo. La hipótesis
+  "el Ledger arranca en presupuesto({}) y no en lo que quedaba": REFUTADA en
+  lo literal (no hay "lo que quedaba": se reinicia por diseño), CONFIRMADA en
+  el fondo — el Ledger del chat no decide nada, es una copia.
+- **(c) quitar cada freno**: sin el del Ledger (M4), conducta IDÉNTICA
+  (código muerto; por eso pasaba todo). Sin el corte de `Contexto` (M4b), la
+  última llamada va sin tools pero MUDA — pierde el `AVISO_CIERRE` (A38: sin
+  el aviso el modelo sigue emitiendo tool calls; el freno mudo del prep no
+  lo reemplaza). Sin ambos (M4c), lo mismo: el freno restante es `Paso.prep`
+  no ofreciendo tools con saldo 0 — mudo también.
+
+**El arreglo**: una sola FUENTE — `turno` (está en `shared`: la corta
+Contexto, la checkpointea resume, la lee S9a; 12-factor). El saldo del
+kernel pasa a ser su PROYECCIÓN: `PasoChat.prep` lo deriva en CADA llamada
+(`presupuesto(s) - turno(s)["rondas"]`), no solo al abrir la pregunta. El
+`tomar()` de `PasoChat.post` queda como lo que siempre fue en el kernel: el
+backstop de la carrera de un árbol (X119), ahora leyendo la proyección de la
+misma fuente — las dos cuentas no pueden discrepar por construcción.
+Conducta idéntica: `test_caracterizacion_chat.py` 12/12 sin tocar.
+
+**El gate** (`tests/test_gate_fractal.py`, 3 → 6 tests): la última llamada
+del chat va sin tools Y con `AVISO_CIERRE`; el saldo se deriva de `turno` en
+cada llamada; el loop del chat también sale por la arista `cerrar` del
+kernel con saldo 0 (el candado del M4); el caso de resume a mitad de
+pregunta (el saldo viejo no se filtra: techo completo, ni más ni menos); el
+despacho único se cruza en los tres niveles; y `_sin_cuelgue` (`signal` de
+la stdlib, sin dependencias nuevas): un loop sin freno FALLA a los 30 s en
+vez de colgar la suite.
+
+**Tabla de mutantes** (cada uno aplicado al producto, solo el gate, revertido
+con git):
+
+| mutante | qué muta | gate |
+|---|---|---|
+| M1 | supervisor despacha sin `run_tool_call` | ROJO |
+| M2 | chat ejecuta `run_command` sin el despacho único | ROJO |
+| M3 | una copia no cobra su lugar en el saldo (X119 al revés) | ROJO |
+| M4 | `PasoChat.post` siempre "actuar" (el que pasaba) | ROJO |
+| M4b | sin el corte de `Contexto` (última llamada muda) | ROJO |
+| M4c | sin los dos frenos | ROJO |
+| M5 | `Ctx.hijo` con Ledger propio | ROJO |
+| M6 | el loop no cablea las políticas (la copia no compacta) | ROJO |
+
+M5 necesitó un árbol con saldo para que la copia CORRA (saldo 6: 1 delegación
++ 1 arranque + 4 rondas → el ledger de la raíz queda en 0; con Ledger propio
+quedaba en 4 y el assert lo denuncia). Árbol limpio: VERDE.
+
+**Lo no verificado**: la corrida con un modelo REAL que insista en tool
+calls tras un corte mudo (M4b/M4c con la API de verdad): el guion contesta
+cuando no hay tools; el timeout del gate es la red de esos casos.
