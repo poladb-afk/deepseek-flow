@@ -113,45 +113,6 @@ def _archivos_de(texto):
     return rutas[:MAX_CTX_ARCHIVOS]
 
 
-# exp/42 (hallazgo 2 de exp/20, residual de exp/21): el Draft alucinó la
-# herramienta inexistente `delete_file` en 3/3 corridas y el Judge no podía
-# notarlo porque nunca vio el inventario real. Mismo patrón de la casa que
-# las citas: el hecho lo reúne el CÓDIGO (los nombres reales del action
-# space), no el juicio del modelo.
-#
-# Un nombre "con pinta de herramienta": snake_case con al menos un guión bajo
-# (delete_file, run_supervisor, read_file...). Los nombres cortos sin `_`
-# del inventario (sql, debate) no se detectan como candidatos para no marcar
-# cualquier palabra suelta; el costo es que un inventario futuro con nombres
-# de una palabra no se contrastaría si el Draft los inventa — el sesgo va
-# hacia NO dar falsos positivos.
-TOOL_NAME_RE = re.compile(r"\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b")
-# Palabras que delatan que el candidato se menciona COMO herramienta (usar,
-# describir, llamar) — no como variable o ruta cualquiera. Filtrar por esta
-# ventana evita marcar snake_case genérico del borrador.
-#
-# exp/42 sesión 4 (lesión 1, medida con LLM real): 'función'/'funciones' quedó
-# FUERA a propósito. La trampa es sobre HERRAMIENTAS, no sobre funciones del
-# código: el borrador de thinking-tools dice "la función call_llm_agent hace
-# X" y 'función' como contexto marcaba ['reasoning_content', 'tool_calls',
-# 'call_llm_agent', 'call_llm'] — discutir una función interna no es afirmar
-# una tool. Se exige contexto explícito de tool (herramienta/tool + verbos de
-# uso).
-TOOL_CONTEXTO_RE = re.compile(
-    r"herramienta|tool|us[aá]r?|usand[oa]|ejecut[aá]r?|invoc[aá]r?|llam[aá]r?",
-    re.IGNORECASE,
-)
-# exp/42 sesión 4 (lesión 2, medida con LLM real): un token que vive DENTRO de
-# una ruta o de un nombre de archivo no es un claim de herramienta. El borrador
-# de search-vacio cita '.../utils/fs_tools.py' en una línea con contexto de
-# tool y el segmento 'fs_tools' se marcaba. Antes de buscar candidatos se
-# borran de la línea (a) las citas ruta:línea (formato que pide el Draft) y
-# (b) todo token con pinta de ruta/archivo, extinguiendo los sufijos .py/.md/
-# .jsonl y compañía. Así 'utils/fs_tools.py' y 'juez.py:57' no dejan residuo.
-CITA_RUTA_LINEA_RE = re.compile(r"[\w./-]+\.[A-Za-z0-9]{2,4}:\d+")
-RUTA_O_ARCHIVO_RE = re.compile(r"[\w./-]+\.[A-Za-z0-9]{2,4}")
-
-
 def _inventario_tools():
     """Nombres REALES de herramientas del action space, importados — no
     hardcodeados. `nodes` junta el CORE con los módulos vía discover() y ese
@@ -163,39 +124,6 @@ def _inventario_tools():
     nombres = {t["function"]["name"] for t in TOOLS}
     nombres |= set(MODULE_IMPLS.keys())
     return nombres
-
-
-def _tools_alucinadas(texto, inventario):
-    """Nombres con pinta de herramienta que el borrador menciona COMO
-    herramienta pero que NO existen en el inventario real. Función pura:
-    el contraste contra el action space es un hecho del código, no una
-    opinión del juez.
-
-    Dos lecciones MEDIDAS con el bench de LLM real (exp/42 sesión 4) que
-    esta función incorpora para no dar falsos positivos en borradores
-    legítimos:
-    (1) SEGMENTOS DE RUTA: 'utils/fs_tools.py' citado en una línea con
-        contexto de tool NO es un claim de herramienta — un trozo de path no
-        afirma que exista la tool `fs_tools`. Por eso se borran las citas
-        ruta:línea y los tokens con pinta de ruta/archivo antes de buscar
-        candidatos.
-    (2) FUNCIONES INTERNAS: 'la función call_llm_agent hace X' discute código
-        del propio proyecto, no afirma una tool — por eso 'función'/'funciones'
-        no vive en TOOL_CONTEXTO_RE.
-    La trampa sigue viva: 'usá la herramienta delete_file' marca delete_file.
-    """
-    inventario = set(inventario)
-    alucinadas = []
-    for linea in (texto or "").splitlines():
-        if not TOOL_CONTEXTO_RE.search(linea):
-            continue  # la línea no habla de herramientas: nada que contrastar
-        # ni citas ruta:línea ni nombres de archivo/ruta cuentan como claims
-        linea = CITA_RUTA_LINEA_RE.sub(" ", linea)
-        linea = RUTA_O_ARCHIVO_RE.sub(" ", linea)
-        for nombre in TOOL_NAME_RE.findall(linea):
-            if nombre not in inventario and nombre not in alucinadas:
-                alucinadas.append(nombre)
-    return alucinadas
 
 
 class Draft(Node):
@@ -306,6 +234,14 @@ def _validar(crudo):
         return None, motivo
     d["verdict"] = _canonico(d["verdict"])
     d.setdefault("problems", [])
+    # exp/107: el modelo lista `tools_usadas` y el código contrasta la
+    # membresía exacta. Un campo que no es lista es formato inválido: entra
+    # al reintento informado como cualquier otro incumplimiento del contrato.
+    usadas = d.get("tools_usadas", [])
+    if not isinstance(usadas, list):
+        return None, f"tools_usadas no es lista: {usadas!r}"
+    d["tools_usadas"] = [limpio for limpio in
+                         (str(nombre).strip().strip("`'\"") for nombre in usadas) if limpio]
     return d, ""
 
 
@@ -326,11 +262,13 @@ class Judge(Node):
 
     def exec(self, inputs):
         question, draft, citas, se_esperaban = inputs
-        # exp/42: las herramientas alucinadas se computan ACÁ (exec ya recibe
-        # el borrador) y no en prep, para no cambiar la aridad prep→exec: el
-        # contrato observable del Judge (sus veredictos) no cambió, solo DÓNDE
-        # se computa un hecho interno. El inventario se importa perezosamente.
-        alucinadas = _tools_alucinadas(draft or "", _inventario_tools())
+        # exp/107 (D2): el inventario REAL viaja al prompt y el modelo devuelve
+        # `tools_usadas`; la membresía exacta contra el inventario la hace el
+        # CÓDIGO en la compuerta. Así lo semántico (¿de qué habla el borrador?)
+        # lo juzga el modelo y no una regex de contexto (F2), sin perder la
+        # lesión de exp/42 (3/3 borradores con `delete_file` entregados).
+        inventario = _inventario_tools()
+        inventario_txt = "\n".join(f"- {nombre}" for nombre in sorted(inventario))
         citas_txt = "\n".join(citas) or "(el borrador no cita archivos)"
         aviso = ""
         if se_esperaban and not citas:
@@ -338,12 +276,6 @@ class Judge(Node):
                 "\nATENCIÓN: la pregunta se refiere a archivos concretos y el "
                 "borrador NO cita ninguno en formato ruta:línea. Eso es un "
                 "problema grave de verificabilidad."
-            )
-        if alucinadas:
-            aviso += (
-                "\nATENCIÓN: el borrador menciona como herramienta algo que "
-                f"NO existe en el action space: {', '.join(alucinadas)}. "
-                "Una herramienta inventada es un problema grave (alucinación)."
             )
         prompt = f"""Pregunta: {question}
 
@@ -353,13 +285,23 @@ Borrador a evaluar:
 Citas del borrador verificadas contra los archivos (contenido real):
 {citas_txt}{aviso}
 
+Inventario REAL de herramientas del action space (lista completa; son los
+únicos nombres que existen):
+{inventario_txt}
+
 {MARCA_JUDGE}: precisión factual (las citas DEBEN coincidir con el
 contenido real; una cita que no coincide es un problema grave),
-completitud respecto de la pregunta y claridad.
+completitud respecto de la pregunta y claridad. Además, anotá en
+`tools_usadas` SOLO los nombres de herramientas que el borrador AFIRMA haber
+usado o PROPONE usar, copiados literalmente. Una función interna, una
+variable, una ruta o un concepto no son herramientas usadas. Si no afirma
+ninguna, dejá la lista vacía. No corrijas el borrador por las herramientas:
+contrastar esos nombres contra el inventario lo hace el código.
 
 Responde SOLO yaml:
 ```yaml
 verdict: ok
+tools_usadas: []
 problems:
   - <problema 1>
 suggestions:
@@ -373,10 +315,13 @@ El campo verdict SOLO puede ser ok o retry, literal."""
             """Hechos del código por encima del juicio del modelo (C07): con
             verdict ok el flujo ENTREGABA un borrador citando una ruta
             inexistente (medido). Si alguna cita no resuelve, hay retry. Y
-            con una herramienta inventada (exp/42) tampoco se entrega: el
-            inventario real lo aporta el código, no el modelo."""
+            con una herramienta fuera del inventario (exp/42) tampoco se
+            entrega: el modelo lista `tools_usadas` (exp/107) y el código
+            contrasta la membresía exacta contra el action space real."""
             if v.get("verdict") != "ok":
                 return v
+            alucinadas = [nombre for nombre in v.get("tools_usadas", [])
+                          if nombre not in inventario]
             problemas = list(v.get("problems", []))
             if rotas:
                 print(colorear(

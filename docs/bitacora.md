@@ -7131,3 +7131,57 @@ la meta ≤3 queda para I4 con este dato.
 **Docs**: nit de `elegancia.md:70` ("un nodo, una cosa (≤ 40 líneas **de
 código**)"), fila X134a del tablero y la fila de fase 6 del handoff al día.
 Gate completo verde en la rama, `main` sin tocar.
+
+## X135: fase 6 — el juez sin regex de contexto: inventario al prompt y membresía en el código (2026-11-03)
+
+**Qué se hizo**: `TOOL_CONTEXTO_RE` y `_tools_alucinadas` (juez.py) decidían
+con una regex si el borrador "hablaba de herramientas" y contrastaban los
+nombres con el inventario real. Se separó lo semántico de lo exacto (F2): el
+prompt del Judge lleva el **inventario real** (los 31 nombres de
+`_inventario_tools()`, importados — no una lista a mano) y pide `tools_usadas`
+(nombres literales que el borrador afirma haber usado o propone usar); el
+**código** normaliza el campo en `_validar` (si no es lista, es formato
+inválido y entra al reintento informado) y la compuerta contrasta la
+membresía exacta: `verdict: ok` + un nombre fuera del inventario → retry con
+el mismo mensaje de antes. Se borraron `TOOL_CONTEXTO_RE`, `TOOL_NAME_RE`,
+`CITA_RUTA_LINEA_RE`, `RUTA_O_ARCHIVO_RE` y `_tools_alucinadas`;
+`vocabulario_hardcodeado` **4 → 3**.
+
+**La medición (exp/107, pre-registrada, PASA los cuatro criterios)**: 14/14
+llamadas válidas al juez sobre 7 borradores fijos × 2. Recall de lo inventado
+**6/6** (H1 `delete_file`, H2 `rotate_logs`, H3 `run_migrations`+`drop_table`
+2/2), sin falsos positivos **8/8** (N1 con tres tools reales y N2a/N2b/N3),
+formato **14/14** con `tools_usadas` lista, costo **US$0,0144** (+US$0,0035
+del intento 1, que un 503 del proveedor tiró y quedó declarado inválido sin
+evaluar criterios) = **US$0,0179** contra el techo US$0,05. El baseline del
+regex, medido en el mismo corpus, fue **peor de lo que predecía la tabla del
+spec**: recall 2/3 (en H3 devuelve `[]` porque "ejecuto"/"invoco" no matchean
+`ejecut[aá]r?`/`invoc[aá]r?`) y precisión 1/4 (en N2b marca `tool_calls`,
+`reasoning_content` y `mi_dato`). La predicción equivocada quedó declarada en
+el spec y no cambió los criterios. El corpus es sintético y de un solo modelo:
+mide viabilidad, no tasa de producción (límites en el spec).
+
+**Conducta**: cambio pre-registrado de un evaluador (no del chat); el contrato
+observable del Judge sigue siendo el veredicto. El aviso "herramienta
+inventada" ya no viaja al prompt (el modelo no conoce el inventario al escribir
+el borrador): lo que decide es la compuerta del código, que conserva el mismo
+mensaje de problemas. Sin A/B: la medición del mecanismo es exp/107 y la
+compuerta determinista va con los tests.
+
+**R2 — excepción acotada (autorizada en D2/A)**: `test_tools_alucinadas_funcion_pura`
+muere con la función que probaba; se reemplaza por el contrato nuevo:
+`test_la_membresia_contra_el_inventario_decide_la_compuerta` (el modelo lista,
+el código decide; un nombre real no dispara), `test_el_inventario_del_prompt_sale_de_inventario_tools`
+(el prompt lista lo que devuelve `_inventario_tools()`, no una lista escrita)
+y `test_tools_usadas_que_no_es_lista_es_formato_invalido`; el test de exp/42
+(`test_juez_no_entrega_con_herramienta_alucinada`) se adapta 1:1.
+
+**Instrumento de laboratorio**: `banco/probes/exp107.py` conserva una **copia
+congelada** del regex viejo ("baseline congelado, no producto") para poder
+re-medir el baseline aunque el producto ya no lo tenga; verifiqué que reproduce
+lo medido (H1/H2 detectan, H3 `[]`, N2b los tres falsos positivos). El spec y
+el probe entran en este commit; el informe completo va en el cierre (X136).
+
+**Pendiente del cierre**: con las 2 regex de `skills/*.yaml` (deuda de S7) y el
+`YES` del HITL, el piso honesto de `vocabulario_hardcodeado` es **3**; la meta
+≤2 se re-expresa en X136. Gate completo verde en la rama, `main` sin tocar.

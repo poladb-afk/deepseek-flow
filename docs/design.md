@@ -339,7 +339,12 @@ la pregunta (los hechos los reúne el código). `Judge` extrae las citas
 `ruta:línea` del borrador, lee las líneas reales, y evalúa en YAML
 (`verdict: ok/retry`) — `extraer_yaml` + `_veredicto_valido`: un veredicto
 que no valida **no lanza** — el Judge reintenta citando el crudo inválido como
-feedback (fase B2 de exp/21, en [bitacora.md](bitacora.md)). Tope de rondas `JUEZ_ROUNDS` (default 2, ley L8),
+feedback (fase B2 de exp/21, en [bitacora.md](bitacora.md)). Desde X135 el
+prompt lleva además el **inventario real** de herramientas y pide
+`tools_usadas`: lo semántico (¿de qué habla el borrador?) lo juzga el modelo y
+lo exacto (¿ese nombre existe?) lo contrasta el código, que fuerza retry con
+`verdict: ok` si algún nombre queda fuera del action space (la lesión de
+exp/42, sin la regex de contexto que se borró). Tope de rondas `JUEZ_ROUNDS` (default 2, ley L8),
 configurable por corrida con `--rondas N` o `shared["max_rounds"]`; la tool
 `answer_verified(pregunta, rondas?)` lo expone.
 

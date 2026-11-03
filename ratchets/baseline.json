@@ -57,7 +57,7 @@
           80
         ],
         "juez.py": [
-          555
+          500
         ],
         "juez_lote.py": [
           90
@@ -390,7 +390,7 @@
         "tests/test_fable_judge.py": 66,
         "tests/test_fable_judge_claims.py": 24,
         "tests/test_fase5b.py": 3,
-        "tests/test_flujos.py": 34,
+        "tests/test_flujos.py": 36,
         "tests/test_forma_larga.py": 5,
         "tests/test_fractal.py": 8,
         "tests/test_fs_tools.py": 16,
@@ -441,7 +441,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1164
+      "metrica": 1166
     },
     "texto_de_prompt": {
       "detalle": {
@@ -453,12 +453,11 @@
     },
     "vocabulario_hardcodeado": {
       "detalle": {
-        "juez.py:TOOL_CONTEXTO_RE": 1,
         "skills/revision.yaml:condicion": 1,
         "skills/tdd.yaml:condicion": 1,
         "utils/aprobaciones.py:YES": 1
       },
-      "metrica": 4
+      "metrica": 3
     }
   },
   "version": 1

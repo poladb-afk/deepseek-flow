@@ -423,68 +423,73 @@ def test_verdict_reparacion_por_feedback_sin_alias(monkeypatch):
     assert "ok o retry" in prompts[1]
 
 def test_juez_no_entrega_con_herramienta_alucinada(monkeypatch):
-    """exp/42: el Draft alucinó `delete_file` (3/3 corridas). Con verdict ok
-    el flujo lo entregaba porque el Judge nunca veía el action space. Ahora
-    el inventario real lo aporta el código y una herramienta inventada fuerza
-    el retry, sin tocar el contrato observable (los veredictos)."""
+    """exp/42 + exp/107: el Draft alucinó `delete_file` (3/3 corridas) y el
+    Judge lo entregaba porque nunca veía el action space. Ahora el modelo lista
+    las herramientas que el borrador afirma usar y el código contrasta la
+    membresía contra el inventario real: una inventada fuerza retry, sin tocar
+    el contrato observable (los veredictos)."""
     import juez
 
-    monkeypatch.setattr(juez, "call_llm", lambda *a, **k: "verdict: ok\n")
-    # (a) borrador que menciona usar delete_file + verdict ok → retry
+    # (a) el modelo lista la herramienta inventada + verdict ok → retry
+    monkeypatch.setattr(
+        juez, "call_llm",
+        lambda *a, **k: "verdict: ok\ntools_usadas:\n  - delete_file\n")
     v = juez.Judge().exec(
-        ("¿q?", "podés usar la herramienta delete_file para borrarlo",
-         [], False)
-    )
+        ("¿q?", "podés usar la herramienta delete_file para borrarlo", [], False))
     assert v["verdict"] == "retry"
     assert any("action space" in p for p in v["problems"])
 
-    # (b) borrador honesto (no menciona herramientas inventadas) + ok → ok
+    # (b) borrador honesto (sin tools_usadas) + ok → ok
+    monkeypatch.setattr(juez, "call_llm", lambda *a, **k: "verdict: ok\n")
     v2 = juez.Judge().exec(("¿q?", "borrador sin herramientas raras", [], False))
     assert v2["verdict"] == "ok"
 
-def test_tools_alucinadas_funcion_pura():
-    """exp/42: el contraste contra el action space es un hecho del código.
-    Función pura: detecta la herramienta inventada en una línea con contexto
-    de tool; NO marca nombres reales (read_file, sql) ni snake_case suelto
-    sin contexto.
 
-    exp/42 sesión 4: dos regresiones MEDIDAS con LLM real — (a) un segmento
-    de ruta citado en línea con contexto de tool y (b) discutir una función
-    interna del código no son claims de herramienta. La trampa NO se afloja:
-    'usá la herramienta delete_file' sigue marcando delete_file."""
-    from juez import _tools_alucinadas
+def test_la_membresia_contra_el_inventario_decide_la_compuerta(monkeypatch):
+    """exp/107: el modelo lista y el CÓDIGO decide. Solo los nombres fuera del
+    inventario fuerzan retry; uno real (`read_file`) no dispara."""
+    import juez
 
-    inv = {"read_file", "sql", "run_supervisor"}
-    # delete_file NO está en el inventario y la línea habla de una tool
-    assert _tools_alucinadas(
-        "podés usar la herramienta delete_file para borrar", inv
-    ) == ["delete_file"]
-    # nombres reales: no se marcan
-    assert _tools_alucinadas("usá read_file para leer", inv) == []
-    # sql no tiene `_`: no es candidato (sesgo hacia no dar falsos positivos)
-    assert _tools_alucinadas("usá sql para consultar", inv) == []
-    # snake_case SIN contexto de tool: no se marca
-    assert _tools_alucinadas("el valor mi_dato quedó raro", inv) == []
+    monkeypatch.setattr(
+        juez, "call_llm",
+        lambda *a, **k: "verdict: ok\ntools_usadas:\n  - read_file\n  - delete_file\n")
+    v = juez.Judge().exec(("¿q?", "borrador", [], False))
+    assert v["verdict"] == "retry"
+    problema = next(p for p in v["problems"] if "action space" in p)
+    assert "delete_file" in problema and "read_file" not in problema
 
-    # (a) SEGMENTO DE RUTA (medido en search-vacio): citar 'utils/fs_tools.py'
-    # en una línea con contexto de tool NO marca el segmento `fs_tools`.
-    assert _tools_alucinadas(
-        "usá la herramienta documentada en utils/fs_tools.py para esto", inv
-    ) == []
-    assert _tools_alucinadas(
-        "la herramienta está en ../utils/fs_tools.py y se usa así", inv
-    ) == []
+    monkeypatch.setattr(
+        juez, "call_llm", lambda *a, **k: "verdict: ok\ntools_usadas:\n  - read_file\n")
+    assert juez.Judge().exec(("¿q?", "borrador", [], False))["verdict"] == "ok"
 
-    # (b) FUNCIÓN INTERNA (medido en thinking-tools): hablar de la función
-    # call_llm_agent (o de reasoning_content) NO marca nada. Nota: un token
-    # como 'tool_calls' se auto-dispara como contexto por su substring 'tool';
-    # el caso medido que depende del fix de 'función' es call_llm_agent.
-    assert _tools_alucinadas("la función call_llm_agent hace X", inv) == []
 
-    # LA TRAMPA NO SE AFLOJA: sigue marcando la tool inventada.
-    assert _tools_alucinadas("usá la herramienta delete_file", inv) == [
-        "delete_file"
-    ]
+def test_el_inventario_del_prompt_sale_de_inventario_tools(monkeypatch):
+    """El inventario se IMPORTA, no se escribe a mano: el prompt lista lo que
+    devuelve `_inventario_tools()` (exp/107)."""
+    import juez
+
+    monkeypatch.setattr(juez, "_inventario_tools", lambda: {"unica_tool"})
+    prompts = []
+
+    def capturar(prompt, *a, **k):
+        prompts.append(prompt)
+        return "verdict: ok\n"
+
+    monkeypatch.setattr(juez, "call_llm", capturar)
+    juez.Judge().exec(("¿q?", "borrador", [], False))
+    assert "- unica_tool" in prompts[0]
+    assert "tools_usadas" in prompts[0]
+
+
+def test_tools_usadas_que_no_es_lista_es_formato_invalido():
+    """El campo es parte del contrato del YAML: si no es lista, el reintento
+    informado lo endereza (exp/107)."""
+    import juez
+
+    veredicto, motivo = juez._validar("verdict: ok\ntools_usadas: hola\n")
+    assert veredicto is None
+    assert "tools_usadas" in motivo
+
 
 def test_degradacion_terminal_con_draft(monkeypatch):
     """Candado exp/21 (b): si el flujo revienta con draft presente,

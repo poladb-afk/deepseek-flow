@@ -417,7 +417,6 @@ tests/test_flujos.py::test_supervisor_flujo_nuevo_guarda_antes_de_despachar
 tests/test_flujos.py::test_supervisor_guarda_repetida_pura
 tests/test_flujos.py::test_supervisor_guarda_vetada_pura
 tests/test_flujos.py::test_supervisor_reutiliza_la_llamada_identica
-tests/test_flujos.py::test_tools_alucinadas_funcion_pura
 tests/test_flujos.py::test_verdict_fallback_semantico_sin_raise
 tests/test_flujos.py::test_verdict_normaliza_mayus_y_espacios
 tests/test_flujos.py::test_verdict_problems_string_dispara_reparacion
