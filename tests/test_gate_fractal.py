@@ -406,3 +406,17 @@ def test_tras_un_resume_a_mitad_de_pregunta_el_presupuesto_se_reinicia(monkeypat
     _correr_el_chat(monkeypatch, llm, ("seguí", "salir"), shared=shared)
     assert sum(1 for sin_tools in llamadas if not sin_tools) == 4  # techo completo
     assert llamadas[-1] is True  # la última, sin tools (con aviso: el otro test)
+
+
+def test_el_timeout_del_gate_falla_en_vez_de_colgar():
+    """X140 (salvedad de la verificación externa): la red `_sin_cuelgue` en
+    sí — M4c falla por las aserciones antes de llegar al timeout, así que la
+    red no se ejercitaba nunca en verde. Un loop sin freno tiene que levantar
+    TimeoutError acá, y la señal y el timer quedan restaurados (el segundo
+    uso pasa limpio)."""
+    import time
+
+    with pytest.raises(TimeoutError, match="no cerró"), _sin_cuelgue(0.2):
+        time.sleep(5)
+    with _sin_cuelgue(1):  # restaurado: sin timer heredado del bloque anterior
+        time.sleep(0)

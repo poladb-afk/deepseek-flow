@@ -7374,3 +7374,20 @@ quedaba en 4 y el assert lo denuncia). Árbol limpio: VERDE.
 **Lo no verificado**: la corrida con un modelo REAL que insista en tool
 calls tras un corte mudo (M4b/M4c con la API de verdad): el guion contesta
 cuando no hay tools; el timeout del gate es la red de esos casos.
+
+**Verificación externa (mismo día): VERIFICADO.** El verificador re-corrió el
+gate desde un zip (sin git): 1174 pasan, la caracterización idéntica a la de
+X138, el alcance en 7 archivos y R2 bien (`is None` pasó a `== (None, True)`,
+más fuerte). Probó 10 mutantes: los 8 de la tabla más **M7** (revertir la
+derivación: resetear solo en la primera ronda) y **M8** (`CierreChat` sin
+`AVISO_CIERRE`), ambos ROJO; reformuló M2 (el chat ejecuta `run_command` sin
+la política) y M6 (la copia no compacta) a su forma y también ROJO. M4c
+falló en 0,9 s por las aserciones — el timeout no se ejercitaba en verde, así
+que gana su propio candado (`test_el_timeout_del_gate_falla_en_vez_de_colgar`:
+levanta TimeoutError y restaura señal y timer). Dos salvedades aceptadas tal
+cual: quedan DOS números (`turno["rondas"]` y `ledger.rondas`) — una fuente y
+su proyección derivada en cada llamada, candada por M7 —, y el sha del zip
+del verificador (`c5f19f43…`, zipball de GitHub) difiere del `81f45f36…`
+(`git archive 12f378a`, determinista, mismo árbol). El commit intermedio
+`f0588d4` (que entró pese a un rojo de cuota de disco) fue reemplazado por
+el amend `3a5aece`: no es ancestro de `main` y ninguna rama lo contiene.
