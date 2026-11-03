@@ -181,20 +181,12 @@
     },
     "nodos_largos": {
       "detalle": {
-        "effective_n.py:EffectiveNMulti": 66,
-        "effective_n.py:HashFile": 65,
-        "effective_n.py:WriteReport": 140,
-        "fable_judge.py:CazarFraudes": 41,
-        "fable_judge.py:RecolectarClaims": 60,
-        "informe.py:WriteReport": 55,
-        "juez.py:Judge": 144,
-        "juez_lote.py:CorrerJuez": 51,
-        "juez_lote.py:JuezLoteFlow": 108,
-        "nodes.py:GetQuestion": 51,
-        "nodes.py:VerificarCitas": 52,
-        "research.py:Synthesizer": 60
+        "effective_n.py:HashFile": 47,
+        "effective_n.py:WriteReport": 73,
+        "juez.py:Judge": 72,
+        "juez_lote.py:JuezLoteFlow": 53
       },
-      "metrica": 12
+      "metrica": 4
     },
     "producto_conoce_lab": {
       "detalle": {},
@@ -426,7 +418,7 @@
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
         "tests/test_ratchet.py": 35,
-        "tests/test_ratchet_elegancia.py": 19,
+        "tests/test_ratchet_elegancia.py": 22,
         "tests/test_replay.py": 16,
         "tests/test_riesgo.py": 9,
         "tests/test_rondas.py": 6,
@@ -449,7 +441,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1161
+      "metrica": 1164
     },
     "texto_de_prompt": {
       "detalle": {

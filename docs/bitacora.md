@@ -7047,3 +7047,49 @@ si la bandera se lee después del reset de la caja). Inventario sin tocar.
 pierde `nodes.py:GetQuestion` y no suma colecciones nuevas), `lineas_del_loop`
 **651 en IGUAL** (cambia la condición, no la cantidad de líneas) y
 `tests_definidos` +2. Gate completo verde en la rama, `main` sin tocar.
+
+## X134: fase 6 — el instrumento de nodos largos cuenta código, no texto (2026-11-03)
+
+**Qué se hizo**: `ratchet.escanear_nodos_largos` (`ratchet.py:691`) mide ahora
+líneas de **código**: cuenta una línea si tiene algún token fuera de strings,
+docstrings, comentarios y blancos (`_lineas_de_codigo`), y las interpolaciones
+de un f-string son texto. El constructo declarado siempre fue "un nodo que hace
+varias cosas esconde aristas" y el texto que el nodo imprime no es una arista;
+el conteo por líneas físicas lo contaba igual y daba 12. El número viejo se
+conserva como **diagnóstico no gateado** (`escanear_nodos_fisicos`, impreso en
+cada corrida del ratchet), y `lineas_del_loop` sigue contando docstrings a
+propósito: ahí el loop se lee, acá no es una arista.
+
+**Cómo se llegó** (dictamen de Auditor sobre D1): el primer conteo propuesto
+—"toda línea con un string es texto"— daba 12 → 1, pero se comía líneas de
+lógica que mencionan strings (`if v.get("verdict") != "ok":`, `return
+{"verdict": "retry"}`) y habría bajado la métrica sin tocar el producto: mover
+el arco. Con la definición fiel el cambio es **12 → 4**, no alcanza la meta ≤3 y
+la fase 6 conserva trabajo real.
+
+**Medido con la definición nueva** (detalle del ratchet; el diagnóstico físico
+sigue en 12):
+
+| nodo | líneas de código |
+|---|---|
+| `juez.py:Judge` | 72 |
+| `effective_n.py:WriteReport` | 73 |
+| `juez_lote.py:JuezLoteFlow` | 53 |
+| `effective_n.py:HashFile` | 47 |
+
+Los otros ocho quedan ≤36. Los totales por nodo difieren ±3 de los del dictamen
+(`77/75/50/47`) por la convención para strings multilínea; el conjunto es el
+mismo 4 y el contrato son los tests, no la tabla.
+
+**Tests del instrumento** (`tests/test_ratchet_elegancia.py`, las cuatro
+direcciones que pidió Auditor): el texto no cuenta; una línea de lógica que
+menciona strings **sí** cuenta; un f-string multilínea es texto aunque interpole;
+el filtro `prep/exec/post` (+async) sigue igual; y el conteo físico queda como
+diagnóstico.
+
+**Declarado**: no se mueve el umbral 40 ni se parte ningún nodo en este commit
+(I1 va aparte, con su verificación de markdown byte-idéntico). La meta se
+re-expresa sobre la definición nueva: **≤3 nodos con más de 40 líneas de
+código** (arranque 4; el split real de `effective_n.WriteReport` la baja a 3).
+La cadena de `elegancia.md` conserva el 12 físico y suma el 4 nuevo. Gate
+completo verde en la rama, `main` sin tocar.

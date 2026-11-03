@@ -77,12 +77,14 @@ import ast
 import contextlib
 import getpass
 import hashlib
+import io
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tokenize
 from pathlib import Path
 
 import yaml
@@ -656,18 +658,67 @@ def escanear_settings(raiz: Path) -> dict[str, list[str]]:
     return {nombre: sorted(archivos) for nombre, archivos in sorted(detalle.items())}
 
 
-def escanear_nodos_largos(raiz: Path, maximo: int = MAX_LINEAS_NODO) -> dict[str, int]:
-    """Nodos (clases con prep/exec/post) de más de `maximo` líneas: un nodo
-    que hace varias cosas esconde aristas que el grafo debería mostrar."""
-    detalle = {}
+def _clases_de_nodo(raiz: Path):
+    """Las clases del harness con `prep`/`exec`/`post` (o sus variantes async)."""
     for ruta, arbol in _arboles(raiz):
         for nodo in ast.walk(arbol):
             if not isinstance(nodo, ast.ClassDef):
                 continue
             metodos = {m.name for m in nodo.body if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef))}
-            lineas = nodo.end_lineno - nodo.lineno + 1
-            if metodos & METODOS_DE_NODO and lineas > maximo:
-                detalle[f"{_relativa(ruta, raiz)}:{nodo.name}"] = lineas
+            if metodos & METODOS_DE_NODO:
+                yield ruta, nodo
+
+
+def _lineas_de_codigo(fuente: str) -> set[int]:
+    """Líneas con al menos un token fuera de strings, comentarios y blancos.
+
+    X134: el texto que el nodo imprime (docstrings, prompts, plantillas
+    markdown y sus interpolaciones, aunque estén en un f-string multilínea)
+    no es una arista escondida y no cuenta. Una línea de lógica que menciona
+    strings (`if d.get("k") != "v":`) sí tiene tokens propios y cuenta."""
+    lineas: set[int] = set()
+    en_fstring = 0
+    for token in tokenize.generate_tokens(io.StringIO(fuente).readline):
+        if token.type == getattr(tokenize, "FSTRING_START", -1):
+            en_fstring += 1
+        elif token.type == getattr(tokenize, "FSTRING_END", -1):
+            en_fstring = max(0, en_fstring - 1)
+        elif not en_fstring and token.type in (tokenize.NAME, tokenize.NUMBER, tokenize.OP):
+            lineas.add(token.start[0])
+    return lineas
+
+
+def _rango_de_lineas(nodo) -> range:
+    """Las líneas físicas de la clase (Pyright ve `end_lineno` opcional)."""
+    return range(nodo.lineno, (nodo.end_lineno or nodo.lineno) + 1)
+
+
+def escanear_nodos_largos(raiz: Path, maximo: int = MAX_LINEAS_NODO) -> dict[str, int]:
+    """Nodos (clases con prep/exec/post) de más de `maximo` líneas de CÓDIGO:
+    un nodo que hace varias cosas esconde aristas que el grafo debería
+    mostrar. X134: el texto impreso no es una arista; el conteo físico viejo
+    queda en `escanear_nodos_fisicos` como diagnóstico no gateado."""
+    fuentes: dict[Path, set[int]] = {}
+    detalle = {}
+    for ruta, nodo in _clases_de_nodo(raiz):
+        if ruta not in fuentes:
+            fuentes[ruta] = _lineas_de_codigo(ruta.read_text(encoding="utf-8"))
+        codigo = fuentes[ruta]
+        lineas = sum(1 for i in _rango_de_lineas(nodo) if i in codigo)
+        if lineas > maximo:
+            detalle[f"{_relativa(ruta, raiz)}:{nodo.name}"] = lineas
+    return dict(sorted(detalle.items()))
+
+
+def escanear_nodos_fisicos(raiz: Path) -> dict[str, int]:
+    """El conteo histórico (líneas FÍSICAS de la clase), diagnóstico de X134:
+    se conserva para comparar contra la definición vieja, no decide el
+    semáforo."""
+    detalle = {}
+    for ruta, nodo in _clases_de_nodo(raiz):
+        lineas = len(_rango_de_lineas(nodo))
+        if lineas > MAX_LINEAS_NODO:
+            detalle[f"{_relativa(ruta, raiz)}:{nodo.name}"] = lineas
     return dict(sorted(detalle.items()))
 
 
@@ -829,7 +880,8 @@ METRICAS: dict[str, dict] = {
     "nodos_largos": {
         "direccion": "menor_mejor",
         "conjunto": True,
-        "descripcion": f"nodos de más de {MAX_LINEAS_NODO} líneas (aristas escondidas en prep/post)",
+        "descripcion": (f"nodos de más de {MAX_LINEAS_NODO} líneas de código "
+                        "(aristas escondidas en prep/post; el texto impreso no cuenta)"),
         "calcular": _metrica_cantidad(escanear_nodos_largos),
     },
     "texto_de_prompt": {
@@ -1146,6 +1198,11 @@ def correr(
     }}
 
     empeoro, mejoro = _evaluar(actuales, previo, salida)
+    # X134: el número viejo (líneas físicas) no gatea; se conserva visible para
+    # poder comparar contra la definición anterior y auditar la redefinición.
+    salida(f"[ratchet] nodos_largos: diagnóstico no gateado — "
+           f"{len(escanear_nodos_fisicos(raiz))} nodos con más de "
+           f"{MAX_LINEAS_NODO} líneas físicas")
 
     if empeoro and actualizar:
         valida, motivo = clave_valida(raiz, os.environ.get(CLAVE_BYPASS))

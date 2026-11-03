@@ -80,8 +80,47 @@ def test_nodo_largo_es_una_clase_con_prep_exec_post(tmp_path):
     relleno = "".join(f"        x{i} = {i}\n" for i in range(45))
     _escribir(tmp_path, "nodes.py",
               f"class Largo:\n    def prep(self, s):\n{relleno}        return s\n\n"
+              f"class Asincrono:\n    async def exec_async(self, s):\n{relleno}        return s\n\n"
               f"class Datos:\n    def otro(self):\n{relleno}        return 1\n")
+    assert list(ratchet.escanear_nodos_largos(tmp_path)) == [
+        "nodes.py:Asincrono", "nodes.py:Largo"]
+
+
+CUERPOS_DE_TEXTO = (
+    '    def exec(self, x):\n        # el texto no decide nada, pero ocupa líneas\n\n'
+    '        return """\n{texto}        """\n',
+    '    def prep(self, x):\n        return f"""\n{texto}        """\n',
+)
+
+
+@pytest.mark.parametrize("cuerpo", CUERPOS_DE_TEXTO, ids=["docstring", "fstring"])
+def test_el_texto_de_un_nodo_no_cuenta_como_codigo(tmp_path, cuerpo):
+    """X134: prompts y docstrings (multilínea; el f-string con interpolaciones
+    incluida), comentarios y blancos son texto: no esconden control."""
+    texto = "".join(f"        Ronda {{x}} — línea {i} del prompt.\n" for i in range(50))
+    _escribir(tmp_path, "nodes.py", f"class Prompt:\n{cuerpo.format(texto=texto)}")
+    assert ratchet.escanear_nodos_largos(tmp_path) == {}
+
+
+def test_una_linea_con_strings_y_logica_cuenta_como_codigo(tmp_path):
+    """La corrección no puede comerse líneas de lógica que mencionan strings:
+    `if d.get("k") != "v":` es código, no texto (la trampa que marcó el
+    dictamen de Auditor)."""
+    cuerpo = "".join(
+        f'        if d.get("k{i}") != "v":\n            d["k{i}"] = "v"\n' for i in range(22))
+    _escribir(tmp_path, "nodes.py",
+              f"class Largo:\n    def post(self, d):\n{cuerpo}        return d\n")
     assert list(ratchet.escanear_nodos_largos(tmp_path)) == ["nodes.py:Largo"]
+
+
+def test_el_conteo_fisico_queda_como_diagnostico_no_gateado(tmp_path):
+    """X134: el número viejo (líneas físicas) se conserva para comparar, pero
+    no decide el semáforo."""
+    relleno = "".join(f"        Línea {i} del prompt.\n" for i in range(50))
+    _escribir(tmp_path, "nodes.py",
+              f'class Prompt:\n    def exec(self, x):\n        return """\n{relleno}        """\n')
+    assert ratchet.escanear_nodos_largos(tmp_path) == {}
+    assert list(ratchet.escanear_nodos_fisicos(tmp_path)) == ["nodes.py:Prompt"]
 
 
 def test_texto_de_prompt_mide_lo_literal_y_no_lo_interpolado(tmp_path):
