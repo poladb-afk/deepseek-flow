@@ -414,11 +414,18 @@ class PasoChat(Paso):
 
     def prep(self, s):
         # Una sola instancia para todo el proceso (el loop del chat es estático
-        # para que el diagrama lo pueda leer): en el primer paso de cada
-        # pregunta se resetea el saldo y se recorta el menú al skill (exp/55).
+        # para que el diagrama lo pueda leer). El menú se recorta al skill en
+        # el primer paso de cada pregunta (exp/55).
         if not turno(s)["rondas"]:
-            self.ctx.ledger.rondas = presupuesto(s)
             self.tools = herramientas_de(s)
+        # X140: una sola FUENTE del presupuesto del chat — `turno` (en shared:
+        # lo corta Contexto, lo checkpointea resume, lo lee S9a). El saldo del
+        # kernel es su PROYECCIÓN, derivada en CADA llamada: antes el Ledger
+        # se reseteaba solo al abrir la pregunta y bajaba con tomar(), dos
+        # cuentas del mismo número que coincidían por disciplina — y el freno
+        # de tomar() en el chat era código muerto (corta Contexto; medido,
+        # X140). Con la derivación no pueden discrepar por construcción.
+        self.ctx.ledger.rondas = presupuesto(s) - turno(s)["rondas"]
         return super().prep(s)
 
     def exec(self, entrada):

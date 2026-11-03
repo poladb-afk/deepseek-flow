@@ -5,12 +5,17 @@ El chat (`flow.create_agent_flow`), el supervisor y una copia anidada
 mismo `kernel.loop`. La propiedad que los hace fractales no es compartir
 archivo: es que cada política vive en UN punto y los tres niveles pasan por
 ahí — el despacho con HITL y política de comandos (`fs_tools.run_tool_call`
-→ `modules/coding.run_command`, la decisión en `utils/policy`), el saldo
-(`kernel.Ledger`) y la compactación (la política `Contexto` sobre
-`utils/compaccion.compactar`, montada por el mecanismo `politicas` del loop).
-Si un nivel gana camino propio, este gate da rojo (P2a y S0).
+→ `modules/coding.run_command`, la decisión en `utils/policy`), el saldo y
+la compactación (la política `Contexto` sobre `utils/compaccion.compactar`,
+montada por el mecanismo `politicas` del loop). El presupuesto tiene UNA
+fuente por nivel: en el kernel es el `Ledger`; en el chat es `turno` (en
+shared: lo corta Contexto, lo checkpointea resume, lo lee S9a) y el Ledger
+es su proyección, derivada en cada `PasoChat.prep` (X140). Si un nivel gana
+camino propio, este gate da rojo (P2a y S0) — y un loop sin freno FALLA
+por timeout en vez de colgar la suite (X140).
 """
 import builtins
+import contextlib
 import json
 from types import SimpleNamespace as NS
 
@@ -18,6 +23,24 @@ import pytest
 
 # X114: fuera de la lista blanca de pytest → la política dice "preguntar"
 COMANDO = "pytest --pastebin=all"
+
+
+@contextlib.contextmanager
+def _sin_cuelgue(segundos=30):
+    """X140: un loop al que le sacaron el freno tiene que FALLAR acá, no
+    colgar la suite. `signal` de la stdlib: sin dependencias nuevas."""
+    import signal
+
+    def _timeout(signum, frame):
+        raise TimeoutError(f"el loop no cerró en {segundos}s: le sacaron el freno")
+
+    viejo = signal.signal(signal.SIGALRM, _timeout)
+    signal.setitimer(signal.ITIMER_REAL, segundos)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, viejo)
 
 
 def _llamada(nombre, args, id="c1"):
@@ -29,10 +52,11 @@ def _msg(contenido=None, llamada=None):
     return NS(content=contenido, tool_calls=[llamada] if llamada else None)
 
 
-def _correr_el_chat(monkeypatch, llm, entradas, techo=None):
+def _correr_el_chat(monkeypatch, llm, entradas, techo=None, shared=None):
     """El chat REAL (el grafo de `flow.create_agent_flow`) con un modelo
     guionado; devuelve el shared. Misma receta que el candado de X136
-    (tests/test_instrumentos_chat_real.py)."""
+    (tests/test_instrumentos_chat_real.py). `shared` pre-sembrado simula un
+    thread rehidratado por resume (X140)."""
     import flow
     import nodes
 
@@ -41,10 +65,12 @@ def _correr_el_chat(monkeypatch, llm, entradas, techo=None):
     monkeypatch.setattr(nodes, "call_llm_agent", llm)
     respuestas = iter(entradas)
     monkeypatch.setattr(builtins, "input", lambda *a, **k: next(respuestas))
-    shared = {"messages": [{"role": "system", "content": "s"}]}
+    if shared is None:
+        shared = {"messages": [{"role": "system", "content": "s"}]}
     if techo is not None:
         shared["max_tool_rounds"] = techo
-    flow.create_agent_flow().run(shared)
+    with _sin_cuelgue():
+        flow.create_agent_flow().run(shared)
     return shared
 
 
@@ -55,7 +81,8 @@ def _correr_el_supervisor(monkeypatch, tmp_path, llm, pasos):
     monkeypatch.setattr(supervisor, "call_llm", lambda *a, **k: "síntesis")
     corrida = supervisor.Corrida(llm=llm)
     shared = supervisor.shared_de("tarea", str(tmp_path / "supervisor.md"))
-    supervisor.create_supervisor_flow(corrida).run(shared)
+    with _sin_cuelgue():
+        supervisor.create_supervisor_flow(corrida).run(shared)
     return corrida
 
 
@@ -81,7 +108,8 @@ def _correr_una_copia(llm, saldo, herramientas):
     copia = agente("copia", "Resuelve el pedido autocontenido",
                    "Sos una copia anidada del mismo loop.", herramientas)
     shared = semilla("Sos la raíz y delegás en la copia.", "delegá: resolvé el pedido")
-    loop(ctx, [copia], wait=0).run(shared)
+    with _sin_cuelgue():
+        loop(ctx, [copia], wait=0).run(shared)
     return ctx, shared
 
 
@@ -119,6 +147,19 @@ def test_un_rechazo_del_humano_llega_igual_al_chat_al_supervisor_y_a_una_copia(
     ninguno. Un nivel con camino propio (su propia política o su propio
     despacho) rompe los tres asserts del final."""
     # 1) el chat real
+    import nodes
+    import utils.fs_tools as fs
+
+    real = fs.run_tool_call
+    cruces = []
+
+    def espia(llamada, impls=None):
+        cruces.append(llamada["function"]["name"])
+        return real(llamada, impls)
+
+    monkeypatch.setattr(fs, "run_tool_call", espia)
+    monkeypatch.setattr(nodes, "run_tool_call", espia)
+
     def llm_chat(mensajes, tools=None):
         if any(m.get("role") == "tool" for m in mensajes):
             return _msg("el humano lo rechazó")
@@ -127,8 +168,11 @@ def test_un_rechazo_del_humano_llega_igual_al_chat_al_supervisor_y_a_una_copia(
     shared = _correr_el_chat(monkeypatch, llm_chat,
                              ("corré los tests", "salir"))
     assert "RECHAZADO por el usuario" in _resultado_tool(shared)
+    assert len(cruces) >= 1  # el chat despachó por el ÚNICO camino
 
     # 2) el supervisor real
+    antes = len(cruces)
+
     def llm_sup(mensajes, tools=None):
         if any(m.get("role") == "tool" for m in mensajes):
             return _msg("tarea cerrada")
@@ -136,6 +180,7 @@ def test_un_rechazo_del_humano_llega_igual_al_chat_al_supervisor_y_a_una_copia(
 
     corrida = _correr_el_supervisor(monkeypatch, tmp_path, llm_sup, pasos=3)
     assert "RECHAZADO por el usuario" in corrida.ley["llamadas"][0]["resultado"]
+    assert len(cruces) > antes  # el supervisor, por el mismo camino
 
     # 3) la copia anidada (profundidad 1, el saldo de la raíz)
     def llm_arbol(mensajes, tools=None):
@@ -146,9 +191,11 @@ def test_un_rechazo_del_humano_llega_igual_al_chat_al_supervisor_y_a_una_copia(
             return _msg(f"la copia vio: {_resultado_tool({'messages': mensajes})}")
         return _msg(None, _llamada("run_command", {"command": COMANDO}))
 
+    antes_copia = len(cruces)
     ctx, shared_raiz = _correr_una_copia(llm_arbol, 4, [_tool_de_modulo("run_command")])
     assert "RECHAZADO por el usuario" in _resultado_tool(shared_raiz)
     assert (1, "run_command") in [e[:2] for e in ctx.traza]
+    assert len(cruces) > antes_copia  # la copia, por el mismo camino
 
     # la propiedad: UNA definición consultada por los tres niveles
     assert un_solo_humano["niveles"] == ["preguntar"] * 3
@@ -158,10 +205,12 @@ def test_un_rechazo_del_humano_llega_igual_al_chat_al_supervisor_y_a_una_copia(
 
 def test_sin_saldo_ningun_nivel_ejecuta_y_la_ultima_llamada_va_sin_tools(
         monkeypatch, tmp_path):
-    """El saldo está agregado UNA vez (kernel.Ledger): agotado, la tool call
-    pendiente no se ejecuta y la próxima llamada al modelo va sin tools — en
-    el chat, en el supervisor y en una copia anidada que arranca sin saldo
-    para su propio loop."""
+    """El presupuesto tiene UNA fuente por nivel (X140): en el chat es
+    `turno` y el `kernel.Ledger` su proyección; en el supervisor y las copias
+    es el Ledger. Agotado: la tool call pendiente no se ejecuta y la próxima
+    llamada al modelo va sin tools — y en el chat, ADEMÁS con `AVISO_CIERRE`
+    (A38: sin el aviso el modelo sigue emitiendo tool calls; el freno mudo
+    del Ledger no lo reemplaza)."""
     import nodes
     from utils.fs_tools import run_tool_call as run_real
 
@@ -176,14 +225,15 @@ def test_sin_saldo_ningun_nivel_ejecuta_y_la_ultima_llamada_va_sin_tools(
     llamadas_chat = []
 
     def llm_chat(mensajes, tools=None):
-        llamadas_chat.append(tools)
+        llamadas_chat.append(
+            (tools, any(m.get("content") == nodes.AVISO_CIERRE for m in mensajes)))
         if tools is None:
             return _msg("cierro")
         return _msg(None, _llamada("read_file", {"path": "README.md"}))
 
     _correr_el_chat(monkeypatch, llm_chat, ("leé el README", "salir"), techo=1)
-    assert ejecutadas == ["read_file"]  # una ronda y no más
-    assert llamadas_chat[-1] is None    # la última llamada, sin tools
+    assert ejecutadas == ["read_file"]        # una ronda y no más
+    assert llamadas_chat[-1] == (None, True)  # la última: sin tools Y con aviso
 
     ejecutadas.clear()
     llamadas_sup = []
@@ -217,6 +267,26 @@ def test_sin_saldo_ningun_nivel_ejecuta_y_la_ultima_llamada_va_sin_tools(
     assert ejecutadas == []                          # nada corrió en el árbol
     assert [e[0] for e in ctx.traza] == [0]          # solo la raíz delegó (la copia, nada)
     assert "sin saldo para tools" in _resultado_tool(shared_raiz)
+
+    # segundo árbol, con saldo para que la copia CORRA: las rondas de la copia
+    # descuentan del ledger de la RAÍZ (ctx.hijo comparte el saldo, X119). Una
+    # copia con ledger propio (o que no cobre su lugar) deja saldo en el padre
+    # y este assert la denuncia.
+    ejecutadas.clear()
+
+    def llm_arbol_largo(mensajes, tools=None):
+        nombres = {t["function"]["name"] for t in tools or []}
+        if "copia" in nombres:
+            return _msg(None, _llamada("copia", {"pedido": "leé todo"}))
+        if tools is None:
+            return _msg("la copia cerró sin saldo")
+        return _msg(None, _llamada("leer", {}, id=f"c{len(mensajes)}"))
+
+    ctx, _ = _correr_una_copia(
+        llm_arbol_largo, 6, [Tool("leer", {"type": "function", "function": {"name": "leer"}},
+                                   lambda llamada, _ctx: ejecutadas.append("leer") or "x")])
+    assert ejecutadas == ["leer"] * 4   # delegación (1) + 4 rondas de la copia = 5 de 6
+    assert ctx.ledger.rondas == 0       # la raíz quedó sin saldo: UN ledger para el árbol
 
 
 def test_la_compactacion_es_una_politica_del_loop_y_corre_igual_en_una_copia(
@@ -264,3 +334,75 @@ def test_la_compactacion_es_una_politica_del_loop_y_corre_igual_en_una_copia(
     assert shared_copia.get("compacciones", 0) >= 1
     # UNA sola función de compactación atendió a los dos niveles
     assert len(compactaciones) >= 2
+
+
+def test_el_saldo_del_chat_se_deriva_de_turno_en_cada_llamada():
+    """X140: la fuente del presupuesto del chat es `turno` (en shared: lo
+    checkpointea resume, lo lee S9a, lo corta Contexto) y el saldo del kernel
+    es su PROYECCIÓN, derivada en CADA PasoChat.prep. Antes el Ledger se
+    reseteaba solo al abrir la pregunta y bajaba con tomar(): dos cuentas del
+    mismo número que coincidían por disciplina."""
+    from conftest import ctx_chat
+
+    import nodes
+
+    paso = nodes.PasoChat(ctx_chat(rondas=99), [], max_retries=1, wait=0)
+    for rondas, tope in ((0, 3), (2, 4), (4, 4)):
+        shared = {"messages": [{"role": "system", "content": "s"}],
+                  "turno": {**nodes.nuevo_turno(), "rondas": rondas},
+                  "max_tool_rounds": tope}
+        paso.prep(shared)
+        assert paso.ctx.ledger.rondas == tope - rondas, (rondas, tope)
+
+
+def test_el_loop_del_chat_cierra_por_el_saldo_del_kernel():
+    """X140 (el mutante que pasaba): el chat ES una instancia del kernel — con
+    el saldo en 0 y tool calls pendientes, su Paso también sale por la arista
+    `cerrar`. En el flujo normal corta Contexto ANTES (con aviso); esta es la
+    carrera de un árbol (X119) vista desde el chat, y sin este candado
+    sacarle el freno al chat no rompe ningún test."""
+    from conftest import ctx_chat
+
+    import nodes
+
+    paso = nodes.PasoChat(ctx_chat(rondas=0), [], max_retries=1, wait=0)
+    shared = {"messages": [{"role": "system", "content": "s"},
+                           {"role": "user", "content": "q"}],
+              "turno": nodes.nuevo_turno()}
+    assert paso.post(shared, None,
+                     _msg(None, _llamada("read_file", {"path": "README.md"}))) == "cerrar"
+
+
+def test_tras_un_resume_a_mitad_de_pregunta_el_presupuesto_se_reinicia(monkeypatch):
+    """X140 (b): un thread rehidratado con el turno a mitad (rondas=2 de 4)
+    llega con el presupuesto VIEJO en la caja; el primer mensaje nuevo
+    reemplaza el turno ENTERO (exp/4: un mensaje nuevo reinicia el
+    presupuesto). El gate fija que el saldo viejo no se filtre: el turno corre
+    con su techo completo y cierra — ni una ronda menos ni una más."""
+    import nodes
+
+    llamadas = []
+
+    def llm(mensajes, tools=None):
+        llamadas.append(tools is None)
+        if tools is None:
+            return _msg("cierro")
+        return _msg(None, _llamada("read_file", {"path": "README.md"},
+                                   id=f"c{len(llamadas)}"))
+
+    shared = {
+        "messages": [
+            {"role": "system", "content": "s"},
+            {"role": "user", "content": "leé el README"},
+            {"role": "assistant", "content": None,
+             "tool_calls": [{"id": "c9", "type": "function",
+                             "function": {"name": "read_file",
+                                          "arguments": '{"path": "README.md"}'}}]},
+            {"role": "tool", "tool_call_id": "c9", "content": "contenido"},
+        ],
+        "turno": {**nodes.nuevo_turno(), "rondas": 2},
+        "max_tool_rounds": 4,
+    }
+    _correr_el_chat(monkeypatch, llm, ("seguí", "salir"), shared=shared)
+    assert sum(1 for sin_tools in llamadas if not sin_tools) == 4  # techo completo
+    assert llamadas[-1] is True  # la última, sin tools (con aviso: el otro test)
