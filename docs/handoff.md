@@ -91,7 +91,7 @@ proceso viven en `AGENTS.md`.
 |---|---|---|---|
 | `settings_leidos` | 89 | 52 (S6/X132) | ≤ 45 |
 | `imports_perezosos` | 137 | 14 (X125) | ≤ 40 ✅ |
-| `nodos_largos` | 15 (físicas) | 4 (X134: líneas de código; el diagnóstico físico sigue en 12) | ≤ 3 (definición nueva) |
+| `nodos_largos` | 15 (físicas) | 4 (X134: líneas de código; el diagnóstico físico pasó 12 → 13 con `Cruzar`, X134a) | ≤ 3 (definición nueva) |
 | `vocabulario_hardcodeado` | 8 | **3** (X135: el juez ya no detecta por regex) | ≤ 2 → **piso honesto 3** (2 regex de `skills/*.yaml` + `YES` del HITL; se re-expresa en X136) |
 | `texto_de_prompt` | 2748 | 1542 | 1542 ✅ |
 | `core_importa_modulos`, `producto_conoce_lab`, `funciones_complejas`, `codigo_muerto_privado` | — | 0 | 0 ✅ |

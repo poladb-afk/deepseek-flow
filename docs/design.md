@@ -579,7 +579,7 @@ forzado y vocabulario prohibido (insert/update/delete/...).
 
 ```mermaid
 flowchart LR
-    s[ScanFiles] --> h["HashFile (BatchNode)"] --> w[WriteReport]
+    s[ScanFiles] --> h["HashFile (BatchNode)"] --> c[Cruzar] --> w[WriteReport]
 ```
 
 El informe cuenta registros por archivo; esta pieza responde la pregunta
@@ -587,9 +587,10 @@ previa al re-entrenamiento: cuántos son **distintos de verdad**. Código
 puro (como carga_trazas), sin LLM: la huella de contenido es sha1 de
 `(task, observation, criteria, steps, answers.next)` — ignora
 `id`/`created`/`model`, que cambian entre volcados del mismo caso. El mapa
-hashea archivo por archivo; el reduce cruza pares, detecta archivos
-duplicados enteros (md5), contradicciones de etiqueta (misma huella sin
-`next`, etiquetas distintas) y escribe el markdown.
+hashea archivo por archivo; `Cruzar` reduce los hechos —cruza pares,
+detecta archivos duplicados enteros (md5) y contradicciones de etiqueta (misma
+huella sin `next`, etiquetas distintas)— y los deja en `shared["cruce"]`;
+`WriteReport` arma la plantilla y escribe el markdown (X134a).
 
 Con VARIAS carpetas, `EffectiveNMulti` (BatchFlow) fanea el MISMO flujo por
 carpeta y escribe un informe conjunto con una sección por carpeta + resumen.
@@ -623,6 +624,7 @@ orden del archivo, no en orden de terminación.
 | `folder`, `glob`, `salida` | configuración sembrada por main |
 | `files` | rutas encontradas (ScanFiles) |
 | `analisis` | por archivo: n, rotos, huellas, etiquetas, con steps/observation, dist next, md5 |
+| `cruce` | hechos del reduce entre `Cruzar` y `WriteReport`: filas por archivo, duplicados enteros, solapes por pares, contradicciones, total y efectivo |
 | `informe`, `resumen` | ruta del markdown y línea "N → Effective N" (WriteReport) |
 
 Hallazgos medidos sobre `bmo/data` (12 archivos, 15.595 registros):
