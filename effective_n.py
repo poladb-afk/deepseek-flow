@@ -139,8 +139,19 @@ class HashFile(BatchNode):
             print(f"  ✓ {a['file'].name}: {a['n']} registros, {len(set(a['huellas']))} únicos")
 
 
-class WriteReport(Node):
-    """Reduce: cruces por pares, Effective N del conjunto, contradicciones."""
+def _rel(a, folder):
+    """Identificador del archivo: ruta relativa a la carpeta (los rounds
+    repiten nombre)."""
+    try:
+        return str(a["file"].relative_to(folder))
+    except ValueError:
+        return a["file"].name
+
+
+class Cruzar(Node):
+    """Reduce, sin texto: cruces por pares, Effective N del conjunto y
+    contradicciones. La plantilla y la escritura son otro trabajo (fase 6:
+    el nodo hacía las dos cosas)."""
 
     def prep(self, shared):
         # el nodo hereda el job por params: `folder` (BatchFlow) o, en el
@@ -150,66 +161,86 @@ class WriteReport(Node):
     def exec(self, inputs):
         folder, analisis = inputs
         if not analisis:
+            return {"vacio": True}
+        filas = [{
+            "archivo": _rel(a, folder),
+            "n": a["n"],
+            "rotos": a["rotos"],
+            "forma": a.get("forma", 0),
+            "unicos": len(set(a["huellas"])),
+            "con_steps": a["con_steps"],
+            "con_obs": a["con_obs"],
+        } for a in analisis]
+        # archivos duplicados enteros (mismo md5)
+        por_md5 = {}
+        for fila, a in zip(filas, analisis, strict=True):
+            por_md5.setdefault(a["md5"], []).append(fila["archivo"])
+        dup_archivos = [v for v in por_md5.values() if len(v) > 1]
+        # solape por pares sobre el contenido (con next)
+        conjuntos = {f["archivo"]: set(a["huellas"]) for f, a in zip(filas, analisis, strict=True)}
+        nombres = list(conjuntos)
+        solapes = []
+        for i, x in enumerate(nombres):
+            for y in nombres[i + 1:]:
+                inter = len(conjuntos[x] & conjuntos[y])
+                if inter:
+                    solapes.append((x, y, inter, len(conjuntos[x] | conjuntos[y])))
+        # Effective N del conjunto + contradicciones de etiqueta
+        todas = [huella for a in analisis for huella in a["huellas"]]
+        contradicciones = [
+            (f["archivo"], sorted(etiquetas))
+            for f, a in zip(filas, analisis, strict=True)
+            for etiquetas in a["etiquetas"].values()
+            if len(etiquetas) > 1
+        ]
+        return {"vacio": False, "total": len(todas), "efectivo": len(set(todas)),
+                "filas": filas, "dup": dup_archivos, "solapes": solapes,
+                "contradicciones": contradicciones}
+
+    def post(self, shared, prep_res, exec_res):
+        shared["cruce"] = exec_res
+
+
+class WriteReport(Node):
+    """La plantilla del informe y su escritura (el efecto); los hechos ya
+    vienen cruzados de `Cruzar`."""
+
+    def prep(self, shared):
+        return self.params.get("folder") or shared["folder"], shared.get("cruce") or {}
+
+    def exec(self, inputs):
+        folder, cruce = inputs
+        if not cruce or cruce.get("vacio"):
             return {
                 "markdown": f"# Effective N\n\nNo se encontraron archivos en `{folder}`.\n",
                 "total": 0,
                 "efectivo": 0,
             }
-
-        # identificador: ruta relativa a la carpeta (los rounds repiten nombre)
-        def rel(a):
-            try:
-                return str(a["file"].relative_to(folder))
-            except ValueError:
-                return a["file"].name
-
-        # archivos duplicados enteros (mismo md5)
-        por_md5 = {}
-        for a in analisis:
-            por_md5.setdefault(a["md5"], []).append(rel(a))
-        dup_archivos = [v for v in por_md5.values() if len(v) > 1]
-
-        # solape por pares sobre el contenido (con next)
-        sets = {rel(a): set(a["huellas"]) for a in analisis}
-        nombres = list(sets)
-        solapes = []
-        for i, x in enumerate(nombres):
-            for y in nombres[i + 1:]:
-                inter = len(sets[x] & sets[y])
-                if inter:
-                    solapes.append((x, y, inter, len(sets[x] | sets[y])))
-
-        # Effective N del conjunto + contradicciones de etiqueta
-        todas = []
-        for a in analisis:
-            todas.extend(a["huellas"])
-        total = len(todas)
-        efectivo = len(set(todas))
-        contradicciones = [
-            (rel(a), nexts)
-            for a in analisis
-            for nexts in a["etiquetas"].values()
-            if len(nexts) > 1
-        ]
-
+        filas = cruce["filas"]
+        total = cruce["total"]
+        efectivo = cruce["efectivo"]
         tabla = "\n".join(
-            f"| `{rel(a)}` | {a['n']} | {a['n'] - a['rotos'] - a.get('forma', 0) - len(set(a['huellas']))} "
-            f"| {len(set(a['huellas']))} | {a['con_steps']} | {a['con_obs']} |"
-            for a in analisis
+            f"| `{f['archivo']}` | {f['n']} | {f['n'] - f['rotos'] - f['forma'] - f['unicos']} "
+            f"| {f['unicos']} | {f['con_steps']} | {f['con_obs']} |"
+            for f in filas
         )
         filas_solape = "\n".join(
-            f"| `{x}` | `{y}` | {inter} | {inter / union:.0%} |" for x, y, inter, union in solapes
+            f"| `{x}` | `{y}` | {inter} | {inter / union:.0%} |"
+            for x, y, inter, union in cruce["solapes"]
         ) or "| — | — | 0 | — |"
         ejemplos_contra = "\n".join(
-            f"- `{f}`: etiquetas en conflicto {sorted(n)}" for f, n in contradicciones[:MAX_EJEMPLOS]
+            f"- `{f}`: etiquetas en conflicto {n}"
+            for f, n in cruce["contradicciones"][:MAX_EJEMPLOS]
         ) or "ninguna"
-        bloque_dup = "\n".join("- " + " ≡ ".join(f"`{n}`" for n in g) for g in dup_archivos) or "ninguno"
+        bloque_dup = "\n".join(
+            "- " + " ≡ ".join(f"`{n}`" for n in g) for g in cruce["dup"]
+        ) or "ninguno"
         # total==0 (archivos vacíos o solo-rotos): evitar la división por cero
         pct_dup = f"{(1 - efectivo / total):.1%}" if total else "—"
 
         return {"total": total, "efectivo": efectivo, "markdown": f"""# Effective N — {date.today().isoformat()}
 
-Carpeta: `{folder}` · {len(analisis)} archivos · {total} registros válidos
+Carpeta: `{folder}` · {len(filas)} archivos · {total} registros válidos
 
 Huella de contenido: sha1 de `({', '.join(CAMPOS)}, answers.next)` —
 ignora `id`/`created`/`model`. El Effective N es el número de registros con
@@ -282,7 +313,7 @@ distintos cuentan como duplicado igual.)
 
 
 def create_effective_n_flow():
-    """Flujo de UNA carpeta: ScanFiles → HashFile → WriteReport.
+    """Flujo de UNA carpeta: ScanFiles → HashFile → Cruzar → WriteReport.
 
     La carpeta/glob/salida viajan en los params del flujo (el BatchFlow
     multi-carpeta inyecta un job por corrida). Si el llamador no fijó params,
@@ -294,8 +325,9 @@ def create_effective_n_flow():
     el job vive en self.params y los nodos lo leen de ahí."""
     scan = ScanFiles()
     mapa = HashFile()
+    cruzar = Cruzar()
     reduce_ = WriteReport()
-    scan >> mapa >> reduce_
+    scan >> mapa >> cruzar >> reduce_
     flow = Flow(start=scan)
 
     def _run(shared):

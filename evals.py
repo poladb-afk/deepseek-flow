@@ -71,7 +71,7 @@ ACCIONES_CANONICAS = {
     ("LayaRouter", "directo"), ("LayaRouter", "herramientas"),
     ("Contexto", "directo"), ("DirectAnswer", "tool"), ("DirectAnswer", "answer"),
     # informe
-    ("ScanFiles", "None"), ("AnalizeFile", "None"), ("WriteReport", "None"),
+    ("ScanFiles", "None"), ("AnalizeFile", "None"), ("Cruzar", "None"), ("WriteReport", "None"),
     # juez
     ("Draft", "None"), ("Judge", "retry"), ("Judge", "entregar"), ("Entregar", "None"),
     # juez_lote

@@ -7093,3 +7093,41 @@ re-expresa sobre la definición nueva: **≤3 nodos con más de 40 líneas de
 código** (arranque 4; el split real de `effective_n.WriteReport` la baja a 3).
 La cadena de `elegancia.md` conserva el 12 físico y suma el 4 nuevo. Gate
 completo verde en la rama, `main` sin tocar.
+
+## X134a: fase 6 — `effective_n.WriteReport` partido en `Cruzar` → `WriteReport` (2026-11-03)
+
+**Qué se hizo**: el nodo hacía tres cosas en 73 líneas de código: cruzaba los
+datos, redactaba el markdown y lo escribía. Se partió por responsabilidad:
+
+- `Cruzar`: reduce sin texto — dup enteros por md5, solape por pares,
+  Effective N del conjunto y contradicciones de etiqueta. Devuelve datos
+  (`filas`, `dup`, `solapes`, `contradicciones`, `total`, `efectivo`) y su
+  `post` los deja en `shared["cruce"]`.
+- `WriteReport`: la plantilla con los bloques, la escritura vía
+  `escribir_salida` y el bookkeeping del batch (`resumen`, `informe`,
+  `informes`); su `post` es exactamente el de antes, con las mismas claves.
+- El flujo queda `ScanFiles → HashFile → Cruzar → WriteReport`
+  (`effective_n.create_effective_n_flow`). `evals.ACCIONES_CANONICAS` suma
+  `("Cruzar","None")` para que el linter no cuente el nodo nuevo como acción
+  desconocida (X130).
+
+**Conducta idéntica, medida**: golden de los markdown del flujo real contra
+`8443ddf` y la rama — una carpeta con dup interno y entre archivos,
+contradicción de etiqueta, línea rota y `fields: null`, carpeta vacía, y
+multi-carpeta con su informe conjunto. **Diff vacío, byte por byte** (1524
+chars el informe de una carpeta; mismos resúmenes y mismos markdowns por
+carpeta del batch). Los 4 escenarios de `tests/test_flujos.py` y la escritura
+fuera de raíces de `tests/test_policy.py` verdes sin cambios.
+
+**Los números honestos**: `WriteReport` **73 → 50** líneas de código y
+`Cruzar` **40** (justo el umbral: no cuenta como largo). `nodos_largos`
+**sigue en 4** (`HashFile` 47, `WriteReport` 50, `Judge` 72, `JuezLoteFlow`
+53). La predicción del cierre de X134 ("el split la baja a 3") **no se
+cumplió**: el corte que falta —plantilla vs escritura— es el patrón del repo
+(render en `exec`, efecto en `post`, así están `informe.WriteReport` y
+`Synthesizer`), o sea un solo trabajo por convención. No se fuerza el número;
+la meta ≤3 queda para I4 con este dato.
+
+**Docs**: nit de `elegancia.md:70` ("un nodo, una cosa (≤ 40 líneas **de
+código**)"), fila X134a del tablero y la fila de fase 6 del handoff al día.
+Gate completo verde en la rama, `main` sin tocar.

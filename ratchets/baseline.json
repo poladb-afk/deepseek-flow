@@ -182,7 +182,7 @@
     "nodos_largos": {
       "detalle": {
         "effective_n.py:HashFile": 47,
-        "effective_n.py:WriteReport": 73,
+        "effective_n.py:WriteReport": 50,
         "juez.py:Judge": 72,
         "juez_lote.py:JuezLoteFlow": 53
       },

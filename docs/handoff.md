@@ -154,7 +154,7 @@ puede ajustarla (es un dato de `utils/politica_comandos.json`).
 | 8 | ✅ **S9a hecho (X133):** la continuación la decide el estado del thread (la pregunta anterior abierta por el techo), no una lista de palabras; `vocabulario_hardcodeado` 5 → 4 y delta declarado en la bitácora | mínimo | 9 | hecho |
 | 9 | ✅ **S9b A′ hecho (X126):** el chat corre sobre `kernel.loop`; los 22 tests que nombraban `AgentStep`/`ExecuteTools`/`Cierre` reescritos 1:1 (R2 autorizada), y mapa de compatibilidad para trazas/checkpoints viejos | mínimo | 5 | hecho |
 | 10 | S3: esquema de tools fijo y cierre por arista | mínimo | **bloqueado** | la prueba de `tool_choice="none"` en DeepSeek |
-| 11 | Fase 6: piezas sueltas | no | — | 10 nodos largos, `TOOL_CONTEXTO_RE` |
+| 11 | Fase 6: piezas sueltas — ✅ instrumento (X134) y ✅ split de `effective_n.WriteReport` en `Cruzar` → `WriteReport` (X134a); falta I2 (juez) e I4 (cierre) | no | — | `nodos_largos` 4 sobre código (la meta ≤3 queda para el cierre), `TOOL_CONTEXTO_RE` |
 | 12 | Archivar `docs/bitacora.md` por mes (6900+ líneas) | no | 11 | mueve rutas que citan el tablero y los principios: el gate lo tiene que ver |
 | 13 | exp/103: el loop fractal contra el loop solo, con el presupuesto igualado. Su diferencia de calidad sin adopción la midió el exp/104 (X129): **no se replica** (F0 − A = −0,062, p ≈ 0,67). **Corrido el 2026-11-02 (X127): NO PASA** por adopción (0/72 llamadas a `dividir`; las otras tres condiciones ✅); `recursivo` queda como primitiva sin uso y la rama se borró (consecuencia pre-registrada del spec); el registro queda en el spec y la bitácora | **sí** | 1 (con el desvío declarado: el saldo único llega con 9). A+ corregido en X120: el mismo techo que F | `banco/specs/exp103_fractal.md` |
 
