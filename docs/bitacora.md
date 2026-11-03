@@ -7258,3 +7258,47 @@ pasan sin tocarse.
 **Los números**: `nodos_largos` **4 → 3** (meta cumplida, el ratchet mejoró
 el baseline solo); el conteo físico (diagnóstico no gateado) pasó de 13 a 12.
 Gate completo verde.
+
+---
+
+## X138: el gate fractal — una política agregada una vez llega a todos los niveles (2026-11-03)
+
+**Qué se medía y qué no.** P2a dice: "una sola definición del loop con N
+instancias... así que una política agregada una vez llega a todos los
+niveles". Era la propiedad que define al harness y ningún test la medía:
+`test_kernel.py` probaba las leyes del árbol (saldo, profundidad, efecto,
+2R+1) con loops sintéticos, y el chat y el supervisor se probaban por
+separado; que los TRES pasaran por los mismos puntos únicos quedaba sin
+candado.
+
+**El gate** (`tests/test_gate_fractal.py`, tres tests): corren los flujos
+REALES — el chat (`flow.create_agent_flow`, receta del candado de X136), el
+supervisor (`Corrida` + `create_supervisor_flow`) y una copia anidada
+(`kernel.agente`, o `kernel.loop` sobre `Ctx.hijo`) — con modelos guionados,
+y espían el punto único de cada política:
+
+- **Despacho + HITL + política de comandos**: el mismo comando
+  (`pytest --pastebin=all`, fuera de la lista blanca de X114) clasifica
+  "preguntar", consulta el s/n UNA vez por nivel (3 pedidos) y no se ejecuta
+  en ninguno (`_ejecutar` espiado, 0 llamadas). El rechazo que ve el modelo
+  es el mismo texto en los tres; en la copia quedó además en la traza como
+  `(profundidad=1, "run_command")`.
+- **Saldo**: agotado, la tool pendiente no se ejecuta y la última llamada va
+  sin tools, en el chat (techo 1), en el supervisor (MAX_PASOS 1) y en la
+  copia (la raíz gasta el saldo en delegar; la copia arranca sin saldo para
+  su propio loop y contesta sin ejecutar).
+- **Compactación**: la política `Contexto` sobre la ÚNICA
+  `utils/compaccion.compactar`, montada por el mecanismo `politicas` del
+  kernel, compacta igual en el chat (8 preguntas que arman zona fría) y en
+  una copia anidada del MISMO loop (Ctx.hijo + Contexto). El supervisor no
+  la declara: cada instancia declara sus políticas; el gate fija que no
+  exista un segundo mecanismo, no que todas compacten.
+
+**Que puede fallar** (si no, no protege): se probó por mutación — aprobar el
+comando rompe el primer test; darle saldo a la copia (2 → 3) rompe el
+segundo (el guion PIDE la tool siempre que se le ofrecen, así que el freno
+es el saldo y no el cansancio del modelo).
+
+**Los números**: `tests_definidos` +3 (el ratchet mejora el baseline solo);
+sin cambio de conducta del producto (solo tests y docs). Gate completo
+verde.
