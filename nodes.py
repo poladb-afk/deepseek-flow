@@ -133,9 +133,9 @@ def huella_llamada(tc):
 
 def motivo_de_cierre(shared):
     """Por qué se acabó el presupuesto de ESTA pregunta (ley L8), o None si
-    sigue: el techo único de rondas. Lo evalúa Contexto antes de cada llamada
-    al modelo (X96). Desde S6 (X132) es el único corte: no hay no-progreso ni
-    corte por novedad."""
+    sigue: el techo único de rondas. Lo evalúan Contexto antes de cada llamada
+    al modelo (X96) y GetQuestion sobre la caja ANTERIOR (S9a). Desde S6 (X132)
+    es el único corte: no hay no-progreso ni corte por novedad."""
     t = turno(shared)
     if t["rondas"] >= presupuesto(shared):
         return "tope"
@@ -182,13 +182,16 @@ class GetQuestion(Node):
         # `uso_inicio`.
         # (/aprobaciones no llega hasta acá: lo atiende exec(), sin gastar turno.)
         anterior = turno(shared)
+        # Tarea vigente para la compacción (A36): la continuación la decide el
+        # estado del thread, no una lista de palabras (S9a). `motivo_de_cierre`
+        # sobre la caja ANTERIOR —antes de reemplazarla— dice si la pregunta
+        # quedó abierta (llegó al techo); si quedó abierta, no pisa el objetivo.
+        if motivo_de_cierre(shared) is None:
+            shared["_objetivo"] = exec_res
         shared["turno"] = nuevo_turno()
         # El último mensaje del usuario acompaña cada decisión HITL en el log
         # de riesgo (los módulos no ven `shared`). Plumbing, no decide nada.
         estado_sesion.recordar_usuario(exec_res)
-        # Tarea vigente para la compacción: una continuación no pisa el objetivo.
-        if exec_res.strip().lower() not in {"seguí", "segui", "continúa", "continua", "continue"}:
-            shared["_objetivo"] = exec_res
         shared["messages"].append({"role": "user", "content": exec_res})
         # exp/90: el costo POR PREGUNTA se cierra acá — se vuelve por
         # "answer", así que la pregunta anterior ya respondió: su costo es

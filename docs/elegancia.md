@@ -91,7 +91,7 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91). Con URL y la ca
 |---|---|---|
 | `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
 | `producto_conoce_lab` | 10 → **0** (X93) | 0 ✅ |
-| `vocabulario_hardcodeado` | 8 → 7 (X104) → 3 (X106) → **5** (X112: el instrumento ahora lee la `condicion` de `skills/*.yaml`, que el AST no veía) | ≤ 2 (S7 cerrado sin remedio para este modelo: las 2 regex de los skills quedan como deuda medida; S9 saca la continuación de `GetQuestion`; fase 6, `TOOL_CONTEXTO_RE`; queda el sí/no del HITL) |
+| `vocabulario_hardcodeado` | 8 → 7 (X104) → 3 (X106) → 5 (X112: el instrumento ahora lee la `condicion` de `skills/*.yaml`, que el AST no veía) → **4** (S9a/X133: la continuación salió de `GetQuestion`) | ≤ 2 (S7 cerrado sin remedio para este modelo: las 2 regex de los skills quedan como deuda medida; fase 6, `TOOL_CONTEXTO_RE`; queda el sí/no del HITL) |
 | `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) → 64 (X106) → 58 (X109) → 56 (X112) → **52 (S6/X132)** | ≤ 45 (fases 1–5, ver inventario) |
 | `imports_perezosos` | 137 → 126 (X92) → 90 (X106) → 81 (X109) → 80 (X112) | **≤ 40** (X112 deja sin efecto el ~60 del 2026-10-30: la clasificación de los 81 muestra 12 de stdlib y 2 de dependencias obligatorias sin motivo, y 59 internos que en su mayoría no esquivan ningún ciclo; paso propio de imports, con motivo visible para los que se quedan) |
 | `nodos_largos` | 15 → 14 (X96) → 13 (X106) | ≤ 3 |
@@ -103,7 +103,7 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91). Con URL y la ca
 |---|---|---|---|
 | 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
 | 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/`. ✅ deuda (X109): sin el `.env` ni las tareas de bmo; las sondas de Laya a `banco/probes/`. **Queda**: `HITL_SCOPE` y `HUMANO_RESPUESTA` (revisar) | No | `test_caracterizacion_chat.py` idéntico |
-| 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. ✅ 2b-2 (X96): `Observar` y `Cierre` (el presupuesto como arista). ✅ S9b A′ (X126): **el chat corre sobre `kernel.loop`** con `Observar`/`Contexto` como políticas y `PasoChat`/`ActuarChat`/`CierreChat` como nodos del chat; se borraron `AgentStep`/`ExecuteTools`/`Cierre`. **Queda**: S9a (continuación por estado del thread), S3 (esquema de tools fijo y cierre por arista) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
+| 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. ✅ 2b-2 (X96): `Observar` y `Cierre` (el presupuesto como arista). ✅ S9b A′ (X126): **el chat corre sobre `kernel.loop`** con `Observar`/`Contexto` como políticas y `PasoChat`/`ActuarChat`/`CierreChat` como nodos del chat; se borraron `AgentStep`/`ExecuteTools`/`Cierre`. ✅ S9a (X133): la continuación se decide por el estado del thread (la pregunta anterior abierta por el techo), no por la lista de palabras de `GetQuestion`. **Queda**: S3 (esquema de tools fijo y cierre por arista) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
 | 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a NO PASA (X105, cableado borrado). ✅ 3b PASA (X106, `banco/specs/fase3b_4a.md`): el router salió del chat. **Cerradas con veredicto negativo** (decisión del operador): S2 —Laya elige el modo— la rechazó el A/B de la 3a; S1 —`reasoning_content` en rondas de tools— no aplica sin thinking con tools. ✅ X109: el juez de riesgo que solo observaba se borró; el log de la decisión humana queda | **Sí** | los criterios de `banco/specs/fase3b_4a.md` |
 | 4 | ✅ 4b-mín (X104): sin la regex de palabras. ✅ 4a (X106): reglas y voto borrados con la 3b. ✅ S6 (X132): un solo techo de 16 por pregunta con saldo en `turno`; `CORTE_NOVEDAD`, `CORTE_NOVEDAD_MIN`, `MAX_TOOL_ROUNDS_AMPLIO` y `UMBRAL_SIN_PROGRESO` salen con su código y sus tests. **El A/B pre-registrado PASA** (52 corridas: calidad +0,167 con margen −0,25, costo 0,958×, descarrilos 6 → 4, 0 deploys, US$0,2307) | Sí | banco + fable: USD y descarrilos ≤ base ✅; `settings_leidos` 56 → 52 ✅ |
 | 5 | ✅ 5a (X108): política de comandos como datos (S10) en `utils/politica_comandos.json`, 0 diferencias sobre la foto real de 445. **5b medida y revertida** (X111): el A/B no pasó (disparo 1/2/2 de 4, ruido 1,29×, s18 sin +1,0 ni R1/R3, trampas s3/s9 abajo); `git revert 3273a84` y la regex no vuelve (`banco/specs/fase5b.md`). 5c (paso 4) Laya 0.4.x y los prefiltros como un mecanismo con un setting | Mínimo / Sí (5b) | 5b: NO PASA (X111); 5c: su pre-registro |
@@ -112,7 +112,7 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91). Con URL y la ca
 **Orden de lo que queda** (X112, aprobado por el operador): 1 ✅ deuda de la
 fase 1 → 2 ❌ 5b (revertida) → ✅ X112 (docs, prosa de fable, forma fija,
 ratchet sobre los YAML) → 3 imports perezosos → 4 S6 → 5 5c-a / 5c-b → 6
-S9a / S9b / S3 → 7 fase 6. Primero lo que no cambia
+S9a ✅ / S9b ✅ / S3 (bloqueado) → 7 fase 6. Primero lo que no cambia
 conducta; lo que la cambia, con su A/B pre-registrado.
 
 ## Inventario de settings (52 tras S6/X132: 39 contrato · 12 revisar · 1 borrar)

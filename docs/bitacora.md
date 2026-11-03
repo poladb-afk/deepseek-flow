@@ -6998,3 +6998,52 @@ texto que ve el modelo es idéntico, la traza pierde ese evento (delta de traza)
 flujo viejo iba a `Cierre`): configuración sin test ni uso hoy. (c) deuda R10
 (N4): `PasoChat.post` reimplementa el `Paso.post` del kernel en vez de
 extenderlo; si el kernel cambia, hay que mover las dos.
+
+## X133: S9a — la continuación por estado del thread (2026-11-02)
+
+**Qué se hizo**: `GetQuestion.post` ya no decide por palabras. `_objetivo` —la
+tarea vigente que la compacción conserva (A36; `nodes.py:325` →
+`utils/compaccion.py:215`)— se reemplaza en cada pregunta nueva salvo que la
+anterior haya quedado **abierta**, y abierta es estado del thread: sobre la caja
+`turno` **anterior**, antes de reemplazarla, `motivo_de_cierre(shared)` devuelve
+`"tope"` si la pregunta llegó al techo. Desde S6 es el único corte y la única
+forma de llegar es la arista `cierre` de `kernel.loop` (S9b A′). Si quedó abierta,
+el mensaje nuevo es continuación y no pisa el objetivo; si quedó cerrada, es
+pregunta nueva y lo pisa. Sale el set
+`{"seguí","segui","continúa","continua","continue"}` y no entra ningún estado
+nuevo: la caja ya viajaba en el checkpoint (JSON).
+
+**Delta declarado** (el único): después de una respuesta **completa**, un "seguí"
+ya no conserva el objetivo (antes el set lo cubría de más), y después de un corte
+cualquier texto lo conserva, no solo los cinco sinónimos. No cambian las llamadas
+al modelo, el prompt, el grafo ni las tools: `_objetivo` solo aparece en la línea
+"Tarea vigente" del marcador de compacción. Borde `MAX_TOOL_ROUNDS=0` (el ya
+declarado en los Límites de `design.md`): con techo 0 toda pregunta "cierra por
+tope" y el objetivo no se pisa nunca; configuración sin uso hoy.
+
+**Sin A/B, declarado**: lo que cambia conducta pasa A/B con el cómputo igualado,
+pero acá no hay superficie medible por corridas: el delta es el texto de un
+marcador determinista y la compacción no dispara en escenarios cortos. La
+verificación es estructural:
+
+- `tests/test_caracterizacion_chat.py` **sin tocar, 12/12** (el grafo y el
+  historial del chat no cambian).
+- Guion sin LLM (el chat real con un modelo guionado) sobre `main` (`1e29195`) y
+  sobre la rama: **el diff es exactamente `_objetivo`**, dos valores, y el resto
+  —mensajes, llamadas al modelo, tools ejecutadas y `turno`— es idéntico:
+  - `completa_y_segui`: base `"auditá el repo"` (un "seguí" conservaba el
+    objetivo) → rama `"seguí"` (pregunta nueva: lo pisa);
+  - `cortada_y_continuacion`: base `"otra cosa"` (la última pregunta pisaba) →
+    rama `"auditá el repo"` (la anterior quedó abierta: cualquier texto la
+    conserva).
+
+**Tests**: `test_lo_de_la_sesion_queda_fuera_de_la_caja` se adapta (marca la caja
+anterior abierta para que "seguí conserva el objetivo" siga siendo verdad) y se
+suman `test_una_pregunta_cerrada_pisa_el_objetivo_aunque_diga_segui` (el delta) y
+`test_una_pregunta_abierta_conserva_el_objetivo_con_cualquier_texto` (el que cae
+si la bandera se lee después del reset de la caja). Inventario sin tocar.
+
+**Los números**: `vocabulario_hardcodeado` **5 → 4** (el detalle del ratchet
+pierde `nodes.py:GetQuestion` y no suma colecciones nuevas), `lineas_del_loop`
+**651 en IGUAL** (cambia la condición, no la cantidad de líneas) y
+`tests_definidos` +2. Gate completo verde en la rama, `main` sin tocar.

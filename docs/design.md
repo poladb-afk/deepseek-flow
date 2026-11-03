@@ -108,7 +108,7 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 |---|---|
 | `messages` | Historial completo: system (fijo) + user + assistant (con `tool_calls` cuando pidió herramientas) + tool (resultados). Es lo único que DeepSeek recibe en cada vuelta |
 | `turno` | **La caja de la pregunta en curso** (H2 PR 4a, `nodes.nuevo_turno()`): `rondas` (L8: el saldo único del techo, S6/X132), `skill` (exp/55) y `uso_inicio` (exp/90). `GetQuestion` la REEMPLAZA entera: no hay `pop` que olvidar. Es JSON y viaja en el checkpoint |
-| `_objetivo` / `tokens_por_pregunta` | De la SESIÓN, no de la pregunta: la tarea vigente (un "seguí" no la pisa) y el costo cerrado de cada pregunta |
+| `_objetivo` / `tokens_por_pregunta` | De la SESIÓN, no de la pregunta: la tarea vigente (la pisa solo una pregunta nueva; la continuación la decide el estado del thread —si la anterior quedó abierta por el techo, no la pisa, S9a—) y el costo cerrado de cada pregunta |
 | `compacciones` / `_compaccion_huella` | Compactaciones aplicadas al historial y huella del historial ya compactado (evita re-compactar la misma ronda) |
 | `_respaldo_huella` / `_respaldo_ruta` | Huella de la última zona fría respaldada en `memoria/` y ruta de ese respaldo: si la siguiente compacción descarta la MISMA zona fría no se reescribe (exp/70; el marcador A17 sigue nombrando la ruta vigente) |
 | `max_tool_rounds` | Override explícito del techo; lo lee `presupuesto()` (los perfiles por `operacion` se borraron en X93: nadie los sembraba) |

@@ -27,13 +27,37 @@ def test_una_clave_nueva_de_la_pregunta_no_se_filtra_a_la_siguiente():
 
 
 def test_lo_de_la_sesion_queda_fuera_de_la_caja():
-    """Compacción, respaldo y la tarea vigente NO son de la pregunta: un
-    "seguí" conserva el objetivo; la compacción sigue contando."""
-    shared = {"messages": [{"role": "system", "content": "s"}], "compacciones": 2}
+    """Compacción, respaldo y la tarea vigente NO son de la pregunta: una
+    pregunta que quedó abierta (cortada por el techo) conserva el objetivo; la
+    compacción sigue contando."""
+    shared: dict = {"messages": [{"role": "system", "content": "s"}], "compacciones": 2}
     nodes.GetQuestion().post(shared, None, "auditá policy.py")
+    shared["turno"]["rondas"] = nodes.presupuesto(shared)  # S9a: quedó abierta
     nodes.GetQuestion().post(shared, None, "seguí")
     assert shared["_objetivo"] == "auditá policy.py"
     assert shared["compacciones"] == 2
+
+
+def test_una_pregunta_cerrada_pisa_el_objetivo_aunque_diga_segui():
+    """S9a: la continuación la decide el estado del thread, no las palabras.
+    Después de una respuesta completa no queda pregunta abierta: el mensaje
+    nuevo es una pregunta nueva y reemplaza la tarea vigente."""
+    shared = {"messages": [{"role": "system", "content": "s"}]}
+    nodes.GetQuestion().post(shared, None, "auditá policy.py")
+    nodes.GetQuestion().post(shared, None, "seguí")
+    assert shared["_objetivo"] == "seguí"
+
+
+def test_una_pregunta_abierta_conserva_el_objetivo_con_cualquier_texto():
+    """La lista de palabras de `GetQuestion` salió: con la pregunta anterior
+    abierta, CUALQUIER texto es continuación (también el que antes la pisaba).
+    El caso falla si la bandera se lee después de reemplazar la caja: la caja
+    nueva arranca en 0 rondas y toda pregunta parecería cerrada."""
+    shared: dict = {"messages": [{"role": "system", "content": "s"}]}
+    nodes.GetQuestion().post(shared, None, "auditá policy.py")
+    shared["turno"]["rondas"] = nodes.presupuesto(shared)
+    nodes.GetQuestion().post(shared, None, "dale, seguí con eso")
+    assert shared["_objetivo"] == "auditá policy.py"
 
 
 def test_la_caja_es_json():

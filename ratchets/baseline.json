@@ -190,7 +190,7 @@
         "juez.py:Judge": 144,
         "juez_lote.py:CorrerJuez": 51,
         "juez_lote.py:JuezLoteFlow": 108,
-        "nodes.py:GetQuestion": 48,
+        "nodes.py:GetQuestion": 51,
         "nodes.py:VerificarCitas": 52,
         "research.py:Synthesizer": 60
       },
@@ -387,7 +387,7 @@
         "tests/test_deriva_reglas.py": 8,
         "tests/test_docs_sin_deriva.py": 6,
         "tests/test_estado_riesgo.py": 3,
-        "tests/test_estado_turno.py": 7,
+        "tests/test_estado_turno.py": 9,
         "tests/test_estilo_humano.py": 8,
         "tests/test_evals.py": 15,
         "tests/test_exp104.py": 11,
@@ -449,7 +449,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1159
+      "metrica": 1161
     },
     "texto_de_prompt": {
       "detalle": {
@@ -462,12 +462,11 @@
     "vocabulario_hardcodeado": {
       "detalle": {
         "juez.py:TOOL_CONTEXTO_RE": 1,
-        "nodes.py:GetQuestion": 1,
         "skills/revision.yaml:condicion": 1,
         "skills/tdd.yaml:condicion": 1,
         "utils/aprobaciones.py:YES": 1
       },
-      "metrica": 5
+      "metrica": 4
     }
   },
   "version": 1

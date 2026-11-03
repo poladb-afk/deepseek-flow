@@ -5,7 +5,7 @@ Documento vivo: se actualiza en cada hito (X*n*). Lo estable está en
 `docs/bitacora.md`. Acá va lo que hoy solo vivía en las conversaciones.
 `tests/test_handoff.py` verifica que lo que cita exista.
 
-**Al día con:** X126 (S9b A′: el chat corre sobre `kernel.loop`; `AgentStep`/`ExecuteTools`/`Cierre` borrados, 22 tests reescritos 1:1 y mapa de compatibilidad para trazas/checkpoints viejos; caracterización 12/12 sin tocar), X132 (S6: un solo techo de 16 por pregunta con el saldo en `turno`; el A/B pre-registrado **PASA** — calidad +0,167 con margen −0,25, costo 0,958×, descarrilos 6 → 4, 0 deploys en s9, US$0,2307), X131 (el exp/105: la réplica del exp/103 con `deepseek-v4-pro` tampoco adopta `dividir`, 0/72; la fractalidad conductual no aparece con los dos modelos medidos), X130 (el linter conoce el loop del kernel: 0 violaciones falsas en las trazas del supervisor), X129 (el exp/104: una tool inerte en el menú no cambia la calidad; la diferencia del exp/103 no se replicó), X128 (la verificación de X127: el gate de nuevo verde en un checkout limpio y el pre-registro del exp/104), X127 (el exp/103: NO PASA por adopción, 0/72; la rama se borró como ata el spec), X126 (S9b: el primer paso y el bloqueo medido), X125 (los imports perezosos: 79 → 14, con `python -X importtime` como gate del arranque), X124 (los instrumentos: bytes del primer request, líneas del loop, D y las fallas de DIG sobre la traza), X123 (la medición honesta: "sin datos" ≠ 0 y denominador simétrico), X114, X115 y X121 (pytest en lista blanca, su configuración vigilada y las comillas del shell), X120 (el exp/103 con el cómputo igualado), X119 (cada copia descuenta del saldo) y X118 (los principios S0, P1–P4, N1–N4), sobre X116 (la definición de elegancia y el kernel fractal) sobre X113, aplicado sobre X112 sobre `cca1f28`, más la auditoría del
+**Al día con:** X133 (S9a: la continuación la decide el estado del thread —la pregunta anterior quedó abierta por el techo— y no una lista de palabras; `vocabulario_hardcodeado` 5 → 4, delta declarado), X126 (S9b A′: el chat corre sobre `kernel.loop`; `AgentStep`/`ExecuteTools`/`Cierre` borrados, 22 tests reescritos 1:1 y mapa de compatibilidad para trazas/checkpoints viejos; caracterización 12/12 sin tocar), X132 (S6: un solo techo de 16 por pregunta con el saldo en `turno`; el A/B pre-registrado **PASA** — calidad +0,167 con margen −0,25, costo 0,958×, descarrilos 6 → 4, 0 deploys en s9, US$0,2307), X131 (el exp/105: la réplica del exp/103 con `deepseek-v4-pro` tampoco adopta `dividir`, 0/72; la fractalidad conductual no aparece con los dos modelos medidos), X130 (el linter conoce el loop del kernel: 0 violaciones falsas en las trazas del supervisor), X129 (el exp/104: una tool inerte en el menú no cambia la calidad; la diferencia del exp/103 no se replicó), X128 (la verificación de X127: el gate de nuevo verde en un checkout limpio y el pre-registro del exp/104), X127 (el exp/103: NO PASA por adopción, 0/72; la rama se borró como ata el spec), X126 (S9b: el primer paso y el bloqueo medido), X125 (los imports perezosos: 79 → 14, con `python -X importtime` como gate del arranque), X124 (los instrumentos: bytes del primer request, líneas del loop, D y las fallas de DIG sobre la traza), X123 (la medición honesta: "sin datos" ≠ 0 y denominador simétrico), X114, X115 y X121 (pytest en lista blanca, su configuración vigilada y las comillas del shell), X120 (el exp/103 con el cómputo igualado), X119 (cada copia descuenta del saldo) y X118 (los principios S0, P1–P4, N1–N4), sobre X116 (la definición de elegancia y el kernel fractal) sobre X113, aplicado sobre X112 sobre `cca1f28`, más la auditoría del
 operador sobre ese árbol (2026-10-31): dos hallazgos de seguridad abiertos
 (X114 y X115 en `docs/estado.md`) y cuatro de orden, todos en la cola.
 
@@ -92,12 +92,12 @@ proceso viven en `AGENTS.md`.
 | `settings_leidos` | 89 | 56 | ≤ 45 |
 | `imports_perezosos` | 137 | 14 (X125) | ≤ 40 ✅ |
 | `nodos_largos` | 15 | 13 | ≤ 3 |
-| `vocabulario_hardcodeado` | 8 | 5 (el instrumento ve los YAML desde X112) | ≤ 2 |
+| `vocabulario_hardcodeado` | 8 | **4** (S9a/X133: la continuación salió de `GetQuestion`) | ≤ 2 |
 | `texto_de_prompt` | 2748 | 1542 | 1542 ✅ |
 | `core_importa_modulos`, `producto_conoce_lab`, `funciones_complejas`, `codigo_muerto_privado` | — | 0 | 0 ✅ |
 
 **Fases.**
-- Cerradas: 0, 1 (y su deuda, X109), 2a, 2b-1, 2b-2, 3b, 4b-mín, 4a, 5a, X112.
+- Cerradas: 0, 1 (y su deuda, X109), 2a, 2b-1, 2b-2, 3b, 4b-mín, 4a, 5a, X112, S9a y S9b A′ (X133/X126; de la fase 2 queda solo S3, bloqueado).
 - Cerradas con veredicto negativo: 2d, 3a, S1, S2, S7 (5b, revertida).
 - Pendientes: la cola de la sección 7.
 
@@ -112,7 +112,7 @@ proceso viven en `AGENTS.md`.
 | La forma es fija | exp/51: −77 % SLOC con este modelo | `main.py` |
 | El checklist de auditoría es opción del operador | Único texto con lift donde había margen (s18) | `PROMPT_AUDITORIA` |
 | El juez de riesgo observador se borra; `RIESGO_LOG=1` | Lo que se entrena es la decisión humana | X109 |
-| La continuación, por estado del thread | Saca la lista de palabras de `GetQuestion` | S9a |
+| La continuación, por estado del thread | Saca la lista de palabras de `GetQuestion`: el estado (la pregunta anterior abierta por el techo) decide, no los sinónimos; delta declarado | X133 (S9a) |
 | Imports perezosos ≤ 40 | De 81, la mayoría no rompe ningún ciclo | X112 |
 | Meta de `texto_de_prompt` 1542 | Lo fijo + la forma + el checklist; no se recorta para el número | X112 |
 
@@ -151,7 +151,7 @@ puede ajustarla (es un dato de `utils/politica_comandos.json`).
 | 5 | ✅ **A/B de S6 hecho (X132): PASA** — un solo techo de 16 con saldo por pregunta; calidad dentro del margen, costo 0,958×, descarrilos 6 → 4 y 0 deploys | **sí** | 1 | s9: 5 de 6 sin terminar, 0 deploys |
 | 6 | 5c-a: los prefiltros como un mecanismo con un setting | depende | 1 | 5 settings hoy |
 | 7 | 5c-b: Laya 0.4 | sí | **bloqueado** | que esté instalada |
-| 8 | S9a: continuación por estado del thread | sí | 9 | vocabulario 5 → 4 |
+| 8 | ✅ **S9a hecho (X133):** la continuación la decide el estado del thread (la pregunta anterior abierta por el techo), no una lista de palabras; `vocabulario_hardcodeado` 5 → 4 y delta declarado en la bitácora | mínimo | 9 | hecho |
 | 9 | ✅ **S9b A′ hecho (X126):** el chat corre sobre `kernel.loop`; los 22 tests que nombraban `AgentStep`/`ExecuteTools`/`Cierre` reescritos 1:1 (R2 autorizada), y mapa de compatibilidad para trazas/checkpoints viejos | mínimo | 5 | hecho |
 | 10 | S3: esquema de tools fijo y cierre por arista | mínimo | **bloqueado** | la prueba de `tool_choice="none"` en DeepSeek |
 | 11 | Fase 6: piezas sueltas | no | — | 10 nodos largos, `TOOL_CONTEXTO_RE` |
@@ -202,8 +202,8 @@ bloqueado; el ratchet cuenta 27 en el harness, 36 incluye tests).
 **Decisión del operador, 2026-11-02: S9b A′ aprobado.** El chat pasa a ser una
 instancia de `kernel.loop` y se autoriza reescribir los 22 tests que nombran
 `AgentStep`, `ExecuteTools` y `Cierre` (la excepción de R2 que pedía la fila
-X126). La cola queda: **S6 ✅ → S9b A′ → S9a → fase 6**, y archivar la bitácora
-al final; 5c-a y S3 quedan como estaban.
+X126). La cola queda: **S6 ✅ → S9b A′ ✅ → S9a ✅ → fase 6**, y archivar la
+bitácora al final; 5c-a y S3 quedan como estaban.
 
 ## 8. Cómo trabajamos
 
