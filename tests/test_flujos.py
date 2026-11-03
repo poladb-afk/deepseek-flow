@@ -550,27 +550,73 @@ def test_informe_dos_corridas_en_el_mismo_proceso(tmp_path, monkeypatch):
         asyncio.run(informe.create_informe_flow().run_async(shared))
         assert salida.is_file(), f"la corrida {i + 1} no escribió el informe"
 
-def test_research_recorta_consultas_y_valida_tipos(monkeypatch):
-    """exp/28 (C13 + C06a de la auditoría externa): el prompt pide 3 consultas
-    y el código aceptaba 20 (las buscaba todas); un content no textual rompía
-    en post, que PocketFlow NO reintenta. El tope y los tipos los aplica el
-    código, no la obediencia del modelo."""
+def test_el_tope_de_busquedas_del_run_lo_aplica_el_codigo(monkeypatch):
+    """exp/28 (C13 + C06a de la auditoría externa), re-expresado en el brazo
+    agente (exp/108): el prompt pide 3 consultas y el código aceptaba 20 (las
+    buscaba todas). Hoy el modelo puede pedir las que quiera; a la N+1 del run
+    la TOOL corta con el tope como ERROR (el texto le dice cómo seguir) y los
+    argumentos ilegibles vuelven como texto, no como excepción."""
+    import json as _json
+
     import research
 
-    monkeypatch.setattr(
-        research, "call_llm", lambda *a, **k: 'queries: ["a", "b", "c", "d", "e"]\n'
-    )
-    assert research.Planner().exec(("tema", "")) == ["a", "b", "c"]
+    monkeypatch.setattr(research, "run_search_web", lambda c, k=4: "- resultado\n  https://x")
+    tool = research.tool_search()
+    llamada = {"function": {"name": "search_web",
+                            "arguments": _json.dumps({"consulta": "q"})}}
+    for _ in range(research.MAX_BUSQUEDAS):
+        assert not tool.correr(llamada, None).startswith("ERROR")
+    assert tool.correr(llamada, None) == (
+        f"ERROR: tope de {research.MAX_BUSQUEDAS} búsquedas del run alcanzado; "
+        "escribí el informe con el material reunido")
+    # una tool fresca (sin búsquedas gastadas): los argumentos ilegibles son
+    # texto de esa llamada, no una excepción que corte el loop
+    rota = {"function": {"name": "search_web", "arguments": '{"consulta": '}}
+    assert research.tool_search().correr(rota, None).startswith("ERROR: argumentos ilegibles")
 
-    monkeypatch.setattr(research, "call_llm", lambda *a, **k: "queries: una sola consulta\n")
-    with pytest.raises(ValueError, match="queries inválidas"):
-        research.Planner().exec(("tema", ""))
 
-    monkeypatch.setattr(
-        research, "call_llm", lambda *a, **k: "action: finalize\ncontent: 42\n"
-    )
-    with pytest.raises(ValueError, match="no textual"):
-        research.Synthesizer().exec(("tema", ["material"], 0))
+def test_el_fallo_de_una_busqueda_es_dato_del_loop(monkeypatch):
+    """exp/37 (P6), re-expresado: el fallo de UNA búsqueda es un dato de esa
+    tool call (vuelve como texto y el loop sigue), no un motivo para
+    re-ejecutar la ronda entera y perder las búsquedas ya pagadas."""
+    import research
+
+    def falla(consulta, k=4):
+        return "ERROR: búsqueda web falló (RuntimeError: sin red)"
+
+    monkeypatch.setattr(research, "run_search_web", falla)
+    tool = research.tool_search()
+    llamada = {"function": {"name": "search_web", "arguments": '{"consulta": "q"}'}}
+    assert tool.correr(llamada, None).startswith("ERROR: búsqueda web falló")
+
+
+def test_investigar_corre_sobre_el_kernel_y_escribe_el_informe(tmp_path, monkeypatch):
+    """exp/108: el research del brazo agente es `kernel.correr` con
+    `search_web` como tool — el modelo pide la búsqueda, lee el resultado y
+    cierra con el informe; la interfaz `investigar(tema, salida) -> ruta`
+    (la tool deep_research del chat) no cambia."""
+    import json as _json
+    from types import SimpleNamespace as NS
+
+    import research
+
+    busquedas = []
+    monkeypatch.setattr(research, "run_search_web",
+                        lambda c, k=4: busquedas.append(c) or "- PocketFlow\n  https://pf")
+
+    def llm(mensajes, tools=None):
+        if tools and not any(m.get("role") == "tool" for m in mensajes):
+            return NS(content=None, tool_calls=[NS(
+                id="c1", function=NS(name="search_web",
+                                      arguments=_json.dumps({"consulta": "pocketflow"})))])
+        return NS(content="# Informe\nFuente: https://pf", tool_calls=None)
+
+    monkeypatch.setattr(research, "call_llm_agent", llm)
+    salida = tmp_path / "research.md"
+    ruta = research.investigar("PocketFlow", str(salida))
+    assert ruta == str(salida)
+    assert busquedas == ["pocketflow"]
+    assert "https://pf" in salida.read_text(encoding="utf-8")
 
 def test_juez_no_entrega_con_cita_rota(monkeypatch):
     """exp/29 (C07 de la auditoría externa): la verificación de citas se le
@@ -613,24 +659,6 @@ def test_refinamiento_recibe_el_borrador_anterior(monkeypatch):
     juez.Draft().exec(inputs)
     assert "BORRADOR_VIEJO" in prompts[0]
     assert "cita dudosa" in prompts[0]
-
-def test_researcher_no_reintenta_el_lote_por_una_busqueda(monkeypatch):
-    """exp/37 (P6): un fallo de búsqueda hacía que el retry del BatchNode
-    re-ejecutara el lote entero y se perdieran las búsquedas ya pagadas. Ahora
-    el fallo es un dato de ese ítem."""
-    import research
-
-    llamadas = {"n": 0}
-
-    def busca(query, k=4):
-        llamadas["n"] += 1
-        raise RuntimeError("sin red")
-
-    monkeypatch.setattr(research, "search_web", busca)
-    salida = research.Researcher().exec("consulta 1")   # no debe levantar
-    assert "ERROR de búsqueda: RuntimeError" in salida
-    assert llamadas["n"] == 1
-
 
 def test_votacion_mayoria_piso_absoluto():
     """S11: el doc decía "la mitad entera por arriba"; el default es piso

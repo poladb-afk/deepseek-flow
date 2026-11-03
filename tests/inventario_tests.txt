@@ -411,8 +411,6 @@ tests/test_flujos.py::test_juez_no_entrega_con_cita_rota
 tests/test_flujos.py::test_juez_no_entrega_con_herramienta_alucinada
 tests/test_flujos.py::test_juez_rondas_configurables
 tests/test_flujos.py::test_refinamiento_recibe_el_borrador_anterior
-tests/test_flujos.py::test_research_recorta_consultas_y_valida_tipos
-tests/test_flujos.py::test_researcher_no_reintenta_el_lote_por_una_busqueda
 tests/test_flujos.py::test_supervisor_flujo_nuevo_guarda_antes_de_despachar
 tests/test_flujos.py::test_supervisor_guarda_repetida_pura
 tests/test_flujos.py::test_supervisor_guarda_vetada_pura

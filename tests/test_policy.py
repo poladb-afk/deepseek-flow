@@ -409,8 +409,6 @@ def test_ningun_flujo_escribe_fuera_de_las_raices(tmp_path, monkeypatch):
     casos = [
         (informe.WriteReport(), {"salida": str(fuera)}, "# informe"),
         (auditoria.ReduceGlobal(), {"salida": str(fuera)}, "# auditoria"),
-        (research.Synthesizer(), {"salida": str(fuera)},
-         {"action": "finalize", "content": "# research"}),
         (supervisor.Sintetizar(),
          {"salida": str(fuera), "tarea": "t", "hechos": []}, "cierre"),
         (effective_n.WriteReport(), {"salida": str(fuera)},
@@ -419,6 +417,14 @@ def test_ningun_flujo_escribe_fuera_de_las_raices(tmp_path, monkeypatch):
     for nodo, shared, exec_res in casos:
         with pytest.raises(ValueError, match="fuera de los directorios permitidos"):
             nodo.post(shared, None, exec_res)
+    # research (exp/108) ya no tiene nodo propio: escribe investigar(); con un
+    # LLM guionado que cierra en la primera llamada, la escritura cae igual
+    from types import SimpleNamespace as NS
+
+    monkeypatch.setattr(research, "call_llm_agent",
+                        lambda m, tools=None: NS(content="# research", tool_calls=None))
+    with pytest.raises(ValueError, match="fuera de los directorios permitidos"):
+        research.investigar("tema", str(fuera))
     assert not fuera.exists()
 
     # el camino legítimo (dentro de las raíces) sigue escribiendo igual

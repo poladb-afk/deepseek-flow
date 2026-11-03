@@ -78,9 +78,6 @@
         "nodes.py": [
           68
         ],
-        "research.py": [
-          78
-        ],
         "utils/aprobaciones.py": [
           47
         ],
@@ -119,7 +116,7 @@
           16
         ]
       },
-      "metrica": 27
+      "metrica": 26
     },
     "funciones_anidadas": {
       "detalle": {},
@@ -383,17 +380,18 @@
         "tests/test_evals.py": 15,
         "tests/test_exp104.py": 11,
         "tests/test_exp105.py": 8,
+        "tests/test_exp108.py": 7,
         "tests/test_f_prompt.py": 9,
         "tests/test_fable.py": 30,
         "tests/test_fable_dominios.py": 6,
         "tests/test_fable_judge.py": 66,
         "tests/test_fable_judge_claims.py": 24,
         "tests/test_fase5b.py": 3,
-        "tests/test_flujos.py": 36,
+        "tests/test_flujos.py": 37,
         "tests/test_forma_larga.py": 5,
         "tests/test_fractal.py": 8,
         "tests/test_fs_tools.py": 16,
-        "tests/test_gate_fractal.py": 6,
+        "tests/test_gate_fractal.py": 3,
         "tests/test_grafo_readme.py": 1,
         "tests/test_grafos_sin_calles_muertas.py": 3,
         "tests/test_h3b_swarm.py": 6,
@@ -442,7 +440,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1174
+      "metrica": 1179
     },
     "texto_de_prompt": {
       "detalle": {

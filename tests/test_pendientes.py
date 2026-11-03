@@ -219,15 +219,14 @@ def test_escribir_salida_es_atomico(tmp_path, monkeypatch):
 def test_research_no_manda_el_error_al_llm(monkeypatch):
     import research
 
-    llamado = []
-    monkeypatch.setattr(research, "search_web",
+    monkeypatch.setattr(research, "run_search_web",
                         lambda q, k=5: "ERROR: búsqueda web falló (RuntimeError: sin red)")
-    monkeypatch.setattr(research, "call_llm",
-                        lambda *a, **k: llamado.append(1) or "hechos inventados")
+    tool = research.tool_search()
     with contextlib.redirect_stdout(io.StringIO()):
-        salida = research.Researcher().exec("consulta")
-    assert llamado == []
-    assert "búsqueda sin resultados" in salida
+        salida = tool.correr(
+            {"function": {"name": "search_web", "arguments": '{"consulta": "q"}'}}, None)
+    assert salida.startswith("ERROR: búsqueda web falló")
+    assert "Resultados:" not in salida
 
 # A09/H02 — no-clobber en las tools del CHAT
 def test_salida_ya_existe(tmp_path, monkeypatch):

@@ -43,7 +43,7 @@ FLOWS = {
     "juez": lambda: __import__("juez").create_juez_flow(),
     "juez_lote": lambda: __import__("juez_lote").create_juez_lote_flow(),
     "auditoria": lambda: __import__("auditoria").create_auditoria_flow(),
-    "research": lambda: __import__("research").create_research_flow(),
+    "research": lambda: __import__("research").grafo(),
     "supervisor": lambda: __import__("supervisor").create_supervisor_flow(),
     "effective_n": lambda: __import__("effective_n").create_effective_n_flow(),
     "effective_n_multi": lambda: __import__("effective_n").EffectiveNMulti(

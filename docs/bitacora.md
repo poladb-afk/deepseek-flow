@@ -7305,6 +7305,46 @@ verde.
 
 ---
 
+## X139: el brazo agente de research, armado y pre-registrado (2026-11-03)
+
+**El paso 8 del roadmap del operador** (las capacidades como composiciones
+del kernel) empieza por research, el único de los cuatro con mapeo directo:
+ya era un loop de tools (buscar → evaluar cobertura → buscar) con un grafo
+propio. El spec `banco/specs/exp108_research_kernel.md` se commiteó en
+`main` ANTES del código del brazo.
+
+**El brazo** (rama `research-agente`): `research.py` pasa de tres nodos
+propios a `kernel.correr` — el mismo loop del chat (S9b A′) y del supervisor
+con `search_web` (la Tool del módulo, una sola definición del contrato) y un
+prompt tarea-primero. Las tres leyes medidas re-expresadas por construcción:
+el tope de 9 búsquedas lo aplica el código DENTRO de la tool (exp/28: el
+ERROR le dice al modelo cómo seguir), el fallo de una búsqueda es el texto
+de esa llamada (exp/37) y el informe forzado con lo reunido al agotarse el
+saldo es la arista `cerrar` (L8). Interfaz intacta: `investigar` y la tool
+`deep_research` del chat no cambian.
+
+**R2, excepción declarada**: los 2 tests de las clases borradas mueren con
+su código y se reemplazan por las leyes re-expresadas (tope, fallo-como-
+dato) más la caracterización del run completo con modelo guionado; +7 del
+veredicto del instrumento (`tests/test_exp108.py`, filas sintéticas sin
+LLM). Otros DOS se reescriben in place (mismo nombre, mismo candado):
+`test_research_no_manda_el_error_al_llm` (A09: el error viaja tal cual, sin
+envolver como "Resultados:") y `test_ningun_flujo_escribe_fuera_de_las_raices`
+(exp/26: la escritura de research ahora es `investigar`, probada con LLM
+guionado). Inventario: 859 → 857 (solo los 2 borrados). `utils/viz.py` pasa a dibujar el grafo del kernel; las acciones
+`Planner`/`Researcher`/`Synthesizer` siguen canónicas en `evals.py` para las
+trazas anteriores (el criterio 6 del spec exige 0 nombres en el PRODUCTO,
+comentarios incluidos; los docstrings de research.py y modules/research.py
+se reescribieron sin ellos).
+
+**Falta**: el A/B (lo corre el operador, cada brazo en su worktree): 3 temas
+× 2 seeds, criterio de URLs honestas determinista (las del informe ⊆ las
+vistas), costo ≤ 1,25× con predicción registrada de BAJA (se eliminan las
+~9 llamadas de extracción), panel ciego de 6 pares. Si no pasa, la rama se
+revierte como la 5b.
+
+---
+
 ## X140: un solo freno de presupuesto en el chat (2026-11-03)
 
 **El hallazgo** (fable-judge sobre X138): el gate fractal atrapaba 5 de 6

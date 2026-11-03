@@ -1,6 +1,6 @@
 """Módulo `research`: deep research como capacidad del chat.
 
-Corre el loop planner→researcher→synthesizer (web + cobertura) y devuelve
+Corre el agente de investigación del kernel (web + cobertura) y devuelve
 la ruta del informe con fuentes."""
 from research import investigar
 

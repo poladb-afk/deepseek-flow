@@ -251,7 +251,7 @@ forma mínima: el action space del agente **es** el registro de módulos.
 | `debate` | `debate(tema, rondas?)` | debate multi-agente (proponente vs crítico por colas) con juez final |
 | `mcp` | `mcp_tools()` / `mcp_call(servidor, herramienta, argumentos)` | habla el Model Context Protocol: consume herramientas de servidores MCP externos configurados en `MCP_SERVERS` — el action space deja de ser cerrado |
 | `websearch` | `search_web(consulta, k?)` | búsqueda web con ddgs (DuckDuckGo, sin API key); devuelve título, URL y resumen para citar |
-| `research` | `deep_research(tema, salida?)` | loop de cobertura: planner → researcher (web) → synthesizer; detecta huecos y re-planifica (MAX_ROUNDS=2) |
+| `research` | `deep_research(tema, salida?)` | un agente del kernel con `search_web` como tool: el modelo planifica, busca, juzga la cobertura y escribe el informe; tope de 9 búsquedas por código y cierre por saldo (exp/108, en rama hasta su A/B) |
 | `supervisor` | `run_supervisor(tarea, salida?)` | bucle reactivo: Laya (Choose local, umbral 0.9) o DeepSeek eligen la herramienta de cada paso; síntesis final |
 | `db` | `sql(consulta)` / `db_schema()` | SELECT de solo lectura sobre la base SQLite de trazas (una sentencia, LIMIT forzado, sin DDL) |
 | `effective_n` | `run_effective_n(carpetas?, glob?, salida?)` | deduplicación exacta por contenido de trazas .jsonl: Effective N, archivos duplicados enteros, solape por pares, contradicciones de etiqueta; 1 o varias carpetas (BatchFlow, informe conjunto) |
@@ -447,19 +447,27 @@ para terminar limpio; `JuezDebate` dictamina en YAML reutilizando
 `extraer_yaml`. Las call_llm síncronas dentro de async son correctas:
 el debate es ping-pong, solo uno piensa a la vez.
 
-### Research — loop de cobertura (la inversión del juez)
+### Research — un agente del kernel (exp/108, en rama hasta su A/B)
 `main.py research "tema"` · [research.py](../research.py)
 
 ```mermaid
 flowchart LR
-    p[Planner] --> r[Researcher<br/>BatchNode]
-    r --> s[Synthesizer]
-    s -- "research" --> p
+    p[Paso] -- actuar --> a[Actuar<br/>search_web]
+    a -- paso --> p
+    p -- cerrar --> c[Cerrar] --> p
+    p -- respuesta --> f[Fin]
 ```
 
-El synthesizer juzga la COBERTURA (no la respuesta): con huecos, vuelve
-al planner con feedback; presupuesto MAX_ROUNDS=2. Web por ddgs,
-structured output en todo (extraer_yaml + assert + retry).
+El mismo `kernel.loop` del chat (S9b A′) y del supervisor con otra tool y
+otro prompt: el modelo planifica las consultas, busca, juzga la cobertura
+de las facetas y escribe el informe con las URLs que vio. Las leyes medidas
+quedan por construcción: el tope de 9 búsquedas del run lo aplica el CÓDIGO
+en la tool (exp/28), el fallo de una búsqueda es texto de esa llamada
+(exp/37) y el cierre con lo reunido al agotarse el saldo es la arista
+`cerrar` (L8). Antes: `Planner → Researcher → Synthesizer` con un loop de
+cobertura propio (las acciones viejas siguen canónicas en `evals.py` para
+las trazas anteriores). Pre-registro y criterios del A/B:
+`banco/specs/exp108_research_kernel.md`.
 
 ### Supervisor — el loop del kernel con las leyes del ejecutor (v3, H2 PR 2)
 `main.py supervisor "tarea"` · [supervisor.py](../supervisor.py) · [sonda_supervisor.py](../banco/probes/sonda_supervisor.py)

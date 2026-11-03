@@ -100,7 +100,7 @@ MCP degradan a su camino sin Laya.
 | juez (lote) | `juez_lote` — N preguntas verificadas EN PARALELO (`AsyncParallelBatchFlow`) + medición de speedup |
 | informe | `run_informe` — map-reduce paralelo de trazas `.jsonl` |
 | auditoria | `run_auditoria` — BatchFlow multi-carpeta + síntesis comparativa |
-| research | `deep_research` — web + loop de cobertura |
+| research | `deep_research` — un agente del kernel con search_web |
 | debate | `debate` — proponente vs crítico por colas + juez |
 | supervisor | `run_supervisor` — v2: un paso = UNA llamada con tool-calling nativo (herramienta + args juntos); vetos, caché y presupuesto como guardas de código |
 | db | `sql` / `db_schema` — SELECT de solo lectura sobre SQLite |

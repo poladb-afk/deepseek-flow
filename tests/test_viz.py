@@ -2,11 +2,13 @@
 
 
 def test_mermaid_export():
-    from research import create_research_flow
+    from research import grafo
     from utils.viz import mermaid
 
-    texto = mermaid(create_research_flow())
-    assert "Planner" in texto and "research" in texto
+    # exp/108: research es el loop del kernel (Paso/Actuar/Cerrar), no un
+    # grafo propio con Planner/Researcher/Synthesizer
+    texto = mermaid(grafo())
+    assert "Paso" in texto and "actuar" in texto
 
 def test_mermaid_flujos_batch_y_lote():
     """El export de grafos cubre los flujos nuevos: el batch puro
