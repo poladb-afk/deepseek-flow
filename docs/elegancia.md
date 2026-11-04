@@ -108,7 +108,7 @@ ratchet sobre los YAML) → 3 imports perezosos → 4 S6 → 5 5c-a / 5c-b → 6
 S9a ✅ / S9b ✅ / S3 (bloqueado) → 7 fase 6 ✅. Primero lo que no cambia
 conducta; lo que la cambia, con su A/B pre-registrado.
 
-## Inventario de settings (52 tras S6/X132: 39 contrato · 12 revisar · 1 borrar)
+## Inventario de settings (47 al 2026-11-04 tras X154: 45 contrato · 2 revisar · 0 borrar)
 
 `contrato` = decisión del operador que se queda; `revisar` = se decide en la
 fase indicada; `borrar` = se va con su rama en esa fase.
@@ -118,12 +118,12 @@ fase indicada; `borrar` = se va con su rama en esa fase.
 | `PROMPT_AUDITORIA` | contrato | — | el checklist de auditoría es opción del operador (X112: único texto con lift medido, s18); X154 corrige el "borrar" viejo: la decisión del operador es posterior | `main.py` |
 | `HITL_SCOPE` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `utils/aprobaciones.py`, `utils/riesgo.py` |
 | `HUMANO_RESPUESTA` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `modules/humano.py` |
-| `CITAS_VERIFICAR` | revisar | 2 | S9: citas e interrupción siempre activas | `nodes.py` |
-| `PREFETCH` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
-| `SKILLS` | revisar | 4 | S7: skills por descripción; el apagador global quizá sobra | `nodes.py` |
+| `CITAS_VERIFICAR` | contrato | — | contrato por decisión del operador en X154: es un seam de prueba que usa la caracterización del chat (citas e interrupción siempre activas), no un A/B abierto | `nodes.py` |
+| `PREFETCH` | contrato | — | contrato por decisión del operador en X154: seam de prueba que usan el gate fractal y el banco; los topes ya son constantes | `utils/prefetch.py` |
+| `SKILLS` | contrato | — | contrato por decisión del operador en X154: seam de prueba que usan la caracterización y el banco; el apagador global se queda | `nodes.py` |
 | `INFORME_CARPETA` | contrato | — | configuración del operador (lo tiene en su `.env`, X154): borrarlo le cambia el default a `.` | `informe.py` |
 | `LAYA_BATCH_SIZE` | contrato | — | no es un tunable: `0` = el lote no se parte (un solo forward), N = lotes de N; elige el pico de memoria del prefiltro (X101) | `utils/laya.py` |
-| `LAYA_MODEL_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
+| `LAYA_MODEL_PREFILTRO` | contrato | — | contrato por decisión del operador en X154 ("contrato, se queda"): está en su `.env` | `modules/memoria.py` |
 | `COMPACTION_CHARS` | contrato | 2 | tamaño de contexto | `nodes.py` |
 | `MAX_TOOL_ROUNDS` | contrato | 2 | el techo duro del Ledger (único presupuesto) | `utils/fs_tools.py` |
 | `READ_MAX_CHARS` | contrato | 2 | tamaño de contexto | `utils/fs_tools.py` |
