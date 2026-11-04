@@ -2,7 +2,7 @@
 
 Carga perezosa del checkpoint (LAYA_MODEL). El router del chat, su primer
 uso, se retiró en X106 (fase 3b: un solo camino con tools). Quedan el juicio
-tipado del servidor MCP (`juicio`) y el prefiltro de memoria/RAG
+tipado del servidor MCP (`juicio`) y el prefiltro de memoria
 (LAYA_MODEL_PREFILTRO). Sin
 LAYA_MODEL, el default es el BASE multilingual.
 

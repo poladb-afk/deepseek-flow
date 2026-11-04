@@ -10,8 +10,8 @@ cualquier motivo, entran TODOS los chunks (o los primeros `max_unidades`).
 Laya es un acelerador opcional, no una dependencia: su ausencia deja el
 comportamiento idéntico al de hoy.
 
-Hay dos consumidores del filtro (rag_search, memory_search); ambos usan
-los mismos helpers de acá para no derivar. El contrato del prompt se
+Hoy hay un consumidor del filtro (memory_search); el de rag_search se
+borró en X153 (con la config documentada nunca filtraba). El contrato del prompt se
 declara (como los del router: congelado) y el checkpoint se lee de un
 setting (`LAYA_MODEL_PREFILTRO`). Sin checkpoint disponible (o con
 cualquier fallo), el filtro es no-op — cercado por tests. El checkpoint

@@ -143,7 +143,6 @@ tests/test_consolidacion.py::test_memory_save_no_pisa_symlink
 tests/test_consolidacion.py::test_memory_search_no_sigue_symlinks
 tests/test_consolidacion.py::test_memory_search_sin_argumentos_lista
 tests/test_consolidacion.py::test_prefiltro_memoria_sin_laya_no_recorta_ni_miente
-tests/test_consolidacion.py::test_prefiltro_rag_sin_laya_no_recorta
 tests/test_consolidacion.py::test_presupuesto_agotado_ignora_tool_calls_nativos[None]
 tests/test_consolidacion.py::test_presupuesto_agotado_ignora_tool_calls_nativos[cierre parcial]
 tests/test_consolidacion.py::test_resumen_sesion_no_sigue_symlink_colgante
@@ -538,9 +537,6 @@ tests/test_memoria.py::test_rag_indice_inconsistente_falla_cerrado
 tests/test_memoria.py::test_rag_indice_lexico_sin_vectores_ok
 tests/test_memoria.py::test_rag_indice_sobran_vectores_falla_cerrado
 tests/test_memoria.py::test_rag_invalida_la_cache_al_reindexar
-tests/test_memoria.py::test_rag_prefiltro_actua_con_laya_simulado
-tests/test_memoria.py::test_rag_prefiltro_extrae_fragmentos
-tests/test_memoria.py::test_rag_prefiltro_noop_sin_modelo
 tests/test_memoria.py::test_resumen_de_sesion_escribe_con_llm
 tests/test_memoria.py::test_resumen_de_sesion_rutas_visibles
 tests/test_memoria.py::test_resumen_de_sesion_se_apaga_y_no_rompe

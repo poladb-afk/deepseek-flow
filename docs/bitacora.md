@@ -1661,3 +1661,53 @@ settings de 5c-a vigilan un mecanismo que en producción no corre: X153 lo
 decide con ese dato. El script de la prueba se borró.
 
 Solo docs; sin cambio de código ni de conducta.
+
+---
+
+## X153: el prefiltro de RAG, borrado (2026-11-04)
+
+**Qué existía.** `modules/rag.py:_prefiltrar` (con `_extraer_fragmentos` y
+`_RE_FRAGMENTO`): con `RAG_PREFILTRO=1` (default) tomaba
+`maximo = RAG_PREFILTRO_N` (default `k`) y filtraba con Laya **solo si**
+`len(fragmentos) > maximo`.
+
+**Por qué nunca filtraba con la configuración documentada.** `buscar()`
+devuelve como mucho `k` fragmentos, así que con `RAG_PREFILTRO_N ≥ k` la
+condición no se cumple nunca. Pasa con el default (`N = k`) y también con el
+valor que mostraba `.env.example` (`RAG_PREFILTRO_N=4` con `k=4` por
+defecto). Evidencia (X152): espía en `contexto._puntuar` y `k` ∈ {1, 2, 4, 8,
+20} → 0 consultas a Laya y salida intacta en los cinco; con
+`RAG_PREFILTRO_N=1` y `k=3` sí actuaba. No era código muerto: era un
+mecanismo **dormido por defecto y sin medición que lo respaldara**. Los
+tests pasaban porque fijaban `RAG_PREFILTRO_N` por debajo de `k` a mano.
+
+**Por qué se borra.** P1 ("lo que no decide nada se borra") y EL7 ("un
+arreglo borra un caso"). La alternativa —que funcione con un tope fijo, por
+ejemplo trayendo más fragmentos de los que se devuelven— cambia conducta y
+necesitaría pre-registro y A/B; no hay ningún dato que pida filtrado de RAG.
+Si algún día lo hay, se pre-registra desde cero. Decisión del operador
+(2026-11-04), opción (a).
+
+**Qué se fue.** En `modules/rag.py`: `_prefiltrar`, `_extraer_fragmentos`,
+`_RE_FRAGMENTO` y sus imports (`re`, `_setting`, `elegir_por_laya`);
+`rag_search` devuelve `buscar()` tal cual. Los settings `RAG_PREFILTRO` y
+`RAG_PREFILTRO_N`, de `.env.example` y del inventario de `docs/elegancia.md`.
+Los docstrings de `utils/contexto.py` y `utils/laya.py` dejan de nombrar al
+consumidor RAG. El prefiltro de memoria **no se toca** (con tope 8 sí actúa).
+
+**R2, autorizada por el operador (2026-11-04) solo para los tests de este
+prefiltro.** Se borran 4 tests, y se sacan de `tests/inventario_tests.txt`:
+`test_consolidacion.py::test_prefiltro_rag_sin_laya_no_recorta`,
+`test_memoria.py::test_rag_prefiltro_noop_sin_modelo`,
+`test_memoria.py::test_rag_prefiltro_actua_con_laya_simulado` y
+`test_memoria.py::test_rag_prefiltro_extrae_fragmentos` (este último probaba
+`_extraer_fragmentos`, que solo existía para el prefiltro). Ninguno cubría
+otra cosa: los de memoria y de `elegir_por_laya` quedan intactos.
+
+**Los números** (ratchet, sobre X152): `settings_leidos` **52 → 50**,
+`helpers_duplicados` **10 → 8** (sale el par `_prefiltrar`),
+`excepts_amplios` **27 → 26** (el del prefiltro), `lineas_del_producto`
+**7699 → 7661**, y `tests_definidos` **1181 → 1177**: es el único que
+empeora, por los 4 tests de R2. Ese empeoramiento necesita `ratchet.py
+--actualizar` con la clave del operador; el agente no lo corre. Todo lo
+demás, IGUAL.

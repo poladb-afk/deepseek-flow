@@ -31,17 +31,6 @@ def test_prefiltro_memoria_sin_laya_no_recorta_ni_miente(tmp_path, monkeypatch):
     assert "prefiltro Laya" not in out
 
 
-def test_prefiltro_rag_sin_laya_no_recorta(monkeypatch):
-    import modules.rag as rag
-    import utils.laya as ul
-
-    monkeypatch.setattr(ul, "disponible", lambda setting=None: False)
-    monkeypatch.setenv("RAG_PREFILTRO", "1")
-    monkeypatch.setenv("RAG_PREFILTRO_N", "1")
-    salida = ("3 fragmentos; top 3:\n\n--- a.py (score 0.5) ---\nA\n\n"
-              "--- b.py (score 0.4) ---\nB\n\n--- c.py (score 0.3) ---\nC")
-    assert rag._prefiltrar("q", salida, 3) == salida
-
 
 # 2 evals
 def test_evals_salida_fuera_de_raices_se_rechaza(tmp_path, monkeypatch):

@@ -264,43 +264,6 @@ def test_elegir_por_laya_elige_y_conserva_orden(monkeypatch):
     out = ctx.elegir_por_laya("q", unidades, 2)
     assert out == ["bloque a", "bloque c"]  # los 2 mejores, en orden original
 
-def test_rag_prefiltro_noop_sin_modelo(monkeypatch):
-    """rag_search con RAG_PREFILTRO=1 pero sin Laya: la salida queda intacta."""
-    import modules.rag as rag
-    import utils.contexto as ctx
-
-    salida = ("3 fragmentos indexados (modo lexico); top 3:\n\n"
-              "--- a.py (score 0.5) ---\ncuerpo a\n\n"
-              "--- b.py (score 0.4) ---\ncuerpo b\n\n"
-              "--- c.py (score 0.3) ---\ncuerpo c")
-    # sin checkpoint del prefiltro: _puntuar levanta (Laya no está) → no-op
-    monkeypatch.setattr(ctx, "_puntuar",
-                        lambda consulta, unidades, setting: (_ for _ in ()).throw(RuntimeError("sin modelo")))
-    monkeypatch.setenv("RAG_PREFILTRO", "1")
-    monkeypatch.setenv("RAG_PREFILTRO_N", "2")
-    assert rag._prefiltrar("consulta", salida, 3) == salida  # sin Laya: intacta
-    # con 0 lo apaga explícitamente
-    monkeypatch.setenv("RAG_PREFILTRO", "0")
-    assert rag._prefiltrar("consulta", salida, 3) == salida
-
-def test_rag_prefiltro_actua_con_laya_simulado(monkeypatch):
-    import modules.rag as rag
-    import utils.contexto as ctx
-
-    salida = ("3 fragmentos indexados (modo lexico); top 3:\n\n"
-              "--- a.py (score 0.5) ---\ncuerpo a\n\n"
-              "--- b.py (score 0.4) ---\ncuerpo b\n\n"
-              "--- c.py (score 0.3) ---\ncuerpo c")
-    monkeypatch.setenv("RAG_PREFILTRO", "1")
-    monkeypatch.setenv("RAG_PREFILTRO_N", "1")
-    # el fragmento que contiene "cuerpo c" aporta; el resto no
-    monkeypatch.setattr(ctx, "_puntuar", lambda consulta, unidades, setting, texto_de=None: {
-        i: (0.9 if "cuerpo c" in u else 0.1) for i, u in enumerate(unidades)})
-    out = rag._prefiltrar("consulta", salida, 3)
-    assert "[prefiltro Laya: 3 → 1 fragmentos]" in out
-    assert out.startswith("3 fragmentos indexados")  # el resumen original se conserva
-    assert "cuerpo c" in out and "cuerpo a" not in out
-
 def test_memoria_prefiltro_noop_sin_modelo(tmp_path, monkeypatch):
     """memory_search sin Laya devuelve la memoria completa (no-op)."""
     import modules.memoria as mem
@@ -332,20 +295,6 @@ def test_memoria_prefiltro_actua(tmp_path, monkeypatch):
     out = mem.memory_search("compacción")
     assert "[prefiltro Laya: 3 → 1 archivos]" in out
     assert "b.md" in out
-
-def test_rag_prefiltro_extrae_fragmentos():
-    """El parser de la salida de buscar() separa fragmentos sin romper el
-    shape (y devuelve None cuando no hay fragmentos)."""
-    import modules.rag as rag
-
-    salida = ("2 fragmentos indexados (modo lexico); top 2:\n\n"
-              "--- a.py (score 0.5) ---\ncuerpo a\n\n"
-              "--- b.py (score 0.4) ---\ncuerpo b")
-    frags = rag._extraer_fragmentos(salida)
-    assert len(frags) == 2
-    assert frags[0].startswith("--- a.py (score 0.5) ---")
-    assert "cuerpo b" in frags[1]
-    assert rag._extraer_fragmentos("El índice está vacío: reindexa con rag_index.") is None
 
 def test_catalogo_memoria_al_arranque(tmp_path, monkeypatch, capsys):
     """El arranque muestra el CATÁLOGO de la biblioteca (qué notas hay) SIN

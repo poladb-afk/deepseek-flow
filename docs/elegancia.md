@@ -127,8 +127,6 @@ fase indicada; `borrar` = se va con su rama en esa fase.
 | `LAYA_MODEL_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
 | `MEMORIA_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
 | `MEMORIA_PREFILTRO_N` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
-| `RAG_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/rag.py` |
-| `RAG_PREFILTRO_N` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/rag.py` |
 | `COMPACTION_CHARS` | contrato | 2 | tamaño de contexto | `nodes.py` |
 | `MAX_TOOL_ROUNDS` | contrato | 2 | el techo duro del Ledger (único presupuesto) | `utils/fs_tools.py` |
 | `READ_MAX_CHARS` | contrato | 2 | tamaño de contexto | `utils/fs_tools.py` |
