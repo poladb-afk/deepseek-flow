@@ -339,7 +339,7 @@ la pregunta (los hechos los reúne el código). `Judge` extrae las citas
 `ruta:línea` del borrador, lee las líneas reales, y evalúa en YAML
 (`verdict: ok/retry`) — `extraer_yaml` + `_veredicto_valido`: un veredicto
 que no valida **no lanza** — el Judge reintenta citando el crudo inválido como
-feedback (fase B2 de exp/21, en [bitacora.md](bitacora.md)). Desde X135 el
+feedback (fase B2 de exp/21, en [bitacora/2026-10.md](bitacora/2026-10.md)). Desde X135 el
 prompt lleva además el **inventario real** de herramientas y pide
 `tools_usadas`: lo semántico (¿de qué habla el borrador?) lo juzga el modelo y
 lo exacto (¿ese nombre existe?) lo contrasta el código, que fuerza retry con
@@ -384,7 +384,7 @@ Presupuestos (L8): `MAX_CLAIMS=12`, `MAX_RERUNS=6`, diff al prompt truncado
 (`MAX_DIFF`), reparación de YAML a 2 intentos. La tool del chat
 `verificar_trabajo(trabajo, pristine?, reporte)` (módulo `fable`) la expone;
 el reporte llega como ruta o texto literal. Medición: exp/81 sobre el
-fixture s7 (5 fraudes plantados) en [bitacora.md](bitacora.md).
+fixture s7 (5 fraudes plantados) en [bitacora/2026-10.md](bitacora/2026-10.md).
 
 **Dominios (F3, exp/82)**: con `sector` (ej. `marketing`), el trabajo
 no-código se juzga con el **adapter del dominio** — la fraud table, el

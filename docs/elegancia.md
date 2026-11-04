@@ -83,7 +83,7 @@ agente); SWE-agent (el linter en la edición como guardrail medido). El
 fractal (X116): RAO, RAH y RLM a favor de un loop que se replica; en contra,
 los estudios de escala de 2026 con el presupuesto igualado (el A/B que lo
 decide para este harness: `banco/specs/exp103_fractal.md`). Detalle y
-citas en la auditoría del 2026-10-27 (`docs/bitacora.md`, X91). Con URL y la capa a la que fundamenta cada una: `docs/principios.md`.
+citas en la auditoría del 2026-10-27 (`docs/bitacora/2026-10.md`, X91). Con URL y la capa a la que fundamenta cada una: `docs/principios.md`.
 
 ## Línea de base (fase 0, 2026-10-27)
 
