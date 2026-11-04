@@ -149,7 +149,9 @@ class Actuar(_DelLoop):
             tool = por_nombre.get(llamada["function"]["name"])
             if tool is None:
                 return f"ERROR: herramienta desconocida: {llamada['function']['name']}"
-            return str(tool.correr(llamada, self.ctx))
+            # X146 (P4): el despacho del loop no lanza; comparte la
+            # protección con run_tool_call (una sola, sin except nuevo).
+            return fs_tools.correr_protegido(lambda: tool.correr(llamada, self.ctx))
 
         lectura = all(getattr(por_nombre.get(c["function"]["name"]), "efecto", "") == "lectura"
                       for c in llamadas)

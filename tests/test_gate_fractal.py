@@ -420,3 +420,60 @@ def test_el_timeout_del_gate_falla_en_vez_de_colgar():
         time.sleep(5)
     with _sin_cuelgue(1):  # restaurado: sin timer heredado del bloque anterior
         time.sleep(0)
+
+
+def test_una_tool_que_lanza_es_texto_y_no_corta_el_chat_al_supervisor_ni_a_una_copia(
+        monkeypatch, tmp_path):
+    """X146 (P4): el despacho del loop NO LANZA. Una tool que revienta (por
+    fuera de run_tool_call: el código que la envuelve, una Tool armada a
+    mano) vuelve como `ERROR: …` al modelo y la corrida termina — en el
+    chat, en el supervisor y en una copia anidada. Antes: el kernel llamaba
+    `tool.correr` sin protección y la corrida se cortaba (medido por el
+    autor del roadmap con un script)."""
+    import nodes
+    import supervisor as sup
+    from utils.kernel import Tool
+
+    def explota(llamada, _ctx=None):
+        raise RuntimeError("boom")
+
+    # 1) el chat: su despacho (el envoltorio de run_tool_call) revienta
+    monkeypatch.setattr(nodes, "despachar_tool", explota)
+
+    def llm_chat(mensajes, tools=None):
+        if any(m.get("role") == "tool" for m in mensajes):
+            assert mensajes[-1]["content"].startswith("ERROR: RuntimeError")
+            return _msg("lo vi, cierro")
+        return _msg(None, _llamada("read_file", {"path": "README.md"}))
+
+    with _sin_cuelgue():
+        shared = _correr_el_chat(monkeypatch, llm_chat, ("leé el README", "salir"))
+    assert "lo vi, cierro" in shared["messages"][-1]["content"]
+
+    # 2) el supervisor: revienta su _despachar (el envoltorio, no run_tool_call;
+    # revienta ANTES de que con_leyes registre la llamada, así que el observable
+    # es lo que ve el modelo — y que la corrida llega a la síntesis)
+    monkeypatch.setattr(sup, "_despachar", explota)
+    visto_sup = []
+
+    def llm_sup(mensajes, tools=None):
+        if any(m.get("role") == "tool" for m in mensajes):
+            visto_sup.append(mensajes[-1]["content"])
+            return _msg("tarea cerrada")
+        return _msg(None, _llamada("read_file", {"path": "README.md"}))
+
+    _correr_el_supervisor(monkeypatch, tmp_path, llm_sup, pasos=3)  # no se corta
+    assert visto_sup[0].startswith("ERROR: RuntimeError")
+
+    # 3) una copia anidada con una Tool armada a mano que revienta
+    def llm_arbol(mensajes, tools=None):
+        nombres = {t["function"]["name"] for t in tools or []}
+        if "copia" in nombres:
+            return _msg(None, _llamada("copia", {"pedido": "x"}))
+        if any(m.get("role") == "tool" for m in mensajes):
+            return _msg(f"la copia vio: {_resultado_tool({'messages': mensajes})}")
+        return _msg(None, _llamada("revienta", {}))
+
+    ctx, shared_raiz = _correr_una_copia(
+        llm_arbol, 4, [Tool("revienta", {"type": "function", "function": {"name": "revienta"}}, explota)])
+    assert "ERROR: RuntimeError" in _resultado_tool(shared_raiz)

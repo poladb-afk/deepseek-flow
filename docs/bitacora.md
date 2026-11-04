@@ -1408,3 +1408,45 @@ ignore_errors` y el costo de mini queda "sin dato" (el denominador ya lo
 permite). Corregidos también: la fila X145 del roadmap (marcada ✅, con lo
 que corre de verdad — el npm 0.73.1, no la "lectura del repo 1.5.0" — y la
 invocación completa) y la del tablero. Docs; sin cambio de conducta.
+
+---
+
+## X146: el despacho del loop no lanza (P4 por construcción) (2026-11-04)
+
+**El hueco** (medido por el autor del roadmap con un script): la garantía de
+P4 ("los errores vuelven como texto") vivía en `fs_tools.run_tool_call`, pero
+`kernel.Actuar` llamaba `tool.correr` sin protección — una Tool armada a mano
+(la de `supervisor.con_leyes`, la de `kernel.agente`) o el código que envuelve
+a run_tool_call (`despachar_tool`, `_despachar`) cortaba la corrida entera si
+lanzaba. Diseño de referencia: `runToolCall` de Pi, "never rejects", una sola
+función de despacho que usan el loop y las tools anidadas.
+
+**La decisión de cada llamador** (la fila la pedía antes de mover): dentro del
+loop —`despachar_tool` (chat), `_despachar` (supervisor), `desde_fs` (kernel)—
+quedan cubiertos por la protección compartida. El único llamador FUERA del
+loop es `mcp_server`: sigue con `run_tool_call` sin cambio de conducta (su
+error-texto como resultado del protocolo MCP no se toca) y además queda
+cubierto por el mismo helper.
+
+**El cambio**: la garantía se centralizó en `fs_tools.correr_protegido(correr)`
+—el ÚNICO `except` que devuelve `ERROR: {tipo}: …`—, que usan
+`run_tool_call` (moviendo ahí el `except` que tenía en el cuerpo, sin sumar
+otro) y `kernel.Actuar.una`, que despacha por
+`fs_tools.correr_protegido(lambda: tool.correr(...))`: el loop y las copias
+anidadas heredan la garantía, una sola vez. El primer intento de la otra
+sesión sumaba un `except` en `Actuar`: el ratchet lo cazó
+(`excepts_amplios` 27 → 28 y `lineas_del_loop` 651 → 654); esta versión no
+suma nada.
+
+**Los números**: `excepts_amplios` **27 IGUAL** (el handler se movió de
+`run_tool_call` al helper), `lineas_del_loop` **651 IGUAL** (en el kernel una
+línea reemplaza a otra), `lineas_del_producto` **7693 IGUAL**,
+`imports_perezosos` 14 IGUAL y `tests_definidos` 1179 → 1180 (mejoró). **Sin
+clave del operador**: no hay empeoramiento que aceptar.
+
+**El candado**: `tests/test_gate_fractal.py`, tres niveles —el envoltorio del
+chat, el `_despachar` del supervisor (que revienta antes de registrar en
+`ley`, así que el observable es lo que ve el modelo y que la corrida llega a
+la síntesis) y una Tool a mano en una copia anidada—, todos vuelven
+`ERROR: RuntimeError` y la corrida TERMINA. Probado por mutación: sin la
+protección del loop, el test es rojo.

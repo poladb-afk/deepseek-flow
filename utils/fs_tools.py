@@ -478,6 +478,17 @@ TOOLS = [
 ]
 
 
+def correr_protegido(correr):
+    """Corre una tool y devuelve SIEMPRE texto: un error es un hecho que el
+    modelo lee, nunca un crash del llamador (P4). Es el ÚNICO lugar con la
+    garantía; la comparten `run_tool_call` y el despacho del loop del kernel
+    (X146), como el `runToolCall` "never rejects" de Pi."""
+    try:
+        return str(correr())
+    except Exception as e:  # noqa: BLE001 (X146: el error es un hecho, no un crash)
+        return f"ERROR: {type(e).__name__}: {e}"
+
+
 def run_tool_call(tool_call, extra_impls=None):
     """Ejecuta una tool call (la forma dict canónica del historial) y
     devuelve el mensaje role=tool. extra_impls incorpora las
@@ -524,14 +535,9 @@ def run_tool_call(tool_call, extra_impls=None):
             return {"role": "tool", "tool_call_id": id_llamada, "content": str(veto)}
 
     impl = impls.get(fn["name"])
-    if impl is None:
-        result = f"ERROR: herramienta desconocida: {fn['name']}"
-    else:
-        try:
-            args = json.loads(fn["arguments"] or "{}")
-            result = str(impl(**args))
-        except Exception as e:  # noqa: BLE001  (el error es un hecho, no un crash)
-            result = f"ERROR: {type(e).__name__}: {e}"
+    result = f"ERROR: herramienta desconocida: {fn['name']}"
+    if impl is not None:
+        result = correr_protegido(lambda: impl(**json.loads(fn["arguments"] or "{}")))
 
     # Hooks post-tool: enriquecen el resultado antes de que viaje al modelo
     # (patrón error-como-feedback). Un hook que lanza no rompe nada.

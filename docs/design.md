@@ -155,7 +155,9 @@ camino `tool` existente sigue intacto. Test con el transcript real.
     contenido.
   - `run_tool_call(tc)`: dispatch + mensaje `role=tool`. Los errores de uso
     ("ERROR: ...") se devuelven como texto para que el modelo corrija; los
-    fallos transitorios del API los maneja el retry del Node.
+    fallos transitorios del API los maneja el retry del Node. La ejecución de
+    la tool pasa por `correr_protegido` (X146): una tool que lanza vuelve como
+    `ERROR: {tipo}: …`, nunca corta al llamador.
 
 ## Leyes / límites
 
@@ -969,7 +971,12 @@ como una `Tool` que otro loop puede llamar. Leyes por construcción:
   como no ejecutada. Así las llamadas del árbol no pasan de 2R + 1 con
   cualquier abanico y profundidad.
 - **Las tools del CORE pasan por `run_tool_call`** (`desde_fs`): hooks,
-  denylist y contención de siempre.
+  denylist y contención de siempre. El despacho del loop (`Actuar`) usa la
+  MISMA protección que `run_tool_call` —`fs_tools.correr_protegido`, un solo
+  `except` que devuelve `ERROR: …` (X146)—, así una `Tool` armada a mano
+  tampoco corta la corrida.
+- **Un sub-agente hereda el despacho protegido**: sus tools corren por el
+  mismo `Actuar` y sus errores también vuelven como texto.
 - **El proveedor se normaliza en el adaptador**: DSML → tool calls y
   sanitizado viven en [utils/proveedor.py](../utils/proveedor.py), que usan
   el chat y el kernel (antes estaban solo en `nodes.py`).
