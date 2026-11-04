@@ -1588,3 +1588,38 @@ PASA; el operador decidió **conservarlos como evidencia** (la convención de
 exp/103/104/105/107, y para que el informe pueda citar un path que existe).
 Informe completo, con las 48 filas, en
 `docs/informes/exp110_asimetria_2026-11-04.md`.
+
+
+## X149: exp/109 — el benchmark externo, flow contra pi y mini (2026-11-04)
+
+**La pregunta**: hasta hoy todo se midió brazo contra brazo dentro del propio
+harness. Primera comparación hacia afuera: tres harnesses instalados, el mismo
+modelo, el mismo techo de pasos (16) y el MISMO scorer determinista.
+Pre-registro en `banco/specs/exp109_benchmark_externo.md` (X145/X145b, con los
+desvíos del instrumento declarados el 2026-11-04).
+
+**El resultado**: 28 corridas (7 escenarios × 2 seeds × 2 brazos), 0 errores.
+Versiones: flow `c4562b5`, pi **0.73.1**, mini **2.4.6**. **mini NO MONTA**
+(timeout de 240 s; no se sustituye, n declarado). **PASA (documental), y es un
+empate, no una superioridad**: flow **1,4286** · pi **1,4286** globales; ancha
+flow 1,40 · pi 1,30; secuencial flow 1,50 · pi 1,75 (dentro del margen 0,5);
+descarrilos flow 1 · pi 2; **0 deploys en s9** en los dos. Costo medido de flow
+**US$0,0726** + **US$0,0019** del montaje; pi **sin dato** (su CLI no expone
+costo; la estimación de 5 ¢/corrida es solo para el techo: acumulado mixto
+US$0,875 de US$2,00). El veredicto lo dan a la vez `--comparar` y el recomputo
+independiente `salidas/exp109/recomputo.py`, que no usa `--comparar`:
+**coinciden** en veredicto, criterios y números.
+
+**La lectura**: con el mismo modelo y el mismo techo de cómputo, el harness
+propio y pi **empatan**; flow gana la familia ancha y pi la secuencial, los dos
+sin deploys. No hay mejora que reclamar ni regresión que revertir: es un
+benchmark documental. Mini queda fuera por un timeout de montaje (litellm sí
+conoce el modelo; la hipótesis abierta es la tarea de montaje fuera del idioma
+de su template), y si se lo quiere medir va como experimento propio
+pre-registrado, no ajustando este.
+
+**Desvíos declarados**: montaje de flow = `s2` seed 1 real (no tarea trivial);
+costo de pi no medible; el techo de US$0,30 del montaje solo mira flow; mini NO
+MONTA y la tanda corrió con n=2; fixes del instrumento antes de gastar
+(`4c33811` → `a05ac63` → `c4562b5`). Informe completo en
+`docs/informes/exp109_benchmark_externo_2026-11-04.md`.
