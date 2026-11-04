@@ -2,6 +2,60 @@
 
 # Próximos pasos (roadmap)
 
+## Roadmap vigente (post-X144, 2026-11-04)
+
+**Meta**: la visión de `docs/principios.md` — un CORE mínimo al que se le
+enchufan módulos (capacidades), un solo loop que se **replica** de forma
+asimétrica, y la complejidad emergiendo de piezas mínimas conectadas. Cada
+paso nombra el principio que sirve y el gate que lo cierra; un paso que no
+sirve a un principio no entra (P1, EL7).
+
+**Reglas del roadmap** (de `docs/principios.md` y `AGENTS.md`, no nuevas):
+- Lo que cambia conducta tiene pre-registro en `banco/specs/` y un A/B con el
+  cómputo igualado; si no pasa, se revierte y no vuelve como parche (N1).
+- Nada entra por prompt (N3) ni por lista de palabras (N2).
+- Un paso mueve código solo si el ratchet queda verde **sin** la clave del
+  operador; si la necesita, se dice antes (R6).
+- S0 no cede: ningún paso relaja HITL, contención ni política de comandos.
+
+### Orden
+
+| # | Paso | Principio | Cambia conducta | Depende de | Gate de salida |
+|---|---|---|---|---|---|
+| X145 | **exp/109, desvíos declarados antes de correr** (solo docs). Lo que el pre-registro dice y el código de los externos no sostiene: (1) el repo canónico de Pi es `earendil-works/pi` (`@earendil-works/pi-coding-agent` 1.5.0, zip `80f7a11`), no `badlogic/pi-mono`; (2) el loop de Pi (`packages/agent/src/agent-loop.ts`) no tiene límite de turnos — el corte se hace con `finishTurn → {action: "end"}`, así que el brazo pi necesita una extensión mínima que corte en 16 (desvío: es parte del montaje, no del harness medido); (3) en mini-swe-agent 2.4.6 `step_limit` viene en 0 (sin límite): se pasa `-c agent.step_limit=16`, más `--yolo` y `--exit-immediately` para correr sin humano | Método (pre-registro, igualación simétrica) | no | X144 | spec con sección "Desvíos declarados (pre-humo)"; `test_handoff.py` y deriva verdes |
+| X146 | **P4 por construcción: un despacho que no lanza.** Hoy la garantía "los errores vuelven como texto" vive en `fs_tools.run_tool_call`; `kernel.Actuar` llama `tool.correr` sin protección, así que una `Tool` armada a mano (la de `supervisor.py`, la de `kernel.agente`) corta el loop si lanza. Diseño de referencia medido afuera: Pi tiene una sola función de despacho (`runToolCall`) que "never rejects" y que usan el loop y las tools anidadas. Acá: la garantía pasa a `Actuar` y el `except` se **mueve**, no se suma — antes de moverlo se listan los llamadores de `run_tool_call` fuera del loop y se decide cada uno | P4, EL8, P2 (c) | mínimo (solo el camino que hoy corta) | X144 | `excepts_amplios` ≤ 27 sin clave; test nuevo en `tests/test_gate_fractal.py`: una tool que lanza vuelve como `ERROR` en el chat, el supervisor y una copia; los 1180 tests verdes |
+| X147 | **S0 / P2 (c): un hijo no tiene más poder que su padre.** `kernel.agente()` verifica que las tools del hijo estén entre las del árbol que lo crea; si no, falla al armarse (falla cerrada, no en ejecución). Hoy ninguna pieza de producción construye `agente()` (X86): el hueco está cerrado de hecho pero no por construcción | S0, P2 (c), EL8 | no | X144 | test de construcción (hijo con una tool ajena → `ValueError`); gate fractal verde |
+| X148 | **Pre-registro de exp/110: la asimetría (b), medida.** Brazo A = el loop solo; brazo F = el mismo loop con 2–3 hijos **especializados** vía `kernel.agente()` (cada uno con sus tools y su prompt; el de lectura con tools de lectura, como el `scout` de Pi), mismo saldo del árbol (Ley 1). Escenarios anchos (s13, s17–s20) donde dividir puede pagar y uno secuencial (s2) como control, porque la evidencia de 2026 dice que en lo secuencial la división daña. Criterios: adopción (el modelo elige delegar), calidad no inferior y costo ≤ 1,25× **juntos** — el modo de falla de exp/108 fue ganar en costo y perder en informe | P2 (b), Método | **sí** | X146, X147 | spec en `banco/specs/` aprobado por el operador antes del código del brazo |
+| X149 | **exp/109 corrido** (operador): flow vs pi vs mini, 42 corridas + 3 de montaje, con los desvíos de X145. Se corre **después** de X146/X147 para medir el harness con los principios ya cumplidos, sobre un HEAD anotado | P1 (medido afuera) | no (documental) | X145, X146, X147 | instrumento `banco/probes/exp109.py` probado con filas sintéticas; tabla en la bitácora |
+| X150 | **exp/110 corrido** (operador) y su consecuencia pre-registrada: si PASA, (b) pasa de hipótesis a principio cumplido en P2; si NO PASA, queda medida con su dato y la rama se borra | P2 (b) | sí | X148 | veredicto en la bitácora; `docs/principios.md` P2 actualizado según el resultado |
+| X151 | **Solo si X150 PASA: el contrato de módulo aporta ramas.** Un módulo declara un sub-agente (`kernel.agente`) además de `TOOLS`/`IMPL`/`HOOKS`, y el sub-agente hereda el árbol de quien lo llama (saldo, frenos). Es lo que Pi hace como extensión pero en otro proceso (sin saldo compartido); acá se hereda por construcción. Si X150 no pasa, este paso no existe (N1: no se construye la capacidad sin la medición) | P3, P2 (a)(c) | sí | X150 | `core_importa_modulos` = 0; gate fractal con un sub-agente de módulo en los tres niveles |
+
+### Deuda abierta (sin orden, cada una con su gate)
+
+| Deuda | Principio | Estado | Gate |
+|---|---|---|---|
+| `Ctx` como registro de seams: faltan `fs` y `politica` | P3 | pendiente | `tests/test_kernel.py` |
+| Los 3 nodos largos que quedan (`Judge`, `WriteReport`, `HashFile`) | P4, EL2 | esperan recomposición | `nodos_largos` 3 → menos |
+| `vocabulario_hardcodeado` 3 (2 regex de skills + el `YES` del HITL) | N2 | piso honesto declarado | `vocabulario_hardcodeado` |
+| `settings_leidos` 52 → ≤ 45 | P1 | pendiente | `settings_leidos` |
+| N1, EL3 y EL9 sin gate automático | N1, EL3, EL9 | declarados "sin gate" | review; un gate solo si se puede contar sin juzgar significado (N2) |
+| 5c-a (prefiltros como un mecanismo con un setting) | P1, N4 | pendiente | `settings_leidos` |
+| 5c-b (Laya 0.4) | P3 | **bloqueado**: que esté instalada | — |
+| S3 (esquema de tools fijo, cierre por arista) | P1, EL2 | **bloqueado**: prueba de `tool_choice="none"` en DeepSeek | — |
+
+### Lo que este roadmap no hace (y por qué)
+
+- **No recompone research como agente**: exp/108 lo midió y perdió el panel
+  (X141); el paso 8 queda cerrado para research.
+- **No persigue la copia simétrica** (`recursivo`): 0 de 144 en dos modelos.
+  La primitiva queda; lo que se mide ahora es la asimétrica (X148).
+- **No baja la seguridad para parecerse a Pi o mini**: sus permisos son
+  opcionales o inexistentes; de ellos se toma el núcleo mínimo, no eso (S0).
+
+---
+
+## Historial de roadmaps anteriores
+
 ## Refactor de elegancia (auditoría 2026-10-27) — fases 1–5
 
 Fase 0 cerrada (X91): la deuda quedó contada en siete ratchets. Siguen las

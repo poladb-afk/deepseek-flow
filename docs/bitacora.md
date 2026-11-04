@@ -1316,3 +1316,41 @@ conducta ni de código; los tests de deriva y de handoff, sin tocar.
 verifica que las tools del hijo sean un subconjunto de las del padre. Hoy
 ninguna pieza de producción construye un `agente()` (X86), así que no hay
 camino abierto, pero el principio lo promete: fila 17 de la cola.
+
+---
+
+## Roadmap post-X144 (2026-11-04)
+
+**Qué es.** El orden de lo que sigue, en `docs/roadmap.md` ("Roadmap
+vigente"): cada paso nombra el principio que sirve y el gate que lo cierra.
+La cola del handoff (filas 15–17 de X144) pasa a ser un puntero a ese
+documento: el mismo orden en dos lugares era N4.
+
+**Renumeración declarada.** X144 había anotado "X145 = pre-registro de
+exp/110". La lectura de Pi y mini-swe-agent (zips del operador: Pi
+`80f7a11`, `@earendil-works/pi-coding-agent` 1.5.0; mini-swe-agent
+`04d809c`, 2.4.6) cambió el orden: **X145** = desvíos declarados del
+pre-registro de exp/109, **X146** = P4 en el loop (sin cambio), **X147** =
+subconjunto de tools en `agente()`, **X148** = pre-registro de exp/110,
+**X149/X150** = las corridas, **X151** = el contrato de módulo con ramas,
+solo si exp/110 pasa. La entrada de X144 de arriba queda como fue escrita.
+
+**Lo que mostró la lectura** (código, no documentación):
+- Pi garantiza errores-como-texto en el LOOP: `catch` en preparación,
+  ejecución y `afterToolCall` de `agent-loop.ts`, y una sola función de
+  despacho (`runToolCall`, "never rejects for tool failures") que usan el
+  loop y las tools anidadas. Es el diseño que X146 lleva a `kernel.Actuar`.
+- mini-swe-agent lo garantiza en el ENTORNO (`LocalEnvironment.execute`
+  atrapa todo); fuera de ahí, el loop guarda la trayectoria y re-lanza.
+- Pi no tiene límite de turnos en su loop (búsqueda por nombre, no lectura
+  completa: declarado); el corte es `finishTurn → end`. mini tiene
+  `step_limit` en un solo lugar, en 0 (sin límite) por defecto. Los dos
+  datos invalidan una celda del pre-registro de exp/109: X145.
+- Los sub-agentes de Pi son una extensión de ejemplo, en otro proceso, con
+  tools y modelo por agente (asimetría (a)) pero sin saldo compartido ni
+  herencia de frenos ((c) no): es la referencia del brazo F de exp/110.
+- Los permisos de Pi son extensiones opcionales (el ejemplo es una lista
+  negra de 3 regex); los de mini, un modo `confirm` con lista blanca de
+  regex. Ninguno se adopta: S0.
+
+Solo docs; sin cambio de código ni de conducta.
