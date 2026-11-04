@@ -18,21 +18,13 @@ bajar esos números **borrando**, no agregando.
 > **De código:** las variaciones salen de componer y de datos, no de casos;
 > cada cambio borra algo, falla hacia lo seguro y declara sus límites.
 
-La definición es lo que las tres fuentes de diseño tienen en común:
+La definición es lo que las tres fuentes de diseño (PocketFlow, 12-Factor
+Agents y Laya) tienen en común: los nueve **principios de elegancia EL1–EL9**,
+que desde X144 viven en `docs/principios.md` (antes estaban acá como
+"P1–P9" y chocaban con los P de diseño). Este archivo guarda sus pruebas
+(F1–F7, C1–C7), el plan del refactor y el inventario de settings.
 
-| # | Patrón | PocketFlow | 12-Factor Agents | Laya | Acá |
-|---|---|---|---|---|---|
-| P1 | Una primitiva que se contiene a sí misma | `Flow` hereda de `BaseNode`: un flujo es un nodo | el agente como `foldl` (factor 12) | tres tipos (`noul`, `choice`, `score`) para todo `if` semántico | F4 |
-| P2 | El control es un dato | `post` devuelve la acción; `-` y `>>` arman la topología | intents como unión tipada (factores 1 y 4) | `choice` como arista condicional | F3 |
-| P3 | Decidir no es ejecutar | `exec` no recibe `shared`; el retry envuelve solo a `exec` | "the LLM decides, your code controls" | devuelve una distribución; actúa el que llama | C2 |
-| P4 | Un solo estado serializable | `shared` | el thread; el estado de ejecución se deriva (factor 5) | sin estado: estado → respuesta | F3 |
-| P5 | Composición ortogonal, no casos | Batch × Async × Parallel por herencia | HITL, errores y pausa: eventos del mismo loop | hooks: cualquier subconjunto de métodos | C1 |
-| P6 | Lo particular es dato del que llama | `params` y utilidades propias | own your prompts; el pre-fetch como dato (apéndice 13) | la pregunta es un dict | F1 |
-| P7 | Elegancia por borrado | sin proveedores ni dependencias | el diff del pre-fetch: casi todo `-` | no genera texto: nada que parsear | regla madre |
-| P8 | El default es el seguro | `exec_fallback`; aviso de arista faltante | escalar al humano | se abstiene; un hook sin definir es no-op | F6, `Tool.efecto` |
-| P9 | Los límites se declaran | `warnings.warn` en vez de cortar callado | agentes de 3 a 20 pasos (factor 10) | publica su ECE y su recorte de contexto | C5 |
-
-Las tres prohibiciones del operador, como prueba que se puede correr:
+Tres de las prohibiciones del operador (N1–N3; N4 es C1), como prueba que se puede correr:
 
 | Prohibido | Prueba | Lo legítimo |
 |---|---|---|

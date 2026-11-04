@@ -1269,3 +1269,50 @@ y no se re-visan — declarado en su preámbulo, igual que
 **Higiene**: el archivo mensual (310 KB) queda cómodo bajo el tope de 1 MB
 del candado de X122, y el árbol de docs gana un lugar canónico para los
 meses que vienen.
+
+---
+
+## X144: los principios, en un solo lugar (2026-11-04)
+
+**Por qué.** Una revisión de lectura mostró que los principios estaban bien
+escritos pero mal repartidos: `docs/principios.md` (S0, P1–P4, N1–N4),
+`docs/elegancia.md` (patrones "P1–P9" que no eran los P de diseño: "P4" era
+"un solo estado serializable" en uno y "complejidad emergente" en el otro),
+`AGENTS.md` y la sección 2 del handoff. Además `elegancia.md` hablaba de
+"las tres prohibiciones" cuando son cuatro. Es N4 aplicado a los docs.
+
+**Decisiones del operador (2026-11-04).**
+1. **Visión** (textual, normalizada): un harness minimalista, tipo grafo,
+   con replicación fractal asimétrica; CORE + módulos, un módulo es una
+   capacidad; minimalismo de piezas mínimas interconectadas que generan
+   complejidad emergente. "Reproductibilidad" = **replicación**.
+2. **Asimetría = las tres**: (a) especialización, (b) forma desigual, (c)
+   jerarquía de capacidades. Como (b) contradecía la opción (c) cerrada el
+   2026-11-02, el operador eligió **reabrirla**: (a) y (c) son principio; (b)
+   es hipótesis con pre-registro (X145). El dato nuevo que habilita reabrir:
+   exp/103 y exp/105 midieron copias SIMÉTRICAS; lo asimétrico no se midió.
+3. **Dos familias**: diseño (P1–P4) y elegancia (EL1–EL9, lo común a
+   PocketFlow, 12-Factor Agents y Laya); fuentes en dos tablas,
+   fundamentales (esas tres) y de apoyo.
+4. **P4**: los errores como texto son garantía del LOOP, no de cada tool.
+   Llevarla a `kernel.Actuar` sin sumar `except` amplios es X146 (el chat usa
+   `ActuarChat` → `run_tool_call`, que hoy da la garantía en su camino).
+
+**Evidencia externa sumada** (búsqueda del 2026-11-04, leída por abstract):
+MS-Eval (especializados > genéricos, con costo), AgentCARD (heterogéneos
+hasta +44 % a costo igual), *Agent Scaling via Diversity* (2 diversos ≥ 16
+homogéneos) y *The Coordination Tax* (pipeline simple 3,22× costo sin
+ganancia). Lectura: la evidencia de afuera no refuta el 0/144 propio —que
+era simétrico— y advierte el mismo costo que mostró exp/108.
+
+**Qué cambió.** Solo docs: `docs/principios.md` (visión, P2 reescrito, P4
+con la garantía declarada, EL1–EL9 con gate o "sin gate", fuentes en dos
+tablas + 4 nuevas), `docs/elegancia.md` (la tabla P1–P9 sale; queda un
+puntero), `AGENTS.md` (cita las familias), `docs/handoff.md` (visión
+reabierta, sección 2 como puntero, glosario, cola 14–17). Sin cambio de
+conducta ni de código; los tests de deriva y de handoff, sin tocar.
+
+**Límite declarado** que salió al reescribir P2 (c): `kernel.agente()` no
+verifica que las tools del hijo sean un subconjunto de las del padre. Hoy
+ninguna pieza de producción construye un `agente()` (X86), así que no hay
+camino abierto, pero el principio lo promete: fila 17 de la cola.

@@ -57,6 +57,23 @@ def test_cada_principio_nombra_su_gate_o_dice_sin_gate():
     assert not sueltos, f"principios sin gate vigente ni 'sin gate' declarado: {sueltos}"
 
 
+def test_cada_principio_de_elegancia_nombra_su_gate_o_dice_sin_gate():
+    """X144: EL1–EL9 entraron a `docs/principios.md` con la misma regla que
+    los de diseño: gate vigente o "sin gate" declarado, y los nueve presentes."""
+    defs = _defs_de_tests()
+    filas = _filas(_texto(PRINCIPIOS), "EL")
+    assert len(filas) == 9, f"se esperaban EL1–EL9, hay {len(filas)} filas"
+    sueltos = []
+    for fila in filas:
+        celdas = [celda.strip() for celda in fila.strip().strip("|").split("|")]
+        verifica = celdas[-2]
+        if "sin gate" in verifica:
+            continue
+        if not any(_vigente(token, defs) for token in re.findall(r"`([^`\n]+)`", verifica)):
+            sueltos.append(celdas[0])
+    assert not sueltos, f"principios de elegancia sin gate vigente ni 'sin gate': {sueltos}"
+
+
 def test_cada_fuente_tiene_url_y_dice_donde_se_aplica():
     texto = _texto(PRINCIPIOS).split("## Fuentes", 1)[1]
     filas = [linea for linea in texto.splitlines() if linea.startswith("| ") and not linea.startswith("| Fuente")]

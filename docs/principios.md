@@ -1,13 +1,31 @@
 # Principios del harness
 
-Un harness mínimo: un solo loop que se replica según lo que pide el trabajo,
-con capacidades que se enchufan sin tocar el núcleo. La complejidad sale de
-componer piezas, no de agregar mecanismos.
+## Visión
 
-**Decisión del operador, 2026-11-01 (X118):** cuatro principios, cuatro
-prohibiciones y una restricción de seguridad. Reemplazan a las tres capas de
-X113 (D1–D15, E1–E12, M1–M11): el diseño quedó en estas nueve entradas y las
-reglas de proceso (cómo se escribe y cómo se decide) viven en `AGENTS.md`.
+Un harness **minimalista, con forma de grafo y replicación fractal
+asimétrica**. Se conforma por un **CORE**; al CORE se le enchufan
+**módulos**; un módulo es una capacidad, y los módulos le dan sus capacidades
+al CORE. Minimalista no quiere decir simple: el minimalismo está en las
+piezas —mínimas e interconectadas— y la complejidad **emerge** de cómo se
+conectan (operador, 2026-11-04; el objetivo final textual del 2026-11-02
+está en `docs/handoff.md`, sección 1).
+
+Fractal quiere decir que el loop se **replica**: una instancia del harness
+contiene instancias del mismo harness. Asimétrica, que las réplicas no son
+copias iguales (P2).
+
+Las fuentes fundamentales son tres: **PocketFlow**, **12-Factor Agents** y
+**Laya**. De ellas salen las dos familias de principios:
+
+- **Diseño (P1–P4)**: qué es el harness.
+- **Elegancia (EL1–EL9)**: cómo es cada pieza, en código y en funcionamiento
+  — lo que las tres fuentes tienen en común.
+
+Una restricción (S0) y cuatro prohibiciones (N1–N4) las acotan. Las reglas
+de proceso (cómo se escribe y cómo se decide) viven en `AGENTS.md`; las
+pruebas de elegancia (F1–F7, C1–C7), el plan del refactor y el inventario de
+settings, en `docs/elegancia.md`. Los demás documentos citan estos números y
+no los reescriben (N4 también vale para los docs: X144).
 
 Cada entrada nombra el gate que la verifica. Un gate que todavía no existe se
 declara "sin gate" con lo que falta: así no se disfraza de regla (lo verifica
@@ -17,8 +35,9 @@ declara "sin gate" con lo que falta: así no se disfraza de regla (lo verifica
 
 1. **S0** (seguridad).
 2. **N1–N4** (prohibiciones): ningún principio justifica un parche.
-3. **P1–P4** (principios). Si dos chocan, decide una medición con el cómputo
-   igualado, no la preferencia.
+3. **P1–P4** (diseño) y **EL1–EL9** (elegancia). Si dos chocan, decide una
+   medición con el cómputo igualado; si la medición no puede decidirlo (una
+   pregunta de forma, no de conducta), decide el operador y queda escrito.
 
 ## Restricción
 
@@ -26,16 +45,38 @@ declara "sin gate" con lo que falta: así no se disfraza de regla (lo verifica
 |---|---|---|---|---|
 | S0 | **Seguridad: falla cerrada y HITL graduado** | Lo no reconocido pregunta; lo irreversible pide doble confirmación; si la política no valida, el chat no arranca. Una copia hereda los frenos de su padre (política, HITL, saldo): la recursión nunca abre un camino que el loop raíz no tenga. P1 no se usa para recortar seguridad (de Pi se toma el núcleo mínimo, no correr sin permisos) | `tests/test_policy_bypass.py`, `test_falla_cerrada_si_los_datos_no_validan`, `test_una_tool_sin_efecto_declarado_escribe_y_corre_en_orden` | Nada |
 
-## Principios
+## Principios de diseño
 
 | # | Principio | Qué es | Se verifica con | Cede ante |
 |---|---|---|---|---|
 | P1 | **Minimalismo elegante (KISS)** | Lo mínimo que funciona en código, conducta y prompt: un loop, pocas tools en el CORE y un prompt que describe el formato. El contexto se gana: skills y memoria como menú que se carga con una tool. Prefijo estable: nada variable en el system prompt ni tools en caliente. Lo que no decide nada se borra | `texto_de_prompt`, `settings_leidos`, `tests/test_estilo_humano.py`, `bytes_primer_request` (prompt + esquemas de tools) y `lineas_del_loop` (kernel + chat), desde X124 | S0 |
-| P2 | **Grafo: fractalidad por construcción y replicación medida** | **P2a — fractal por construcción**: una sola definición del loop con N instancias (agente = Flow = Node = Tool) que heredan los frenos de su padre —política, HITL, saldo—, así que una política agregada una vez llega a todos los niveles; los frenos son datos del árbol (saldo, profundidad, efecto) y la síntesis va siempre al padre. **Ley 1**: cada ronda y cada copia descuentan 1 del mismo saldo R, así que llamadas ≤ 2R + 1 con cualquier abanico y profundidad. **P2b — replicación en ejecución**: que el modelo decida dividirse es una capacidad medida, no una promesa: `recursivo` es una primitiva del kernel y hoy **no se adopta** (0 de 72 corridas en dos modelos: `deepseek-flash` en el exp/103 y `deepseek-v4-pro` en el exp/105); la fractalidad que no depende del modelo es P2a, y esta capacidad se vuelve a medir con otro modelo o con un dato nuevo. **Ley 2**: si la rama i recibe la fracción rᵢ del alcance del padre, D resuelve Σ rᵢᴰ = 1; con D ≈ 1 dividir paga, con D > 1 las ramas releen lo mismo | `tests/test_kernel.py`, `test_un_agente_que_se_llama_a_si_mismo_reparte_y_suma`, `test_la_profundidad_y_el_saldo_frenan_la_replicacion`, `test_el_arbol_no_pasa_de_2r_mas_1_llamadas_con_cualquier_abanico` (la Ley 1, X119) y `test_d_mide_si_las_copias_se_repartieron_el_alcance` (`banco/probes/fractal.py`, X124). P2a: **un solo loop hecho (X126, S9b A′)** —el chat corre sobre `kernel.loop` con `Observar`/`Contexto` como políticas— y **gate fractal hecho (X138)**: una política agregada una vez llega a los tres niveles (`tests/test_gate_fractal.py`: el despacho con HITL y política de comandos, el saldo y la compactación, en el chat, el supervisor y una copia anidada) | S0. Una división entra al producto solo si gana un A/B con el cómputo igualado (el 0/72 del exp/103 no se adoptó) |
+| P2 | **Grafo fractal asimétrico** | Una sola definición del loop (agente = Flow = Node = Tool) que se **replica** en instancias distintas, asimétrica en tres sentidos. **(a) Especialización**: cada instancia lleva su prompt, sus tools y su parte del saldo (`kernel.agente(nombre, descripcion, system, tools)`). **(c) Jerarquía**: un hijo hereda TODOS los frenos del padre —política, HITL, saldo, profundidad— (una política agregada una vez llega a todos los niveles) y recibe, como mucho, las capacidades del padre; la síntesis vuelve siempre al padre. **(b) Forma** —el árbol crece donde el trabajo lo pide y queda corto donde no— es **hipótesis reabierta** (X144), no principio cumplido: la replicación SIMÉTRICA (copias iguales, `recursivo`) se midió y no se adopta (0 de 144: exp/103 y exp/105), y la asimétrica no se midió nunca; la literatura de 2026 la favorece contra lo homogéneo, con costo de coordinación (fuentes de apoyo). Se mide con su pre-registro (X145). **Ley 1**: cada ronda y cada copia descuentan 1 del mismo saldo R, así que llamadas ≤ 2R + 1 con cualquier abanico y profundidad. **Ley 2**: si la rama i recibe la fracción rᵢ del alcance del padre, D resuelve Σ rᵢᴰ = 1; con D ≈ 1 dividir paga, con D > 1 las ramas releen lo mismo. Límite declarado de (c): `agente()` todavía no verifica que las tools del hijo estén entre las del padre (pendiente con S0) | `tests/test_kernel.py`, `tests/test_gate_fractal.py` (los tres niveles, X138), `test_la_profundidad_y_el_saldo_frenan_la_replicacion`, `test_el_arbol_no_pasa_de_2r_mas_1_llamadas_con_cualquier_abanico` (la Ley 1) y `test_d_mide_si_las_copias_se_repartieron_el_alcance` (la Ley 2, `banco/probes/fractal.py`) | S0. Una división entra al producto solo si gana un A/B con el cómputo igualado |
 | P3 | **Modularidad** | El CORE no conoce sus módulos; un módulo es una capacidad: un archivo con `TOOLS`, `IMPL` y, si hace falta, `HOOKS`. Agregarlo es dejarlo y quitarlo es borrarlo. El núcleo absorbe primitivas (loop, saldo, efecto, hooks), no features. `Ctx` es el registro de seams (`llm`, `ledger`; pendientes `fs` y `politica`). Lo opcional (Laya, RAG, MCP, web) es módulo y sin él el harness anda. El producto no sabe que lo miden | `core_importa_modulos`, `tests/test_core_sin_modulos.py`, `producto_conoce_lab`, `tests/test_laya.py` | S0 |
-| P4 | **Complejidad emergente** | Las capacidades complejas salen de componer piezas mínimas (loop, tool, saldo, efecto): supervisor, juez y auditoría son composiciones, no subsistemas. El control vive en las aristas y el `shared` guarda solo datos JSON. Los errores vuelven como texto (`ERROR: …`) y el modelo se corrige. La emergencia se observa, no se supone: las fallas topológicas de DIG (terminación temprana o faltante, ramas huérfanas, el mismo subproblema resuelto varias veces, reruteo excesivo) se chequean sobre la traza sin LLM | `nodos_largos`, `test_el_diagrama_del_readme_es_el_grafo_del_chat`, `test_una_tool_desconocida_vuelve_como_error`, `test_las_fallas_topologicas_se_ven_en_la_traza` (las de DIG sobre la traza, X124). Una capacidad nueva entra sin tocar `utils/kernel.py` (review) | S0 |
+| P4 | **Complejidad emergente** | Las capacidades complejas salen de componer piezas mínimas (loop, tool, saldo, efecto): supervisor, juez y auditoría son composiciones, no subsistemas. El control vive en las aristas y el `shared` guarda solo datos JSON. Los errores vuelven como texto (`ERROR: …`) y el modelo se corrige; **la garantía es del loop, no de cada tool** (decisión del operador, X144): hoy la da `run_tool_call` en el camino del chat, y llevarla a `kernel.Actuar` sin sumar `except` amplios es X146. La emergencia se observa, no se supone: las fallas topológicas de DIG (terminación temprana o faltante, ramas huérfanas, el mismo subproblema resuelto varias veces, reruteo excesivo) se chequean sobre la traza sin LLM | `nodos_largos`, `test_el_diagrama_del_readme_es_el_grafo_del_chat`, `test_una_tool_desconocida_vuelve_como_error`, `test_las_fallas_topologicas_se_ven_en_la_traza`. Una capacidad nueva entra sin tocar `utils/kernel.py` (review) | S0 |
+
+## Principios de elegancia
+
+Lo que PocketFlow, 12-Factor Agents y Laya tienen en común (X116). Cada fila
+dice cómo lo hace cada fuente y con qué se verifica acá; la prueba de detalle
+(F/C) está en `docs/elegancia.md`. Antes vivían en ese archivo como "P1–P9",
+lo que chocaba con los P de diseño: desde X144 son EL1–EL9.
+
+| # | Principio | PocketFlow | 12-Factor Agents | Laya | Se verifica con | Cede ante |
+|---|---|---|---|---|---|---|
+| EL1 | **Una primitiva que se contiene a sí misma** | `Flow` hereda de `BaseNode`: un flujo es un nodo | el agente como `foldl` (factor 12) | tres tipos (`noul`, `choice`, `score`) para todo `if` semántico | `test_un_agente_que_se_llama_a_si_mismo_reparte_y_suma`, `tests/test_gate_fractal.py` (F4) | S0 |
+| EL2 | **El control es un dato** | `post` devuelve la acción; `-` y `>>` arman la topología | intents como unión tipada (factores 1 y 4) | `choice` como arista condicional | `nodos_largos`, `test_el_diagrama_del_readme_es_el_grafo_del_chat` (F3) | S0 |
+| EL3 | **Decidir no es ejecutar** | `exec` no recibe `shared`; el retry envuelve solo a `exec` | "the LLM decides, your code controls" | devuelve una distribución; actúa el que llama | sin gate (review, C2: ¿la decisión se testea sin I/O ni mocks?) | S0 |
+| EL4 | **Un solo estado serializable** | `shared` | el thread; el estado de ejecución se deriva (factor 5) | sin estado: estado → respuesta | `test_la_caja_es_json`, `test_checkpoint_ida_y_vuelta_es_identidad` | S0 |
+| EL5 | **Composición ortogonal, no casos** | Batch × Async × Parallel por herencia | HITL, errores y pausa: eventos del mismo loop | hooks: cualquier subconjunto de métodos | `helpers_duplicados`, `cuerpos_duplicados` (C1) | S0 |
+| EL6 | **Lo particular es dato del que llama** | `params` y utilidades propias | own your prompts; el pre-fetch como dato (apéndice 13) | la pregunta es un dict | `vocabulario_hardcodeado` (F1) | S0 |
+| EL7 | **Elegancia por borrado** | sin proveedores ni dependencias | el diff del pre-fetch: casi todo `-` | no genera texto: nada que parsear | `lineas_del_producto` (solo baja); que un diff borre un caso es review (N1) | S0 |
+| EL8 | **El default es el seguro** | `exec_fallback`; aviso de arista faltante | escalar al humano | se abstiene; un hook sin definir es no-op | `test_una_tool_sin_efecto_declarado_escribe_y_corre_en_orden`, `test_falla_cerrada_si_los_datos_no_validan` (F6) | Nada |
+| EL9 | **Los límites se declaran** | `warnings.warn` en vez de cortar callado | agentes de 3 a 20 pasos (factor 10) | publica su ECE y su recorte de contexto | sin gate (review, C5: ¿el comentario sigue siendo verdad sin su `exp/N`?) | S0 |
 
 ## Prohibiciones
+
+La cara negativa de la elegancia: la regla madre ("un arreglo borra un caso,
+no lo agrega") dicha como lo que no se hace.
 
 | # | No se hace | Señal de que se violó | Se verifica con | Cede ante |
 |---|---|---|---|---|
@@ -44,8 +85,10 @@ declara "sin gate" con lo que falta: así no se disfraza de regla (lo verifica
 | N3 | **Soluciones por system prompt** | Una frase agregada al prompt para corregir una conducta | `texto_de_prompt` (solo baja) | Nada |
 | N4 | **Duplicidad** | Dos implementaciones del mismo concepto: dos loops, dos techos, dos helpers | `helpers_duplicados`, `cuerpos_duplicados`. Un solo loop: cumplido (X126, S9b A′), y su política agregada única tiene gate (X138, ver P2) | Nada |
 
-## De las tres capas de X113 a esta lista
+## De las capas anteriores a esta lista
 
+| Antes | Ahora |
+|---|---|
 | Antes | Ahora |
 |---|---|
 | D1 Minimalista, D12 Prefijo estable, D15 Forma humana | P1 |
@@ -58,21 +101,33 @@ declara "sin gate" con lo que falta: así no se disfraza de regla (lo verifica
 | E4 Un concepto, un lugar | N4 |
 | D10 Errores reversibles, D11 Seguridad | S0 |
 | E1–E12 y M3–M11 (proceso) | `AGENTS.md`: R1–R10 y la sección "Método" |
+| Patrones P1–P9 de `docs/elegancia.md` (X116) | EL1–EL9, en este archivo (X144) |
 
 ## Fuentes
 
-Las de X113 y X116 con su "dónde" traducido a la lista nueva, más las de la
-investigación del 2026-11-01 (P1–P4 contra la evidencia de 2026). Leídas por
-resumen y abstract: los números son de sus autores, no se reprodujeron acá.
-URLs verificadas el 2026-11-02: 33 de 35 responden 200 —una estaba mal escrita
-y se corrigió—, el DOI de Parnas es válido por Crossref aunque ACM da 403 a los
-bots, y `solosoft.dev` no responde desde esta red.
+Leídas por resumen y abstract: los números son de sus autores, no se
+reprodujeron acá. URLs verificadas el 2026-11-02: 33 de 35 responden 200 —una
+estaba mal escrita y se corrigió—, el DOI de Parnas es válido por Crossref
+aunque ACM da 403 a los bots, y `solosoft.dev` no responde desde esta red.
+Las cuatro de 2026 sobre heterogeneidad se sumaron el 2026-11-04 (X144),
+también por abstract.
+
+### Fundamentales
 
 | Fuente | URL | Qué tomamos | Dónde se aplica |
 |---|---|---|---|
 | PocketFlow | https://github.com/The-Pocket/PocketFlow | Grafo + shared store en 100 líneas, sin módulos de proveedor | P1, P4 |
-| bmo (harness del operador) | (repo privado) | Un nodo, un módulo, una capacidad; leyes de bucles (L1 anti-recursión, L8 presupuesto); hechos en código e interpretación en el LLM | P3, N2, P2 |
 | 12-Factor Agents (HumanLayer) | https://github.com/humanlayer/12-factor-agents | Factor 7 (el humano como tool call), 8 (controlá tu flujo) y 10 (agentes chicos y enfocados) | P2, P4, `request_human_input` |
+| Laya | https://github.com/NandhaKishorM/laya | El smart-if: tres tipos de decisión cerrada (`noul`, `choice`, `score`) en una pasada, la pregunta como dato y abstenerse ante la duda | N2, P3, `utils/laya.py` |
+
+### De apoyo
+
+Evidencia que contrasta, acota o mide los principios; no los define.
+
+| Fuente | URL | Qué tomamos | Dónde se aplica |
+|---|---|---|---|
+|---|---|---|---|
+| bmo (harness del operador) | (repo privado) | Un nodo, un módulo, una capacidad; leyes de bucles (L1 anti-recursión, L8 presupuesto); hechos en código e interpretación en el LLM | P3, N2, P2 |
 | Anthropic, *Building effective agents* | https://www.anthropic.com/engineering/building-effective-agents | Lo simple y componible antes que el framework; workflows antes que agentes | P1, P2 |
 | Anthropic, *Effective context engineering for AI agents* | https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents | Prompts a la altitud correcta, sin if-else rígido; tools mínimas; compaction | P1, P3, N3 |
 | Manus, *Context Engineering for AI Agents* | https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus | KV-cache: prefijo estable, no agregar ni quitar tools en caliente | P1 |
@@ -93,7 +148,6 @@ bots, y `solosoft.dev` no responde desde esta red.
 | ruleward | https://github.com/kernullist/ruleward | Lint de reglas: bloat y deriva | R3, `tests/test_deriva_reglas.py` |
 | AI-Agent-Coding-Rules | https://github.com/Emmanuel-Bamidele/AI-Agent-Coding-Rules | Reglas con checklist | `AGENTS.md` |
 | fable-method (Sahir619) | https://github.com/Sahir619/fable-method | El juez adversarial de trabajo terminado (se queda); el método como prosa (3 A/B sin lift, borrado en X112) | `fable_judge.py`, `modules/fable.py` |
-| Laya | https://github.com/NandhaKishorM/laya | El smart-if: tres tipos de decisión cerrada (`noul`, `choice`, `score`) en una pasada, la pregunta como dato y abstenerse ante la duda | N2, P3, `utils/laya.py` |
 | Gandhi et al., *Recursive Agent Optimization* (2026) | https://arxiv.org/abs/2605.06639 | Una sola política que lanza copias de sí misma para subtareas | P2, `utils/kernel.py` |
 | Lumer et al., *Recursive Agent Harnesses* (2026) | https://arxiv.org/abs/2606.13643 | El harness entero como unidad recursiva, con profundidad acotada: la mejora sale del harness con el modelo fijo | P2, `banco/specs/exp103_fractal.md` |
 | Zhang, Kraska y Khattab, *Recursive Language Models* (2026) | https://arxiv.org/abs/2512.24601 | Al padre vuelve solo el resultado del hijo, nunca su contexto | P2, P3 |
@@ -107,3 +161,7 @@ bots, y `solosoft.dev` no responde desde esta red.
 | Nijholt, *Native harness tools* (2026) | https://www.nijho.lt/post/native-harness-tools/ | Lo que pesa son los tokens, no la familiaridad de las tools | P1 |
 | *Harness Engineering: eleven systems* (2026) | https://arxiv.org/pdf/2609.00006 | Siete subsistemas canónicos; ningún framework pesado en el runtime | P3, P4 |
 | DIG, *Dynamic Interaction Graph* (2026) | https://arxiv.org/abs/2603.00309 | Fallas topológicas de la colaboración, chequeables sobre la traza | P4 |
+| MS-Eval, *Benchmarking Sub-Agent Delegation and Orchestration* (2026) | https://arxiv.org/html/2610.22869 | Sub-agentes especializados rinden más que genéricos, pero delegar sube el costo y paga según la calidad de la delegación | P2 (b), X145 |
+| AgentCARD, *Specialize Roles, Mix Deployments* (2026) | https://arxiv.org/html/2606.20629 | Equipos heterogéneos en la frontera costo–precisión: hasta +44 % contra homogéneos de costo equivalente | P2 (a) y (b) |
+| *Understanding Agent Scaling in LLM-Based Multi-Agent Systems via Diversity* (2026) | https://arxiv.org/html/2602.03794 | Lo homogéneo satura por redundancia: 2 agentes diversos igualan o superan a 16 iguales | P2 (b): por qué el 0/144 simétrico no refuta lo asimétrico |
+| *The Coordination Tax and the Heterogeneity Dividend* (2026) | https://arxiv.org/abs/2610.37700 | Descomponer en un pipeline simple multiplicó el costo 3,22× sin ganar precisión | P2 (b): el costo se mide junto a la calidad (exp/108) |
