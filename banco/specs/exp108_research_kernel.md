@@ -1,5 +1,19 @@
 # exp/108 — research como composición del kernel (pre-registro del A/B)
 
+**Corrido el 2026-11-04: NO PASA por el criterio 5** (panel ciego: el brazo
+agente gana o empata 2 de 6 — hizo falta ≥ 3; el operador, vendado, prefirió
+el informe de base en 4 pares y empató en 1). Los otros seis criterios ✅
+(informe 6/6, 0 URLs inventadas, costo **0,14×** — US$0,0115 vs 0,0811, la
+predicción de baja se confirmó—, tope de 9 por código, estructura fuera,
+interfaz intacta). Consecuencia pre-registrada ejecutada: la rama
+`research-agente` se revierte sin mergear; research queda con su flujo de
+siempre; la evidencia en `salidas/exp108/`. La lectura: el ahorro de las
+llamadas de extracción no compensa — el informe del brazo que lee los
+resultados CRUDOS fue percibido peor que el del extracto de ≤5 hechos con
+síntesis dedicada. Los datos y el panel, en la bitácora (X141).
+
+---
+
 **Estado: pre-registro, escrito ANTES de correr nada y ANTES de que exista el
 código del brazo (2026-11-03).** Es un cambio de conducta: sin este documento
 no se toca el producto. Si algo cambia al correrlo, va como desvío declarado

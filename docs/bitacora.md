@@ -7391,3 +7391,51 @@ del verificador (`c5f19f43…`, zipball de GitHub) difiere del `81f45f36…`
 (`git archive 12f378a`, determinista, mismo árbol). El commit intermedio
 `f0588d4` (que entró pese a un rojo de cuota de disco) fue reemplazado por
 el amend `3a5aece`: no es ancestro de `main` y ninguna rama lo contiene.
+
+---
+
+## X141: exp/108 corrido — research sobre el kernel NO PASA por el panel (2026-11-04)
+
+**La corrida** (operador, 12 corridas: 3 temas × 2 seeds × 2 brazos,
+`LLM_MODEL=deepseek-flash` pineado, cada brazo en su worktree con su
+`salidas/` desde el arranque). El brazo agente es el de X139 (construido,
+pre-registrado y verificado en la rama `research-agente`; su bitácora y
+tests viven en el tag `x139-research-agente`). El instrumento
+(`banco/probes/exp108.py`) aplicó los siete criterios; el panel lo armó el
+autor con orden aleatorio por par y clave sellada, y lo leyó el operador a
+ciegas junto con él, par por par.
+
+| Criterio | Resultado |
+|---|---|
+| 1. Informe siempre | ✅ 6/6 en los dos brazos |
+| 2. URLs honestas | ✅ 0 inventadas en los dos (las del informe ⊆ las vistas) |
+| 3. Costo ≤ 1,25× | ✅ **0,14×**: US$0,0115 (agente) vs 0,0811 (base) |
+| 4. Tope por código | ✅ máx 9 búsquedas por corrida |
+| 5. Panel ciego | ❌ **2/6** gana-o-empata (≥ 3 requerido) |
+| 6. Estructura fuera | ✅ (gate verde en la rama, tests_definidos 1185, traza Paso/Actuar) |
+| 7. Interfaz del chat | ✅ deep_research intacta |
+
+**El panel, con la clave abierta**: el operador prefirió **base** en
+PocketFlow (ambas seeds), precios seed 2 y preregistración seed 2; **empate**
+en precios seed 1 (una dio la tabla de precios, la otra se negó a reproducir
+cifras sin fuente oficial); **agente** ganó en preregistración seed 1
+(definición, evidencia y críticas más completas). Patrón observado durante
+la lectura a ciegas y confirmado con la clave: los informes de base son más
+conservadores y disciplinados en citas (el Synthesizer escribe SOLO con el
+material extraído); los del agente a veces cubren más facetas pero el modelo
+leyendo resultados crudos mete líneas de monólogo interno y pierde
+disciplina de cita.
+
+**Consecuencia pre-registrada, ejecutada**: la rama `research-agente` se
+revierte sin mergear (quedan el tag y su prerelease como registro);
+`research.py` sigue siendo el flujo de siempre; la evidencia (jsonl, 12
+informes, panel y clave) quedó en `salidas/exp108/`.
+
+**Lo que se lleva**: (1) el costo 7× menor era real y no alcanzó — el
+criterio 5 existía para exactamente este caso y frenó el merge cuando ya se
+había pedido: el pre-registro mandó; (2) la medición honesta del paso 8 para
+research: **la síntesis dedicada con extracto vale sus llamadas**; (3)
+exp/28, exp/37 y L8 aguantaron en el brazo agente — el kernel compone bien
+la conducta de PRESUPUESTO; lo que perdió fue la calidad del INFORME. El
+paso 8 queda cerrado para research y abierto (con este dato en contra) para
+juez, auditoría y debate.
