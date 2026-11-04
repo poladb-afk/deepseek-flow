@@ -1,4 +1,4 @@
-# exp/109 — benchmark externo: flow vs pi vs mini (X149)
+# exp/109 — benchmark externo: flow contra pi (mini NO MONTA) (X149)
 
 **Estado: corrido y dictaminado por el criterio pre-registrado — PASA
 (documental).** Hito X149. Nada se mergea ni se revierte: la tabla es el
@@ -84,11 +84,18 @@ Descarrilos: flow `s13` seed 2 (`ca=0`); pi `s17` seed 1 y `s19` seed 2 (ambos
 
 - **mini no montó**: timeout de 240 s en el montaje, sandbox vacío. No se
   sustituyó ni se ajustó (regla del pre-registro); el benchmark es de **dos
-  brazos** y el n declarado es 28, no 42. Su causa no se investigó en la
-  corrida: litellm sí conoce `deepseek/deepseek-flash` (cost map y provider
-  resuelven), así que el riesgo del auditor no se materializa; la hipótesis
-  abierta es que la tarea de montaje no está en el idioma de su template
-  (espera una tarea de código y cerrar con `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`).
+  brazos** y el n declarado es 28, no 42. litellm sí conoce
+  `deepseek/deepseek-flash` (cost map y provider resuelven), así que el riesgo
+  del auditor no se materializa. La causa es una **hipótesis de la revisión
+  externa, no medida en la corrida**: mini termina solo cuando el modelo emite
+  `COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT` → `Submitted` (en el
+  `environments/local.py:48` del paquete instalado, verificado acá), y en modo
+  tool-calls una respuesta sin tool call vuelve como `FormatError` y el agente
+  pregunta de nuevo; la tarea de montaje pedía "respondé DONE", así que la tarea
+  **no era neutral entre harnesses**. Regla para un eventual tercer brazo: **la
+  misma tarea de montaje para los tres** y terminación por algo que cada harness
+  ya hace solo (por ejemplo, que exista `hola.txt`); retocar la tarea para que
+  mini funcione sería un parche (N1).
 - 2 seeds por escenario: potencia baja, ya declarada; una caída menor no se
   detecta.
 - prompts, tools y forma del loop **no** se igualan a propósito: ese es el

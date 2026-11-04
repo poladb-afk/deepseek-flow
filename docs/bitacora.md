@@ -1590,7 +1590,7 @@ Informe completo, con las 48 filas, en
 `docs/informes/exp110_asimetria_2026-11-04.md`.
 
 
-## X149: exp/109 — el benchmark externo, flow contra pi y mini (2026-11-04)
+## X149: exp/109 — el benchmark externo, flow contra pi (mini NO MONTA) (2026-11-04)
 
 **La pregunta**: hasta hoy todo se midió brazo contra brazo dentro del propio
 harness. Primera comparación hacia afuera: tres harnesses instalados, el mismo
