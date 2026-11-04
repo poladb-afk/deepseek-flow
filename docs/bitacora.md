@@ -1354,3 +1354,31 @@ solo si exp/110 pasa. La entrada de X144 de arriba queda como fue escrita.
   regex. Ninguno se adopta: S0.
 
 Solo docs; sin cambio de código ni de conducta.
+
+---
+
+## X145: el pre-registro de exp/109, corregido con lo medido (2026-11-04)
+
+Paso X145 del roadmap vigente. Tres diferencias entre lo que el spec decía y
+lo que hay en la máquina, las tres medidas antes de tocar el texto:
+
+1. **La identidad de pi**: el repo vivo del agente es `earendil-works/pi`
+   (la org a la que se mudó badlogic/pi-mono; npm sigue publicándolo como
+   `@mariozechner/pi-coding-agent` con el URL viejo en el package.json). Lo
+   que corre es el paquete npm **0.73.1** — la referencia "80f7a11, 1.5.0"
+   del roadmap es una lectura del repo, no el binario. Y cuidado medido:
+   `@mariozechner/pi` es OTRO paquete (un manager de pods GPU); el agente es
+   `pi-coding-agent`.
+2. **pi no tiene techo de turnos builtin** (verificado en su `--help` y
+   settings): la igualación de 16 pasos exige una **extensión local**
+   (`pi -e`), que el instrumento trae y el montaje verifica; sin ella,
+   desvío declarado (se reporta cuántos turnos usó).
+3. **mini-swe-agent necesita el techo explícito**: `agent.step_limit`
+   default es 0 (sin límite, leído en `agents/default.py:26`); va
+   `-c agent.step_limit=16` + `--yolo`.
+
+El modelo queda igualado por alias: `deepseek-flash` (flow),
+`deepseek-v4-flash` (pi, proveedor deepseek nativo) y
+`deepseek/deepseek-flash` (mini, litellm) sirven la misma V4.1-Flash por
+api.deepseek.com. Instalados ambos en la máquina del operador (pi 0.73.1,
+mini 2.4.6 en venv). Docs; sin cambio de conducta.

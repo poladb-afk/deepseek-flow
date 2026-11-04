@@ -1,7 +1,8 @@
 # exp/109 — benchmark externo: contra Pi y mini-swe-agent (pre-registro)
 
-**Estado: pre-registro, escrito ANTES de correr nada y ANTES de que exista
-el instrumento (2026-11-04).** Sin este documento no se corren las
+**Estado: pre-registro (2026-11-04), CORREGIDO en X145 (2026-11-04) antes de
+correr nada: identidad real de pi (paquete npm instalado vs repo), su techo
+de turnos por extensión y el step_limit explícito de mini.** Sin este documento no se corren las
 comparaciones. Si algo cambia al correrlo, va como desvío declarado al
 final; los criterios no se retocan después de ver los datos.
 
@@ -15,22 +16,26 @@ operador); nada se mergea ni se revierte.
 
 ## Brazos (tres harnesses, un modelo)
 
-| Brazo | Qué | Techo de pasos |
+| Brazo | Qué (corregido en X145: lo INSTALADO, no lo leído) | Techo de pasos |
 |---|---|---|
 | **flow** | deepseek-flow @ `main` (HEAD al día del humo, anotado en el jsonl) | 16 (`MAX_TOOL_ROUNDS`, S6) |
-| **pi** | [Pi](https://github.com/badlogic/pi-mono) (Mario Zechner), versión que instale el operador, pineada en el jsonl | 16 (su límite de turnos, configurado) |
-| **mini** | [mini-swe-agent](https://github.com/SWE-agent/mini-swe-agent), versión que instale el operador, pineada en el jsonl | 16 (`--step-limit`) |
+| **pi** | npm **`@mariozechner/pi-coding-agent` 0.73.1** — repo vivo [earendil-works/pi](https://github.com/earendil-works/pi) (ex `badlogic/pi-mono`; el paquete aún apunta al URL viejo). OJO: `@mariozechner/pi` es OTRO paquete (manager de GPU pods) — medido al instalar | **no tiene builtin**: extensión local que corta a 16 turnos (pi acepta `-e archivo.js`) |
+| **mini** | pip **`mini-swe-agent` 2.4.6** ([repo](https://github.com/SWE-agent/mini-swe-agent)), venv dedicado | **16 explícito**: `-c agent.step_limit=16` (default 0 = sin límite, verificado en su código) + `--yolo` |
 
-Los tres con el MISMO modelo: `deepseek-flash` (V4.1-Flash) por la API de
-DeepSeek (pi y mini hablan endpoint OpenAI-compatible). La instalación de
-los externos corre por el operador (hoy no están instalados); el instrument
-registra versión exacta de cada uno para que la corrida sea reproducible.
+Los tres con el MISMO modelo: flow `deepseek-flash`; pi `deepseek-v4-flash`
+(proveedor deepseek nativo con `DEEPSEEK_API_KEY` — el alias sirve la misma
+V4.1-Flash); mini `deepseek/deepseek-flash` (litellm, `DEEPSEEK_API_KEY`).
+Ya instalados en la máquina del operador (X145); el instrument registra
+versión exacta de cada uno para que la corrida sea reproducible. Nota: la
+referencia "80f7a11, 1.5.0" del roadmap es una lectura del REPO; lo que
+corre y se pinea es el paquete npm instalado.
 
 **Montaje (pre-humo, obligatorio)**: cada brazo responde UNA tarea trivial
 en una carpeta sandbox con el modelo pineado, techo de gasto US$0,10 por
 brazo. Si un brazo no monta (config, endpoint, límites), NO se lo sustituye
 ni se ajusta: queda "sin montar" y el A/B se corre con los que montaron
-(n declarado).
+(n declarado). El montaje de pi verifica además la extensión de techo de
+turnos (sin ella, desvío declarado: se reporta cuántos turnos usó).
 
 ## Igualación (declarada y simétrica)
 
