@@ -1450,3 +1450,49 @@ chat, el `_despachar` del supervisor (que revienta antes de registrar en
 la síntesis) y una Tool a mano en una copia anidada—, todos vuelven
 `ERROR: RuntimeError` y la corrida TERMINA. Probado por mutación: sin la
 protección del loop, el test es rojo.
+
+## X148: el pre-registro de exp/110 — la asimetría (b), medida (2026-11-04)
+
+**Qué se registra**: la replicación simétrica está medida y no adoptada (0/72
+con `deepseek-flash` en exp/103 y 0/72 con `deepseek-v4-pro` en exp/105); la
+**asimétrica** —hijos especializados, cada uno con su prompt y un subconjunto
+de las tools del padre— sigue como hipótesis abierta de P2 (b) desde X144 y
+nunca se midió. El pre-registro se escribe **antes** de que exista el código
+del brazo; el operador lo aprobó el 2026-11-04 con sus cuatro puntos: diseño
+de F (tres hijos de lectura), margen 0,5, techo US$1,00 y `s18` como quinto
+ancho.
+
+**Los brazos y el montaje**: A = el chat de hoy sobre `kernel.loop`
+(`SKILLS=0`, techo único 16, `deepseek-flash` pineado); F = A + `barrido`,
+`lectura` y `sintesis` armados con `kernel.agente()` (subconjunto de las tools
+del padre, P2c; sin `recursivo`, profundidad 1). El montaje es de laboratorio
+(`banco/probes/exp110_brazo_f/`, mismo patrón que `exp103_brazo_f/`) y hace
+tres cosas fuera del producto: agrega los hijos al menú, cobra el gasto de los
+hijos a `turno` y suma sus nombres al inventario del juez (X135).
+
+**Los cuatro criterios, juntos**: adopción (alguna de las tres tools en ≥2 de
+4 seeds en ≥3 de 5 escenarios anchos), calidad no inferior (F ≥ A − 0,5 en los
+cinco anchos y en `s2`; margen calibrado antes de correr sobre el brazo A del
+exp/105: 1,8 % de falso rechazo), costo ≤1,25× y **Ley 1** (llamadas del
+modelo del árbol ≤ 2R+1 = 33 en todas las corridas de F). El denominador se
+declara y es simétrico: una corrida sin línea `[tokens]` cuenta 0 y no sale
+del promedio.
+
+**La desviación de instrumento, declarada antes de correr**: el chat deriva su
+saldo de `turno` (X140) y `kernel.agente()` corre al hijo con el mismo
+`Ledger` del árbol (`utils/kernel.py:234-266`), pero ese `Ledger` no es el que
+corta el chat; el gasto de un hijo no se refleja en `turno`. Es un hueco de
+**aplicación** de la Ley 1 en el producto, no del kernel: el montaje de F lo
+cobra al cerrar la ronda como instrumento, el brazo A no lleva el parche, el
+experimento **no** prueba que el producto la cumpla, y si para sostener
+≤ 2R+1 hiciera falta tocar producto se para antes de correr. El hueco queda
+como fila propia en la "Deuda abierta" de `docs/roadmap.md`, y si X150 PASA es
+condición para integrar los especialistas.
+
+**Gasto**: humo de 4 corridas (techo US$0,15) y las 48 con proyección
+US$0,30–1,00 según cache; autorizado **≤US$1,00**, humo incluido.
+
+**Qué no habilita**: el pre-registro no habilita código. X147 (chequeo de
+construcción en `kernel.loop()`) es dependencia para **correr** el
+experimento, no para registrarlo; el runner (`banco/probes/exp110.py`) y el
+montaje son instrumento y van después de X147.
