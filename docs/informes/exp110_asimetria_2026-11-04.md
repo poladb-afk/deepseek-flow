@@ -90,6 +90,28 @@ nuevo y honesto: **la asimetría se elige más que la simétrica** (0 de 144
 llamadas) **pero lejos del umbral pre-registrado** (6 de 24 corridas), y cuando
 se elige, el especialista de barrido se lleva casi todo.
 
+## Análisis post-hoc: el corte por delegación (no pre-registrado)
+
+**No estaba en el pre-registro.** Lo sugirió la revisión externa del
+2026-11-04 y se recalcula acá desde las mismas 48 filas; es **post-hoc** y así
+se lee. Separando las corridas de F en los 5 anchos por si delegaron o no:
+
+| corridas de F en los anchos | n | calidad media |
+|---|---|---|
+| A (referencia) | 20 | 1,500 |
+| F sin delegar | 15 | **1,067** |
+| F con al menos una delegación | 5 | **0,600** |
+
+Las cinco con delegación: `s17` seeds 1 y 3 (ca 1 y 0), `s13` seed 2 (ca 2) y
+`s20` seeds 2 y 3 (ca 0 y 0).
+
+Dos lecturas: que las corridas **sin delegar** también caigan contra A
+(1,50 → 1,07) sostiene la explicación de varianza con 4 seeds; pero las
+corridas que **sí** delegaron rinden peor que las que no (0,60 contra 1,07), en
+la misma dirección que exp/108. **Con n=5 no es concluyente** y no cambia el
+veredicto pre-registrado: (b) queda medida y no adoptada, con un matiz medido
+—cuando el modelo la elige, no rinde—.
+
 ## Lo que este A/B no prueba (límites)
 
 - Potencia y ruido: 4 seeds por escenario; la caída de calidad de `s19`/`s18`

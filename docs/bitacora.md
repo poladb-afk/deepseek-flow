@@ -1570,6 +1570,16 @@ ruido. Confundido declarado: F tiene 3 tools más en el menú aunque no delegue.
 Consecuencia pre-registrada aplicada: (b) queda **medida y no adoptada**, P2 se
 re-expresa con el dato y X151 no aplica (N1).
 
+**Análisis post-hoc, no pre-registrado (2026-11-04)**: lo sugirió la revisión
+externa y se recalcula desde las mismas 48 filas. Corte de las corridas de F en
+los 5 anchos por si delegaron: **A 1,500 (n=20) · F sin delegar 1,067 (n=15) ·
+F con al menos una delegación 0,600 (n=5)** —las cinco son `s17` seeds 1 y 3,
+`s13` seed 2 y `s20` seeds 2 y 3—. Que las corridas **sin delegar** también
+caigan contra A sostiene la varianza de 4 seeds; pero las que **sí** delegaron
+rinden peor que las que no, en la misma dirección que exp/108. Con n=5 no es
+concluyente y no cambia el veredicto: agrega el matiz medido de que **cuando la
+elige, no rinde**.
+
 **Desvíos declarados**: (1) el humo y la tanda corrieron sobre `f20c0e4` antes
 del push (las filas llevan el sha; el humo se repite si el commit cambia);
 (2) el runner fija `PYTHONPATH=""` en A para no heredar un montaje del shell;
