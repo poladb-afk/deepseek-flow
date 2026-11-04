@@ -7439,3 +7439,30 @@ exp/28, exp/37 y L8 aguantaron en el brazo agente — el kernel compone bien
 la conducta de PRESUPUESTO; lo que perdió fue la calidad del INFORME. El
 paso 8 queda cerrado para research y abierto (con este dato en contra) para
 juez, auditoría y debate.
+
+---
+
+## X142: el tamaño del producto, como número que solo puede bajar (2026-11-04)
+
+**Pasos 9/10 del roadmap del operador.** La premisa original del paso 9
+("main carga los montajes de los experimentos negativos") ya estaba
+resuelta: X127 borró la rama del exp/103 con su módulo, `producto_conoce_lab`
+está en 0 y los subcomandos de laboratorio se montan perezosos — el producto
+corre solo. Lo que faltaba era lo del paso 10: **poder contarlo**.
+
+**El límite, explícito y auditable** (`ratchet.py`): `PRODUCTO_RAIZ` (el
+núcleo —main/flow/nodes/supervisor— y las 17 capacidades que expone main) +
+`utils/` + `modules/` son el PRODUCTO; `LABORATORIO_RAIZ` (ratchet, evals,
+bench_juez, replay, carga_trazas, triaje_trazas, minar_errores, tablero) más
+banco/, fable/, tests/ y docs/ miden y no engordan al producto. La
+separación FÍSICA no se hace: mover archivos reescribiría rutas que el gate
+de deriva verifica, para ganar nada medible — el número ya fija la frontera.
+
+**La métrica**: `lineas_del_producto` (menor mejor), líneas de CÓDIGO (la
+definición de X134: el texto impreso no cuenta) — **7.693 en 74 archivos** de
+arranque. Los más grandes: fable_judge 600, utils/hitl_web 402,
+utils/fs_tools 368, modules/coding 316, nodes 305, juez 302. Tres candados:
+la frontera existe y es disjunta; el laboratorio no cuenta (árbol sintético);
+el texto no cuenta. Desde acá, "minimalista" es un número que solo puede
+bajar — y cada capacidad que se recomponga (el paso 8 con su dato en contra)
+tiene que hacerlo bajar para entrar.

@@ -500,6 +500,27 @@ def _metrica_excepts(raiz: Path) -> tuple[int, dict[str, list[int]]]:
 
 CORE = ("nodes.py", "flow.py", "main.py")  # más utils/: lo que no es un módulo
 LABORATORIO = {"banco", "BANCO", "DELEGADO"}
+
+# X142: el LÍMITE producto/laboratorio. El producto es lo que el operador
+# usa: el chat con su kernel (núcleo) y sus capacidades. El laboratorio
+# MIDE (banco/, fable/, tests/, docs/ y las herramientas de medición de la
+# raíz). No hace falta separarlos físicamente: el producto ya corre solo
+# (todo subcomando de laboratorio se monta perezoso desde main) y no lo
+# nombra (`producto_conoce_lab` = 0); lo que faltaba era poder CONTARLO —
+# ese número es `lineas_del_producto` y solo puede bajar (P1).
+PRODUCTO_RAIZ = (
+    # núcleo
+    "main.py", "flow.py", "nodes.py", "supervisor.py",
+    # capacidades del producto (las que expone main y el chat)
+    "informe.py", "juez.py", "juez_lote.py", "fable_judge.py", "auditoria.py",
+    "research.py", "debate.py", "rag.py", "delegar.py", "heartbeat.py",
+    "resume.py", "mcp_server.py", "visor.py", "effective_n.py",
+)
+LABORATORIO_RAIZ = (
+    "ratchet.py", "evals.py", "bench_juez.py", "replay.py",
+    "carga_trazas.py", "triaje_trazas.py", "minar_errores.py", "tablero.py",
+)
+
 LECTORES_SETTINGS = (
     r'_(?:setting|entero|real|umbral)\(\s*["\']([A-Z][A-Z0-9_]+)["\']',
     r'environ(?:\.get)?\(\s*["\']([A-Z][A-Z0-9_]+)["\']',
@@ -722,6 +743,24 @@ def escanear_nodos_fisicos(raiz: Path) -> dict[str, int]:
     return dict(sorted(detalle.items()))
 
 
+def escanear_lineas_del_producto(raiz: Path) -> dict[str, int]:
+    """Líneas de CÓDIGO del PRODUCTO (X142): PRODUCTO_RAIZ + utils/ + modules/
+    — el número que solo puede bajar (P1). El laboratorio (banco/, fable/,
+    tests/, docs/, LABORATORIO_RAIZ) no entra; el texto impreso no cuenta
+    (misma definición que `nodos_largos`, X134). Los skills YAML quedan
+    fuera: los cuenta `vocabulario_hardcodeado` por su contenido y acá lo
+    que se gatea es el código."""
+    rutas = [raiz / nombre for nombre in PRODUCTO_RAIZ]
+    rutas += sorted((raiz / "utils").glob("*.py"))
+    rutas += sorted((raiz / "modules").glob("*.py"))
+    detalle = {}
+    for ruta in rutas:
+        if ruta.is_file():
+            detalle[_relativa(ruta, raiz)] = len(_lineas_de_codigo(
+                ruta.read_text(encoding="utf-8")))
+    return dict(sorted(detalle.items()))
+
+
 def escanear_texto_de_prompt(raiz: Path) -> dict[str, int]:
     """Caracteres literales que pueden entrar al system prompt del chat: el
     f-string de `main.system_prompt` y cada `DIRECTIVA_*`. Es AST y no la
@@ -898,6 +937,13 @@ METRICAS: dict[str, dict] = {
         "direccion": "menor_mejor",
         "descripcion": "líneas de código del loop del agente: kernel + chat (P1; S9b las une)",
         "calcular": _metrica_suma(escanear_lineas_del_loop),
+    },
+    "lineas_del_producto": {
+        "direccion": "menor_mejor",
+        "descripcion": ("líneas de código del PRODUCTO (núcleo + capacidades + "
+                        "utils/ + modules/; sin el laboratorio): el número que "
+                        "solo puede bajar (P1, X142)"),
+        "calcular": _metrica_suma(escanear_lineas_del_producto),
     },
 }
 

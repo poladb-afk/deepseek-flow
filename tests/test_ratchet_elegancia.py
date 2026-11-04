@@ -195,3 +195,40 @@ def test_la_columna_lo_lee_del_inventario_es_la_del_codigo():
         if citados != reales.get(nombre):
             distintos[nombre] = (citados, reales.get(nombre))
     assert filas and not distintos, f"columna 'Lo lee' desactualizada (doc, código): {distintos}"
+
+
+def test_el_limite_producto_laboratorio_es_disjunto_y_existe():
+    """X142: la frontera es auditable — cada archivo de PRODUCTO_RAIZ y
+    LABORATORIO_RAIZ existe en el árbol real, ningún archivo está en los dos
+    conjuntos, y el core del producto está del lado del producto."""
+    from pathlib import Path
+
+    from conftest import RAIZ
+
+    producto = {Path(n) for n in ratchet.PRODUCTO_RAIZ}
+    laboratorio = {Path(n) for n in ratchet.LABORATORIO_RAIZ}
+    assert not producto & laboratorio
+    for nombre in producto | laboratorio:
+        assert (RAIZ / nombre).is_file(), f"{nombre} del límite no existe"
+    assert {Path("main.py"), Path("flow.py"), Path("nodes.py")} <= producto
+    assert Path("ratchet.py") in laboratorio
+
+
+def test_el_tamano_del_producto_no_cuenta_al_laboratorio(tmp_path):
+    """X142: un árbol con producto y laboratorio — el número solo ve el
+    producto; las herramientas de medición y banco/ no engordan al producto."""
+    _escribir(tmp_path, "main.py", "x = 1\n")
+    _escribir(tmp_path, "ratchet.py", "y = 2\n" * 10)
+    _escribir(tmp_path, "banco/probe.py", "z = 3\n" * 10)
+    _escribir(tmp_path, "tests/test_algo.py", "w = 4\n" * 10)
+    _escribir(tmp_path, "utils/kernel.py", "k = 5\n")
+    detalle = ratchet.escanear_lineas_del_producto(tmp_path)
+    assert detalle == {"main.py": 1, "utils/kernel.py": 1}
+
+
+def test_el_tamano_del_producto_cuenta_codigo_no_texto(tmp_path):
+    """X142: misma definición que nodos_largos (X134) — el texto impreso no
+    es código: un prompt enorme no engorda el producto."""
+    _escribir(tmp_path, "main.py", 'PROMPT = """' + "linea de texto\n" * 50 + '"""\nx = 1\n')
+    detalle = ratchet.escanear_lineas_del_producto(tmp_path)
+    assert detalle == {"main.py": 2}  # la asignación y el código; las 50, no
