@@ -1355,6 +1355,12 @@ solo si exp/110 pasa. La entrada de X144 de arriba queda como fue escrita.
 
 Solo docs; sin cambio de código ni de conducta.
 
+**Aprobación del operador (2026-11-04).** La redacción de la **visión**
+(`docs/principios.md:3-18`) y de **P2** —con el dato de exp/110 ya incorporado:
+(b) medida y no adoptada— fue **aprobada por el operador**; el texto no se toca
+y la aprobación queda registrada acá y en la fila X144 del tablero. Con eso se
+cierra el último pendiente del roadmap post-X144: la redacción.
+
 ---
 
 ## X145: el pre-registro de exp/109, corregido con lo medido (2026-11-04)
