@@ -1382,3 +1382,29 @@ El modelo queda igualado por alias: `deepseek-flash` (flow),
 `deepseek/deepseek-flash` (mini, litellm) sirven la misma V4.1-Flash por
 api.deepseek.com. Instalados ambos en la máquina del operador (pi 0.73.1,
 mini 2.4.6 en venv). Docs; sin cambio de conducta.
+
+---
+
+## X145b: la refutación del auditor — la invocación de mini no alcanzaba (2026-11-04)
+
+El auditor refutó UNA afirmación de X145 y las otras dos las aprobó (X144 y
+el roadmap pasan). La refutada: que `-c agent.step_limit=16` + `--yolo`
+alcanza para mini. No alcanza, por dos razones verificadas en el código del
+instalado: **(1)** `-c` REEMPLAZA la configuración default en vez de sumarse
+(`run/mini.py:35` — el propio help lo advierte y su ejemplo es `-c mini.yaml
+-c …`): sin `-c mini.yaml` no se carga `system_template`, que es obligatorio
+(`agents/default.py:22`), y el agente no arranca. **(2)** Faltaba
+`--exit-immediately`: el agente default es el interactivo con
+`confirm_exit=True`; sin pantalla queda esperando al humano. El roadmap del
+autor SÍ lo pedía — el spec lo perdió al pasar.
+
+Queda: `-c mini.yaml -c agent.step_limit=16 --yolo --exit-immediately`.
+
+El tercer punto del auditor (litellm podría no conocer el precio de
+`deepseek/deepseek-flash` y lanzar) **no se materializa en esta máquina**:
+medido, el modelo está en el cost map de litellm. Igual el montaje lo
+verifica; si un runtime no lo conociera, `-c model.cost_tracking=
+ignore_errors` y el costo de mini queda "sin dato" (el denominador ya lo
+permite). Corregidos también: la fila X145 del roadmap (marcada ✅, con lo
+que corre de verdad — el npm 0.73.1, no la "lectura del repo 1.5.0" — y la
+invocación completa) y la del tablero. Docs; sin cambio de conducta.

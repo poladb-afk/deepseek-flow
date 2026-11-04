@@ -20,7 +20,7 @@ operador); nada se mergea ni se revierte.
 |---|---|---|
 | **flow** | deepseek-flow @ `main` (HEAD al día del humo, anotado en el jsonl) | 16 (`MAX_TOOL_ROUNDS`, S6) |
 | **pi** | npm **`@mariozechner/pi-coding-agent` 0.73.1** — repo vivo [earendil-works/pi](https://github.com/earendil-works/pi) (ex `badlogic/pi-mono`; el paquete aún apunta al URL viejo). OJO: `@mariozechner/pi` es OTRO paquete (manager de GPU pods) — medido al instalar | **no tiene builtin**: extensión local que corta a 16 turnos (pi acepta `-e archivo.js`) |
-| **mini** | pip **`mini-swe-agent` 2.4.6** ([repo](https://github.com/SWE-agent/mini-swe-agent)), venv dedicado | **16 explícito**: `-c agent.step_limit=16` (default 0 = sin límite, verificado en su código) + `--yolo` |
+| **mini** | pip **`mini-swe-agent` 2.4.6** ([repo](https://github.com/SWE-agent/mini-swe-agent)), venv dedicado | `-c mini.yaml -c agent.step_limit=16 --yolo --exit-immediately`: el default de `step_limit` es 0 (sin límite), **`-c` REEMPLAZA la config default** (sin `-c mini.yaml` no carga `system_template`, obligatorio, y no arranca — refutación del auditor) y sin `--exit-immediately` el agente interactivo queda esperando confirmación humano al terminar |
 
 Los tres con el MISMO modelo: flow `deepseek-flash`; pi `deepseek-v4-flash`
 (proveedor deepseek nativo con `DEEPSEEK_API_KEY` — el alias sirve la misma
@@ -35,7 +35,11 @@ en una carpeta sandbox con el modelo pineado, techo de gasto US$0,10 por
 brazo. Si un brazo no monta (config, endpoint, límites), NO se lo sustituye
 ni se ajusta: queda "sin montar" y el A/B se corre con los que montaron
 (n declarado). El montaje de pi verifica además la extensión de techo de
-turnos (sin ella, desvío declarado: se reporta cuántos turnos usó).
+turnos (sin ella, desvío declarado: se reporta cuántos turnos usó), y el de
+mini verifica el cost tracking de litellm: `deepseek/deepseek-flash` ESTÁ en su
+cost map (medido en la máquina, X145b); si un runtime no lo conociera, `-c
+model.cost_tracking=ignore_errors` y el costo de mini queda "sin dato",
+que el denominador ya permite.
 
 ## Igualación (declarada y simétrica)
 
