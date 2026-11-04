@@ -62,13 +62,16 @@ reformular N1), no como trabajo en curso.
 `[REABIERTO: operador, 2026-11-04 — X144]` Lo que (c) cerró fue la
 replicación **simétrica**: exp/103 y exp/105 ofrecieron copias iguales
 (`recursivo`) y ninguna se eligió. La **asimétrica** —instancias
-especializadas, árbol desparejo, hijos con menos poder que el padre— no se
-midió nunca, y la literatura de 2026 la separa de lo homogéneo (fuentes de
-apoyo de `docs/principios.md`). Desde X144, P2 es "grafo fractal asimétrico":
-especialización y jerarquía son principio (estructurales); la forma desigual
-que decide el modelo es **hipótesis reabierta** con pre-registro propio
-(X148, exp/110; orden en `docs/roadmap.md`), no principio cumplido. El dato en contra que hay que
-honrar: exp/108 —una capacidad recompuesta como agente— perdió el panel.
+especializadas, árbol desparejo, hijos con menos poder que el padre— **se midió
+en X150 (exp/110) y tampoco se adopta**: se elige más que la simétrica (6
+delegaciones en 24 corridas contra 0 de 144, casi todas con `barrido`), pero no
+alcanza el umbral pre-registrado (2 de 5 escenarios anchos, pedía 3) y la
+calidad cae 0,55 con margen 0,50; `s19`/`s18` cayeron sin delegar, así que con
+4 seeds el A/B no separa daño de ruido. Desde X144, P2 es "grafo fractal
+asimétrico": especialización y jerarquía son principio (estructurales) y la
+forma desigual que decide el modelo queda **medida y no perseguida** (X150). El
+dato en contra que hay que honrar: exp/108 —una capacidad recompuesta como
+agente— perdió el panel.
 
 ## 2. Principios
 

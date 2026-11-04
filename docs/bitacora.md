@@ -1541,3 +1541,40 @@ validación y 2 del docstring de la ley) y `lineas_del_producto` **7693 →
 corrida de `ratchet.py --actualizar` con su clave y el gate verde van con el
 cierre del paso. `excepts_amplios` 27, `imports_perezosos` 14 y
 `nodos_largos` 3 quedan en IGUAL y `tests_definidos` sube 1.
+
+## X150: exp/110 — la asimetría medida (2026-11-04)
+
+**La pregunta**: la replicación **simétrica** dio 0 de 144 llamadas (exp/103 y
+exp/105); la **asimétrica** —tres hijos especializados de lectura (`barrido`,
+`lectura`, `sintesis`), cada uno con su prompt y su subconjunto de tools del
+padre, P2c/X147— nunca se había medido. Pre-registro aprobado en
+`banco/specs/exp110_asimetria.md` (X148); instrumento `banco/probes/exp110.py`
+y montaje `banco/probes/exp110_brazo_f/` (`f20c0e4`).
+
+**El resultado**: 48 corridas (5 escenarios anchos + `s2` de control × seeds
+1–4 × A/F), **0 errores**, todas con su línea `[tokens]`. **NO PASA** los
+criterios pre-registrados: adopción **6 delegaciones en 24 corridas** (umbral:
+≥2 seeds en ≥3 de los 5 anchos; dio 2 de 5), por tool `barrido` 5 · `lectura`
+1 · `sintesis` 0; calidad ancha **A 1,50 · F 0,95** (caída 0,55 contra margen
+0,50); costo **1,013×** ✅ y **Ley 1** ✅ (peor corrida F: 17 llamadas del
+árbol, techo 33). Humo US$0,0104 + tanda US$0,2920 = **US$0,3024** de los
+US$1,00; ~35–40 min de reloj.
+
+**La lectura**: la asimetría se elige **más que la simétrica** (0 de 144
+llamadas) pero **lejos del umbral** pre-registrado, y el modelo se queda con el
+especialista de barrido. En calidad, la caída escalar es la que falla el
+criterio, pero `s19` y `s18` bajaron **sin ninguna delegación** (varianza de 4
+seeds, no mecanismo) y el único escenario donde la caída coincide con
+delegaciones es `s20`; el A/B no alcanza para separar el daño atribuible del
+ruido. Confundido declarado: F tiene 3 tools más en el menú aunque no delegue.
+Consecuencia pre-registrada aplicada: (b) queda **medida y no adoptada**, P2 se
+re-expresa con el dato y X151 no aplica (N1).
+
+**Desvíos declarados**: (1) el humo y la tanda corrieron sobre `f20c0e4` antes
+del push (las filas llevan el sha; el humo se repite si el commit cambia);
+(2) el runner fija `PYTHONPATH=""` en A para no heredar un montaje del shell;
+(3) **post-dato**: el pre-registro ataba retirar el montaje y el runner si NO
+PASA; el operador decidió **conservarlos como evidencia** (la convención de
+exp/103/104/105/107, y para que el informe pueda citar un path que existe).
+Informe completo, con las 48 filas, en
+`docs/informes/exp110_asimetria_2026-11-04.md`.
