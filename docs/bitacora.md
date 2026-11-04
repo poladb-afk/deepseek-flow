@@ -1658,7 +1658,7 @@ y salida intacta en los cinco; con `RAG_PREFILTRO_N=1` (y `k=3`) sí actúa. Los
 tests del prefiltro de RAG pasan porque fijan `RAG_PREFILTRO_N` a mano. No es
 un bug que dañe (el no-op es el default seguro), pero dos de los cinco
 settings de 5c-a vigilan un mecanismo que en producción no corre: X153 lo
-decide con ese dato. El script de la prueba se borró.
+decide con ese dato. El cómo de la prueba queda en la entrada de X153.
 
 Solo docs; sin cambio de código ni de conducta.
 
@@ -1680,6 +1680,19 @@ defecto). Evidencia (X152): espía en `contexto._puntuar` y `k` ∈ {1, 2, 4, 8,
 `RAG_PREFILTRO_N=1` y `k=3` sí actuaba. No era código muerto: era un
 mecanismo **dormido por defecto y sin medición que lo respaldara**. Los
 tests pasaban porque fijaban `RAG_PREFILTRO_N` por debajo de `k` a mano.
+
+**Cómo se reproduce el espía (re-verificado el 2026-11-04 contra el código
+previo, ya borrado).** El prefiltro no está en el árbol, así que la prueba corre
+sobre `git show f74cb96:modules/rag.py` cargado como módulo aparte: (1) se
+reemplaza su `buscar` por un doble que devuelve `k` fragmentos con la forma
+real de la salida (`--- path (score) ---` por fragmento, `k` ≤ lo que devuelve
+`buscar`); (2) se reemplaza `elegir_por_laya` por un doble que cuenta llamadas;
+(3) con `RAG_PREFILTRO=1` y `RAG_PREFILTRO_N` sin fijar, `rag_search(consulta,
+k)` para `k` ∈ {1, 2, 4, 8, 20} da **0 llamadas** al espía y devuelve la salida
+textualmente intacta; (4) control con `RAG_PREFILTRO_N=1` y `k=3`: **1 llamada**
+y la salida se recorta a 1 fragmento con la cabecera `[prefiltro Laya: 3 → 1
+fragmentos]`. El doble de `buscar` es fiel al contrato real: `buscar` devuelve
+como mucho `k` fragmentos, que es de donde sale el no-op.
 
 **Por qué se borra.** P1 ("lo que no decide nada se borra") y EL7 ("un
 arreglo borra un caso"). La alternativa —que funcione con un tope fijo, por
