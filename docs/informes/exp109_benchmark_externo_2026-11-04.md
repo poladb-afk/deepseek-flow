@@ -96,6 +96,18 @@ Descarrilos: flow `s13` seed 2 (`ca=0`); pi `s17` seed 1 y `s19` seed 2 (ambos
   misma tarea de montaje para los tres** y terminación por algo que cada harness
   ya hace solo (por ejemplo, que exista `hola.txt`); retocar la tarea para que
   mini funcione sería un parche (N1).
+- **El techo de pi es parecido, no idéntico** (señalado por la revisión
+  externa): `banco/probes/exp109_pi_techo.ts` cuenta `turn_end` y desde el turno
+  16 **bloquea las tool calls** con un motivo visible, pero **no termina la
+  corrida**: si el modelo insiste, cada intento bloqueado suma un turno. Flow
+  cierra con una llamada sin tools (S6). En esta tanda no cambió nada —pi no tuvo
+  timeouts ni corridas sin respuesta—, pero el cómputo igualado de 16 pasos es
+  un tope aproximado, no el mismo mecanismo.
+- **El empate también se sostiene de a pares** (post-hoc, no pre-registrado):
+  comparando escenario por seed, de **14 pares flow gana 2** (`s17` seed 1 y
+  `s19` seed 2), **pi gana 2** (`s2` seed 1 y `s13` seed 2) y **empatan 10**. El
+  empate global no sale de compensar promedios: en la mayoría de los casos los
+  dos harnesses sacan lo mismo.
 - 2 seeds por escenario: potencia baja, ya declarada; una caída menor no se
   detecta.
 - prompts, tools y forma del loop **no** se igualan a propósito: ese es el
