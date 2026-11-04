@@ -41,6 +41,29 @@ cost map (medido en la máquina, X145b); si un runtime no lo conociera, `-c
 model.cost_tracking=ignore_errors` y el costo de mini queda "sin dato",
 que el denominador ya permite.
 
+## Desvíos del instrumento, declarados antes de correr (2026-11-04)
+
+Salen de la revisión externa del auditor autor sobre el instrumento (`2e64440`)
+y del fix que los corrige antes de gastar:
+
+1. **El montaje de flow no es la tarea trivial del spec**: corre una corrida
+   real de `s2-surprise-trap` seed 1 (~US$0,005) en vez de `hola.txt` en un
+   sandbox. Verifica más fuerte (modelo, endpoint y el harness completo) y **no
+   entra al A/B** porque el montaje no se puntúa; pi y mini sí usan la tarea
+   trivial. Se declara acá.
+2. **El costo de pi y mini no es medible** por sus CLIs (pi en `--print`, mini
+   salvo que su reporte lo traiga): queda **"sin dato"** con su etiqueta, que
+   el denominador ya permite. El techo de **US$2,00** se aplica con el gasto
+   **medible de flow** más una **estimación conservadora por corrida**
+   declarada en el instrumento para pi/mini; el acumulado se imprime después de
+   cada corrida y `--tanda` **corta** antes de pasarse. Es una **red**, no una
+   garantía: el operador vigila además la consola del proveedor. (El techo de
+   US$2,00 no lo aplicaba el código en `2e64440`: solo lo imprimía; el fix del
+   instrumento lo hace efectivo.)
+3. **El corte de US$0,30 del montaje se chequea solo con el costo de flow**,
+   porque pi/mini no lo exponen; el texto original decía "montaje + humo" y el
+   instrumento aplica lo medible. Se declara.
+
 ## Igualación (declarada y simétrica)
 
 - Mismo modelo y proveedor en los tres.
@@ -69,7 +92,9 @@ Las siete trampas del roadmap (`banco/fable/escenarios/`): `s2-surprise-trap`,
 **7 escenarios × 2 seeds × 3 brazos = 42 corridas** (+3 de montaje). Techo
 de gasto total pre-registrado: **US$2,00** (referencia: exp/105, US$1,22
 por 72 corridas de fable con este modelo). El instrumento no arranca la
-tanda si el montaje + humo ya gastó más de US$0,30.
+tanda si el **montaje de flow** ya gastó más de US$0,30, y la tanda **corta**
+cuando el acumulado medible (flow + estimación declarada de pi/mini) alcanza el
+techo de US$2,00 (ver "Desvíos del instrumento").
 
 ## El denominador (declarado y simétrico)
 
