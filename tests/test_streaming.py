@@ -1,5 +1,4 @@
 """Streaming del chat: deltas en vivo, thinking pegajoso, interrupción y cortes (PR 4)."""
-import pytest
 from conftest import ctx_chat
 
 
@@ -224,9 +223,10 @@ def test_agent_step_post_no_reimprime_con_stream(monkeypatch, capsys):
     assert "DeepSeek: respuesta en vivo" in salida
 
 def test_call_llm_agent_stream_interrupcion(monkeypatch, capsys):
-    """Ctrl+C durante la generación: con CHAT_STREAM_INTERRUPT=1 (default)
-    se corta el stream, se devuelve lo acumulado (el chat sigue) y se avisa;
-    con 0, el KeyboardInterrupt se propaga (main lo trata como salida)."""
+    """Ctrl+C durante la generación: se corta el stream, se devuelve lo
+    acumulado (el chat sigue) y se avisa. X154: la interrupción es siempre
+    activa; la mitad que probaba CHAT_STREAM_INTERRUPT=0 se fue con el
+    setting (R2 autorizada por el operador)."""
     from types import SimpleNamespace
 
     import utils.call_llm as c
@@ -249,17 +249,11 @@ def test_call_llm_agent_stream_interrupcion(monkeypatch, capsys):
 
     monkeypatch.setattr(c, "_client", lambda: FakeClient())
 
-    # activada (default): devuelve lo parcial sin explotar
-    monkeypatch.setenv("CHAT_STREAM_INTERRUPT", "1")
+    # devuelve lo parcial sin explotar
     msg = c.call_llm_agent_stream([{"role": "user", "content": "hola"}])
     assert msg.content == "Hola mundo"
     salida = capsys.readouterr().out
     assert "Hola mundo" in salida and "[interrumpido]" in salida
-
-    # desactivada: el KeyboardInterrupt viaja (no lo traga el stream)
-    monkeypatch.setenv("CHAT_STREAM_INTERRUPT", "0")
-    with pytest.raises(KeyboardInterrupt):
-        c.call_llm_agent_stream([{"role": "user", "content": "hola"}])
 
 def test_stream_error_sin_contenido_no_es_mudo(monkeypatch, capsys):
     """Fragilidad medida en la caza: el except genérico del stream devolvía

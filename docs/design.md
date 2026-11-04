@@ -77,11 +77,10 @@ versión limpia (`DeepSeek (limpio): …`). Y como ya salió en vivo, `post()`
 NO reimprime la respuesta completa: con stream solo cierra la línea (los
 deltas van sin salto); con la clásica mantiene el `print("\nDeepSeek: …")`.
 
-**Interrupción del usuario (CHAT_STREAM_INTERRUPT, default 1)**: un Ctrl+C
+**Interrupción del usuario (siempre activa desde X154)**: un Ctrl+C
 MIENTRAS se genera corta el stream y se devuelve lo acumulado — se imprime
 `[interrumpido]` y el chat sigue (el parcial queda historado y mostrado, el
-flujo vuelve al prompt). Con `0`, el `KeyboardInterrupt` se propaga y `main`
-lo trata como salida, como siempre. El Ctrl+C fuera del stream no se toca.
+flujo vuelve al prompt). El Ctrl+C fuera del stream no se toca.
 
 **Corte por error, sin causa muda (2026-10-05)**: el `except Exception`
 del stream sigue devolviendo lo acumulado (una caída de red no rompe el

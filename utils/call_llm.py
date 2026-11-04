@@ -277,15 +277,14 @@ def call_llm_agent_stream(messages, tools=None):
     acumulado sin explotar y DESCARTA las tool_calls (argumentos truncados).
 
     Interrupción del usuario (roadmap ítem 6): si el usuario aprieta Ctrl+C
-    MIENTRAS se genera, con CHAT_STREAM_INTERRUPT=1 (default) se corta el
-    stream y se devuelve lo acumulado (el chat sigue, no se cae); se imprime
-    un aviso "[interrumpido]". Con 0, el Ctrl+C se propaga como siempre
-    (main lo toma como salida). El Ctrl+C fuera del stream no se toca."""
+    MIENTRAS se genera, se corta el stream y se devuelve lo acumulado (el
+    chat sigue, no se cae); se imprime un aviso "[interrumpido]". Siempre
+    activa desde X154 (el interruptor era un setting sin uso). El Ctrl+C
+    fuera del stream no se toca."""
     kwargs = _kwargs_agente(messages, tools)
     # exp/89: el último chunk trae usage solo si se pide (OpenAI-compat)
     kwargs["stream_options"] = {"include_usage": True}
     stream = _client().chat.completions.create(**kwargs, stream=True)
-    interrumpible = _setting("CHAT_STREAM_INTERRUPT", "1") == "1"
     contenido = []
     por_indice = {}  # index -> {"id", "name", "arguments"}
     cortado = False
@@ -301,11 +300,8 @@ def call_llm_agent_stream(messages, tools=None):
             # los deltas de reasoning_content NO se imprimen (se descartan)
             _acumular_delta(chunk.choices[0].delta, contenido, por_indice)
     except KeyboardInterrupt:
-        # Ctrl+C durante la generación: si la interrupción está activa se
-        # corta acá y se devuelve lo acumulado (el chat sigue vivo); si no,
-        # se propaga para que main la trate como salida.
-        if not interrumpible:
-            raise
+        # Ctrl+C durante la generación: se corta acá y se devuelve lo
+        # acumulado (el chat sigue vivo).
         cortado = True
         print("\n  [interrumpido] generación cortada por el usuario")
     except Exception as e:  #  # noqa: BLE001 (stream cortado a mitad: se devuelve lo acumulado)

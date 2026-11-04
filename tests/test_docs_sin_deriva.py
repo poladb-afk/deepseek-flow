@@ -21,8 +21,11 @@ LECTORES = [
 
 # Directorios que NO son fuente del harness: tests (se leen a sí mismos),
 # docs (informes y este plan), salidas/ (artefactos de corrida: puede haber
-# copias de scripts y daría falsos positivos) y los ocultos.
-_IGNORAR = ("tests/", "docs/", "salidas/", ".")
+# copias de scripts y daría falsos positivos), los ocultos y los fixtures
+# congelados de fable (X154: `s19-real-audit-2/memoria.py` es una copia vieja
+# del módulo, objetivo de auditoría, no código del harness; la misma exclusión
+# que ya usa `test_banco.test_ningun_escenario_setea_un_env_que_el_harness_no_lee`).
+_IGNORAR = ("tests/", "docs/", "salidas/", ".", "banco/fable/escenarios/")
 
 
 def _fuentes():

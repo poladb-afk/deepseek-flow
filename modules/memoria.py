@@ -34,6 +34,8 @@ MEMORIA_DIR_DEFAULT = "memoria"
 SEARCH_MAX_FILES = 50
 SEARCH_HITS_PER_FILE = 20
 SEARCH_MAX_MATCHES = 200
+# Tope del prefiltro de memoria (X154: era MEMORIA_PREFILTRO_N, con default 8)
+PREFILTRO_MAX = 8
 
 
 def _raiz():
@@ -69,9 +71,9 @@ def memory_search(query=None):
     Devuelve las coincidencias (archivo + línea) y, siempre, el listado de
     los archivos de memoria/ para que el agente sepa qué hay disponible.
 
-    Con query y `MEMORIA_PREFILTRO=1`, un prefiltro local (Laya) elige
-    hasta `MEMORIA_PREFILTRO_N` archivos relevantes ANTES de leerlos: sin
-    Laya disponible el prefiltro es no-op (entran todos, como siempre)."""
+    Con query, un prefiltro local (Laya) elige hasta `PREFILTRO_MAX`
+    archivos relevantes ANTES de leerlos: sin Laya disponible el prefiltro
+    es no-op (entran todos, como siempre)."""
     query = (query or "").strip()
     archivos = _archivos_md()
     if not archivos:
@@ -128,19 +130,13 @@ def _texto_de_nota(ruta):
 
 
 def _prefiltrar(query, archivos):
-    """(archivos a consultar, si el prefiltro actuó). Con
-    MEMORIA_PREFILTRO=0 o sin juicio de Laya, devuelve todos y False: el
-    aviso "[prefiltro Laya: …]" aparece SOLO si Laya realmente puntuó."""
-    if _setting("MEMORIA_PREFILTRO", "1") != "1":
+    """(archivos a consultar, si el prefiltro actuó). Sin juicio de Laya
+    devuelve todos y False: el aviso "[prefiltro Laya: …]" aparece SOLO si
+    Laya realmente puntuó."""
+    if len(archivos) <= PREFILTRO_MAX:
         return archivos, False
     try:
-        maximo = int(_setting("MEMORIA_PREFILTRO_N", "8"))
-    except (TypeError, ValueError):
-        maximo = 8
-    if maximo <= 0 or len(archivos) <= maximo:
-        return archivos, False
-    try:
-        elegidos = elegir_por_laya(query, archivos, maximo,
+        elegidos = elegir_por_laya(query, archivos, PREFILTRO_MAX,
                                    setting_modelo="LAYA_MODEL_PREFILTRO",
                                    texto_de=_texto_de_nota)
     except Exception:  # el prefiltro nunca rompe la memoria  # noqa: BLE001 (prefiltro Laya best-effort: nunca rompe la memoria)

@@ -69,8 +69,8 @@
           34
         ],
         "modules/memoria.py": [
-          146,
-          329
+          142,
+          325
         ],
         "nodes.py": [
           68
@@ -82,7 +82,7 @@
           47
         ],
         "utils/call_llm.py": [
-          311
+          307
         ],
         "utils/contexto.py": [
           118
@@ -201,7 +201,7 @@
         "modules/informe.py": 38,
         "modules/juez.py": 47,
         "modules/mcp.py": 28,
-        "modules/memoria.py": 254,
+        "modules/memoria.py": 249,
         "modules/rag.py": 45,
         "modules/research.py": 22,
         "modules/supervisor.py": 29,
@@ -214,7 +214,7 @@
         "supervisor.py": 183,
         "utils/__init__.py": 0,
         "utils/aprobaciones.py": 117,
-        "utils/call_llm.py": 189,
+        "utils/call_llm.py": 186,
         "utils/citas.py": 94,
         "utils/compaccion.py": 151,
         "utils/conductor.py": 78,
@@ -249,7 +249,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7661
+      "metrica": 7653
     },
     "nodos_largos": {
       "detalle": {
@@ -273,9 +273,6 @@
         ],
         "CHAT_STREAM": [
           "nodes.py"
-        ],
-        "CHAT_STREAM_INTERRUPT": [
-          "utils/call_llm.py"
         ],
         "CITAS_VERIFICAR": [
           "nodes.py"
@@ -350,12 +347,6 @@
         "MEMORIA_DIR": [
           "modules/memoria.py"
         ],
-        "MEMORIA_PREFILTRO": [
-          "modules/memoria.py"
-        ],
-        "MEMORIA_PREFILTRO_N": [
-          "modules/memoria.py"
-        ],
         "NO_COLOR": [
           "utils/terminal.py"
         ],
@@ -420,7 +411,7 @@
           "utils/hitl_web.py"
         ]
       },
-      "metrica": 50
+      "metrica": 47
     },
     "tests_definidos": {
       "detalle": {

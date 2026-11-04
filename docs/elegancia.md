@@ -84,7 +84,7 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora/2026-10.md`, X91). Con URL
 | `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
 | `producto_conoce_lab` | 10 → **0** (X93) | 0 ✅ |
 | `vocabulario_hardcodeado` | 8 → 7 (X104) → 3 (X106) → 5 (X112: el instrumento ahora lee la `condicion` de `skills/*.yaml`, que el AST no veía) → 4 (S9a/X133: la continuación salió de `GetQuestion`) → **3** (X135: salió `TOOL_CONTEXTO_RE` del juez; quedan las 2 regex de `skills/*.yaml` y el `YES` del HITL) | **piso honesto 3** (S7 cerrado sin remedio para este modelo: las 2 regex de los skills quedan como deuda medida; el `YES` del HITL es el s/n). La meta ≤2 se re-expresa en X136 (era inalcanzable con las dos de los skills) |
-| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) → 64 (X106) → 58 (X109) → 56 (X112) → **52 (S6/X132)** | ≤ 45 (fases 1–5, ver inventario) |
+| `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) → 64 (X106) → 58 (X109) → 56 (X112) → 52 (S6/X132) → 50 (X153) → **47 (X154)** | **≤ 47** (X154: re-expresada con el mismo criterio de X112 para `texto_de_prompt` — los que quedan son contrato del operador o seams de prueba usados, y no se recortan para el número) |
 | `imports_perezosos` | 137 → 126 (X92) → 90 (X106) → 81 (X109) → 80 (X112) | **≤ 40** (X112 deja sin efecto el ~60 del 2026-10-30: la clasificación de los 81 muestra 12 de stdlib y 2 de dependencias obligatorias sin motivo, y 59 internos que en su mayoría no esquivan ningún ciclo; paso propio de imports, con motivo visible para los que se quedan) |
 | `nodos_largos` | 15 (físicas) → 14 (X96) → 13 (X106) → 12 (S9b A′/X126) → **4** (X134: el escáner ahora cuenta líneas de **código**, no físicas; el 12 físico queda como diagnóstico no gateado) → **3** (X137/I4: el render del informe del lote salió del nodo) | ≤ 3 ✅ (definición de X134: más de 40 líneas de código; quedan `juez.Judge` 72, `effective_n.WriteReport` 50 y `effective_n.HashFile` 47, que esperan la recomposición de P4) |
 | `lineas_del_producto` | **7.693** (X142: arranque; 74 archivos de código — núcleo + capacidades + utils/ + modules/) | **solo baja** (el límite producto/laboratorio es explícito en `ratchet.py`: `PRODUCTO_RAIZ`/`LABORATORIO_RAIZ`; el laboratorio mide y no engorda al producto; el texto impreso no cuenta, definición de X134) |
@@ -115,18 +115,15 @@ fase indicada; `borrar` = se va con su rama en esa fase.
 
 | Setting | Veredicto | Fase | Motivo | Lo lee |
 |---|---|---|---|---|
-| `PROMPT_AUDITORIA` | borrar | 4 | S7/S8: brazos de A/B cerrados → skills | `main.py` |
+| `PROMPT_AUDITORIA` | contrato | — | el checklist de auditoría es opción del operador (X112: único texto con lift medido, s18); X154 corrige el "borrar" viejo: la decisión del operador es posterior | `main.py` |
 | `HITL_SCOPE` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `utils/aprobaciones.py`, `utils/riesgo.py` |
 | `HUMANO_RESPUESTA` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `modules/humano.py` |
-| `CHAT_STREAM_INTERRUPT` | revisar | 2 | S9: citas e interrupción siempre activas | `utils/call_llm.py` |
 | `CITAS_VERIFICAR` | revisar | 2 | S9: citas e interrupción siempre activas | `nodes.py` |
 | `PREFETCH` | revisar | 2 | S9: prefetch como nodo; topes como constantes | `utils/prefetch.py` |
 | `SKILLS` | revisar | 4 | S7: skills por descripción; el apagador global quizá sobra | `nodes.py` |
-| `INFORME_CARPETA` | revisar | 5 | concurrencia: una constante del kernel | `informe.py` |
+| `INFORME_CARPETA` | contrato | — | configuración del operador (lo tiene en su `.env`, X154): borrarlo le cambia el default a `.` | `informe.py` |
 | `LAYA_BATCH_SIZE` | contrato | — | no es un tunable: `0` = el lote no se parte (un solo forward), N = lotes de N; elige el pico de memoria del prefiltro (X101) | `utils/laya.py` |
 | `LAYA_MODEL_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
-| `MEMORIA_PREFILTRO` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
-| `MEMORIA_PREFILTRO_N` | revisar | 5 | prefiltros: un mecanismo, un setting | `modules/memoria.py` |
 | `COMPACTION_CHARS` | contrato | 2 | tamaño de contexto | `nodes.py` |
 | `MAX_TOOL_ROUNDS` | contrato | 2 | el techo duro del Ledger (único presupuesto) | `utils/fs_tools.py` |
 | `READ_MAX_CHARS` | contrato | 2 | tamaño de contexto | `utils/fs_tools.py` |

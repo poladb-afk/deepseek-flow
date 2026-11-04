@@ -1724,3 +1724,62 @@ otra cosa: los de memoria y de `elegir_por_laya` quedan intactos.
 empeora, por los 4 tests de R2. Ese empeoramiento necesita `ratchet.py
 --actualizar` con la clave del operador; el agente no lo corre. Todo lo
 demás, IGUAL.
+
+---
+
+## X154: el inventario de settings, setting por setting (2026-11-04)
+
+**Corrección registrada a una entrada anterior.** En X153 se cambió una
+frase de la entrada de X152: decía "El script de la prueba se borró." y pasó
+a decir "El cómo de la prueba queda en la entrada de X153." No cambia ningún
+dato; agrega dónde está la receta. La regla es que la historia quede como
+fue, así que el cambio se declara acá como corrección y no se reescribe de
+nuevo. Lo mismo vale para la fila X153 del roadmap: su gate pedía
+`settings_leidos` ≤ 49 y "un mecanismo, un setting", y el real fue **52 →
+50** (el prefiltro de memoria conservaba 3 settings). La fila ahora dice el
+número real y lo que faltaba pasó a este paso.
+
+**Las decisiones, con datos del operador (2026-11-04).**
+- **Se borran tres**, los tres fuera del `.env` del operador:
+  `CHAT_STREAM_INTERRUPT` (Ctrl+C durante la generación corta siempre y el
+  chat sigue; el `0` solo lo usaba un test), `MEMORIA_PREFILTRO` (el
+  interruptor del prefiltro de memoria: sin checkpoint ya es no-op, y con
+  checkpoint queda activo como era el default) y `MEMORIA_PREFILTRO_N`
+  (pasa a la constante `PREFILTRO_MAX = 8` de `modules/memoria.py`, como los
+  tunables de X101).
+- **Pasan a contrato dos**: `PROMPT_AUDITORIA`, porque la decisión del
+  operador de X112 ("el checklist de auditoría es opción del operador", el
+  único texto con lift medido, en s18) es posterior al "borrar" que tenía el
+  inventario; e `INFORME_CARPETA`, porque está en el `.env` del operador
+  (verificado el nombre, no el valor): borrarlo le cambiaba el default a `.`.
+- **Se quedan como estaban** `CITAS_VERIFICAR`, `PREFETCH` y `SKILLS`: son
+  seams de prueba que usan la caracterización, el gate fractal y el banco.
+
+**La meta, re-expresada.** `settings_leidos` queda en **47** y la meta pasa
+de ≤ 45 a **≤ 47**. Es el mismo criterio de X112 para `texto_de_prompt` ("no
+se recorta para el número"): lo que queda es configuración del operador o un
+seam usado. No es un atajo: está escrito con el porqué, setting por setting.
+
+**R2, autorizada por el operador solo para lo mínimo.** (1) La segunda mitad
+de `test_streaming.py::test_call_llm_agent_stream_interrupcion` (la que
+probaba `CHAT_STREAM_INTERRUPT=0`); el test sigue entero con la mitad que
+prueba la interrupción. (2) El retiro de los escenarios
+`banco/escenarios/exp13-ab-con-prefiltro.yaml` y `exp13-ab-sin-prefiltro.yaml`
+(no son tests; sin los settings, `test_ningun_escenario_setea_un_env_que_el_harness_no_lee`
+los marcaría como inertes; exp/13 está cerrado y su registro queda en la
+bitácora de octubre). Ningún test se borra entero: `tests_definidos` no se
+mueve. Los tests que fijaban `MEMORIA_PREFILTRO_N=1` ahora parchean la
+constante (`monkeypatch.setattr(mem, "PREFILTRO_MAX", 1)`); los que solo
+fijaban `MEMORIA_PREFILTRO=1` pierden esa línea, porque era el default.
+
+**Un ajuste de un test de deriva, declarado.** `test_todo_setting_usado_esta_documentado`
+leía también `banco/fable/escenarios/`, donde `s19-real-audit-2/memoria.py`
+es una copia congelada del módulo viejo (objetivo de auditoría) que todavía
+lee `MEMORIA_PREFILTRO*`. Se le suma esa carpeta a lo que ignora, con la
+misma exclusión que ya usa `test_banco.py`. Verificado: lo único que esa
+exclusión deja de exigir son esos dos settings; ningún setting del harness
+queda sin documentar. El ratchet ya no miraba esa carpeta.
+
+**Los números** (ratchet, sobre X153): `settings_leidos` **50 → 47**,
+`lineas_del_producto` **7661 → 7653**, `tests_definidos` **1177 IGUAL**, el
+resto IGUAL. Solo mejoras: el ratchet reescribió el baseline solo, sin clave.

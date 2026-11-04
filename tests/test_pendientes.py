@@ -524,8 +524,7 @@ def test_prefiltro_de_memoria_puntua_el_contenido(tmp_path, monkeypatch):
     from utils import laya
 
     monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
-    monkeypatch.setenv("MEMORIA_PREFILTRO", "1")
-    monkeypatch.setenv("MEMORIA_PREFILTRO_N", "1")
+    monkeypatch.setattr(mem, "PREFILTRO_MAX", 1)  # X154: era MEMORIA_PREFILTRO_N=1
     (tmp_path / "a.md").write_text("nota sobre arqueología andina", encoding="utf-8")
     (tmp_path / "b.md").write_text("nota sobre cocina", encoding="utf-8")
 

@@ -56,8 +56,8 @@ Heredada de PocketFlow y de [bmo](../bmo) (el harness que inspiró los módulos)
   (`rm -rf /`, fork bomb) por denylist dura.
 - **El chat responde en vivo**: las respuestas se imprimen token a token
   mientras se generan (`CHAT_STREAM=1`, default) y un Ctrl+C durante la
-  generación corta la respuesta conservando lo parcial (`CHAT_STREAM_INTERRUPT`,
-  default 1); `0` en cualquiera vuelve al comportamiento clásico.
+  generación corta la respuesta conservando lo parcial; `CHAT_STREAM=0` vuelve
+  a la respuesta completa al final.
 
 ## Quickstart
 

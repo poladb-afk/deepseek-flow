@@ -270,7 +270,6 @@ def test_memoria_prefiltro_noop_sin_modelo(tmp_path, monkeypatch):
     import utils.contexto as ctx
 
     monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
-    monkeypatch.setenv("MEMORIA_PREFILTRO", "1")
     monkeypatch.setattr(ctx, "_puntuar",
                         lambda consulta, unidades, setting: (_ for _ in ()).throw(RuntimeError("sin modelo")))
     (tmp_path / "a.md").write_text("nota sobre pytest y compacción\n", encoding="utf-8")
@@ -284,8 +283,7 @@ def test_memoria_prefiltro_actua(tmp_path, monkeypatch):
     import utils.contexto as ctx
 
     monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
-    monkeypatch.setenv("MEMORIA_PREFILTRO", "1")
-    monkeypatch.setenv("MEMORIA_PREFILTRO_N", "1")
+    monkeypatch.setattr(mem, "PREFILTRO_MAX", 1)  # X154: era MEMORIA_PREFILTRO_N=1
     for nombre in ("a.md", "b.md", "c.md"):
         (tmp_path / nombre).write_text(f"contenido {nombre} sobre compacción\n", encoding="utf-8")
     # con el patch, el clasificador sigue viendo las unidades (en memoria son

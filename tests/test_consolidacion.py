@@ -22,8 +22,6 @@ def test_prefiltro_memoria_sin_laya_no_recorta_ni_miente(tmp_path, monkeypatch):
 
     monkeypatch.setattr(ul, "disponible", lambda setting=None: False)
     monkeypatch.setenv("MEMORIA_DIR", str(tmp_path))
-    monkeypatch.setenv("MEMORIA_PREFILTRO", "1")
-    monkeypatch.setenv("MEMORIA_PREFILTRO_N", "8")
     for i in range(12):
         (tmp_path / f"n{i:02}.md").write_text("tema x\n", encoding="utf-8")
     out = mem.memory_search("tema")
@@ -135,7 +133,6 @@ def test_stream_cortado_no_despacha_tool_calls(monkeypatch):
         chat = NS(completions=NS(create=lambda **k: stream()))
 
     monkeypatch.setattr(cl, "_client", lambda: Cliente())
-    monkeypatch.setenv("CHAT_STREAM_INTERRUPT", "1")
     r = cl.call_llm_agent_stream([{"role": "user", "content": "x"}], tools=[{}])
     assert r.tool_calls is None
 
