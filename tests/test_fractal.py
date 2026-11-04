@@ -35,9 +35,10 @@ def _arbol(reparto):
             return NS(content="nada", tool_calls=None)
         return NS(content=None, tool_calls=[_llamada("read_file", i, path=a) for i, a in enumerate(archivos)])
 
-    dividir = agente("dividir", "d", "s", [_leer()], recursivo=True)
+    leer = _leer()
+    dividir = agente("dividir", "d", "s", [leer], recursivo=True)
     ctx = Ctx(llm, Ledger(20), max_profundidad=2)
-    correr("s", "todo", [dividir], ctx, wait=0)
+    correr("s", "todo", [dividir, leer], ctx, wait=0)  # X147: el padre declara sus tools
     return fractal.medir(ctx.traza, ["dividir"])
 
 
@@ -81,9 +82,10 @@ def test_ids_repetidos_entre_rondas_no_se_confunden():
                 name="read_file", arguments=json.dumps({"path": a}))) for a in json.loads(pedido)])
         return NS(content="listo", tool_calls=None)
 
-    dividir = agente("dividir", "d", "s", [_leer()], recursivo=True)
+    leer = _leer()
+    dividir = agente("dividir", "d", "s", [leer], recursivo=True)
     ctx = Ctx(llm, Ledger(20), max_profundidad=2)
-    correr("s", "todo", [dividir], ctx, wait=0)
+    correr("s", "todo", [dividir, leer], ctx, wait=0)  # X147: el padre declara sus tools
     medido = fractal.medir(ctx.traza, ["dividir"])
     assert medido == {"divisiones": {(): pytest.approx(1.0)}, "fallas": []}
 

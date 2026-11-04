@@ -124,10 +124,12 @@ def test_un_agente_es_una_tool_con_contexto_fresco_y_el_mismo_saldo():
             return msg("síntesis: " + mensajes[-1]["content"])
         return msg(None, llamada("sub", 0, pedido="buscá X"))
 
-    hijo = agente("sub", "explora", "subagente", [tool("leer")])
+    leer = tool("leer")
+    hijo = agente("sub", "explora", "subagente", [leer])
     ledger = Ledger(5)
     ctx = Ctx(llm, ledger)
-    respuesta, mensajes = correr("raíz", "auditá", [hijo], ctx, wait=0)
+    # X147 (P2 c): el padre declara la tool que delega; el hijo no puede más.
+    respuesta, mensajes = correr("raíz", "auditá", [hijo, leer], ctx, wait=0)
     assert respuesta == "síntesis: hallazgo en a.py:3"
     assert ledger.rondas == 2                      # 1 del padre + 1 de la copia + 1 del hijo (P2, Ley 1)
     assert [e[:2] for e in ctx.traza] == [(1, "leer"), (0, "sub")]

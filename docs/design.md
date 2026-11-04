@@ -954,6 +954,10 @@ como una `Tool` que otro loop puede llamar. Leyes por construcción:
   escribe (X116: el default era `lectura` y una tool nueva corría en paralelo).
 - **Profundidad acotada** (`max_profundidad=1`): un agente puede llamar
   agentes; esos no (evidencia: RLM con profundidad 2 empeora).
+- **Un hijo no puede más que el padre** (S0/P2 c, X147): `agente()` declara en
+  `Tool.hijas` las tools que verá el hijo y `loop()` valida **al armar** el
+  árbol que sean un subconjunto de las tools del padre; si no, `ValueError`
+  (falla cerrada, antes de ejecutar). El padre declara lo que delega.
 - **Recursión acotada** (X116): `agente(..., recursivo=True)` se suma a sus
   propias tools y el MISMO loop se replica. Los frenos son datos del árbol
   (profundidad, saldo y efecto) y el caso base es la arista de siempre: sin

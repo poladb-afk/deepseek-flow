@@ -1496,3 +1496,48 @@ US$0,30–1,00 según cache; autorizado **≤US$1,00**, humo incluido.
 construcción en `kernel.loop()`) es dependencia para **correr** el
 experimento, no para registrarlo; el runner (`banco/probes/exp110.py`) y el
 montaje son instrumento y van después de X147.
+
+## X147: un hijo no puede más que su padre (P2 (c) por construcción) (2026-11-04)
+
+**El hueco**: `kernel.agente()` aceptaba cualquier lista de tools para el hijo
+y nada comparaba con las del padre; la jerarquía de P2 (c) era una promesa en
+prosa. Hoy nada de producción arma `agente()` (X86), así que el agujero estaba
+cerrado de hecho —no por construcción— y exp/110 va a ejercitarlo de verdad
+(X148), lo que lo hacía previo.
+
+**Dónde se valida y por qué ahí**: en `loop()`, no en `agente()` — al
+construirse un agente no conoce quién lo ofrece; un parámetro provisto por el
+llamador sería un chequeo de humo. `loop()` es el único lugar que conoce al
+padre (el árbol que se está armando), y la validación es transitiva gratis: el
+loop del hijo se arma adentro de `correr()` con las tools del hijo, así que el
+nieto se valida contra el hijo.
+
+**El cambio**: `Tool` gana `hijas: tuple[str, ...] = ()`; `agente()` la
+completa con los nombres de las tools del hijo (incluido él mismo si es
+`recursivo`); al arrancar `loop()` se calcula el conjunto disponible y, para
+cada tool, `hijas - disponibles` no vacío → `ValueError(f"{nombre} tendría
+tools fuera del padre: …")`. Falla **cerrada y al armar**, no en ejecución.
+
+**Sin cambio de conducta**: los loops reales (chat `flow.py:18`, supervisor
+`supervisor.py:297`) no tienen tools con `hijas`, así que la validación es
+no-op; ningún productor arma `agente()` (X86).
+
+**R2 — adaptaciones 1:1, ninguna aserción perdida**: los árboles de test que
+daban al hijo tools que el padre no declaraba ahora **fallan por diseño**, que
+es la prueba de que el chequeo discrimina. Se adaptó el padre para que declare
+lo que delega, sin tocar aserciones: `_correr_una_copia`
+(`tests/test_gate_fractal.py:102`, usada por 4 tests), `test_fractal._arbol`
+(6 tests parametrizados) y `test_kernel.py:127`. Los recursivos
+(`test_kernel.py:339`, `:381`) ya cumplían: el hijo se declara a sí mismo y el
+padre lo tiene.
+
+**El test de construcción** (`tests/test_gate_fractal.py`): un hijo con una
+tool `ajena` → `ValueError` al armar el loop; el árbol legal —el padre declara
+la tool y delega— se arma.
+
+**Números y la clave**: `lineas_del_loop` **651 → 659** (+8: 6 de código de la
+validación y 2 del docstring de la ley) y `lineas_del_producto` **7693 →
+7699** (+6). El operador aceptó el empeoramiento declarado (decisión (i)); la
+corrida de `ratchet.py --actualizar` con su clave y el gate verde van con el
+cierre del paso. `excepts_amplios` 27, `imports_perezosos` 14 y
+`nodos_largos` 3 quedan en IGUAL y `tests_definidos` sube 1.

@@ -66,6 +66,7 @@ class Tool:
     correr: object
     efecto: str = "escritura"  # lectura | escritura: lo no declarado escribe (corre solo y en orden)
     agente: bool = False     # es un sub-agente: necesita saldo para correr su propio loop
+    hijas: tuple[str, ...] = ()  # P2 (c) X147: las tools del hijo; el padre debe tenerlas todas
 
 
 @dataclass
@@ -192,7 +193,14 @@ def loop(ctx, tools, max_retries=3, wait=5, politicas=(), cierre=None, paso=None
 
     S9b A′: `politicas` corren entre rondas (por `default`; `cierre` va al
     nodo de cierre), y `cierre`/`paso`/`actuar` reemplazan a los nodos del
-    kernel. Sin esos parámetros, grafo y conducta son los de siempre."""
+    kernel. Sin esos parámetros, grafo y conducta son los de siempre.
+
+    P2 (c) X147: al armarse se valida que todo sub-agente declare como máximo
+    las tools del árbol que lo contiene; si no, `ValueError` (falla cerrada)."""
+    disponibles = {t.nombre for t in tools}
+    for tool in tools:
+        if fuera := set(tool.hijas) - disponibles:
+            raise ValueError(f"{tool.nombre} tendría tools fuera del padre: {sorted(fuera)}")
     paso_n = paso if paso is not None else Paso(ctx, tools, max_retries=max_retries, wait=wait)
     actuar_n = actuar if actuar is not None else Actuar(ctx, tools)
     cerrar = cierre if cierre is not None else Cerrar()
@@ -270,4 +278,5 @@ def agente(nombre, descripcion, system, tools, parametro="pedido", recursivo=Fal
     propio = Tool(nombre, esquema, correr_agente, "lectura" if lectura else "escritura", agente=True)
     if recursivo:
         tools.append(propio)
+    propio.hijas = tuple(t.nombre for t in tools)
     return propio

@@ -109,7 +109,8 @@ def _correr_una_copia(llm, saldo, herramientas):
                    "Sos una copia anidada del mismo loop.", herramientas)
     shared = semilla("Sos la raíz y delegás en la copia.", "delegá: resolvé el pedido")
     with _sin_cuelgue():
-        loop(ctx, [copia], wait=0).run(shared)
+        # X147 (P2 c): la raíz declara también las tools que delega.
+        loop(ctx, [copia, *herramientas], wait=0).run(shared)
     return ctx, shared
 
 
@@ -477,3 +478,20 @@ def test_una_tool_que_lanza_es_texto_y_no_corta_el_chat_al_supervisor_ni_a_una_c
     ctx, shared_raiz = _correr_una_copia(
         llm_arbol, 4, [Tool("revienta", {"type": "function", "function": {"name": "revienta"}}, explota)])
     assert "ERROR: RuntimeError" in _resultado_tool(shared_raiz)
+
+
+def test_un_hijo_no_puede_tener_tools_que_el_padre_no_tiene():
+    """X147 (S0, P2 c): el poder del sub-agente es un SUBCONJUNTO del padre,
+    por construcción: al armar el árbol, un hijo que declara una tool que el
+    padre no ofrece falla cerrado (`ValueError`) antes de correr nada; el
+    árbol legal —el padre declara la tool y delega— se arma."""
+    import pytest
+
+    from utils.kernel import Ctx, Ledger, Tool, agente, loop
+
+    esquema = {"type": "function", "function": {"name": "ajena"}}
+    ajena = Tool("ajena", esquema, lambda llamada, ctx: "ok", "lectura")
+    hijo = agente("sub", "d", "s", [ajena])
+    with pytest.raises(ValueError, match="fuera del padre"):
+        loop(Ctx(None, Ledger(1)), [hijo])
+    loop(Ctx(None, Ledger(1)), [hijo, ajena])  # el padre la declara: se arma
