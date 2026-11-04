@@ -1630,3 +1630,34 @@ costo de pi no medible; el techo de US$0,30 del montaje solo mira flow; mini NO
 MONTA y la tanda corrió con n=2; fixes del instrumento antes de gastar
 (`4c33811` → `a05ac63` → `c4562b5`). Informe completo en
 `docs/informes/exp109_benchmark_externo_2026-11-04.md`.
+
+---
+
+## X152: el roadmap post-X150 — de medir a achicar (2026-11-04)
+
+**Qué cambió.** El roadmap post-X144 cerró (X145–X150 hechos, X151 no
+aplica) y pasó al historial de `docs/roadmap.md`, que dice "acá queda solo
+lo que falta". El vigente es el post-X150: X153–X158, cada paso con su
+principio y su gate, más los experimentos opcionales (mini como tercer brazo
+con pre-registro propio, exp106 con GLM) y la deuda abierta. La cola del
+handoff dejaba 5c-a, 5c-b y S3 escritos en dos lugares: ahora apunta al
+roadmap (N4).
+
+**El rumbo.** Lo que se midió y no se adopta queda escrito y no se persigue:
+la replicación simétrica (0/144), la asimétrica (X150) y research como agente
+(X141). Contra pi hubo empate (X149). Lo que sigue baja números del ratchet
+por borrado — `settings_leidos` 52, `helpers_duplicados` 10, `nodos_largos`
+3 — y cada paso deja `lineas_del_producto` igual o más bajo.
+
+**El dato de entrada de X153, medido al armar el paso.** El prefiltro de RAG
+(`modules/rag.py:_prefiltrar`) es **no-op con los defaults**:
+`RAG_PREFILTRO_N` cae a `k` y `buscar()` devuelve `top k`, así que la
+condición `len(fragments) <= maximo` se cumple siempre y Laya no se consulta.
+Probado con un `_puntuar` espía y `k` ∈ {1, 2, 4, 8, 20}: 0 consultas a Laya
+y salida intacta en los cinco; con `RAG_PREFILTRO_N=1` (y `k=3`) sí actúa. Los
+tests del prefiltro de RAG pasan porque fijan `RAG_PREFILTRO_N` a mano. No es
+un bug que dañe (el no-op es el default seguro), pero dos de los cinco
+settings de 5c-a vigilan un mecanismo que en producción no corre: X153 lo
+decide con ese dato. El script de la prueba se borró.
+
+Solo docs; sin cambio de código ni de conducta.

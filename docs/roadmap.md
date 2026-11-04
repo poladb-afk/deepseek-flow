@@ -2,7 +2,63 @@
 
 # Próximos pasos (roadmap)
 
-## Roadmap vigente (post-X144, 2026-11-04)
+## Roadmap vigente (post-X150, 2026-11-04)
+
+**Meta**: la de `docs/principios.md` y la misma regla de antes — cada paso
+nombra el principio que sirve y el gate que lo cierra. **El rumbo cambia de
+medir a achicar**: lo que se midió y no se adopta (replicación simétrica
+0/144, asimétrica exp/110, research como agente exp/108) queda escrito y no
+se persigue; contra pi hubo empate (X149), así que lo que distingue a un
+harness mínimo es su tamaño. **Cada paso deja `lineas_del_producto` igual o
+más bajo** (X142: "minimalista es un número que solo puede bajar").
+
+**Reglas del roadmap**: las del roadmap anterior, sin cambios — pre-registro
+y A/B para lo que cambia conducta (N1), nada por prompt (N3) ni por lista de
+palabras (N2), el ratchet verde sin la clave salvo que se diga antes (R6), y
+S0 no cede: las líneas de HITL y de política no son candidatas a recorte.
+
+### Orden
+
+| # | Paso | Principio | Cambia conducta | Depende de | Gate de salida |
+|---|---|---|---|---|---|
+| X152 | ✅ HECHO (2026-11-04). **El roadmap honesto**: el post-X144 cerrado pasa al historial ("acá queda solo lo que falta") y la cola del handoff deja de repetir 5c-a y S3 (filas 6 y 10, N4) | N4 | no | — | `test_handoff.py` y deriva verdes |
+| X153 | **5c-a: un solo mecanismo de prefiltro.** Memoria y RAG tienen cada uno su `_prefiltrar` (helper duplicado) y entre los dos 5 settings. **Dato de entrada (medido en X152):** el de RAG es **no-op con los defaults** — `RAG_PREFILTRO_N` cae a `k` y `buscar()` devuelve exactamente `k` fragmentos, así que Laya no se consulta nunca (0 de 5 valores de `k` probados); solo actúa si alguien fija `RAG_PREFILTRO_N < k`. El paso decide con ese dato: un mecanismo en `utils/contexto.py`, un setting, y el de RAG o se borra o se cablea con un tope explícito (la decisión es del operador) | P1, N4, EL7 | **depende**: si el de RAG se borra, no (era no-op); si se cablea, sí → A/B | — | `settings_leidos` 52 → ≤ 49, `helpers_duplicados` 10 → 8, tests del prefiltro de memoria intactos |
+| X154 | **El resto del inventario de settings** (`docs/elegancia.md`): `PROMPT_AUDITORIA` está en "borrar"; en "revisar" quedan `CHAT_STREAM_INTERRUPT`, `CITAS_VERIFICAR`, `PREFETCH`, `SKILLS` e `INFORME_CARPETA`; `HITL_SCOPE`/`HUMANO_RESPUESTA` piden nombre neutro (contrato, no se borran) | P1, EL7 | por setting: borrar uno que solo apaga algo no cambia conducta con el default; fijar un default sí | X153 | `settings_leidos` ≤ 45 |
+| X155 | **Los helpers duplicados que quedan**: `_approve` (coding/escritura), `_listar` (fs_tools/mcp_client), `_model` (vision/call_llm), `_texto` (carga_trazas/mcp_client) — unificar los que son el mismo helper y renombrar los que solo comparten nombre | N4, R5 | no | — | `helpers_duplicados` → 0 o con cada par restante justificado |
+| X156 | **Los tres nodos largos** (`juez.Judge` 72, `effective_n.WriteReport` 50, `effective_n.HashFile` 47) recompuestos en piezas chicas, con caracterización antes | P4, EL2, C6 | no (caracterización igual) | — | `nodos_largos` 3 → 0 |
+| X157 | **`Ctx` completo**: los seams `fs` y `politica` que P3 declara pendientes | P3 | no | — | `tests/test_kernel.py` y gate fractal verdes |
+| X158 | **Destrabar S3 con un dato**: una llamada a DeepSeek con `tool_choice="none"`. Si la acepta, S3 se pre-registra; si no, se cierra como imposible con este proveedor | P1, EL2 | no (la prueba) | — | el dato en la bitácora |
+
+### Experimentos opcionales (sin orden, decisión del operador)
+
+| Experimento | Condición |
+|---|---|
+| exp/109 con el tercer brazo (mini) | pre-registro propio: la MISMA tarea de montaje para los tres y terminación por un hecho del entorno (que exista `hola.txt`), no por una palabra; retocar la tarea para que mini ande sería N1 |
+| exp106 (GLM) | parqueado hasta reponer crédito |
+
+### Deuda abierta (sin orden, cada una con su gate)
+
+| Deuda | Principio | Estado | Gate |
+|---|---|---|---|
+| `vocabulario_hardcodeado` 3 (2 regex de skills + el `YES` del HITL) | N2 | piso honesto declarado (la 5b que lo bajaba se revirtió) | `vocabulario_hardcodeado` |
+| N1, EL3 y EL9 sin gate automático | N1, EL3, EL9 | declarados "sin gate" | review; un gate solo si se puede contar sin juzgar significado (N2) |
+| 5c-b (Laya 0.4) | P3 | **bloqueado**: que esté instalada | — |
+| **La Ley 1 en el chat con hijos**: el gasto de un hijo no se refleja en `turno` (detalle en el roadmap post-X144, abajo) | P2 (a), Método | sin orden: solo es condición si se retoma la asimetría | `test_el_arbol_no_pasa_de_2r_mas_1_llamadas_con_cualquier_abanico` extendido a un chat con hijos |
+
+### Lo que este roadmap no hace (y por qué)
+
+- **No retoma ninguna replicación**: la simétrica y la asimétrica están
+  medidas y no adoptadas (X127, X131, X150). La primitiva queda.
+- **No vuelve a compararse con pi sin un dato nuevo**: el empate está escrito
+  (X149).
+- **No achica la seguridad**: HITL, contención y política de comandos no son
+  líneas a recortar (S0).
+
+---
+
+## Historial de roadmaps anteriores
+
+## Roadmap post-X144 (cerrado el 2026-11-04 en X152)
 
 **Meta**: la visión de `docs/principios.md` — un CORE mínimo al que se le
 enchufan módulos (capacidades), un solo loop que se **replica** de forma
@@ -18,7 +74,7 @@ sirve a un principio no entra (P1, EL7).
   operador; si la necesita, se dice antes (R6).
 - S0 no cede: ningún paso relaja HITL, contención ni política de comandos.
 
-### Orden
+#### Orden
 
 | # | Paso | Principio | Cambia conducta | Depende de | Gate de salida |
 |---|---|---|---|---|---|
@@ -30,7 +86,7 @@ sirve a un principio no entra (P1, EL7).
 | X150 | ❌ HECHO (2026-11-04): **exp/110 corrido — NO PASA** los criterios pre-registrados (adopción 2 de 5 anchos; calidad A 1,50 · F 0,95 con margen 0,50; costo 1,013× ✅ y Ley 1 ✅). La consecuencia pre-registrada se aplicó: (b) queda **medida y no adoptada**, P2 re-expresado en `docs/principios.md` con el dato, el montaje y el runner se conservan como evidencia (decisión del operador; el pre-registro ataba retirarlos: desvío declarado) | P2 (b) | sí | X148 | veredicto en `docs/informes/exp110_asimetria_2026-11-04.md` y en la bitácora (X150); `docs/principios.md` P2 actualizado |
 | X151 | ❌ NO APLICA (2026-11-04): dependía de que X150 pasara y X150 **NO PASA**. Un contrato de módulo que aporta ramas no se construye sin la medición que lo justifique (N1) | P3, P2 (a)(c) | no | X150 | — |
 
-### Deuda abierta (sin orden, cada una con su gate)
+#### Deuda abierta (sin orden, cada una con su gate)
 
 | Deuda | Principio | Estado | Gate |
 |---|---|---|---|
@@ -44,7 +100,7 @@ sirve a un principio no entra (P1, EL7).
 | S3 (esquema de tools fijo, cierre por arista) | P1, EL2 | **bloqueado**: prueba de `tool_choice="none"` en DeepSeek | — |
 | **La Ley 1 en el chat**: el gasto de un hijo no se refleja en `turno`. El chat deriva su presupuesto del `turno` (X140) y `kernel.agente()` corre al hijo con el **mismo `Ledger` del árbol** (`utils/kernel.py:234-266`), pero ese `Ledger` no es el que corta el chat: el montaje de exp/110 cobra el gasto de los hijos al cerrar la ronda como **instrumento, no producto**, así que exp/110 no prueba que el producto cumpla la Ley 1 | P2 (a), Método | pendiente y **sin orden**: con X150 NO PASA ya no es condición de nada (los especialistas no se integran); queda como deuda de producto si alguna vez se retoma la asimetría | árbol de llamadas ≤ 2R + 1 en todas las corridas: `test_el_arbol_no_pasa_de_2r_mas_1_llamadas_con_cualquier_abanico` extendido a un chat con hijos |
 
-### Lo que este roadmap no hace (y por qué)
+#### Lo que este roadmap no hace (y por qué)
 
 - **No recompone research como agente**: exp/108 lo midió y perdió el panel
   (X141); el paso 8 queda cerrado para research.
@@ -52,10 +108,6 @@ sirve a un principio no entra (P1, EL7).
   La primitiva queda; lo que se mide ahora es la asimétrica (X148).
 - **No baja la seguridad para parecerse a Pi o mini**: sus permisos son
   opcionales o inexistentes; de ellos se toma el núcleo mínimo, no eso (S0).
-
----
-
-## Historial de roadmaps anteriores
 
 ## Refactor de elegancia (auditoría 2026-10-27) — fases 1–5
 
