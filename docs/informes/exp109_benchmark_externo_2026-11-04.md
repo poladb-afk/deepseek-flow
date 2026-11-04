@@ -7,8 +7,10 @@ resultado de la primera comparación hacia afuera. Pre-registro:
 instrumento del 2026-11-04). Instrumento: `banco/probes/exp109.py` +
 `banco/probes/exp109_pi_techo.ts`, corrido desde **`c4562b5`**. Filas crudas:
 `salidas/exp109/brazos.jsonl` (28 corridas, ignoradas por git); recomputo
-independiente: `salidas/exp109/recomputo.py` → `recomputo.md` (**no usa
-`--comparar`**) y **coincide** con el veredicto del instrumento.
+independiente: `banco/probes/exp109_recomputo.py` (versionado en `96a418c`) →
+`recomputo.md` (**no usa `--comparar`**) y **coincide** con el veredicto del
+instrumento. Su salida de evidencia queda en `salidas/exp109/recomputo.md`
+(ignorada por git).
 
 ## Qué se midió
 
@@ -116,7 +118,7 @@ python3 banco/probes/exp109.py --autotest   # 6/6, sin red
 python3 banco/probes/exp109.py --montaje
 python3 banco/probes/exp109.py --tanda
 python3 banco/probes/exp109.py --comparar salidas/exp109/brazos.jsonl
-python3 salidas/exp109/recomputo.py         # segunda opinión independiente
+python3 banco/probes/exp109_recomputo.py    # segunda opinión independiente (versionada)
 ```
 
 ## Las 28 filas

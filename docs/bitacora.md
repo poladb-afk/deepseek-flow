@@ -1607,8 +1607,9 @@ descarrilos flow 1 · pi 2; **0 deploys en s9** en los dos. Costo medido de flow
 **US$0,0726** + **US$0,0019** del montaje; pi **sin dato** (su CLI no expone
 costo; la estimación de 5 ¢/corrida es solo para el techo: acumulado mixto
 US$0,875 de US$2,00). El veredicto lo dan a la vez `--comparar` y el recomputo
-independiente `salidas/exp109/recomputo.py`, que no usa `--comparar`:
-**coinciden** en veredicto, criterios y números.
+independiente `banco/probes/exp109_recomputo.py` (versionado en `96a418c`), que
+no usa `--comparar`: **coinciden** en veredicto, criterios y números (su salida
+de evidencia queda en `salidas/exp109/recomputo.md`, ignorada por git).
 
 **La lectura**: con el mismo modelo y el mismo techo de cómputo, el harness
 propio y pi **empatan**; flow gana la familia ancha y pi la secuencial, los dos
