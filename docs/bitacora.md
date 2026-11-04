@@ -1783,3 +1783,39 @@ queda sin documentar. El ratchet ya no miraba esa carpeta.
 **Los números** (ratchet, sobre X153): `settings_leidos` **50 → 47**,
 `lineas_del_producto` **7661 → 7653**, `tests_definidos` **1177 IGUAL**, el
 resto IGUAL. Solo mejoras: el ratchet reescribió el baseline solo, sin clave.
+
+---
+
+## X155: los helpers duplicados, par por par (2026-11-04)
+
+**Qué había.** El ratchet contaba 4 pares de helpers privados con el mismo
+nombre en dos archivos (`helpers_duplicados` = 8). Se leyeron los ocho
+cuerpos antes de tocar nada; eran dos casos distintos.
+
+- **Copia exacta: `_model`** (`modules/vision.py` y `utils/call_llm.py`, los
+  dos `_setting("LLM_MODEL", DEFAULT_MODEL)`). `vision` ya importaba
+  `DEFAULT_MODEL` y `_setting` de `call_llm`: ahora importa `_model` y su
+  copia se borra (y la columna "Lo lee" de `LLM_MODEL` en el inventario de
+  `docs/elegancia.md` pasa a nombrar solo `utils/call_llm.py`, que es lo que
+  el escaneo encuentra ahora). Ningún test parcheaba `vision._model` (los de `test_llm.py`
+  parchean el de `call_llm`), así que no cambia nada.
+- **Mismo nombre, otra cosa: `_listar` y `_texto`** de `utils/mcp_client.py`.
+  El `_listar` de `fs_tools` lista directorios y el de MCP lista las
+  herramientas de un servidor (async); el `_texto` de `carga_trazas`
+  serializa para sqlite y el de MCP extrae el texto de un resultado. Se
+  renombran los de MCP a `_listar_herramientas` y `_texto_de_resultado`.
+  Ningún test los nombraba.
+- **Copia exacta que se queda: `_approve`** (`modules/coding.py` y
+  `modules/escritura.py`). Es el punto de parcheo de la HITL de cada módulo
+  con efecto: 27 parcheos en los tests de seguridad (`test_policy`,
+  `test_policy_bypass`, `test_hitl`, `test_riesgo`, `test_gate_fractal`) y
+  algunos aprueban la escritura y rechazan el comando en la misma prueba
+  (`test_hitl.py:281/287`). Unificarlo borraba esa distinción y pedía R2 sobre
+  tests de bypass (R7). Decisión del operador (2026-11-04): queda duplicado a
+  propósito, con la justificación en su docstring. Es lo que el gate del
+  paso ya preveía: "→ 0 o con cada par restante justificado".
+
+**Los números** (ratchet, sobre X154): `helpers_duplicados` **8 → 2** (el
+par `_approve`), `lineas_del_producto` **7653 → 7651**, el resto IGUAL. Solo
+mejoras: el ratchet reescribió el baseline solo, sin clave. Ningún test se
+tocó; sin cambio de conducta.

@@ -37,7 +37,11 @@ TOOLS = [
 
 
 def _approve(pedido):
-    """Punto de parcheo de los tests: la lógica vive en utils/aprobaciones."""
+    """Punto de parcheo de los tests: la lógica vive en utils/aprobaciones.
+
+    Duplicado a propósito (X155): cada módulo con efecto tiene su propio
+    punto de HITL, y los tests de seguridad aprueban uno y rechazan el otro
+    en la misma prueba. Unificarlo borraría esa distinción (R7)."""
     return pedir_aprobacion(pedido)
 
 

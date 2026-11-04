@@ -140,7 +140,7 @@ fase indicada; `borrar` = se va con su rama en esa fase.
 | `HITL_WEB_TIMEOUT` | contrato | — | seguridad y HITL: decisión del operador | `utils/hitl_web.py` |
 | `LLM_API_KEY` | contrato | — | credenciales y proveedor | `utils/call_llm.py` |
 | `LLM_BASE_URL` | contrato | — | credenciales y proveedor | `modules/vision.py`, `utils/call_llm.py` |
-| `LLM_MODEL` | contrato | — | credenciales y proveedor | `modules/vision.py`, `utils/call_llm.py` |
+| `LLM_MODEL` | contrato | — | credenciales y proveedor | `utils/call_llm.py` |
 | `MCP_EXPOSE` | contrato | — | superficies opcionales (web, MCP, A2A, búsqueda) | `mcp_server.py` |
 | `MCP_SERVERS` | contrato | — | superficies opcionales (web, MCP, A2A, búsqueda) | `utils/mcp_client.py` |
 | `MEMORIA` | contrato | — | privacidad: cada sink de datos tiene su apagador (README) | `modules/memoria.py` |

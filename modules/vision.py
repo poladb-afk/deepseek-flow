@@ -32,7 +32,7 @@ from pathlib import Path
 
 import requests
 
-from utils.call_llm import DEFAULT_BASE_URL, DEFAULT_MODEL, _setting, get_api_key
+from utils.call_llm import DEFAULT_BASE_URL, _model, _setting, get_api_key
 from utils.fs_tools import _resolve
 
 # Límites (se chequean ANTES de llamar; el error es texto, no un crash)
@@ -213,10 +213,6 @@ def ver_pdf(path, pregunta="¿Qué dice este PDF?"):
         return response.json()["choices"][0]["message"]["content"]
     except (KeyError, IndexError, ValueError) as e:
         return f"ERROR: respuesta inesperada de la API: {e}"
-
-
-def _model():
-    return _setting("LLM_MODEL", DEFAULT_MODEL)
 
 
 TOOLS = [

@@ -27,7 +27,7 @@ def servidores():
     return servs
 
 
-def _texto(result):
+def _texto_de_resultado(result):
     data = getattr(result, "data", None)
     if data is not None and not isinstance(data, list):
         return str(data)
@@ -35,7 +35,7 @@ def _texto(result):
     return "\n".join(partes) or str(result)
 
 
-async def _listar(comando):
+async def _listar_herramientas(comando):
     from fastmcp import Client
     from fastmcp.client.transports import StdioTransport
 
@@ -57,7 +57,7 @@ async def _llamar(comando, herramienta, argumentos):
 
     async with Client(StdioTransport(command=comando[0], args=comando[1:])) as cliente:
         resultado = await cliente.call_tool(herramienta, argumentos)
-        return _texto(resultado)
+        return _texto_de_resultado(resultado)
 
 
 def mcp_tools():
@@ -70,7 +70,7 @@ def mcp_tools():
     lineas = [f"{len(servs)} servidor(es) MCP configurados:"]
     for nombre, comando in servs.items():
         try:
-            herramientas = asyncio.run(_listar(comando))
+            herramientas = asyncio.run(_listar_herramientas(comando))
         except Exception as e:  # noqa: BLE001 (servidor MCP externo caido: error como texto)
             lineas.append(f"\n[{nombre}] ERROR ({type(e).__name__}): {e}")
             continue
