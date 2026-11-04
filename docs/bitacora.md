@@ -1807,8 +1807,10 @@ cuerpos antes de tocar nada; eran dos casos distintos.
   Ningún test los nombraba.
 - **Copia exacta que se queda: `_approve`** (`modules/coding.py` y
   `modules/escritura.py`). Es el punto de parcheo de la HITL de cada módulo
-  con efecto: 27 parcheos en los tests de seguridad (`test_policy`,
-  `test_policy_bypass`, `test_hitl`, `test_riesgo`, `test_gate_fractal`) y
+  con efecto: **24 parcheos** (`monkeypatch.setattr`) en 6 archivos de tests de
+  seguridad —`test_policy` 9, `test_hitl` 5, `test_policy_bypass` 4,
+  `tests/test_auditoria_2026_10_26.py` 3, `test_riesgo` 2,
+  `test_gate_fractal` 1— y
   algunos aprueban la escritura y rechazan el comando en la misma prueba
   (`test_hitl.py:281/287`). Unificarlo borraba esa distinción y pedía R2 sobre
   tests de bypass (R7). Decisión del operador (2026-11-04): queda duplicado a
