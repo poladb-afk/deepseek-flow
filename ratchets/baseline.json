@@ -72,9 +72,6 @@
           146,
           329
         ],
-        "modules/rag.py": [
-          72
-        ],
         "nodes.py": [
           68
         ],
@@ -119,7 +116,7 @@
           16
         ]
       },
-      "metrica": 27
+      "metrica": 26
     },
     "funciones_anidadas": {
       "detalle": {},
@@ -143,16 +140,12 @@
           "modules/vision.py",
           "utils/call_llm.py"
         ],
-        "_prefiltrar": [
-          "modules/memoria.py",
-          "modules/rag.py"
-        ],
         "_texto": [
           "carga_trazas.py",
           "utils/mcp_client.py"
         ]
       },
-      "metrica": 10
+      "metrica": 8
     },
     "imports_perezosos": {
       "detalle": {
@@ -209,7 +202,7 @@
         "modules/juez.py": 47,
         "modules/mcp.py": 28,
         "modules/memoria.py": 254,
-        "modules/rag.py": 83,
+        "modules/rag.py": 45,
         "modules/research.py": 22,
         "modules/supervisor.py": 29,
         "modules/vision.py": 170,
@@ -256,7 +249,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7699
+      "metrica": 7661
     },
     "nodos_largos": {
       "detalle": {
@@ -381,12 +374,6 @@
         "PROMPT_AUDITORIA": [
           "main.py"
         ],
-        "RAG_PREFILTRO": [
-          "modules/rag.py"
-        ],
-        "RAG_PREFILTRO_N": [
-          "modules/rag.py"
-        ],
         "READ_MAX_CHARS": [
           "utils/fs_tools.py"
         ],
@@ -433,7 +420,7 @@
           "utils/hitl_web.py"
         ]
       },
-      "metrica": 52
+      "metrica": 50
     },
     "tests_definidos": {
       "detalle": {
@@ -447,7 +434,7 @@
         "tests/test_citas.py": 7,
         "tests/test_comandos_reales.py": 5,
         "tests/test_compaccion.py": 25,
-        "tests/test_consolidacion.py": 38,
+        "tests/test_consolidacion.py": 37,
         "tests/test_contratos.py": 4,
         "tests/test_convergencia.py": 9,
         "tests/test_core_sin_modulos.py": 2,
@@ -487,7 +474,7 @@
         "tests/test_laya_cache_reintento.py": 5,
         "tests/test_llm.py": 13,
         "tests/test_mcp_laya.py": 11,
-        "tests/test_memoria.py": 25,
+        "tests/test_memoria.py": 22,
         "tests/test_minar_errores.py": 16,
         "tests/test_modulos.py": 18,
         "tests/test_novedad.py": 2,
@@ -521,7 +508,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1181
+      "metrica": 1177
     },
     "texto_de_prompt": {
       "detalle": {
