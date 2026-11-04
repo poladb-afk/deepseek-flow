@@ -1527,7 +1527,7 @@ daban al hijo tools que el padre no declaraba ahora **fallan por diseño**, que
 es la prueba de que el chequeo discrimina. Se adaptó el padre para que declare
 lo que delega, sin tocar aserciones: `_correr_una_copia`
 (`tests/test_gate_fractal.py:102`, usada por 4 tests), `test_fractal._arbol`
-(6 tests parametrizados) y `test_kernel.py:127`. Los recursivos
+(6 invocaciones: 4 casos parametrizados + 2 del test de fallas) y `test_kernel.py:127`. Los recursivos
 (`test_kernel.py:339`, `:381`) ya cumplían: el hijo se declara a sí mismo y el
 padre lo tiene.
 
