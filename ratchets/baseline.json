@@ -219,7 +219,7 @@
         "utils/kernel.py": 158,
         "utils/laya.py": 129,
         "utils/mcp_client.py": 70,
-        "utils/policy.py": 287,
+        "utils/policy.py": 294,
         "utils/prefetch.py": 49,
         "utils/proveedor.py": 73,
         "utils/riesgo.py": 31,
@@ -232,7 +232,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7593
+      "metrica": 7600
     },
     "nodos_largos": {
       "detalle": {},
@@ -451,7 +451,7 @@
         "tests/test_modulos.py": 18,
         "tests/test_novedad.py": 2,
         "tests/test_pendientes.py": 36,
-        "tests/test_policy.py": 69,
+        "tests/test_policy.py": 82,
         "tests/test_policy_bypass.py": 110,
         "tests/test_policy_datos.py": 15,
         "tests/test_prefetch.py": 11,
@@ -480,7 +480,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 22
       },
-      "metrica": 1247
+      "metrica": 1260
     },
     "texto_de_prompt": {
       "detalle": {
