@@ -2523,3 +2523,51 @@ reversibles) y el caso de scope: los tres comandos caen en `denylist` con
 **Los números.** `tests_definidos` 1247 → **1260**; `lineas_del_producto`
 7593 → **7600 (+7)**: la normalización nueva. Es de S0 (P1 cede), único
 empeoramiento, y lo aceptó el operador con su clave (baseline `a05a97b`).
+
+---
+
+## X168: el producto deja de importar al laboratorio (opción b de X167) (2026-11-05)
+
+**La decisión del operador.** Entre (a) mover `evals.py` y `triaje_trazas.py`
+al producto (`lineas_del_producto` +~440) y (b) que el producto deje de
+usarlos, el operador eligió **(b)**. Los dos son instrumentos de medición y
+siguen andando solos: `python3 main.py evals` y `python3 triaje_trazas.py`.
+
+**Lo que se fue.**
+- **La tool `evals` del chat** (`modules/evals.py`, 47 líneas). El chat queda
+  con 30 tools; el README y el candado de `test_smoke.py` se actualizaron.
+  `evals.TOOLS_CONOCIDAS` conserva `evals` porque las trazas viejas la traen.
+- **La rama `"tipo": "triaje"` del heartbeat** y su línea en
+  `heartbeat.example.jsonl`.
+
+**Una decisión de diseño, declarada.** Sacar la rama sin más dejaba que una
+`heartbeat.jsonl` local con `"tipo": "triaje"` cayera callada al supervisor,
+que cobraría llamadas con una tarea pensada para cero LLM. Ahora **una tarea
+con `tipo` es un error de esa tarea** (`tipo 'triaje' desconocido (X168)`), sin
+llamadas: el heartbeat sigue con la siguiente, como con cualquier tarea que
+falla. Es falla cerrada sobre la config del operador: no hay ningún tipo
+vigente.
+
+**Tests (R2 autorizada para los 4 que nombraban lo borrado).** Se borraron
+`test_evals_tool_del_chat`, `test_evals_tool_rechaza_carpeta_inexistente`,
+`test_evals_salida_fuera_de_raices_se_rechaza` (la contención de la tool, que
+ya no existe) y `test_heartbeat_triaje_no_pasa_por_el_supervisor`;
+`test_heartbeat_no_crea_nada_fuera_de_las_raices` pierde su caso `triaje` y
+sigue con el default. Lo que cubrían y sigue vivo, ahora por la CLI:
+`test_la_cli_de_evals_escribe_el_informe`,
+`test_la_cli_de_evals_sin_carpeta_de_trazas_sale_con_error` y
+`test_la_cli_del_triaje_escribe_el_informe`. Lo nuevo de conducta:
+`test_heartbeat_una_tarea_con_tipo_falla_sin_gastar_llamadas` (`triaje` y
+`otro`) y `test_el_ejemplo_del_heartbeat_no_trae_tareas_que_fallan`; los dos
+dan rojo contra el árbol de X167 y verde con el arreglo.
+
+**El inventario**, minimizado como en X166: se quitaron exactamente las líneas
+de lo borrado, sin regenerar.
+
+**Los números** (medidos sobre el tip de X169, que ya tenía el +7 de
+`policy.py`): `producto_conoce_lab` **2 → 0**, `lineas_del_producto`
+**7600 → 7551** (−49), `bytes_primer_request` **16604 → 16199** (el esquema de
+la tool ya no viaja en cada request), `excepts_amplios` 26 → 25,
+`tests_definidos` 1260 → 1261. Solo mejoras: el ratchet reescribió el baseline
+solo, sin clave.
+

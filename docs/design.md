@@ -798,8 +798,10 @@ deja informe + estado (`.heartbeat/estado.json`) + log de auditoría
 (la línea sugerida vive en el docstring); la pieza solo decide qué toca —
 sin tareas vencidas no gasta una llamada. `--ahora` fuerza (para probar),
 `--seco` lista. Leyes: cada tarea es un supervisor entero (MAX_PASOS=5,
-veto tras dos fallos) y MAX_TAREAS_POR_CORRIDA=10. Crea el directorio de
-salida (lección de la primera corrida: Sintetizar escribe directo).
+veto tras dos fallos) y MAX_TAREAS_POR_CORRIDA=10. La salida pasa por la
+contención antes de tocar el disco (X161) y `Sintetizar` la escribe con
+`escribir_salida`. Una tarea con `"tipo"` es un error de esa tarea: la rama
+`triaje` se fue en X168 (el triaje es laboratorio, `python3 triaje_trazas.py`).
 
 ### Visor del trace — los .runs abiertos
 `python3 main.py visor [trace.jsonl ...]` · [visor.py](../visor.py)

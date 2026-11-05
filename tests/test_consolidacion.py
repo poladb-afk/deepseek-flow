@@ -29,22 +29,7 @@ def test_prefiltro_memoria_sin_laya_no_recorta_ni_miente(tmp_path, monkeypatch):
     assert "prefiltro Laya" not in out
 
 
-
-# 2 evals
-def test_evals_salida_fuera_de_raices_se_rechaza(tmp_path, monkeypatch):
-    import evals as ev
-    import modules.evals as mod
-
-    dentro = tmp_path / "dentro"
-    (dentro / "runs").mkdir(parents=True)
-    fuera = tmp_path / "fuera"
-    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(dentro))
-    monkeypatch.setattr(ev, "informe_markdown", lambda *a, **k: "# x")
-    r = mod.evals(dir_runs=str(dentro / "runs"), salida=str(fuera))
-    assert r.startswith("ERROR: ruta fuera")
-    assert not fuera.exists()
-    ok = mod.evals(dir_runs=str(dentro / "runs"), salida=str(dentro / "out"))
-    assert ok.startswith("Informe de evals generado") and any((dentro / "out").glob("*.md"))
+# 2 evals: la tool del chat se borró en X168 (el pipeline sigue en `evals.py`)
 
 
 # 3/4 memoria

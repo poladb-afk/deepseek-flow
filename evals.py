@@ -119,7 +119,8 @@ TOOLS_CONOCIDAS = {
     "debate", "juez_lote", "ver_imagen", "ver_pdf", "agentes_remotos", "a2a_tarea",
     # tools del chat que ya emitían evento_tool y el set no tenía: el corpus real
     # las marcaba desconocidas (request_human_input, delegar_tarea, verificar_trabajo,
-    # evals). El candado de test_evals las exige todas.
+    # evals). El candado de test_evals las exige todas; `evals` dejó de ser tool
+    # del chat en X168 y queda acá porque las trazas viejas la traen.
     "delegar_tarea", "verificar_trabajo", "request_human_input", "evals",
     # alias históricos vistos en trazas viejas (una acción 'bash' error, nunca
     # llegó a ser tool CORE): se reconocen para no contarlos como desconocidos

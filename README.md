@@ -88,7 +88,7 @@ un comando los baja, verifica y deja listos:
 Sin ese paso el harness funciona igual: el prefiltro de memoria y el juicio
 MCP degradan a su camino sin Laya.
 
-## Capacidades (31 tools, al día de hoy)
+## Capacidades (30 tools, al día de hoy)
 
 | Origen | Herramientas |
 |---|---|
@@ -107,7 +107,6 @@ MCP degradan a su camino sin Laya.
 | supervisor | `run_supervisor` — v2: un paso = UNA llamada con tool-calling nativo (herramienta + args juntos); vetos, caché y presupuesto como guardas de código |
 | db | `sql` / `db_schema` — SELECT de solo lectura sobre SQLite |
 | effective_n | `run_effective_n` — deduplicación exacta por contenido (Effective N; 1 o varias carpetas, `BatchFlow`) |
-| evals | `evals` — el harness juzgándose a sí mismo: linter de trazas y costo por sesión (informe a disco) |
 | rag | `rag_search` / `rag_index` — búsqueda semántica local (fastembed) |
 | memoria | `memory_search` / `memory_save` — biblioteca consultable entre sesiones |
 | vision/PDF | `ver_imagen` / `ver_pdf` — mira imágenes (data-URL base64) y lee PDFs (rasterizados con `pdftoppm`, página → imagen); tipo por contenido, límites chequeados antes de llamar |

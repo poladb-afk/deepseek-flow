@@ -276,22 +276,45 @@ def test_triaje_escribir_md_pone_el_limite_honesto_arriba_y_el_ahorro():
     assert "larga.jsonl" in md and "duración" in md
 
 
-# Heartbeat: rama triaje determinista vs. default supervisor (exp/17)
+def test_la_cli_del_triaje_escribe_el_informe(tmp_path):
+    """X168: el heartbeat ya no corre el triaje; la CLI es su única entrada
+    (antes la cubría `test_heartbeat_triaje_no_pasa_por_el_supervisor`)."""
+    import triaje_trazas
 
-def test_heartbeat_triaje_no_pasa_por_el_supervisor(tmp_path):
-    """`correr` con tipo=triaje corre el triaje determinista (cero LLM) y
-    devuelve la ruta escrita, sin tocar el supervisor."""
-    from heartbeat import correr
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    (runs / "s.jsonl").write_text('{"nodo": "read_file", "accion": "ok", "seg": 200.0}\n', encoding="utf-8")
+    informe = triaje_trazas.main(["--carpeta", str(runs), "--salida", str(tmp_path / "out")])
+    assert Path(informe).parent == tmp_path / "out"
+    assert "Límite honesto" in Path(informe).read_text(encoding="utf-8")
 
-    resultado = correr({
-        "tipo": "triaje",
-        "tarea": "Triaje de trazas: qué vale la pena auditar hoy",
-        "salida": str(tmp_path / "triaje.md"),
-        "cada_horas": 24,
-    })
-    assert resultado["ok"] is True
-    assert Path(resultado["informe"]).is_file()
-    assert "Límite honesto" in Path(resultado["informe"]).read_text(encoding="utf-8")
+
+# Heartbeat: cada tarea es un supervisor; un `tipo` es un error de la tarea (X168)
+
+@pytest.mark.parametrize("tipo", ["triaje", "otro"])
+def test_heartbeat_una_tarea_con_tipo_falla_sin_gastar_llamadas(tmp_path, monkeypatch, tipo):
+    """X168: la rama `triaje` se fue (es laboratorio). Una config vieja con
+    `"tipo": "triaje"` no cae callada al supervisor, que cobraría llamadas
+    con una tarea pensada para cero LLM: es un error de esa tarea."""
+    import heartbeat
+
+    llamados = []
+    monkeypatch.setattr("supervisor.supervisar", lambda tarea, salida: llamados.append(salida))
+    resultado = heartbeat.correr({"tipo": tipo, "tarea": "t", "salida": str(tmp_path / "x.md")})
+    assert resultado["ok"] is False and tipo in resultado["error"]
+    assert llamados == [] and not (tmp_path / "x.md").exists()
+
+
+def test_el_ejemplo_del_heartbeat_no_trae_tareas_que_fallan():
+    """El ejemplo versionado es el default sin config local: una tarea que
+    `correr` rechaza fallaría cada noche."""
+    import json
+
+    import heartbeat
+
+    lineas = (heartbeat.RAIZ / "heartbeat.example.jsonl").read_text(encoding="utf-8").splitlines()
+    tareas = [json.loads(linea) for linea in lineas if linea.strip()]
+    assert tareas and all("tipo" not in t and {"tarea", "salida"} <= set(t) for t in tareas)
 
 
 def test_heartbeat_default_sin_tipo_llama_al_supervisor(tmp_path, monkeypatch):
@@ -314,12 +337,10 @@ def test_heartbeat_default_sin_tipo_llama_al_supervisor(tmp_path, monkeypatch):
     assert resultado["informe"] == llamado["salida"]
 
 
-@pytest.mark.parametrize("tipo", [None, "triaje"])
-def test_heartbeat_no_crea_nada_fuera_de_las_raices(tmp_path, monkeypatch, tipo):
+def test_heartbeat_no_crea_nada_fuera_de_las_raices(tmp_path, monkeypatch):
     """X161 (C01): `correr` hacía `mkdir` del destino ANTES de cualquier chequeo
-    y la rama triaje escribía donde dijera la tarea. Una salida fuera de las
-    raíces ahora es un error de esa tarea: no se crea ningún directorio, no se
-    llama al supervisor ni al triaje."""
+    Una salida fuera de las raíces es un error de esa tarea: no se crea ningún
+    directorio ni se llama al supervisor (la rama triaje se fue en X168)."""
     import heartbeat
 
     raiz = tmp_path / "raiz"
@@ -327,10 +348,8 @@ def test_heartbeat_no_crea_nada_fuera_de_las_raices(tmp_path, monkeypatch, tipo)
     monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(raiz))
     llamados = []
     monkeypatch.setattr("supervisor.supervisar", lambda tarea, salida: llamados.append(salida))
-    monkeypatch.setattr("triaje_trazas.main", lambda argv: llamados.append(argv))
     for salida in (str(tmp_path / "fuera" / "x.md"), f"../{tmp_path.name}_escape/x.md"):
-        tarea = {"tarea": "t", "salida": salida, **({"tipo": tipo} if tipo else {})}
-        resultado = heartbeat.correr(tarea)
+        resultado = heartbeat.correr({"tarea": "t", "salida": salida})
         assert resultado["ok"] is False and "fuera" in resultado["error"], salida
     assert llamados == []
     assert not (tmp_path / "fuera").exists()

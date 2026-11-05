@@ -1,32 +1,30 @@
 """Evals: linter de trazas y costos (PR 4; el bench del router se fue en X106)."""
 from conftest import RAIZ
 
+# La CLI es la única entrada desde X168 (la tool del chat se borró): lo que
+# cubría `test_evals_tool_del_chat` de punta a punta lo cubre esto.
 
-def test_evals_tool_del_chat(tmp_path, monkeypatch):
-    """La tool evals del chat corre el pipeline y devuelve la ruta del informe."""
-    import modules.evals as me
+def test_la_cli_de_evals_escribe_el_informe(tmp_path, capsys):
+    import evals
 
-    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
     runs = tmp_path / "runs"
     runs.mkdir()
-    # una traza mínima válida: par (nodo, accion) canónico, sin violaciones
     (runs / "sesion.jsonl").write_text(
         '{"nodo": "GetQuestion", "accion": "exit", "seg": 1.0}\n', encoding="utf-8")
-    monkeypatch.setattr(me, "DIR_RUNS", runs)
-    salida = tmp_path / "evals_out"
-    r = me.evals(dir_runs=str(runs), salida=str(salida))
-    assert "Informe de evals generado" in r
-    informes = list(salida.glob("evals_*.md"))
-    assert informes, "no se escribió el informe de evals"
-    assert "evals" in {t["function"]["name"] for t in me.TOOLS}
+    evals.main(["--dir", str(runs), "--salida", str(tmp_path / "out")])
+    informes = list((tmp_path / "out").glob("evals_*.md"))
+    assert len(informes) == 1 and "informe de evals" in capsys.readouterr().out
 
-def test_evals_tool_rechaza_carpeta_inexistente(tmp_path, monkeypatch):
-    """Una carpeta de trazas que no existe devuelve ERROR, no excepción."""
-    import modules.evals as me
 
-    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
-    r = me.evals(dir_runs=str(tmp_path / "no_existe"))
-    assert r.startswith("ERROR:")
+def test_la_cli_de_evals_sin_carpeta_de_trazas_sale_con_error(tmp_path):
+    import pytest
+
+    import evals
+
+    with pytest.raises(SystemExit, match="no existe la carpeta"):
+        evals.main(["--dir", str(tmp_path / "no_existe"), "--salida", str(tmp_path / "out")])
+    assert not (tmp_path / "out").exists()
+
 
 # Evals (mesa 1, replay-evals): linter de trazas y costos
 

@@ -13,7 +13,6 @@
         "modules/delegar.py:TOOLS": 1223,
         "modules/effective_n.py:TOOLS": 690,
         "modules/escritura.py:TOOLS": 497,
-        "modules/evals.py:TOOLS": 405,
         "modules/fable.py:TOOLS": 1031,
         "modules/humano.py:TOOLS": 272,
         "modules/informe.py:TOOLS": 479,
@@ -27,7 +26,7 @@
         "modules/websearch.py:TOOLS": 413,
         "utils/fs_tools.py:TOOLS": 1270
       },
-      "metrica": 16604
+      "metrica": 16199
     },
     "codigo_muerto_privado": {
       "detalle": [],
@@ -54,7 +53,7 @@
           104
         ],
         "heartbeat.py": [
-          83
+          82
         ],
         "juez.py": [
           507
@@ -64,9 +63,6 @@
         ],
         "modules/db.py": [
           131
-        ],
-        "modules/evals.py": [
-          34
         ],
         "modules/memoria.py": [
           142,
@@ -116,7 +112,7 @@
           16
         ]
       },
-      "metrica": 26
+      "metrica": 25
     },
     "funciones_anidadas": {
       "detalle": {},
@@ -168,7 +164,7 @@
         "effective_n.py": 266,
         "fable_judge.py": 600,
         "flow.py": 20,
-        "heartbeat.py": 77,
+        "heartbeat.py": 75,
         "informe.py": 148,
         "juez.py": 302,
         "juez_lote.py": 132,
@@ -183,7 +179,6 @@
         "modules/delegar.py": 98,
         "modules/effective_n.py": 58,
         "modules/escritura.py": 67,
-        "modules/evals.py": 47,
         "modules/fable.py": 30,
         "modules/humano.py": 36,
         "modules/informe.py": 38,
@@ -232,18 +227,15 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7600
+      "metrica": 7551
     },
     "nodos_largos": {
       "detalle": {},
       "metrica": 0
     },
     "producto_conoce_lab": {
-      "detalle": {
-        "heartbeat.py:<módulo>": 1,
-        "modules/evals.py:<módulo>": 1
-      },
-      "metrica": 2
+      "detalle": {},
+      "metrica": 0
     },
     "settings_leidos": {
       "detalle": {
@@ -406,7 +398,7 @@
         "tests/test_citas.py": 7,
         "tests/test_comandos_reales.py": 5,
         "tests/test_compaccion.py": 25,
-        "tests/test_consolidacion.py": 37,
+        "tests/test_consolidacion.py": 36,
         "tests/test_contratos.py": 4,
         "tests/test_convergencia.py": 9,
         "tests/test_core_sin_modulos.py": 2,
@@ -447,7 +439,7 @@
         "tests/test_llm.py": 13,
         "tests/test_mcp_laya.py": 11,
         "tests/test_memoria.py": 21,
-        "tests/test_minar_errores.py": 18,
+        "tests/test_minar_errores.py": 20,
         "tests/test_modulos.py": 18,
         "tests/test_novedad.py": 2,
         "tests/test_pendientes.py": 36,
@@ -480,7 +472,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 22
       },
-      "metrica": 1260
+      "metrica": 1261
     },
     "texto_de_prompt": {
       "detalle": {

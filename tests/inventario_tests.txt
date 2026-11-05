@@ -137,7 +137,6 @@ tests/test_compaccion.py::test_zona_fria_sin_user_no_se_respalda
 tests/test_consolidacion.py::test_denylist_no_preserve_root_en_cualquier_orden[rm -rf --no-preserve-root /]
 tests/test_consolidacion.py::test_denylist_no_preserve_root_en_cualquier_orden[rm -rf / --no-preserve-root]
 tests/test_consolidacion.py::test_discover_saltea_modulo_roto
-tests/test_consolidacion.py::test_evals_salida_fuera_de_raices_se_rechaza
 tests/test_consolidacion.py::test_mcp_server_envuelve_por_run_tool_call
 tests/test_consolidacion.py::test_memory_save_no_pisa_symlink
 tests/test_consolidacion.py::test_memory_search_no_sigue_symlinks
@@ -261,8 +260,6 @@ tests/test_evals.py::test_evals_linter_detecta_agentstep_sin_executetools
 tests/test_evals.py::test_evals_linter_detecta_executetools_largo_sin_tools
 tests/test_evals.py::test_evals_linter_runs_reporta_por_invariante
 tests/test_evals.py::test_evals_linter_traza_limpia_sin_falsos_positivos
-tests/test_evals.py::test_evals_tool_del_chat
-tests/test_evals.py::test_evals_tool_rechaza_carpeta_inexistente
 tests/test_fable.py::test_brazo_c_es_la_skill_revision
 tests/test_fable.py::test_brazo_d_es_checklist_de_auditoria
 tests/test_fable.py::test_copiar_fixture_nunca_lleva_el_ground_truth
@@ -545,7 +542,6 @@ tests/test_minar_errores.py::test_es_rechazo_probable_es_solo_run_command_ok_ins
 tests/test_minar_errores.py::test_es_timeout_solo_castiga_errores_largos
 tests/test_minar_errores.py::test_escribir_md_preceda_con_el_limite_honesto_y_la_tasa
 tests/test_minar_errores.py::test_heartbeat_default_sin_tipo_llama_al_supervisor
-tests/test_minar_errores.py::test_heartbeat_triaje_no_pasa_por_el_supervisor
 tests/test_minar_errores.py::test_minar_runs_saltea_trazas_ilegibles_sin_romper
 tests/test_minar_errores.py::test_minar_sesion_cuenta_autocorreccion_y_abandono_por_separado
 tests/test_minar_errores.py::test_minar_sesion_sin_errores_no_inventa_tools

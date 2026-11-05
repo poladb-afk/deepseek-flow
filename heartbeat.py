@@ -18,9 +18,10 @@ sin rutas de una máquina puntual). Formato (una línea por tarea):
 
     {"tarea": "auditá las trazas nuevas de ~/datos", "salida": "heartbeat/auditoria.md", "cada_horas": 24}
 
-Las tareas aceptan `"tipo"`: default = supervisor reactivo (LLM);
-`"tipo": "triaje"` = determinista, cero llamadas LLM (el triaje de trazas
-escribe `triaje_trazas_<fecha>.md` al lado de la salida declarada).
+Cada tarea es un supervisor reactivo (LLM). Una tarea con `"tipo"` es un
+error de esa tarea, sin gastar llamadas: el único tipo, `triaje`, se fue en
+X168 (el triaje de trazas es laboratorio: `python3 triaje_trazas.py`), y una
+config vieja no puede caer callada al supervisor.
 
 Leyes: cada corrida es un supervisor entero (MAX_PASOS=5, veto tras dos
 fallos); `--ahora` fuerza todas (para probar); `--seco` solo lista qué
@@ -32,7 +33,6 @@ import time
 from pathlib import Path
 
 import supervisor
-import triaje_trazas
 from utils.fs_tools import _resolve, escribir_atomico
 from utils.tracing import activar
 
@@ -69,15 +69,14 @@ def vencidas(tareas, estado, ahora=None):
 def correr(tarea):
     inicio = time.time()
     # X161 (C01): la salida pasa por la contención ANTES de tocar el disco
-    # (antes un `mkdir` del destino corría primero y el triaje escribía donde
-    # dijera la tarea). Fuera de las raíces es un error de ESA tarea.
+    # (antes un `mkdir` del destino corría primero). Fuera de las raíces es un
+    # error de ESA tarea.
     destino, err = _resolve(str(RAIZ / tarea["salida"]))
     if err:
         return {"ok": False, "error": err, "seg": 0.0}
+    if "tipo" in tarea:
+        return {"ok": False, "error": f"tipo {tarea['tipo']!r} desconocido (X168)", "seg": 0.0}
     try:
-        if tarea.get("tipo") == "triaje":
-            informe = triaje_trazas.main(["--salida", str(destino.parent)])
-            return {"ok": True, "informe": str(informe), "seg": round(time.time() - inicio, 1)}
         informe = supervisor.supervisar(tarea["tarea"], str(destino))
         return {"ok": True, "informe": informe, "seg": round(time.time() - inicio, 1)}
     except Exception as e:  # noqa: BLE001  (la corrida nocturna no muere por una tarea)
