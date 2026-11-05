@@ -2624,7 +2624,7 @@ detrás de un global. La foto sintética suma **4 filas** (`git --exec-path` y
 
 **Los números.** `tests_definidos` 1261 → **1277**; `lineas_del_producto`
 7551 → **7581 (+30)**: el parser y los datos nuevos. Es el único
-empeoramiento y lo acepta el operador con su clave.
+empeoramiento y lo aceptó el operador con su clave (baseline `a0f03e6`).
 
 **La deuda que queda a la vista.** La misma falla existe en las otras bases:
 con el prefijo autorizado, `find . -delete`, `pytest -p evil`,
