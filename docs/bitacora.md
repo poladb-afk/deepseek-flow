@@ -1966,3 +1966,30 @@ calls (S3 no se puede apoyar en él) o acepta sin tool calls (S3 se
 pre-registra). Probado sin red con un cliente falso: las tres salidas del
 veredicto se dan como corresponde. **Falta que el operador lo corra con su
 clave**; el resultado se anota acá y cierra X158.
+
+**La corrida (operador, 2026-11-05).** Salida real:
+
+```
+base:          acepta=true, tool_calls=1, prompt=673
+none:          acepta=true, tool_calls=0, prompt=40
+none_repetida: acepta=true, tool_calls=0, prompt=40, cache_hit=0
+```
+
+**Veredicto**: `tool_choice="none"` **lo acepta y no devuelve tool calls** → S3
+se puede pre-registrar. Costo: centésimas de centavo.
+
+**La salvedad que cambia la premisa (el dato que importa).** El prompt cae de
+**673 a 40** tokens con `tool_choice="none"`, y esos 40 son exactamente el
+tamaño de las 3 tools de `utils.fs_tools`: el proveedor **no cuenta las tools
+en el prompt** cuando el parámetro está en `none` (probablemente las ignora del
+lado del servidor). La premisa de S3 ("mismas tools, prefijo fijo") **no queda
+probada**: el prefijo cambia. S3 se puede pre-registrar **con esta salvedad
+escrita**; antes de apoyarse en el prefijo fijo conviene una cuarta medición con
+prompt realista (4 llamadas, centavos) que mida si el caché se comparte. Y el
+`cache_hit=0` de la repetida no dice nada: con 40 tokens el prefijo está por
+debajo del mínimo cacheable.
+
+**Bug del instrumento, corregido.** El comando del docstring fallaba tal cual
+(`ModuleNotFoundError: utils`) porque la sonda no agregaba la raíz del repo a
+`sys.path`; se corrió con `PYTHONPATH=.` y después se le sumó el
+`sys.path.insert` que ya tienen las otras sondas.
