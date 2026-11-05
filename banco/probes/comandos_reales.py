@@ -143,7 +143,7 @@ def casos_por_entrada():
         casos |= {f"{envoltorio} rm -rf x", f"{envoltorio} ls"}
         for opcion in policy._OPCIONES_CON_VALOR.get(envoltorio, ()):
             casos |= {f"{envoltorio} {opcion} v rm -rf x", f"{envoltorio} {opcion} v ls"}
-    for opcion in sorted(policy._GIT_GLOBAL_CON_VALOR):
+    for opcion in sorted(policy._GIT_GLOBAL_CON_VALOR | policy._GIT_GLOBAL_REDEFINEN):
         casos |= {f"git {opcion} v push", f"git {opcion} v status"}
     return [{"comando": c, "nivel": policy.clasificar(c), "explicacion": policy.explicar(c)}
             for c in sorted(casos)]

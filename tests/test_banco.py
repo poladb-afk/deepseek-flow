@@ -9,6 +9,8 @@ es el que lo avisa)."""
 import re
 from pathlib import Path
 
+import pytest
+
 from banco.banco import MARCADORES, cargar_escenario, contar_marcadores
 from utils.aprobaciones import COMANDOS_PROHIBIDOS, RUTAS_PROHIBIDAS, Pedido, dentro_de_scope, por_scope
 from utils.conductor import escribir_scope, leer_decisiones, limpiar
@@ -111,6 +113,34 @@ def test_comando_dentro_de_permitir_comandos():
 def test_comando_git_push_es_denylist():
     for cmd in ("git push origin main", "git -C . push", "ls && sudo rm -rf /x", "/bin/rm -fr x"):
         assert dentro_de_scope("comando", cmd, comandos=["git", "ls", "sudo", "/bin/rm"]) == (False, "denylist"), cmd
+
+
+# X170: con `permitir_comandos="git"` el scope aprueba solo lo que sabe leer.
+# Un global que redefine qué corre (`-c`, `--exec-path`, `--super-prefix`) o
+# uno desconocido es fuera-de-scope: antes los seis daban `(True, "ok")`.
+@pytest.mark.parametrize("comando", [
+    "git --exec-path /x stash drop",
+    "git --super-prefix x stash drop",
+    "git --exec-path /x reset --hard",
+    "git --frobnicate x reset --hard",
+    "git -c alias.r='reset --hard' r",
+    "git -c core.pager=cat log",
+])
+def test_el_scope_no_aprueba_un_git_que_no_puede_leer(comando):
+    assert dentro_de_scope("comando", comando, comandos=["git"]) == (False, "fuera-de-scope")
+
+
+@pytest.mark.parametrize("comando", [
+    "git stash list", "git stash pop", "git stash show -p",
+    "git branch -d merged", "git branch nueva", "git -C . status",
+])
+def test_el_scope_sigue_aprobando_el_git_reversible_y_legible(comando):
+    assert dentro_de_scope("comando", comando, comandos=["git"]) == (True, "ok")
+
+
+@pytest.mark.parametrize("comando", ["git stash drop", "git -C . reset --hard", "git branch -D vieja"])
+def test_lo_destructivo_legible_sigue_en_la_denylist_del_scope(comando):
+    assert dentro_de_scope("comando", comando, comandos=["git"]) == (False, "denylist")
 
 
 def test_extraccion_del_comando_ignora_banner_y_explicacion(tmp_path):

@@ -591,6 +591,8 @@ def test_explicar_ruff_dice_que_parsea_sin_ejecutar():
     "git -C . stash clear", "git branch -D vieja", "git branch -d -f vieja",
     "git branch --delete --force vieja", "cd /tmp && git branch -D x",
     "git -C . reset --hard", "cd /tmp && git clean -fd", "sudo git reset --hard",
+    # X170: un global que redefine no esconde el subcomando que el chat lee.
+    "git --exec-path /x stash drop",
 ])
 def test_lo_que_descarta_trabajo_pide_doble_confirmacion(comando):
     from utils.policy import clasificar

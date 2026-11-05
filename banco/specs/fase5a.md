@@ -31,7 +31,7 @@ laboratorio):
 | el resto de `_EXPLICACIONES` (mv, cp, mkdir, touch) | `prefijos[]` sin `nivel` (default preguntar), solo `explicacion` |
 | `_FLAGS_PELIGROSOS` | `flags_peligrosos{base: [flags]}` |
 | `_BASES_MODULO` | `bases_modulo[]` |
-| `_ENVOLTORIOS`, `_OPCIONES_CON_VALOR`, `_GIT_GLOBAL_CON_VALOR` | `envoltorios{nombre: [opciones con valor]}`, `git_globales_con_valor[]` |
+| `_ENVOLTORIOS`, `_OPCIONES_CON_VALOR`, `_GIT_GLOBAL_CON_VALOR` | `envoltorios{nombre: [opciones con valor]}`, `git_globales_con_valor[]` (solo cambian repo/directorio) y `git_globales_redefinen[]` (X170: redefinen qué corre y hacen ilegible el comando para un scope) |
 
 **Se queda en código** (es sintaxis del shell, el mecanismo, no vocabulario):
 `_PELIGRO_SHELL`, `_EXPANSION`, `_COMILLAS`, `_SEPARADORES`,

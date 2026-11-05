@@ -99,10 +99,14 @@
 {"comando": "find -qH x", "nivel": "auto", "explicacion": "busca archivos (solo lee)"}
 {"comando": "find -qL x", "nivel": "auto", "explicacion": "busca archivos (solo lee)"}
 {"comando": "find x", "nivel": "auto", "explicacion": "busca archivos (solo lee)"}
+{"comando": "git --exec-path v push", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
+{"comando": "git --exec-path v status", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "git --git-dir v push", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
 {"comando": "git --git-dir v status", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "git --namespace v push", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
 {"comando": "git --namespace v status", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "git --super-prefix v push", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
+{"comando": "git --super-prefix v status", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "git --work-tree v push", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
 {"comando": "git --work-tree v status", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "git -C v push", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}

@@ -2571,3 +2571,66 @@ la tool ya no viaja en cada request), `excepts_amplios` 26 → 25,
 `tests_definidos` 1260 → 1261. Solo mejoras: el ratchet reescribió el baseline
 solo, sin clave.
 
+---
+
+## X170: el scope no aprueba un `git` que no sabe leer (S0, hallazgo de la auditoría de X169) (2026-11-05)
+
+**El hallazgo.** El dictamen de X169 dejó abierto que `git --exec-path /x stash
+drop` y `git --super-prefix x stash drop` —la forma con el valor separado— no
+se normalizaban. Al reproducirlo, la falla era más ancha: con
+`permitir_comandos="git"`, `dentro_de_scope` aprobaba **cualquier** comando que
+empezara con `git` que no fuera irreversible ni opaco. Medido sobre `ce4f963`,
+los seis daban `(True, "ok")` y el chat los clasificaba `preguntar`:
+
+| comando | scope antes | chat después |
+|---|---|---|
+| `git --exec-path /x stash drop` | `(True, "ok")` | `confirmar_doble` |
+| `git --super-prefix x stash drop` | `(True, "ok")` | `confirmar_doble` |
+| `git --exec-path /x reset --hard` | `(True, "ok")` | `confirmar_doble` |
+| `git --frobnicate x reset --hard` | `(True, "ok")` | `preguntar` |
+| `git -c alias.r='reset --hard' r` | `(True, "ok")` | `preguntar` |
+| `git -c core.pager=cat log` | `(True, "ok")` | `preguntar` |
+
+**La causa.** `_normalizar_git` salteaba un token por cada global que no
+conocía: `--exec-path /x` dejaba `/x` como "subcomando" y el `stash drop` real
+no se veía; y `-c` estaba declarado como global con valor, así que
+`git -c alias.r='reset --hard' r` leía `r` y no la redefinición. La lista de
+datos mezclaba dos cosas: globales que solo cambian repo/directorio y globales
+que **redefinen qué corre**.
+
+**El arreglo.** Los datos pasan a dos listas: `git_globales_con_valor`
+(`--git-dir`, `--namespace`, `--work-tree`, `-C`) y `git_globales_redefinen`
+(`-c`, `--exec-path`, `--super-prefix`). El parser `_globales_git` devuelve el
+índice del subcomando y si el comando es **ilegible**: un global que redefine
+o uno no declarado (que puede comerse el subcomando, como
+`--frobnicate x reset --hard`). `ilegible()` es la puerta nueva del scope:
+`dentro_de_scope` responde `fuera-de-scope` antes de la denylist, porque no es
+un acto conocido: es un comando que no se entiende.
+
+**Lo que cambia y lo que no.** El chat no relaja: sigue leyendo el subcomando
+detrás del global, así que `git --exec-path /x stash drop` pasa de `preguntar`
+a `confirmar_doble` y `git -c user.name=x push` sigue en doble. Lo reversible
+legible sigue `ok` en el scope (`stash list/pop/show`, `branch -d`,
+`branch nueva`, `-C . status`) y lo destructivo legible sigue en `denylist`.
+Límite declarado: un global inocente no declarado (`--no-pager`, `--version`)
+también es ilegible para un scope; declararlo es un caso de datos, no de
+código.
+
+**Los candados.** +16 casos: 6 formas que antes daban `ok` y ahora dan
+`fuera-de-scope`, 6 reversibles y legibles que siguen `ok`, 3 destructivos
+legibles que siguen en `denylist` y uno que fija el `confirmar_doble` del chat
+detrás de un global. La foto sintética suma **4 filas** (`git --exec-path` y
+`git --super-prefix` × `v push`/`v status`), 0 cambiadas.
+
+**Los números.** `tests_definidos` 1261 → **1277**; `lineas_del_producto`
+7551 → **7581 (+30)**: el parser y los datos nuevos. Es el único
+empeoramiento y lo acepta el operador con su clave.
+
+**La deuda que queda a la vista.** La misma falla existe en las otras bases:
+con el prefijo autorizado, `find . -delete`, `pytest -p evil`,
+`bash -c 'rm -rf ~'`, `sort --compress-program=./payload.sh x`,
+`ruff check --fix .` y `tail -f log.txt` dan `(True, "ok")` (medido sobre el
+árbol de X170) y en el chat clasifican `preguntar`. Va como fila de deuda S0
+aparte: el arreglo de fondo es que el scope no mire solo el prefijo, y no se
+mezcla con este paso.
+

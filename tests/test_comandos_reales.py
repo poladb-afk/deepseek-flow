@@ -53,4 +53,4 @@ def test_hay_un_caso_por_cada_entrada_de_la_politica():
                    for o in opciones | con_valor)
     for envoltorio, opciones in policy._OPCIONES_CON_VALOR.items():
         assert all(f"{envoltorio} {o} v rm -rf x" in comandos for o in opciones)
-    assert all(f"git {o} v push" in comandos for o in policy._GIT_GLOBAL_CON_VALOR)
+    assert all(f"git {o} v push" in comandos for o in policy._GIT_GLOBAL_CON_VALOR | policy._GIT_GLOBAL_REDEFINEN)

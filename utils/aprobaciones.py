@@ -21,7 +21,7 @@ from typing import NamedTuple
 
 from utils import tracing
 from utils.call_llm import _setting
-from utils.policy import IRREVERSIBLES, PREGUNTAR, irreversible, opaco, segmentos
+from utils.policy import IRREVERSIBLES, PREGUNTAR, ilegible, irreversible, opaco, segmentos
 
 _MAX = 200  # tope del buffer circular: una sesión larga no crece sin techo
 _eventos = []  # lista de dicts: {tipo, resumen, nivel, decision}
@@ -138,6 +138,10 @@ def dentro_de_scope(tipo, objetivo, rutas=None, comandos=None):
         return True, "ok"
     if tipo != "comando":
         return False, "tipo-desconocido"
+    # X170: un `git -c`/`--exec-path`/global desconocido no se puede leer, así
+    # que un scope sin humano no lo aprueba (el humano sí puede, en el chat).
+    if ilegible(objetivo):
+        return False, "fuera-de-scope"
     if irreversible(objetivo):
         return False, "denylist"
     if comandos is None:

@@ -66,7 +66,8 @@ CONFIRMAR_DOBLE = "confirmar_doble"
 _ARCHIVO = Path(__file__).with_name("politica_comandos.json")
 _NIVELES = (AUTO, PREGUNTAR, CONFIRMAR_DOBLE)
 _CLAVES = {"prefijos": list, "flags_peligrosos": dict, "opciones_permitidas": dict,
-           "bases_modulo": list, "envoltorios": dict, "git_globales_con_valor": list}
+           "bases_modulo": list, "envoltorios": dict, "git_globales_con_valor": list,
+           "git_globales_redefinen": list}
 
 
 def _exigir(condicion, motivo):
@@ -115,7 +116,8 @@ def _validar_politica(datos):
     for nombre, opciones in datos["envoltorios"].items():
         _exigir(_es_token(nombre) and isinstance(opciones, list) and all(map(_es_token, opciones)),
                 f"envoltorio {nombre}")
-    _exigir(all(map(_es_token, datos["git_globales_con_valor"])), "git_globales_con_valor")
+    for clave in ("git_globales_con_valor", "git_globales_redefinen"):
+        _exigir(all(map(_es_token, datos[clave])), clave)
 
 
 def _leer_politica(ruta=_ARCHIVO):
@@ -332,6 +334,13 @@ _ENVOLTORIOS = set(_POLITICA["envoltorios"])
 _OPCIONES_CON_VALOR = {e: tuple(o) for e, o in _POLITICA["envoltorios"].items() if o}
 # Opciones globales de git que toman un valor: `git -C . push` sigue siendo push.
 _GIT_GLOBAL_CON_VALOR = set(_POLITICA["git_globales_con_valor"])
+# Globales que REDEFINEN qué corre: `-c` (config/alias), `--exec-path` (el
+# ejecutable) y `--super-prefix` (las rutas de los comandos). Con uno de esos
+# el comando visible no es el que se ejecuta: el chat cobra el subcomando que
+# pueda leer, pero un scope no lo aprueba (X170).
+_GIT_GLOBAL_REDEFINEN = set(_POLITICA["git_globales_redefinen"])
+# Del nombre más largo al más corto: `-C` y `-c` comparten prefijo posible.
+_GIT_GLOBALES = tuple(sorted(_GIT_GLOBAL_CON_VALOR | _GIT_GLOBAL_REDEFINEN, key=len, reverse=True))
 
 
 def _saltar_opciones(tokens, envoltorio):
@@ -402,18 +411,49 @@ def _posicionales_git(args):
 _FORMA_DE_RUTA = re.compile(r"\.|\./.*|.*/|(?:.*/)?\.[^/]+|(?:.*/)?[^/]*\.[A-Za-z]\w*")
 
 
+def _global_git(tok):
+    """El global de git al que pertenece `tok`, exacto o con el valor pegado
+    (`-C.`, `--git-dir=/x`), o None si no está declarado."""
+    for nombre in _GIT_GLOBALES:
+        if tok == nombre:
+            return nombre
+        if tok.startswith(nombre + ("=" if nombre.startswith("--") else "")) and tok != nombre:
+            return nombre
+    return None
+
+
+def _globales_git(resto):
+    """(índice del subcomando, hay algún global ilegible). Ilegible es uno que
+    redefine qué corre o uno no declarado (puede comerse el subcomando:
+    `git --frobnicate x reset --hard`). El scope no aprueba lo que no sabe
+    leer (X170); el chat igual lee el subcomando que pueda."""
+    i, ilegible = 0, False
+    while i < len(resto) and resto[i].startswith("-"):
+        if resto[i] == "--":
+            return i + 1, ilegible
+        nombre = _global_git(resto[i])
+        if nombre is None:
+            ilegible, i = True, i + 1
+            continue
+        ilegible = ilegible or nombre in _GIT_GLOBAL_REDEFINEN
+        i += 2 if resto[i] == nombre else 1
+    return i, ilegible
+
+
 def _normalizar_git(tokens):
     """`git` sin sus opciones globales (`-C .`, `-c user.name=x`): el
-    subcomando es lo que decide el riesgo. X159a: las formas que descartan
+    subcomando es lo que decide el riesgo. Un global ilegible (X170: `-c`,
+    `--exec-path` o uno desconocido) se sigue saltando para leer el
+    subcomando —el chat no relaja la fricción que ve—, pero `ilegible()` lo
+    marca para el scope. X159a: las formas que descartan
     trabajo en cualquier orden de opciones quedan con la forma de la lista
     (`reset … --hard` → `reset --hard`, `clean -fdx` → `clean -f`,
     `checkout` con una ruta o `-f` → `checkout --`, `switch -f` → `switch -f`, `stash drop`/`clear` → su forma, `branch` que
     borra sin mergear (`-D`, o `-d` con `-f`) → `branch -D`, y `restore`
     que toca el árbol → `restore --worktree`, que es su default). `restore --staged` solo toca el índice y queda como está,
     igual que `checkout <rama>`/`-b` y `switch <rama>`."""
-    resto, i = tokens[1:], 0
-    while i < len(resto) and resto[i].startswith("-"):
-        i += 2 if resto[i] in _GIT_GLOBAL_CON_VALOR else 1
+    resto = tokens[1:]
+    i, _ = _globales_git(resto)
     sub, args = (resto[i], resto[i + 1:]) if i < len(resto) else ("", [])
     cortos = "".join(t[1:] for t in args if t.startswith("-") and not t.startswith("--"))
     if sub == "reset" and "--hard" in args:
@@ -483,6 +523,18 @@ def segmentos(comando):
     """Los segmentos que el shell ejecuta por separado (&&, ||, |, &, ;, salto
     de línea). `2>&1` se quita antes: su `&` no separa nada."""
     return [s.strip() for s in _SEPARADORES.split(_sin_dup_stderr(comando)) if s.strip()]
+
+
+def ilegible(comando):
+    """True si algún segmento es un `git` con un global ilegible (`-c`,
+    `--exec-path`, `--super-prefix` o uno desconocido): lo que corre no es lo
+    que se ve, así que un scope no lo aprueba (X170). El chat cobra igual la
+    fricción del subcomando que pueda leer."""
+    for segmento in segmentos(comando):
+        tokens = _sin_envoltorios(_tokens(segmento) or [])
+        if tokens and tokens[0].rsplit("/", 1)[-1] == "git" and _globales_git(tokens[1:])[1]:
+            return True
+    return False
 
 
 def opaco(comando):
