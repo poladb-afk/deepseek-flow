@@ -33,7 +33,7 @@ from pathlib import Path
 
 import supervisor
 import triaje_trazas
-from utils.fs_tools import escribir_atomico
+from utils.fs_tools import _resolve, escribir_atomico
 from utils.tracing import activar
 
 RAIZ = Path(__file__).resolve().parent
@@ -67,13 +67,16 @@ def vencidas(tareas, estado, ahora=None):
 
 
 def correr(tarea):
-    destino = RAIZ / tarea["salida"]
-    destino.parent.mkdir(parents=True, exist_ok=True)  # Sintetizar escribe directo
     inicio = time.time()
+    # X161 (C01): la salida pasa por la contención ANTES de tocar el disco
+    # (antes un `mkdir` del destino corría primero y el triaje escribía donde
+    # dijera la tarea). Fuera de las raíces es un error de ESA tarea.
+    destino, err = _resolve(str(RAIZ / tarea["salida"]))
+    if err:
+        return {"ok": False, "error": err, "seg": 0.0}
     try:
         if tarea.get("tipo") == "triaje":
-            destino_dir = (RAIZ / tarea["salida"]).parent
-            informe = triaje_trazas.main(["--salida", str(destino_dir)])
+            informe = triaje_trazas.main(["--salida", str(destino.parent)])
             return {"ok": True, "informe": str(informe), "seg": round(time.time() - inicio, 1)}
         informe = supervisor.supervisar(tarea["tarea"], str(destino))
         return {"ok": True, "informe": informe, "seg": round(time.time() - inicio, 1)}

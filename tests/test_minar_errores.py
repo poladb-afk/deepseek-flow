@@ -312,3 +312,26 @@ def test_heartbeat_default_sin_tipo_llama_al_supervisor(tmp_path, monkeypatch):
     assert resultado["ok"] is True
     assert llamado["tarea"] == "una tarea LLM", "la rama default NO cambió"
     assert resultado["informe"] == llamado["salida"]
+
+
+@pytest.mark.parametrize("tipo", [None, "triaje"])
+def test_heartbeat_no_crea_nada_fuera_de_las_raices(tmp_path, monkeypatch, tipo):
+    """X161 (C01): `correr` hacía `mkdir` del destino ANTES de cualquier chequeo
+    y la rama triaje escribía donde dijera la tarea. Una salida fuera de las
+    raíces ahora es un error de esa tarea: no se crea ningún directorio, no se
+    llama al supervisor ni al triaje."""
+    import heartbeat
+
+    raiz = tmp_path / "raiz"
+    raiz.mkdir()
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(raiz))
+    llamados = []
+    monkeypatch.setattr("supervisor.supervisar", lambda tarea, salida: llamados.append(salida))
+    monkeypatch.setattr("triaje_trazas.main", lambda argv: llamados.append(argv))
+    for salida in (str(tmp_path / "fuera" / "x.md"), f"../{tmp_path.name}_escape/x.md"):
+        tarea = {"tarea": "t", "salida": salida, **({"tipo": tipo} if tipo else {})}
+        resultado = heartbeat.correr(tarea)
+        assert resultado["ok"] is False and "fuera" in resultado["error"], salida
+    assert llamados == []
+    assert not (tmp_path / "fuera").exists()
+    assert not (heartbeat.RAIZ.parent / f"{tmp_path.name}_escape").exists()

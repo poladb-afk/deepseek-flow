@@ -2212,3 +2212,46 @@ archivo quedara idéntico.
 
 **Los números.** `tests_definidos` 1227 → 1234; el resto IGUAL. Solo
 mejoras: el ratchet reescribió el baseline solo, sin clave.
+
+---
+
+## X161: `heartbeat` resuelve la salida antes de tocar el disco (C01) (2026-11-05)
+
+**El hueco, medido en el relevamiento (bloque 5).** `heartbeat.correr` hacía
+`destino.parent.mkdir(parents=True)` con `RAIZ / tarea["salida"]` ANTES de
+cualquier chequeo: con una salida absoluta fuera de las raíces o con `../`,
+creaba el directorio afuera. Y las tareas `"tipo": "triaje"` iban a
+`triaje_trazas.main(["--salida", dir])`, que hace `mkdir` y `write_text` sin
+`_resolve`. La escritura del supervisor sí estaba contenida
+(`supervisor.Sintetizar` usa `escribir_salida`). La lista de tareas la
+escribe el operador en `heartbeat.jsonl`, no el modelo: gravedad baja, pero
+contradice C01 ("toda escritura de un flujo pasa por `escribir_salida`").
+
+**El arreglo.** `correr` pasa la salida por `fs_tools._resolve` primero; si
+queda fuera de las raíces, la tarea devuelve `{"ok": False, "error": ...}`
+sin tocar el disco ni llamar al supervisor o al triaje (el heartbeat sigue
+con la siguiente, como con cualquier tarea que falla). El `mkdir` previo se
+fue: `escribir_salida` crea el directorio del informe y el triaje crea el
+suyo, ya dentro de las raíces. Un primer intento dejaba un `mkdir` en la
+rama triaje y sumaba 1 línea de producto; el triaje ya hace el suyo, así que
+se quitó y el total quedó igual (7672).
+
+**El candado.** `test_heartbeat_no_crea_nada_fuera_de_las_raices`
+(`tests/test_minar_errores.py`, junto a los otros del heartbeat),
+parametrizado con la rama default y la de triaje: con una salida absoluta
+fuera y otra con `../`, la tarea da error, no se llama al supervisor ni al
+triaje, y no aparece ningún directorio afuera. En rojo contra el código de
+antes en los dos casos (`correr` creaba `fuera/`); en verde con el arreglo.
+Los tests del heartbeat que ya existían siguen verdes.
+
+**Los gemelos** (TWINS): se buscó `.mkdir(parents=True` en todo el
+producto. Los demás sitios crean o rutas ya resueltas (`escritura`,
+`fs_tools.escribir_salida`), o la biblioteca de memoria, o rutas de
+bookkeeping que fija un setting del operador (`thread_store`, `riesgo`,
+`aprobaciones`, `hitl_web`, `nodes`, `delegar`); ninguno con una ruta que
+elija el modelo sin pasar por la contención. `triaje_trazas.py` es
+laboratorio y queda como está: con X161, el heartbeat ya le pasa un
+directorio resuelto.
+
+**Los números.** `tests_definidos` 1234 → 1236; el resto IGUAL. Solo
+mejoras: el ratchet reescribió el baseline solo, sin clave.

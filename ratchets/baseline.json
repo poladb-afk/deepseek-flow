@@ -54,7 +54,7 @@
           104
         ],
         "heartbeat.py": [
-          80
+          83
         ],
         "juez.py": [
           507
@@ -449,7 +449,7 @@
         "tests/test_llm.py": 13,
         "tests/test_mcp_laya.py": 11,
         "tests/test_memoria.py": 22,
-        "tests/test_minar_errores.py": 16,
+        "tests/test_minar_errores.py": 18,
         "tests/test_modulos.py": 18,
         "tests/test_novedad.py": 2,
         "tests/test_pendientes.py": 36,
@@ -482,7 +482,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 13
       },
-      "metrica": 1234
+      "metrica": 1236
     },
     "texto_de_prompt": {
       "detalle": {
