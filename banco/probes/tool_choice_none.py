@@ -22,11 +22,16 @@ con código ≠ 0, sin cerrar S3.
 Uso: python3 banco/probes/tool_choice_none.py  (necesita DEEPSEEK_API_KEY o LLM_API_KEY)
 """
 import json
+import sys
+from pathlib import Path
 
 from openai import BadRequestError
 
-from utils.call_llm import _client, _model
-from utils.fs_tools import TOOLS
+RAIZ = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(RAIZ))
+
+from utils.call_llm import _client, _model  # noqa: E402
+from utils.fs_tools import TOOLS  # noqa: E402
 
 PEDIDO = [{"role": "user", "content": "Listá los archivos del directorio actual."}]
 
