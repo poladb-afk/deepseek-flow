@@ -2436,7 +2436,7 @@ producto/laboratorio de X142, pero cada una tiene su candado.
 
 `utils/git.py`, `formato.py`, `rutas.py`, `trazas.py` y `votacion.py` pasan a
 **`instrumentos.py`** en la raíz, que entra a `LABORATORIO_RAIZ`. Sus
-llamadores son 9 piezas de laboratorio y 6 tests; se cambia solo el import,
+llamadores son 8 piezas de laboratorio y 5 tests; se cambia solo el import,
 no el código. `RAIZ_PROYECTO` de `utils/rutas.py` no tenía llamador y no
 se mudó.
 
@@ -2461,8 +2461,9 @@ con los 5 nombres exactos y verde con el arreglo.
   sigue cuidando lo mismo. `test_sha_es_best_effort_si_git_no_esta` pierde
   su línea de `sha_largo`.
 
-`tests/inventario_tests.txt` se regeneró con el comando de su docstring, y
-el diff son exactamente las 2 líneas borradas. La fila A41 de
+`tests/inventario_tests.txt` se actualizó quitando las 2 líneas de los
+tests borrados (minimizado, no regenerado: regenerar arrastraría los ~408
+tests sumados desde el PR 4). La fila A41 de
 `docs/estado.md` dejó de citar el test borrado y dice dónde terminó.
 
 ### X167: `producto_conoce_lab` también cuenta los imports de `LABORATORIO_RAIZ`
