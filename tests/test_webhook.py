@@ -177,3 +177,24 @@ def test_pagina_de_pedidos_con_host_ajeno_no_muestra_tokens(webhook):
     assert codigo == 403 and "token-del-pedido" not in cuerpo
     codigo, cuerpo = _pedir(puerto, "/")
     assert codigo == 200 and "token-del-pedido" in cuerpo
+
+
+@pytest.mark.parametrize("ruta", ["/decision?token=tk&respuesta=s", "/chat/sesion", "/webhook"])
+@pytest.mark.parametrize(("largo", "esperado"), [("abc", 400), ("-1", 400), ("99999999", 413)])
+def test_content_length_malo_se_rechaza_sin_decidir(webhook, monkeypatch, ruta, largo, esperado):
+    """X159b: un `Content-Length` no numérico tiraba un traceback en el hilo
+    del server; uno negativo o enorme se leía tal cual (`/decision` no tenía
+    tope y `read(-1)` espera el EOF). Ahora las tres rutas con cuerpo lo
+    validan en un solo lugar: 400 si no es un entero ≥ 0, 413 si pasa el
+    tope, y nada se decide, se abre ni se persiste."""
+    hitl, puerto, tmp_path = webhook
+    monkeypatch.setenv("WEBCHAT", "1")
+    pedido = hitl._Pedido("¿Aprobar?", "cuerpo", "tk")
+    with hitl._lock:
+        hitl._pendientes[pedido.token] = pedido
+    codigo, _ = _pedir(puerto, ruta, b"{}", _auth(extra={"Content-Length": largo}))
+    with hitl._lock:
+        hitl._pendientes.pop(pedido.token, None)  # no se filtra a los tests que siguen
+    assert codigo == esperado
+    assert not pedido.evento.is_set() and pedido.decision is None
+    assert not (tmp_path / "webhooks.jsonl").exists()

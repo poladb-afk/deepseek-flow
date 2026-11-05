@@ -2294,3 +2294,59 @@ dos casos (solo corría el flujo); en verde con el arreglo.
 **Los números.** `tests_definidos` 1236 → 1238; `lineas_del_producto`
 7672 → 7670; el resto IGUAL. Solo mejoras: el ratchet reescribió el
 baseline solo, sin clave.
+
+---
+
+## X159b: `hitl_web` lee el cuerpo del POST en un solo lugar, y triviales (2026-11-05)
+
+**El hueco, medido con un test en rojo.** Las tres rutas con cuerpo
+(`/chat/*`, `/webhook` y `/decision`) leían `Content-Length` cada una por
+su cuenta, con `int(...)` a secas:
+- un valor no numérico (`abc`) tiraba `ValueError` en el hilo del server:
+  traceback y conexión cortada sin respuesta (el cliente esperaba hasta su
+  timeout);
+- un valor negativo (`-1`) llegaba a `rfile.read(-1)`, que espera el EOF:
+  la conexión queda colgada;
+- `/decision` no tenía tope: un `Content-Length` enorme se leía tal cual
+  (`/chat/*` cortaba en 16 KB y `/webhook` en `WEBHOOK_MAX_BYTES`).
+
+El test nuevo cruza las 3 rutas con los 3 valores: 7 de 9 en rojo contra
+el código de antes. Los dos que ya pasaban eran el 413 de `/chat/sesion` y
+de `/webhook`, que sí tenían tope.
+
+**El arreglo: un lugar.** `_Handler._cuerpo(maximo=16384)` valida el header
+y lee el cuerpo: 400 si no es un entero >= 0, 413 si pasa el tope, y si no
+devuelve los bytes. Las tres rutas lo usan (el webhook pasa su tope) y
+pierden su propia lectura. `_leer_form_decision` ahora recibe los bytes
+ya leídos en vez de leer del socket, así que es pura sobre su entrada y su
+test ya no necesita un handler falso.
+
+**El primer intento sumaba 10 líneas** (un helper que solo validaba, una
+constante y el largo pasado por parámetro) y el ratchet lo frenó. La
+versión final también lee el cuerpo, y `_max_bytes`/`_max_por_minuto`
+(dos copias del mismo try/int/max/default) quedan en un `_tope(crudo,
+default)`. Hubo un intento intermedio en el que `_tope` recibía el NOMBRE
+del setting: el ratchet marcó `settings_leidos` 47 → 45, pero eso era el
+escáner que ya no veía el literal, no dos settings menos. Se descartó:
+`_tope` recibe el valor y las llamadas a `_setting("WEBHOOK_...")` siguen
+visibles, así la métrica no miente.
+
+**Triviales.** Se fue el comentario de X115 de `utils/policy.py` que
+describía un flag de sesión (`marcar + consumir`) que ya no existe y
+estaba pegado a `explicar`, una función que no tiene nada que ver. Las 5
+líneas en blanco de `modules/escritura.py` quedaron en 2 (PEP 8).
+
+**Declarado como diseño, no se toca.** El token del pedido viaja en la
+URL que imprime stdout (`/?token=…`): es la forma de que el operador abra
+la página, el server solo escucha en loopback y la página exige Host
+loopback (X163).
+
+**El candado.** `test_content_length_malo_se_rechaza_sin_decidir`
+(`tests/test_webhook.py`), 9 casos: con un pedido pendiente registrado, la
+respuesta es 400/413, el pedido NO se decide y el webhook NO persiste.
+`test_el_motivo_se_acorta_a_300` se adaptó a la firma nueva (bytes en vez
+de un handler falso) y sigue exigiendo el corte a 300.
+
+**Los números.** `tests_definidos` 1238 → 1247; `lineas_del_producto`
+7670 → 7667; el resto IGUAL. Solo mejoras: el ratchet reescribió el
+baseline solo, sin clave.

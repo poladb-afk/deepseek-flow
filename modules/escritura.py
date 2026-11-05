@@ -33,9 +33,6 @@ TOOLS = [
 ]
 
 
-
-
-
 def _approve(pedido):
     """Punto de parcheo de los tests: la lógica vive en utils/aprobaciones.
 

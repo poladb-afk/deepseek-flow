@@ -576,13 +576,9 @@ def test_la_pagina_del_hitl_tiene_el_campo_de_motivo():
 
 def test_el_motivo_se_acorta_a_300():
     """Un motivo kilométrico no viaja entero al modelo: el server lo acota."""
-    from types import SimpleNamespace
-
     import utils.hitl_web as hitl
 
-    handler = SimpleNamespace(headers={"Content-Length": "10"})
-    handler.rfile = SimpleNamespace(read=lambda n: b"motivo=" + b"x" * 400)
-    _, _, motivo = hitl._Handler._leer_form_decision(handler, "", "")
+    _, _, motivo = hitl._Handler._leer_form_decision(None, "", "", b"motivo=" + b"x" * 400)
     assert len(motivo) == 300
 
 

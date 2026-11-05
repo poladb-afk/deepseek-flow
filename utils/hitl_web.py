@@ -105,19 +105,12 @@ def _parsear_evento(datos):
     return evento
 
 
-def _max_bytes():
+def _tope(crudo, default):
+    """Un tope entero >= 1 del webhook; un valor inválido usa el default."""
     try:
-        return max(1, int(_setting("WEBHOOK_MAX_BYTES", str(WEBHOOK_MAX_BYTES_DEFAULT))))
+        return max(1, int(crudo))
     except (TypeError, ValueError):
-        return WEBHOOK_MAX_BYTES_DEFAULT
-
-
-def _max_por_minuto():
-    try:
-        return max(1, int(_setting("WEBHOOK_MAX_POR_MINUTO",
-                                   str(WEBHOOK_MAX_POR_MINUTO_DEFAULT))))
-    except (TypeError, ValueError):
-        return WEBHOOK_MAX_POR_MINUTO_DEFAULT
+        return default
 
 
 def _permitido_por_limite():
@@ -126,7 +119,7 @@ def _permitido_por_limite():
     with _ventana_lock:
         _ventana_webhooks[:] = [cuando for cuando in _ventana_webhooks
                                 if ahora - cuando < 60.0]
-        if len(_ventana_webhooks) >= _max_por_minuto():
+        if len(_ventana_webhooks) >= _tope(_setting("WEBHOOK_MAX_POR_MINUTO"), WEBHOOK_MAX_POR_MINUTO_DEFAULT):
             return False
         _ventana_webhooks.append(ahora)
         return True
@@ -280,6 +273,19 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(datos)
 
+    def _cuerpo(self, maximo=16384):
+        """El cuerpo del POST, leído en UN lugar (X159b): None, ya respondido,
+        si `Content-Length` no es un entero >= 0 (400) o pasa `maximo` (413).
+        El tope de 16 KB es el de /chat/* y /decision; el webhook pasa el suyo."""
+        largo = self.headers.get("Content-Length") or "0"
+        if not (largo.isascii() and largo.isdigit()):
+            self._responder(400, _json({"error": "Content-Length inválido"}))
+            return None
+        if int(largo) > maximo:
+            self._responder(413, _json({"error": f"cuerpo mayor a {maximo} bytes"}))
+            return None
+        return self.rfile.read(int(largo))
+
     def do_GET(self):
         ruta = self.path.split("?")[0]
         if ruta == EVENTOS_RUTA:
@@ -392,13 +398,11 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _cuerpo_json(self):
         """Lee y parsea el cuerpo JSON; responde 400 y devuelve None si falla."""
-        largo = int(self.headers.get("Content-Length") or 0)
-        if largo > 16384:
-            self._responder(413, _json({"error": "cuerpo demasiado grande"}))
+        datos = self._cuerpo()
+        if datos is None:
             return None
-        datos = self.rfile.read(largo) if largo else b"{}"
         try:
-            valor = json.loads(datos.decode("utf-8"))
+            valor = json.loads((datos or b"{}").decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
             self._responder(400, _json({"error": "JSON inválido"}))
             return None
@@ -420,12 +424,9 @@ class _Handler(BaseHTTPRequestHandler):
         if not token_valido(enviado):
             self._responder(401, _json({"error": "token inválido"}))
             return
-        maximo = _max_bytes()
-        largo = int(self.headers.get("Content-Length") or 0)
-        if largo > maximo:
-            self._responder(413, _json({"error": f"cuerpo mayor a {maximo} bytes"}))
+        datos = self._cuerpo(_tope(_setting("WEBHOOK_MAX_BYTES"), WEBHOOK_MAX_BYTES_DEFAULT))
+        if datos is None:
             return
-        datos = self.rfile.read(largo) if largo else b""
         try:
             evento = _parsear_evento(datos)
         except ValueError as e:
@@ -464,10 +465,13 @@ class _Handler(BaseHTTPRequestHandler):
         consulta = parse_qs(urlsplit(self.path).query)
         token = (consulta.get("token") or [""])[0]
         respuesta = (consulta.get("respuesta") or [""])[0]
+        datos = self._cuerpo()
+        if datos is None:
+            return
         # Compatibilidad con el form viejo (decision=aprobar|rechazar en el
         # cuerpo) y con el nuevo contrato del spec (respuesta=s|n). El motivo
         # del rechazo viaja en el cuerpo URL-encoded (exp/102).
-        token, respuesta, motivo = self._leer_form_decision(token, respuesta)
+        token, respuesta, motivo = self._leer_form_decision(token, respuesta, datos)
         with _lock:
             pedido = _pendientes.get(token)
         # token desconocido o ya resuelto/expirado: 404 claro, sin decidir nada
@@ -481,18 +485,14 @@ class _Handler(BaseHTTPRequestHandler):
         self._responder(200, _GRACIAS.format(
             decision="Aprobar" if pedido.decision else "Rechazar", motivo=detalle))
 
-    def _leer_form_decision(self, token, respuesta):
+    def _leer_form_decision(self, token, respuesta, datos):
         """Form del cuerpo (token/respuesta/decision/motivo) a pares.
 
         Devuelve (token, respuesta, motivo): el motivo viene URL-encoded por
         el navegador (espacios como +, acentos como %XX) y acotado a 300 —
         es texto libre que viaja al modelo, no un archivo."""
-        largo = int(self.headers.get("Content-Length") or 0)
-        if not largo:
-            return token, respuesta, ""
-        datos = self.rfile.read(largo).decode("utf-8", errors="replace")
         motivo = ""
-        for campo in datos.split("&"):
+        for campo in datos.decode("utf-8", errors="replace").split("&"):
             clave, _, valor = campo.partition("=")
             if clave == "token" and not token:
                 token = valor

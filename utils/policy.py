@@ -517,10 +517,6 @@ def clasificar(comando):
     return PREGUNTAR
 
 
-# X115: escribir configuración de pytest con aprobación cambia cómo corre la
-# próxima vez. El aviso es un flag de SESIÓN explícito (marcar + consumir, y
-# monkeypatch lo resetea en tests): lo levanta la escritura aprobada y lo
-# consume el pytest siguiente, que pregunta UNA vez. Sin estado silencioso.
 def explicar(comando):
     """Explicación corta (una línea) de por qué `comando` tiene el nivel que
     tiene. El NIVEL sale de `clasificar` (misma política, composición incluida);
