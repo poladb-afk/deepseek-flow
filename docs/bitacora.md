@@ -1912,3 +1912,57 @@ duplicados, falla.
 resto IGUAL. Solo mejoras: el ratchet reescribió el baseline solo, sin
 clave. Sin cambio de conducta. Con esto X156 queda cerrado: ningún nodo del
 harness supera las 40 líneas de código.
+
+---
+
+## X157: `Ctx` no se completa con `fs` ni `politica` (2026-11-05)
+
+**Qué decía el roadmap.** P3 declaraba "`Ctx` es el registro de seams
+(`llm`, `ledger`; pendientes `fs` y `politica`)" y X157 era agregarlos. No
+hay en la bitácora ninguna medición ni caso que respalde esa promesa.
+
+**Lo que mostró el relevamiento, antes de escribir código.**
+- El acceso a archivos ya pasa por **un solo punto**: `fs_tools.run_tool_call`,
+  desde `kernel.desde_fs` (`utils/kernel.py:98`), el chat
+  (`nodes.despachar_tool`), el supervisor (`supervisor._despachar`) y el
+  servidor MCP (`mcp_server.py:84`). Ninguna `Tool` lee archivos de `ctx`.
+- La política de comandos es **un hook PRE único por proceso**:
+  `modules/coding.py` lo registra en `HOOKS_PRE` y `run_tool_call` lo aplica
+  en cualquier nivel. Es lo que hace pasar al gate fractal (X138): una
+  política agregada una vez llega igual al chat, al supervisor y a una copia.
+- En producción, de `Ctx` se usan `ledger` (12 veces), `llm`, `traza`,
+  `profundidad`, `max_profundidad` y `direccion`. Los tests reemplazan
+  despacho y política con `monkeypatch` a nivel de módulo (6 veces): no hace
+  falta un campo para inyectarlos.
+
+**Por qué no se hace.** Sumar `fs` y `politica` no borraba ningún caso:
+agregaba dos campos sin usuario, su paso por `Ctx(...)` (2 lugares de
+producción y 28 tests) y por `hijo()` (P1, EL7). Y abría un camino que hoy no
+existe: con `ctx.politica`, un hijo podía recibir otra política que su padre,
+cuando hoy es imposible por construcción porque la política es una sola por
+proceso (S0, P2 (c)).
+
+**La decisión del operador (2026-11-05):** X157 no aplica, y P3 se re-expresa
+con esta redacción, aprobada por él: "`Ctx` es lo que el árbol comparte por
+instancia (`llm`, `ledger`, traza). El despacho y la política son únicos por
+proceso (`fs_tools.run_tool_call` + `HOOKS_PRE`): eso es lo que hace que un
+hijo herede los frenos sin poder cambiarlos (X138)." La fila de deuda de
+`Ctx` sale del roadmap. Solo docs; sin cambio de código.
+
+## X158: la sonda de `tool_choice="none"`, lista para correr (2026-11-05)
+
+**Qué falta saber.** S3 (esquema de tools fijo y cierre por arista) está
+bloqueado desde la fase 2d por un solo dato: si DeepSeek acepta
+`tool_choice="none"`. Hoy el cierre retira las tools (`tools=None`) en la
+última llamada; si el proveedor aceptara las mismas tools con
+`tool_choice="none"` sin devolver tool calls, el esquema quedaría fijo.
+
+**El instrumento.** `banco/probes/tool_choice_none.py`: tres llamadas chicas
+(`max_tokens=40`) con el modelo y el endpoint del harness (`utils.call_llm`)
+y las tools del CORE — base, con `tool_choice="none"` y la misma repetida para
+ver el cache del prefijo — y un veredicto de tres salidas: no acepta (S3 se
+cierra como imposible con este proveedor), acepta pero igual devuelve tool
+calls (S3 no se puede apoyar en él) o acepta sin tool calls (S3 se
+pre-registra). Probado sin red con un cliente falso: las tres salidas del
+veredicto se dan como corresponde. **Falta que el operador lo corra con su
+clave**; el resultado se anota acá y cierra X158.
