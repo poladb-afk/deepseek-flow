@@ -391,12 +391,15 @@ def _posicionales_git(args):
     return pos
 
 
-def _parece_ruta(arg):
-    """Heurística de ruta para `git checkout`: `.` o algo con `.`/`/`. Cambiar
-    de rama no descarta trabajo; pisar una ruta sí. Borde declarado: un
-    archivo sin extensión (`git checkout Makefile`) no se distingue de una
-    rama sin mirar el repo, así que queda en un s/n (deuda de S0 anotada)."""
-    return arg == "." or "." in arg or "/" in arg
+# Forma de ruta para `git checkout` (X159a, afinado en la revisión): cambiar
+# de rama no descarta trabajo; pisar una ruta sí. Es ruta `.` y `./x`, un
+# directorio (`src/`), un dotfile (`.gitignore`) o un último tramo con
+# extensión que empieza con letra (`a.py`, `src/a.py`); `feature/x`,
+# `origin/main`, `release-1.2` y `v1.2.0` tienen forma de rama o de tag. Mira
+# solo la forma (el clasificador no consulta el repo). Bordes declarados: un
+# archivo sin extensión (`Makefile`) o con extensión numérica (`a.1`) se lee
+# como rama y queda en un s/n (deuda de S0 anotada).
+_FORMA_DE_RUTA = re.compile(r"\.|\./.*|.*/|(?:.*/)?\.[^/]+|(?:.*/)?[^/]*\.[A-Za-z]\w*")
 
 
 def _normalizar_git(tokens):
@@ -418,7 +421,7 @@ def _normalizar_git(tokens):
     if sub == "clean" and ("f" in cortos or "--force" in args):
         return ["git", "clean", "-f"]
     if sub == "checkout" and ("--" in args or "f" in cortos or "--force" in args
-                              or any(_parece_ruta(p) for p in _posicionales_git(args))):
+                              or any(_FORMA_DE_RUTA.fullmatch(p) for p in _posicionales_git(args))):
         return ["git", "checkout", "--"]
     if sub == "switch" and ("f" in cortos or "--force" in args or "--discard-changes" in args):
         return ["git", "switch", "-f"]

@@ -2084,3 +2084,41 @@ nuevas** (las formas de cada entrada nueva, todas `confirmar_doble`).
 la normalización del paso más las dieciséis del hueco hermano. Es el único
 empeoramiento y es de S0 (P1 cede ante S0); lo aceptó el operador con su
 clave (baseline aceptado en `d90ee09`, R6).
+
+---
+
+## X159a, revisión: las ramas con `/` o `.` vuelven a un s/n (2026-11-05)
+
+**Lo que encontró la revisión de `9f31f5f`.** La auditoría del paso había
+sumado `git checkout` con una ruta o con `-f` a la lista doble, con una
+heurística de ruta: cualquier argumento con `.` o `/`. Falla hacia el lado
+cerrado (no abre nada), pero los nombres de rama y de tag más comunes tienen
+esa forma: `feature/x`, `origin/main`, `release-1.2`, `v1.2.0` y `-B x
+origin/main` pedían **doble confirmación**, y con `permitir_comandos="git"` el
+scope de `delegar_tarea` los rechazaba como `denylist`: una corrida delegada
+no podía cambiar a una rama con `/`. Medido con `clasificar` y
+`dentro_de_scope` sobre 22 comandos.
+
+**La decisión del operador (2026-11-05): opción (b), afinar la heurística**
+sin reabrir el hueco. La opción (c), exigir `--` para pisar rutas, se
+descartó: `git checkout a.py` volvía a aprobarse solo.
+
+**El cambio.** `_parece_ruta` pasa a ser `_FORMA_DE_RUTA`, una sola regex de
+forma: es ruta `.` y `./x`, un directorio (`src/`), un dotfile
+(`.gitignore`) o un último tramo con extensión que empieza con letra
+(`a.py`, `src/a.py`). No juzga significado, solo forma (N2), y no consulta el
+repo: el clasificador sigue siendo código puro. Una línea menos de producto
+(la función envoltorio se fue: 7673 → 7672).
+
+**Los candados**, escritos primero y vistos en rojo contra `9f31f5f` (5 casos
+y el de scope): `feature/x`, `origin/main`, `release-1.2`, `v1.2.0` y `-B x
+origin/main` siguen en un s/n; `src/a.py`, `src/`, `./x` y `.gitignore` piden
+doble; y con scope `git`, `git checkout feature/x` se aprueba mientras los
+destructivos dan `denylist`. Los casos de antes (`checkout .`, `a.py`, `-f`,
+`feature/x -- a.py`) siguen igual. Fotos: 0 diferencias en la real (445) y en
+la sintética (463).
+
+**Bordes que siguen declarados** (deuda de S0 en el roadmap): un archivo sin
+extensión (`git checkout Makefile`) o con extensión numérica (`man/a.1`) se
+lee como rama y queda en un s/n; el alias de git (`-c alias.r='reset --hard'
+r`); `stash drop`/`clear` y `branch -D`.

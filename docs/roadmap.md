@@ -44,7 +44,7 @@ S0 no cede: las líneas de HITL y de política no son candidatas a recorte.
 |---|---|---|---|
 | `vocabulario_hardcodeado` 3 (2 regex de skills + el `YES` del HITL) | N2 | piso honesto declarado (la 5b que lo bajaba se revirtió) | `vocabulario_hardcodeado` |
 | N1, EL3 y EL9 sin gate automático | N1, EL3, EL9 | declarados "sin gate" | review; un gate solo si se puede contar sin juzgar significado (N2) |
-| `git stash drop`/`clear` y `git branch -D` se aprueban solos con scope `git` (se recuperan en parte: `fsck`, reflog); evasión por alias (`git -c alias.r='reset --hard' r`) y `git checkout <archivo sin extensión>` (no se distingue de una rama sin mirar el repo) | S0 | pendiente desde X159a, sin orden | un caso en `test_plan_respuesta_lo_que_descarta_trabajo_nunca_pasa_solo` |
+| `git stash drop`/`clear` y `git branch -D` se aprueban solos con scope `git` (se recuperan en parte: `fsck`, reflog); evasión por alias (`git -c alias.r='reset --hard' r`) y `git checkout <archivo sin extensión o con extensión numérica>` (`Makefile`, `man/a.1`: no se distingue de una rama sin mirar el repo) | S0 | pendiente desde X159a, sin orden | un caso en `test_plan_respuesta_lo_que_descarta_trabajo_nunca_pasa_solo` |
 | 5c-b (Laya 0.4) | P3 | **bloqueado**: que esté instalada | — |
 | **La Ley 1 en el chat con hijos**: el gasto de un hijo no se refleja en `turno` (detalle en el roadmap post-X144, abajo) | P2 (a), Método | sin orden: solo es condición si se retoma la asimetría | `test_el_arbol_no_pasa_de_2r_mas_1_llamadas_con_cualquier_abanico` extendido a un chat con hijos |
 

@@ -586,6 +586,7 @@ def test_explicar_ruff_dice_que_parsea_sin_ejecutar():
     "git restore .", "git restore a.py", "git restore --source=HEAD~1 a.py",
     "git restore --staged --worktree a.py", "git restore -SW a.py",
     "git checkout .", "git checkout HEAD .", "git checkout a.py", "git checkout -f",
+    "git checkout src/a.py", "git checkout src/", "git checkout ./x", "git checkout .gitignore",
     "git switch -f", "git -C . reset --hard", "cd /tmp && git clean -fd", "sudo git reset --hard",
 ])
 def test_lo_que_descarta_trabajo_pide_doble_confirmacion(comando):
@@ -598,6 +599,8 @@ def test_lo_que_descarta_trabajo_pide_doble_confirmacion(comando):
     "git reset", "git reset HEAD~1", "git reset --soft HEAD~1", "git clean -n", "git clean -nd",
     "git checkout main", "git checkout -b nueva", "git restore --staged a.py", "git restore -S a.py",
     "git switch main", "git switch -c nueva",
+    "git checkout feature/x", "git checkout origin/main", "git checkout release-1.2",
+    "git checkout v1.2.0", "git checkout -B x origin/main",
 ])
 def test_lo_que_no_descarta_trabajo_sigue_con_un_si_o_no(comando):
     from utils.policy import clasificar

@@ -124,8 +124,9 @@ def test_plan_respuesta_lo_que_descarta_trabajo_nunca_pasa_solo(tmp_path):
                     "git switch -f"):
         pedido = Pedido("¿Ejecutar?", "", "comando", comando)
         assert _decide(tmp_path, pedido, permitir_comandos=["git"]).motivo == "denylist", comando
-    reversible = Pedido("¿Ejecutar?", "", "comando", "git restore --staged a.py")
-    assert _decide(tmp_path, reversible, permitir_comandos=["git"]).ok is True
+    for comando in ("git restore --staged a.py", "git checkout feature/x"):
+        reversible = Pedido("¿Ejecutar?", "", "comando", comando)
+        assert _decide(tmp_path, reversible, permitir_comandos=["git"]).ok is True, comando
 
 
 def test_plan_respuesta_comando_dentro_y_fuera(tmp_path):
