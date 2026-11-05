@@ -121,10 +121,10 @@ def test_plan_respuesta_lo_que_descarta_trabajo_nunca_pasa_solo(tmp_path):
     scope es la lista doble entera, y estos están en ella."""
     for comando in ("git reset --hard", "git reset HEAD~1 --hard", "git clean -fdx",
                     "git checkout -- .", "git checkout .", "git checkout -f", "git restore .",
-                    "git switch -f"):
+                    "git switch -f", "git stash drop", "git stash clear", "git branch -D vieja"):
         pedido = Pedido("¿Ejecutar?", "", "comando", comando)
         assert _decide(tmp_path, pedido, permitir_comandos=["git"]).motivo == "denylist", comando
-    for comando in ("git restore --staged a.py", "git checkout feature/x"):
+    for comando in ("git restore --staged a.py", "git checkout feature/x", "git branch -d merged"):
         reversible = Pedido("¿Ejecutar?", "", "comando", comando)
         assert _decide(tmp_path, reversible, permitir_comandos=["git"]).ok is True, comando
 

@@ -587,7 +587,10 @@ def test_explicar_ruff_dice_que_parsea_sin_ejecutar():
     "git restore --staged --worktree a.py", "git restore -SW a.py",
     "git checkout .", "git checkout HEAD .", "git checkout a.py", "git checkout -f",
     "git checkout src/a.py", "git checkout src/", "git checkout ./x", "git checkout .gitignore",
-    "git switch -f", "git -C . reset --hard", "cd /tmp && git clean -fd", "sudo git reset --hard",
+    "git switch -f", "git stash drop", "git stash drop stash@{0}", "git stash clear",
+    "git -C . stash clear", "git branch -D vieja", "git branch -d -f vieja",
+    "git branch --delete --force vieja", "cd /tmp && git branch -D x",
+    "git -C . reset --hard", "cd /tmp && git clean -fd", "sudo git reset --hard",
 ])
 def test_lo_que_descarta_trabajo_pide_doble_confirmacion(comando):
     from utils.policy import clasificar
@@ -601,6 +604,7 @@ def test_lo_que_descarta_trabajo_pide_doble_confirmacion(comando):
     "git switch main", "git switch -c nueva",
     "git checkout feature/x", "git checkout origin/main", "git checkout release-1.2",
     "git checkout v1.2.0", "git checkout -B x origin/main",
+    "git stash list", "git stash pop", "git stash show -p", "git branch -d merged", "git branch nueva",
 ])
 def test_lo_que_no_descarta_trabajo_sigue_con_un_si_o_no(comando):
     from utils.policy import clasificar

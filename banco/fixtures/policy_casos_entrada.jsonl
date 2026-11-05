@@ -5,6 +5,7 @@
 {"comando": "/bin/file x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "/bin/find x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "/bin/git blame x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/git branch -D x", "nivel": "confirmar_doble", "explicacion": "borra una rama sin mergear (se recupera en parte por reflog)"}
 {"comando": "/bin/git checkout -- x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "/bin/git checkout x", "nivel": "preguntar", "explicacion": "cambia de rama/descarta cambios de working tree"}
 {"comando": "/bin/git clean -f x", "nivel": "confirmar_doble", "explicacion": "borra archivos sin trackear (no quedan en el reflog)"}
@@ -16,6 +17,8 @@
 {"comando": "/bin/git reset x", "nivel": "preguntar", "explicacion": "mueve HEAD (puede descartar cambios)"}
 {"comando": "/bin/git restore --worktree x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "/bin/git show x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/git stash clear x", "nivel": "confirmar_doble", "explicacion": "borra TODO el stash (se recupera en parte con fsck)"}
+{"comando": "/bin/git stash drop x", "nivel": "confirmar_doble", "explicacion": "borra una entrada del stash (se recupera en parte con fsck)"}
 {"comando": "/bin/git status x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "/bin/git switch -f x", "nivel": "confirmar_doble", "explicacion": "descarta los cambios del árbol al cambiar de rama (como checkout -f)"}
 {"comando": "/bin/grep x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
@@ -114,6 +117,8 @@
 {"comando": "git blame --textconv x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
 {"comando": "git blame --textconv=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
 {"comando": "git blame x", "nivel": "auto", "explicacion": "autoría por línea (solo lee)"}
+{"comando": "git branch -D", "nivel": "confirmar_doble", "explicacion": "borra una rama sin mergear (se recupera en parte por reflog)"}
+{"comando": "git branch -D x", "nivel": "confirmar_doble", "explicacion": "borra una rama sin mergear (se recupera en parte por reflog)"}
 {"comando": "git checkout", "nivel": "preguntar", "explicacion": "cambia de rama/descarta cambios de working tree"}
 {"comando": "git checkout --", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "git checkout -- x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
@@ -154,6 +159,10 @@
 {"comando": "git show --textconv x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
 {"comando": "git show --textconv=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
 {"comando": "git show x", "nivel": "auto", "explicacion": "contenido de un objeto (solo lee)"}
+{"comando": "git stash clear", "nivel": "confirmar_doble", "explicacion": "borra TODO el stash (se recupera en parte con fsck)"}
+{"comando": "git stash clear x", "nivel": "confirmar_doble", "explicacion": "borra TODO el stash (se recupera en parte con fsck)"}
+{"comando": "git stash drop", "nivel": "confirmar_doble", "explicacion": "borra una entrada del stash (se recupera en parte con fsck)"}
+{"comando": "git stash drop x", "nivel": "confirmar_doble", "explicacion": "borra una entrada del stash (se recupera en parte con fsck)"}
 {"comando": "git status", "nivel": "auto", "explicacion": "estado del repo (solo lee)"}
 {"comando": "git status --ext-diff x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
 {"comando": "git status --ext-diff=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
@@ -181,6 +190,7 @@
 {"comando": "ls && file x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
 {"comando": "ls && find x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
 {"comando": "ls && git blame x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && git branch -D x", "nivel": "confirmar_doble", "explicacion": "borra una rama sin mergear (se recupera en parte por reflog)"}
 {"comando": "ls && git checkout -- x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "ls && git checkout x", "nivel": "preguntar", "explicacion": "cambia de rama/descarta cambios de working tree"}
 {"comando": "ls && git clean -f x", "nivel": "confirmar_doble", "explicacion": "borra archivos sin trackear (no quedan en el reflog)"}
@@ -192,6 +202,8 @@
 {"comando": "ls && git reset x", "nivel": "preguntar", "explicacion": "mueve HEAD (puede descartar cambios)"}
 {"comando": "ls && git restore --worktree x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "ls && git show x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && git stash clear x", "nivel": "confirmar_doble", "explicacion": "borra TODO el stash (se recupera en parte con fsck)"}
+{"comando": "ls && git stash drop x", "nivel": "confirmar_doble", "explicacion": "borra una entrada del stash (se recupera en parte con fsck)"}
 {"comando": "ls && git status x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
 {"comando": "ls && git switch -f x", "nivel": "confirmar_doble", "explicacion": "descarta los cambios del árbol al cambiar de rama (como checkout -f)"}
 {"comando": "ls && grep x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
@@ -391,6 +403,7 @@
 {"comando": "sudo file x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "sudo find x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "sudo git blame x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo git branch -D x", "nivel": "confirmar_doble", "explicacion": "borra una rama sin mergear (se recupera en parte por reflog)"}
 {"comando": "sudo git checkout -- x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "sudo git checkout x", "nivel": "preguntar", "explicacion": "cambia de rama/descarta cambios de working tree"}
 {"comando": "sudo git clean -f x", "nivel": "confirmar_doble", "explicacion": "borra archivos sin trackear (no quedan en el reflog)"}
@@ -402,6 +415,8 @@
 {"comando": "sudo git reset x", "nivel": "preguntar", "explicacion": "mueve HEAD (puede descartar cambios)"}
 {"comando": "sudo git restore --worktree x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "sudo git show x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo git stash clear x", "nivel": "confirmar_doble", "explicacion": "borra TODO el stash (se recupera en parte con fsck)"}
+{"comando": "sudo git stash drop x", "nivel": "confirmar_doble", "explicacion": "borra una entrada del stash (se recupera en parte con fsck)"}
 {"comando": "sudo git status x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "sudo git switch -f x", "nivel": "confirmar_doble", "explicacion": "descarta los cambios del árbol al cambiar de rama (como checkout -f)"}
 {"comando": "sudo grep x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}

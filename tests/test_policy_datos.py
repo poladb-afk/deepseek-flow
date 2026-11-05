@@ -78,4 +78,5 @@ def test_falla_cerrada_si_los_datos_no_validan(tmp_path, rotura):
 def test_el_archivo_versionado_valida_y_es_el_que_se_usa():
     assert policy._leer_politica() == policy._POLITICA
     assert policy.IRREVERSIBLES == ("git push", "rm -rf", "rm -fr", "git reset --hard", "git clean -f",
-                                    "git checkout --", "git restore --worktree", "git switch -f")
+                                    "git checkout --", "git restore --worktree", "git switch -f",
+                                    "git stash drop", "git stash clear", "git branch -D")

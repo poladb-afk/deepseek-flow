@@ -2498,3 +2498,28 @@ heartbeat dejan de importarlos.
 - `producto_conoce_lab` **0 → 2**: empeora, declarado y aceptado por el
   operador con su clave (baseline `39c3cca`).
 - El resto IGUAL.
+
+## X169: `stash drop`/`clear` y `branch -D` piden doble confirmación (S0) (2026-11-05)
+
+**El hueco.** Deuda declarada desde X159a: `git stash drop`, `git stash clear` y
+`git branch -D` descartan trabajo (una entrada del stash se recupera en parte
+por `fsck`; una rama borrada sin mergear, por reflog), pero clasificaban
+`preguntar`, y el scope de `delegar_tarea` con `permitir_comandos="git"` los
+aprobaba sin humano. Medido con `clasificar`: los tres daban `preguntar`.
+
+**El arreglo, mismo patrón que X159a.** Tres entradas `confirmar_doble` en
+`utils/politica_comandos.json` (`git stash drop`, `git stash clear`,
+`git branch -D`) y `_normalizar_git` las reconoce en cualquier orden de
+opciones: `-D`, `-d`/`--delete` con `-f`/`--force` (que es lo mismo) y `stash`
+con `drop`/`clear`, también con `-C` global, `sudo` o dentro de un compuesto.
+Quedan con un s/n `stash list`/`pop`/`show`, `branch -d` (solo borra ramas ya
+mergeadas) y `branch nueva`.
+
+**Los candados.** +13 casos parametrizados (8 formas destructivas nuevas, 5
+reversibles) y el caso de scope: los tres comandos caen en `denylist` con
+`permitir_comandos="git"` y `branch -d merged` se aprueba. La foto sintética
+(`comandos_reales.py --casos`) suma **15 filas, 0 cambiadas ni quitadas**.
+
+**Los números.** `tests_definidos` 1247 → **1260**; `lineas_del_producto`
+7593 → **7600 (+7)**: la normalización nueva. Es de S0 (P1 cede), único
+empeoramiento, y lo acepta el operador con su clave.

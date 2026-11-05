@@ -407,9 +407,9 @@ def _normalizar_git(tokens):
     subcomando es lo que decide el riesgo. X159a: las formas que descartan
     trabajo en cualquier orden de opciones quedan con la forma de la lista
     (`reset … --hard` → `reset --hard`, `clean -fdx` → `clean -f`,
-    `checkout` con una ruta o `-f` → `checkout --`, `switch -f` →
-    `switch -f`, y `restore` que toca el árbol → `restore --worktree`, que es
-    su default). `restore --staged` solo toca el índice y queda como está,
+    `checkout` con una ruta o `-f` → `checkout --`, `switch -f` → `switch -f`, `stash drop`/`clear` → su forma, `branch` que
+    borra sin mergear (`-D`, o `-d` con `-f`) → `branch -D`, y `restore`
+    que toca el árbol → `restore --worktree`, que es su default). `restore --staged` solo toca el índice y queda como está,
     igual que `checkout <rama>`/`-b` y `switch <rama>`."""
     resto, i = tokens[1:], 0
     while i < len(resto) and resto[i].startswith("-"):
@@ -425,6 +425,13 @@ def _normalizar_git(tokens):
         return ["git", "checkout", "--"]
     if sub == "switch" and ("f" in cortos or "--force" in args or "--discard-changes" in args):
         return ["git", "switch", "-f"]
+    if sub == "stash":
+        primero = next((a for a in args if not a.startswith("-")), "")
+        if primero in ("drop", "clear"):
+            return ["git", "stash", primero]
+    if sub == "branch" and ("D" in cortos or (("d" in cortos or "--delete" in args)
+                                              and ("f" in cortos or "--force" in args))):
+        return ["git", "branch", "-D"]
     solo_indice = ("S" in cortos or "--staged" in args) and not ("W" in cortos or "--worktree" in args)
     if sub == "restore" and not solo_indice:
         return ["git", "restore", "--worktree"]
