@@ -48,7 +48,7 @@
     "excepts_amplios": {
       "detalle": {
         "bench_juez.py": [
-          191
+          190
         ],
         "carga_trazas.py": [
           104
@@ -85,7 +85,7 @@
           307
         ],
         "utils/contexto.py": [
-          118
+          96
         ],
         "utils/embeddings.py": [
           28
@@ -109,8 +109,8 @@
           159
         ],
         "utils/tracing.py": [
-          194,
-          215
+          177,
+          198
         ],
         "utils/websearch.py": [
           16
@@ -206,16 +206,14 @@
         "utils/citas.py": 94,
         "utils/compaccion.py": 151,
         "utils/conductor.py": 78,
-        "utils/contexto.py": 58,
+        "utils/contexto.py": 42,
         "utils/convergencia.py": 9,
         "utils/costos.py": 40,
         "utils/embeddings.py": 27,
         "utils/estado_sesion.py": 20,
         "utils/estructura.py": 14,
         "utils/fable_dominios.py": 55,
-        "utils/formato.py": 2,
         "utils/fs_tools.py": 368,
-        "utils/git.py": 20,
         "utils/historial.py": 17,
         "utils/hitl_web.py": 399,
         "utils/kernel.py": 158,
@@ -225,27 +223,27 @@
         "utils/prefetch.py": 49,
         "utils/proveedor.py": 73,
         "utils/riesgo.py": 31,
-        "utils/rutas.py": 4,
         "utils/skills.py": 58,
         "utils/terminal.py": 54,
         "utils/thread_store.py": 85,
-        "utils/tracing.py": 138,
-        "utils/trazas.py": 12,
+        "utils/tracing.py": 128,
         "utils/viz.py": 45,
-        "utils/votacion.py": 10,
         "utils/webchat.py": 121,
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7667
+      "metrica": 7593
     },
     "nodos_largos": {
       "detalle": {},
       "metrica": 0
     },
     "producto_conoce_lab": {
-      "detalle": {},
-      "metrica": 0
+      "detalle": {
+        "heartbeat.py:<módulo>": 1,
+        "modules/evals.py:<módulo>": 1
+      },
+      "metrica": 2
     },
     "settings_leidos": {
       "detalle": {
@@ -413,7 +411,7 @@
         "tests/test_convergencia.py": 9,
         "tests/test_core_sin_modulos.py": 2,
         "tests/test_costos.py": 11,
-        "tests/test_db.py": 18,
+        "tests/test_db.py": 17,
         "tests/test_delegar.py": 21,
         "tests/test_deriva_reglas.py": 8,
         "tests/test_docs_sin_deriva.py": 6,
@@ -448,7 +446,7 @@
         "tests/test_laya_cache_reintento.py": 5,
         "tests/test_llm.py": 13,
         "tests/test_mcp_laya.py": 11,
-        "tests/test_memoria.py": 22,
+        "tests/test_memoria.py": 21,
         "tests/test_minar_errores.py": 18,
         "tests/test_modulos.py": 18,
         "tests/test_novedad.py": 2,
@@ -459,7 +457,7 @@
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
         "tests/test_ratchet.py": 35,
-        "tests/test_ratchet_elegancia.py": 25,
+        "tests/test_ratchet_elegancia.py": 27,
         "tests/test_replay.py": 16,
         "tests/test_riesgo.py": 9,
         "tests/test_rondas.py": 6,
