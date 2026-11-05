@@ -8,6 +8,8 @@ Sin LLM. Clavan dos cosas que la auditoría de elegancia marcó (E5, F5):
 """
 import json
 
+import pytest
+
 import nodes
 import resume
 from utils import aprobaciones, call_llm, estado_sesion
@@ -127,3 +129,34 @@ def test_resume_descarta_las_claves_que_reemplazo_la_estructura():
     # y desde las claves de antes de la caja (`_aviso_cierre`), igual
     anterior = resume.migrar({"messages": [], "_aviso_cierre": True, "_corte_novedad": True})
     assert set(anterior["turno"]) == set(nodes.nuevo_turno())
+
+
+
+@pytest.mark.parametrize("corte", [None, KeyboardInterrupt])
+def test_resume_corre_el_ciclo_de_vida_entero(tmp_path, monkeypatch, corte):
+    """X162: `resume` arrancaba el flujo sin los ganchos de los módulos ni el
+    reporte de tokens: una sesión reanudada no dejaba resumen en memoria, no
+    avisaba de las delegadas activas y no informaba el costo. Ahora el ciclo
+    es el mismo que el de `main` (un lugar): `al_arrancar`, flujo, y al salir
+    los `al_salir` y el reporte, también con Ctrl+C."""
+    import main
+
+    monkeypatch.setenv("THREADS_DIR", str(tmp_path))
+    checkpoint("reanudo", "GetQuestion", "continue", {"messages": [
+        {"role": "system", "content": "s"}, {"role": "user", "content": "u"},
+        {"role": "assistant", "content": "r"}]})
+    visto = []
+
+    class Flujo:
+        def run(self, shared):
+            visto.append(("flujo", len(shared["messages"])))
+            if corte:
+                raise corte
+
+    ganchos = {"al_arrancar": [lambda s: visto.append(("arranca", len(s["messages"])))],
+               "al_salir": [lambda s: visto.append(("sale", len(s["messages"])))]}
+    monkeypatch.setattr(main, "ganchos", lambda evento: ganchos.get(evento, []))
+    monkeypatch.setattr(main, "create_agent_flow", Flujo)
+    monkeypatch.setattr(main, "_reporte_tokens", lambda s: visto.append(("tokens", len(s["messages"]))))
+    assert resume.main(["reanudo"]) == 0
+    assert visto == [("arranca", 3), ("flujo", 3), ("sale", 3), ("tokens", 3)]

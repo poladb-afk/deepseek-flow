@@ -853,7 +853,8 @@ tools. Dos tools, código puro (sin LLM):
   resuelto DEBE quedar dentro de `memoria/` (doble chequeo) y un título
   sin caracteres utilizables se rechaza. Devuelve el path escrito.
 
-Resumen automático al salir: `main.py` envuelve la corrida del flujo en
+Resumen automático al salir: `main.sesion` (el ciclo de vida que comparten
+una sesión nueva y una reanudada con `resume`, X162) envuelve la corrida del flujo en
 `try/finally` (cubre el retorno normal y el Ctrl+C del prompt) y en el
 `finally` recorre los ganchos `al_salir` de los módulos; el de la memoria es
 `modules.memoria.resumen_de_sesion(shared)`; con `MEMORIA=1`

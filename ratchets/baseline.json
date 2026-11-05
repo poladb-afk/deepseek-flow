@@ -172,7 +172,7 @@
         "informe.py": 148,
         "juez.py": 302,
         "juez_lote.py": 132,
-        "main.py": 101,
+        "main.py": 103,
         "mcp_server.py": 79,
         "modules/__init__.py": 21,
         "modules/a2a.py": 123,
@@ -198,7 +198,7 @@
         "nodes.py": 305,
         "rag.py": 195,
         "research.py": 110,
-        "resume.py": 57,
+        "resume.py": 53,
         "supervisor.py": 183,
         "utils/__init__.py": 0,
         "utils/aprobaciones.py": 117,
@@ -237,7 +237,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7672
+      "metrica": 7670
     },
     "nodos_largos": {
       "detalle": {},
@@ -418,7 +418,7 @@
         "tests/test_deriva_reglas.py": 8,
         "tests/test_docs_sin_deriva.py": 6,
         "tests/test_estado_riesgo.py": 3,
-        "tests/test_estado_turno.py": 9,
+        "tests/test_estado_turno.py": 11,
         "tests/test_estilo_humano.py": 8,
         "tests/test_evals.py": 15,
         "tests/test_exp104.py": 11,
@@ -482,7 +482,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 13
       },
-      "metrica": 1236
+      "metrica": 1238
     },
     "texto_de_prompt": {
       "detalle": {

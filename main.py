@@ -116,6 +116,13 @@ def main():
         return
     shared = {"messages": [{"role": "system", "content": system_prompt()}]}
     print(WELCOME)
+    sesion(shared)
+
+
+def sesion(shared):
+    """El ciclo de vida de una sesión de chat, nueva o reanudada (X162):
+    ganchos `al_arrancar`, el flujo, y al salir (normal o Ctrl+C) los
+    `al_salir` y el reporte de tokens."""
     for gancho in ganchos("al_arrancar"):
         gancho(shared)
     try:

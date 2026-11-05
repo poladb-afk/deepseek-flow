@@ -12,8 +12,7 @@ rompería a la primera llamada, así que se avisa y se sale sin arrancar."""
 
 import sys
 
-from flow import create_agent_flow
-from main import system_prompt
+from main import sesion, system_prompt
 from nodes import nuevo_turno
 from utils.estado_sesion import restaurar
 from utils.thread_store import cargar, cargar_sesion, reparar_pendientes, valido
@@ -85,10 +84,7 @@ def main(args):
     # shared: un checkpoint viejo (o parcial) no rompe el arranque.
     shared.setdefault("messages", [{"role": "system", "content": system_prompt()}])
     _banner(id_thread, shared, reparadas)
-    try:
-        create_agent_flow().run(shared)
-    except KeyboardInterrupt:
-        print("\n¡Chao! 👋")
+    sesion(shared)  # X162: el mismo ciclo de vida que una sesión nueva
     return 0
 
 

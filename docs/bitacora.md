@@ -2255,3 +2255,42 @@ directorio resuelto.
 
 **Los números.** `tests_definidos` 1234 → 1236; el resto IGUAL. Solo
 mejoras: el ratchet reescribió el baseline solo, sin clave.
+
+---
+
+## X162: `resume` corre el mismo ciclo de vida que una sesión nueva (2026-11-05)
+
+**El hueco.** `resume.main` rehidrataba el thread y llamaba directo a
+`create_agent_flow().run(shared)`, con su propio `try/except
+KeyboardInterrupt`. El ciclo de vida de `main` (los ganchos `al_arrancar`,
+el `finally` con los `al_salir` y `_reporte_tokens`) no corría. Así, una
+sesión reanudada no dejaba resumen en `memoria/`, no avisaba de las
+delegadas que seguían corriendo, no mostraba el catálogo ni el panorama de
+delegadas al arrancar, y no informaba el costo, aunque F5 ya restauraba
+el uso de tokens justamente para eso. Eran dos copias del arranque, y una
+estaba incompleta (N4).
+
+**El arreglo: borrar la copia.** El ciclo sale de `main.main` a
+`main.sesion(shared)`: `al_arrancar`, flujo, y en el `finally` los
+`al_salir` (en orden inverso) y el reporte de tokens. `main` lo llama con
+el shared nuevo y `resume` con el rehidratado, después del banner. `resume`
+ya no importa `create_agent_flow` ni maneja el Ctrl+C. Producto: 7672 →
+7670.
+
+**El cambio visible (declarado).** Al reanudar ahora se ve lo mismo que al
+arrancar (el catálogo de memoria y las delegadas) y, al salir, el resumen
+de sesión (UNA llamada a `call_llm` si hay al menos 2 preguntas y
+`MEMORIA=1`, como en cualquier sesión) y la línea `[tokens]`. Como F5
+restaura el uso, esa línea muestra el acumulado del thread, no solo lo de
+este proceso.
+
+**El candado.** `test_resume_corre_el_ciclo_de_vida_entero`
+(`tests/test_estado_turno.py`), parametrizado con salida normal y Ctrl+C:
+un checkpoint de 3 mensajes, `resume.main` devuelve 0, y el orden
+observado es `al_arrancar` → flujo → `al_salir` → reporte, todos sobre el
+shared rehidratado (3 mensajes). En rojo contra el código de antes en los
+dos casos (solo corría el flujo); en verde con el arreglo.
+
+**Los números.** `tests_definidos` 1236 → 1238; `lineas_del_producto`
+7672 → 7670; el resto IGUAL. Solo mejoras: el ratchet reescribió el
+baseline solo, sin clave.
