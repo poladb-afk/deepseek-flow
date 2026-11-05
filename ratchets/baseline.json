@@ -196,7 +196,7 @@
         "resume.py": 53,
         "supervisor.py": 183,
         "utils/__init__.py": 0,
-        "utils/aprobaciones.py": 117,
+        "utils/aprobaciones.py": 119,
         "utils/call_llm.py": 186,
         "utils/citas.py": 94,
         "utils/compaccion.py": 151,
@@ -214,7 +214,7 @@
         "utils/kernel.py": 158,
         "utils/laya.py": 129,
         "utils/mcp_client.py": 70,
-        "utils/policy.py": 294,
+        "utils/policy.py": 322,
         "utils/prefetch.py": 49,
         "utils/proveedor.py": 73,
         "utils/riesgo.py": 31,
@@ -227,7 +227,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7551
+      "metrica": 7581
     },
     "nodos_largos": {
       "detalle": {},
@@ -391,7 +391,7 @@
         "tests/test_ab_skills.py": 13,
         "tests/test_absurdos_funcionales.py": 44,
         "tests/test_auditoria_2026_10_26.py": 39,
-        "tests/test_banco.py": 21,
+        "tests/test_banco.py": 36,
         "tests/test_bench.py": 23,
         "tests/test_caracterizacion_chat.py": 12,
         "tests/test_chat_flujo.py": 17,
@@ -443,7 +443,7 @@
         "tests/test_modulos.py": 18,
         "tests/test_novedad.py": 2,
         "tests/test_pendientes.py": 36,
-        "tests/test_policy.py": 82,
+        "tests/test_policy.py": 83,
         "tests/test_policy_bypass.py": 110,
         "tests/test_policy_datos.py": 15,
         "tests/test_prefetch.py": 11,
@@ -472,7 +472,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 22
       },
-      "metrica": 1261
+      "metrica": 1277
     },
     "texto_de_prompt": {
       "detalle": {
