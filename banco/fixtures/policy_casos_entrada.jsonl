@@ -17,6 +17,7 @@
 {"comando": "/bin/git restore --worktree x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "/bin/git show x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "/bin/git status x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/git switch -f x", "nivel": "confirmar_doble", "explicacion": "descarta los cambios del árbol al cambiar de rama (como checkout -f)"}
 {"comando": "/bin/grep x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "/bin/head x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "/bin/ls x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
@@ -161,6 +162,8 @@
 {"comando": "git status --textconv x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
 {"comando": "git status --textconv=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
 {"comando": "git status x", "nivel": "auto", "explicacion": "estado del repo (solo lee)"}
+{"comando": "git switch -f", "nivel": "confirmar_doble", "explicacion": "descarta los cambios del árbol al cambiar de rama (como checkout -f)"}
+{"comando": "git switch -f x", "nivel": "confirmar_doble", "explicacion": "descarta los cambios del árbol al cambiar de rama (como checkout -f)"}
 {"comando": "grep", "nivel": "auto", "explicacion": "busca texto (solo lee)"}
 {"comando": "grep --dereference-recursive x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
 {"comando": "grep --dereference-recursive=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
@@ -190,6 +193,7 @@
 {"comando": "ls && git restore --worktree x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "ls && git show x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
 {"comando": "ls && git status x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && git switch -f x", "nivel": "confirmar_doble", "explicacion": "descarta los cambios del árbol al cambiar de rama (como checkout -f)"}
 {"comando": "ls && grep x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
 {"comando": "ls && head x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
 {"comando": "ls && ls x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
@@ -399,6 +403,7 @@
 {"comando": "sudo git restore --worktree x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "sudo git show x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "sudo git status x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo git switch -f x", "nivel": "confirmar_doble", "explicacion": "descarta los cambios del árbol al cambiar de rama (como checkout -f)"}
 {"comando": "sudo grep x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "sudo head x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "sudo ls", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}

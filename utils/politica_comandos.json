@@ -28,6 +28,7 @@
     {"tokens": ["git", "clean", "-f"], "nivel": "confirmar_doble", "explicacion": "borra archivos sin trackear (no quedan en el reflog)"},
     {"tokens": ["git", "checkout", "--"], "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"},
     {"tokens": ["git", "restore", "--worktree"], "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"},
+    {"tokens": ["git", "switch", "-f"], "nivel": "confirmar_doble", "explicacion": "descarta los cambios del árbol al cambiar de rama (como checkout -f)"},
     {"tokens": ["python3", "-c"], "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"},
     {"tokens": ["python", "-c"], "nivel": "preguntar", "explicacion": "código Python arbitrario en una línea"},
     {"tokens": ["rm"], "nivel": "preguntar", "explicacion": "borra archivos"},

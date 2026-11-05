@@ -8,7 +8,7 @@ Decide cuánta fricción humana merece un comando de shell:
                        escribe cachés (A45); no es solo-lectura estricta.
   - 'preguntar'        el flujo HITL de siempre: un (s/n).
   - 'confirmar_doble'  dos (s/n) seguidos: la operación más peligrosa
-                       (git push, rm -rf) paga la fricción extra.
+                       (lo que descarta trabajo sin reflog) paga la fricción extra.
 
 Es código puro: mismo comando ⇒ misma clasificación, siempre. Sin
 dependencias y sin red. El default de todo lo no reconocido es
@@ -374,14 +374,40 @@ def _normalizar_rm(tokens):
     return tokens
 
 
+# Opciones de checkout/switch cuyo VALOR es la rama (no una ruta).
+_GIT_RAMA_CON_VALOR = ("-b", "-B", "--orphan")
+
+
+def _posicionales_git(args):
+    """Los argumentos que no son un flag ni el valor de un flag con valor."""
+    pos, i = [], 0
+    while i < len(args):
+        if args[i] in _GIT_RAMA_CON_VALOR:
+            i += 2
+            continue
+        if not args[i].startswith("-"):
+            pos.append(args[i])
+        i += 1
+    return pos
+
+
+def _parece_ruta(arg):
+    """Heurística de ruta para `git checkout`: `.` o algo con `.`/`/`. Cambiar
+    de rama no descarta trabajo; pisar una ruta sí. Borde declarado: un
+    archivo sin extensión (`git checkout Makefile`) no se distingue de una
+    rama sin mirar el repo, así que queda en un s/n (deuda de S0 anotada)."""
+    return arg == "." or "." in arg or "/" in arg
+
+
 def _normalizar_git(tokens):
     """`git` sin sus opciones globales (`-C .`, `-c user.name=x`): el
     subcomando es lo que decide el riesgo. X159a: las formas que descartan
     trabajo en cualquier orden de opciones quedan con la forma de la lista
     (`reset … --hard` → `reset --hard`, `clean -fdx` → `clean -f`,
-    `checkout <rev> -- x` → `checkout --`, y `restore` que toca el árbol →
-    `restore --worktree`, que es su default). `restore --staged` solo toca el
-    índice y queda como está."""
+    `checkout` con una ruta o `-f` → `checkout --`, `switch -f` →
+    `switch -f`, y `restore` que toca el árbol → `restore --worktree`, que es
+    su default). `restore --staged` solo toca el índice y queda como está,
+    igual que `checkout <rama>`/`-b` y `switch <rama>`."""
     resto, i = tokens[1:], 0
     while i < len(resto) and resto[i].startswith("-"):
         i += 2 if resto[i] in _GIT_GLOBAL_CON_VALOR else 1
@@ -391,8 +417,11 @@ def _normalizar_git(tokens):
         return ["git", "reset", "--hard"]
     if sub == "clean" and ("f" in cortos or "--force" in args):
         return ["git", "clean", "-f"]
-    if sub == "checkout" and "--" in args:
+    if sub == "checkout" and ("--" in args or "f" in cortos or "--force" in args
+                              or any(_parece_ruta(p) for p in _posicionales_git(args))):
         return ["git", "checkout", "--"]
+    if sub == "switch" and ("f" in cortos or "--force" in args or "--discard-changes" in args):
+        return ["git", "switch", "-f"]
     solo_indice = ("S" in cortos or "--staged" in args) and not ("W" in cortos or "--worktree" in args)
     if sub == "restore" and not solo_indice:
         return ["git", "restore", "--worktree"]
@@ -435,7 +464,7 @@ IRREVERSIBLES = tuple(" ".join(p) for p in _NEGRA_DOBLE)
 
 
 def irreversible(comando):
-    """True si algún segmento es de la lista doble (git push, rm -rf), ya
+    """True si algún segmento es de la lista doble (lo que descarta trabajo), ya
     normalizado: `sudo rm -rf`, `/bin/rm -fr`, `git -C . push` también."""
     return any(_segmento_nivel(s) == CONFIRMAR_DOBLE for s in segmentos(comando))
 

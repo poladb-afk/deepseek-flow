@@ -120,7 +120,8 @@ def test_plan_respuesta_lo_que_descarta_trabajo_nunca_pasa_solo(tmp_path):
     (medido): solo `git push` estaba en la lista doble. Ahora la denylist del
     scope es la lista doble entera, y estos están en ella."""
     for comando in ("git reset --hard", "git reset HEAD~1 --hard", "git clean -fdx",
-                    "git checkout -- .", "git restore ."):
+                    "git checkout -- .", "git checkout .", "git checkout -f", "git restore .",
+                    "git switch -f"):
         pedido = Pedido("¿Ejecutar?", "", "comando", comando)
         assert _decide(tmp_path, pedido, permitir_comandos=["git"]).motivo == "denylist", comando
     reversible = Pedido("¿Ejecutar?", "", "comando", "git restore --staged a.py")

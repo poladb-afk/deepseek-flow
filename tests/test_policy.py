@@ -43,7 +43,7 @@ def test_policy_clasifica_los_tres_niveles():
 
     # PREGUNTAR: lo no reconocido y la negra de un solo s/n
     for c in ("mkdir nueva", "curl http://x", "rm -f x", "git commit -m x",
-              "git checkout .", "git reset HEAD~1", "pip install x"):
+              "git checkout main", "git switch main", "git reset HEAD~1", "pip install x"):
         assert clasificar(c) == "preguntar", c
 
     # CONFIRMAR_DOBLE
@@ -585,7 +585,8 @@ def test_explicar_ruff_dice_que_parsea_sin_ejecutar():
     "git checkout -- .", "git checkout HEAD -- a.py", "git checkout main -- a.py",
     "git restore .", "git restore a.py", "git restore --source=HEAD~1 a.py",
     "git restore --staged --worktree a.py", "git restore -SW a.py",
-    "git -C . reset --hard", "cd /tmp && git clean -fd", "sudo git reset --hard",
+    "git checkout .", "git checkout HEAD .", "git checkout a.py", "git checkout -f",
+    "git switch -f", "git -C . reset --hard", "cd /tmp && git clean -fd", "sudo git reset --hard",
 ])
 def test_lo_que_descarta_trabajo_pide_doble_confirmacion(comando):
     from utils.policy import clasificar
@@ -596,6 +597,7 @@ def test_lo_que_descarta_trabajo_pide_doble_confirmacion(comando):
 @pytest.mark.parametrize("comando", [
     "git reset", "git reset HEAD~1", "git reset --soft HEAD~1", "git clean -n", "git clean -nd",
     "git checkout main", "git checkout -b nueva", "git restore --staged a.py", "git restore -S a.py",
+    "git switch main", "git switch -c nueva",
 ])
 def test_lo_que_no_descarta_trabajo_sigue_con_un_si_o_no(comando):
     from utils.policy import clasificar

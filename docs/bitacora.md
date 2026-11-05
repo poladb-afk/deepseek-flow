@@ -2027,6 +2027,16 @@ scope a la vez, sin tocar el mecanismo de scope.
   fricción. Sin una entrada `git restore` a secas, porque `git restore
   --staged` quedaría tapado.
 
+**El hueco hermano, antes de aceptar.** La auditoría de este paso encontró que
+la forma con `--` estaba cubierta pero no la sin `--` ni el flag `-f`:
+`git checkout .`, `git checkout a.py` y `git checkout -f` seguían en un s/n y
+el scope con `git` las auto-aprobaba; `git switch -f`, que también descarta,
+ni estaba en la lista. Entran con la misma medida: `checkout` mapea a
+`checkout --` cuando algún argumento es una ruta (heurística: `.` o algo con
+`.`/`/`) o hay `-f`/`--force`, y `switch` con `-f`/`--force`/`--discard-changes`
+mapea a la entrada nueva `git switch -f`. Quedan en un s/n `checkout <rama>`,
+`checkout -b`, `switch <rama>` y `switch -c`.
+
 **El criterio de qué entra:** destruye trabajo que no queda en el reflog.
 Quedan **afuera, con un s/n**: `git reset` sin `--hard`, `git clean -n`
 (dry-run), `git checkout <rama>` (git se niega si hay cambios que se
@@ -2034,7 +2044,11 @@ perderían), `git restore --staged`. Y se registran como **pendiente** (no
 entran ahora, se pueden recuperar en parte): `git stash drop`/`clear`
 (por `git fsck`) y `git branch -D` (por reflog); también se aprueban solos
 con scope `git`. Decisión del operador (2026-11-05): "lo que recomiendes",
-sobre la propuesta que los dejaba afuera.
+sobre la propuesta que los dejaba afuera. Dos bordes quedan como **deuda de S0
+declarada** (no entran a este parche): la evasión por alias
+(`git -c alias.r='reset --hard' r` ejecuta el reset y el clasificador ve
+`git r`) y un archivo sin extensión (`git checkout Makefile` no se distingue
+de una rama sin mirar el repo).
 
 **La descripción de la tool deja de enumerar a mano.** `permitir_comandos`
 decía "git push y rm -rf nunca"; ahora dice "lo irreversible nunca", que es
@@ -2044,24 +2058,29 @@ nombran la lista en vez de dos ejemplos.
 
 **Los candados.** Escritos primero y vistos en **rojo contra el código de
 antes** (16 casos de clasificación, el de scope y la tupla de
-`IRREVERSIBLES`): `test_lo_que_descarta_trabajo_pide_doble_confirmacion` (18
-formas, con `git -C . reset --hard`, `cd x && git clean -fd` y `sudo git
-reset --hard`), `test_lo_que_no_descarta_trabajo_sigue_con_un_si_o_no` (9) y
+`IRREVERSIBLES`): `test_lo_que_descarta_trabajo_pide_doble_confirmacion` (23
+formas, con `git -C . reset --hard`, `cd x && git clean -fd`, `sudo git
+reset --hard` y, del hueco hermano, `git checkout .`, `git checkout HEAD .`,
+`git checkout a.py`, `git checkout -f` y `git switch -f`),
+`test_lo_que_no_descarta_trabajo_sigue_con_un_si_o_no` (11) y
 `test_plan_respuesta_lo_que_descarta_trabajo_nunca_pasa_solo` (scope `git`:
-los cinco dan `denylist`; `restore --staged` se aprueba). Una aserción vieja
-de `test_policy_clasifica_los_tres_niveles` decía que `git reset --hard` es
-`preguntar`: ahora lo exige el test nuevo con su nivel correcto y en su lugar
-quedó `git reset HEAD~1`, que sí sigue en un s/n (R7, autorizado por el
-operador con el cambio de política). `test_el_archivo_versionado_valida_y_es_el_que_se_usa`
-fija la tupla nueva.
+los ocho dan `denylist`; `restore --staged` se aprueba). **Dos aserciones viejas**
+de `test_policy_clasifica_los_tres_niveles` cambiaron de lado:
+`git reset --hard` (X159a) y `git checkout .` (hueco hermano) pasaron a
+`confirmar_doble`; en la lista de un s/n quedaron `git reset HEAD~1`,
+`git checkout main` y `git switch main`, y el nivel correcto lo exigen los
+tests nuevos (R7, autorizado por el operador con el cambio de política).
+`test_el_archivo_versionado_valida_y_es_el_que_se_usa` fija la tupla nueva,
+con las ocho entradas.
 
 **Las fotos de la 5a.** La real (`policy_comandos.jsonl`, 445 comandos del
 operador) da **0 diferencias** de nivel y de texto: nadie usó esos comandos
 en el tráfico medido. La sintética (`policy_casos_entrada.jsonl`) se regeneró
-con `comandos_reales.py --casos`: **0 filas cambiadas, 0 quitadas y 20
-nuevas** (las cinco formas de cada entrada nueva, todas `confirmar_doble`).
+con `comandos_reales.py --casos`: **0 filas cambiadas, 0 quitadas y 25
+nuevas** (las formas de cada entrada nueva, todas `confirmar_doble`).
 
-**Los números.** `tests_definidos` 1179 → 1207, `bytes_primer_request` 16606
-→ 16604, y **`lineas_del_producto` 7646 → 7657 (+11)**: las once líneas de
-la normalización de git. Es el único empeoramiento y es de S0 (P1 cede ante
-S0); lo acepta el operador con su clave.
+**Los números.** `tests_definidos` 1179 → 1214, `bytes_primer_request` 16606
+→ 16604, y **`lineas_del_producto` 7646 → 7673 (+27)**: las once líneas de
+la normalización del paso más las dieciséis del hueco hermano. Es el único
+empeoramiento y es de S0 (P1 cede ante S0); lo acepta el operador con su
+clave.
