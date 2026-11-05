@@ -1967,7 +1967,7 @@ pre-registra). Probado sin red con un cliente falso: las tres salidas del
 veredicto se dan como corresponde. **Falta que el operador lo corra con su
 clave**; el resultado se anota acá y cierra X158.
 
-**La corrida (operador, 2026-11-05).** Salida real:
+**La corrida (autorizada por el operador, 2026-11-05; la ejecutó Chief).** Salida real:
 
 ```
 base:          acepta=true, tool_calls=1, prompt=673
@@ -1978,15 +1978,16 @@ none_repetida: acepta=true, tool_calls=0, prompt=40, cache_hit=0
 **Veredicto**: `tool_choice="none"` **lo acepta y no devuelve tool calls** → S3
 se puede pre-registrar. Costo: centésimas de centavo.
 
-**La salvedad que cambia la premisa (el dato que importa).** El prompt cae de
-**673 a 40** tokens con `tool_choice="none"`, y esos 40 son exactamente el
-tamaño de las 3 tools de `utils.fs_tools`: el proveedor **no cuenta las tools
-en el prompt** cuando el parámetro está en `none` (probablemente las ignora del
-lado del servidor). La premisa de S3 ("mismas tools, prefijo fijo") **no queda
-probada**: el prefijo cambia. S3 se puede pre-registrar **con esta salvedad
-escrita**; antes de apoyarse en el prefijo fijo conviene una cuarta medición con
-prompt realista (4 llamadas, centavos) que mida si el caché se comparte. Y el
-`cache_hit=0` de la repetida no dice nada: con 40 tokens el prefijo está por
+**La salvedad que cambia la premisa (el dato que importa).** El prompt pasa de
+**673 (con tools) a 40 (sin tools)**: la caída de **633 tokens** es el tamaño
+que ocupan las 3 tools de `utils.fs_tools` (sus esquemas suman 1.619 chars), o
+sea que el proveedor **no las cuenta en el prompt** cuando el parámetro está en
+`none` (probablemente las ignora del lado del servidor). La premisa de S3
+("mismas tools, prefijo fijo") **no queda probada**: el prefijo cambia. S3 se
+puede pre-registrar **con esta salvedad escrita**; antes de apoyarse en el
+prefijo fijo conviene una cuarta medición con prompt realista (4 llamadas,
+centavos) que mida si el caché se comparte. Y el `cache_hit=0` de la repetida
+no dice nada: con 40 tokens el prefijo está por
 debajo del mínimo cacheable.
 
 **Bug del instrumento, corregido.** El comando del docstring fallaba tal cual
