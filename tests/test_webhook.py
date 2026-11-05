@@ -153,3 +153,27 @@ def test_parsear_evento_valida_forma():
     for crudo in (b"[1, 2]", b'{"detalle": 1}', b'{"tipo": ""}', b'{"tipo": "' + b"x" * 65 + b'"}'):
         with pytest.raises(ValueError):
             _parsear_evento(crudo)
+
+
+def test_webhook_con_origin_ajeno_no_registra_nada(webhook):
+    """X163: el handler APLICA el corte de origen (antes solo se probaba
+    `_origen_valido` aislado: borrar la llamada del handler dejaba el gate
+    verde). Con el token correcto y un Origin ajeno, 403 y nada persistido."""
+    _hitl, puerto, tmp_path = webhook
+    payload = json.dumps({"tipo": "ci"}).encode()
+    codigo, _ = _pedir(puerto, "/webhook", payload, _auth(extra={"Origin": "http://evil.example"}))
+    assert codigo == 403
+    assert not (tmp_path / "webhooks.jsonl").exists()
+
+
+def test_pagina_de_pedidos_con_host_ajeno_no_muestra_tokens(webhook):
+    """X163: un GET con Host ajeno (DNS-rebinding) no lee la página de pedidos
+    pendientes, que lleva el token de cada uno."""
+    hitl, puerto, _tmp = webhook
+    pedido = hitl._Pedido("¿Aprobar?", "cuerpo", "token-del-pedido")
+    with hitl._lock:
+        hitl._pendientes[pedido.token] = pedido
+    codigo, cuerpo = _pedir(puerto, "/", headers={"Host": f"evil.example:{puerto}"})
+    assert codigo == 403 and "token-del-pedido" not in cuerpo
+    codigo, cuerpo = _pedir(puerto, "/")
+    assert codigo == 200 and "token-del-pedido" in cuerpo

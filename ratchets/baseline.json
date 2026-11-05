@@ -432,7 +432,7 @@
         "tests/test_flujos.py": 37,
         "tests/test_forma_larga.py": 5,
         "tests/test_fractal.py": 8,
-        "tests/test_fs_tools.py": 16,
+        "tests/test_fs_tools.py": 19,
         "tests/test_gate_fractal.py": 9,
         "tests/test_grafo_readme.py": 1,
         "tests/test_grafos_sin_calles_muertas.py": 3,
@@ -479,10 +479,10 @@
         "tests/test_utils_compartidos.py": 7,
         "tests/test_visor.py": 4,
         "tests/test_viz.py": 5,
-        "tests/test_webchat.py": 7,
-        "tests/test_webhook.py": 11
+        "tests/test_webchat.py": 9,
+        "tests/test_webhook.py": 13
       },
-      "metrica": 1227
+      "metrica": 1234
     },
     "texto_de_prompt": {
       "detalle": {

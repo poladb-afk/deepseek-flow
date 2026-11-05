@@ -292,3 +292,26 @@ def test_run_tool_call_coerciona_el_retorno_a_str():
           "function": {"name": "demo", "arguments": "{}"}}
     r = run_tool_call(tc, extra_impls={"demo": impl})
     assert r["content"] == "{'a': 1}"
+
+
+@pytest.mark.parametrize("como", ["resolve", "read_file", "escribir_salida"])
+def test_una_raiz_no_cubre_a_su_hermana_con_el_mismo_prefijo(tmp_path, monkeypatch, como):
+    """X163: la contención compara por COMPONENTE de ruta, no por prefijo de
+    texto: la raíz `raiz` no cubre `raiz_evil`. El bug ya lo había tenido el
+    scope (auditoría S2, `docs_evil`), pero en fs_tools no lo cuidaba ningún
+    test: con `str(ruta).startswith(str(raiz))` el gate quedaba verde."""
+    from utils import fs_tools
+
+    raiz, hermana = tmp_path / "raiz", tmp_path / "raiz_evil"
+    raiz.mkdir()
+    hermana.mkdir()
+    (hermana / "x.txt").write_text("SECRETO\n", encoding="utf-8")
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(raiz))
+    monkeypatch.chdir(tmp_path)
+    if como == "resolve":
+        assert fs_tools._resolve(str(hermana / "x.txt"))[1]
+    elif como == "read_file":
+        assert "SECRETO" not in fs_tools.read_file(str(hermana / "x.txt"))
+    else:
+        destino, err = fs_tools.escribir_salida(str(hermana / "nuevo.md"), "x")
+        assert destino is None and err and not (hermana / "nuevo.md").exists()

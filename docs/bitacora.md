@@ -2167,3 +2167,48 @@ que el humano aprobó (es su contrato), y `banco/` es laboratorio.
 
 **Los números.** `tests_definidos` 1223 → 1227; el resto IGUAL. Solo mejoras:
 el ratchet reescribió el baseline solo, sin clave.
+
+---
+
+## X163: los chequeos de S0 que ningún test cuidaba (2026-11-05)
+
+**Cómo se encontró.** En el relevamiento del harness (bloque 6) se desactivó,
+uno por uno, cada chequeo de las fronteras de S0 y se corrió la suite. De 21
+chequeos, 16 quedaron protegidos: algún test se ponía en rojo. **Cinco
+sobrevivían a la suite entera** (1228 pasados con el chequeo borrado): el
+código de hoy los cumple, pero si alguien los borraba el gate seguía verde.
+
+| Chequeo desactivado | Qué protege | Por qué no lo veía ningún test |
+|---|---|---|
+| Origen loopback en `POST /webhook` | Una página ajena no mete eventos | Se probaba `_origen_valido` aislada, no que el handler la llamara |
+| Origen loopback en `GET /` (pedidos) | DNS-rebinding no lee los pedidos ni sus tokens | Mismo patrón |
+| Origen loopback en `POST /chat/*` | CSRF contra el chat web | Ningún test mandaba un Origin ajeno |
+| Sesión y token en `GET /chat/stream` | Leer el stream de otra sesión | Ningún test pedía el SSE con un token malo |
+| Contención por componente en `fs_tools._raiz_que_contiene` | La raíz `raiz` no cubre `raiz_evil` | Los casos `docs_evil` probaban el scope, no `fs_tools` |
+
+El último es el más serio: con la comparación por prefijo de texto,
+`read_file` leía un archivo de la carpeta hermana (medido: False con el
+código real, True con el mutante). Es el bug que la auditoría S2 ya había
+arreglado en el scope.
+
+**El cambio: solo tests**, sin tocar código de producto. Cinco tests nuevos
+(siete casos):
+- `test_webhook_con_origin_ajeno_no_registra_nada` (`tests/test_webhook.py`):
+  token correcto y Origin ajeno → 403 y nada persistido.
+- `test_pagina_de_pedidos_con_host_ajeno_no_muestra_tokens`: con un pedido
+  pendiente, un Host ajeno da 403 y la página no aparece; con loopback, sí.
+- `test_chat_con_origin_ajeno_no_abre_sesion` (`tests/test_webchat.py`):
+  `POST /chat/sesion` con Origin ajeno → 403 y ninguna sesión creada.
+- `test_stream_con_token_malo_no_entrega_la_salida`: `GET /chat/stream` con
+  un token inválido → 401.
+- `test_una_raiz_no_cubre_a_su_hermana_con_el_mismo_prefijo`
+  (`tests/test_fs_tools.py`), parametrizado en `_resolve`, `read_file` y
+  `escribir_salida`.
+
+**La prueba de que sirven.** Los cinco pasan contra el código actual, y cada
+uno se pone en **rojo con su mutante** (los cinco mutantes de la tabla:
+5 de 5 mueren). Cada mutación se restauró desde el zip y se comprobó que el
+archivo quedara idéntico.
+
+**Los números.** `tests_definidos` 1227 → 1234; el resto IGUAL. Solo
+mejoras: el ratchet reescribió el baseline solo, sin clave.

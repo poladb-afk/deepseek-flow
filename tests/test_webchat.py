@@ -169,3 +169,25 @@ def test_chat_rechaza_token_malo_y_webchat_apagado(servidor, monkeypatch):
     monkeypatch.setenv("WEBCHAT", "0")
     codigo, _ = _pedir(puerto, "/chat")
     assert codigo == 404
+
+
+def test_chat_con_origin_ajeno_no_abre_sesion(servidor):
+    """X163: CSRF contra el chat web. Una página ajena que postea a
+    /chat/sesion recibe 403 y no se crea ninguna sesión (antes ningún test
+    mandaba un Origin ajeno: borrar el corte dejaba el gate verde)."""
+    _hitl, puerto = servidor
+    codigo, _ = _pedir(puerto, "/chat/sesion", datos=b"{}",
+                       cabeceras={"Content-Type": "application/json", "Origin": "http://evil.example"})
+    assert codigo == 403
+    assert not webchat.gestor()._sesiones
+
+
+def test_stream_con_token_malo_no_entrega_la_salida(servidor):
+    """X163: el SSE de una sesión exige SU token: con uno inválido, 401."""
+    _hitl, puerto = servidor
+    _, cuerpo = _pedir(puerto, "/chat/sesion", datos=b"{}", cabeceras={"Content-Type": "application/json"})
+    sesion = json.loads(cuerpo)["sesion"]
+    conexion = http.client.HTTPConnection("127.0.0.1", puerto, timeout=5)
+    conexion.request("GET", f"/chat/stream?sesion={sesion}&token=malo")
+    assert conexion.getresponse().status == 401
+    conexion.close()
