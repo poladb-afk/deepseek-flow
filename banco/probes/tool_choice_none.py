@@ -14,9 +14,16 @@ del harness (`utils.call_llm`):
   2. lo mismo con tool_choice="none" → ¿lo acepta? ¿devuelve tool calls?
   3. lo mismo que 2, repetida → el cache del prefijo (prompt_cache_hit_tokens).
 
+Solo cuenta como veredicto el rechazo del PARÁMETRO (400 que lo nombre, o un
+TypeError del cliente). Un 503, la red, la cuota o una clave ausente no deciden
+nada: la sonda imprime `ERROR de la sonda: no es veredicto — reintentar` y sale
+con código ≠ 0, sin cerrar S3.
+
 Uso: python3 banco/probes/tool_choice_none.py  (necesita DEEPSEEK_API_KEY o LLM_API_KEY)
 """
 import json
+
+from openai import BadRequestError
 
 from utils.call_llm import _client, _model
 from utils.fs_tools import TOOLS
@@ -24,11 +31,23 @@ from utils.fs_tools import TOOLS
 PEDIDO = [{"role": "user", "content": "Listá los archivos del directorio actual."}]
 
 
+def _rechazo_del_parametro(exc):
+    """Un 400 que nombre `tool_choice` o un TypeError del cliente ES el dato
+    ("no lo acepta"). Un 503, la red, la cuota o una clave ausente no deciden
+    nada: son error operativo y la sonda no arriesga un veredicto."""
+    return isinstance(exc, TypeError) or (
+        isinstance(exc, BadRequestError) and "tool_choice" in str(exc).lower())
+
+
 def una(etiqueta, **extra):
     try:
         r = _client().chat.completions.create(model=_model(), messages=PEDIDO, tools=TOOLS,
                                               max_tokens=40, **extra)
-    except Exception as e:  # noqa: BLE001 (sonda: el rechazo del proveedor ES el dato)
+    except Exception as e:  # noqa: BLE001 (sonda: la clase del error ES el dato)
+        if not _rechazo_del_parametro(e):
+            print(f"ERROR de la sonda: no es veredicto — reintentar "
+                  f"({type(e).__name__}: {e})"[:500])
+            raise SystemExit(2) from None
         fila = {"llamada": etiqueta, "acepta": False, "error": f"{type(e).__name__}: {e}"[:400]}
     else:
         msg, u = r.choices[0].message, r.usage
