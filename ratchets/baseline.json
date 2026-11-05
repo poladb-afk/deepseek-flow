@@ -165,7 +165,7 @@
         "auditoria.py": 83,
         "debate.py": 99,
         "delegar.py": 185,
-        "effective_n.py": 271,
+        "effective_n.py": 266,
         "fable_judge.py": 600,
         "flow.py": 20,
         "heartbeat.py": 77,
@@ -237,14 +237,11 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7651
+      "metrica": 7646
     },
     "nodos_largos": {
-      "detalle": {
-        "effective_n.py:HashFile": 47,
-        "effective_n.py:WriteReport": 50
-      },
-      "metrica": 2
+      "detalle": {},
+      "metrica": 0
     },
     "producto_conoce_lab": {
       "detalle": {},
@@ -455,7 +452,7 @@
         "tests/test_minar_errores.py": 16,
         "tests/test_modulos.py": 18,
         "tests/test_novedad.py": 2,
-        "tests/test_pendientes.py": 35,
+        "tests/test_pendientes.py": 36,
         "tests/test_policy.py": 26,
         "tests/test_policy_bypass.py": 106,
         "tests/test_policy_datos.py": 15,
@@ -485,7 +482,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1178
+      "metrica": 1179
     },
     "texto_de_prompt": {
       "detalle": {

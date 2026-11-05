@@ -1862,3 +1862,53 @@ había) y con un mutante que borra el marcador `[ROTA]` falla.
 `tests_definidos` **1177 → 1178**, `lineas_del_producto` **7651 IGUAL**, el
 resto IGUAL. Solo mejoras: el ratchet reescribió el baseline solo, sin
 clave. Sin cambio de conducta.
+
+---
+
+## X156, segunda parte: los dos nodos largos de `effective_n` (2026-11-05)
+
+**Qué había.** `effective_n.WriteReport` tenía 50 líneas de código y
+`effective_n.HashFile` 47 (el tope de C6 es 40). En `HashFile`, `exec` hacía
+todo el recorrido del archivo: leer línea por línea, contar rotos, forma
+inválida, `steps` y `observation`, juntar huellas y etiquetas y calcular el
+md5. En `WriteReport`, `exec` armaba la plantilla entera del informe.
+
+**Primero, la caracterización**, con el mismo método que `Judge`: un script
+de laboratorio (no queda en el repo) arma un árbol temporal con duplicados
+internos, un archivo idéntico por md5, una subcarpeta, una contradicción de
+etiqueta, JSON roto, `[]`, `{"fields": null}` y una carpeta vacía, y guarda:
+`HashFile.exec` de cada archivo, el flujo completo de una carpeta con salida
+(dos globs y la carpeta vacía: `shared`, stdout y el markdown escrito),
+`WriteReport.post` sin salida con el acumulador del lote, y
+`EffectiveNMulti` sobre dos carpetas. **El archivo resultante es el mismo
+byte a byte antes y después** (sha256 `7f90420a…`).
+
+**El cambio.** Dos funciones de módulo, sin tocar ninguna cadena ni
+ninguna lógica: `huellas_del_archivo(filepath)` es lo que hacía
+`HashFile.exec`, y `informe_de(folder, cruce)` es lo que hacía
+`WriteReport.exec` (la plantilla fuera del nodo, como `informe_lote` en
+X137). Los dos `exec` quedan en una línea. `HashFile.exec` lleva un
+docstring corto porque `test_sin_wrappers_vacios_sin_justificar` lo marcó:
+una función que solo reenvía sus argumentos tiene que decir por qué existe
+(acá, es el mapa del `BatchNode`). `WriteReport.exec` no lo necesita: recibe
+la tupla de `prep` y la desarma, no reenvía lo mismo. Igual que en la primera parte, el
+ratchet marcó +3 líneas de producto en el primer intento (las firmas nuevas
+y las delegaciones); se compactaron tres construcciones partidas en varias
+líneas (el dict del informe vacío, la desestructuración del cruce y el
+bloque de duplicados), dentro del límite de 120 de `ruff`, y el total bajó.
+
+**El candado nuevo.** Ningún test miraba las secciones del informe más allá
+del `Effective N: 3` de `test_effective_n_flow`. Se suma
+`test_el_informe_de_effective_n_muestra_solapes_duplicados_y_contradicciones`:
+el resumen con el porcentaje de duplicados, los archivos idénticos, la
+contradicción de etiqueta, la fila de solape, la fila de la tabla por
+archivo y el informe de una carpeta vacía. Corrido contra el `effective_n.py`
+de antes (vía `WriteReport().exec`, porque `informe_de` no existía) pasa:
+describe lo que había. Con un mutante que invierte el porcentaje de
+duplicados, falla.
+
+**Los números** (ratchet, sobre X156a): `nodos_largos` **2 → 0**,
+`lineas_del_producto` **7651 → 7646**, `tests_definidos` **1178 → 1179**, el
+resto IGUAL. Solo mejoras: el ratchet reescribió el baseline solo, sin
+clave. Sin cambio de conducta. Con esto X156 queda cerrado: ningún nodo del
+harness supera las 40 líneas de código.

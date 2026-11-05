@@ -47,6 +47,31 @@ def test_effective_n_distingue_json_ilegible(tmp_path):
     assert (r["rotos"], r["forma"]) == (1, 0)
 
 
+def test_el_informe_de_effective_n_muestra_solapes_duplicados_y_contradicciones():
+    """X156b (caracterización antes de partir `WriteReport`): el informe de
+    una carpeta pone cada hecho del cruce en su sección — el resumen con el
+    porcentaje de duplicados, los archivos idénticos por md5, las
+    contradicciones de etiqueta y la tabla de solapes — y sin datos dice que
+    no hay archivos en vez de dividir por cero."""
+    import effective_n
+
+    cruce = {"vacio": False, "total": 4, "efectivo": 3,
+             "filas": [{"archivo": "a.jsonl", "n": 3, "rotos": 0, "forma": 0, "unicos": 2,
+                        "con_steps": 1, "con_obs": 0}],
+             "dup": [["a.jsonl", "a_copia.jsonl"]], "solapes": [("a.jsonl", "b.jsonl", 1, 4)],
+             "contradicciones": [("a.jsonl", ["read", "write"])]}
+    r = effective_n.informe_de("/datos", cruce)
+    assert (r["total"], r["efectivo"]) == (4, 3)
+    md = r["markdown"]
+    assert "Registros: 4 → **Effective N: 3** (1 duplicados, 25.0%)" in md
+    assert "- `a.jsonl` ≡ `a_copia.jsonl`" in md
+    assert "- `a.jsonl`: etiquetas en conflicto ['read', 'write']" in md
+    assert "| `a.jsonl` | `b.jsonl` | 1 | 25% |" in md
+    assert "| `a.jsonl` | 3 | 1 | 2 | 1 | 0 |" in md
+    vacio = effective_n.informe_de("/datos", {"vacio": True})
+    assert vacio == {"markdown": "# Effective N\n\nNo se encontraron archivos en `/datos`.\n", "total": 0, "efectivo": 0}
+
+
 def test_effective_n_reutilizado_procesa_la_carpeta_nueva(tmp_path):
     """Reusar el mismo flow no debe congelar los params de la 1ª corrida."""
     from modules.effective_n import create_effective_n_flow

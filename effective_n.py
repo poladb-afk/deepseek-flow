@@ -72,6 +72,53 @@ class ScanFiles(Node):
         print(f"Encontrados {len(exec_res)} archivos ({prep_res[1]} en {prep_res[0]})")
 
 
+def huellas_del_archivo(filepath):
+    """Las huellas de un .jsonl y sus contadores (registros, rotos, forma
+    inválida, con steps, con observation), más las etiquetas por contenido
+    sin `next` (para detectar contradicciones) y el md5 del archivo."""
+    n, rotos, forma, con_steps, con_obs = 0, 0, 0, 0, 0
+    huellas, etiquetas, dist = [], {}, Counter()
+    with open(filepath, encoding="utf-8") as f:
+        for linea in f:
+            if not linea.strip():
+                continue
+            n += 1
+            # Lector COMPARTIDO (informe.leer_registro): distingue JSON
+            # ilegible de JSON legible con estructura equivocada. Antes
+            # `[]`, `null` o {"fields": null} reventaban con AttributeError
+            # y tumbaban el análisis entero (C11).
+            rec, motivo = leer_registro(linea)
+            if motivo == "json":
+                rotos += 1
+                continue
+            if motivo == "forma":
+                forma += 1
+                continue
+            campos = rec.get("fields", {})
+            if campos.get("steps"):
+                con_steps += 1
+            if campos.get("observation"):
+                con_obs += 1
+            nxt = rec.get("answers", {}).get("next")
+            if nxt:
+                dist[nxt] += 1
+            huellas.append(huella(rec))
+            # misma huella sin next → etiquetas que recibió (contradicciones)
+            etiquetas.setdefault(huella(rec, con_next=False), set()).add(nxt)
+    return {
+        "file": filepath,
+        "n": n,
+        "rotos": rotos,
+        "forma": forma,
+        "con_steps": con_steps,
+        "con_obs": con_obs,
+        "huellas": huellas,
+        "etiquetas": etiquetas,
+        "dist": dict(dist),
+        "md5": md5_de(filepath),
+    }
+
+
 class HashFile(BatchNode):
     """Mapa: por archivo, las huellas de sus registros (CPU puro, secuencial)."""
 
@@ -86,47 +133,8 @@ class HashFile(BatchNode):
         return super()._run(shared)
 
     def exec(self, filepath):
-        n, rotos, forma, con_steps, con_obs = 0, 0, 0, 0, 0
-        huellas, etiquetas, dist = [], {}, Counter()
-        with open(filepath, encoding="utf-8") as f:
-            for linea in f:
-                if not linea.strip():
-                    continue
-                n += 1
-                # Lector COMPARTIDO (informe.leer_registro): distingue JSON
-                # ilegible de JSON legible con estructura equivocada. Antes
-                # `[]`, `null` o {"fields": null} reventaban con AttributeError
-                # y tumbaban el análisis entero (C11).
-                rec, motivo = leer_registro(linea)
-                if motivo == "json":
-                    rotos += 1
-                    continue
-                if motivo == "forma":
-                    forma += 1
-                    continue
-                campos = rec.get("fields", {})
-                if campos.get("steps"):
-                    con_steps += 1
-                if campos.get("observation"):
-                    con_obs += 1
-                nxt = rec.get("answers", {}).get("next")
-                if nxt:
-                    dist[nxt] += 1
-                huellas.append(huella(rec))
-                # misma huella sin next → etiquetas que recibió (contradicciones)
-                etiquetas.setdefault(huella(rec, con_next=False), set()).add(nxt)
-        return {
-            "file": filepath,
-            "n": n,
-            "rotos": rotos,
-            "forma": forma,
-            "con_steps": con_steps,
-            "con_obs": con_obs,
-            "huellas": huellas,
-            "etiquetas": etiquetas,
-            "dist": dict(dist),
-            "md5": md5_de(filepath),
-        }
+        """El mapa del BatchNode, un archivo por vez; la lógica es de módulo (X156)."""
+        return huellas_del_archivo(filepath)
 
     def post(self, shared, prep_res, exec_res_list):
         # Contrato de shared["analisis"] (auditoría de consistencia 2026-10-05):
@@ -201,44 +209,30 @@ class Cruzar(Node):
         shared["cruce"] = exec_res
 
 
-class WriteReport(Node):
-    """La plantilla del informe y su escritura (el efecto); los hechos ya
-    vienen cruzados de `Cruzar`."""
+def informe_de(folder, cruce):
+    """El informe de UNA carpeta: {markdown, total, efectivo}. La plantilla vive
+    acá, fuera del nodo (como `informe_lote` en X137): es texto, no una arista."""
+    if not cruce or cruce.get("vacio"):
+        return {"markdown": f"# Effective N\n\nNo se encontraron archivos en `{folder}`.\n", "total": 0, "efectivo": 0}
+    filas, total, efectivo = cruce["filas"], cruce["total"], cruce["efectivo"]
+    tabla = "\n".join(
+        f"| `{f['archivo']}` | {f['n']} | {f['n'] - f['rotos'] - f['forma'] - f['unicos']} "
+        f"| {f['unicos']} | {f['con_steps']} | {f['con_obs']} |"
+        for f in filas
+    )
+    filas_solape = "\n".join(
+        f"| `{x}` | `{y}` | {inter} | {inter / union:.0%} |"
+        for x, y, inter, union in cruce["solapes"]
+    ) or "| — | — | 0 | — |"
+    ejemplos_contra = "\n".join(
+        f"- `{f}`: etiquetas en conflicto {n}"
+        for f, n in cruce["contradicciones"][:MAX_EJEMPLOS]
+    ) or "ninguna"
+    bloque_dup = "\n".join("- " + " ≡ ".join(f"`{n}`" for n in g) for g in cruce["dup"]) or "ninguno"
+    # total==0 (archivos vacíos o solo-rotos): evitar la división por cero
+    pct_dup = f"{(1 - efectivo / total):.1%}" if total else "—"
 
-    def prep(self, shared):
-        return self.params.get("folder") or shared["folder"], shared.get("cruce") or {}
-
-    def exec(self, inputs):
-        folder, cruce = inputs
-        if not cruce or cruce.get("vacio"):
-            return {
-                "markdown": f"# Effective N\n\nNo se encontraron archivos en `{folder}`.\n",
-                "total": 0,
-                "efectivo": 0,
-            }
-        filas = cruce["filas"]
-        total = cruce["total"]
-        efectivo = cruce["efectivo"]
-        tabla = "\n".join(
-            f"| `{f['archivo']}` | {f['n']} | {f['n'] - f['rotos'] - f['forma'] - f['unicos']} "
-            f"| {f['unicos']} | {f['con_steps']} | {f['con_obs']} |"
-            for f in filas
-        )
-        filas_solape = "\n".join(
-            f"| `{x}` | `{y}` | {inter} | {inter / union:.0%} |"
-            for x, y, inter, union in cruce["solapes"]
-        ) or "| — | — | 0 | — |"
-        ejemplos_contra = "\n".join(
-            f"- `{f}`: etiquetas en conflicto {n}"
-            for f, n in cruce["contradicciones"][:MAX_EJEMPLOS]
-        ) or "ninguna"
-        bloque_dup = "\n".join(
-            "- " + " ≡ ".join(f"`{n}`" for n in g) for g in cruce["dup"]
-        ) or "ninguno"
-        # total==0 (archivos vacíos o solo-rotos): evitar la división por cero
-        pct_dup = f"{(1 - efectivo / total):.1%}" if total else "—"
-
-        return {"total": total, "efectivo": efectivo, "markdown": f"""# Effective N — {date.today().isoformat()}
+    return {"total": total, "efectivo": efectivo, "markdown": f"""# Effective N — {date.today().isoformat()}
 
 Carpeta: `{folder}` · {len(filas)} archivos · {total} registros válidos
 
@@ -277,6 +271,17 @@ distintos cuentan como duplicado igual.)
 - `Con steps` bajo con `Con observation` alto indica un volcado cuyo
   esquema de estado no es el de producción (el Choose real lleva `steps`).
 """}
+
+
+class WriteReport(Node):
+    """La plantilla del informe y su escritura (el efecto); los hechos ya
+    vienen cruzados de `Cruzar`."""
+
+    def prep(self, shared):
+        return self.params.get("folder") or shared["folder"], shared.get("cruce") or {}
+
+    def exec(self, inputs):
+        return informe_de(*inputs)
 
     def post(self, shared, prep_res, exec_res):
         # El flujo de una carpeta corre con salida en shared; el job del
