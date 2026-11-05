@@ -2522,4 +2522,4 @@ reversibles) y el caso de scope: los tres comandos caen en `denylist` con
 
 **Los números.** `tests_definidos` 1247 → **1260**; `lineas_del_producto`
 7593 → **7600 (+7)**: la normalización nueva. Es de S0 (P1 cede), único
-empeoramiento, y lo acepta el operador con su clave.
+empeoramiento, y lo aceptó el operador con su clave (baseline `a05a97b`).
