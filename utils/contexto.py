@@ -41,28 +41,6 @@ PREGUNTA_PREFILTRO = {
 DEFAULT_MODEL_SETTING = "LAYA_MODEL_PREFILTRO"
 
 
-def unidades_bloques(texto):
-    """Corta un texto (markdown/plano) en bloques atómicos sin partir
-    ninguno: una línea en blanco o un encabezado markdown (`# `) abre bloque
-    nuevo. La unidad mínima indivisible es el párrafo; devuelve la lista de
-    strings no vacíos, en orden original."""
-    if not texto:
-        return []
-    bloques, actual = [], []
-    for linea in texto.splitlines():
-        if not linea.strip() or linea.lstrip().startswith("#"):
-            if actual:
-                bloques.append("\n".join(actual).strip())
-                actual = []
-            if linea.strip():  # el encabezado abre bloque (no se descarta)
-                actual = [linea]
-            continue
-        actual.append(linea)
-    if actual:
-        bloques.append("\n".join(actual).strip())
-    return [b for b in bloques if b]
-
-
 def elegir_por_laya(consulta, unidades, max_unidades, setting_modelo=DEFAULT_MODEL_SETTING,
                     texto_de=None):
     """Reordena/recorta `unidades` por relevancia a `consulta` según Laya.

@@ -197,7 +197,6 @@ tests/test_costos.py::test_reporte_tokens_modelo_sin_tarifa_lo_dice_sin_inventar
 tests/test_costos.py::test_reporte_tokens_sin_llamadas_no_imprime_nada
 tests/test_db.py::test_carga_trazas_procesa_todos_los_archivos
 tests/test_db.py::test_carga_trazas_serializa_criteria_no_string
-tests/test_db.py::test_evento_politica_no_se_confunde_con_tool
 tests/test_db.py::test_evento_tool_deja_rastro
 tests/test_db.py::test_lector_tolera_formas_invalidas_sin_perder_conteo
 tests/test_db.py::test_recarga_fallida_conserva_la_base_anterior
@@ -540,7 +539,6 @@ tests/test_memoria.py::test_rag_invalida_la_cache_al_reindexar
 tests/test_memoria.py::test_resumen_de_sesion_escribe_con_llm
 tests/test_memoria.py::test_resumen_de_sesion_rutas_visibles
 tests/test_memoria.py::test_resumen_de_sesion_se_apaga_y_no_rompe
-tests/test_memoria.py::test_unidades_bloques_no_parte_parrafos
 tests/test_minar_errores.py::test_destino_reintento_distingue_exito_abandono_y_otra_tool
 tests/test_minar_errores.py::test_destino_reintento_usa_la_posicion_y_no_la_igualdad_de_dict
 tests/test_minar_errores.py::test_es_rechazo_probable_es_solo_run_command_ok_instantaneo

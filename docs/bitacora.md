@@ -2424,3 +2424,76 @@ baseline solo, sin clave.
 **Los números.** Todo IGUAL (12 comentarios, un doc y una línea de test que
 amplía un candado que ya existía); `tests_definidos` igual porque no hay
 test nuevo.
+
+---
+
+## X165–X167: las tres decisiones de X164, aplicadas (2026-11-05)
+
+El operador aceptó las tres. Van juntas porque comparten el límite
+producto/laboratorio de X142, pero cada una tiene su candado.
+
+### X165: los 5 utils de laboratorio salen de `utils/`
+
+`utils/git.py`, `formato.py`, `rutas.py`, `trazas.py` y `votacion.py` pasan a
+**`instrumentos.py`** en la raíz, que entra a `LABORATORIO_RAIZ`. Sus
+llamadores son 9 piezas de laboratorio y 6 tests; se cambia solo el import,
+no el código. `RAIZ_PROYECTO` de `utils/rutas.py` no tenía llamador y no
+se mudó.
+
+**El candado** es `test_cada_pieza_de_utils_la_usa_el_producto`
+(`tests/test_ratchet_elegancia.py`): toda pieza de `utils/` tiene que
+aparecer en un import del producto, o como nombre de módulo en un string
+(`main.SUBCOMANDOS` monta `utils.viz` así). Da rojo contra el árbol de X164
+con los 5 nombres exactos y verde con el arreglo.
+
+### X166: las 3 funciones sin llamador, borradas con sus tests (R2 autorizada)
+
+- **`utils/contexto.unidades_bloques`** y `test_unidades_bloques_no_parte_parrafos`:
+  la usaba el prefiltro de RAG, que se borró en X153.
+- **`utils/tracing.evento_politica`** y `test_evento_politica_no_se_confunde_con_tool`:
+  la usaba el corte por no-progreso, que se fue en X132. `es_bookkeeping`
+  sigue reconociendo `accion=politica` porque las trazas viejas lo traen
+  (`test_los_eventos_de_bookkeeping_no_son_desconocidos` lo cuida), y su
+  docstring lo dice.
+- **`sha_largo`** (ahora en `instrumentos`): se va la función. Su test
+  `test_sha_corto_y_largo_son_hex_del_repo` **no se borra**: pasa a comparar
+  `sha_corto` con `sha_o_motivo`, que devuelve el mismo sha completo, así
+  sigue cuidando lo mismo. `test_sha_es_best_effort_si_git_no_esta` pierde
+  su línea de `sha_largo`.
+
+`tests/inventario_tests.txt` se regeneró con el comando de su docstring, y
+el diff son exactamente las 2 líneas borradas. La fila A41 de
+`docs/estado.md` dejó de citar el test borrado y dice dónde terminó.
+
+### X167: `producto_conoce_lab` también cuenta los imports de `LABORATORIO_RAIZ`
+
+`_toca_laboratorio` contaba solo `banco`. Ahora un import cuenta si su raíz
+es `banco` o una pieza de `LABORATORIO_RAIZ`. Para no contar el
+laboratorio importándose a sí mismo, el escaneo deja de excluir solo a
+`ratchet.py` y excluye `LABORATORIO_RAIZ` entero: el primer intento sin
+esa exclusión daba 10 (las piezas de laboratorio entre sí), lo que era ruido
+y no hallazgos. Montar un subcomando por nombre (`main.SUBCOMANDOS`) no es un
+import y no cuenta.
+
+**El candado** es `test_producto_que_importa_una_pieza_de_laboratorio_cuenta`:
+`modules/evals.py → evals` y `heartbeat.py → triaje_trazas` cuentan; el
+string de `SUBCOMANDOS`, un import con prefijo parecido (`evaluar`,
+`instrumentos_no`) y `replay.py → evals` (laboratorio con laboratorio) no.
+Da rojo contra el ratchet de antes (`{}`) y verde con el nuevo.
+
+**El número es honesto y empeora: 0 → 2**, exactamente lo que predijo X164
+(`heartbeat.py:<módulo>` y `modules/evals.py:<módulo>`). **El ratchet queda
+ROJO hasta que el operador lo acepte con su clave** (`--actualizar`); el
+agente no lo corre (Bypasses prohibidos de `AGENTS.md`). La pregunta de
+X164 sigue abierta: o `evals.py` y `triaje_trazas.py` pasan a ser producto
+(suben `lineas_del_producto`), o `run_evals` y la rama `triaje` del
+heartbeat dejan de importarlos.
+
+### Los números
+
+- `lineas_del_producto` **7667 → 7593 (−74)**: 48 de los utils que se
+  mudaron más 26 de las tres funciones borradas.
+- `tests_definidos` **1247 → 1247**: −2 tests borrados, +2 candados nuevos.
+- `producto_conoce_lab` **0 → 2**: empeora, declarado y aceptado por el
+  operador con su clave (baseline `39c3cca`).
+- El resto IGUAL.

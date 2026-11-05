@@ -24,7 +24,7 @@ sigue disponible para cuando haga falta profundidad. Decir "auditamos todo con
 esto" sería mentir sobre la cobertura.
 
 Determinista a propósito: SIN LLM, SIN red, SIN torch — JSON puro. El mismo
-parseo tolerante de `utils.trazas.leer_eventos`: una traza corrupta es un
+parseo tolerante de `instrumentos.leer_eventos`: una traza corrupta es un
 artefacto a saltear, nunca una excepción.
 
 Uso:
@@ -35,15 +35,14 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from utils.git import sha_corto
-from utils.rutas import DIR_RUNS
+from instrumentos import DIR_RUNS, sha_corto
 
-# Reuso EXACTO del parseo (utils.trazas) y del linter (evals.py): misma vara
+# Reuso EXACTO del parseo (instrumentos) y del linter (evals.py): misma vara
 # para todas las trazas del proyecto. Se importa, no se copia: una copia local
 # derivaría sin que ningún test lo note.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from evals import linter_traza  # noqa: E402
-from utils.trazas import leer_eventos  # noqa: E402
+from instrumentos import leer_eventos  # noqa: E402
 
 RAIZ = Path(__file__).resolve().parent
 DIR_SALIDA = Path("salidas/evals")

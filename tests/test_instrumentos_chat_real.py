@@ -30,7 +30,7 @@ def traza_del_chat(tmp_path, monkeypatch):
     import flow
     import nodes
     import utils.tracing as tracing
-    from utils.trazas import leer_eventos
+    from instrumentos import leer_eventos
 
     for clave, valor in {"CHAT_STREAM": "0", "PREFETCH": "0", "CITAS_VERIFICAR": "0",
                          "SKILLS": "0", "TRACE": "1"}.items():

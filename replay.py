@@ -56,12 +56,10 @@ from datetime import date, datetime
 from pathlib import Path
 
 from debate import Critico, FinAgente, JuezDebate, Proponente
+from instrumentos import DIR_RUNS, leer_eventos, sha_corto
 from nodes import MODULE_IMPLS, TOOLS
 from rag import ChunkDocs, EmbedChunks, SaveIndex
-from utils.git import sha_corto
-from utils.rutas import DIR_RUNS
 from utils.tracing import es_bookkeeping
-from utils.trazas import leer_eventos
 from utils.viz import FLOWS
 
 DIR_SALIDA = Path("salidas/evals")

@@ -17,7 +17,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from utils.rutas import DIR_RUNS
+from instrumentos import DIR_RUNS
 
 BASE = Path(__file__).resolve().parent
 SALIDA_DEFAULT = Path("salidas/tablero")

@@ -222,14 +222,6 @@ def test_rag_indice_lexico_sin_vectores_ok(tmp_path, monkeypatch):
 
 # Pre-filtro de contexto por Laya (Mesa 6)
 
-def test_unidades_bloques_no_parte_parrafos():
-    from utils.contexto import unidades_bloques
-
-    texto = "# Título\n\nprimer párrafo\ncon dos líneas\n\n# Sección\n\nsegundo párrafo"
-    bloques = unidades_bloques(texto)
-    assert bloques == ["# Título", "primer párrafo\ncon dos líneas", "# Sección", "segundo párrafo"]
-    assert unidades_bloques("") == []
-
 def test_elegir_por_laya_sin_modelo_es_noop(monkeypatch):
     """Regla de hierro: sin Laya disponible, entran los primeros max sin
     perder recall (no-op). El filtro es un acelerador, no una dependencia.

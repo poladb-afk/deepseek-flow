@@ -2,12 +2,12 @@
 
 Tres helpers que vivían copiados en varias piezas de la CLI:
 
-- `utils.git.sha_corto/sha_largo/sha_o_motivo`: ancla de informes y baselines
+- `instrumentos.sha_corto/sha_o_motivo`: ancla de informes y baselines
   (antes: 4 definiciones de `_git_sha` con dos semánticas distintas, y un
   import privado `from evals import _git_sha` en dos piezas).
-- `utils.formato.pct`: formato de fracciones para markdown (antes: 4 copias
+- `instrumentos.pct`: formato de fracciones para markdown (antes: 4 copias
   de `_fmt_pct`, una con la unidad equivocada).
-- `utils.trazas.leer_eventos`: parseo tolerante de `.jsonl` (antes: definido
+- `instrumentos.leer_eventos`: parseo tolerante de `.jsonl` (antes: definido
   en evals + wrapper en replay + import privado en triaje/minar).
 """
 import json
@@ -15,9 +15,8 @@ import json
 import pytest
 from conftest import requiere_repo_git
 
-from utils import git as git_utils
-from utils.formato import pct
-from utils.trazas import leer_eventos
+import instrumentos
+from instrumentos import leer_eventos, pct
 
 # formato
 
@@ -36,7 +35,7 @@ def test_pct_none_es_guion():
 @pytest.mark.git
 @requiere_repo_git
 def test_sha_corto_y_largo_son_hex_del_repo():
-    corto, largo = git_utils.sha_corto(), git_utils.sha_largo()
+    corto, largo = instrumentos.sha_corto(), instrumentos.sha_o_motivo()
     assert corto and largo
     assert len(corto) < len(largo)
     assert largo.startswith(corto)
@@ -47,10 +46,9 @@ def test_sha_es_best_effort_si_git_no_esta(monkeypatch):
     def explotar(*args, **kwargs):
         raise OSError("git no está")
 
-    monkeypatch.setattr(git_utils.subprocess, "run", explotar)
-    assert git_utils.sha_corto() == ""
-    assert git_utils.sha_largo() == ""
-    assert git_utils.sha_o_motivo() == "(git no disponible: OSError)"
+    monkeypatch.setattr(instrumentos.subprocess, "run", explotar)
+    assert instrumentos.sha_corto() == ""
+    assert instrumentos.sha_o_motivo() == "(git no disponible: OSError)"
 
 
 # trazas

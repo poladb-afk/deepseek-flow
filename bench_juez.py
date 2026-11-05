@@ -34,9 +34,8 @@ import time
 from datetime import date, datetime
 from pathlib import Path
 
+from instrumentos import pct, sha_o_motivo
 from juez import CITA_RE, responder_con_juez
-from utils.formato import pct
-from utils.git import sha_o_motivo
 
 PREGUNTAS = Path("banco/juez_preguntas.jsonl")
 BASELINE = Path("salidas/evals/bench_juez.json")

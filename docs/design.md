@@ -495,7 +495,7 @@ el paso N+1 decide con el resultado del N — el Choose de bmo. El estado
 `{tarea, hechos}` y `PREGUNTA_DESPACHO` replican la task byte a byte
 (test de humo vigila las 18 opciones). Anti-recursión (L1): run_supervisor
 no está entre las opciones ni en el fallback. **Mayoría 2-de-3**
-(`utils/votacion.py`): la vía dudosa resuelve por mayoría — voto A
+(`utils/votacion.py`, hoy `instrumentos.mayoria`): la vía dudosa resuelve por mayoría — voto A
 (DeepSeek, prompt clásico), voto B (DeepSeek, por eliminación: framing
 independiente) y voto C (el crudo de Laya, consulta ya pagada); triple
 desacuerdo → gana A. Laya segura sigue despachando sola (0 llamadas); el

@@ -519,6 +519,7 @@ PRODUCTO_RAIZ = (
 LABORATORIO_RAIZ = (
     "ratchet.py", "evals.py", "bench_juez.py", "replay.py",
     "carga_trazas.py", "triaje_trazas.py", "minar_errores.py", "tablero.py",
+    "instrumentos.py",
 )
 
 LECTORES_SETTINGS = (
@@ -581,13 +582,22 @@ def escanear_core_importa_modulos(raiz: Path) -> dict[str, int]:
     return _contar_por_ambito(raiz, del_core, _importa_modulos)
 
 
+def _es_del_laboratorio(modulo: str) -> bool:
+    """`banco` o una pieza de LABORATORIO_RAIZ (X167: `modules/evals.py`
+    importaba `evals` y la métrica no lo veía porque solo buscaba `banco`)."""
+    raiz = modulo.split(".")[0]
+    return raiz == "banco" or f"{raiz}.py" in LABORATORIO_RAIZ
+
+
 def _toca_laboratorio(nodo, _en_def) -> bool:
-    """Import de `banco` o un literal CORTO (un nombre, no prosa) del
-    laboratorio: el producto decidiendo según si lo están midiendo."""
+    """Import del laboratorio o un literal CORTO (un nombre, no prosa) suyo:
+    el producto decidiendo según si lo están midiendo, o dependiendo de lo
+    que lo mide. Los subcomandos de laboratorio que `main` monta por nombre
+    no son import y no cuentan."""
     if isinstance(nodo, ast.ImportFrom):
-        return (nodo.module or "").split(".")[0] == "banco"
+        return _es_del_laboratorio(nodo.module or "")
     if isinstance(nodo, ast.Import):
-        return any(a.name.split(".")[0] == "banco" for a in nodo.names)
+        return any(_es_del_laboratorio(a.name) for a in nodo.names)
     if isinstance(nodo, ast.keyword):
         return nodo.arg in LABORATORIO
     if isinstance(nodo, ast.Constant) and isinstance(nodo.value, str) and len(nodo.value) <= 40:
@@ -596,8 +606,11 @@ def _toca_laboratorio(nodo, _en_def) -> bool:
 
 
 def escanear_producto_conoce_lab(raiz: Path) -> dict[str, int]:
-    """El ratchet es el instrumento y nombra al laboratorio para buscarlo: no cuenta."""
-    producto = ((ruta, arbol) for ruta, arbol in _arboles(raiz) if ruta.name != "ratchet.py")
+    """Lo que mira es el PRODUCTO: las piezas de LABORATORIO_RAIZ (el ratchet
+    incluido, que nombra al laboratorio para buscarlo) se importan entre sí
+    sin contar."""
+    producto = ((ruta, arbol) for ruta, arbol in _arboles(raiz)
+                if _relativa(ruta, raiz) not in LABORATORIO_RAIZ)
     return _contar_por_ambito(raiz, producto, _toca_laboratorio)
 
 
@@ -896,7 +909,7 @@ METRICAS: dict[str, dict] = {
     "producto_conoce_lab": {
         "direccion": "menor_mejor",
         "conjunto": True,
-        "descripcion": "el producto nombra al laboratorio (banco, BANCO, DELEGADO, GROUND-TRUTH)",
+        "descripcion": "el producto nombra o importa al laboratorio (banco, LABORATORIO_RAIZ, BANCO, DELEGADO, GROUND-TRUTH)",
         "calcular": _metrica_suma(escanear_producto_conoce_lab),
     },
     "vocabulario_hardcodeado": {

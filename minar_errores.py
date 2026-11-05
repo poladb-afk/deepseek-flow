@@ -6,7 +6,7 @@ Pregunta que responde (exp/9): ¿los errores de tools se AUTOCORRIGEN
 triaje automático con Laya agrega valor.
 
 Determinista a propósito: SIN LLM, SIN red, SIN torch — JSON puro. El mismo
-parseo de `utils.trazas.leer_eventos`: una traza corrupta es un artefacto a
+parseo de `instrumentos.leer_eventos`: una traza corrupta es un artefacto a
 saltear, nunca una excepción.
 
 --------------------------------------------------------------------------
@@ -39,10 +39,7 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-from utils.formato import pct
-from utils.git import sha_corto
-from utils.rutas import DIR_RUNS
-from utils.trazas import leer_eventos
+from instrumentos import DIR_RUNS, leer_eventos, pct, sha_corto
 
 RAIZ = Path(__file__).resolve().parent
 DIR_SALIDA = Path("salidas/evals")

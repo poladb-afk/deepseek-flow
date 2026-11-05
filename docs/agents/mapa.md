@@ -9,10 +9,10 @@ contradice, gana `AGENTS.md`. Este archivo tampoco repite el contrato: apunta.
 | Zona | Qué es | Dónde |
 |---|---|---|
 | Producto | El harness: CLI y grafo del chat | `main.py` (subcomandos en la sección "CLI completo" de `README.md`), `nodes.py`, `flow.py`; el loop es `utils/kernel.py` |
-| Transversal | Lo que todas las piezas comparten | `utils/` (policy, `call_llm`, `kernel`, `fs_tools`, `tracing`). Cuatro son solo del laboratorio aunque vivan acá (`utils/git.py`, `utils/rutas.py`, `utils/trazas.py`, `utils/formato.py`) y `utils/votacion.py` solo la usa una sonda |
+| Transversal | Lo que todas las piezas comparten | `utils/` (policy, `call_llm`, `kernel`, `fs_tools`, `tracing`). Solo lo que usa el producto: lo compartido del laboratorio vive en `instrumentos.py` (X165) |
 | Capacidades | Una capacidad = un archivo con `TOOLS`, `IMPL` y `HOOKS` | `modules/` (agregar es dejarlo, quitar es borrarlo: P3) |
 | Skills | Texto que se activa por regex | `skills/*.yaml` |
-| Medición | Benches, sondas y specs pre-registradas; el producto no lo conoce (P3) | `banco/` (`specs/`, `probes/`, `escenarios/`), `bench_juez.py`, `evals.py`, `tablero.py`, `replay.py` |
+| Medición | Benches, sondas y specs pre-registradas; el producto no lo conoce (P3) | `banco/` (`specs/`, `probes/`, `escenarios/`), `bench_juez.py`, `evals.py`, `tablero.py`, `replay.py`, `instrumentos.py` |
 | Contrato | Lo que un agente lee antes de tocar | `AGENTS.md` y `docs/` |
 | Guardrails | Lo que hace cumplir el contrato | `calidad.sh`, `ratchet.py`, `tests/`, `.github/workflows/calidad.yml` |
 | Artefactos | Salidas de corrida: no se trackean | `salidas/`, `.modelos/`, `.runs/`, `memoria/`, `trazas.db` (`tests/test_higiene_repo.py`) |

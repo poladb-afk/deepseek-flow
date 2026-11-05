@@ -652,7 +652,7 @@ def test_researcher_no_reintenta_el_lote_por_una_busqueda(monkeypatch):
 def test_votacion_mayoria_piso_absoluto():
     """S11: el doc decía "la mitad entera por arriba"; el default es piso
     ABSOLUTO 2, no proporcional al total."""
-    from utils.votacion import mayoria
+    from instrumentos import mayoria
 
     assert mayoria(["sql", "sql", "b", "c", "d"]) == "sql"
     assert mayoria(["sql", "b", "c", "d", "e"], desempate="sql") == "sql"

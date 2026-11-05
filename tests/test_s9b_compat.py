@@ -16,7 +16,7 @@ FIXTURES = RAIZ / "tests" / "fixtures"
 
 def test_una_traza_vieja_real_del_chat_pasa_el_replay_por_el_mapa():
     import replay
-    from utils.trazas import leer_eventos
+    from instrumentos import leer_eventos
 
     eventos = leer_eventos(FIXTURES / "chat_viejo_s9b.jsonl")
     assert eventos, "el fixture de traza vieja se perdió"

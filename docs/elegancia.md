@@ -45,7 +45,7 @@ quien tiene la información para tomarla, y el grafo muestra todo el control.
 | F4 | **Fractal**: una definición del loop, N instancias (chat = sub-agente = supervisor = copia de sí mismo); difieren solo en datos y la recursión tiene tres frenos: profundidad, saldo y efecto | ¿Una política nueva llega gratis a los sub-agentes? ¿Anidar el loop en sí mismo necesita código nuevo? | `test_un_agente_que_se_llama_a_si_mismo_reparte_y_suma`; el chat, con S9b; `test_un_rechazo_del_humano_llega_igual_al_chat_al_supervisor_y_a_una_copia`, `test_sin_saldo_ningun_nivel_ejecuta_y_la_ultima_llamada_va_sin_tools` y `test_la_compactacion_es_una_politica_del_loop_y_corre_igual_en_una_copia` (el gate fractal, X138) |
 | F5 | **Dependencias hacia adentro**: los módulos dependen del CORE; el CORE no los conoce | ¿Borrar cualquier archivo de `modules/` deja el chat andando? | `core_importa_modulos` |
 | F6 | **Errores reversibles**: el smart-if decide perillas cuyo error se autocorrige, nunca le quita capacidades al agente | ¿Si Laya se equivoca, el siguiente paso lo corrige solo? | fase 3 (`banco/specs/fase3b_4a.md`) |
-| F7 | **Producto ≠ laboratorio**: el producto no sabe que existe el banco | ¿Aparecen `banco`, `BANCO`, `DELEGADO` o `GROUND-TRUTH` en producción? | `producto_conoce_lab` |
+| F7 | **Producto ≠ laboratorio**: el producto no sabe que existe el banco | ¿Aparecen `banco`, `BANCO`, `DELEGADO` o `GROUND-TRUTH` en producción, o el producto importa una pieza de `LABORATORIO_RAIZ` (X167)? | `producto_conoce_lab` |
 
 ## Elegancia de código
 
@@ -82,7 +82,7 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora/2026-10.md`, X91). Con URL
 | Ratchet | Baseline | Meta del refactor |
 |---|---|---|
 | `core_importa_modulos` | 3 → **0** (X92) | 0 ✅ |
-| `producto_conoce_lab` | 10 → **0** (X93) | 0 ✅ |
+| `producto_conoce_lab` | 10 → 0 (X93) → **2** (X167: la métrica ve los imports de `LABORATORIO_RAIZ`) | 0 |
 | `vocabulario_hardcodeado` | 8 → 7 (X104) → 3 (X106) → 5 (X112: el instrumento ahora lee la `condicion` de `skills/*.yaml`, que el AST no veía) → 4 (S9a/X133: la continuación salió de `GetQuestion`) → **3** (X135: salió `TOOL_CONTEXTO_RE` del juez; quedan las 2 regex de `skills/*.yaml` y el `YES` del HITL) | **piso honesto 3** (S7 cerrado sin remedio para este modelo: las 2 regex de los skills quedan como deuda medida; el `YES` del HITL es el s/n). La meta ≤2 se re-expresa en X136 (era inalcanzable con las dos de los skills) |
 | `settings_leidos` | 89 → 84 (X93) → 78 (X101) → 79 (X103, temporal) → 78 (X105) → 64 (X106) → 58 (X109) → 56 (X112) → 52 (S6/X132) → 50 (X153) → **47 (X154)** | **≤ 47** (X154: re-expresada con el mismo criterio de X112 para `texto_de_prompt` — los que quedan son contrato del operador o seams de prueba usados, y no se recortan para el número) |
 | `imports_perezosos` | 137 → 126 (X92) → 90 (X106) → 81 (X109) → 80 (X112) | **≤ 40** (X112 deja sin efecto el ~60 del 2026-10-30: la clasificación de los 81 muestra 12 de stdlib y 2 de dependencias obligatorias sin motivo, y 59 internos que en su mayoría no esquivan ningún ciclo; paso propio de imports, con motivo visible para los que se quedan) |

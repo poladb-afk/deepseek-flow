@@ -106,27 +106,10 @@ def evento_hitl(tipo, nivel, decision, seg=0.0):
     )
 
 
-def evento_politica(nombre, detalle=""):
-    """Evento de POLÍTICA del loop (no es una tool ejecutada): accion propia
-    para que el tablero/minería no lo cuenten como un éxito de tool. Medido en
-    vivo: el corte por no-progreso se registraba como ok y sumaba un éxito
-    fantasma (auditoría de sesión real). Nota de esquema: `nodo` es la clave
-    genérica de la traza (acá lleva el nombre de la política) y `seg=0` porque
-    no hay duración de tool que medir."""
-    _escribir(
-        {
-            "ts": round(time.time(), 3),
-            "nodo": str(nombre),
-            "accion": "politica",
-            "seg": 0.0,
-            **({"detalle": str(detalle)} if detalle else {}),
-        }
-    )
-
-
 def es_bookkeeping(nodo, accion):
-    """True si el evento lo emitió `evento_llm`, `evento_hitl` o
-    `evento_politica`: no es la acción de un nodo ni el resultado de una tool.
+    """True si el evento lo emitió `evento_llm` o `evento_hitl`, o es un evento
+    de política de una traza vieja (`accion=politica`; el emisor se borró en
+    X166): no es la acción de un nodo ni el resultado de una tool.
     Una sola definición para quien LEE la traza (replay, evals) — fuera de
     acá, los dos lectores contaban cada uno como desconocido (X97)."""
     nodo = str(nodo)

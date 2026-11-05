@@ -34,6 +34,19 @@ def test_producto_que_nombra_al_laboratorio_cuenta(tmp_path):
         "delegar.py:<módulo>": 1, "nodes.py:SALTEAR": 1, "utils/riesgo.py:origen": 2}
 
 
+def test_producto_que_importa_una_pieza_de_laboratorio_cuenta(tmp_path):
+    """X167: `modules/evals.py` importaba `evals` (LABORATORIO_RAIZ) y
+    `heartbeat.py`, `triaje_trazas`; la métrica solo buscaba `banco` y daba 0.
+    Montar un subcomando por nombre (`main.SUBCOMANDOS`) no es import."""
+    _escribir(tmp_path, "modules/evals.py", "from evals import generar\n")
+    _escribir(tmp_path, "heartbeat.py", "import triaje_trazas\n")
+    _escribir(tmp_path, "main.py", "SUBCOMANDOS = {'evals': 'evals'}\n")
+    _escribir(tmp_path, "nodes.py", "from evaluar import x\nimport instrumentos_no\n")
+    _escribir(tmp_path, "replay.py", "from evals import linter_traza\n")  # lab con lab: no cuenta
+    assert ratchet.escanear_producto_conoce_lab(tmp_path) == {
+        "heartbeat.py:<módulo>": 1, "modules/evals.py:<módulo>": 1}
+
+
 def test_la_prosa_que_menciona_el_banco_no_cuenta(tmp_path):
     _escribir(tmp_path, "nodes.py",
               'def f():\n    """El banco mide esto; el producto no lo lee."""\n    return 1\n')
@@ -212,6 +225,31 @@ def test_el_limite_producto_laboratorio_es_disjunto_y_existe():
         assert (RAIZ / nombre).is_file(), f"{nombre} del límite no existe"
     assert {Path("main.py"), Path("flow.py"), Path("nodes.py")} <= producto
     assert Path("ratchet.py") in laboratorio
+
+
+def test_cada_pieza_de_utils_la_usa_el_producto():
+    """X165: `utils/` es del producto. Cinco piezas que solo usaba el
+    laboratorio vivían acá y `lineas_del_producto` las contaba; ahora son
+    `instrumentos.py`. Una pieza nueva de `utils/` que solo importen el
+    laboratorio o los tests vuelve a inflar el número: este candado la frena.
+    Cuenta también los nombres de módulo en strings (`main.SUBCOMANDOS`)."""
+    import ast
+
+    from conftest import RAIZ
+
+    producto = [RAIZ / n for n in ratchet.PRODUCTO_RAIZ]
+    producto += sorted((RAIZ / "utils").glob("*.py")) + sorted((RAIZ / "modules").glob("*.py"))
+    usados = set()
+    for ruta in producto:
+        for nodo in ast.walk(ast.parse(ruta.read_text(encoding="utf-8"))):
+            if isinstance(nodo, ast.ImportFrom) and nodo.module:
+                usados |= {nodo.module, *(f"{nodo.module}.{a.name}" for a in nodo.names)}
+            elif isinstance(nodo, ast.Import):
+                usados |= {a.name for a in nodo.names}
+            elif isinstance(nodo, ast.Constant) and isinstance(nodo.value, str):
+                usados.add(nodo.value)
+    piezas = {f"utils.{p.stem}" for p in (RAIZ / "utils").glob("*.py") if p.name != "__init__.py"}
+    assert not sorted(piezas - usados), f"utils/ que el producto no usa: {sorted(piezas - usados)}"
 
 
 def test_el_tamano_del_producto_no_cuenta_al_laboratorio(tmp_path):

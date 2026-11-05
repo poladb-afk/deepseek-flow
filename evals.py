@@ -20,10 +20,8 @@ from collections import Counter, defaultdict
 from datetime import date, datetime
 from pathlib import Path
 
-from utils.git import sha_o_motivo
-from utils.rutas import DIR_RUNS, DIR_SALIDA
+from instrumentos import DIR_RUNS, DIR_SALIDA, leer_eventos, sha_o_motivo
 from utils.tracing import es_bookkeeping
-from utils.trazas import leer_eventos
 
 # Umbral del invariante (d): un ExecuteTools más largo que esto sin eventos de
 # tools propios es el "ciego viejo" de la auditoría (una ronda inatribuible).

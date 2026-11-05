@@ -101,8 +101,8 @@ def elegir_con_deepseek(tarea, hechos, fuera, estilo="directo"):
 
 
 def correr(agente, casos, votacion=False, alto=UMBRAL_DESPACHO):
+    from instrumentos import mayoria
     from utils.laya import _confianza, veredicto
-    from utils.votacion import mayoria
 
     filas, crudo_ok, local_ok, locales, final_ok = [], 0, 0, 0, 0
     for caso in casos:

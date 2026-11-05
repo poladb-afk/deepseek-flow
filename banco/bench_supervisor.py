@@ -47,8 +47,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import supervisor
-from utils.formato import pct
-from utils.git import sha_o_motivo
+from instrumentos import pct, sha_o_motivo
 
 RAIZ = Path(__file__).resolve().parent.parent
 TAREAS = RAIZ / "banco" / "supervisor_tareas.jsonl"

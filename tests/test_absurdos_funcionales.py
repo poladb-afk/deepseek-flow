@@ -7,9 +7,9 @@ docs/informes/evidencia_absurdos_funcionales.md.
 import pytest
 from conftest import RAIZ
 
+from instrumentos import mayoria
 from modules import coding
 from utils import policy
-from utils.votacion import mayoria
 
 
 @pytest.mark.parametrize("comando", [
