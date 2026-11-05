@@ -2381,7 +2381,7 @@ baseline solo, sin clave.
   que se borró en X153), `utils/git.sha_largo` y `utils/tracing.evento_politica`
   (la emitía el corte por no-progreso, que se fue en X132; `replay` todavía
   tolera los eventos viejos).
-- **Ocho comentarios que nombraban piezas borradas**: `AgentStep` y
+- **Doce comentarios (en ocho archivos) que nombraban piezas borradas**: `AgentStep` y
   `ExecuteTools` (se fueron con S9b A′, X126), el router de Laya (X106) y el
   voto del supervisor (v2). Estaban en `utils/call_llm.py`, `utils/skills.py`,
   `utils/tracing.py`, `utils/prefetch.py`, `utils/laya.py` (3),
