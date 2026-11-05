@@ -2082,5 +2082,5 @@ nuevas** (las formas de cada entrada nueva, todas `confirmar_doble`).
 **Los números.** `tests_definidos` 1179 → 1214, `bytes_primer_request` 16606
 → 16604, y **`lineas_del_producto` 7646 → 7673 (+27)**: las once líneas de
 la normalización del paso más las dieciséis del hueco hermano. Es el único
-empeoramiento y es de S0 (P1 cede ante S0); lo acepta el operador con su
-clave.
+empeoramiento y es de S0 (P1 cede ante S0); lo aceptó el operador con su
+clave (baseline aceptado en `d90ee09`, R6).
