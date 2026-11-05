@@ -250,7 +250,7 @@ class Skills(Node):
     Vivía dentro del router y solo corría en enforce; sin router es un nodo
     propio entre `PreFetch` y `Contexto`. `skill_para` decide por la condición
     del YAML (determinista, sin LLM) hasta la 5b, que la cambia por activación
-    por descripción. Si dispara: el id va al turno (AgentStep recorta las tools
+    por descripción. Si dispara: el id va al turno (`herramientas_de` recorta las tools
     a su subset) y su prompt entra como mensaje `[skill]`. `SKILLS=0` lo apaga.
     Siempre "continue"."""
 
@@ -493,7 +493,7 @@ class VerificarCitas(Node):
     coincide, UNA corrección sin tools reemplaza la respuesta (A40).
 
     Es un nodo del grafo (answer → citas → ask) y no un paso dentro de
-    AgentStep.post: post no tiene retry en PocketFlow y la llamada de
+    `post` del paso del modelo: post no tiene retry en PocketFlow y la llamada de
     corrección corría ahí envuelta en un except amplio (auditoría F6). Acá la
     llamada vive en exec (con reintentos) y el "best effort" es el
     exec_fallback explícito: si no se pudo corregir, queda la respuesta."""

@@ -22,7 +22,7 @@ from pathlib import Path
 from utils.call_llm import _entero, _setting
 
 _lock = threading.RLock()  # reentrante: preguntar_lote() lockea y llama a agente(), que lockea de nuevo
-_agentes = {}  # setting → agente (router y supervisor cargan checkpoints distintos)
+_agentes = {}  # setting → agente (cada uso puede apuntar a otro checkpoint)
 _errores = {}  # setting → (ts, error) (por checkpoint: el fallo de uno no envenena al otro)
 _uso = {}  # setting → contador de uso (para desalojar el MENOS usado, no el primero)
 
@@ -35,8 +35,9 @@ DEFAULT_MODEL = "convaiinnovations/laya-multilingual"
 LAYA_ERROR_COOLDOWN = 60
 
 # La ley medida (exp/7) es un checkpoint por proceso: 2,86 GiB de RSS CADA UNO.
-# En un chat son alcanzables cuatro (router, voto, prefiltro y supervisor
-# in-process): ~11 GiB. Este tope convierte la ley en contrato — al pasarse,
+# Sin router (X106) quedan dos usos, el prefiltro de memoria y el juicio del
+# servidor MCP, y cada uno puede nombrar otro checkpoint. Este tope convierte
+# la ley en contrato — al pasarse,
 # se descarga el menos usado y la RAM vuelve al SO. Constante desde X101: como
 # setting se leía con int() a secas y un typo en el .env tiraba el import.
 MAX_EN_PROCESO = 2
@@ -100,7 +101,7 @@ def _cargar_checkpoint(clave):
 
 def agente(setting="LAYA_MODEL"):
     """El agente del checkpoint que ese setting nombra (caché por setting:
-    el router del chat y el Choose del supervisor no son el mismo modelo)."""
+    el prefiltro y el juicio del MCP pueden nombrar checkpoints distintos)."""
     clave = _setting(setting, DEFAULT_MODEL)
     _limpiar_error_vencido(clave)
     if clave not in _agentes and clave not in _errores:

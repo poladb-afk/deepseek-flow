@@ -38,7 +38,7 @@ def _escribir(dic):
 
 def evento_tool(nombre, ok, seg, codigo=None, huella=None):
     """Evento de tool individual. Las tools que no son flujos (run_command,
-    sql, write_file...) no atraviesan nodos: sin esto, un ExecuteTools de
+    sql, write_file...) no atraviesan nodos: sin esto, una ronda de tools de
     50s es inatribuible desde .runs (ciego medido en la auditoría).
 
     `codigo` es un discriminador CORTO y sin contenido (p. ej. `ERROR:TypeError`,

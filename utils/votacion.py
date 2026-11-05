@@ -1,15 +1,15 @@
 """Votación por mayoría: la mecánica genérica del 2-de-3 (y N-de-M).
 
 El patrón majority-vote del cookbook, en su parte contable — quién
-orquesta los votos (el supervisor: DeepSeek×2 con framing distinto +
-Laya crudo) es quien llama. Leyes: mayoría = minimo votos coincidentes
+orquesta los votos es quien llama (hoy, solo la sonda del supervisor; el
+supervisor dejó de votar en la v2). Leyes: mayoría = minimo votos coincidentes
 (piso ABSOLUTO, default 2; NO es la mitad proporcional del total: con 5
 votos, 2 coincidentes ya cuentan como mayoría); sin mayoría gana el desempate
 (una convención explícita, nunca un azar). SIN desempate pasado, el
 fallback es el más votado — que con todos los votos distintos es el
 PRIMERO en aparecer (orden de inserción de Counter): determinista, pero
-convención del llamador. En producción siempre se pasa desempate
-(supervisor.py y banco/probes/sonda_supervisor.py pasan el voto directo).
+convención del llamador. Su único llamador, `banco/probes/sonda_supervisor.py`,
+pasa el voto directo como desempate.
 """
 from collections import Counter
 

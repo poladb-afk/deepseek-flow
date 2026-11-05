@@ -12,7 +12,7 @@ comportamiento idéntico al de hoy.
 
 Hoy hay un consumidor del filtro (memory_search); el de rag_search se
 borró en X153 (con la config documentada nunca filtraba). El contrato del prompt se
-declara (como los del router: congelado) y el checkpoint se lee de un
+declara congelado y el checkpoint se lee de un
 setting (`LAYA_MODEL_PREFILTRO`). Sin checkpoint disponible (o con
 cualquier fallo), el filtro es no-op — cercado por tests. El checkpoint
 router_prefiltro existe desde exp/13 (fine-tune de la tarea declarada

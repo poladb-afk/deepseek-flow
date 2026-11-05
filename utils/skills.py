@@ -8,7 +8,7 @@ Un skill es un YAML en `skills/`:
 - `tools`: subset de tools que el loop anuncia mientras el skill está activo
 
 El disparo lo decide `skill_para` (puro); el nodo `Skills` del chat lo aplica
-a la entrada de cada pregunta —inyecta el prompt y anuncia el skill— y `AgentStep` recorta la lista de
+a la entrada de cada pregunta —inyecta el prompt y anuncia el skill— y `nodes.herramientas_de` recorta la lista de
 tools al subset. **No es un sandbox**: el action space sigue siendo el mismo
 (igual que el subset de módulos); el recorte es guía/publicidad para el modelo,
 no una frontera de seguridad (esa sigue en HITL/policy).

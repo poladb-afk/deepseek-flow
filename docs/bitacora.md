@@ -2350,3 +2350,77 @@ de un handler falso) y sigue exigiendo el corte a 300.
 **Los números.** `tests_definidos` 1238 → 1247; `lineas_del_producto`
 7670 → 7667; el resto IGUAL. Solo mejoras: el ratchet reescribió el
 baseline solo, sin clave.
+
+---
+
+## X164: relevamiento final de `utils/` y `modules/`, y el mapa con candado (2026-11-05)
+
+**Qué se relevó.** Las 34 piezas de `utils/` y los 20 módulos de
+`modules/`, con tres barridas mecánicas (AST, sin juicio):
+1. quién importa cada pieza (producto, laboratorio o tests);
+2. qué funciones públicas no tienen ningún llamador fuera de `tests/`;
+3. qué tools de cada módulo no aparecen en ningún test.
+
+**Lo que mostró.**
+- **Módulos: limpios.** Los 20 tienen `TOOLS` + `IMPL` (2 con `HOOKS`), el
+  núcleo no importa ninguno (`core_importa_modulos` 0) y las 31 tools salen
+  nombradas en algún test.
+- **Cinco utils que el producto no usa** (48 líneas de código, que
+  `lineas_del_producto` cuenta como producto porque viven en `utils/`):
+  `utils/git.py` (20), `utils/trazas.py` (12), `utils/votacion.py` (10),
+  `utils/rutas.py` (4) y `utils/formato.py` (2). Los cuatro primeros los usan
+  `evals`, `replay`, `tablero`, `triaje_trazas`, `minar_errores` y
+  `bench_juez`; `votacion` solo la usa `banco/probes/sonda_supervisor.py`.
+  Hay una arista que importa: `modules/evals.py` importa `evals.py`
+  (laboratorio, 256 líneas), que trae `utils/git.py`, `utils/rutas.py` y
+  `utils/trazas.py`. O sea que la tool `run_evals` hace que el producto
+  dependa del laboratorio, y el ratchet no lo ve porque `producto_conoce_lab`
+  solo busca `banco`. Lo mismo `heartbeat.py` con `triaje_trazas.py`.
+- **Tres funciones públicas sin llamador en el producto**, solo con su
+  test: `utils/contexto.unidades_bloques` (la usaba el prefiltro de RAG,
+  que se borró en X153), `utils/git.sha_largo` y `utils/tracing.evento_politica`
+  (la emitía el corte por no-progreso, que se fue en X132; `replay` todavía
+  tolera los eventos viejos).
+- **Ocho comentarios que nombraban piezas borradas**: `AgentStep` y
+  `ExecuteTools` (se fueron con S9b A′, X126), el router de Laya (X106) y el
+  voto del supervisor (v2). Estaban en `utils/call_llm.py`, `utils/skills.py`,
+  `utils/tracing.py`, `utils/prefetch.py`, `utils/laya.py` (3),
+  `utils/contexto.py`, `utils/votacion.py` (2) y `nodes.py` (2).
+- **`docs/agents/mapa.md` tenía 16 citas rotas que ningún test veía**:
+  nombraba los docs y los tests sin carpeta (`handoff.md`,
+  `test_policy.py`…) y dos rangos de línea (`README.md:170-188`,
+  `AGENTS.md:14-25`) que ya habían derivado (los subcomandos van de 170 a
+  193).
+
+**Lo que se hizo (sin cambiar conducta).**
+- Los 12 comentarios y docstrings corregidos para nombrar lo que existe hoy
+  (`herramientas_de`, `Contexto`, los dos usos vigentes de Laya, la sonda
+  como único llamador de `mayoria`). Son comentarios: `lineas_del_producto`
+  queda igual.
+- El mapa usa rutas completas; los rangos de línea pasan a nombres de
+  sección, que no derivan. Suma la tabla **"S0 por frontera"**: 9 fronteras,
+  cada una con los tests que la cuidan. **Los tests de S0 no se movieron**:
+  viven junto a su pieza (política, `fs_tools`, HITL, webhook, delegar,
+  gate fractal), y juntarlos en un archivo rompería ese orden y la foto del
+  inventario sin cuidar nada nuevo. Lo que faltaba era encontrarlos: el
+  índice es eso.
+- **El candado.** `test_handoff_y_principios_citan_rutas_y_tests_que_existen`
+  ahora revisa también `docs/agents/mapa.md`. En rojo con el mapa de antes
+  (las 16 citas rotas). En verde con el nuevo. En rojo otra vez con un
+  mutante que cita un test inexistente en la tabla de S0.
+
+**Lo que se deja para decidir (cada uno toca tests o una métrica).**
+1. **Sacar los 5 utils de laboratorio de `utils/`** (a la raíz o a
+   `banco/`): `lineas_del_producto` bajaría 48 sin borrar código, que es
+   exactamente el número que hoy está inflado. Exige mover 9 imports de
+   laboratorio y 4 de tests, y antes decidir qué pasa con `run_evals`
+   (moverla al laboratorio, o reconocer que `evals.py` es producto).
+2. **Borrar `unidades_bloques`, `sha_largo` y `evento_politica`** con sus 3
+   tests (R2 pide autorización): unas 30 líneas de producto.
+3. **Contar como laboratorio cualquier import de `LABORATORIO_RAIZ`** en
+   `producto_conoce_lab`: la métrica pasaría de 0 a 2 (`modules/evals.py`
+   y `heartbeat.py`), un empeoramiento honesto que pide la clave.
+
+**Los números.** Todo IGUAL (12 comentarios, un doc y una línea de test que
+amplía un candado que ya existía); `tests_definidos` igual porque no hay
+test nuevo.

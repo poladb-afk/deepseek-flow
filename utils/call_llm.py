@@ -53,7 +53,7 @@ def _setting(name, default=None):
 def _entero(nombre, default):
     """Un setting entero a prueba de typos: si no parsea, avisa y usa el
     default. Sin esto, un ".env" con "COMPACTION_CHARS=sesenta mil" reventaba
-    en AgentStep.prep — que corre FUERA del retry del nodo — y mataba el chat
+    en el `prep` de un nodo del chat (hoy `Contexto`) — que corre FUERA del retry del nodo — y mataba el chat
     (medido en la barrida)."""
     try:
         return int(_setting(nombre, str(default)))

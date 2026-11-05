@@ -14,6 +14,7 @@ import ratchet
 
 HANDOFF = RAIZ / "docs" / "handoff.md"
 PRINCIPIOS = RAIZ / "docs" / "principios.md"
+MAPA = RAIZ / "docs" / "agents" / "mapa.md"
 
 
 def _texto(ruta):
@@ -32,7 +33,7 @@ def _vigente(token, defs):
 def test_handoff_y_principios_citan_rutas_y_tests_que_existen():
     defs = _defs_de_tests()
     faltan = []
-    for ruta in (HANDOFF, PRINCIPIOS):
+    for ruta in (HANDOFF, PRINCIPIOS, MAPA):
         for token in _tokens(_texto(ruta)):
             if _RUTA.fullmatch(token) and _existe_ruta(token) is False or _TEST.fullmatch(token) and token not in defs:
                 faltan.append(f"{ruta.name}: {token}")

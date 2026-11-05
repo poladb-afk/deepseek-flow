@@ -21,7 +21,7 @@ from utils.call_llm import _setting
 from utils.fs_tools import _resolve
 
 # Prefijo FIJO e inconfundible del mensaje user sintético (patrón compacción).
-# Un solo lugar para cambiarlo; los tests y el router lo leen de acá.
+# Un solo lugar para cambiarlo; `nodes`, la memoria y los tests lo leen de acá.
 PREFIJO_PREFETCH = "[pre-fetch]"
 
 # Topes del pre-fetch (constantes desde X101: eran settings que nadie fijaba;
