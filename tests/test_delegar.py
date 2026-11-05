@@ -114,6 +114,19 @@ def test_plan_respuesta_la_denylist_manda_sobre_el_scope(tmp_path):
     assert _decide(tmp_path, push, permitir_comandos=["git"]).motivo == "denylist"
 
 
+def test_plan_respuesta_lo_que_descarta_trabajo_nunca_pasa_solo(tmp_path):
+    """X159a: con `permitir_comandos="git"` el scope aprobaba sin humano
+    `git reset --hard`, `git clean -fdx`, `git checkout -- .` y `git restore .`
+    (medido): solo `git push` estaba en la lista doble. Ahora la denylist del
+    scope es la lista doble entera, y estos están en ella."""
+    for comando in ("git reset --hard", "git reset HEAD~1 --hard", "git clean -fdx",
+                    "git checkout -- .", "git restore ."):
+        pedido = Pedido("¿Ejecutar?", "", "comando", comando)
+        assert _decide(tmp_path, pedido, permitir_comandos=["git"]).motivo == "denylist", comando
+    reversible = Pedido("¿Ejecutar?", "", "comando", "git restore --staged a.py")
+    assert _decide(tmp_path, reversible, permitir_comandos=["git"]).ok is True
+
+
 def test_plan_respuesta_comando_dentro_y_fuera(tmp_path):
     assert _decide(tmp_path, PYTEST, permitir_comandos=["python3 -m pytest"]).ok is True
     assert _decide(tmp_path, PYTEST, permitir_comandos=["pip install"]).motivo == "fuera-de-scope"

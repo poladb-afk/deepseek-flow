@@ -48,7 +48,9 @@ Heredada de PocketFlow y de [bmo](../bmo) (el harness que inspiró los módulos)
 - **HITL graduado**: con `HITL_AUTO=1` (default) el riesgo del comando
   decide la fricción. Solo-lectura verificado (`pytest`, `grep`, `ls`,
   `git status`…) corre **auto** (con el comando igual a la vista); lo no
-  reconocido pregunta como siempre; `git push` y `rm -rf` piden **dos**
+  reconocido pregunta como siempre; lo irreversible (la lista doble de
+  `utils/politica_comandos.json`: `git push`, `rm -rf` y lo que descarta
+  trabajo sin reflog, como `git reset --hard`) pide **dos**
   confirmaciones. `HITL_AUTO=0` vuelve al `s/n` para todo. Además, un
   **hook** post-tool corre `py_compile` tras escribir un `.py` y le
   devuelve `⚠ SINTAXIS` al modelo para que se autocorrija; y un **hook

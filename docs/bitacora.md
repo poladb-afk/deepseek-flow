@@ -1994,3 +1994,74 @@ debajo del mínimo cacheable.
 (`ModuleNotFoundError: utils`) porque la sonda no agregaba la raíz del repo a
 `sys.path`; se corrió con `PYTHONPATH=.` y después se le sumó el
 `sys.path.insert` que ya tienen las otras sondas.
+
+---
+
+## X159a: lo que descarta trabajo pide doble confirmación (S0) (2026-11-05)
+
+**El hueco, medido.** El relevamiento de las fronteras de S0 encontró que la
+lista doble (`confirmar_doble`) tenía tres entradas —`git push`, `rm -rf`,
+`rm -fr`— y que `git reset --hard`, `git clean -fdx`, `git checkout -- .` y
+`git restore .` pedían una sola confirmación, aunque descartan trabajo que no
+queda en el reflog. S0 dice "lo irreversible pide doble confirmación". Y el
+hueco era explotable sin humano: `aprobaciones.dentro_de_scope` rechaza
+siempre lo que `irreversible()` marca, pero solo eso; con
+`permitir_comandos="git"` (un parámetro que elige el modelo al llamar
+`delegar_tarea`, `modules/delegar.py:47`) los cuatro comandos se **aprobaban
+solos**. Probado: `dentro_de_scope("comando", c, None, ["git"])` daba `True`
+para los cuatro y `False` para `git push --force`.
+
+**El arreglo: un cambio, los dos huecos.** Como el scope ya rechaza todo lo
+de la lista doble, sumar los comandos a la lista cierra la fricción y el
+scope a la vez, sin tocar el mecanismo de scope.
+- **Datos** (`utils/politica_comandos.json`): cuatro entradas
+  `confirmar_doble`, cada una con su explicación: `git reset --hard`,
+  `git clean -f`, `git checkout --` y `git restore --worktree`.
+- **Normalización** (`utils/policy._normalizar_git`, que ya existía para las
+  opciones globales): las formas que descartan trabajo en cualquier orden de
+  opciones quedan con la forma de la lista — `reset … --hard`,
+  `clean -fdx`/`-df`/`--force`, `checkout <rev> -- x` y `restore` que toca el
+  árbol (su default; `--staged`/`-S` sin `--worktree`/`-W` solo toca el
+  índice y queda en un s/n). Es la misma medida que ya existía para `rm`
+  (`_normalizar_rm`), y como toda normalización de la negra, solo sube
+  fricción. Sin una entrada `git restore` a secas, porque `git restore
+  --staged` quedaría tapado.
+
+**El criterio de qué entra:** destruye trabajo que no queda en el reflog.
+Quedan **afuera, con un s/n**: `git reset` sin `--hard`, `git clean -n`
+(dry-run), `git checkout <rama>` (git se niega si hay cambios que se
+perderían), `git restore --staged`. Y se registran como **pendiente** (no
+entran ahora, se pueden recuperar en parte): `git stash drop`/`clear`
+(por `git fsck`) y `git branch -D` (por reflog); también se aprueban solos
+con scope `git`. Decisión del operador (2026-11-05): "lo que recomiendes",
+sobre la propuesta que los dejaba afuera.
+
+**La descripción de la tool deja de enumerar a mano.** `permitir_comandos`
+decía "git push y rm -rf nunca"; ahora dice "lo irreversible nunca", que es
+la lista doble: repetirla en la descripción la desactualizaba con el primer
+cambio (N4). `bytes_primer_request` bajó 2 bytes. README y `docs/design.md`
+nombran la lista en vez de dos ejemplos.
+
+**Los candados.** Escritos primero y vistos en **rojo contra el código de
+antes** (16 casos de clasificación, el de scope y la tupla de
+`IRREVERSIBLES`): `test_lo_que_descarta_trabajo_pide_doble_confirmacion` (18
+formas, con `git -C . reset --hard`, `cd x && git clean -fd` y `sudo git
+reset --hard`), `test_lo_que_no_descarta_trabajo_sigue_con_un_si_o_no` (9) y
+`test_plan_respuesta_lo_que_descarta_trabajo_nunca_pasa_solo` (scope `git`:
+los cinco dan `denylist`; `restore --staged` se aprueba). Una aserción vieja
+de `test_policy_clasifica_los_tres_niveles` decía que `git reset --hard` es
+`preguntar`: ahora lo exige el test nuevo con su nivel correcto y en su lugar
+quedó `git reset HEAD~1`, que sí sigue en un s/n (R7, autorizado por el
+operador con el cambio de política). `test_el_archivo_versionado_valida_y_es_el_que_se_usa`
+fija la tupla nueva.
+
+**Las fotos de la 5a.** La real (`policy_comandos.jsonl`, 445 comandos del
+operador) da **0 diferencias** de nivel y de texto: nadie usó esos comandos
+en el tráfico medido. La sintética (`policy_casos_entrada.jsonl`) se regeneró
+con `comandos_reales.py --casos`: **0 filas cambiadas, 0 quitadas y 20
+nuevas** (las cinco formas de cada entrada nueva, todas `confirmar_doble`).
+
+**Los números.** `tests_definidos` 1179 → 1207, `bytes_primer_request` 16606
+→ 16604, y **`lineas_del_producto` 7646 → 7657 (+11)**: las once líneas de
+la normalización de git. Es el único empeoramiento y es de S0 (P1 cede ante
+S0); lo acepta el operador con su clave.

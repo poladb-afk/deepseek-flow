@@ -5,12 +5,16 @@
 {"comando": "/bin/file x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "/bin/find x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "/bin/git blame x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "/bin/git checkout -- x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "/bin/git checkout x", "nivel": "preguntar", "explicacion": "cambia de rama/descarta cambios de working tree"}
+{"comando": "/bin/git clean -f x", "nivel": "confirmar_doble", "explicacion": "borra archivos sin trackear (no quedan en el reflog)"}
 {"comando": "/bin/git commit x", "nivel": "preguntar", "explicacion": "crea un commit en tu repo local"}
 {"comando": "/bin/git diff x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "/bin/git log x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "/bin/git push x", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
+{"comando": "/bin/git reset --hard x", "nivel": "confirmar_doble", "explicacion": "descarta los cambios sin commitear (no quedan en el reflog)"}
 {"comando": "/bin/git reset x", "nivel": "preguntar", "explicacion": "mueve HEAD (puede descartar cambios)"}
+{"comando": "/bin/git restore --worktree x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "/bin/git show x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "/bin/git status x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "/bin/grep x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
@@ -110,7 +114,11 @@
 {"comando": "git blame --textconv=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
 {"comando": "git blame x", "nivel": "auto", "explicacion": "autoría por línea (solo lee)"}
 {"comando": "git checkout", "nivel": "preguntar", "explicacion": "cambia de rama/descarta cambios de working tree"}
+{"comando": "git checkout --", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
+{"comando": "git checkout -- x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "git checkout x", "nivel": "preguntar", "explicacion": "cambia de rama/descarta cambios de working tree"}
+{"comando": "git clean -f", "nivel": "confirmar_doble", "explicacion": "borra archivos sin trackear (no quedan en el reflog)"}
+{"comando": "git clean -f x", "nivel": "confirmar_doble", "explicacion": "borra archivos sin trackear (no quedan en el reflog)"}
 {"comando": "git commit", "nivel": "preguntar", "explicacion": "crea un commit en tu repo local"}
 {"comando": "git commit x", "nivel": "preguntar", "explicacion": "crea un commit en tu repo local"}
 {"comando": "git diff", "nivel": "auto", "explicacion": "cambios sin commitear (solo lee)"}
@@ -132,7 +140,11 @@
 {"comando": "git push", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
 {"comando": "git push x", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
 {"comando": "git reset", "nivel": "preguntar", "explicacion": "mueve HEAD (puede descartar cambios)"}
+{"comando": "git reset --hard", "nivel": "confirmar_doble", "explicacion": "descarta los cambios sin commitear (no quedan en el reflog)"}
+{"comando": "git reset --hard x", "nivel": "confirmar_doble", "explicacion": "descarta los cambios sin commitear (no quedan en el reflog)"}
 {"comando": "git reset x", "nivel": "preguntar", "explicacion": "mueve HEAD (puede descartar cambios)"}
+{"comando": "git restore --worktree", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
+{"comando": "git restore --worktree x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "git show", "nivel": "auto", "explicacion": "contenido de un objeto (solo lee)"}
 {"comando": "git show --ext-diff x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
 {"comando": "git show --ext-diff=x", "nivel": "preguntar", "explicacion": "flag que escribe, ejecuta o no termina: pide aprobación"}
@@ -166,12 +178,16 @@
 {"comando": "ls && file x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
 {"comando": "ls && find x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
 {"comando": "ls && git blame x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
+{"comando": "ls && git checkout -- x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "ls && git checkout x", "nivel": "preguntar", "explicacion": "cambia de rama/descarta cambios de working tree"}
+{"comando": "ls && git clean -f x", "nivel": "confirmar_doble", "explicacion": "borra archivos sin trackear (no quedan en el reflog)"}
 {"comando": "ls && git commit x", "nivel": "preguntar", "explicacion": "crea un commit en tu repo local"}
 {"comando": "ls && git diff x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
 {"comando": "ls && git log x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
 {"comando": "ls && git push x", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
+{"comando": "ls && git reset --hard x", "nivel": "confirmar_doble", "explicacion": "descarta los cambios sin commitear (no quedan en el reflog)"}
 {"comando": "ls && git reset x", "nivel": "preguntar", "explicacion": "mueve HEAD (puede descartar cambios)"}
+{"comando": "ls && git restore --worktree x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "ls && git show x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
 {"comando": "ls && git status x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
 {"comando": "ls && grep x", "nivel": "auto", "explicacion": "lista un directorio (solo lee)"}
@@ -371,12 +387,16 @@
 {"comando": "sudo file x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "sudo find x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "sudo git blame x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
+{"comando": "sudo git checkout -- x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "sudo git checkout x", "nivel": "preguntar", "explicacion": "cambia de rama/descarta cambios de working tree"}
+{"comando": "sudo git clean -f x", "nivel": "confirmar_doble", "explicacion": "borra archivos sin trackear (no quedan en el reflog)"}
 {"comando": "sudo git commit x", "nivel": "preguntar", "explicacion": "crea un commit en tu repo local"}
 {"comando": "sudo git diff x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "sudo git log x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "sudo git push x", "nivel": "confirmar_doble", "explicacion": "publica commits al remoto (irreversible en el server)"}
+{"comando": "sudo git reset --hard x", "nivel": "confirmar_doble", "explicacion": "descarta los cambios sin commitear (no quedan en el reflog)"}
 {"comando": "sudo git reset x", "nivel": "preguntar", "explicacion": "mueve HEAD (puede descartar cambios)"}
+{"comando": "sudo git restore --worktree x", "nivel": "confirmar_doble", "explicacion": "pisa archivos del árbol de trabajo (descarta sus cambios)"}
 {"comando": "sudo git show x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "sudo git status x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}
 {"comando": "sudo grep x", "nivel": "preguntar", "explicacion": "efecto no reconocido como solo-lectura: pide aprobación"}

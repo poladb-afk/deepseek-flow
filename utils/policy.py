@@ -376,10 +376,26 @@ def _normalizar_rm(tokens):
 
 def _normalizar_git(tokens):
     """`git` sin sus opciones globales (`-C .`, `-c user.name=x`): el
-    subcomando es lo que decide el riesgo."""
+    subcomando es lo que decide el riesgo. X159a: las formas que descartan
+    trabajo en cualquier orden de opciones quedan con la forma de la lista
+    (`reset … --hard` → `reset --hard`, `clean -fdx` → `clean -f`,
+    `checkout <rev> -- x` → `checkout --`, y `restore` que toca el árbol →
+    `restore --worktree`, que es su default). `restore --staged` solo toca el
+    índice y queda como está."""
     resto, i = tokens[1:], 0
     while i < len(resto) and resto[i].startswith("-"):
         i += 2 if resto[i] in _GIT_GLOBAL_CON_VALOR else 1
+    sub, args = (resto[i], resto[i + 1:]) if i < len(resto) else ("", [])
+    cortos = "".join(t[1:] for t in args if t.startswith("-") and not t.startswith("--"))
+    if sub == "reset" and "--hard" in args:
+        return ["git", "reset", "--hard"]
+    if sub == "clean" and ("f" in cortos or "--force" in args):
+        return ["git", "clean", "-f"]
+    if sub == "checkout" and "--" in args:
+        return ["git", "checkout", "--"]
+    solo_indice = ("S" in cortos or "--staged" in args) and not ("W" in cortos or "--worktree" in args)
+    if sub == "restore" and not solo_indice:
+        return ["git", "restore", "--worktree"]
     return ["git"] + resto[i:]
 
 

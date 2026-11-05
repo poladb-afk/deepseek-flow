@@ -46,7 +46,7 @@ TOOLS = [
                     },
                     "permitir_comandos": {
                         "type": "string",
-                        "description": "prefijos de comandos aprobables, separados por coma (cada segmento del comando debe empezar con uno); vacío = ningún comando que pida aprobación se aprueba (los de solo-lectura corren igual); git push y rm -rf nunca",
+                        "description": "prefijos de comandos aprobables, separados por coma (cada segmento del comando debe empezar con uno); vacío = ningún comando que pida aprobación se aprueba (los de solo-lectura corren igual); lo irreversible nunca",
                     },
                     "timeout_min": {
                         "type": "integer",
