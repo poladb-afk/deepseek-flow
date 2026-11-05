@@ -240,3 +240,35 @@ def test_tras_editar_la_configuracion_de_pytest_el_proximo_pregunta(monkeypatch)
     aprobaciones.registrar("run_command", "cp /tmp/x tests/conftest.py", True)  # por otro canal
     assert coding._nivel("pytest -q") == "preguntar"
     aprobaciones.limpiar()
+
+
+@pytest.mark.parametrize("nombre", ["mi trabajo", "a;touch PWNED", "a$(touch PWNED)", "a && touch PWNED"])
+def test_el_rerun_de_fable_judge_no_interpreta_la_ruta_del_trabajo(tmp_path, nombre):
+    """X160 (S0): `ReEjecutar` armaba `cd {trabajo} && {comando}` sin comillas.
+    Con un directorio llamado `a;touch PWNED` el shell corría `touch` (la policy
+    lo veía como un segmento más y la frenaba solo la HITL o el scope), y con
+    `mi trabajo` el `cd` fallaba y la verificación quedaba REFUTED por un
+    fraude que no existía. Ahora la ruta viaja como UN argumento: el `cd` entra
+    y no se ejecuta nada más."""
+    import shlex
+    import subprocess
+
+    from fable_judge import ReEjecutar
+
+    trabajo = tmp_path / nombre
+    trabajo.mkdir()
+    (trabajo / "ok.py").write_text("print('ok')\n", encoding="utf-8")
+    vistos = []
+
+    def correr(comando):
+        vistos.append(comando)
+        r = subprocess.run(comando, shell=True, capture_output=True, text=True, cwd=tmp_path, timeout=30)
+        return f"exit {r.returncode}\n{r.stdout}"
+
+    nodo = ReEjecutar()
+    verif = nodo.exec(nodo.prep({"trabajo": trabajo, "ejecutar": correr, "claims": [
+        {"texto": "corre", "tipo": "verificacion", "comando": "python3 ok.py"}]}))
+
+    assert verif[0]["estado"] == "ok"
+    assert shlex.split(vistos[0])[:3] == ["cd", str(trabajo), "&&"]  # la ruta es UN argumento
+    assert not list(tmp_path.rglob("PWNED"))

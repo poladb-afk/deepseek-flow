@@ -623,7 +623,10 @@ class ReEjecutar(Node):
                 continue
             print(colorear(f"  [fable-judge] re-ejecutando: {comando}", "info"), flush=True)
             inicio = time.monotonic()
-            salida = ejecutar(f"cd {trabajo} && {comando}")
+            # X160 (S0): la ruta del trabajo viaja como UN argumento del shell
+            # (sin comillas, `a;touch x` agregaba un comando y `mi trabajo`
+            # rompía el cd y refutaba una verificación sana).
+            salida = ejecutar(f"cd {shlex.quote(str(trabajo))} && {comando}")
             seg = round(time.monotonic() - inicio, 2)
             estado = estado_de_rerun(salida)
             evento_tool("fable_rerun", estado == "ok", seg, codigo=estado)

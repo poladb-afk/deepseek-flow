@@ -2122,3 +2122,48 @@ la sintética (463).
 extensión (`git checkout Makefile`) o con extensión numérica (`man/a.1`) se
 lee como rama y queda en un s/n; el alias de git (`-c alias.r='reset --hard'
 r`); `stash drop`/`clear` y `branch -D`.
+
+---
+
+## X160: la ruta del trabajo en el re-run de `fable_judge` viaja como un argumento (S0) (2026-11-05)
+
+**El hueco, medido.** `fable_judge.ReEjecutar` re-ejecuta cada verificación
+que el reporte dice haber corrido con `ejecutar(f"cd {trabajo} && {comando}")`.
+`permitido_rerun` filtra el COMANDO (pytest, `ruff check` o un `.py` del
+trabajo, sin metacaracteres), pero la RUTA del trabajo entraba al shell sin
+comillas. `trabajo` sale de `_dir_dentro`: tiene que existir dentro de las
+raíces, así que el ataque pide haber creado antes un directorio con ese
+nombre. Dos efectos, medidos con el test nuevo contra el código de antes
+(los 4 casos en rojo, y quedaron archivos `PWNED` creados en el tmp):
+- **Inyección.** Con un directorio `a;touch PWNED` o `a && touch PWNED`, el
+  shell corría `touch`. La policy lo veía como un segmento más y le ponía
+  `preguntar`: en el chat lo frenaba la HITL (con el comando a la vista) y en
+  `delegar` el scope (un segmento fuera de los prefijos permitidos se
+  rechaza); pero un scope que permitiera ese prefijo lo ejecutaba.
+- **Falso fraude.** Con un directorio `mi trabajo`, el `cd` fallaba, la
+  verificación daba `exit ≠ 0`, quedaba `fallo` y la compuerta la marcaba
+  REFUTED: el juez acusaba un fraude que no existía.
+
+**El arreglo** (autorizado por el operador): `shlex.quote(str(trabajo))` en
+la línea del re-run. La ruta llega como un solo argumento del `cd`; nada más
+se ejecuta. Sin cambio en la allowlist ni en la policy.
+
+**El candado.** `test_el_rerun_de_fable_judge_no_interpreta_la_ruta_del_trabajo`
+(`tests/test_policy_bypass.py`, R7), parametrizado con `mi trabajo`,
+`a;touch PWNED`, `a$(touch PWNED)` y `a && touch PWNED`: corre el re-run de
+verdad con un `subprocess` en `tmp_path` y exige estado `ok`, que la ruta sea
+UN argumento del `cd` (`shlex.split`) y que no exista ningún `PWNED`. En rojo
+contra el código de antes en los 4 casos; en verde con el arreglo. Una primera
+versión del test contaba los segmentos con `utils.policy.segmentos`, que parte
+por `;`/`&&` sin respetar comillas (es su diseño: ante la duda, más
+segmentos) y daba rojo con el arreglo puesto; se cambió por `shlex.split`,
+que es lo que hace el shell. Ese conteo conservador de la policy no es un
+hueco: sube fricción, nunca la baja.
+
+**Los gemelos** (TWINS): se buscó el mismo patrón —una ruta interpolada en un
+comando de shell sin comillas— en todo el producto: `f"cd {` y `shell=True`.
+El único sitio de producto era este; `modules/coding.py:315` corre el comando
+que el humano aprobó (es su contrato), y `banco/` es laboratorio.
+
+**Los números.** `tests_definidos` 1223 → 1227; el resto IGUAL. Solo mejoras:
+el ratchet reescribió el baseline solo, sin clave.
