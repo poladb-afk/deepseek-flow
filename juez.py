@@ -245,39 +245,34 @@ def _validar(crudo):
     return d, ""
 
 
-class Judge(Node):
-    def prep(self, shared):
-        """Hechos verificables en código: las líneas reales de cada cita."""
-        citas = []
-        for path, linea in CITA_RE.findall(shared["draft"] or "")[:MAX_CITAS]:
-            frag = read_file(path, offset=int(linea), limit=2)
-            if _cita_rota(frag, linea):
-                # el marcador viaja al prompt Y habilita la compuerta de exec
-                citas.append(f"[ROTA] {path}:{linea} → {frag}")
-            else:
-                real = "\n".join(frag.splitlines()[1:3])[:300]
-                citas.append(f"{path}:{linea} → contenido real:\n{real}")
-        se_esperaban = bool(_archivos_de(shared["question"]))
-        return shared["question"], shared["draft"], citas, se_esperaban
+def _citas_verificadas(draft):
+    """Cada cita `ruta:línea` del borrador contra el archivo real. Una cita que
+    no resuelve lleva el marcador `[ROTA]`: viaja al prompt Y habilita la
+    compuerta de exec."""
+    citas = []
+    for path, linea in CITA_RE.findall(draft or "")[:MAX_CITAS]:
+        frag = read_file(path, offset=int(linea), limit=2)
+        if _cita_rota(frag, linea):
+            citas.append(f"[ROTA] {path}:{linea} → {frag}")
+        else:
+            real = "\n".join(frag.splitlines()[1:3])[:300]
+            citas.append(f"{path}:{linea} → contenido real:\n{real}")
+    return citas
 
-    def exec(self, inputs):
-        question, draft, citas, se_esperaban = inputs
-        # exp/107 (D2): el inventario REAL viaja al prompt y el modelo devuelve
-        # `tools_usadas`; la membresía exacta contra el inventario la hace el
-        # CÓDIGO en la compuerta. Así lo semántico (¿de qué habla el borrador?)
-        # lo juzga el modelo y no una regex de contexto (F2), sin perder la
-        # lesión de exp/42 (3/3 borradores con `delete_file` entregados).
-        inventario = _inventario_tools()
-        inventario_txt = "\n".join(f"- {nombre}" for nombre in sorted(inventario))
-        citas_txt = "\n".join(citas) or "(el borrador no cita archivos)"
-        aviso = ""
-        if se_esperaban and not citas:
-            aviso = (
-                "\nATENCIÓN: la pregunta se refiere a archivos concretos y el "
-                "borrador NO cita ninguno en formato ruta:línea. Eso es un "
-                "problema grave de verificabilidad."
-            )
-        prompt = f"""Pregunta: {question}
+
+def _prompt_judge(question, draft, citas, se_esperaban, inventario):
+    """El prompt del juez: el borrador, sus citas verificadas y el inventario
+    REAL de herramientas (exp/107)."""
+    inventario_txt = "\n".join(f"- {nombre}" for nombre in sorted(inventario))
+    citas_txt = "\n".join(citas) or "(el borrador no cita archivos)"
+    aviso = ""
+    if se_esperaban and not citas:
+        aviso = (
+            "\nATENCIÓN: la pregunta se refiere a archivos concretos y el "
+            "borrador NO cita ninguno en formato ruta:línea. Eso es un "
+            "problema grave de verificabilidad."
+        )
+    return f"""Pregunta: {question}
 
 Borrador a evaluar:
 {draft}
@@ -309,64 +304,76 @@ suggestions:
 ```
 
 El campo verdict SOLO puede ser ok o retry, literal."""
+
+
+def _compuerta(v, rotas, inventario):
+    """Hechos del código por encima del juicio del modelo (C07): con
+    verdict ok el flujo ENTREGABA un borrador citando una ruta
+    inexistente (medido). Si alguna cita no resuelve, hay retry. Y
+    con una herramienta fuera del inventario (exp/42) tampoco se
+    entrega: el modelo lista `tools_usadas` (exp/107) y el código
+    contrasta la membresía exacta contra el action space real."""
+    if v.get("verdict") != "ok":
+        return v
+    alucinadas = [nombre for nombre in v.get("tools_usadas", []) if nombre not in inventario]
+    problemas = list(v.get("problems", []))
+    if rotas:
+        print(colorear("  [juez] cita rota con verdict ok → retry (hecho del código)", "aviso"), flush=True)
+        problemas.insert(0, f"{rotas} cita(s) del borrador no resuelven contra los "
+                            "archivos reales (ruta inexistente o línea fuera de rango)")
+    if alucinadas:
+        print(colorear("  [juez] herramienta inexistente con verdict ok → retry (hecho del código)", "aviso"),
+              flush=True)
+        problemas.append("el borrador menciona como herramienta algo que no existe "
+                         f"en el action space: {', '.join(alucinadas)}")
+    if problemas != list(v.get("problems", [])):
+        return {"verdict": "retry", "problems": problemas}
+    return v
+
+
+def _feedback_ilegible(crudo, motivo):
+    """Error-como-feedback (patrón del harness, exp/21 fase B2): un verdict
+    ilegible NO es un crash ni una entrega sin juzgar; es UN reintento
+    INFORMADO que cita al modelo su propia respuesta inválida VERBATIM + el
+    contrato. Un sinónimo nuevo lo atraviesa al parche de alias; acá el
+    modelo ve qué escribió y qué se esperaba."""
+    return (
+        f"Tu respuesta anterior no cumplió el contrato:\n"
+        f"--- respuesta recibida (verbatim) ---\n{_recorte(crudo)}\n"
+        f"--- fin ---\n"
+        f"Motivo: {motivo}\n"
+        f"El campo verdict SOLO puede ser ok o retry, literal "
+        f"(case/espacios se toleran); problems, si está, debe ser una "
+        f"lista. Respondé de nuevo SOLO yaml."
+    )
+
+
+class Judge(Node):
+    def prep(self, shared):
+        """Hechos verificables en código: las líneas reales de cada cita."""
+        citas = _citas_verificadas(shared["draft"])
+        se_esperaban = bool(_archivos_de(shared["question"]))
+        return shared["question"], shared["draft"], citas, se_esperaban
+
+    def exec(self, inputs):
+        question, draft, citas, se_esperaban = inputs
+        # exp/107 (D2): el inventario REAL viaja al prompt y el modelo devuelve
+        # `tools_usadas`; la membresía exacta contra el inventario la hace el
+        # CÓDIGO en la compuerta. Así lo semántico (¿de qué habla el borrador?)
+        # lo juzga el modelo y no una regex de contexto (F2), sin perder la
+        # lesión de exp/42 (3/3 borradores con `delete_file` entregados).
+        inventario = _inventario_tools()
+        prompt = _prompt_judge(question, draft, citas, se_esperaban, inventario)
         rotas = sum(1 for c in citas if c.startswith("[ROTA]"))
-
-        def _compuerta(v):
-            """Hechos del código por encima del juicio del modelo (C07): con
-            verdict ok el flujo ENTREGABA un borrador citando una ruta
-            inexistente (medido). Si alguna cita no resuelve, hay retry. Y
-            con una herramienta fuera del inventario (exp/42) tampoco se
-            entrega: el modelo lista `tools_usadas` (exp/107) y el código
-            contrasta la membresía exacta contra el action space real."""
-            if v.get("verdict") != "ok":
-                return v
-            alucinadas = [nombre for nombre in v.get("tools_usadas", [])
-                          if nombre not in inventario]
-            problemas = list(v.get("problems", []))
-            if rotas:
-                print(colorear(
-                    "  [juez] cita rota con verdict ok → retry (hecho del código)",
-                    "aviso"), flush=True)
-                problemas.insert(0,
-                    f"{rotas} cita(s) del borrador no resuelven contra los "
-                    "archivos reales (ruta inexistente o línea fuera de rango)")
-            if alucinadas:
-                print(colorear(
-                    "  [juez] herramienta inexistente con verdict ok → retry "
-                    "(hecho del código)", "aviso"), flush=True)
-                problemas.append(
-                    "el borrador menciona como herramienta algo que no existe "
-                    f"en el action space: {', '.join(alucinadas)}")
-            if problemas != list(v.get("problems", [])):
-                return {"verdict": "retry", "problems": problemas}
-            return v
-
         crudo = call_llm(prompt)
         veredicto, motivo = _validar(crudo)
         if veredicto is not None:
-            return _compuerta(veredicto)
-        # Error-como-feedback (patrón del harness, exp/21 fase B2): un
-        # verdict ilegible NO es un crash ni una entrega sin juzgar; es UN
-        # reintento INFORMADO que cita al modelo su propia respuesta inválida
-        # VERBATIM + el contrato. Un sinónimo nuevo lo atraviesa al parche de
-        # alias; acá el modelo ve qué escribió y qué se esperaba.
-        print(colorear(
-            "  [juez] verdict ilegible → reintento con feedback", "aviso"
-        ), flush=True)
-        recorte = _recorte(crudo)
-        feedback = (
-            f"Tu respuesta anterior no cumplió el contrato:\n"
-            f"--- respuesta recibida (verbatim) ---\n{recorte}\n"
-            f"--- fin ---\n"
-            f"Motivo: {motivo}\n"
-            f"El campo verdict SOLO puede ser ok o retry, literal "
-            f"(case/espacios se toleran); problems, si está, debe ser una "
-            f"lista. Respondé de nuevo SOLO yaml."
-        )
-        crudo2 = call_llm(prompt + "\n\n" + feedback)
+            return _compuerta(veredicto, rotas, inventario)
+        print(colorear("  [juez] verdict ilegible → reintento con feedback", "aviso"), flush=True)
+        crudo2 = call_llm(prompt + "\n\n" + _feedback_ilegible(crudo, motivo))
         veredicto, _ = _validar(crudo2)
         if veredicto is not None:
-            return _compuerta(veredicto)
+            return _compuerta(veredicto, rotas, inventario)
         # Fallback semántico: ni con feedback validó. El lado SEGURO del
         # contrato binario — si no se puede confirmar ok, no está ok. El
         # borrador da una vuelta más con este problema como feedback, acotado

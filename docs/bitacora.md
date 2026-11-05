@@ -1821,3 +1821,44 @@ cuerpos antes de tocar nada; eran dos casos distintos.
 par `_approve`), `lineas_del_producto` **7653 → 7651**, el resto IGUAL. Solo
 mejoras: el ratchet reescribió el baseline solo, sin clave. Ningún test se
 tocó; sin cambio de conducta.
+
+---
+
+## X156, primera parte: `juez.Judge` en piezas chicas (2026-11-04)
+
+**Qué había.** `juez.Judge` tenía 72 líneas de código (el tope de C6 es 40):
+`exec` armaba el prompt, definía la compuerta como función anidada, llamaba
+al modelo, reintentaba con feedback y caía al fallback; `prep` verificaba las
+citas en línea. El operador pidió ir de a un nodo y empezar por este.
+
+**Primero, la caracterización.** Antes de tocar nada se fijó la salida actual
+con un script de laboratorio (no queda en el repo) que corre el nodo con
+`call_llm` fakeado: 8 casos de `exec` (ok, aviso sin citas, cita rota,
+herramienta alucinada, rota y alucinada a la vez, retry directo, ilegible y
+después ok, ilegible dos veces), `prep` sobre archivos reales y 3 casos de
+`post`. Para cada caso guarda la salida y el sha256 de cada prompt que llega
+al modelo. El archivo resultante, **antes y después del cambio, es el mismo
+byte a byte** (sha256 `de26cc15…`): misma salida, mismos prompts, mismo
+número de llamadas.
+
+**El cambio**, sin tocar ninguna cadena: cuatro funciones de módulo en
+`juez.py` —`_citas_verificadas` (lo que hacía `prep`), `_prompt_judge` (el
+prompt), `_compuerta` (que era una función anidada en `exec`; ahora recibe
+`rotas` e `inventario` como argumentos) y `_feedback_ilegible` (el mensaje del
+reintento)—. `exec` queda como la secuencia: armar el prompt, llamar,
+validar, compuerta o reintento, fallback. Un primer intento sumaba 5 líneas
+de producto porque las llamadas a `print(colorear(...))` partidas en varias
+líneas cuentan como código; se juntaron en una (dentro del límite de 120 de
+`ruff`) y el total quedó igual.
+
+**El candado nuevo.** Ningún test cubría `Judge.prep`: los de `test_flujos.py`
+llaman `Judge().exec` con las citas ya armadas. Se suma
+`test_judge_prep_verifica_cada_cita_contra_el_archivo`: una cita que resuelve
+trae el contenido real, una que no resuelve lleva `[ROTA]` y `se_esperaban`
+sale de la pregunta. Pasa contra el `juez.py` de antes (caracteriza lo que
+había) y con un mutante que borra el marcador `[ROTA]` falla.
+
+**Los números** (ratchet, sobre X155): `nodos_largos` **3 → 2**,
+`tests_definidos` **1177 → 1178**, `lineas_del_producto` **7651 IGUAL**, el
+resto IGUAL. Solo mejoras: el ratchet reescribió el baseline solo, sin
+clave. Sin cambio de conducta.

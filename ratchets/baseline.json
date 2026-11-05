@@ -57,7 +57,7 @@
           80
         ],
         "juez.py": [
-          500
+          507
         ],
         "juez_lote.py": [
           90
@@ -242,10 +242,9 @@
     "nodos_largos": {
       "detalle": {
         "effective_n.py:HashFile": 47,
-        "effective_n.py:WriteReport": 50,
-        "juez.py:Judge": 72
+        "effective_n.py:WriteReport": 50
       },
-      "metrica": 3
+      "metrica": 2
     },
     "producto_conoce_lab": {
       "detalle": {},
@@ -433,7 +432,7 @@
         "tests/test_fable_judge.py": 66,
         "tests/test_fable_judge_claims.py": 24,
         "tests/test_fase5b.py": 3,
-        "tests/test_flujos.py": 36,
+        "tests/test_flujos.py": 37,
         "tests/test_forma_larga.py": 5,
         "tests/test_fractal.py": 8,
         "tests/test_fs_tools.py": 16,
@@ -486,7 +485,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1177
+      "metrica": 1178
     },
     "texto_de_prompt": {
       "detalle": {

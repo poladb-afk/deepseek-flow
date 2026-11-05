@@ -588,6 +588,23 @@ def test_juez_no_entrega_con_cita_rota(monkeypatch):
     v2 = juez.Judge().exec(("¿q?", "borrador", ["/real.md:1 → contenido real:\nx"], False))
     assert v2["verdict"] == "ok"
 
+def test_judge_prep_verifica_cada_cita_contra_el_archivo(tmp_path, monkeypatch):
+    """X156 (caracterización de `Judge.prep` antes de partir el nodo): una
+    cita que resuelve trae el contenido real de su línea; una que no resuelve
+    lleva `[ROTA]`; y `se_esperaban` sale de la pregunta, no del borrador."""
+    import juez
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    archivo = tmp_path / "a.txt"
+    archivo.write_text("uno\ndos\ntres\n", encoding="utf-8")
+    shared = {"question": f"¿qué dice {archivo}?",
+              "draft": f"ver {archivo}:2 y {tmp_path}/no_existe.txt:5"}
+    pregunta, borrador, citas, se_esperaban = juez.Judge().prep(shared)
+    assert (pregunta, borrador) == (shared["question"], shared["draft"])
+    assert citas[0].startswith(f"{archivo}:2 → contenido real:\n") and "dos" in citas[0]
+    assert citas[1].startswith(f"[ROTA] {tmp_path}/no_existe.txt:5 → ERROR")
+    assert se_esperaban is True
+
 def test_cita_rota_detecta_error_y_fuera_de_rango():
     """exp/29: los dos modos objetivos de cita inválida, como función pura."""
     from juez import _cita_rota
