@@ -105,7 +105,7 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora/2026-10.md`, X91). Con URL
 **Orden de lo que queda** (X112, aprobado por el operador): 1 ✅ deuda de la
 fase 1 → 2 ❌ 5b (revertida) → ✅ X112 (docs, prosa de fable, forma fija,
 ratchet sobre los YAML) → 3 imports perezosos → 4 S6 → 5 5c-a / 5c-b → 6
-S9a ✅ / S9b ✅ / S3 (bloqueado) → 7 fase 6 ✅. Primero lo que no cambia
+S9a ✅ / S9b ✅ / S3 (destrabado por X158; se pre-registra con la salvedad del prefijo) → 7 fase 6 ✅. Primero lo que no cambia
 conducta; lo que la cambia, con su A/B pre-registrado.
 
 ## Inventario de settings (47 al 2026-11-04 tras X154: 45 contrato · 2 revisar · 0 borrar)
