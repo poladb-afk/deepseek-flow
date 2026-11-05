@@ -10,7 +10,7 @@
         "modules/coding.py:TOOLS": 1149,
         "modules/db.py:TOOLS": 580,
         "modules/debate.py:TOOLS": 387,
-        "modules/delegar.py:TOOLS": 1225,
+        "modules/delegar.py:TOOLS": 1223,
         "modules/effective_n.py:TOOLS": 690,
         "modules/escritura.py:TOOLS": 497,
         "modules/evals.py:TOOLS": 405,
@@ -27,7 +27,7 @@
         "modules/websearch.py:TOOLS": 413,
         "utils/fs_tools.py:TOOLS": 1270
       },
-      "metrica": 16606
+      "metrica": 16604
     },
     "codigo_muerto_privado": {
       "detalle": [],
@@ -221,7 +221,7 @@
         "utils/kernel.py": 158,
         "utils/laya.py": 129,
         "utils/mcp_client.py": 70,
-        "utils/policy.py": 261,
+        "utils/policy.py": 288,
         "utils/prefetch.py": 49,
         "utils/proveedor.py": 73,
         "utils/riesgo.py": 31,
@@ -237,7 +237,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7646
+      "metrica": 7673
     },
     "nodos_largos": {
       "detalle": {},
@@ -414,7 +414,7 @@
         "tests/test_core_sin_modulos.py": 2,
         "tests/test_costos.py": 11,
         "tests/test_db.py": 18,
-        "tests/test_delegar.py": 20,
+        "tests/test_delegar.py": 21,
         "tests/test_deriva_reglas.py": 8,
         "tests/test_docs_sin_deriva.py": 6,
         "tests/test_estado_riesgo.py": 3,
@@ -453,7 +453,7 @@
         "tests/test_modulos.py": 18,
         "tests/test_novedad.py": 2,
         "tests/test_pendientes.py": 36,
-        "tests/test_policy.py": 26,
+        "tests/test_policy.py": 60,
         "tests/test_policy_bypass.py": 106,
         "tests/test_policy_datos.py": 15,
         "tests/test_prefetch.py": 11,
@@ -482,7 +482,7 @@
         "tests/test_webchat.py": 7,
         "tests/test_webhook.py": 11
       },
-      "metrica": 1179
+      "metrica": 1214
     },
     "texto_de_prompt": {
       "detalle": {
