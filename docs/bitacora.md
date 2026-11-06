@@ -2859,3 +2859,89 @@ en el scope de git.
 7585 → **7589 (+4)**: la lista y su lectura. Es de S0 (P1 cede, como X169,
 X170 y X171) y es el único empeoramiento; lo aceptó el operador con su
 clave (baseline `2de9b7b`).
+
+---
+
+## X175: la vara antes de pulir: cobertura por archivo como gate, y el borrador de la aceptación (2026-11-06)
+
+Es la parte 1 del plan "robustez e higiene" que aceptó el operador: primero
+la forma de saber si algo se rompió, después el pulido.
+
+**Cobertura, medida antes de gatearla.** Con `coverage` 7.17.2 sobre la suite
+entera, el producto (los 68 archivos de `lineas_del_producto`) tiene 6.241
+sentencias, de las que **1.053 no ejecuta ningún test (83 % cubierto)**. Las
+peores son `rag.py` (123), `debate.py` (64), `fable_judge.py` (62),
+`utils/hitl_web.py` (57), `utils/mcp_client.py` (52) y `utils/conductor.py`
+(42). El núcleo está casi cerrado: `utils/kernel.py` y `flow.py` 100 %,
+`nodes.py` 99 %, `utils/policy.py` 97 %.
+
+**Determinismo, medido antes de confiar.**
+- Dos corridas iguales dan la misma cobertura línea por línea.
+- Entre dos entornos (el mío, con las opcionales, y un venv con solo
+  `requirements-dev.txt`, como el CI) difería **un archivo**:
+  `utils/websearch.py`, 9 contra 3 líneas cubiertas, porque el test de `ddgs`
+  se saltea sin el paquete.
+- Con los tests marcados por entorno (`red`, `datos`, `laya`, `git`) fuera de
+  la medición, la diferencia entre entornos es **0 archivos**. Por eso la etapa
+  mide sin ellos y los corre aparte.
+
+**El gate (`ratchet.py --cobertura`, etapa 5/5 de `calidad.sh`).**
+- Por archivo y no total, para que bajar 5 en un archivo no compre subir 1 en
+  otro.
+- Un archivo nuevo entra cubierto o con la clave.
+- Las reglas son las del ratchet: mejorar reescribe `ratchets/cobertura.json`
+  solo, empeorar exige la clave y `--actualizar`, la guardia mira HEAD y
+  HEAD~1, y sin datos es ROJO.
+- El baseline es un archivo de SECCIONES por intérprete (`"3.12"`, `"3.14"`;
+  decisión (2) del operador): cada sección tiene la forma del baseline de
+  métricas, así la lee el mismo `cargar_baseline` (N4). La etapa 5 elige por
+  `sys.version_info[:2]`; sin sección para el intérprete que corre es ROJO y
+  se siembra con `--sembrar-entorno` (crea solo la que falta, desde la
+  medición que corre: no pide clave ni pisa la de otro Python).
+- `coverage` queda pinneado en `requirements-dev.txt`, como ruff.
+- La suite sigue corriendo una sola vez: partida en dos, medida y no medida.
+
+**Los candados**, en `tests/test_ratchet.py`: 10 tests, uno por regla
+(siembra explícita, elige la sección del intérprete que corre, sembrar no pisa
+la del otro, igual, mejora, empeora sin clave, archivo nuevo, sin datos,
+determinismo, bypass commiteado).
+
+**La aceptación, en borrador.** `banco/specs/aceptacion_v1.md` convierte la
+definición de §1 del handoff en tres criterios: termina con evidencia (A1),
+0 acciones no autorizadas (A2) y costo bajo un techo (A3). Usa 8 escenarios
+ya puntuados por código y 3 seeds. Tiene tres huecos `[OPERADOR]` (las tareas
+reales, el techo por corrida y el techo total): hasta llenarlos no es un
+pre-registro, y no se corre nada.
+
+**Los números.** `tests_definidos` 1323 → **1333** (7 tests del gate + 3 de la
+sección por intérprete). `lineas_del_producto` sin cambio: `ratchet.py` es
+laboratorio. La cobertura queda en **1.053** para 3.12 (el sembrado) y
+**1.054** para 3.14 (sembrado acá).
+
+**Corrección del instrumento, antes de commitear (adaptación local).** El
+primer gate de cinco etapas dio rojo en la 5 con **1117** líneas sin test
+contra 1053 sembradas, y no era entorno: los tests que miden con `_datos_de`
+abren un segundo `coverage.Coverage(...).start()` **dentro** de la pasada
+medida y apagan el colector externo (Python 3.14); desde
+`tests/test_ratchet.py` en adelante ningún test aportaba cobertura. Medido:
+excluyendo solo esos tests, la etapa daba **1055** y desaparecían 11 de los 12
+archivos del delta. Se arregla en el dato: los tests del colector llevan
+`pytest.mark.cobertura`, el marker entra en `ENTORNO` de `calidad.sh` y esos
+tests corren en la segunda pasada, sin medición.
+
+**Resolución del residuo, antes del commit: sección por intérprete y `.env`
+apartado (decisión (2) del operador).** El residuo no era entorno ni tests
+faltantes: es la diferencia de intérprete. Python 3.14 cuenta como sentencia
+ejecutable las cláusulas `except OSError:` de `juez.py:89` y `juez.py:451` y
+Python 3.12 no (+2); `utils/citas.py` cuenta una menos (13 → 12) y
+`utils/call_llm.py` queda igual (10). La cuenta cierra en **1.054** para 3.14
+contra 1.053 sembrado en 3.12. Además el `.env` local movía el conteo
+(`call_llm` 11 con `.env`, 10 sin él; el total no cambiaba): por eso la
+pasada medida de `calidad.sh` ahora aparta el `.env` a un temporal con `trap`
+EXIT/INT/TERM y lo restaura, igual que el CI, y la segunda pasada (la no
+medida) corre con `.env`. La sección 3.14 se sembró con `--sembrar-entorno`
+sobre esa corrida, sin clave y sin tocar la 3.12. Gate de cinco etapas verde
+con las dos secciones: **1.054 vs 1.054 (IGUAL)** en esta máquina, y el CI
+mide contra la 1.053. El 1.055 de la investigación previa no se reprodujo con
+el `.env` apartado (una línea de `citas.py`), y no cambia el diagnóstico: el
+residuo era de versión, no de tests.

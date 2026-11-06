@@ -45,8 +45,9 @@ Si ya sabés qué buscás:
 
 ## Dónde viven los guardrails
 
-- **`calidad.sh`**: el gate, cuatro palancas —ruff (higiene), C901 en las
-  fronteras de seguridad, ratchet (métricas contra baseline) y pytest—. Verde
+- **`calidad.sh`**: el gate, cinco palancas —ruff (higiene), C901 en las
+  fronteras de seguridad, ratchet (métricas contra baseline), pytest y cobertura por archivo
+  (`ratchets/cobertura.json`, una sección por intérprete, X175)—. Verde
   con exit 0, y no se corre un subconjunto (R1).
 - **`ratchet.py` + `ratchets/baseline.json`**: cada métrica tiene dirección;
   empeorar exige la clave del operador (`ratchets/clave_operador.sha256`,

@@ -1089,8 +1089,8 @@ herramientas — con sonda antes/después, como hicimos con el router.
 
 ## Candados de calidad del repo: contrato de agente y ratchet (2026-10-19)
 
-El gate es determinista y no usa LLM: `./calidad.sh` corre cuatro palancas
-(higiene ruff · C901 de las dos fronteras · ratchet · suite pytest; el C901 repo-wide y la anidación viven en el ratchet) y el CI lo
+El gate es determinista y no usa LLM: `./calidad.sh` corre cinco palancas
+(higiene ruff · C901 de las dos fronteras · ratchet · suite pytest · cobertura por archivo, X175; el C901 repo-wide y la anidación viven en el ratchet) y el CI lo
 repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
 (ver [informe](informes/ratchets_y_reglas_agente_2026-10-19.md)):
 
@@ -1125,6 +1125,19 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   harness tiene 2/657 funciones >100 líneas vs 3/244 de `requests`, así que el
   largo no discrimina y una métrica sería ruido; la sonda queda en
   `banco/probes/forma_larga.py` por si el perfil cambia.
+- **Cobertura por archivo (X175, etapa 5/5)**: `ratchet.py --cobertura` lee
+  `.cobertura/datos` (lo mide la etapa funcional, sin los tests marcados por
+  entorno) y compara POR ARCHIVO contra `ratchets/cobertura.json`: un archivo
+  nuevo entra cubierto o con la clave, y bajar 5 en un archivo no compra subir
+  1 en otro. El baseline tiene una SECCIÓN por intérprete (`"3.12"`, `"3.14"`):
+  `coverage` cuenta distinto las líneas ejecutables entre versiones de Python
+  (medido: `juez.py` 29 contra 31), así que la etapa elige por
+  `sys.version_info[:2]`; sin sección para el intérprete que corre es ROJO y la
+  sección que falta se siembra con `--sembrar-entorno` (no pide clave: es la
+  medición del intérprete que corre, no una aceptación, y no pisa otra
+  sección). La pasada medida de `calidad.sh` corre sin `.env`, como el CI (el
+  `.env` local mueve `call_llm` 10→11 aunque no el total), y lo restaura con un
+  `trap` pase lo que pase.
 - **`tests/test_estilo_humano.py` — forma humana del código** (2026-10-19):
   banners decorativos = 0 en TODO el código versionado (el harness llegó a
   61 y tests/banco a 144), sin docstrings de relleno ni wrappers vacíos sin

@@ -67,6 +67,8 @@ Uso:
     python3 ratchet.py --actualizar     # HUMANO (con la clave): acepta un empeoramiento deliberado
     python3 ratchet.py --sembrar-clave  # HUMANO: escribe el sha256 de su clave (commitealo)
     python3 ratchet.py --sin-guardia    # diagnóstico: saltea la guardia git
+    python3 ratchet.py --cobertura      # etapa 5/5: cobertura por archivo (la corre calidad.sh)
+    python3 ratchet.py --cobertura --sembrar-entorno  # siembra la sección del Python que corre
 
 No tiene dependencias ni toca la red: es la palanca 3 de `calidad.sh` y de CI.
 """
@@ -87,10 +89,13 @@ import sys
 import tokenize
 from pathlib import Path
 
+import coverage
 import yaml
 
 RAIZ = Path(__file__).resolve().parent
 BASELINE = RAIZ / "ratchets" / "baseline.json"
+BASELINE_COBERTURA = RAIZ / "ratchets" / "cobertura.json"
+DATOS_COBERTURA = RAIZ / ".cobertura" / "datos"
 CLAVE_BYPASS = "HUMAN_RATCHET_BYPASS_KEY"
 HASH_CLAVE = RAIZ / "ratchets" / "clave_operador.sha256"
 
@@ -1288,6 +1293,104 @@ def correr(
     return 0
 
 
+# cobertura (X175): líneas del producto que ningún test ejecuta, POR ARCHIVO.
+# La mide `coverage` en la etapa funcional de `calidad.sh`, con los tests que
+# dependen del entorno (red, datos, laya, git, cobertura) afuera: así el número
+# es el mismo en cualquier máquina. La sección del baseline es la del
+# INTÉRPRETE que corre (decisión del operador, X175): 3.12 (el CI) y 3.14 (la
+# máquina del operador) no cuentan igual las líneas ejecutables —medido:
+# `juez.py` 29 contra 31 por las cláusulas `except OSError:` de `:89` y
+# `:451`—. Acá solo se lee y se compara: ningún archivo puede sumar líneas sin
+# test y uno nuevo entra cubierto o con la clave; el total no esconde lo que
+# pasa en cada uno.
+
+def version_de_python() -> str:
+    """La clave de sección del baseline de cobertura: "3.14"."""
+    return f"{sys.version_info[0]}.{sys.version_info[1]}"
+
+
+def escanear_cobertura(raiz: Path, datos: Path) -> dict[str, int] | None:
+    """{archivo del producto: líneas sin ejecutar}, o None si no hay datos."""
+    if not datos.is_file():
+        return None
+    medicion = coverage.Coverage(data_file=str(datos))
+    medicion.load()
+    return {archivo: len(medicion.analysis2(str(raiz / archivo))[3])
+            for archivo in escanear_lineas_del_producto(raiz)}
+
+
+def hallazgos_cobertura(actual: dict, previo: dict) -> list[str]:
+    """Lo que empeoró: un archivo con más líneas sin test, o uno nuevo con alguna."""
+    return [f"{archivo}: {previo.get(archivo, 0)} → {n} líneas sin test"
+            for archivo, n in sorted(actual.items()) if n > previo.get(archivo, 0)]
+
+
+def _archivos(datos: dict | None, version: str | None = None) -> dict | None:
+    """El detalle por archivo de la cobertura del intérprete `version` (default:
+    el que corre). Cada sección tiene la forma de un ratchet de métricas, así la
+    lee el mismo `cargar_baseline`."""
+    secciones = ((datos or {}).get("ratchets") or {}).get("cobertura") or {}
+    return (secciones.get(version or version_de_python()) or {}).get("detalle")
+
+
+def _guardar_seccion(ruta: Path, actual: dict, version: str) -> None:
+    """Reescribe SOLO la sección del intérprete que corre: el baseline de otro
+    Python no se pisa desde acá."""
+    datos = cargar_baseline(ruta) or {"version": 1, "ratchets": {}}
+    datos["ratchets"].setdefault("cobertura", {})[version] = {
+        "metrica": sum(actual.values()), "detalle": actual}
+    guardar_baseline(datos, ruta)
+
+
+def correr_cobertura(raiz: Path = RAIZ, ruta_baseline: Path = BASELINE_COBERTURA,
+                     datos: Path = DATOS_COBERTURA, actualizar: bool = False,
+                     sembrar: bool = False, salida=print) -> int:
+    """El gate de cobertura, con las reglas del ratchet: mejorar reescribe la
+    sección del intérprete que corre, empeorar (o un empeoramiento ya commiteado)
+    exige la clave, y sin datos o sin sección es ROJO. La sección que falta se
+    siembra con `--sembrar-entorno`: ES la medición del intérprete que corre, no
+    una aceptación, y por eso no pide clave (ni toca otra sección)."""
+    actual = escanear_cobertura(raiz, datos)
+    if actual is None:
+        salida(f"[cobertura] ROJO: no hay datos en {_ruta_visible(datos, raiz)}: corré ./calidad.sh entero")
+        return 1
+    version = version_de_python()
+    previo = _archivos(cargar_baseline(ruta_baseline), version)
+    if previo is None:
+        if sembrar:
+            _guardar_seccion(ruta_baseline, actual, version)
+            salida(f"[cobertura] sección {version} sembrada en {_ruta_visible(ruta_baseline, raiz)} "
+                   f"({sum(actual.values())} líneas sin test); commiteala")
+            return 0
+        salida(f"[cobertura] ROJO: no hay sección para Python {version} en "
+               f"{_ruta_visible(ruta_baseline, raiz)}: sembrala con "
+               "`python3 ratchet.py --cobertura --sembrar-entorno`")
+        return 1
+    if sembrar:
+        salida(f"[cobertura] ROJO: la sección {version} ya existe; --sembrar-entorno solo crea la que falta")
+        return 1
+    historia = [_archivos(_baseline_de_git(raiz, ref, ruta_baseline), version) for ref in ("HEAD", "HEAD~1")]
+    bypass = [h for a, b in ((previo, historia[0]), (historia[0], historia[1])) if a and b
+              for h in hallazgos_cobertura(a, b)]
+    peores = hallazgos_cobertura(actual, previo)
+    total = sum(actual.values())
+    salida(f"[cobertura] {total} líneas del producto sin test en Python {version}"
+           f" (antes {sum(previo.values())})")
+    for linea in peores + [f"BYPASS: {h}" for h in bypass]:
+        salida(f"    {linea}")
+    if peores or bypass:
+        valida, motivo = clave_valida(raiz, os.environ.get(CLAVE_BYPASS))
+        if not (actualizar and valida):
+            salida(f"[cobertura] ROJO: hay líneas nuevas sin test. Escribí el test; aceptarlo es "
+                   f"del operador con su clave y --actualizar ({motivo if actualizar else 'sin --actualizar'}).")
+            return 1
+    if previo != actual:
+        _guardar_seccion(ruta_baseline, actual, version)
+        salida(f"[cobertura] baseline actualizado ({_ruta_visible(ruta_baseline, raiz)}); commitealo")
+    salida("[cobertura] VERDE")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="ratchet.py",
@@ -1303,9 +1406,17 @@ def main(argv: list[str] | None = None) -> int:
                         help=f"HUMANO: acepta un empeoramiento deliberado (requiere {CLAVE_BYPASS} = la clave del operador)")
     parser.add_argument("--sembrar-clave", action="store_true",
                         help="HUMANO: escribe ratchets/clave_operador.sha256 con el sha256 de su clave")
+    parser.add_argument("--cobertura", action="store_true",
+                        help="el gate de cobertura por archivo (lee .cobertura/datos; lo corre calidad.sh)")
+    parser.add_argument("--sembrar-entorno", action="store_true",
+                        help="siembra la sección de cobertura del intérprete que corre si falta "
+                             "(no acepta empeoramientos ni pide clave)")
     args = parser.parse_args(argv)
     if args.sembrar_clave:
         return sembrar_clave()
+    if args.cobertura:
+        return correr_cobertura(raiz=args.raiz.resolve(), actualizar=args.actualizar,
+                                sembrar=args.sembrar_entorno)
     return correr(
         raiz=args.raiz.resolve(),
         ruta_baseline=args.baseline.resolve(),

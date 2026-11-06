@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # Base de calidad de deepseek-flow: higiene (ruff) + complejidad de las
-# fronteras + ratchet (métricas vs baseline) + funcional (pytest).
+# fronteras + ratchet (métricas vs baseline) + funcional (pytest) + cobertura.
 #
 # El gate determinista — sin LLM, mismo comando ⇒ mismo resultado:
-#   ./calidad.sh          → corre las cuatro palancas, exit 0 si TODO verde
+#   ./calidad.sh          → corre las cinco palancas, exit 0 si TODO verde
 #   (usarlo antes de commit; y como paso de CI: .github/workflows/calidad.yml)
 set -u
 cd "$(dirname "$0")"
 
 fallo=0
 
-echo "═══ 1/4 higiene — ruff check ═══"
+echo "═══ 1/5 higiene — ruff check ═══"
 if ruff check .; then
     echo "✅ higiene verde"
 else
@@ -19,7 +19,7 @@ else
 fi
 
 echo
-echo "═══ 2/4 complejidad — C901 ≤ 12 en las fronteras de seguridad ═══"
+echo "═══ 2/5 complejidad — C901 ≤ 12 en las fronteras de seguridad ═══"
 # Las dos fronteras del PR 6 se exigen al instante (ruff). El resto del harness
 # NO queda libre: la etapa 3 mide C901 repo-wide (mismo umbral, conteo exacto
 # de ruff) y anidación de control > 3 como métricas del ratchet con la deuda
@@ -33,7 +33,7 @@ else
 fi
 
 echo
-echo "═══ 3/4 ratchet — las métricas no empeoran (baseline versionado) ═══"
+echo "═══ 3/5 ratchet — las métricas no empeoran (baseline versionado) ═══"
 # Mecanismo de git-agent-ratchet: helpers privados duplicados (baja = mejora) y
 # tests definidos (sube = mejora) contra ratchets/baseline.json. La métrica puede
 # mejorar o quedar igual; empeorar exige que el operador humano corra --actualizar.
@@ -45,11 +45,49 @@ else
 fi
 
 echo
-echo "═══ 4/4 funcional — pytest ═══"
-if python3 -m pytest tests/ -q; then
+echo "═══ 4/5 funcional — pytest (midiendo cobertura) ═══"
+# X175: la suite corre UNA vez entera. La cobertura se mide con los tests que
+# no dependen del entorno; los marcados (red, datos, laya, git) corren aparte y
+# sin medir, porque cubren distinto según la máquina (medido: con ddgs
+# instalado, utils/websearch.py suma 6 líneas cubiertas). `cobertura`: los tests
+# que abren un colector anidado apagan el externo (medido, X175), así que
+# también corren en la segunda pasada.
+# La pasada medida corre como el CI, SIN .env: el .env local mueve la cobertura
+# por archivo (call_llm 10→11, citas 13→12; medido) aunque no el total, y la
+# sección del baseline quedaría a merced de si el archivo está. Se aparta y se
+# restaura pase lo que pase (la segunda pasada, la no medida, corre con .env).
+rm -rf .cobertura
+ENTORNO="red or datos or laya or git or cobertura"
+apartado=""
+restaurar_env() {
+    [ -n "$apartado" ] && mv "$apartado/.env" .env && rmdir "$apartado"
+}
+if [ -f .env ]; then
+    apartado="$(mktemp -d)"
+    mv .env "$apartado/.env"
+    trap restaurar_env EXIT
+    trap 'restaurar_env; exit 130' INT TERM
+fi
+medida=1
+python3 -m coverage run -m pytest tests/ -q -m "not ($ENTORNO)" || medida=0
+if [ -n "$apartado" ]; then
+    restaurar_env
+    apartado=""
+    trap - EXIT INT TERM
+fi
+if [ "$medida" -eq 1 ] && python3 -m pytest tests/ -q -m "$ENTORNO"; then
     echo "✅ funcional verde"
 else
     echo "❌ funcional roja"
+    fallo=1
+fi
+
+echo
+echo "═══ 5/5 cobertura — ningún archivo suma líneas sin test (baseline versionado) ═══"
+if python3 ratchet.py --cobertura; then
+    echo "✅ cobertura verde"
+else
+    echo "❌ cobertura roja: hay código nuevo sin test"
     fallo=1
 fi
 

@@ -456,3 +456,168 @@ def test_sembrar_clave_escribe_solo_el_hash(tmp_path):
     assert "una-clave" not in ruta.read_text()
     corta = iter(["corta", "corta"])
     assert ratchet.sembrar_clave(ruta, salida=lambda m: None, leer=lambda _p: next(corta)) == 1
+
+
+# cobertura por archivo (X175)
+
+# Los tests que miden con `_datos_de` abren un segundo `coverage.Coverage`:
+# dentro de la pasada medida de `calidad.sh` eso apaga el colector externo y
+# todos los tests siguientes dejan de aportar cobertura (medido en X175: +64
+# líneas fantasma). Van con el marker `cobertura` y corren sin medición.
+
+def _datos_de(tmp_path, ejecutar):
+    """Mide con coverage un módulo de prueba: `ejecutar` decide qué corre."""
+    import coverage
+
+    _escribir(tmp_path, "main.py", "def a():\n    return 1\n\n\ndef b():\n    return 2\n")
+    datos = tmp_path / ".cobertura" / "datos"
+    medicion = coverage.Coverage(data_file=str(datos), include=[str(tmp_path / "main.py")])
+    medicion.start()
+    espacio = {}
+    exec(compile((tmp_path / "main.py").read_text(), str(tmp_path / "main.py"), "exec"), espacio)
+    ejecutar(espacio)
+    medicion.stop()
+    medicion.save()
+    return datos
+
+
+def _gate(tmp_path, datos, **k):
+    salida = []
+    codigo = ratchet.correr_cobertura(raiz=tmp_path, ruta_baseline=tmp_path / "cob.json",
+                                      datos=datos, salida=salida.append, **k)
+    return codigo, " ".join(salida)
+
+
+def _sembrar(tmp_path, datos):
+    """La primera corrida de un intérprete siembra su sección: es su medición."""
+    codigo, salida = _gate(tmp_path, datos, sembrar=True)
+    assert codigo == 0 and "sembrada" in salida
+    return salida
+
+
+def _secciones(tmp_path):
+    return json.loads((tmp_path / "cob.json").read_text())["ratchets"]["cobertura"]
+
+
+def _base_de(tmp_path, secciones):
+    """Baseline de prueba con las secciones dadas (el gate solo lee la suya)."""
+    ratchet.guardar_baseline({"version": 1, "ratchets": {"cobertura": secciones}},
+                             tmp_path / "cob.json")
+
+
+@pytest.mark.cobertura
+def test_cobertura_sin_seccion_es_roja_y_sembrar_entorno_la_crea(tmp_path):
+    """Un intérprete sin sección no arranca verde: la siembra es explícita."""
+    datos = _datos_de(tmp_path, lambda e: e["a"]())
+    version = ratchet.version_de_python()
+    codigo, salida = _gate(tmp_path, datos)
+    assert codigo == 1 and f"no hay sección para Python {version}" in salida
+    _sembrar(tmp_path, datos)
+    assert _secciones(tmp_path) == {version: {"detalle": {"main.py": 1}, "metrica": 1}}
+    antes = (tmp_path / "cob.json").read_bytes()
+    assert _gate(tmp_path, datos)[0] == 0
+    assert (tmp_path / "cob.json").read_bytes() == antes
+    # con la sección ya sembrada, --sembrar-entorno no es una puerta para aceptar un empeoramiento
+    codigo, salida = _gate(tmp_path, datos, sembrar=True)
+    assert codigo == 1 and "ya existe" in salida
+
+
+@pytest.mark.cobertura
+def test_cobertura_elige_la_seccion_del_interprete_que_corre(tmp_path):
+    """Dos secciones no se mezclan: manda la del Python que corre (y sin la
+    suya no hay verde por omisión)."""
+    datos = _datos_de(tmp_path, lambda e: e["a"]())
+    version = ratchet.version_de_python()
+    _base_de(tmp_path, {"9.9": {"metrica": 0, "detalle": {"main.py": 0}},
+                        version: {"metrica": 1, "detalle": {"main.py": 1}}})
+    assert _gate(tmp_path, datos)[0] == 0, "usa la sección del intérprete, no la mejor"
+    _base_de(tmp_path, {"9.9": {"metrica": 1, "detalle": {"main.py": 1}},
+                        version: {"metrica": 0, "detalle": {"main.py": 0}}})
+    codigo, salida = _gate(tmp_path, datos)
+    assert codigo == 1 and "main.py: 0 → 1" in salida
+
+
+@pytest.mark.cobertura
+def test_sembrar_entorno_no_toca_la_seccion_de_otro_interprete(tmp_path):
+    datos = _datos_de(tmp_path, lambda e: e["a"]())
+    version = ratchet.version_de_python()
+    _base_de(tmp_path, {"9.9": {"metrica": 7, "detalle": {"main.py": 7}}})
+    assert _gate(tmp_path, datos)[0] == 1
+    _sembrar(tmp_path, datos)
+    assert _secciones(tmp_path) == {"9.9": {"metrica": 7, "detalle": {"main.py": 7}},
+                                    version: {"metrica": 1, "detalle": {"main.py": 1}}}
+
+
+@pytest.mark.cobertura
+def test_cobertura_que_mejora_baja_el_baseline_sola(tmp_path):
+    _sembrar(tmp_path, _datos_de(tmp_path, lambda e: e["a"]()))
+    codigo, salida = _gate(tmp_path, _datos_de(tmp_path, lambda e: (e["a"](), e["b"]())))
+    assert codigo == 0 and "VERDE" in salida
+    assert ratchet._archivos(json.loads((tmp_path / "cob.json").read_text())) == {"main.py": 0}
+
+
+@pytest.mark.cobertura
+def test_cobertura_que_empeora_es_roja_y_no_pisa_el_baseline(tmp_path):
+    _sembrar(tmp_path, _datos_de(tmp_path, lambda e: (e["a"](), e["b"]())))
+    antes = (tmp_path / "cob.json").read_bytes()
+    codigo, salida = _gate(tmp_path, _datos_de(tmp_path, lambda e: e["a"]()))
+    assert codigo == 1 and "main.py: 0 → 1" in salida
+    assert (tmp_path / "cob.json").read_bytes() == antes
+    codigo, _ = _gate(tmp_path, _datos_de(tmp_path, lambda e: e["a"]()), actualizar=True)
+    assert codigo == 1, "--actualizar sin la clave del operador no acepta"
+
+
+@pytest.mark.cobertura
+def test_un_archivo_nuevo_entra_cubierto(tmp_path):
+    datos = _datos_de(tmp_path, lambda e: (e["a"](), e["b"]()))
+    _sembrar(tmp_path, datos)
+    _escribir(tmp_path, "utils/nuevo.py", "def c():\n    return 3\n")
+    codigo, salida = _gate(tmp_path, datos)
+    assert codigo == 1 and "utils/nuevo.py: 0 → 2" in salida
+
+
+def test_cobertura_sin_datos_es_roja(tmp_path):
+    codigo, salida = _gate(tmp_path, tmp_path / "no_hay")
+    assert codigo == 1 and "no hay datos" in salida
+
+
+def test_hallazgos_cobertura_mira_cada_archivo_no_el_total():
+    """Bajar 5 en un archivo no compra subir 1 en otro."""
+    assert ratchet.hallazgos_cobertura({"a.py": 0, "b.py": 3}, {"a.py": 5, "b.py": 2}) == [
+        "b.py: 2 → 3 líneas sin test"]
+    assert ratchet.hallazgos_cobertura({"a.py": 1}, {"a.py": 1}) == []
+
+
+@pytest.mark.cobertura
+def test_la_medicion_de_cobertura_es_determinista(tmp_path):
+    """Mismo árbol e intérprete: mismo detalle y los mismos bytes en el baseline."""
+    datos = _datos_de(tmp_path, lambda e: (e["a"](), e["b"]()))
+    _sembrar(tmp_path, datos)
+    antes = (tmp_path / "cob.json").read_bytes()
+    assert ratchet.escanear_cobertura(tmp_path, datos) == {"main.py": 0}
+    assert ratchet.escanear_cobertura(tmp_path, datos) == {"main.py": 0}
+    assert _gate(tmp_path, datos)[0] == 0
+    assert (tmp_path / "cob.json").read_bytes() == antes
+
+
+@pytest.mark.git
+@pytest.mark.cobertura
+@requiere_git
+def test_cobertura_bypass_commiteado_es_rojo(tmp_path):
+    """Un baseline de cobertura empeorado y commiteado (HEAD peor que HEAD~1)
+    sin la clave es ROJO aunque el árbol coincida con HEAD."""
+    datos = _datos_de(tmp_path, lambda e: e["a"]())
+    version = ratchet.version_de_python()
+
+    def commitear(n):
+        _base_de(tmp_path, {version: {"metrica": n, "detalle": {"main.py": n}}})
+        subprocess.run(["git", "-C", str(tmp_path), "add", "cob.json"], check=True)
+        subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", f"cob {n}"], check=True)
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "t"], check=True)
+    commitear(0)
+    commitear(1)
+    codigo, salida = _gate(tmp_path, datos)
+    assert codigo == 1 and "BYPASS: main.py: 0 → 1" in salida

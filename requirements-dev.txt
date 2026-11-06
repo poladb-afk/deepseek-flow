@@ -3,3 +3,6 @@
 -r requirements.txt
 pytest>=8.0
 ruff==0.17.1
+# X175: la etapa de cobertura de calidad.sh, pinneada como ruff (otra versión
+# puede contar distinto las líneas ejecutables y mover el baseline).
+coverage==7.17.2
