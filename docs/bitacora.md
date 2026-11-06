@@ -3434,3 +3434,49 @@ verdes ahora. `hypothesis==6.170.15` queda pinneado en `requirements-dev.txt`.
 4 líneas; se reescribió `clasificar` para que no); `tests_definidos` 1369 →
 1380; cobertura del producto 1020 → **1017** líneas sin test. Solo mejoras: los
 baselines se reescribieron solos, sin clave.
+
+---
+
+## X183 (instrumento): los mutantes de S0 pasan a ser un probe que corre el operador (2026-11-06)
+
+**Por qué un probe y no una corrida acá.** La corrida completa son 305 mutantes
+(cada uno corre la suite de S0 entera con `-x`). En el entorno donde se armó el
+instrumento, el proceso se reiniciaba y **restauraba una copia vieja del
+estado**: tres reinicios dejaron 35, 58 y 35 mutantes hechos de 175, 159 y 144.
+Seguir por tandas no garantiza terminar. El instrumento queda en el repo:
+`banco/probes/mutantes_s0.py`, que retoma solo desde su JSON
+(`salidas/mutantes_s0/estado.json`, ignorado por git) y no toca el árbol (cada
+worker usa su copia temporal).
+
+**Qué muta.** Las 38 funciones de las tres fronteras (`utils/policy.py`,
+`utils/aprobaciones.py`, `utils/fs_tools.py`): comparación invertida,
+`and`↔`or`, `not` quitado, booleano negado, entero +1, `any`↔`all`. Son 305
+mutantes que compilan. Un mutante vivo es un test que falta o un cambio
+equivalente; los dos se resuelven con dato (un test que lo mata, o el motivo
+anotado).
+
+**Lo que se vio antes de perder el estado (parcial, no es el resultado).**
+Sobre 159 de 305, con una suite **por archivo** para ir más rápido (que puede
+dejar vivo un mutante que otro test sí mata), había 26 vivos. De los 12 que se
+llegaron a leer, todos en `utils/policy.py`: 7 en `_globales_git` (el salto de
+opciones, la marca de ilegible), 4 en `_normalizar_git` (las ramas de `switch
+-f` y `stash drop/clear`) y 1 en `_global_git`. **No se escribe ningún test
+sobre esto:** la corrida buena es la del operador, con la suite entera.
+
+**El candado del instrumento.** `tests/test_mutantes_s0.py`: el enumerador
+encuentra mutantes en las tres fronteras, **los 305 compilan y cambian el
+archivo** (el primer recorte compilaba una muestra de 26; se completó en este
+commit), los ids son únicos (para retomar) y la suite que usa existe.
+
+**El baseline de cobertura no se toca.** El paquete de X183 traía sembrada la
+sección `3.12` con 1015 del entorno del autor; acá no hay 3.12 para
+verificarla, así que la sección queda en su valor conservador (1053) y la
+reescribe el CI cuando mida. Los mutantes no dependen de esos números.
+
+**Los números de este árbol.** `tests_definidos` 1380 → **1382** (los dos casos
+del candado); `lineas_del_producto` 7524 IGUAL y cobertura 1017 IGUAL (el probe
+y su test son laboratorio, no producto).
+
+**Lo que falta para cerrar X183:** que el operador corra `python3
+banco/probes/mutantes_s0.py --workers 4` (unos 20 min) y pase el JSON. Con eso,
+cada vivo se mata con un test o se declara equivalente.

@@ -435,6 +435,7 @@
         "tests/test_memoria.py": 22,
         "tests/test_minar_errores.py": 20,
         "tests/test_modulos.py": 23,
+        "tests/test_mutantes_s0.py": 2,
         "tests/test_novedad.py": 2,
         "tests/test_pendientes.py": 36,
         "tests/test_policy.py": 83,
@@ -467,7 +468,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 23
       },
-      "metrica": 1380
+      "metrica": 1382
     },
     "texto_de_prompt": {
       "detalle": {
