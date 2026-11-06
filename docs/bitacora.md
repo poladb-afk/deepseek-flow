@@ -2691,5 +2691,5 @@ siguen `ok` (`cd`, `python3`, `pytest`, `ruff`, `git` con sus opciones, `ls`,
 
 **Los números.** `tests_definidos` 1277 → **1301**; `lineas_del_producto`
 7581 → **7587 (+6)**: el verificador y las dos listas de datos. Es el único
-empeoramiento y lo acepta el operador con su clave.
+empeoramiento y lo aceptó el operador con su clave (baseline `c4572a9`).
 
