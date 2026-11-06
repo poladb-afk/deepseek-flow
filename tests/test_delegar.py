@@ -452,3 +452,18 @@ def test_el_arranque_y_cierre_del_chat_reportan_delegadas(monkeypatch, capsys):
     monkeypatch.setattr(delegar, "corridas_activas", lambda: [_Path("20261025-101500")])
     delegar_mod.aviso_delegadas_al_cerrar()
     assert "siguen corriendo" in capsys.readouterr().out
+
+
+def test_una_delegada_no_se_queda_esperando_una_respuesta_humana(tmp_path, monkeypatch):
+    """X181: `request_human_input` lee `input()` salvo que `HUMANO_RESPUESTA`
+    traiga el texto offline. El conductor no lo ponía: si el chat delegado le
+    preguntaba algo al humano, nadie contestaba y la corrida moría por plazo
+    (medido: `_turno` con la pregunta en pantalla dio `timeout`). El operador
+    puede fijar el suyo, y `--env` manda sobre los dos."""
+    from delegar import RESPUESTA_HUMANO_OFFLINE, env_delegar
+
+    monkeypatch.delenv("HUMANO_RESPUESTA", raising=False)
+    assert env_delegar(tmp_path)["HUMANO_RESPUESTA"] == RESPUESTA_HUMANO_OFFLINE
+    monkeypatch.setenv("HUMANO_RESPUESTA", "lo que fije el operador")
+    assert env_delegar(tmp_path)["HUMANO_RESPUESTA"] == "lo que fije el operador"
+    assert env_delegar(tmp_path, {"HUMANO_RESPUESTA": "x"})["HUMANO_RESPUESTA"] == "x"

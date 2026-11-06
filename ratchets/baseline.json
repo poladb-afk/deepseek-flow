@@ -74,7 +74,7 @@
           47
         ],
         "utils/call_llm.py": [
-          307
+          309
         ],
         "utils/contexto.py": [
           96
@@ -153,7 +153,7 @@
       "detalle": {
         "auditoria.py": 83,
         "debate.py": 99,
-        "delegar.py": 185,
+        "delegar.py": 186,
         "effective_n.py": 266,
         "fable_judge.py": 563,
         "flow.py": 20,
@@ -203,7 +203,7 @@
         "utils/fable_dominios.py": 55,
         "utils/fs_tools.py": 372,
         "utils/historial.py": 17,
-        "utils/hitl_web.py": 397,
+        "utils/hitl_web.py": 392,
         "utils/kernel.py": 158,
         "utils/laya.py": 129,
         "utils/mcp_client.py": 70,
@@ -220,7 +220,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7528
+      "metrica": 7524
     },
     "nodos_largos": {
       "detalle": {},
@@ -398,7 +398,7 @@
         "tests/test_core_sin_modulos.py": 2,
         "tests/test_costos.py": 11,
         "tests/test_db.py": 19,
-        "tests/test_delegar.py": 21,
+        "tests/test_delegar.py": 22,
         "tests/test_deriva_reglas.py": 8,
         "tests/test_docs_sin_deriva.py": 6,
         "tests/test_estado_riesgo.py": 3,
@@ -454,7 +454,7 @@
         "tests/test_streaming.py": 11,
         "tests/test_supervisor_convergencia.py": 4,
         "tests/test_tablero.py": 2,
-        "tests/test_techo_unico.py": 12,
+        "tests/test_techo_unico.py": 15,
         "tests/test_thinking_tools.py": 7,
         "tests/test_thread_store.py": 26,
         "tests/test_tokens_runs.py": 5,
@@ -464,9 +464,9 @@
         "tests/test_visor.py": 4,
         "tests/test_viz.py": 5,
         "tests/test_webchat.py": 9,
-        "tests/test_webhook.py": 22
+        "tests/test_webhook.py": 23
       },
-      "metrica": 1364
+      "metrica": 1369
     },
     "texto_de_prompt": {
       "detalle": {

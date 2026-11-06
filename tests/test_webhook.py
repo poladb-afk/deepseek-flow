@@ -198,3 +198,13 @@ def test_content_length_malo_se_rechaza_sin_decidir(webhook, monkeypatch, ruta, 
     assert codigo == esperado
     assert not pedido.evento.is_set() and pedido.decision is None
     assert not (tmp_path / "webhooks.jsonl").exists()
+
+
+def test_un_tope_del_webhook_no_positivo_usa_el_default(webhook, monkeypatch):
+    """X181: `_tope` llevaba `WEBHOOK_MAX_BYTES=0` a 1 byte y rechazaba todo
+    webhook con 413 (medido). Ahora usa el mismo `_entero` que el resto de los
+    settings: lo que no es un entero >= 1 cae al default."""
+    _hitl, puerto, _tmp = webhook
+    monkeypatch.setenv("WEBHOOK_MAX_BYTES", "0")
+    codigo, _ = _pedir(puerto, "/webhook", json.dumps({"tipo": "ci"}).encode(), _auth())
+    assert codigo == 200

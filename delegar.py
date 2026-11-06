@@ -26,6 +26,8 @@ RE_SN = re.compile(r"\(s/n\):?\s*$")
 MAX_RESUMES = 2
 # los destinos que el banco redirige a salidas/banco/ (banco._env_del_chat)
 LOGS_DEL_BANCO = ("PREGUNTAS_ARCHIVO", "RIESGO_ARCHIVO")
+# X181: nadie está en la terminal de una delegada (`request_human_input` esperaba `input()`)
+RESPUESTA_HUMANO_OFFLINE = "El usuario no está: seguí con tu supuesto y dejá la pregunta en el informe final."
 LINEA_RESUME = ("La sesión se cortó a mitad del pedido. Retomá donde quedó y "
                 "completalo; después respondé con el resultado.")
 
@@ -41,8 +43,10 @@ def env_delegar(dir_threads, extras=None):
     orgánico, la biblioteca y los resúmenes son los de producción (el
     aislamiento de X41/X43 es promesa del banco, no de acá). THREADS_DIR
     propio: el checkpoint de la corrida vive junto a su transcript, y un
-    resume lo encuentra sin adivinar."""
-    env = dict(os.environ, PYTHONUNBUFFERED="1", TERM="dumb", THREADS_DIR=str(dir_threads))
+    resume lo encuentra sin adivinar. `HUMANO_RESPUESTA`: la corrida no tiene
+    humano en la terminal (X181), salvo que el operador fije el suyo."""
+    env = {"HUMANO_RESPUESTA": RESPUESTA_HUMANO_OFFLINE, **os.environ,
+           "PYTHONUNBUFFERED": "1", "TERM": "dumb", "THREADS_DIR": str(dir_threads)}
     for destino in LOGS_DEL_BANCO:
         env.pop(destino, None)
     env.update(extras or {})
@@ -163,16 +167,10 @@ def _esperar_muerte(chat, segundos=20):
 def _escribir_resumen(run, pedido, estado, resumes, segundos):
     filas = leer_decisiones(run / "hitl.jsonl")
     rechazos = sum(1 for f in filas if not f["ok"])
-    texto = (
-        f"# Delegar — {run.name}\n\n"
-        f"- pedido: {pedido}\n"
-        f"- estado: {estado}\n"
-        f"- duración: {segundos} s\n"
-        f"- HITL respondidos: {len(filas)} ({rechazos} rechazados con motivo)\n"
-        f"- reanudaciones: {resumes}\n\n"
-        f"Transcript: `transcript.log` · eventos: `eventos.jsonl` · decisiones: `hitl.jsonl`\n"
-    )
-    (run / "resumen.md").write_text(texto, encoding="utf-8")
+    (run / "resumen.md").write_text(
+        f"# Delegar — {run.name}\n\n- pedido: {pedido}\n- estado: {estado}\n- duración: {segundos} s\n"
+        f"- HITL respondidos: {len(filas)} ({rechazos} rechazados con motivo)\n- reanudaciones: {resumes}\n\n"
+        "Transcript: `transcript.log` · eventos: `eventos.jsonl` · decisiones: `hitl.jsonl`\n", encoding="utf-8")
 
 
 def conducir(pedido, dir_salida, permitir=None, permitir_comandos=None,

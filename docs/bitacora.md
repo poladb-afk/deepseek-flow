@@ -3324,3 +3324,58 @@ US$0,0298) y las 6 filas quedaron con HITL medido; JSONL final sha256
 producto es el mismo que midió la corrida. El pre-registro
 (`banco/specs/aceptacion_v1.md:129-130`) ata PASA a re-correr la aceptación
 antes de cada tag.
+
+---
+
+## X181: la revisión de los 47 settings: tres que aceptaban valores sin sentido y una delegada que esperaba a nadie (2026-11-06)
+
+**El método.** Se leyeron los 47 settings con la misma pregunta: qué pasa con
+un valor que no tiene sentido (0, negativo, un typo). Los 45 marcados como
+`contrato` se quedan: cada uno es una decisión del operador y su motivo está
+en `docs/elegancia.md`. Los 2 `revisar` se decidieron (abajo). Lo que apareció
+al probar los valores, medido sobre X180:
+
+- **`MAX_TOOL_ROUNDS=0` o negativo** dejaba el techo en 0 o en -3: cada
+  pregunta cerraba sin una sola ronda de tools, sin ningún aviso.
+- **`READ_MAX_CHARS=0`** hacía que `read_file` devolviera solo la marca de
+  corte, sin contenido.
+- **`WEBHOOK_MAX_BYTES=0`**: `_tope` lo llevaba a 1 byte y rechazaba todo
+  webhook con 413.
+- **`HUMANO_RESPUESTA` no lo ponía el conductor.** Si el chat delegado
+  llamaba a `request_human_input`, esperaba `input()` y nadie contestaba:
+  `_turno` con la pregunta en pantalla terminó en `timeout`. Los benches ya lo
+  ponían; `delegar`, que es producto, no.
+
+**El arreglo, en un lugar.** `_entero(nombre, default, minimo)`: lo que no
+parsea o queda debajo del mínimo avisa y usa el default, igual que un typo.
+`MAX_TOOL_ROUNDS`, `READ_MAX_CHARS` y los dos topes del webhook usan
+`minimo=1`. **`_tope` de `hitl_web` se fue:** hacía lo mismo con otra regla
+(N4). `delegar.env_delegar` pone `HUMANO_RESPUESTA` con un texto offline,
+salvo que el operador fije el suyo (y `--env` manda sobre los dos).
+`COMPACTION_CHARS=0` no se toca: el `.env.example` documenta que 0 la apaga.
+
+**Los dos `revisar`, decididos:** `HITL_SCOPE` y `HUMANO_RESPUESTA` pasan a
+`contrato`. Son las entradas de una corrida sin humano, que hoy usa el
+producto (`delegar`) y no solo el banco; el nombre dice lo que hacen. El
+inventario queda en 47 contrato, 0 revisar y 0 borrar.
+
+**La baja del `.env.example`.** Se borró el bloque comentado de
+`UMBRAL_SIN_PROGRESO` (5 líneas): su código se fue con S6 (X132) y era la
+única mención que quedaba fuera de la historia; lo aprobó el operador y no
+toca código ni settings leídos.
+
+**Los candados**, cada uno rojo contra X180 y verde ahora:
+
+- `test_un_techo_no_positivo_usa_el_default` (0 y -3; el caso 8 es el
+  control). Corre en un proceso aparte, porque recargar `fs_tools` borraría
+  los hooks PRE que registran los módulos.
+- `test_un_tope_del_webhook_no_positivo_usa_el_default`.
+- `test_una_delegada_no_se_queda_esperando_una_respuesta_humana`.
+
+**Lo que no se hizo.** No se borró ningún setting: los 45 son decisiones del
+operador y borrar uno cambia su `.env`. Bajar `settings_leidos` pide esa
+decisión, setting por setting, como en X154.
+
+**Los números.** `lineas_del_producto` 7528 → **7524**; `tests_definidos` 1364 →
+1369; cobertura del producto 1022 → **1020** líneas sin test. Solo mejoras: los
+baselines se reescribieron solos, sin clave.

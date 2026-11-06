@@ -19,8 +19,8 @@ from utils.call_llm import _entero, _setting
 from utils.terminal import colorear
 
 DEFAULT_ALLOWED_DIRS = "."  # portable: CWD; en producción, AGENT_ALLOWED_DIRS en .env
-MAX_TOOL_ROUNDS = _entero("MAX_TOOL_ROUNDS", 16)  # S6 (X132): único techo por pregunta
-READ_MAX_CHARS = _entero("READ_MAX_CHARS", 24000)
+MAX_TOOL_ROUNDS = _entero("MAX_TOOL_ROUNDS", 16, minimo=1)  # S6 (X132): único techo por pregunta
+READ_MAX_CHARS = _entero("READ_MAX_CHARS", 24000, minimo=1)
 LIST_MAX_ENTRIES = 300
 SEARCH_MAX_FILES = 50
 SEARCH_MAX_MATCHES = 200

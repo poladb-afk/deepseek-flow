@@ -49,7 +49,7 @@ from urllib.parse import parse_qs, unquote_plus, urlsplit
 
 from utils import webchat
 from utils.aprobaciones import Decision
-from utils.call_llm import _setting
+from utils.call_llm import _entero, _setting
 
 HOST = "127.0.0.1"
 PUERTO_DEFAULT = 8765
@@ -105,21 +105,13 @@ def _parsear_evento(datos):
     return evento
 
 
-def _tope(crudo, default):
-    """Un tope entero >= 1 del webhook; un valor inválido usa el default."""
-    try:
-        return max(1, int(crudo))
-    except (TypeError, ValueError):
-        return default
-
-
 def _permitido_por_limite():
     """Rate limit por proceso: ventana deslizante de 60 s."""
     ahora = time.monotonic()
     with _ventana_lock:
         _ventana_webhooks[:] = [cuando for cuando in _ventana_webhooks
                                 if ahora - cuando < 60.0]
-        if len(_ventana_webhooks) >= _tope(_setting("WEBHOOK_MAX_POR_MINUTO"), WEBHOOK_MAX_POR_MINUTO_DEFAULT):
+        if len(_ventana_webhooks) >= _entero("WEBHOOK_MAX_POR_MINUTO", WEBHOOK_MAX_POR_MINUTO_DEFAULT, minimo=1):
             return False
         _ventana_webhooks.append(ahora)
         return True
@@ -424,7 +416,7 @@ class _Handler(BaseHTTPRequestHandler):
         if not token_valido(enviado):
             self._responder(401, _json({"error": "token inválido"}))
             return
-        datos = self._cuerpo(_tope(_setting("WEBHOOK_MAX_BYTES"), WEBHOOK_MAX_BYTES_DEFAULT))
+        datos = self._cuerpo(_entero("WEBHOOK_MAX_BYTES", WEBHOOK_MAX_BYTES_DEFAULT, minimo=1))
         if datos is None:
             return
         try:

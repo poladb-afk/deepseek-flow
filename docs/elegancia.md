@@ -95,7 +95,7 @@ citas en la auditoría del 2026-10-27 (`docs/bitacora/2026-10.md`, X91). Con URL
 | Fase | Cambio | ¿Cambia conducta? | Gate de salida |
 |---|---|---|---|
 | 0 | Estos ratchets + el diagrama del README generado + este documento | No | `./calidad.sh` verde |
-| 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/`. ✅ deuda (X109): sin el `.env` ni las tareas de bmo; las sondas de Laya a `banco/probes/`. **Queda**: `HITL_SCOPE` y `HUMANO_RESPUESTA` (revisar) | No | `test_caracterizacion_chat.py` idéntico |
+| 1 | ✅ 1a (X92): hooks de ciclo de vida en los módulos (S4). ✅ 1b (X93): el producto deja de leer `BANCO`/`DELEGADO`/`GROUND-TRUTH` (S5); el driver PTY sale de `banco/`. ✅ deuda (X109): sin el `.env` ni las tareas de bmo; las sondas de Laya a `banco/probes/`. ✅ X181: `HITL_SCOPE` y `HUMANO_RESPUESTA` pasan a contrato | No | `test_caracterizacion_chat.py` idéntico |
 | 2 | ✅ 2a (X94): el kernel con el shared solo de datos. ✅ 2b-1 (X95): `Contexto` (compacción) como nodo. ✅ 2b-2 (X96): `Observar` y `Cierre` (el presupuesto como arista). ✅ S9b A′ (X126): **el chat corre sobre `kernel.loop`** con `Observar`/`Contexto` como políticas y `PasoChat`/`ActuarChat`/`CierreChat` como nodos del chat; se borraron `AgentStep`/`ExecuteTools`/`Cierre`. ✅ S9a (X133): la continuación se decide por el estado del thread (la pregunta anterior abierta por el techo), no por la lista de palabras de `GetQuestion`. ✅ I2 (X135): el juez sin la regex de contexto (el inventario va al prompt y la membresía la hace el código). **Queda**: S3 (esquema de tools fijo y cierre por arista) | Mínimo | `replay`, `test_grafos_sin_calles_muertas.py`, fable s17–s20 |
 | 3 | (2d no entró, X99.) Gate previo PASA (X102). 3a NO PASA (X105, cableado borrado). ✅ 3b PASA (X106, `banco/specs/fase3b_4a.md`): el router salió del chat. **Cerradas con veredicto negativo** (decisión del operador): S2 —Laya elige el modo— la rechazó el A/B de la 3a; S1 —`reasoning_content` en rondas de tools— no aplica sin thinking con tools. ✅ X109: el juez de riesgo que solo observaba se borró; el log de la decisión humana queda | **Sí** | los criterios de `banco/specs/fase3b_4a.md` |
 | 4 | ✅ 4b-mín (X104): sin la regex de palabras. ✅ 4a (X106): reglas y voto borrados con la 3b. ✅ S6 (X132): un solo techo de 16 por pregunta con saldo en `turno`; `CORTE_NOVEDAD`, `CORTE_NOVEDAD_MIN`, `MAX_TOOL_ROUNDS_AMPLIO` y `UMBRAL_SIN_PROGRESO` salen con su código y sus tests. **El A/B pre-registrado PASA** (52 corridas: calidad +0,167 con margen −0,25, costo 0,958×, descarrilos 6 → 4, 0 deploys, US$0,2307) | Sí | banco + fable: USD y descarrilos ≤ base ✅; `settings_leidos` 56 → 52 ✅ |
@@ -108,7 +108,7 @@ ratchet sobre los YAML) → 3 imports perezosos → 4 S6 → 5 5c-a / 5c-b → 6
 S9a ✅ / S9b ✅ / S3 (medido en X173: el prefijo no se comparte y `none` no frena la tool; no gana por esa vía) → 7 fase 6 ✅. Primero lo que no cambia
 conducta; lo que la cambia, con su A/B pre-registrado.
 
-## Inventario de settings (47 al 2026-11-04 tras X154: 45 contrato · 2 revisar · 0 borrar)
+## Inventario de settings (47 al 2026-11-06 tras X181: 47 contrato · 0 revisar · 0 borrar)
 
 `contrato` = decisión del operador que se queda; `revisar` = se decide en la
 fase indicada; `borrar` = se va con su rama en esa fase.
@@ -116,8 +116,8 @@ fase indicada; `borrar` = se va con su rama en esa fase.
 | Setting | Veredicto | Fase | Motivo | Lo lee |
 |---|---|---|---|---|
 | `PROMPT_AUDITORIA` | contrato | — | el checklist de auditoría es opción del operador (X112: único texto con lift medido, s18); X154 corrige el "borrar" viejo: la decisión del operador es posterior | `main.py` |
-| `HITL_SCOPE` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `utils/aprobaciones.py`, `utils/riesgo.py` |
-| `HUMANO_RESPUESTA` | revisar | 1 | S5: entrada headless legítima, hoy nombrada como del banco | `modules/humano.py` |
+| `HITL_SCOPE` | contrato | — | X181: entrada headless del conductor (`delegar`, producto) y del banco; el nombre dice lo que hace (el scope decide el HITL) | `utils/aprobaciones.py`, `utils/riesgo.py` |
+| `HUMANO_RESPUESTA` | contrato | — | X181: la respuesta offline de una corrida sin humano; `delegar` la pone por defecto (antes una pregunta al humano esperaba `input()` hasta el plazo) | `modules/humano.py` |
 | `CITAS_VERIFICAR` | contrato | — | contrato por decisión del operador en X154: es un seam de prueba que usa la caracterización del chat (citas e interrupción siempre activas), no un A/B abierto | `nodes.py` |
 | `PREFETCH` | contrato | — | contrato por decisión del operador en X154: seam de prueba que usan el gate fractal y el banco; los topes ya son constantes | `utils/prefetch.py` |
 | `SKILLS` | contrato | — | contrato por decisión del operador en X154: seam de prueba que usan la caracterización y el banco; el apagador global se queda | `nodes.py` |

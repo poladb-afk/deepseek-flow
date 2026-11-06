@@ -128,7 +128,7 @@
           "utils/fable_dominios.py": 0,
           "utils/fs_tools.py": 27,
           "utils/historial.py": 1,
-          "utils/hitl_web.py": 55,
+          "utils/hitl_web.py": 53,
           "utils/kernel.py": 0,
           "utils/laya.py": 24,
           "utils/mcp_client.py": 52,
@@ -145,7 +145,7 @@
           "utils/websearch.py": 18,
           "visor.py": 22
         },
-        "metrica": 1022
+        "metrica": 1020
       }
     }
   },

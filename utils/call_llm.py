@@ -50,16 +50,18 @@ def _setting(name, default=None):
     return _from_env_file(PROJECT_ENV, name) or default
 
 
-def _entero(nombre, default):
-    """Un setting entero a prueba de typos: si no parsea, avisa y usa el
-    default. Sin esto, un ".env" con "COMPACTION_CHARS=sesenta mil" reventaba
-    en el `prep` de un nodo del chat (hoy `Contexto`) — que corre FUERA del retry del nodo — y mataba el chat
-    (medido en la barrida)."""
-    try:
-        return int(_setting(nombre, str(default)))
-    except (TypeError, ValueError):
-        print(f"  [config] {nombre} no es un entero válido → uso {default}")
-        return int(default)
+def _entero(nombre, default, minimo=float("-inf")):
+    """Un setting entero a prueba de typos: si no parsea (o queda debajo de
+    `minimo`), avisa y usa el default. Sin esto, un ".env" con
+    "COMPACTION_CHARS=sesenta mil" reventaba en el `prep` de un nodo del chat
+    (hoy `Contexto`) — que corre FUERA del retry del nodo — y mataba el chat
+    (medido en la barrida). X181: `minimo` para los que no tienen sentido en
+    0 o negativo (un techo de 0 rondas cerraba cada pregunta sin aviso)."""
+    with contextlib.suppress(TypeError, ValueError):
+        if (valor := int(_setting(nombre, str(default)))) >= minimo:
+            return valor
+    print(f"  [config] {nombre} no es un entero válido → uso {default}")
+    return int(default)
 
 
 def get_api_key():

@@ -7,6 +7,7 @@ son el reemplazo de los suyos (el conteo no baja) y cubren el techo único.
 """
 import json
 
+import pytest
 from conftest import RAIZ, ctx_chat
 
 import nodes
@@ -138,3 +139,20 @@ def test_los_nombres_de_las_politicas_viejas_no_estan_en_el_producto():
         texto = ruta.read_text(encoding="utf-8")
         for nombre in nombres:
             assert nombre not in texto, f"{nombre} sigue en {ruta.relative_to(RAIZ)}"
+
+
+@pytest.mark.parametrize(("valor", "efectivo"), [("0", "16 24000"), ("-3", "16 24000"), ("8", "8 8")])
+def test_un_techo_no_positivo_usa_el_default(valor, efectivo):
+    """X181: `MAX_TOOL_ROUNDS=0` dejaba el techo en 0 (cada pregunta cerraba
+    sin una sola ronda de tools, sin aviso) y `READ_MAX_CHARS=0` devolvía solo
+    la marca de corte (medido). Un techo que no es positivo es un typo, como
+    uno que no parsea. En un proceso aparte: recargar fs_tools borraría los
+    hooks PRE que registraron los módulos."""
+    import os
+    import subprocess
+    import sys
+
+    r = subprocess.run([sys.executable, "-c", "import utils.fs_tools as f; print(f.MAX_TOOL_ROUNDS, f.READ_MAX_CHARS)"],
+                       cwd=RAIZ, capture_output=True, text=True, timeout=60,
+                       env={**os.environ, "MAX_TOOL_ROUNDS": valor, "READ_MAX_CHARS": valor})
+    assert r.stdout.strip().splitlines()[-1] == efectivo, r.stderr[-300:]
