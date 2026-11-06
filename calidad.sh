@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # Base de calidad de deepseek-flow: higiene (ruff) + complejidad de las
-# fronteras + ratchet (métricas vs baseline) + funcional (pytest) + cobertura.
+# fronteras + ratchet (métricas vs baseline) + funcional (pytest) + cobertura
+# por archivo + tipos del producto (Pyright, X184).
 #
 # El gate determinista — sin LLM, mismo comando ⇒ mismo resultado:
-#   ./calidad.sh          → corre las cinco palancas, exit 0 si TODO verde
+#   ./calidad.sh          → corre las seis palancas, exit 0 si TODO verde
 #   (usarlo antes de commit; y como paso de CI: .github/workflows/calidad.yml)
 set -u
 cd "$(dirname "$0")"
 
 fallo=0
 
-echo "═══ 1/5 higiene — ruff check ═══"
+echo "═══ 1/6 higiene — ruff check ═══"
 if ruff check .; then
     echo "✅ higiene verde"
 else
@@ -19,7 +20,7 @@ else
 fi
 
 echo
-echo "═══ 2/5 complejidad — C901 ≤ 12 en las fronteras de seguridad ═══"
+echo "═══ 2/6 complejidad — C901 ≤ 12 en las fronteras de seguridad ═══"
 # Las dos fronteras del PR 6 se exigen al instante (ruff). El resto del harness
 # NO queda libre: la etapa 3 mide C901 repo-wide (mismo umbral, conteo exacto
 # de ruff) y anidación de control > 3 como métricas del ratchet con la deuda
@@ -33,7 +34,7 @@ else
 fi
 
 echo
-echo "═══ 3/5 ratchet — las métricas no empeoran (baseline versionado) ═══"
+echo "═══ 3/6 ratchet — las métricas no empeoran (baseline versionado) ═══"
 # Mecanismo de git-agent-ratchet: helpers privados duplicados (baja = mejora) y
 # tests definidos (sube = mejora) contra ratchets/baseline.json. La métrica puede
 # mejorar o quedar igual; empeorar exige que el operador humano corra --actualizar.
@@ -45,7 +46,7 @@ else
 fi
 
 echo
-echo "═══ 4/5 funcional — pytest (midiendo cobertura) ═══"
+echo "═══ 4/6 funcional — pytest (midiendo cobertura) ═══"
 # X175: la suite corre UNA vez entera. La cobertura se mide con los tests que
 # no dependen del entorno; los marcados (red, datos, laya, git) corren aparte y
 # sin medir, porque cubren distinto según la máquina (medido: con ddgs
@@ -83,11 +84,26 @@ else
 fi
 
 echo
-echo "═══ 5/5 cobertura — ningún archivo suma líneas sin test (baseline versionado) ═══"
+echo "═══ 5/6 cobertura — ningún archivo suma líneas sin test (baseline versionado) ═══"
 if python3 ratchet.py --cobertura; then
     echo "✅ cobertura verde"
 else
     echo "❌ cobertura roja: hay código nuevo sin test"
+    fallo=1
+fi
+
+echo
+echo "═══ 6/6 tipos — pyright (producto, baseline versionado) ═══"
+# X184: la etapa solo junta el JSON (`--outputjson`; exit 1 = hay diagnósticos,
+# esperado mientras el baseline los contemple). `ratchet.py --pyright` lo
+# compara por archivo:regla: solo baja, y sin un JSON válido es ROJO. Pyright
+# está pinneado en requirements-dev.txt; el target fijo vive en [tool.pyright].
+mkdir -p .pyright
+python3 -m pyright --outputjson > .pyright/datos.json
+if python3 ratchet.py --pyright; then
+    echo "✅ tipos verde"
+else
+    echo "❌ tipos roja: un error de tipo nuevo (o el baseline no es de esta versión)"
     fallo=1
 fi
 

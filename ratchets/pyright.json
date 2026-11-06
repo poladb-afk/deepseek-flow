@@ -1,0 +1,40 @@
+{
+  "pyright": "1.1.409",
+  "pythonVersion": "3.12",
+  "ratchets": {
+    "pyright": {
+      "detalle": {
+        "auditoria.py:reportOptionalMemberAccess": 1,
+        "effective_n.py:reportArgumentType": 2,
+        "effective_n.py:reportAttributeAccessIssue": 1,
+        "effective_n.py:reportOptionalMemberAccess": 6,
+        "fable_judge.py:reportArgumentType": 1,
+        "fable_judge.py:reportOperatorIssue": 1,
+        "fable_judge.py:reportOptionalMemberAccess": 1,
+        "informe.py:reportArgumentType": 1,
+        "informe.py:reportOptionalMemberAccess": 1,
+        "juez.py:reportOptionalMemberAccess": 1,
+        "juez_lote.py:reportOperatorIssue": 1,
+        "juez_lote.py:reportOptionalMemberAccess": 1,
+        "mcp_server.py:reportAttributeAccessIssue": 1,
+        "modules/__init__.py:reportOptionalMemberAccess": 1,
+        "modules/a2a.py:reportOptionalMemberAccess": 3,
+        "modules/coding.py:reportOptionalMemberAccess": 7,
+        "modules/effective_n.py:reportOptionalMemberAccess": 1,
+        "modules/escritura.py:reportOptionalMemberAccess": 6,
+        "modules/informe.py:reportOptionalMemberAccess": 1,
+        "modules/vision.py:reportArgumentType": 2,
+        "modules/vision.py:reportOptionalMemberAccess": 7,
+        "rag.py:reportArgumentType": 1,
+        "rag.py:reportCallIssue": 1,
+        "rag.py:reportOptionalMemberAccess": 1,
+        "utils/call_llm.py:reportArgumentType": 2,
+        "utils/fs_tools.py:reportOptionalMemberAccess": 9,
+        "utils/policy.py:reportOptionalMemberAccess": 1,
+        "utils/webchat.py:reportOptionalMemberAccess": 4
+      },
+      "metrica": 66
+    }
+  },
+  "version": 1
+}

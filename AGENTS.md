@@ -129,7 +129,7 @@ son los que este repo ya conoce y no acepta:
 
 ## Definición de terminado
 
-- [ ] `./calidad.sh` verde (las cinco palancas) y su salida pegada en el reporte.
+- [ ] `./calidad.sh` verde (las seis palancas) y su salida pegada en el reporte.
 - [ ] El cambio tiene test (nuevo o existente) y su nombre está citado.
 - [ ] Si tu cambio bajó la métrica del ratchet, `ratchets/baseline.json` va
       en el mismo commit (el gate lo reescribe solo); si subió la cobertura,

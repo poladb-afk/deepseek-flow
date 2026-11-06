@@ -1090,8 +1090,8 @@ herramientas — con sonda antes/después, como hicimos con el router.
 
 ## Candados de calidad del repo: contrato de agente y ratchet (2026-10-19)
 
-El gate es determinista y no usa LLM: `./calidad.sh` corre cinco palancas
-(higiene ruff · C901 de las dos fronteras · ratchet · suite pytest · cobertura por archivo, X175; el C901 repo-wide y la anidación viven en el ratchet) y el CI lo
+El gate es determinista y no usa LLM: `./calidad.sh` corre seis palancas
+(higiene ruff · C901 de las dos fronteras · ratchet · suite pytest · cobertura por archivo, X175 · errores de tipo con Pyright, X184; el C901 repo-wide y la anidación viven en el ratchet) y el CI lo
 repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
 (ver [informe](informes/ratchets_y_reglas_agente_2026-10-19.md)):
 
@@ -1126,7 +1126,7 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   harness tiene 2/657 funciones >100 líneas vs 3/244 de `requests`, así que el
   largo no discrimina y una métrica sería ruido; la sonda queda en
   `banco/probes/forma_larga.py` por si el perfil cambia.
-- **Cobertura por archivo (X175, etapa 5/5)**: `ratchet.py --cobertura` lee
+- **Cobertura por archivo (X175, etapa 5/6)**: `ratchet.py --cobertura` lee
   `.cobertura/datos` (lo mide la etapa funcional, sin los tests marcados por
   entorno) y compara POR ARCHIVO contra `ratchets/cobertura.json`: un archivo
   nuevo entra cubierto o con la clave, y bajar 5 en un archivo no compra subir
@@ -1143,6 +1143,20 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   trabajo —`utils/citas._por_nombre_suelto`, que escaneaba con `rglob` desde el
   cwd— pasó a escanear solo las raíces versionadas, así un archivo ignorado no
   cambia el número (dictamen del Auditor, X175).
+- **Tipos del producto (X184, etapa 6/6)**: `calidad.sh` corre `python3 -m
+  pyright --outputjson` sobre el PRODUCTO (el mismo conjunto que
+  `lineas_del_producto`, 68 archivos; `exclude` del laboratorio y los
+  artefactos) y deja `.pyright/datos.json` (ignorado por git); `ratchet.py
+  --pyright` LEE ese JSON y compara por `archivo:regla` contra
+  `ratchets/pyright.json` (solo baja; un archivo nuevo con error es rojo; el
+  empeoramiento exige la clave del operador y la guardia HEAD/HEAD~1). La foto
+  fija las condiciones de la medición: `pyright==1.1.409` pinneado,
+  `typeCheckingMode="basic"` (standard daba 90 diagnósticos, casi todos el
+  override de `BaseNode` de PocketFlow), `pythonVersion="3.12"` fijo (no
+  depende del intérprete que corre), `reportMissingImports="none"` y un stub
+  propio de `laya` (`typings/`) porque las dependencias opcionales no están en
+  el CI. Los warnings son diagnóstico y no gatean. La primera foto se siembra
+  con `--sembrar-pyright` (no pide clave y solo si falta).
 - **`tests/test_estilo_humano.py` — forma humana del código** (2026-10-19):
   banners decorativos = 0 en TODO el código versionado (el harness llegó a
   61 y tests/banco a 144), sin docstrings de relleno ni wrappers vacíos sin

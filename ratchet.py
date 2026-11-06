@@ -67,8 +67,10 @@ Uso:
     python3 ratchet.py --actualizar     # HUMANO (con la clave): acepta un empeoramiento deliberado
     python3 ratchet.py --sembrar-clave  # HUMANO: escribe el sha256 de su clave (commitealo)
     python3 ratchet.py --sin-guardia    # diagnóstico: saltea la guardia git
-    python3 ratchet.py --cobertura      # etapa 5/5: cobertura por archivo (la corre calidad.sh)
+    python3 ratchet.py --cobertura      # etapa 5/6: cobertura por archivo (la corre calidad.sh)
     python3 ratchet.py --cobertura --sembrar-entorno  # siembra la sección del Python que corre
+    python3 ratchet.py --pyright        # etapa 6/6: errores de tipo del producto (lee .pyright/datos.json)
+    python3 ratchet.py --pyright --sembrar-pyright    # siembra el baseline de tipos si no existe
 
 No tiene dependencias ni toca la red: es la palanca 3 de `calidad.sh` y de CI.
 """
@@ -87,6 +89,7 @@ import shutil
 import subprocess
 import sys
 import tokenize
+import tomllib
 from pathlib import Path
 
 import coverage
@@ -96,6 +99,8 @@ RAIZ = Path(__file__).resolve().parent
 BASELINE = RAIZ / "ratchets" / "baseline.json"
 BASELINE_COBERTURA = RAIZ / "ratchets" / "cobertura.json"
 DATOS_COBERTURA = RAIZ / ".cobertura" / "datos"
+BASELINE_PYRIGHT = RAIZ / "ratchets" / "pyright.json"
+DATOS_PYRIGHT = RAIZ / ".pyright" / "datos.json"
 CLAVE_BYPASS = "HUMAN_RATCHET_BYPASS_KEY"
 HASH_CLAVE = RAIZ / "ratchets" / "clave_operador.sha256"
 
@@ -1407,6 +1412,133 @@ def correr_cobertura(raiz: Path = RAIZ, ruta_baseline: Path = BASELINE_COBERTURA
     return 0
 
 
+# tipos del producto con Pyright (X184)
+
+def _config_pyright(raiz: Path) -> dict:
+    """La sección [tool.pyright] de pyproject.toml: la fuente del target fijo."""
+    try:
+        with (raiz / "pyproject.toml").open("rb") as archivo:
+            return (tomllib.load(archivo).get("tool") or {}).get("pyright") or {}
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+
+
+def _leer_datos_pyright(datos: Path) -> dict | None:
+    """El JSON de `pyright --outputjson`, o None si no existe o no es válido."""
+    if not datos.is_file():
+        return None
+    try:
+        carga = json.loads(datos.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(carga, dict) or not isinstance(carga.get("generalDiagnostics"), list):
+        return None
+    return carga
+
+
+def _detalle_de_carga(carga: dict, raiz: Path) -> dict[str, int]:
+    """{archivo:regla: errores}. Solo `severity == "error"`: los warnings (el DSL
+    de PocketFlow usa `>>` por efecto) son diagnóstico y no gatean (X184)."""
+    detalle: dict[str, int] = {}
+    for diagnostico in carga["generalDiagnostics"]:
+        if diagnostico.get("severity") != "error":
+            continue
+        archivo = _relativa(Path(diagnostico["file"]), raiz)
+        clave = f"{archivo}:{diagnostico.get('rule') or 'sin-regla'}"
+        detalle[clave] = detalle.get(clave, 0) + 1
+    return dict(sorted(detalle.items()))
+
+
+def escanear_pyright(raiz: Path, datos: Path) -> dict[str, int] | None:
+    """Los errores de tipo por archivo:regla, o None si no hay datos válidos."""
+    carga = _leer_datos_pyright(datos)
+    return None if carga is None else _detalle_de_carga(carga, raiz)
+
+
+def hallazgos_pyright(actual: dict, previo: dict) -> list[str]:
+    """Lo que empeoró: un (archivo, regla) con más errores, o uno nuevo."""
+    return [f"{clave}: {previo.get(clave, 0)} → {n} errores"
+            for clave, n in sorted(actual.items()) if n > previo.get(clave, 0)]
+
+
+def _detalle_pyright(datos: dict | None) -> dict | None:
+    """El detalle del baseline de tipos (la forma de un ratchet de métricas)."""
+    seccion = ((datos or {}).get("ratchets") or {}).get("pyright") or {}
+    detalle = seccion.get("detalle")
+    return detalle if isinstance(detalle, dict) else None
+
+
+def _guardar_pyright(ruta: Path, actual: dict, version: str, python_version: str) -> None:
+    guardar_baseline({"version": 1, "pyright": version, "pythonVersion": python_version,
+                      "ratchets": {"pyright": {"metrica": sum(actual.values()), "detalle": actual}}}, ruta)
+
+
+def _peores_y_bypass_pyright(raiz: Path, ruta_baseline: Path,
+                             actual: dict, previo: dict) -> tuple[list[str], list[str]]:
+    """Lo que empeoró contra el disco/HEAD/HEAD~1 (bypass commiteado incluido)."""
+    historia = [_detalle_pyright(_baseline_de_git(raiz, ref, ruta_baseline)) for ref in ("HEAD", "HEAD~1")]
+    bypass = [hallazgo for a, b in ((previo, historia[0]), (historia[0], historia[1])) if a and b
+              for hallazgo in hallazgos_pyright(a, b)]
+    return hallazgos_pyright(actual, previo), bypass
+
+
+def correr_pyright(raiz: Path = RAIZ, ruta_baseline: Path = BASELINE_PYRIGHT,
+                   datos: Path = DATOS_PYRIGHT, actualizar: bool = False,
+                   sembrar: bool = False, salida=print) -> int:
+    """Etapa 6/6: errores de tipo del producto con las reglas del ratchet.
+
+    Lee el JSON que dejó `pyright --outputjson` (nunca corre Pyright), compara
+    por `archivo:regla` contra `ratchets/pyright.json` (solo baja) y fija la
+    versión con la que se midió: si la versión de Pyright o el target de Python
+    no son los del baseline, es ROJO (el baseline no se mueve por cambiar la
+    herramienta sin decisión). La primera foto se siembra con
+    `--sembrar-pyright`: es la medición honesta de la deuda, no una aceptación,
+    y solo si no existe."""
+    carga = _leer_datos_pyright(datos)
+    if carga is None:
+        salida(f"[pyright] ROJO: no hay datos válidos en {_ruta_visible(datos, raiz)}: "
+               "corré ./calidad.sh entero")
+        return 1
+    version = str(carga.get("version") or "")
+    target = str(_config_pyright(raiz).get("pythonVersion") or "")
+    actual = _detalle_de_carga(carga, raiz)
+    baseline = cargar_baseline(ruta_baseline)
+    previo = _detalle_pyright(baseline)
+    if baseline is None or previo is None:
+        if sembrar:
+            _guardar_pyright(ruta_baseline, actual, version, target)
+            salida(f"[pyright] baseline sembrado en {_ruta_visible(ruta_baseline, raiz)} "
+                   f"({sum(actual.values())} errores de tipo); commitealo")
+            return 0
+        salida(f"[pyright] ROJO: no hay baseline en {_ruta_visible(ruta_baseline, raiz)}: sembralo "
+               "con `python3 ratchet.py --pyright --sembrar-pyright`")
+        return 1
+    if sembrar:
+        salida("[pyright] ROJO: el baseline ya existe; --sembrar-pyright solo crea el que falta")
+        return 1
+    if (version, target) != (baseline.get("pyright"), baseline.get("pythonVersion")):
+        salida(f"[pyright] ROJO: el baseline se midió con pyright {baseline.get('pyright')} y "
+               f"Python {baseline.get('pythonVersion')}, y esta corrida es {version} / {target}: "
+               "corré la versión pinneada o re-sembrá el baseline con decisión (--actualizar y la clave)")
+        return 1
+    peores, bypass = _peores_y_bypass_pyright(raiz, ruta_baseline, actual, previo)
+    salida(f"[pyright] {sum(actual.values())} errores de tipo en el producto con pyright {version} "
+           f"(antes {sum(previo.values())}); los warnings son diagnóstico, no gatean")
+    for linea in peores + [f"BYPASS: {hallazgo}" for hallazgo in bypass]:
+        salida(f"    {linea}")
+    if peores or bypass:
+        valida, motivo = clave_valida(raiz, os.environ.get(CLAVE_BYPASS))
+        if not (actualizar and valida):
+            salida("[pyright] ROJO: hay errores de tipo nuevos. Arreglá el tipo; aceptarlo es del "
+                   f"operador con su clave y --actualizar ({motivo if actualizar else 'sin --actualizar'}).")
+            return 1
+    if previo != actual:
+        _guardar_pyright(ruta_baseline, actual, version, target)
+        salida(f"[pyright] baseline actualizado ({_ruta_visible(ruta_baseline, raiz)}); commitealo")
+    salida("[pyright] VERDE")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="ratchet.py",
@@ -1427,12 +1559,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sembrar-entorno", action="store_true",
                         help="siembra la sección de cobertura del intérprete que corre si falta "
                              "(no acepta empeoramientos ni pide clave)")
+    parser.add_argument("--pyright", action="store_true",
+                        help="etapa 6/6: errores de tipo del producto (lee .pyright/datos.json; lo corre calidad.sh)")
+    parser.add_argument("--sembrar-pyright", action="store_true",
+                        help="siembra el baseline de tipos si no existe "
+                             "(no acepta empeoramientos ni pide clave)")
     args = parser.parse_args(argv)
     if args.sembrar_clave:
         return sembrar_clave()
     if args.cobertura:
         return correr_cobertura(raiz=args.raiz.resolve(), actualizar=args.actualizar,
                                 sembrar=args.sembrar_entorno)
+    if args.pyright:
+        return correr_pyright(raiz=args.raiz.resolve(), actualizar=args.actualizar,
+                              sembrar=args.sembrar_pyright)
     return correr(
         raiz=args.raiz.resolve(),
         ruta_baseline=args.baseline.resolve(),

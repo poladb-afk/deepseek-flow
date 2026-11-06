@@ -3484,3 +3484,53 @@ y su test son laboratorio, no producto).
 banco/probes/mutantes_s0.py --workers 1` (en serie, unos 20 min: `test_hitl.py`
 fija 8791–8794 y en paralelo moriría por colisión) y pase el JSON. Con eso,
 cada vivo se mata con un test o se declara equivalente.
+
+---
+
+## X184: Pyright como sexta etapa del gate: tipos del producto con baseline (2026-11-06)
+
+**Por qué.** El gate medía forma y conducta, no tipos: el producto tenía 66
+errores de Pyright en 24 archivos que solo se veían a ojo. El modo default
+(standard) daba 90, casi todos `reportIncompatibleMethodOverride` del
+`BaseNode.exec` de PocketFlow (firma del tercero): `basic` da la señal útil y
+deja afuera ese ruido.
+
+**Cómo se mide sin depender de la máquina.** La etapa 6/6 corre `python3 -m
+pyright --outputjson` y escribe `.pyright/datos.json` (ignorado por git);
+`ratchet.py --pyright` **lee** ese JSON (nunca corre Pyright) y compara por
+`archivo:regla` contra `ratchets/pyright.json`: solo baja, un archivo nuevo con
+error es rojo, empeorar exige la clave del operador y la guardia HEAD/HEAD~1
+detecta el bypass commiteado. La foto fija las condiciones: `pyright==1.1.409`
+pinneado en `requirements-dev.txt`, `typeCheckingMode="basic"`,
+`pythonVersion="3.12"` fijo (el target no depende del intérprete que corre: CI
+3.12, máquina local la que sea), `reportMissingImports="none"` (las opcionales
+no están en el CI) y un stub mínimo `typings/laya/__init__.pyi` para
+`laya.load`: sin él el conteo cambiaba según si `laya` estaba instalada.
+`exclude` deja afuera el laboratorio y los artefactos; `include` es el mismo
+conjunto que `lineas_del_producto` (68 archivos).
+
+**La corrección del número de diseño.** La medición de diseño había dado 28
+errores porque el include ad-hoc omitía 4 archivos del producto
+(`juez_lote.py`, `auditoria.py`, `debate.py`, `effective_n.py`: 64 de 68
+archivos). Con el alcance completo son **66 errores en 28 pares
+archivo:regla**, y además el número no se mueve por las opcionales (el caso
+`laya`). El baseline se sembró en 66; el mecanismo es el aprobado.
+
+**Los candados** (`tests/test_pyright_ratchet.py`, 11 casos): sin baseline es
+ROJO y la siembra explícita lo crea (y no pisa uno existente); un error nuevo
+es ROJO y no pisa el baseline; un archivo nuevo con error es ROJO; la versión
+de Pyright o el target de Python distintos son ROJO (el baseline no se mueve
+por cambiar la herramienta); los warnings no gatean; el bypass commiteado es
+ROJO; y el pin + la config quedan clavados por un test.
+
+**El entorno.** El reset del operador actualizó Python a 3.15 y dejó los
+paquetes de 3.14 inaccesibles (`~/.local` de solo lectura): el gate local corre
+en un `.venv` (ignorado por git) con `requirements-dev.txt`. Bajo 3.15 faltaba
+la sección de cobertura: se sembró la sección **3.15 (1017 líneas**, igual que
+3.14) con `--sembrar-entorno`, sin tocar 3.12 (1053) ni 3.14 (1017). El CI
+sigue en 3.12.
+
+**Los números.** `tests_definidos` 1382 → **1393** (los 11 candados);
+`lineas_del_producto` 7524 IGUAL (todo lo nuevo es laboratorio: `ratchet.py`,
+`calidad.sh`, tests, `typings/` y config); cobertura 3.15 **1017**; Pyright
+**66 errores / 28 pares**, 36 warnings de diagnóstico.

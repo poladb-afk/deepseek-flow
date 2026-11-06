@@ -8,3 +8,6 @@ ruff==0.17.1
 coverage==7.17.2
 # X182: tests generativos de la política (semilla fija: el gate sigue determinista)
 hypothesis==6.170.15
+# X184: etapa 6/6, errores de tipo del producto con Pyright. Pinneado como ruff
+# y coverage: otra versión puede mover los diagnósticos y el baseline.
+pyright==1.1.409

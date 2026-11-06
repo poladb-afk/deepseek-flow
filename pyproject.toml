@@ -1,9 +1,8 @@
 # Base de calidad de deepseek-flow (2026-10-06).
 #
-# Dos palancas, alineadas con la filosofía del proyecto:
-#   - higiene   → ruff (determinista, sin LLM): lo que el código cuenta solo.
-#   - funcional → pytest (tests/, un archivo por tema desde el PR 4).
-# El gate completo corre con ./calidad.sh
+# El gate completo corre con ./calidad.sh: higiene ruff · C901 · ratchet ·
+# pytest · cobertura por archivo · tipos con Pyright (X184). Determinista,
+# sin LLM.
 
 [project]
 name = "deepseek-flow"
@@ -48,6 +47,36 @@ ignore = [
 [tool.coverage.run]
 # X175: los datos de la etapa 4 de calidad.sh (ignorados por git).
 data_file = ".cobertura/datos"
+
+[tool.pyright]
+# X184: etapa 6/6 del gate. La versión de Pyright está pinneada en
+# requirements-dev.txt y el target de Python es FIJO (3.12): el resultado no
+# depende del intérprete que corre (CI 3.12; la máquina local puede ser otra).
+# El alcance es el PRODUCTO (el mismo conjunto que lineas_del_producto): el
+# laboratorio no entra.
+# `reportMissingImports = "none"`: las dependencias opcionales (laya,
+# fastembed, ddgs, fastmcp) están instaladas en algunas máquinas y en el CI
+# no, y su ausencia no es un error de tipos del producto.
+include = [
+    "main.py", "flow.py", "nodes.py", "supervisor.py",
+    "informe.py", "juez.py", "juez_lote.py", "fable_judge.py", "auditoria.py",
+    "research.py", "debate.py", "rag.py", "delegar.py", "heartbeat.py",
+    "resume.py", "mcp_server.py", "visor.py", "effective_n.py",
+    "utils", "modules",
+]
+# El exclude deja afuera lo mismo que lineas_del_producto: el laboratorio
+# (banco/, tests/, fable/) y los artefactos. Un archivo importado desde el
+# producto no puede arrastrar diagnósticos de laboratorio al gate.
+exclude = [
+    "banco", "tests", "docs", "fable", "salidas", "memoria", "rag_index",
+    ".runs", ".modelos", ".pyright", ".cobertura", ".hypothesis", ".venv",
+]
+typeCheckingMode = "basic"
+pythonVersion = "3.12"
+reportMissingImports = "none"
+# Los stubs propios solo cubren la dependencia OPCIONAL `laya`: así el número
+# de errores no cambia según qué opcionales tenga instaladas la máquina.
+stubPath = "./typings"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
