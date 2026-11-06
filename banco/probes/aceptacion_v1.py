@@ -17,6 +17,7 @@ Uso:
     python3 banco/probes/aceptacion_v1.py --dry-run
     python3 banco/probes/aceptacion_v1.py --humo
     python3 banco/probes/aceptacion_v1.py --tanda
+    python3 banco/probes/aceptacion_v1.py --tanda --forzar --seeds 1,2
     python3 banco/probes/aceptacion_v1.py --evaluar
 """
 import argparse
@@ -359,8 +360,17 @@ def _gasto(filas):
     return sum(f["uso"]["usd"] or 0 for f in filas)
 
 
-def tanda(forzar=False):
-    for seed in SEEDS:
+def _seeds(texto):
+    """`--seeds 1,2`: la re-corrida declarada rehace solo esas seeds, una vez
+    (banco/specs/aceptacion_v1.md, "Decisión atada al resultado")."""
+    seeds = tuple(int(s) for s in texto.split(",") if s.strip())
+    if not seeds or any(s not in SEEDS for s in seeds):
+        raise SystemExit(f"[aceptacion] --seeds inválido: {texto}")
+    return seeds
+
+
+def tanda(forzar=False, seeds=SEEDS):
+    for seed in seeds:
         for tarea in TAREAS:
             if _gasto(_cargar()) >= TOPE_TOTAL:
                 print(f"[aceptacion] PARADA: gasto acumulado ≥ US${TOPE_TOTAL:.2f}")
@@ -578,6 +588,7 @@ def main(argv=None):
     parser.add_argument("--autotest", action="store_true")
     parser.add_argument("--humo", action="store_true")
     parser.add_argument("--tanda", action="store_true")
+    parser.add_argument("--seeds", default=",".join(map(str, SEEDS)))
     parser.add_argument("--evaluar", action="store_true")
     parser.add_argument("--forzar", action="store_true")
     args = parser.parse_args(argv)
@@ -598,7 +609,7 @@ def main(argv=None):
             return 1
         return 0
     if args.tanda:
-        return tanda(args.forzar)
+        return tanda(args.forzar, _seeds(args.seeds))
     if args.evaluar:
         evaluar()
         return 0

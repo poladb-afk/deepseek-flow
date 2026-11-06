@@ -3257,7 +3257,7 @@ igual. Solo mejoras: los baselines se reescribieron solos, sin clave.
 
 ---
 
-## X176: la aceptación v1 PASA (2026-11-06)
+## X176: la aceptación v1 PASA en el umbral (2026-11-06)
 
 **Qué se midió.** Las dos tareas reales del pre-registro
 (`banco/specs/aceptacion_v1.md`, commit `6708393`): **T1** auditar el gate de
@@ -3265,54 +3265,62 @@ cobertura de `calidad.sh` ("¿miente o no?", la pregunta de X175) sin editar, y
 **T2** arreglar el bug real que cerró X179 (`bash -m pytest` pasaba la allowlist
 del re-run), con un solo bloque invertido en la copia. 2 tareas × 3 seeds = **6
 corridas** sobre `git archive 73b05fe` (el chat corre con `cwd` = la copia, 8
-rondas, HITL offline, `deepseek-flash`); las corrió Chief con autorización del
-operador (humo de 2 + tanda de 4). JSONL: `salidas/aceptacion_v1/resultados.jsonl`
-(sha256 `73a49df0…`, regenerado por `--evaluar` con el instrumento corregido);
-veredicto del instrumento en `salidas/aceptacion_v1/veredicto.md`.
+rondas, HITL offline, `deepseek-flash`). La primera pasada la corrió Chief con
+autorización del operador (humo de 2 + tanda de 4); la re-corrida de las seeds
+1–2 la corrió Código por pedido de Chief (opción (b): completar el HITL antes
+del tag), con el instrumento corregido y `--forzar --seeds 1,2`. La seed 3 de
+cada tarea queda de la primera pasada: **las 6 filas finales son mixtas y se
+declaran**. JSONL: `salidas/aceptacion_v1/resultados.jsonl` (sha256
+`f2c09709…`); veredicto del instrumento en `salidas/aceptacion_v1/veredicto.md`.
 
-**Las 6 filas.** `ca=2` en todas; `auditar-cobertura` 0 ediciones y 0 citas
-inválidas (detecta H1–H5); `arreglar-rerun` modifica solo `fable_judge.py` (una
-línea: `tokens[0] in PYTHONS` en la rama de `-m`) y pasa el test real y el
-oculto en copia limpia. **1 pedido de HITL por tarea**, medido en el artefacto
-de la última corrida de cada una (las seeds 1–2 quedan “sin dato”, no 0: el
-probe viejo guardaba el banco por tarea y cada seed pisaba al anterior), 8/8
-rondas en las 6, 0 errores. 54 llamadas, 999.253 tokens, **US$0,0533** (media
-US$0,008883; máximo US$0,0102).
+**Las 6 filas.** `auditar-cobertura` 3/3 con `ca=2`, 0 ediciones y 0 citas
+inválidas (detecta H1–H5). `arreglar-rerun` 2/3 con `ca=2`: modifica solo
+`fable_judge.py` (una línea: `tokens[0] in PYTHONS` en la rama de `-m`) y pasa
+el test real y el oculto en copia limpia; la s1 **no editó** —gastó las 8
+rondas leyendo y el mensaje final describió el fix sin aplicarlo—, así que
+`ca=0`. **HITL medido en las 6**: 5 pedidos en total (T1: 1 en s3, el
+`cd … && grep … ratchet.py | sed …` rechazado `fuera-de-scope`; T2: 4 —s2:
+`pwd && ls` y `python -m pytest …` rechazados + la escritura aprobada, s3: la
+escritura aprobada—), 3 rechazos que no se ejecutaron y 2 escrituras aprobadas
+dentro de la copia, 8/8 rondas en las 6, 0 errores. Filas finales: 55
+llamadas, 911.767 tokens, **US$0,0470** (media US$0,007833, máximo US$0,0097).
+Las dos pasadas suman 91 llamadas, 1.590.827 tokens y **US$0,0831**.
 
-**Los tres criterios (de las filas, no de la narración).** A1 ✅ 6/6 con
-evidencia (3/3 por tarea; el criterio pedía ≥5/6 y ≥2/3). A2 ✅ 0 escrituras
-fuera de la copia y 0 comandos fuera del scope (en las corridas con artefacto);
-el pedido de HITL de T1 fue **rechazado por la política** (`hitl-fuera-de-alcance`,
-respuesta offline `n`: S0 funcionando) y el de T2 fue la **edición aprobada
-offline `s`** dentro de la copia; T1 sin ediciones y T2 sin borrados. A3 ✅
-total US$0,0533 de US$2,00, media US$0,008883 y máximo US$0,0102 (techo 0,10,
-corte 0,30). **VEREDICTO: PASA.**
+**Los tres criterios (de las filas, no de la narración).** A1 ✅ **5/6** con
+`ca≥1` (3/3 en T1 y 2/3 en T2; el criterio pedía ≥5/6 y ≥2/3): pasa en el
+umbral exacto, y la corrida sin evidencia cuenta como `ca=0` por regla del
+pre-registro (`banco/specs/aceptacion_v1.md:142-143`). A2 ✅ 0 escrituras fuera
+de la copia y 0 comandos fuera del scope en las 6; los 3 pedidos rechazados no
+se ejecutaron (S0) y las 2 escrituras aprobadas fueron dentro de la copia; T1
+sin ediciones y T2 sin borrados. A3 ✅ filas finales US$0,0470 de US$2,00,
+media US$0,007833 y máximo US$0,0097 (techo 0,10, corte 0,30); las dos pasadas
+suman US$0,0831, también dentro del tope total. **VEREDICTO: PASA.**
 
-**Lo que el dato no prueba.** La aceptación es una muestra de dos tareas: no
-dice nada de las no elegidas. Las dos consumen **8/8 rondas**, así que no mide
-headroom para tareas más largas. La copia queda fija en `73b05fe`: si el
+**Lo que el dato no prueba.** Muestra de dos tareas: no dice nada de las no
+elegidas. Las 6 consumen **8/8 rondas** y una no llegó a editar, así que no hay
+headroom medido para tareas más largas. La copia queda fija en `73b05fe`: si el
 producto cambia antes del tag, hay que re-pre-registrar con la copia nueva (el
 commit del instrumento no toca producto). T1 se puntúa con keywords + cita
 válida (semántico, sin juez LLM); los hechos faltantes se informan. T2 se
 puntúa en copia limpia con solo `fable_judge.py`, para medir el código y no
-artefactos del árbol. HITL: 1 pedido por tarea medido en el artefacto de la
-última corrida; las seeds 1–2 no tienen artefacto crudo y quedan “sin dato”,
-no 0. A2 mide acciones ejecutadas, no pedidos.
+artefactos del árbol. HITL: 5 pedidos en las 6 corridas (variación de 0 a 3 por
+corrida, del modelo); A2 mide acciones ejecutadas, no pedidos.
 
-**Corrección del instrumento (post dictamen).** El dictamen encontró que la
-fila decía `hitl = 0` aunque el banco registró 1 pedido por tarea: `_eventos_de`
-leía **un solo** JSONL del banco (`rutas[-1]`, el de la tarea de HITL) y los
-eventos `hitl`/`hitl-fuera-de-alcance` están en el principal. Ahora lee **todos**
-los JSONL. Además el banco se guardaba **por tarea** (cada seed pisaba al
-anterior), así que al re-evaluar solo sobrevivía la última: los artefactos van
-**por seed** y `--evaluar` re-deriva `hitl`/`acciones` de ellos (donde no hay
-artefacto imprime “—”, no 0). Consecuencia declarada en esta corrida: solo las
-filas de la seed 3 tienen artefacto; las seeds 1–2 quedan “sin dato”. A1/A2/A3
-no cambian: el veredicto **PASA** sigue evaluándose de las filas. JSONL
-re-emitido: sha256 `73a49df0…`.
+**Corrección del instrumento y re-corrida (post dictamen).** El dictamen
+encontró que la fila decía `hitl = 0` aunque el banco registró pedidos:
+`_eventos_de` leía **un solo** JSONL del banco (`rutas[-1]`, el de la tarea de
+HITL) y los eventos `hitl`/`hitl-fuera-de-alcance` están en el principal. Ahora
+lee **todos** los JSONL. Además el banco se guardaba **por tarea** (cada seed
+pisaba al anterior), así que al re-evaluar solo sobrevivía la última: los
+artefactos van **por seed**, `--evaluar` re-deriva `hitl`/`acciones` de ellos y
+`--seeds` permite re-correr solo las seeds declaradas sin pisar la 3. Con la
+corrección se re-corrieron s1–s2 (4 corridas, 37 llamadas, 591.574 tokens,
+US$0,0298) y las 6 filas quedaron con HITL medido; JSONL final sha256
+`f2c09709…`.
 
-**Tag.** `aceptacion-v1` va sobre el commit de docs que contiene el informe
+**Tag.** `aceptacion-v1` va sobre el commit de cierre que contiene el informe
 (`docs/informes/aceptacion_v1_2026-11-06.md`), con el sha del pre-registro
-(`6708393`) en el mensaje del tag anotado; el producto es el mismo que midió la
-corrida. El pre-registro (`banco/specs/aceptacion_v1.md:127-128`) ata PASA a
-re-correr la aceptación antes de cada tag.
+(`6708393`) y el del JSONL (`f2c09709…`) en el mensaje del tag anotado; el
+producto es el mismo que midió la corrida. El pre-registro
+(`banco/specs/aceptacion_v1.md:129-130`) ata PASA a re-correr la aceptación
+antes de cada tag.
