@@ -625,6 +625,12 @@ def explicar(comando):
     for prefijo, texto in _EXPLICACIONES:
         if _empieza_con(_normalizar(tokens), prefijo):
             return texto
+    return _explicacion_generica(nivel, tokens)
+
+
+def _explicacion_generica(nivel, tokens):
+    """El porqué cuando ningún prefijo de la política tiene su texto (X180:
+    salió de `explicar`, que mezclaba elegir el segmento con redactar)."""
     if nivel == PREGUNTAR and _tiene_flag_peligroso(tokens):
         return "flag que escribe, ejecuta o no termina: pide aprobación"
     if nivel == PREGUNTAR and not _opciones_permitidas(tokens):

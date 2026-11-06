@@ -237,6 +237,15 @@ def _rangos_privadas(raiz: Path) -> dict[str, list[tuple[Path, int, int]]]:
     return rangos
 
 
+def _nombre_leido(nodo) -> str | None:
+    """El nombre que un nodo LEE (`x` o `obj.x`), o None si no lee ninguno."""
+    if isinstance(nodo, ast.Name) and isinstance(nodo.ctx, ast.Load):
+        return nodo.id
+    if isinstance(nodo, ast.Attribute) and isinstance(nodo.ctx, ast.Load):
+        return nodo.attr
+    return None
+
+
 def escanear_muertas(raiz: Path) -> list[str]:
     """Privadas de nivel superior sin ninguna referencia fuera de su definición.
 
@@ -251,12 +260,7 @@ def escanear_muertas(raiz: Path) -> list[str]:
         except (OSError, SyntaxError):
             continue
         for nodo in ast.walk(arbol):
-            if isinstance(nodo, ast.Name) and isinstance(nodo.ctx, ast.Load):
-                nombre = nodo.id
-            elif isinstance(nodo, ast.Attribute) and isinstance(nodo.ctx, ast.Load):
-                nombre = nodo.attr
-            else:
-                continue
+            nombre = _nombre_leido(nodo)
             if nombre not in usos:
                 continue
             dentro_de_si = any(
@@ -395,32 +399,35 @@ def _nombre_calificado(ruta: Path) -> dict[int, str]:
     return nombres
 
 
-def escanear_complejidad(raiz: Path, umbral: int = 12) -> dict[str, int]:
+MAX_COMPLEJIDAD = 10  # X180: escalón desde 12
+
+
+def escanear_complejidad(raiz: Path, umbral: int = MAX_COMPLEJIDAD) -> dict[str, int]:
     """Funciones del harness con McCabe > umbral, contadas por RUFF (C901).
 
     Usa el mismo conteo exacto que el gate (ruff pinneado) en vez de
     reimplementar la fórmula: la métrica creíble es la que coincide con la
-    herramienta. Devuelve {"archivo:Clase.funcion": cc}."""
+    herramienta. Devuelve {"archivo:Clase.funcion": cc}.
+
+    X180: se lee el JSON de ruff, no su texto. Con FORCE_COLOR=1 el texto
+    viene pintado, ninguna línea matcheaba y la métrica daba 0 (medido)."""
     if shutil.which("ruff") is None:
         raise RuntimeError("ratchet: ruff no está en PATH (la métrica de complejidad lo usa)")
     rutas = [str(ruta) for ruta in archivos_del_harness(raiz)]
     proceso = subprocess.run(
         ["ruff", "check", "--isolated", "--select", "C901",
          "--config", f"lint.mccabe.max-complexity={umbral}",
-         "--output-format", "concise", *rutas],
+         "--output-format", "json", *rutas],
         cwd=raiz, capture_output=True, text=True,
     )
     detalle = {}
-    for linea in proceso.stdout.splitlines():
-        coincidencia = re.match(
-            r"^(.+?):(\d+):\d+: C901 `([^`]+)` is too complex \((\d+) > \d+\)", linea)
+    for hallazgo in json.loads(proceso.stdout or "[]"):
+        coincidencia = re.match(r"`([^`]+)` is too complex \((\d+) > \d+\)", hallazgo["message"])
         if not coincidencia:
             continue
-        archivo, linea_def, funcion, complejidad = coincidencia.groups()
-        # ruff imprime la ruta relativa a su cwd (= raiz): resolver antes de
-        # calcular la ruta relativa del detalle.
-        ruta = Path(archivo) if Path(archivo).is_absolute() else raiz / archivo
-        calificado = _nombre_calificado(ruta).get(int(linea_def), funcion)
+        funcion, complejidad = coincidencia.groups()
+        ruta = raiz / Path(hallazgo["filename"]).relative_to(raiz.resolve())
+        calificado = _nombre_calificado(ruta).get(hallazgo["location"]["row"], funcion)
         detalle[f"{_relativa(ruta, raiz)}:{calificado}"] = int(complejidad)
     return dict(sorted(detalle.items()))
 
@@ -891,7 +898,7 @@ METRICAS: dict[str, dict] = {
     "funciones_complejas": {
         "direccion": "menor_mejor",
         "conjunto": True,
-        "descripcion": "funciones con McCabe > 12 (C901 repo-wide; antes solo 2 archivos)",
+        "descripcion": f"funciones con McCabe > {MAX_COMPLEJIDAD} (C901 repo-wide; era 12 hasta X180)",
         "calcular": _metrica_complejidad,
     },
     "funciones_anidadas": {
@@ -1239,6 +1246,21 @@ def _evaluar(actuales: dict, previo: dict | None, salida=print) -> tuple[bool, b
     return empeoro, mejoro
 
 
+def _escribir_baseline(nuevo, previo, ruta, raiz, escribir, actualizar, mejoro, salida) -> None:
+    """Persiste el baseline cuando corresponde y lo narra (X180: salió de correr)."""
+    if not escribir:
+        salida("[ratchet] --no-escribir: baseline intacto")
+        return
+    if previo is not None and nuevo == previo and not actualizar:
+        return
+    guardar_baseline(nuevo, ruta)
+    if previo is None:
+        salida(f"[ratchet] SIN BASELINE: sembrado {_ruta_visible(ruta, raiz)} "
+               f"({_resumen_metricas(nuevo)}); commitealo")
+    elif mejoro:
+        salida(f"[ratchet] baseline actualizado ({_ruta_visible(ruta, raiz)}); commitealo")
+
+
 def correr(
     raiz: Path = RAIZ,
     ruta_baseline: Path = BASELINE,
@@ -1278,15 +1300,7 @@ def correr(
                "correr --actualizar es una decisión del operador, no del agente.")
         return 1
 
-    if escribir and (previo is None or nuevo != previo or actualizar):
-        guardar_baseline(nuevo, ruta_baseline)
-        if previo is None:
-            salida(f"[ratchet] SIN BASELINE: sembrado {_ruta_visible(ruta_baseline, raiz)} "
-                   f"({_resumen_metricas(nuevo)}); commitealo")
-        elif mejoro:
-            salida(f"[ratchet] baseline actualizado ({_ruta_visible(ruta_baseline, raiz)}); commitealo")
-    elif not escribir:
-        salida("[ratchet] --no-escribir: baseline intacto")
+    _escribir_baseline(nuevo, previo, ruta_baseline, raiz, escribir, actualizar, mejoro, salida)
     if actualizar and empeoro:
         salida("[ratchet] empeoramiento ACEPTADO por --actualizar (decisión humana); commiteá el baseline")
     salida("[ratchet] VERDE")

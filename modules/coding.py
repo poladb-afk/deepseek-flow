@@ -441,6 +441,18 @@ def _cuenta_diff(diff):
     return hunks, agrega, borra
 
 
+def _diff_visible(diff):
+    """El diff que ve el humano al aprobar: entero si entra en SALIDA_MAX, o
+    recortado con el conteo de lo que no se ve (X180: salió de edit_file)."""
+    if len(diff) <= SALIDA_MAX:
+        return diff
+    vista = recortar_chars(diff, SALIDA_MAX, "\0")
+    inicial, _, final = vista.partition("\0")
+    oculto = len(diff) - len(inicial) - len(final)
+    return recortar_chars(
+        diff, SALIDA_MAX, f"[... diff truncado: quedan {oculto} de {len(diff)} caracteres sin ver ...]")
+
+
 def edit_file(path, old_string, new_string):
     resolved, err = _resolve(path)
     if err:
@@ -462,16 +474,12 @@ def edit_file(path, old_string, new_string):
     except UnicodeDecodeError:
         return f"ERROR: {resolved.name} no es UTF-8; edit_file no lo reescribe"
     n = texto.count(old_string)
-    if n == 0:
-        return _error_no_aparece(resolved, texto, old_string)
-    if n > 1:
-        lineas = _lineas_ocurrencias(texto, old_string)
-        listado = ", ".join(str(x) for x in lineas)
-        return (
+    if n != 1:
+        return _error_no_aparece(resolved, texto, old_string) if n == 0 else (
             f"ERROR: old_string aparece {n} veces en {resolved.name}. "
             "Agregá líneas de contexto alrededor hasta que la ocurrencia sea única.\n"
-            f"Ocurrencias en líneas: {listado} — agregá contexto para apuntar una."
-        )
+            f"Ocurrencias en líneas: {', '.join(map(str, _lineas_ocurrencias(texto, old_string)))}"
+            " — agregá contexto para apuntar una.")
 
     nuevo = texto.replace(old_string, new_string, 1)
     diff = "\n".join(
@@ -485,15 +493,7 @@ def edit_file(path, old_string, new_string):
     )
     print(f"\n── edit_file: {resolved} ──")
     hunks, agrega, borra = _cuenta_diff(diff)
-    if len(diff) <= SALIDA_MAX:
-        diff_mostrado = diff
-    else:
-        vista = recortar_chars(diff, SALIDA_MAX, "\0")
-        inicial, _, final = vista.partition("\0")
-        oculto = len(diff) - len(inicial) - len(final)
-        diff_mostrado = recortar_chars(
-            diff, SALIDA_MAX,
-            f"[... diff truncado: quedan {oculto} de {len(diff)} caracteres sin ver ...]")
+    diff_mostrado = _diff_visible(diff)
     print(highlight_diff(diff_mostrado))
     decision = _approve(Pedido(f"¿Aplicar? → {resolved} ({hunks} hunks, +{agrega}/−{borra})",
                                diff_mostrado, "escritura", str(resolved)))

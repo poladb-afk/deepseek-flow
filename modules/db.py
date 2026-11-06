@@ -97,29 +97,37 @@ _RE_COMENTARIO = re.compile(r"--|/\*")
 MAX_FILAS_DURO = 1000  # techo absoluto aunque la consulta traiga su LIMIT
 
 
+def _rechazo(consulta, limpia):
+    """El motivo por el que la consulta no corre, o None (X180: salió de sql,
+    con los chequeos en su orden). Escanean `limpia`, la consulta SIN
+    literales: un 'delete' o un 'limit' dentro de un string es texto de
+    usuario, no SQL; la consulta que se EJECUTA sigue siendo la original."""
+    if not consulta.strip().lower().startswith("select"):
+        return "ERROR: solo SELECT"
+    if len(_sentencias(consulta)) > 1:
+        return "ERROR: una sola sentencia"
+    if PROHIBIDOS.search(limpia):
+        return "ERROR: solo SELECT"
+    # un comentario puede esconder la cláusula que se escanea
+    # (medido: "select * from t -- limit" devolvía 200 filas sin tope)
+    if _RE_COMENTARIO.search(limpia):
+        return "ERROR: sin comentarios SQL (-- o /* */)"
+    # LIMIT presente pero no positivo (LIMIT -1 = sin límite en SQLite)
+    if _RE_LIMIT_NO_POSITIVO.search(limpia):
+        return "ERROR: LIMIT debe ser un entero positivo"
+    return None
+
+
 def sql(consulta):
     try:
         con = _con()
     except RuntimeError as e:
         return f"ERROR: {e}"
     try:
-        if not consulta.strip().lower().startswith("select"):
-            return "ERROR: solo SELECT"
-        if len(_sentencias(consulta)) > 1:
-            return "ERROR: una sola sentencia"
-        # los chequeos escanean la consulta SIN literales: un 'delete' o un
-        # 'limit' dentro de un string es texto de usuario, no SQL. La consulta
-        # que se EJECUTA sigue siendo la original.
         limpia = _sin_literales(consulta)
-        if PROHIBIDOS.search(limpia):
-            return "ERROR: solo SELECT"
-        # un comentario puede esconder la cláusula que se escanea
-        # (medido: "select * from t -- limit" devolvía 200 filas sin tope)
-        if _RE_COMENTARIO.search(limpia):
-            return "ERROR: sin comentarios SQL (-- o /* */)"
-        # LIMIT presente pero no positivo (LIMIT -1 = sin límite en SQLite)
-        if _RE_LIMIT_NO_POSITIVO.search(limpia):
-            return "ERROR: LIMIT debe ser un entero positivo"
+        rechazo = _rechazo(consulta, limpia)
+        if rechazo:
+            return rechazo
         # la ley es 'LIMIT forzado si no lo trae': hay que mirar la CLÁUSULA
         # LIMIT, no una subcadena (un LIKE '%unlimited%' la suprimía).
         if not _RE_LIMIT.search(limpia):

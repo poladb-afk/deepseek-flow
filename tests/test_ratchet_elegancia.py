@@ -270,3 +270,17 @@ def test_el_tamano_del_producto_cuenta_codigo_no_texto(tmp_path):
     _escribir(tmp_path, "main.py", 'PROMPT = """' + "linea de texto\n" * 50 + '"""\nx = 1\n')
     detalle = ratchet.escanear_lineas_del_producto(tmp_path)
     assert detalle == {"main.py": 2}  # la asignación y el código; las 50, no
+
+
+def test_la_complejidad_se_mide_igual_con_la_terminal_en_color(tmp_path, monkeypatch):
+    """X180: con FORCE_COLOR=1 (o CLICOLOR_FORCE) ruff pinta su salida y la
+    regex de `escanear_complejidad` no matcheaba ninguna línea: la métrica
+    daba 0 y una función nueva de McCabe 16 pasaba el gate (medido en el
+    entorno del agente, que trae FORCE_COLOR=1). Ahora se lee el JSON de
+    ruff, que no tiene color."""
+    ramas = "".join(f"    if x == {i}:\n        return {i}\n" for i in range(15))
+    (tmp_path / "main.py").write_text(f"def enredada(x):\n{ramas}    return -1\n")
+    for valor in ("1", ""):
+        monkeypatch.setenv("FORCE_COLOR", valor)
+        monkeypatch.setenv("CLICOLOR_FORCE", valor)
+        assert ratchet.escanear_complejidad(tmp_path) == {"main.py:enredada": 16}, valor

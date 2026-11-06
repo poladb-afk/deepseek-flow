@@ -315,3 +315,17 @@ def test_una_raiz_no_cubre_a_su_hermana_con_el_mismo_prefijo(tmp_path, monkeypat
     else:
         destino, err = fs_tools.escribir_salida(str(hermana / "nuevo.md"), "x")
         assert destino is None and err and not (hermana / "nuevo.md").exists()
+
+
+def test_search_files_con_path_malo_devuelve_el_error(tmp_path, monkeypatch):
+    """X180: los caminos de error de `_raices_de_busqueda` (path fuera de las
+    raíces y path inexistente) no tenían test; al extraerlos lo marcó la
+    cobertura por archivo."""
+    from utils import fs_tools
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path / "raiz"))
+    (tmp_path / "raiz").mkdir()
+    (tmp_path / "raiz" / "a.txt").write_text("hola\n")
+    assert fs_tools.search_files(glob="*.txt", path=str(tmp_path / "fuera")).startswith("ERROR: ruta fuera")
+    assert fs_tools.search_files(glob="*.txt", path=str(tmp_path / "raiz" / "no")).startswith("ERROR: no existe")
+    assert "a.txt" in fs_tools.search_files(glob="*.txt")

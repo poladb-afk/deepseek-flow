@@ -3184,3 +3184,73 @@ sin clave.
 tiene una forma por cada razón (validadores, prompts, diff). Seguir
 recortando pediría partir el archivo en dos módulos, lo que es diseño (P3) y
 no pulido. Queda propuesto, no hecho.
+
+---
+
+## X180: la complejidad baja un escalón (McCabe > 12 → > 10) y la métrica dejaba de medir con color (2026-11-06)
+
+**Primero, un instrumento que mentía.** `escanear_complejidad` leía la salida
+de texto de ruff con una regex. Con `FORCE_COLOR=1` o `CLICOLOR_FORCE=1` en el
+entorno (los dos están en el del agente), ruff pinta la salida, ninguna línea
+matcheaba y **la métrica daba 0 aunque hubiera funciones complejas**. Medido:
+el árbol de X179 daba `{}` con color y 8 funciones sin color, al umbral 10.
+Con el umbral de entonces (12) no había ninguna, así que el baseline no
+mentía; pero una función nueva de McCabe 16 habría pasado el gate en esa
+terminal. Ahora se lee el JSON de ruff, que no tiene color.
+`test_la_complejidad_se_mide_igual_con_la_terminal_en_color`: rojo contra
+X179 (daba `{}`), verde ahora.
+
+**El escalón: `MAX_COMPLEJIDAD = 10`** (constante en `ratchet.py`). La etapa
+2/5 de `calidad.sh` sigue con su 12 para las dos fronteras de S0, que hoy
+están por debajo. Al umbral 10 había 8 funciones, y se bajaron todas sin
+cambiar conducta, cada una extrayendo una pieza con nombre propio:
+
+| Función | McCabe | Qué salió |
+|---|---|---|
+| `vision.ver_pdf` | 12 → 9 | `_preguntar_al_modelo`: la llamada a la API **estaba copiada** en `ver_imagen` y `ver_pdf` (N4) |
+| `coding.edit_file` | 12 → 10 | `_diff_visible` (el recorte del diff para el humano) y el error de "aparece N veces" como una expresión |
+| `policy.explicar` | 11 → 7 | `_explicacion_generica` |
+| `fs_tools.search_files` | 11 → 8 | `_raices_de_busqueda` |
+| `citas.verificar_citas` | 11 → 8 | `_resolver_cita` |
+| `db.sql` | 11 → 6 | `_rechazo` (los cuatro chequeos, en su orden) |
+| `ratchet.correr` | 11 → 9 | `_escribir_baseline` |
+| `ratchet.escanear_muertas` | 11 → 9 | `_nombre_leido` |
+
+**Cómo se probó que no cambió nada:**
+- **Vision:** antes de juntar la llamada se fijaron los 5 caminos (respuesta
+  ok, HTTP 429, `choices` vacío, JSON roto y caída de red) para las dos tools.
+  `test_ver_imagen_y_ver_pdf_tratan_igual_la_respuesta_de_la_api` pasa contra
+  el árbol de X179 y pasa ahora.
+- **`sql`:** 11 consultas comparadas contra X179, con la misma salida. La
+  primera versión de `_rechazo` **cambiaba un mensaje** (`SELECT 1; DROP TABLE
+  t` decía "solo SELECT" en vez de "una sola sentencia", porque junté dos
+  chequeos y alteré el orden). La comparación lo detectó y se restauró el
+  orden.
+- **El resto:** sus tests existentes (policy, citas, fs_tools, ratchet,
+  coding) pasan sin cambios, y las caracterizaciones del chat y de
+  `fable_judge` siguen verdes.
+
+**Dos candados saltaron en el primer gate, los dos con razón:**
+- **Registro de sitios LLM (exp/85):** `vision.py` pasó de 2 llamadas a 1
+  (las dos tools comparten `_preguntar_al_modelo`). El conteo se actualizó a
+  propósito, con el motivo en el registro.
+- **Cobertura por archivo (X175):** al extraer `_raices_de_busqueda` quedó a
+  la vista que sus dos caminos de error (path fuera de las raíces y path
+  inexistente) no tenían test, y `fs_tools.py` pasaba de 29 a 31 líneas sin
+  test. `test_search_files_con_path_malo_devuelve_el_error` los cubre. Es el
+  primer caso real en que el gate nuevo frenó algo.
+
+**Adaptación local declarada.** El paquete de X180 se armó sobre un árbol sin
+el fix del Auditor de X175: su hunk de `utils/citas.py` no aplica acá (nuestro
+`_por_nombre_suelto` escanea solo raíces versionadas). Se aplicó el resto del
+patch limpio y `_resolver_cita` se portó a mano, conservando el escaneo por
+raíces y el comportamiento del fix: el refactor de X180 es solo extraer el
+bloque resolver+fallback, no lo cambia. Verificado con `tests/test_citas.py`
+(12 passed) y la caracterización del chat.
+
+**Los números (medidos en este árbol, donde X175–X179 preceden a X180).**
+`funciones_complejas` 0 → **0** con el umbral nuevo (sin clave, porque no
+quedó ninguna arriba); `lineas_del_producto` 7540 → **7528**; `tests_definidos`
+1356 → **1363**; cobertura del producto 1034 → **1022** líneas sin test
+(sección 3.14; la 3.12 sigue en 1.053, conservadora). La etapa 2/5 queda
+igual. Solo mejoras: los baselines se reescribieron solos, sin clave.

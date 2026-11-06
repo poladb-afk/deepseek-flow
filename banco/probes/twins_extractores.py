@@ -54,9 +54,10 @@ REGISTRO = {
     "supervisor.py": (2, "e/c",
                       "UnPaso es ejecutor con tools (e); la síntesis va sobre "
                       "pasos registrados del propio bucle (c)"),
-    "modules/vision.py": (2, "a",
+    "modules/vision.py": (1, "a",
                           "API directa (chat/completions): el código carga la "
-                          "imagen/PDF y sus límites delante; el modelo describe"),
+                          "imagen/PDF y sus límites delante; el modelo describe; "
+                          "X180: las dos tools comparten _preguntar_al_modelo"),
 }
 
 _EXCLUIDOS = {"tests", "banco", "salidas", ".venv", "__pycache__", "docs"}

@@ -84,8 +84,8 @@
         ],
         "utils/fs_tools.py": [
           84,
-          488,
-          531
+          496,
+          539
         ],
         "utils/laya.py": [
           98
@@ -166,8 +166,8 @@
         "modules/__init__.py": 21,
         "modules/a2a.py": 123,
         "modules/auditoria.py": 37,
-        "modules/coding.py": 316,
-        "modules/db.py": 114,
+        "modules/coding.py": 312,
+        "modules/db.py": 119,
         "modules/debate.py": 22,
         "modules/delegar.py": 98,
         "modules/effective_n.py": 58,
@@ -181,7 +181,7 @@
         "modules/rag.py": 45,
         "modules/research.py": 22,
         "modules/supervisor.py": 29,
-        "modules/vision.py": 168,
+        "modules/vision.py": 148,
         "modules/websearch.py": 21,
         "nodes.py": 305,
         "rag.py": 195,
@@ -191,7 +191,7 @@
         "utils/__init__.py": 0,
         "utils/aprobaciones.py": 117,
         "utils/call_llm.py": 186,
-        "utils/citas.py": 88,
+        "utils/citas.py": 89,
         "utils/compaccion.py": 151,
         "utils/conductor.py": 78,
         "utils/contexto.py": 42,
@@ -201,13 +201,13 @@
         "utils/estado_sesion.py": 20,
         "utils/estructura.py": 14,
         "utils/fable_dominios.py": 55,
-        "utils/fs_tools.py": 368,
+        "utils/fs_tools.py": 372,
         "utils/historial.py": 17,
         "utils/hitl_web.py": 397,
         "utils/kernel.py": 158,
         "utils/laya.py": 129,
         "utils/mcp_client.py": 70,
-        "utils/policy.py": 332,
+        "utils/policy.py": 334,
         "utils/prefetch.py": 49,
         "utils/proveedor.py": 73,
         "utils/riesgo.py": 31,
@@ -220,7 +220,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7540
+      "metrica": 7528
     },
     "nodos_largos": {
       "detalle": {},
@@ -416,7 +416,7 @@
         "tests/test_flujos.py": 37,
         "tests/test_forma_larga.py": 5,
         "tests/test_fractal.py": 8,
-        "tests/test_fs_tools.py": 19,
+        "tests/test_fs_tools.py": 20,
         "tests/test_gate_fractal.py": 9,
         "tests/test_grafo_readme.py": 1,
         "tests/test_grafos_sin_calles_muertas.py": 3,
@@ -434,7 +434,7 @@
         "tests/test_mcp_laya.py": 11,
         "tests/test_memoria.py": 22,
         "tests/test_minar_errores.py": 20,
-        "tests/test_modulos.py": 18,
+        "tests/test_modulos.py": 23,
         "tests/test_novedad.py": 2,
         "tests/test_pendientes.py": 36,
         "tests/test_policy.py": 83,
@@ -443,7 +443,7 @@
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
         "tests/test_ratchet.py": 45,
-        "tests/test_ratchet_elegancia.py": 27,
+        "tests/test_ratchet_elegancia.py": 28,
         "tests/test_replay.py": 16,
         "tests/test_riesgo.py": 9,
         "tests/test_rondas.py": 6,
@@ -466,7 +466,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 22
       },
-      "metrica": 1356
+      "metrica": 1363
     },
     "texto_de_prompt": {
       "detalle": {

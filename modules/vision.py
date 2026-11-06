@@ -94,6 +94,26 @@ def _leer_bytes(path, max_bytes, etiqueta):
     return resolved, data, None
 
 
+def _preguntar_al_modelo(contenido, que_fallo):
+    """UNA llamada a la API de chat con un mensaje de usuario multimodal, y
+    cada fallo como texto. Las dos tools la tenían copiada (X180)."""
+    try:
+        response = requests.post(
+            f"{_api_base()}/chat/completions",
+            headers={"Authorization": f"Bearer {get_api_key()}"},
+            json={"model": _model(), "messages": [{"role": "user", "content": contenido}]},
+            timeout=TIMEOUT_S,
+        )
+    except requests.RequestException as e:
+        return f"ERROR: falló {que_fallo}: {e}"
+    if response.status_code != 200:
+        return f"ERROR: la API respondió {response.status_code}: {response.text[:400]}"
+    try:
+        return response.json()["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, ValueError) as e:
+        return f"ERROR: respuesta inesperada de la API: {e}"
+
+
 def ver_imagen(path, pregunta="¿Qué hay en esta imagen?"):
     """Manda una imagen local al LLM como data-URL base64 y devuelve su
     respuesta. Solo imágenes JPEG/PNG/GIF/WebP (validadas por contenido)."""
@@ -115,31 +135,10 @@ def ver_imagen(path, pregunta="¿Qué hay en esta imagen?"):
             f"y supera el tope de body de {BODY_MAX_BYTES / (1024 * 1024):.0f} MiB. Achicá la imagen."
         )
 
-    data_url = f"data:{mime};base64,{b64}"
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": str(pregunta)},
-                {"type": "image_url", "image_url": {"url": data_url}},
-            ],
-        }
-    ]
-    try:
-        response = requests.post(
-            f"{_api_base()}/chat/completions",
-            headers={"Authorization": f"Bearer {get_api_key()}"},
-            json={"model": _model(), "messages": messages},
-            timeout=TIMEOUT_S,
-        )
-    except requests.RequestException as e:
-        return f"ERROR: falló la llamada al modelo: {e}"
-    if response.status_code != 200:
-        return f"ERROR: la API respondió {response.status_code}: {response.text[:400]}"
-    try:
-        return response.json()["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, ValueError) as e:
-        return f"ERROR: respuesta inesperada de la API: {e}"
+    return _preguntar_al_modelo([
+        {"type": "text", "text": str(pregunta)},
+        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+    ], "la llamada al modelo")
 
 
 PDF_PAGINAS_MAX = 8  # cada página es una imagen: 1024 tokens c/u (medido)
@@ -196,24 +195,8 @@ def ver_pdf(path, pregunta="¿Qué dice este PDF?"):
             b64 = base64.b64encode(pag.read_bytes()).decode("ascii")
             contenido.append({"type": "image_url",
                               "image_url": {"url": f"data:image/png;base64,{b64}"}})
-        messages = [{"role": "user", "content": contenido}]
-
-    try:
-        response = requests.post(
-            f"{_api_base()}/chat/completions",
-            headers={"Authorization": f"Bearer {get_api_key()}"},
-            json={"model": _model(), "messages": messages},
-            timeout=TIMEOUT_S,
-        )
-    except requests.RequestException as e:
-        return f"ERROR: falló la consulta del PDF: {e}"
-    if response.status_code != 200:
-        return f"ERROR: la API respondió {response.status_code}: {response.text[:400]}"
-    try:
-        return response.json()["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, ValueError) as e:
-        return f"ERROR: respuesta inesperada de la API: {e}"
-
+    # el directorio temporal ya se borró: las páginas viajan en base64
+    return _preguntar_al_modelo(contenido, "la consulta del PDF")
 
 TOOLS = [
     {

@@ -392,19 +392,27 @@ def _formatear_contenido(content_hits, query, glob, skipped_big):
     return "\n".join(out)
 
 
+def _raices_de_busqueda(path):
+    """([raíces], None) donde buscar, o (None, error). Sin path, todas las
+    permitidas (X180: salió de search_files)."""
+    if not path:
+        return allowed_roots(), None
+    target, err = _resolve(path)
+    if err:
+        return None, f"ERROR: {err}"
+    if not target.exists():
+        return None, f"ERROR: no existe: {target}"
+    return [target], None
+
+
 def search_files(query=None, glob=None, path=None):
     query = (query or "").strip() or None
     glob = (glob or "").strip() or None
     if not query and not glob:
         return "ERROR: indica qué buscar: query (texto del contenido) y/o glob (patrón de nombre como '*.jsonl')"
-    roots = allowed_roots()
-    if path:
-        target, err = _resolve(path)
-        if err:
-            return f"ERROR: {err}"
-        if not target.exists():
-            return f"ERROR: no existe: {target}"
-        roots = [target]
+    roots, err = _raices_de_busqueda(path)
+    if err:
+        return err
     pattern = glob or "*"
 
     file_hits, content_hits, skipped_big = [], [], 0

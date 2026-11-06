@@ -1107,7 +1107,7 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   `cuerpos_duplicados` (copias con variables renombradas, baseline 0) y
   `cuerpos_test_duplicados` (tests copiados: normaliza también constantes;
   baseline 0 tras parametrizar los 6 pares), `funciones_complejas` (C901
-  repo-wide > 12, conteo EXACTO de ruff; **deuda 0 desde exp/63** — antes el
+  repo-wide > 10 desde X180 (era > 12), conteo EXACTO de ruff; **deuda 0 desde exp/63** — antes el
   gate solo miraba 2 archivos) y `funciones_anidadas`
   (anidación de control > 3 niveles; **deuda 0 desde exp/64**; `elif` NO
   cuenta: es cadena plana en el AST). Las dos últimas son de **conjunto**: una

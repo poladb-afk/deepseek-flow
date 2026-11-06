@@ -450,3 +450,49 @@ def test_search_web_degrada_a_error_sin_red(monkeypatch):
     # si esto falla, el test no llegó a la llamada que debía reventar
     assert llamadas == [("x", 3)]
     assert isinstance(r, str) and r.startswith("ERROR: búsqueda web falló"), r
+
+
+class _RespFalsa:
+    def __init__(self, status=200, cuerpo=None, texto=""):
+        self.status_code, self._cuerpo, self.text = status, cuerpo, texto
+
+    def json(self):
+        if isinstance(self._cuerpo, Exception):
+            raise self._cuerpo
+        return self._cuerpo
+
+
+@pytest.mark.parametrize(("respuesta", "esperado"), [
+    (_RespFalsa(200, {"choices": [{"message": {"content": "ok"}}]}), "ok"),
+    (_RespFalsa(429, texto="cuota"), "ERROR: la API respondió 429: cuota"),
+    (_RespFalsa(200, {"choices": []}), "ERROR: respuesta inesperada de la API: list index out of range"),
+    (_RespFalsa(200, ValueError("no json")), "ERROR: respuesta inesperada de la API: no json"),
+    (__import__("requests").ConnectionError("sin red"), "ERROR: falló la llamada al modelo: sin red"),
+])
+def test_ver_imagen_y_ver_pdf_tratan_igual_la_respuesta_de_la_api(tmp_path, monkeypatch, respuesta, esperado):
+    """X180: las dos tools tenían la llamada a la API copiada. Se fija la
+    salida de cada camino antes de juntarla; la de PDF solo cambia el texto
+    del fallo de red ("consulta del PDF")."""
+    import subprocess
+    from pathlib import Path
+
+    import modules.vision as vision
+
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.setattr(vision, "get_api_key", lambda: "sk-test")
+
+    def post(*a, **k):
+        if isinstance(respuesta, Exception):
+            raise respuesta
+        return respuesta
+
+    def pdftoppm(args, **k):
+        Path(args[-1] + "-1.png").write_bytes(PNG_1x1)
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(vision.requests, "post", post)
+    monkeypatch.setattr(vision.subprocess, "run", pdftoppm)
+    (tmp_path / "a.png").write_bytes(PNG_1x1)
+    (tmp_path / "a.pdf").write_bytes(b"%PDF-1.4 x")
+    assert vision.ver_imagen(str(tmp_path / "a.png")) == esperado
+    assert vision.ver_pdf(str(tmp_path / "a.pdf")) == esperado.replace("la llamada al modelo", "la consulta del PDF")

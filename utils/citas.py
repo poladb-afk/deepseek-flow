@@ -76,19 +76,25 @@ def _por_nombre_suelto(nombre):
     return candidatos[0] if len(candidatos) == 1 else None
 
 
+def _resolver_cita(path):
+    """(ruta, error, si se resolvió por nombre suelto). Una cita sin carpeta
+    que no está en la raíz se busca por nombre único (X180: salió de
+    verificar_citas, que mezclaba resolver con validar)."""
+    resolved, err = _resolve(path)
+    if (err or resolved is None or not resolved.is_file()) and "/" not in path:
+        alterno = _por_nombre_suelto(path)
+        if alterno is not None:
+            return alterno, None, True
+    return resolved, err, False
+
+
 def verificar_citas(texto):
     """Verifica cada cita contra el disco. Nunca lanza: un fallo de lectura
     queda como estado, no corta la respuesta. Un rango N-M se valida en sus
     dos extremos (A52)."""
     citas = []
     for path, linea, linea2 in extraer(texto):
-        resolved, err = _resolve(path)
-        por_nombre = False
-        if (err or resolved is None or not resolved.is_file()) and "/" not in path:
-            alterno = _por_nombre_suelto(path)
-            if alterno is not None:
-                resolved, err = alterno, None
-                por_nombre = True
+        resolved, err, por_nombre = _resolver_cita(path)
         if err or resolved is None:
             citas.append({"path": path, "linea": linea, "linea2": linea2,
                           "estado": "fuera",
