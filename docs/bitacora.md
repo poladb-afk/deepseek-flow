@@ -2857,4 +2857,5 @@ en el scope de git.
 
 **Los números.** `tests_definidos` 1308 → **1323**; `lineas_del_producto`
 7585 → **7589 (+4)**: la lista y su lectura. Es de S0 (P1 cede, como X169,
-X170 y X171) y es el único empeoramiento: **pide la clave del operador.**
+X170 y X171) y es el único empeoramiento; lo aceptó el operador con su
+clave (baseline `2de9b7b`).
