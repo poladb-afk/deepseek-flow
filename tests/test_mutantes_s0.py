@@ -1,6 +1,8 @@
 """X183: el instrumento de mutantes de S0 enumera bien y no toca el árbol.
 
-La corrida entera la hace el operador (unos 20 min con 4 workers); acá se fija
+La corrida entera la hace el operador (en serie, `--workers 1`: `test_hitl.py`
+fija los puertos 8791–8794 y en paralelo moriría por colisión; unos 20 min); acá
+se fija
 que el enumerador encuentre los mutantes de las tres fronteras, que **los 305**
 compilen y cambien el archivo (un solo nodo mutado por construcción), que los
 ids sean únicos y que la suite de S0 que usa exista."""

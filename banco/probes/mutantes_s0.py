@@ -10,8 +10,12 @@ Retoma solo: el estado vive en un JSON y cada mutante se escribe al terminar,
 así que cortarlo y volver a correrlo sigue donde quedó. No toca el árbol: cada
 worker trabaja en su copia temporal.
 
+En serie (`--workers 1`, el default): `tests/test_hitl.py` fija los puertos
+8791–8794 y dos copias de esa suite en paralelo mueren por colisión, no por el
+mutante (medido: 1 failed cada una en paralelo, 27 passed en serie).
+
 Uso:
-    python3 banco/probes/mutantes_s0.py [--workers 4] [--estado salidas/mutantes_s0/estado.json]
+    python3 banco/probes/mutantes_s0.py [--workers 1] [--estado salidas/mutantes_s0/estado.json]
     python3 banco/probes/mutantes_s0.py --resumen     # solo lista los vivos
 """
 import argparse
@@ -188,7 +192,10 @@ def resumen(estado):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Mutantes en las fronteras de S0 (X183)")
-    parser.add_argument("--workers", type=int, default=4)
+    # Serial por defecto: `tests/test_hitl.py` fija los puertos 8791–8794 y en
+    # paralelo los mutantes morirían por colisión, no por el mutante.
+    parser.add_argument("--workers", type=int, default=1,
+                        help="en serie: test_hitl.py fija 8791–8794 y en paralelo moriría por colisión")
     parser.add_argument("--estado", default=str(RAIZ / "salidas" / "mutantes_s0" / "estado.json"))
     parser.add_argument("--resumen", action="store_true", help="solo lista los vivos del estado guardado")
     args = parser.parse_args(argv)

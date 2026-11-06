@@ -3448,12 +3448,15 @@ Seguir por tandas no garantiza terminar. El instrumento queda en el repo:
 (`salidas/mutantes_s0/estado.json`, ignorado por git) y no toca el árbol (cada
 worker usa su copia temporal).
 
-**Qué muta.** Las 38 funciones de las tres fronteras (`utils/policy.py`,
-`utils/aprobaciones.py`, `utils/fs_tools.py`): comparación invertida,
-`and`↔`or`, `not` quitado, booleano negado, entero +1, `any`↔`all`. Son 305
-mutantes que compilan. Un mutante vivo es un test que falta o un cambio
-equivalente; los dos se resuelven con dato (un test que lo mata, o el motivo
-anotado).
+**Qué muta.** 33 de las 38 funciones objetivo de las tres fronteras
+(`utils/policy.py`, `utils/aprobaciones.py`, `utils/fs_tools.py`): comparación
+invertida, `and`↔`or`, `not` quitado, booleano negado, entero +1, `any`↔`all`.
+Son 305 mutantes que compilan. Quedan 5 objetivos sin expresiones mutables
+(`_sin_dup_stderr`, `_tokens`, `segmentos` y `_segmentos_para_la_negra` en
+`utils/policy.py`, `allowed_roots` en `utils/fs_tools.py`): el enumerador los
+recorre, no encuentra nodos que mutar y no inventa. Un mutante vivo es un test
+que falta o un cambio equivalente; los dos se resuelven con dato (un test que
+lo mata, o el motivo anotado).
 
 **Lo que se vio antes de perder el estado (parcial, no es el resultado).**
 Sobre 159 de 305, con una suite **por archivo** para ir más rápido (que puede
@@ -3478,5 +3481,6 @@ del candado); `lineas_del_producto` 7524 IGUAL y cobertura 1017 IGUAL (el probe
 y su test son laboratorio, no producto).
 
 **Lo que falta para cerrar X183:** que el operador corra `python3
-banco/probes/mutantes_s0.py --workers 4` (unos 20 min) y pase el JSON. Con eso,
+banco/probes/mutantes_s0.py --workers 1` (en serie, unos 20 min: `test_hitl.py`
+fija 8791–8794 y en paralelo moriría por colisión) y pase el JSON. Con eso,
 cada vivo se mata con un test o se declara equivalente.
