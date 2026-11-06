@@ -155,7 +155,7 @@
         "debate.py": 99,
         "delegar.py": 185,
         "effective_n.py": 266,
-        "fable_judge.py": 581,
+        "fable_judge.py": 563,
         "flow.py": 20,
         "heartbeat.py": 75,
         "informe.py": 148,
@@ -220,7 +220,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7558
+      "metrica": 7540
     },
     "nodos_largos": {
       "detalle": {},
@@ -387,6 +387,7 @@
         "tests/test_banco.py": 80,
         "tests/test_bench.py": 23,
         "tests/test_caracterizacion_chat.py": 12,
+        "tests/test_caracterizacion_fable_judge.py": 1,
         "tests/test_chat_flujo.py": 17,
         "tests/test_citas.py": 12,
         "tests/test_comandos_reales.py": 5,
@@ -410,7 +411,7 @@
         "tests/test_fable.py": 30,
         "tests/test_fable_dominios.py": 6,
         "tests/test_fable_judge.py": 66,
-        "tests/test_fable_judge_claims.py": 25,
+        "tests/test_fable_judge_claims.py": 31,
         "tests/test_fase5b.py": 3,
         "tests/test_flujos.py": 37,
         "tests/test_forma_larga.py": 5,
@@ -465,7 +466,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 22
       },
-      "metrica": 1348
+      "metrica": 1355
     },
     "texto_de_prompt": {
       "detalle": {

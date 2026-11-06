@@ -3092,3 +3092,87 @@ queda como su propio paso (X179).
 `tests_definidos` 1341 → **1348**; cobertura del producto **1045 → 1037**
 (sección 3.14; la 3.12 sigue en 1.053, conservadora). Solo mejoras: los
 baselines se reescribieron solos, sin clave.
+
+---
+
+## X179: `fable_judge` contra una foto byte a byte: tres copias menos y dos huecos cerrados (2026-11-06)
+
+**La red primero.** `tests/test_caracterizacion_fable_judge.py` corre el flujo
+entero con un juez guionado: un `call_llm` falso que responde YAML fijo en
+orden y registra cada prompt. Son seis escenarios:
+1. refutación de código;
+2. re-ejecución que falla;
+3. veredicto ilegible dos veces;
+4. claims ilegibles;
+5. modo dominio con fuentes grandes;
+6. la API que cae tres veces (degradación terminal).
+
+De cada uno se guarda el sha256 de cada prompt enviado (con la raíz
+temporal normalizada) y la salida final, en
+`tests/caracterizacion_fable_judge.json`. La foto se tomó **antes** de tocar
+el código, y todo lo de abajo tuvo que dar los mismos bytes. `--fotografiar`
+la reescribe; hacerlo es un cambio de conducta, y se declara.
+
+**Lo recompuesto (salida idéntica, foto verde en cada paso):**
+- **`sin_veredicto(caveat, verificaciones)`**: el juicio "sin veredicto
+  legible" estaba escrito dos veces, en el fallback de `CazarFraudes` y en la
+  degradación de `verificar_trabajo`.
+- **`_dir_dentro` lanza `ValueError`**: los dos llamadores convertían el
+  `(None, err)` a mano.
+- **`materiales_juicio`**: elige `fuentes` o `contenido_nuevos` en una línea.
+
+**Dos huecos que aparecieron al leer, cada uno con su test en rojo antes:**
+- **La allowlist del re-run no miraba el programa del `-m`.** `bash -m
+  pytest`, `sh -m pytest` y `node -m pytest` pasaban la primera compuerta
+  (medido). La policy de `run_command` sigue detrás, así que no ejecutaba
+  nada sin control, pero el docstring prometía "solo pytest/ruff" y no lo
+  cumplía. Ahora `-m` vale solo para `python3`/`python`, y se fue la tupla
+  `_MODULOS_PERMITIDOS`, que nadie leía.
+  `test_el_rerun_solo_acepta_m_de_un_python` (5 casos): rojo antes, verde
+  ahora.
+- **`materiales_juicio` no usaba el recorte del prompt.** Su docstring
+  prometía "los MISMOS recortes", pero metía la salida ENTERA de cada
+  re-ejecución mientras el prompt mostraba `MAX_RECORTE` chars. Una cita del
+  juez a algo que no vio se daba por verificada (medido con una salida de
+  2.000 chars), que es el caso de exp/92 por otra puerta. `_salida_vista` es
+  ahora el recorte único de los dos.
+  `test_los_materiales_del_juicio_traen_la_salida_con_el_recorte_del_prompt`:
+  rojo antes, verde ahora.
+
+**Por qué la foto no se movió con los dos arreglos:** ningún escenario tiene
+un `-m` de otro programa, y las salidas guionadas son cortas (menos de
+`MAX_RECORTE`). Los arreglos cambian conducta solo en esos bordes, que ahora
+tienen su propio test.
+
+**La foto muerde:** cambiar un carácter del texto del veredicto deja rojos
+los 4 escenarios que encuentran fraudes, y un espacio de más en el prompt de
+la tabla de fraudes de código deja rojos 5 de 6. El sexto es el de modo
+dominio, que usa la tabla del adapter y no esa: es lo esperado, y prueba que
+la foto distingue los dos caminos.
+
+**Dos adaptaciones locales, declaradas.** (1) El hunk de
+`tests/test_fable_judge_claims.py` esperaba una línea en blanco al final que
+en X177 se normalizó (el archivo terminaba con `\n\n`); el resto del paquete
+aplicó limpio y esos dos tests se agregaron a mano, con el mismo contenido.
+(2) La foto se verificó **tal cual la genera el test**: `json.dumps(..., indent=2,
+ensure_ascii=False, sort_keys=True) + "\n"` da exactamente los bytes
+commiteados, y el test de caracterización pasa contra ella (6 escenarios).
+
+**El tope de 800 líneas:** el test nuevo va en su propio archivo (125 líneas)
+y el test de los dos huecos va a `test_fable_judge_claims.py` (201);
+`test_fable_judge.py` sigue en 792 y no se toca.
+
+**Los números (medidos en este árbol, donde X175–X178 preceden a X179).**
+`fable_judge.py` 581 → **563** líneas de código; `lineas_del_producto`
+7558 → **7540**; `tests_definidos` 1348 → **1355**; cobertura del producto
+1037 → **1034** (sección 3.14; la 3.12 sigue en 1.053, conservadora). Ojo:
+el paquete declaraba `tests_definidos` 1340 → 1353 (+13) y acá da +7: el
+`parametrize` sobre `sorted(ESCENARIOS)` no es literal, así que el ratchet lo
+cuenta como **1** caso, no 6 (límite ya declarado de la métrica); el número
+honesto es este árbol. Solo mejoras: los baselines se reescribieron solos,
+sin clave.
+
+**Lo que queda.** `fable_judge` sigue siendo la pieza más grande, y el resto
+tiene una forma por cada razón (validadores, prompts, diff). Seguir
+recortando pediría partir el archivo en dos módulos, lo que es diseño (P3) y
+no pulido. Queda propuesto, no hecho.

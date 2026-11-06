@@ -80,7 +80,7 @@
           "debate.py": 64,
           "delegar.py": 30,
           "effective_n.py": 13,
-          "fable_judge.py": 55,
+          "fable_judge.py": 52,
           "flow.py": 0,
           "heartbeat.py": 36,
           "informe.py": 20,
@@ -145,7 +145,7 @@
           "utils/websearch.py": 18,
           "visor.py": 22
         },
-        "metrica": 1037
+        "metrica": 1034
       }
     }
   },

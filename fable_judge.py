@@ -299,12 +299,10 @@ def candidatas_verificacion(reporte):
 # EXISTENTE dentro del trabajo (antes `python3 setup.py install` pasaba la
 # primera compuerta).
 PREFIJOS_RERUN = (
-    ("python3", "-m", "pytest"),
     ("pytest",),
     ("ruff", "check"),
 )
-# módulos permitidos para -m, interpreter-agnostic: solo pytest y ruff check
-_MODULOS_PERMITIDOS = ("pytest", "ruff")
+PYTHONS = ("python3", "python")
 
 
 def _script_de(tokens, trabajo):
@@ -342,12 +340,10 @@ def permitido_rerun(comando, trabajo=None):
         return False
     if "-c" in tokens:
         return False
-    if len(tokens) > 1 and tokens[1] == "-m":
-        modulo = tokens[2] if len(tokens) > 2 else ""
-        if modulo == "pytest":
-            return True
-        return modulo == "ruff" and len(tokens) > 3 and tokens[3] == "check"
-    if tokens[0] in ("python3", "python"):
+    if tokens[0] in PYTHONS and tokens[1:2] == ["-m"]:
+        # X179: `-m` solo de un python (antes `bash -m pytest` pasaba)
+        return tokens[2:3] == ["pytest"] or tokens[2:4] == ["ruff", "check"]
+    if tokens[0] in PYTHONS:
         return _script_de(tokens, trabajo)
     return any(tokens[: len(pref)] == list(pref) for pref in PREFIJOS_RERUN)
 
@@ -678,14 +674,20 @@ Orden de autoridad del dominio:
 {dom['autoridad']}"""
 
 
+def _salida_vista(verificacion):
+    """La salida de una re-ejecución tal como viaja al prompt: el prompt y
+    `materiales_juicio` la recortan igual (X179: los materiales la llevaban
+    entera y una cita a lo que el juez no vio pasaba por verificada)."""
+    return recortar_chars(verificacion.get("salida", ""), MAX_RECORTE, "…")
+
+
 def _prompt_juicio(estado):
     """El prompt de caza: claims + hechos deterministas + tabla de fraudes
     (la de código, o la del dominio cuando hay sector); los fraudes se
     prueban por diff, ejecución o fuentes, nunca asintiendo el reporte."""
     verif = "\n".join(
         f"- {v['claim']} → re-ejecutado `{v['comando']}`: {v['estado']}"
-        + (f"\n  salida: {recortar_chars(v['salida'], MAX_RECORTE, '…')}"
-           if v.get("salida") else "")
+        + (f"\n  salida: {_salida_vista(v)}" if v.get("salida") else "")
         for v in estado["verificaciones"]
     ) or "(el reporte no clamó verificaciones re-ejecutables)"
     claims = "\n".join(f"- [{c['tipo']}] {c['texto']}" for c in estado["claims"])
@@ -757,13 +759,9 @@ def materiales_juicio(estado):
     dominio), el reporte tal como viajó y las salidas de las re-ejecuciones.
     Es la vara contra la que se verifican las citas del juez: lo que no viajó
     al prompt no es evidencia (el caso exp/92 citaba código que no existía)."""
-    pedazos = [estado["cambios"]["texto"],
-               _reporte_prompt(estado)]
-    if estado.get("dominio"):
-        pedazos.append(estado.get("fuentes") or "")
-    else:
-        pedazos.append(estado.get("contenido_nuevos") or "")
-    pedazos += [v.get("salida", "") for v in estado["verificaciones"]]
+    contenido = estado.get("fuentes" if estado.get("dominio") else "contenido_nuevos") or ""
+    pedazos = [estado["cambios"]["texto"], _reporte_prompt(estado), contenido]
+    pedazos += [_salida_vista(v) for v in estado["verificaciones"]]
     return "\n".join(p for p in pedazos if p)
 
 
@@ -781,6 +779,15 @@ def _tipos_de_fraude(dominio):
         if celda and not set(celda) <= {"-", " ", ":"} and celda.lower() != "fraud":
             nombres.append(celda)
     return tuple(nombres) or FRAUDES
+
+
+def sin_veredicto(caveat, verificaciones):
+    """El juicio cuando el modelo no dio uno legible: el lado seguro del
+    contrato de 3 NO es refuted (no hubo refutación), es caveats con el
+    motivo a la vista. Lo usan el fallback del nodo y la degradación de
+    `verificar_trabajo` (X179: eran dos copias del mismo dict)."""
+    return compuerta({"veredicto": "verified_with_caveats", "fraudes": [], "caveats": [caveat],
+                      "accion": "correr el juez de nuevo"}, verificaciones)
 
 
 class CazarFraudes(Node):
@@ -804,15 +811,9 @@ class CazarFraudes(Node):
         juicio, crudo = pedir_yaml(prompt, validar, CONTRATO_JUICIO, "veredicto")
         if juicio is not None:
             return compuerta(juicio, inputs["verificaciones"], materiales_juicio(inputs))
-        # Fallback semántico: sin veredicto legible no se verifica nada. El
-        # lado seguro del contrato de 3 NO es refuted (no hubo refutación):
-        # es caveats, con el crudo citado para revisión manual.
-        return compuerta({
-            "veredicto": "verified_with_caveats", "fraudes": [],
-            "caveats": ["el juez no pudo emitir un veredicto legible (último crudo: "
-                        + recortar_chars(crudo, 300, "…") + ")"],
-            "accion": "correr el juez de nuevo",
-        }, inputs["verificaciones"])
+        # sin veredicto legible no se verifica nada: el crudo queda citado
+        return sin_veredicto("el juez no pudo emitir un veredicto legible (último crudo: "
+                             + recortar_chars(crudo, 300, "…") + ")", inputs["verificaciones"])
 
     def post(self, shared, prep_res, exec_res):
         shared["juicio"] = exec_res
@@ -901,13 +902,14 @@ def _ejecutar_por_policy(comando):
 
 
 def _dir_dentro(ruta):
-    """Resuelve un directorio dentro de las raíces permitidas. (Path|None, error)."""
+    """Un directorio dentro de las raíces permitidas, o ValueError (X179: los
+    dos llamadores convertían el error a mano)."""
     resolved, err = _resolve(ruta)
     if err:
-        return None, err
+        raise ValueError(err)
     if not resolved.is_dir():
-        return None, f"no es un directorio: {resolved}"
-    return resolved, None
+        raise ValueError(f"no es un directorio: {resolved}")
+    return resolved
 
 
 def _texto_del_reporte(reporte):
@@ -928,14 +930,8 @@ def verificar_trabajo(trabajo, pristine=None, reporte=None, ejecutar=None, secto
     con la fraud table del adapter del dominio y las fuentes del trabajo.
     `ignorar`: nombres de archivo que no son evidencia (ni diff ni fuentes).
     Devuelve (texto, advertencia|None)."""
-    dir_trabajo, err = _dir_dentro(trabajo)
-    if err:
-        raise ValueError(err)
-    dir_pristine = None
-    if pristine:
-        dir_pristine, err = _dir_dentro(pristine)
-        if err:
-            raise ValueError(err)
+    dir_trabajo = _dir_dentro(trabajo)
+    dir_pristine = _dir_dentro(pristine) if pristine else None
     dominio = None
     if sector:
         dominio = adaptador(sector)
@@ -963,11 +959,7 @@ def verificar_trabajo(trabajo, pristine=None, reporte=None, ejecutar=None, secto
         shared["advertencia"] = (
             "el juez no completó el análisis; se entrega la parte determinista "
             "(diff y hechos) sin veredicto del modelo.")
-        juicio = compuerta(
-            {"veredicto": "verified_with_caveats", "fraudes": [],
-             "caveats": ["análisis incompleto: el flujo del juez cortó"],
-             "accion": "correr el juez de nuevo"},
-            shared["verificaciones"])
+        juicio = sin_veredicto("análisis incompleto: el flujo del juez cortó", shared["verificaciones"])
         shared["salida"] = texto_veredicto(
             juicio, shared["claims"], shared["verificaciones"], shared["cambios"])
     return shared["salida"], shared["advertencia"]

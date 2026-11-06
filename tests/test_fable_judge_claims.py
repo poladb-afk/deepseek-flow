@@ -177,3 +177,27 @@ def test_las_fuentes_del_modo_dominio_respetan_su_tope(tmp_path):
     assert contenido.startswith("--- a.md ---\nINICIO") and fable_judge.MARCA_CORTE in contenido
     (tmp_path / "a.md").write_text("chico")
     assert fable_judge.MARCA_CORTE not in fable_judge.contenido_de(tmp_path)
+
+
+@pytest.mark.parametrize("comando", ["bash -m pytest", "sh -m pytest", "node -m pytest",
+                                     "env -m pytest", "bash -m ruff check ."])
+def test_el_rerun_solo_acepta_m_de_un_python(comando):
+    """X179: la allowlist del re-run miraba `tokens[1] == "-m"` sin mirar el
+    programa: `bash -m pytest` pasaba la primera compuerta (medido). La
+    policy de run_command sigue detrás, pero la allowlist decía "solo
+    pytest/ruff" y no lo cumplía. `-m` vale solo para python3/python."""
+    assert fable_judge.permitido_rerun(comando) is False
+    assert fable_judge.permitido_rerun(comando.replace(comando.split()[0], "python3", 1)) is True
+
+
+def test_los_materiales_del_juicio_traen_la_salida_con_el_recorte_del_prompt():
+    """X179: `materiales_juicio` promete "los MISMOS recortes" que el prompt,
+    pero metía la salida ENTERA de cada re-ejecución mientras el prompt solo
+    mostraba MAX_RECORTE chars: una cita del juez a algo que no vio se daba
+    por verificada (medido con una salida de 2.000 chars)."""
+    salida = "exit 1\n" + "a" * 1000 + "SOLO_AL_FINAL" + "b" * 1000
+    estado = {"reporte": "r", "claims": [], "hechos": [], "contenido_nuevos": "",
+              "cambios": {"texto": "", "cambiados": [], "nuevos": [], "borrados": []},
+              "verificaciones": [{"claim": "c", "comando": "pytest", "estado": "fallo", "salida": salida}]}
+    assert "SOLO_AL_FINAL" not in fable_judge._prompt_juicio(estado)
+    assert "SOLO_AL_FINAL" not in fable_judge.materiales_juicio(estado)
