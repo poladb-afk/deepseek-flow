@@ -2634,3 +2634,62 @@ con el prefijo autorizado, `find . -delete`, `pytest -p evil`,
 aparte: el arreglo de fondo es que el scope no mire solo el prefijo, y no se
 mezcla con este paso.
 
+---
+
+## X171: el scope solo aprueba bases y opciones declaradas (S0, la clase amplia de X170) (2026-11-05)
+
+**El hallazgo.** X170 dejó declarada la clase amplia: con
+`permitir_comandos=[<base>]`, `dentro_de_scope` aprobaba cualquier segmento
+que empezara con el prefijo, sin mirar lo que sus opciones hacen. Medido sobre
+`9dabed2`, las seis del roadmapper daban `(True, "ok")` mientras el chat las
+clasifica `preguntar`:
+
+| comando | scope antes | scope después |
+|---|---|---|
+| `bash -c 'rm -rf ~'` | `(True, "ok")` | `(False, "fuera-de-scope")` |
+| `find . -delete` | `(True, "ok")` | `(False, "fuera-de-scope")` |
+| `pytest -p evil` | `(True, "ok")` | `(False, "fuera-de-scope")` |
+| `sort --compress-program=./payload.sh x` | `(True, "ok")` | `(False, "fuera-de-scope")` |
+| `ruff check --fix .` | `(True, "ok")` | `(False, "fuera-de-scope")` |
+| `tail -f log.txt` | `(True, "ok")` | `(False, "fuera-de-scope")` |
+
+**La regla.** En un scope con prefijos autorizados, un segmento se aprueba
+solo si **su base está declarada** y **todas sus opciones están en la lista
+blanca**. Es el mismo criterio de X114 ("lo que no está declarado pregunta")
+aplicado donde decide un aprobador sin humano: `utils/policy.declarado` reusa
+`_opciones_permitidas` en modo cerrado sobre `_OPCIONES_SCOPE`, que combina
+`opciones_de_scope` (bases nuevas) con `opciones_permitidas` (la de pytest de
+X114, que ya excluye `-p`, `--pastebin`, etc.).
+
+**Los datos, con lo mínimo que usan los escenarios.** Se declararon `cd` y
+`python3` (los prefijos de `bench_fable`/`h3b_swarm`), `git` (escenarios
+`exp43-caza` con `git diff/status/log`; opciones `-d`, `-p`, `-C`, `-a`,
+`--staged`, `--oneline`, etc.), `ruff` (`check` a secas; `--output-format`),
+`ls` y `mkdir` (`exp51-chat-on`), `cat` (lecturas en compuestos) y `rm`
+(`rm -r`/`-f`, que el scope ya aprobaba antes; `rm -rf` sigue en `denylist`).
+Una base o una opción que no esté acá queda afuera: sumarla es un cambio de
+datos, no de código.
+
+**Lo que no cambia.** El chat sigue con la misma fricción (verificado por un
+test que fija `auto`/`preguntar` en las dos listas); el scope con `comandos`
+vacío sigue rechazando todo; la denylist sigue mandando antes (los destructivos
+legibles siguen `denylist`).
+
+**Los límites, declarados.** (a) Un scope con `comandos: null` —solo `permitir`
+rutas, como los escenarios históricos del banco— sigue aprobando cualquier
+comando no irreversible: X171 endurece los scopes con prefijos, cambiar el
+otro caso mueve escenarios que el gate no re-corre (queda como deuda).
+(b) Un argumento de script que empieza con `-` se lee como opción:
+`python3 s.py --flag` queda `fuera-de-scope` hasta declarar `--flag`. (c) Las
+formas no declaradas de una base declarada (por ejemplo `git log -5`, `git
+branch -d` sí pero `-D` no) quedan afuera; `git log -n 5` sí pasa.
+
+**Los candados.** +24 casos: 7 formas medidas en rojo contra `9dabed2`
+(las 6 más `sed -i` como base sin lista), 16 guardas de lo declarado que
+siguen `ok` (`cd`, `python3`, `pytest`, `ruff`, `git` con sus opciones, `ls`,
+`cat`, `mkdir`, `rm`) y un test de fricción del chat.
+
+**Los números.** `tests_definidos` 1277 → **1301**; `lineas_del_producto`
+7581 → **7587 (+6)**: el verificador y las dos listas de datos. Es el único
+empeoramiento y lo acepta el operador con su clave.
+

@@ -66,8 +66,8 @@ CONFIRMAR_DOBLE = "confirmar_doble"
 _ARCHIVO = Path(__file__).with_name("politica_comandos.json")
 _NIVELES = (AUTO, PREGUNTAR, CONFIRMAR_DOBLE)
 _CLAVES = {"prefijos": list, "flags_peligrosos": dict, "opciones_permitidas": dict,
-           "bases_modulo": list, "envoltorios": dict, "git_globales_con_valor": list,
-           "git_globales_redefinen": list}
+           "opciones_de_scope": dict, "bases_modulo": list, "envoltorios": dict,
+           "git_globales_con_valor": list, "git_globales_redefinen": list}
 
 
 def _exigir(condicion, motivo):
@@ -105,7 +105,7 @@ def _validar_politica(datos):
         flags = entrada.get("flags") if isinstance(entrada, dict) else None
         _exigir(isinstance(flags, list) and flags and all(_es_token(f) and f.startswith("-") for f in flags),
                 f"flags de {base}")
-    for base, entrada in datos["opciones_permitidas"].items():
+    for base, entrada in (datos["opciones_permitidas"] | datos["opciones_de_scope"]).items():
         listas = [entrada.get(k) for k in ("opciones", "con_valor")] if isinstance(entrada, dict) else [None]
         _exigir(all(isinstance(lista, list) and all(_es_token(o) and o.startswith("-") for o in lista)
                     for lista in listas), f"opciones permitidas de {base}")
@@ -183,6 +183,13 @@ _FLAGS_PELIGROSOS = {base: tuple(e["flags"]) for base, e in _POLITICA["flags_pel
 # `--pastebin`). Lo que no está acá pregunta.
 _OPCIONES = {base: (set(e["opciones"]), set(e["con_valor"]))
              for base, e in _POLITICA["opciones_permitidas"].items()}
+# Lo que un scope SIN humano puede aprobar por base (X171): la lista de X114
+# para pytest/ruff y las bases declaradas acá para el resto. Una base o una
+# opción que no está declarada no se aprueba sola; el chat no cambia porque su
+# lista sigue siendo `_OPCIONES`.
+_OPCIONES_SCOPE = {**_OPCIONES,
+                   **{base: (set(e["opciones"]), set(e["con_valor"]))
+                      for base, e in _POLITICA["opciones_de_scope"].items()}}
 
 
 
@@ -219,19 +226,20 @@ def _empieza_con(tokens, prefijo):
     return tuple(tokens[: len(prefijo)]) == prefijo
 
 
-def _opciones_permitidas(tokens):
+def _opciones_permitidas(tokens, permitidas=_OPCIONES, cerrado=False):
     """True si cada opción del comando está en su lista blanca (o si su base
     no tiene una). Lee las opciones como argparse: `--op=v`, `--op v`, grupos
     cortos `-qx` y el valor pegado `-kexpr`. `@archivo` lee argumentos de un
-    archivo que la política no ve: no es auto."""
+    archivo que la política no ve: no es auto. `permitidas`/`cerrado`: el
+    scope usa su lista y una base no declarada NO pasa (X171)."""
     prefijo = 3 if tuple(tokens[:3]) in _BASES_MODULO else 1
     base = _BASES_MODULO.get(tuple(tokens[:3]), tokens[0] if tokens else "")
-    if base not in _OPCIONES:
-        return True
+    if base not in permitidas:
+        return not cerrado
     resto = list(tokens[prefijo:])
     i = 0
     while i < len(resto):
-        saltar = _opcion_permitida(resto[i], resto[i + 1:i + 2], *_OPCIONES[base])
+        saltar = _opcion_permitida(resto[i], resto[i + 1:i + 2], *permitidas[base])
         if saltar is None:
             return False
         i += 1 + saltar
@@ -535,6 +543,15 @@ def ilegible(comando):
         if tokens and tokens[0].rsplit("/", 1)[-1] == "git" and _globales_git(tokens[1:])[1]:
             return True
     return False
+
+
+def declarado(comando):
+    """True si cada segmento tiene su base declarada para un scope y solo usa
+    opciones de esa lista blanca (`opciones_de_scope`; pytest/ruff, la de
+    X114): un scope sin humano no aprueba lo que la política no sabe leer
+    (X171). El chat no usa esto: su fricción no cambia."""
+    return all(_opciones_permitidas(_sin_envoltorios(_tokens(s) or []), _OPCIONES_SCOPE, True)
+               for s in segmentos(comando))
 
 
 def opaco(comando):

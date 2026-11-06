@@ -21,7 +21,7 @@ from typing import NamedTuple
 
 from utils import tracing
 from utils.call_llm import _setting
-from utils.policy import IRREVERSIBLES, PREGUNTAR, ilegible, irreversible, opaco, segmentos
+from utils.policy import IRREVERSIBLES, PREGUNTAR, declarado, ilegible, irreversible, opaco, segmentos
 
 _MAX = 200  # tope del buffer circular: una sesión larga no crece sin techo
 _eventos = []  # lista de dicts: {tipo, resumen, nivel, decision}
@@ -149,7 +149,10 @@ def dentro_de_scope(tipo, objetivo, rutas=None, comandos=None):
     # "cd {RAIZ} &&" de un escenario es el prefijo de UN segmento: `cd {RAIZ}`
     prefijos = [segmentos(p)[0].split() for p in comandos if segmentos(p)]
     cubierto = all(any(s.split()[:len(p)] == p for p in prefijos) for s in segmentos(objetivo))
-    if opaco(objetivo) or not cubierto:
+    # X171: con prefijos autorizados, el scope tampoco aprueba una base ni una
+    # opción que la política no tenga declarada (`bash -c`, `find -delete`,
+    # `pytest -p evil`, `tail -f`): lo que no se sabe leer no pasa.
+    if opaco(objetivo) or not cubierto or not declarado(objetivo):
         return False, "fuera-de-scope"
     return True, "ok"
 

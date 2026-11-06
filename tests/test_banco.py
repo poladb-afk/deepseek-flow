@@ -143,6 +143,56 @@ def test_lo_destructivo_legible_sigue_en_la_denylist_del_scope(comando):
     assert dentro_de_scope("comando", comando, comandos=["git"]) == (False, "denylist")
 
 
+# X171: en un scope con prefijos, un segmento se aprueba solo si su base está
+# declarada y sus opciones están en la lista blanca. Las siete medidas del
+# roadmapper daban `(True, "ok")` sobre `9dabed2`; el chat no cambia.
+@pytest.mark.parametrize("base, comando", [
+    ("bash", "bash -c 'rm -rf ~'"),
+    ("find", "find . -delete"),
+    ("pytest", "pytest -p evil"),
+    ("sort", "sort --compress-program=./payload.sh x"),
+    ("ruff", "ruff check --fix ."),
+    ("tail", "tail -f log.txt"),
+    ("sed", "sed -i s/a/b/ x.py"),  # base sin lista, no solo una opción rara
+])
+def test_el_scope_no_aprueba_bases_ni_opciones_no_declaradas(base, comando):
+    assert dentro_de_scope("comando", comando, comandos=[base]) == (False, "fuera-de-scope")
+
+
+@pytest.mark.parametrize("base, comando", [
+    ("cd", "cd /tmp"),
+    ("python3", "python3 salidas/x/run.py hola"),
+    ("python3 -m pytest", "python3 -m pytest -q tests/test_banco.py"),
+    ("pytest", "pytest -q tests/"),
+    ("ruff", "ruff check ."),
+    ("python3 -m ruff", "python3 -m ruff check ."),
+    ("git", "git status"),
+    ("git", "git stash show -p"),
+    ("git", "git branch -d merged"),
+    ("git", "git branch -a"),
+    ("git", "git -C . status"),
+    ("git", "git restore --staged a.py"),
+    ("ls", "ls -la"),
+    ("cat", "cat x.py"),
+    ("mkdir", "mkdir -p salida"),
+    ("rm", "rm -r .ruff_cache"),
+])
+def test_el_scope_sigue_aprobando_lo_declarado(base, comando):
+    assert dentro_de_scope("comando", comando, comandos=[base]) == (True, "ok")
+
+
+def test_el_chat_no_cambia_con_la_lista_blanca_del_scope():
+    """X171 es solo para el scope sin humano: el humano ve la misma fricción."""
+    from utils.policy import clasificar
+
+    for comando in ("ls -la", "git log --oneline", "find . -name '*.py'", "pytest -q",
+                    "ruff check .", "cat x.py"):
+        assert clasificar(comando) == "auto", comando
+    for comando in ("bash -c 'rm -rf ~'", "find . -delete", "pytest -p evil", "tail -f log.txt",
+                    "ruff check --fix .", "rm -r x", "git branch -a"):
+        assert clasificar(comando) == "preguntar", comando
+
+
 def test_extraccion_del_comando_ignora_banner_y_explicacion(tmp_path):
     """Ya no hay extracción: el aprobador decide sobre `objetivo`, nunca sobre
     el prompt que lee el humano. Un prompt inocente no lava un push."""

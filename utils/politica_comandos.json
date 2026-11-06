@@ -1,5 +1,5 @@
 {
-  "_doc": "Política de comandos de utils/policy.py como DATOS (fase 5a, banco/specs/fase5a.md). El mecanismo (tokenizar, segmentos, envoltorios, orden de evaluación) vive en el código; acá solo qué prefijo merece qué fricción y por qué. Sin `nivel` = solo explicación (clasifica al default preguntar). Un prefijo que es inicio de otro va DESPUÉS (rm -rf antes que rm). `opciones_permitidas` es la lista BLANCA de opciones POR BASE (X114) y los archivos de configuración que la base lee (X115): el prefijo solo ya no alcanza, lo no declarado pregunta. Cambiar una decisión es un PR con su test de bypass (R7). `git_globales_con_valor` son los globales de git que solo cambian repo/directorio; `git_globales_redefinen`, los que redefinen qué corre (config/alias/ejecutable): con uno de esos la política no sabe qué se ejecuta y un scope no lo aprueba (X170).",
+  "_doc": "Política de comandos de utils/policy.py como DATOS (fase 5a, banco/specs/fase5a.md). El mecanismo (tokenizar, segmentos, envoltorios, orden de evaluación) vive en el código; acá solo qué prefijo merece qué fricción y por qué. Sin `nivel` = solo explicación (clasifica al default preguntar). Un prefijo que es inicio de otro va DESPUÉS (rm -rf antes que rm). `opciones_permitidas` es la lista BLANCA de opciones POR BASE (X114) y los archivos de configuración que la base lee (X115): el prefijo solo ya no alcanza, lo no declarado pregunta. Cambiar una decisión es un PR con su test de bypass (R7). `git_globales_con_valor` son los globales de git que solo cambian repo/directorio; `git_globales_redefinen`, los que redefinen qué corre (config/alias/ejecutable): con uno de esos la política no sabe qué se ejecuta y un scope no lo aprueba (X170). `opciones_de_scope` es la lista BLANCA por base de lo que un scope SIN humano puede aprobar (X171): la base o las opciones que no están declaradas no se aprueban solas (las de pytest/ruff son las de `opciones_permitidas`).",
   "prefijos": [
     {"tokens": ["pytest"], "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"},
     {"tokens": ["python3", "-m", "pytest"], "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"},
@@ -55,6 +55,16 @@
   },
   "opciones_permitidas": {
     "pytest": {"opciones": ["-q", "--quiet", "-v", "--verbose", "-x", "--exitfirst", "-s", "-l", "--showlocals", "--lf", "--last-failed", "--ff", "--failed-first", "--sw", "--stepwise", "--co", "--collect-only", "--no-header", "--version", "-h", "--help"], "con_valor": ["-k", "-m", "-r", "--tb", "--maxfail", "--durations", "--ignore", "--deselect"], "configuracion": ["conftest.py", "pytest.ini", ".pytest.ini", "pytest.toml", ".pytest.toml", "pyproject.toml", "setup.cfg", "tox.ini"], "nota": "lista BLANCA (X114): lo que no está pregunta. Afuera a propósito: --pastebin publica, --junitxml/--report-log/--debug escriben, --cache-clear borra, -p carga plugins, -c/-o/--rootdir/--confcutdir cambian la configuración, --basetemp borra su directorio, -W importa el módulo de la categoría y --doctest-modules importa todo módulo. `configuracion`: lo que pytest lee al arrancar (pyproject.toml entero, aunque no traiga [tool.pytest]); tras escribirlo con aprobación, el próximo pytest pregunta (X115)"}
+  },
+  "opciones_de_scope": {
+    "cat": {"opciones": ["-A", "-b", "-e", "-n", "-s", "-t", "-T", "-v"], "con_valor": []},
+    "cd": {"opciones": [], "con_valor": []},
+    "git": {"opciones": ["-a", "-d", "-p", "-s", "--cached", "--name-only", "--name-status", "--no-color", "--oneline", "--short", "--staged", "--stat"], "con_valor": ["-C", "-n", "--grep", "--max-count"]},
+    "ls": {"opciones": ["-1", "-A", "-a", "-C", "-d", "-F", "-h", "-i", "-l", "-m", "-n", "-p", "-Q", "-r", "-S", "-t", "-v", "-x"], "con_valor": []},
+    "mkdir": {"opciones": ["-p", "-v"], "con_valor": []},
+    "python3": {"opciones": [], "con_valor": []},
+    "rm": {"opciones": ["-f", "-r"], "con_valor": []},
+    "ruff": {"opciones": [], "con_valor": ["--output-format"]}
   },
   "bases_modulo": [
     {"prefijo": ["python3", "-m", "pytest"], "base": "pytest"},
