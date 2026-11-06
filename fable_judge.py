@@ -327,8 +327,9 @@ def permitido_rerun(comando, trabajo=None):
 
     Sin pipes/redirecciones/encadenamiento (; | & > < ` $): la re-ejecución
     reproduce UNA verificación clamada, no ejecuta shell armado por el modelo.
-    `-c` en CUALQUIER posición veta; `-m` solo vale para pytest y ruff check;
-    un python desnudo exige script .py existente dentro de trabajo.
+    `-c` en CUALQUIER posición veta; `-m` solo vale detrás de un python
+    (pytest o ruff check); un python desnudo exige script .py existente
+    dentro de trabajo.
     """
     if not isinstance(comando, str) or not comando.strip():
         return False

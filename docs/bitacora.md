@@ -3159,8 +3159,16 @@ ensure_ascii=False, sort_keys=True) + "\n"` da exactamente los bytes
 commiteados, y el test de caracterización pasa contra ella (6 escenarios).
 
 **El tope de 800 líneas:** el test nuevo va en su propio archivo (125 líneas)
-y el test de los dos huecos va a `test_fable_judge_claims.py` (201);
+y el test de los dos huecos va a `test_fable_judge_claims.py` (203);
 `test_fable_judge.py` sigue en 792 y no se toca.
+
+**Efecto lateral del reordenamiento, declarado.** Al mover la rama del `-m`
+para que mire el programa, `pytest -m 'not slow'` pasó de **rechazo a
+permiso** (contra `dfcbfcd` daba `False` porque lo atrapaba la rama del `-m`
+sin mirar el programa). No es un permiso nuevo: el prefijo `pytest` ya
+aceptaba cualquier argumento (`pytest -q`, `pytest -k x`), así que el nivel
+real no cambia; el veto de `-c` corre antes de todo y sigue. Queda fijado con
+`test_pytest_m_queda_por_el_prefijo_y_la_c_sigue_vetada`.
 
 **Los números (medidos en este árbol, donde X175–X178 preceden a X179).**
 `fable_judge.py` 581 → **563** líneas de código; `lineas_del_producto`

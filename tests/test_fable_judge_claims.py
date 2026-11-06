@@ -201,3 +201,14 @@ def test_los_materiales_del_juicio_traen_la_salida_con_el_recorte_del_prompt():
               "verificaciones": [{"claim": "c", "comando": "pytest", "estado": "fallo", "salida": salida}]}
     assert "SOLO_AL_FINAL" not in fable_judge._prompt_juicio(estado)
     assert "SOLO_AL_FINAL" not in fable_judge.materiales_juicio(estado)
+
+
+def test_pytest_m_queda_por_el_prefijo_y_la_c_sigue_vetada():
+    """X179, efecto lateral declarado: al mover la rama del `-m` para que
+    mire el programa, `pytest -m 'not slow'` pasó de rechazo a permiso
+    (contra `dfcbfcd` daba False porque lo atrapaba la rama del `-m` sin
+    mirar el programa). No es un permiso nuevo: el prefijo `pytest` ya
+    aceptaba cualquier argumento (`pytest -q`, `pytest -k x`). El veto de
+    `-c`, que corre antes de todo, sigue."""
+    assert fable_judge.permitido_rerun("pytest -m 'not slow'") is True
+    assert fable_judge.permitido_rerun("pytest -c setup.cfg") is False

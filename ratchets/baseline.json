@@ -411,7 +411,7 @@
         "tests/test_fable.py": 30,
         "tests/test_fable_dominios.py": 6,
         "tests/test_fable_judge.py": 66,
-        "tests/test_fable_judge_claims.py": 31,
+        "tests/test_fable_judge_claims.py": 32,
         "tests/test_fase5b.py": 3,
         "tests/test_flujos.py": 37,
         "tests/test_forma_larga.py": 5,
@@ -466,7 +466,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 22
       },
-      "metrica": 1355
+      "metrica": 1356
     },
     "texto_de_prompt": {
       "detalle": {
