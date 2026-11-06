@@ -110,6 +110,24 @@ def test_comando_dentro_de_permitir_comandos():
         assert dentro_de_scope("comando", cmd, comandos=comandos)[0] is False, cmd
 
 
+@pytest.mark.parametrize("comando", ["bash -c 'rm -rf ~'", "pip install x", "python3 script.py",
+                                     "mkdir x", "find . -delete", "curl x"])
+def test_un_scope_sin_comandos_no_aprueba_ningun_comando(comando):
+    """X172: un escenario del banco sin `permitir_comandos` escribe
+    `comandos: null`, y null aprobaba sin humano todo lo que no fuera
+    irreversible. Ahora null es lo mismo que el conductor sin
+    `--permitir-comandos`: ningún comando que pida aprobación."""
+    assert dentro_de_scope("comando", comando) == (False, "fuera-de-scope")
+    assert dentro_de_scope("comando", comando, comandos=None) == dentro_de_scope("comando", comando, comandos=[])
+
+
+def test_un_scope_sin_rutas_sigue_aprobando_escrituras():
+    """X172 no toca las escrituras: `rutas: null` sigue siendo sin restricción
+    salvo la denylist (y la contención de AGENT_ALLOWED_DIRS)."""
+    assert dentro_de_scope("escritura", "/proy/x/a.py") == (True, "ok")
+    assert dentro_de_scope("escritura", "/proy/x/.env") == (False, "denylist")
+
+
 def test_comando_git_push_es_denylist():
     for cmd in ("git push origin main", "git -C . push", "ls && sudo rm -rf /x", "/bin/rm -fr x"):
         assert dentro_de_scope("comando", cmd, comandos=["git", "ls", "sudo", "/bin/rm"]) == (False, "denylist"), cmd

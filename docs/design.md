@@ -915,7 +915,8 @@ Leyes del conductor (spec [exp99](../banco/specs/exp99_delegar.md) y
   `--permitir-comandos` son prefijos. Sin `--permitir` las escrituras valen
   salvo la denylist dura (`.env`/`*.env`, `.git`, `memoria/`); sin
   `--permitir-comandos` NINGÚN comando que pida aprobación se aprueba (los de
-  solo-lectura corren `auto` igual); lo irreversible (la lista doble de la
+  solo-lectura corren `auto` igual). Desde X172 vale igual para un escenario
+  del banco sin `permitir_comandos`: `comandos: null` es lo mismo que `[]`; lo irreversible (la lista doble de la
   policy, X159a) nunca pasa, y un comando `git` que la política no sabe leer
   (`-c`, `--exec-path`, `--super-prefix` o un global desconocido) queda
   `fuera-de-scope` (X170). Con prefijos autorizados, cada segmento necesita

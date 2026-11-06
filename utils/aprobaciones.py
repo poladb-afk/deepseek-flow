@@ -124,7 +124,9 @@ def ruta_prohibida(ruta):
 def dentro_de_scope(tipo, objetivo, rutas=None, comandos=None):
     """(dentro, motivo) de un pedido contra un scope. PURA.
 
-    `None` = sin restricción salvo las prohibiciones. Las rutas se comparan
+    `rutas=None` = sin restricción salvo las prohibiciones; `comandos=None` =
+    NINGÚN comando que pida aprobación, como `[]` (X172: null aprobaba todo lo
+    no irreversible en un escenario del banco sin `permitir_comandos`). Las rutas se comparan
     por contención real (`/repo/docs` no cubre `/repo/docs_evil`); un comando
     entra solo si CADA segmento empieza con un prefijo permitido y el shell no
     lo transforma (`pytest; curl x | sh` no es `pytest`). Un tipo que no es
@@ -144,10 +146,9 @@ def dentro_de_scope(tipo, objetivo, rutas=None, comandos=None):
         return False, "fuera-de-scope"
     if irreversible(objetivo):
         return False, "denylist"
-    if comandos is None:
-        return True, "ok"
-    # "cd {RAIZ} &&" de un escenario es el prefijo de UN segmento: `cd {RAIZ}`
-    prefijos = [segmentos(p)[0].split() for p in comandos if segmentos(p)]
+    # "cd {RAIZ} &&" de un escenario es el prefijo de UN segmento: `cd {RAIZ}`.
+    # X172: sin lista no hay prefijos, así que ningún comando queda cubierto.
+    prefijos = [segmentos(p)[0].split() for p in comandos or () if segmentos(p)]
     cubierto = all(any(s.split()[:len(p)] == p for p in prefijos) for s in segmentos(objetivo))
     # X171: con prefijos autorizados, el scope tampoco aprueba una base ni una
     # opción que la política no tenga declarada (`bash -c`, `find -delete`,

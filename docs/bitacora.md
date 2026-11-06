@@ -2693,3 +2693,51 @@ siguen `ok` (`cd`, `python3`, `pytest`, `ruff`, `git` con sus opciones, `ls`,
 7581 → **7587 (+6)**: el verificador y las dos listas de datos. Es el único
 empeoramiento y lo aceptó el operador con su clave (baseline `c4572a9`).
 
+---
+
+## X172: un scope sin lista de comandos no aprueba ningún comando (S0) (2026-11-06)
+
+**El hueco (deuda declarada al cerrar X171).** `banco/banco.py` escribe el
+scope con `escenario.get("permitir_comandos")`, así que un escenario que no la
+declara deja `comandos: null`. `dentro_de_scope` trataba null como "sin
+restricción": en un turno `hitl: s` aprobaba sin humano cualquier comando que
+no estuviera en la lista doble. Medido sobre `d99222f`, todos daban
+`(True, "ok")`: `bash -c 'rm -rf ~'`, `find . -delete`, `curl x`,
+`pip install x`, `pytest -p evil` y `python3 script.py`.
+
+**Quién escribe null** (relevado antes de tocar código):
+- **El banco**: sí, por los escenarios sin `permitir_comandos`.
+- **El conductor** (`delegar.py`): nunca, porque escribe
+  `permitir_comandos or []`.
+- **`bench_fable` y `h3b_swarm`**: nunca, porque declaran listas.
+- **El test de herencia del aprobador**: usa null, pero no aprueba comandos.
+
+**La suite no tenía candado:** con el cambio aplicado y sin test nuevo, daba
+1302 verdes y 0 rojos.
+
+**El arreglo: null = `[]`, en un lugar.** Se fue el `if comandos is None:
+return True, "ok"`; sin lista no hay prefijos y ningún comando queda cubierto.
+Es la misma regla que el conductor sin `--permitir-comandos`, sin un modo
+nuevo. **Las escrituras no cambian:** `rutas: null` sigue siendo sin
+restricción salvo la denylist, porque además las acota `AGENT_ALLOWED_DIRS`
+y no son de la misma clase. Producto: 7587 → **7585**.
+
+**Los escenarios históricos: opción (ii), decisión del operador.** De 109
+escenarios, 95 aprueban algún turno y **82 no declaran `permitir_comandos`**;
+los afectados son los **69** de esos que aprueban algún turno. Un filtro por
+palabras (no una medición) da 48 que piden correr algo y 21 que solo escriben. Sus resultados están en la bitácora. **Desde X172, re-correrlos
+rechaza los comandos que piden aprobación (`n fuera-de-scope`), así que ya no
+reproducen la corrida original.** No se les declaró una lista a ojo: los
+`*_hitl.jsonl` con lo que se aprobó de verdad viven en `salidas/` y no están
+en el árbol. Inventar el scope sería N1. Para re-correr uno con comandos se
+le declara `permitir_comandos`, y esa corrida es una medición nueva.
+
+**El candado.** `test_un_scope_sin_comandos_no_aprueba_ningun_comando`
+(`tests/test_banco.py`) prueba 6 formas y exige que null decida igual que
+`[]`: **6 de 6 en rojo contra `d99222f`** y verde con el arreglo.
+`test_un_scope_sin_rutas_sigue_aprobando_escrituras` fija que las escrituras
+no cambiaron y ya pasaba antes.
+
+**Los números.** `tests_definidos` 1301 → **1308**; `lineas_del_producto`
+7587 → **7585**. Solo mejoras: el ratchet reescribió el baseline solo, sin
+clave.
