@@ -132,7 +132,7 @@
           "utils/kernel.py": 0,
           "utils/laya.py": 24,
           "utils/mcp_client.py": 52,
-          "utils/policy.py": 10,
+          "utils/policy.py": 7,
           "utils/prefetch.py": 6,
           "utils/proveedor.py": 0,
           "utils/riesgo.py": 0,
@@ -145,7 +145,7 @@
           "utils/websearch.py": 18,
           "visor.py": 22
         },
-        "metrica": 1020
+        "metrica": 1017
       }
     }
   },

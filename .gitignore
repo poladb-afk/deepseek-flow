@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 .pytest_cache/
 .cobertura/
+.hypothesis/
 .ruff_cache/
 .mypy_cache/
 

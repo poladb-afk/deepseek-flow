@@ -3379,3 +3379,58 @@ decisión, setting por setting, como en X154.
 **Los números.** `lineas_del_producto` 7528 → **7524**; `tests_definidos` 1364 →
 1369; cobertura del producto 1022 → **1020** líneas sin test. Solo mejoras: los
 baselines se reescribieron solos, sin clave.
+
+---
+
+## X182: tests generativos contra bash real: la continuación de línea y las sustituciones escondían lo irreversible (S0) (2026-11-06)
+
+**El instrumento.** `tests/test_policy_generativo.py` usa hypothesis con semilla
+fija (`derandomize=True`, así el gate sigue determinista) y **bash como
+oráculo**, no el texto del comando. Cada caso corre en un bash sin perfil, con
+binarios falsos que solo anotan su argv, en un directorio temporal y sin
+efectos. Si bash ejecuta algo de la lista doble (`rm -rf`, `git push`, `git
+reset --hard`, `git clean -f`, `git stash drop`, `git branch -D`, `git checkout
+--`), la política tiene que dar `confirmar_doble` y el scope sin humano no lo
+puede aprobar. Una segunda propiedad, sin bash, prueba 1.000 compuestos: el
+compuesto nunca es más permisivo que su peor segmento, lo irreversible siempre
+es doble, un scope vacío no aprueba nada y un scope que aprueba no tiene nada
+irreversible ni opaco.
+
+**Lo que encontró (medido sobre X181, en una primera barrida de 1.500 casos):**
+
+- **Continuación de línea.** Para bash, `git pu\<NL>sh` es `git push`, y
+  `git reset --hard\<NL>` es `git reset --hard`. La política separaba por el
+  salto de línea y veía `git pu\` y `sh`, y además el `strip()` de `clasificar`
+  borraba el salto final que hace de continuación. Resultado: `preguntar` (un
+  solo s/n) en vez de doble.
+- **Sustituciones que se expanden a nada.** `git push`` x`, `git stash drop```
+  y `git push$()`/`git push$(echo)` son, para bash, `git push x`,
+  `git stash drop` y `git push`. La política leía `push``` o `push$()` como el
+  subcomando y no lo reconocía.
+
+**Gravedad: media, no alta.** En los dos casos daba `preguntar`, no `auto`: el
+humano igual veía el comando entero y aprobaba con un s/n. Lo que se perdía era
+la doble confirmación. **El scope sin humano ya lo rechazaba** (`opaco` ve `$` y
+backticks, y la barra rompe el tokenizado), así que la delegación no tenía este
+hueco.
+
+**El arreglo: la vista de bash, solo para la lista negra.**
+`_segmentos_para_la_negra` le saca al comando las continuaciones (`\<NL>`) y
+las sustituciones (`` `…` ``, `$(…)`) antes de separar los segmentos, y lo
+miran `clasificar` (paso 1) e `irreversible`. **Solo sube la fricción:** la
+lista blanca sigue mirando el texto crudo, donde `$(` o una barra ya impiden
+`auto`, así que `echo $(date)` y `ls \`pwd\`` siguen en `preguntar`. El `strip()`
+se movió: la negra mira el texto sin recortar.
+
+**Los números que prueban que no rompió nada:** las dos fotos de la política dan
+**0 diferencias** (482 casos sintéticos más la foto real). La parte del test que
+no depende de bash pasaba antes y pasa ahora.
+
+**Los candados.** El test generativo contra bash (400 casos) y los 9 casos que
+encontró, fijados como parametrizados: **10 de 11 en rojo contra X181** y
+verdes ahora. `hypothesis==6.170.15` queda pinneado en `requirements-dev.txt`.
+
+**Los números.** `lineas_del_producto` 7524 → **7524** (el primer intento sumaba
+4 líneas; se reescribió `clasificar` para que no); `tests_definidos` 1369 →
+1380; cobertura del producto 1020 → **1017** líneas sin test. Solo mejoras: los
+baselines se reescribieron solos, sin clave.

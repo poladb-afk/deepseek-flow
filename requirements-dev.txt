@@ -6,3 +6,5 @@ ruff==0.17.1
 # X175: la etapa de cobertura de calidad.sh, pinneada como ruff (otra versión
 # puede contar distinto las líneas ejecutables y mover el baseline).
 coverage==7.17.2
+# X182: tests generativos de la política (semilla fija: el gate sigue determinista)
+hypothesis==6.170.15

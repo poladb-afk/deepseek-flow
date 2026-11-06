@@ -526,13 +526,27 @@ IRREVERSIBLES = tuple(" ".join(p) for p in _NEGRA_DOBLE)
 def irreversible(comando):
     """True si algún segmento es de la lista doble (lo que descarta trabajo), ya
     normalizado: `sudo rm -rf`, `/bin/rm -fr`, `git -C . push` también."""
-    return any(_segmento_nivel(s) == CONFIRMAR_DOBLE for s in segmentos(comando))
+    return any(_segmento_nivel(s) == CONFIRMAR_DOBLE for s in _segmentos_para_la_negra(comando))
+
+
+# X182: lo que bash junta antes de separar comandos. Una barra antes del salto
+# de línea es continuación (`git pu\<NL>sh` es `git push`), y una sustitución
+# puede expandirse a nada (`git push`` x` y `git push$(echo)` son `git push`).
+_LO_QUE_BASH_UNE = re.compile(r"\\\r?\n|`[^`]*`|\$\([^()]*\)")
 
 
 def segmentos(comando):
     """Los segmentos que el shell ejecuta por separado (&&, ||, |, &, ;, salto
     de línea). `2>&1` se quita antes: su `&` no separa nada."""
     return [s.strip() for s in _SEPARADORES.split(_sin_dup_stderr(comando)) if s.strip()]
+
+
+def _segmentos_para_la_negra(comando):
+    """Los segmentos como los ve bash para decidir lo IRREVERSIBLE: sin las
+    continuaciones de línea ni las sustituciones (X182, encontrados por el test
+    generativo contra bash real). Solo SUBE fricción: la lista blanca sigue
+    mirando el texto crudo, donde `$(` o una barra ya impiden `auto`."""
+    return segmentos(_LO_QUE_BASH_UNE.sub("", str(comando)))
 
 
 def ilegible(comando):
@@ -574,17 +588,16 @@ def clasificar(comando):
 
     Determinista y sin efectos: solo mira la superficie del comando.
     """
-    if comando is None:
-        return PREGUNTAR
-    comando = str(comando).strip()
-    if not comando:
+    if comando is None or not str(comando).strip():
         return PREGUNTAR
 
     # 1) La negra manda: si CUALQUIER segmento pide doble o preguntar, ese
-    #    es el piso del compuesto (tomamos el nivel más alto encontrado).
+    #    es el piso del compuesto (tomamos el nivel más alto encontrado). Se
+    #    mira el texto SIN strip: el salto final de `git push\<NL>` es una
+    #    continuación de línea para bash (X182).
     nivel = None
-    partes = segmentos(comando)
-    for seg in partes:
+    partes = segmentos(str(comando))
+    for seg in _segmentos_para_la_negra(comando):
         impuesto = _segmento_nivel(seg)
         if impuesto == CONFIRMAR_DOBLE:
             return CONFIRMAR_DOBLE

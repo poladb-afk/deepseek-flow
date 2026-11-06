@@ -917,7 +917,8 @@ Leyes del conductor (spec [exp99](../banco/specs/exp99_delegar.md) y
   `--permitir-comandos` NINGÚN comando que pida aprobación se aprueba (los de
   solo-lectura corren `auto` igual). Desde X172 vale igual para un escenario
   del banco sin `permitir_comandos`: `comandos: null` es lo mismo que `[]`; lo irreversible (la lista doble de la
-  policy, X159a) nunca pasa, y un comando `git` que la política no sabe leer
+  policy, X159a; desde X182 mirada como la ejecuta bash, sin continuaciones de
+  línea ni sustituciones) nunca pasa, y un comando `git` que la política no sabe leer
   (`-c`, `--exec-path`, `--super-prefix` o un global desconocido) queda
   `fuera-de-scope` (X170). Con prefijos autorizados, cada segmento necesita
   además su base declarada y solo opciones de la lista blanca
