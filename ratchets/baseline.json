@@ -214,7 +214,7 @@
         "utils/kernel.py": 158,
         "utils/laya.py": 129,
         "utils/mcp_client.py": 70,
-        "utils/policy.py": 322,
+        "utils/policy.py": 328,
         "utils/prefetch.py": 49,
         "utils/proveedor.py": 73,
         "utils/riesgo.py": 31,
@@ -227,7 +227,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7581
+      "metrica": 7587
     },
     "nodos_largos": {
       "detalle": {},
@@ -391,7 +391,7 @@
         "tests/test_ab_skills.py": 13,
         "tests/test_absurdos_funcionales.py": 44,
         "tests/test_auditoria_2026_10_26.py": 39,
-        "tests/test_banco.py": 36,
+        "tests/test_banco.py": 60,
         "tests/test_bench.py": 23,
         "tests/test_caracterizacion_chat.py": 12,
         "tests/test_chat_flujo.py": 17,
@@ -472,7 +472,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 22
       },
-      "metrica": 1277
+      "metrica": 1301
     },
     "texto_de_prompt": {
       "detalle": {
