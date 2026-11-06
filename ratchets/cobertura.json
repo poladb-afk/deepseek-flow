@@ -116,7 +116,7 @@
           "utils/__init__.py": 0,
           "utils/aprobaciones.py": 6,
           "utils/call_llm.py": 10,
-          "utils/citas.py": 12,
+          "utils/citas.py": 10,
           "utils/compaccion.py": 4,
           "utils/conductor.py": 42,
           "utils/contexto.py": 0,
@@ -145,7 +145,7 @@
           "utils/websearch.py": 18,
           "visor.py": 22
         },
-        "metrica": 1054
+        "metrica": 1052
       }
     }
   },

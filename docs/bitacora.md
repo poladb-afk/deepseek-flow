@@ -2945,3 +2945,26 @@ con las dos secciones: **1.054 vs 1.054 (IGUAL)** en esta máquina, y el CI
 mide contra la 1.053. El 1.055 de la investigación previa no se reprodujo con
 el `.env` apartado (una línea de `citas.py`), y no cambia el diagnóstico: el
 residuo era de versión, no de tests.
+
+**Cierre post-dictamen del Auditor: el número también dependía de un archivo
+IGNORADO del árbol (mismo X175).** En un clon limpio la etapa 5 daba 1.055 y
+en el árbol real 1.054: la causa no era el `.env` ni un data file reusado, era
+`utils/citas._por_nombre_suelto`, que hacía `Path.cwd().rglob(nombre)` desde el
+cwd. Con `salidas/auditoria_2026-10/…/tracing.py` presente, el `continue` que
+descartaba artefactos ejecutaba una línea más (`citas.py` 12 en vez de 13) y
+el baseline quedaba atado a lo que hubiera en el árbol de trabajo. El arreglo
+es de producto: la resolución escanea solo raíces versionadas (`docs`,
+`fable`, `modules`, `ratchets`, `skills`, `tests`, `utils`) más los archivos
+de la raíz del cwd, sin `rglob` desde el cwd; el límite (no escanear el
+directorio del banco, que el producto no nombra) queda declarado en el código.
+Dos intentos previos los frenó el propio ratchet y quedan anotados: el doble
+`for` daba anidación 4 (`funciones_anidadas`) y nombrar el banco en la tupla
+movía `producto_conoce_lab` 0 → 1; se rehízo sin anidar y sin el literal.
+**Verificación en los dos lados**, con la misma corrida medida: árbol real
+(con `salidas/`) **1.052** y clon limpio **1.052**, 68 archivos, **0
+diferencias por archivo** (`citas.py` 10 en los dos). Producto 7.589 →
+**7.583** y `tests_definidos` 1.333 → **1.338** (5 casos del test de
+artefactos): las dos mejoran y el baseline se reescribe solo; la sección 3.14
+baja de 1.054 a **1.052** y no pide clave (es mejora). La 3.12 queda en 1.053,
+más alta que el número nuevo y conservadora: el CI valida en el push y ahí se
+verá si hay que re-sembrarla con su evidencia.

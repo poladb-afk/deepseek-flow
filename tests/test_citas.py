@@ -1,4 +1,7 @@
 """Verificación determinista de citas archivo:línea (A40)."""
+import pytest
+
+
 def test_verificar_citas_estados(tmp_path, monkeypatch):
     from utils.citas import reporte, verificar_citas
 
@@ -31,6 +34,24 @@ def test_cita_por_nombre_suelto_unico():
 
     r = verificar_citas("ver tracing.py:1")
     assert r["ok"] == 1 and r["citas"][0]["estado"] == "ok"
+
+
+@pytest.mark.parametrize("artefacto", ["salidas", "memoria", "rag_index", ".runs", ".modelos"])
+def test_cita_por_nombre_suelto_no_mira_artefactos(tmp_path, monkeypatch, artefacto):
+    """X175 (Auditor): un homónimo en un directorio de artefactos no puede
+    cambiar la resolución —ni, en consecuencia, las líneas que ejecuta el
+    verificador y mide la cobertura."""
+    from utils.citas import verificar_citas
+
+    (tmp_path / "utils").mkdir()
+    (tmp_path / "utils" / "tracing.py").write_text("x = 1\n", encoding="utf-8")
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    limpio = verificar_citas("ver tracing.py:1")
+    (tmp_path / artefacto / "x").mkdir(parents=True)
+    (tmp_path / artefacto / "x" / "tracing.py").write_text("x = 1\n", encoding="utf-8")
+    assert verificar_citas("ver tracing.py:1") == limpio
+    assert limpio["ok"] == 1 and limpio["citas"][0]["resuelto_por_nombre"] is True
 
 
 def test_verificar_citas_rango(tmp_path, monkeypatch):

@@ -48,28 +48,32 @@ def extraer(texto):
     return out
 
 
+# X175: la resolución por nombre suelto escanea SOLO las raíces versionadas
+# (más los archivos de la raíz del cwd). Antes hacía `Path.cwd().rglob(nombre)`
+# desde el cwd y un archivo IGNORADO (`salidas/…/tracing.py`) cambiaba qué
+# líneas se ejecutaban: la cobertura del producto dependía de artefactos del
+# árbol de trabajo (medido con clon limpio contra el árbol real). Las citas
+# abreviadas son a archivos del repo, no a salidas ni venvs.
+# Límite declarado: no incluye el directorio del banco, porque el producto no
+# lo nombra (`producto_conoce_lab` = 0, X142/X167); una cita a un spec del
+# banco sin ruta completa no se resuelve por nombre y queda `no_existe`.
+_RAICES_DE_CITAS = ("docs", "fable", "modules", "ratchets", "skills", "tests", "utils")
+
+
 def _por_nombre_suelto(nombre):
     """Nombre sin ruta (p. ej. una cita abreviada sin directorio): si es
-    ÚNICO en el árbol fuente del cwd, es esa cita. Excluye artefactos
-    (salidas/, mutants/, venvs): evita falsos no_existe cuando el modelo
-    abrevia tras citar la ruta completa (9/14 en una sesión real)."""
+    ÚNICO en las raíces versionadas del cwd, es esa cita. Ya no camina
+    artefactos (salidas/, memoria/, rag_index/, .runs/, .modelos/): así el
+    resultado no depende de lo que haya en el árbol de trabajo, y evita
+    falsos no_existe cuando el modelo abrevia (9/14 en una sesión real)."""
     if "/" in nombre or "\\" in nombre:
         return None
-    candidatos = []
-    try:
-        for p in Path.cwd().rglob(nombre):
-            if not p.is_file() or any(parte in _EXCLUIR for parte in p.parts):
-                continue
-            candidatos.append(p)
-            if len(candidatos) > 1:
-                return None
-    except OSError:
-        return None
+    candidatos = [Path(nombre)] if Path(nombre).is_file() else []
+    for raiz in _RAICES_DE_CITAS:
+        candidatos += [p for p in (Path.cwd() / raiz).rglob(nombre) if p.is_file()]
+        if len(candidatos) > 1:
+            return None
     return candidatos[0] if len(candidatos) == 1 else None
-
-
-_EXCLUIR = {".git", ".venv", "__pycache__", "salidas", ".runs", "mutants",
-            "node_modules", ".modelos", ".pytest_cache", ".ruff_cache"}
 
 
 def verificar_citas(texto):

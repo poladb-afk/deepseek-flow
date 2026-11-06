@@ -1295,14 +1295,16 @@ def correr(
 
 # cobertura (X175): líneas del producto que ningún test ejecuta, POR ARCHIVO.
 # La mide `coverage` en la etapa funcional de `calidad.sh`, con los tests que
-# dependen del entorno (red, datos, laya, git, cobertura) afuera: así el número
-# es el mismo en cualquier máquina. La sección del baseline es la del
-# INTÉRPRETE que corre (decisión del operador, X175): 3.12 (el CI) y 3.14 (la
-# máquina del operador) no cuentan igual las líneas ejecutables —medido:
-# `juez.py` 29 contra 31 por las cláusulas `except OSError:` de `:89` y
-# `:451`—. Acá solo se lee y se compara: ningún archivo puede sumar líneas sin
-# test y uno nuevo entra cubierto o con la clave; el total no esconde lo que
-# pasa en cada uno.
+# dependen del entorno (red, datos, laya, git, cobertura) afuera y con la única
+# rama del producto que dependía del árbol de trabajo ya corregida
+# (`utils/citas._por_nombre_suelto` escanea solo raíces versionadas): medido,
+# un clon limpio y este árbol con artefactos dan el MISMO detalle por archivo
+# (X175, dictamen del Auditor). La sección del baseline es la del INTÉRPRETE
+# que corre (decisión del operador, X175): 3.12 (el CI) y 3.14 (la máquina del
+# operador) no cuentan igual las líneas ejecutables —medido: `juez.py` 29
+# contra 31 por las cláusulas `except OSError:` de `:89` y `:451`—. Acá solo
+# se lee y se compara: ningún archivo puede sumar líneas sin test y uno nuevo
+# entra cubierto o con la clave; el total no esconde lo que pasa en cada uno.
 
 def version_de_python() -> str:
     """La clave de sección del baseline de cobertura: "3.14"."""

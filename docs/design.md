@@ -1137,7 +1137,11 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   medición del intérprete que corre, no una aceptación, y no pisa otra
   sección). La pasada medida de `calidad.sh` corre sin `.env`, como el CI (el
   `.env` local mueve `call_llm` 10→11 aunque no el total), y lo restaura con un
-  `trap` pase lo que pase.
+  `trap` pase lo que pase. La medición se validó contra un clon limpio (mismo
+  detalle por archivo): la única rama del producto que dependía del árbol de
+  trabajo —`utils/citas._por_nombre_suelto`, que escaneaba con `rglob` desde el
+  cwd— pasó a escanear solo las raíces versionadas, así un archivo ignorado no
+  cambia el número (dictamen del Auditor, X175).
 - **`tests/test_estilo_humano.py` — forma humana del código** (2026-10-19):
   banners decorativos = 0 en TODO el código versionado (el harness llegó a
   61 y tests/banco a 144), sin docstrings de relleno ni wrappers vacíos sin
