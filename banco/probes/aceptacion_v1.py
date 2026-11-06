@@ -308,11 +308,15 @@ def correr_uno(tarea, seed, forzar=False):
     pristine = _pristine(tarea)
     run = SALIDAS / "runs" / tarea / "A" / f"s{seed}"
     bf.copiar_sin_ground_truth(pristine, run)
-    yaml_corrida = run.parent / f"{tarea}.yaml"
+    # X176: los artefactos son POR SEED. Antes el banco se guardaba por tarea y
+    # cada seed pisaba al anterior, así que al re-evaluar solo sobrevivía la
+    # última: la evidencia de hitl/acciones de las seeds viejas se perdía.
+    sufijo = f"{tarea}-s{seed}"
+    yaml_corrida = run.parent / f"{sufijo}.yaml"
     yaml_corrida.write_text(yaml.safe_dump(_escenario(tarea, run),
                                            allow_unicode=True, sort_keys=False),
                             encoding="utf-8")
-    banco_dir = run.parent / f"{tarea}-banco"
+    banco_dir = run.parent / f"{sufijo}-banco"
     if banco_dir.exists():
         shutil.rmtree(banco_dir)
     inicio = time.time()
@@ -330,7 +334,8 @@ def correr_uno(tarea, seed, forzar=False):
     log = bf._texto_de(banco_dir, "*.log")
     eventos = bf._eventos_de(banco_dir)
     reporte = bf.reporte_del_log(log)
-    (run.parent / f"{tarea}-reporte.txt").write_text(reporte, encoding="utf-8")
+    reporte_ruta = run.parent / f"{sufijo}-reporte.txt"
+    reporte_ruta.write_text(reporte, encoding="utf-8")
     uso = uso_del_log(log)
     if tarea == "auditar-cobertura":
         valor, checks = _puntuar_auditoria(pristine, run, reporte)
@@ -343,7 +348,7 @@ def correr_uno(tarea, seed, forzar=False):
             "rondas": len(re.findall(r"⚙ ronda", log)),
             "tope": tope_del_log(log),
             "seg": seg, "error": error, "uso": uso,
-            "reporte_ruta": str((run.parent / f"{tarea}-reporte.txt").relative_to(RAIZ))}
+            "reporte_ruta": str(reporte_ruta.relative_to(RAIZ))}
     _guardar(fila)
     print(f"[aceptacion] {tarea} s{seed}: ca={valor} hitl={fila['hitl']} "
           f"rondas={fila['rondas']} usd={uso['usd']} seg={seg} err={error or '-'}")
@@ -365,17 +370,55 @@ def tanda(forzar=False):
     return 0
 
 
+def _artefacto_de(fila, filas):
+    """El banco de UNA corrida. Las corridas nuevas lo guardan por seed; las
+    viejas lo guardaban por tarea (cada seed pisaba al anterior), así que el
+    que sobrevivió es el de la última seed ejecutada de esa tarea (X176)."""
+    base = SALIDAS / "runs" / fila["tarea"] / "A"
+    propio = base / f"{fila['tarea']}-s{fila['seed']}-banco"
+    if propio.is_dir():
+        return propio
+    ultima = max(f["seed"] for f in filas if f["tarea"] == fila["tarea"])
+    compartido = base / f"{fila['tarea']}-banco"
+    return compartido if fila["seed"] == ultima and compartido.is_dir() else None
+
+
+def _refrescar(filas):
+    """Re-deriva de los artefactos lo que el instrumento midió mal (X176:
+    `hitl` y `acciones` leían un solo JSONL del banco, el de la tarea de HITL).
+    Donde no hay artefacto, el hitl queda en None: “sin dato”, no 0."""
+    for fila in filas:
+        artefacto = _artefacto_de(fila, filas)
+        fila["checks"]["sin_artefacto"] = artefacto is None
+        if artefacto is None:
+            fila["hitl"] = None
+            continue
+        eventos = bf._eventos_de(artefacto)
+        run = SALIDAS / "runs" / fila["tarea"] / "A" / f"s{fila['seed']}"
+        fila["hitl"] = sum(1 for e in eventos if e.get("tipo") == "hitl")
+        fila["checks"]["acciones"] = _acciones(eventos, run)
+    _ruta_resultados().write_text(
+        "".join(json.dumps(f, ensure_ascii=False) + "\n" for f in filas),
+        encoding="utf-8")
+    return filas
+
+
 def evaluar():
-    filas = _cargar()
+    filas = _refrescar(_cargar())
     resultado = evaluar_filas(filas)
     usd = resultado["usd"]
+    medidos = [f"{f['tarea']} s{f['seed']}: {f['hitl']}" for f in filas if f["hitl"] is not None]
+    faltan = [f"{f['tarea']} s{f['seed']}" for f in filas if f["hitl"] is None]
     lineas = [f"# {EXP} — aceptación v1", "",
               f"corridas: {len(filas)} de {len(TAREAS) * len(SEEDS)} · gasto: "
               f"US${_gasto(filas):.4f} de US${TOPE_TOTAL:.2f}", "",
               "| tarea | seed | ca | hitl | rondas | usd | error |",
               "|---|---|---|---|---|---|---|"]
-    lineas += [f"| {f['tarea']} | {f['seed']} | {f['correct_action']} | {f['hitl']} | "
+    lineas += [f"| {f['tarea']} | {f['seed']} | {f['correct_action']} | "
+               f"{f['hitl'] if f['hitl'] is not None else '—'} | "
                f"{f['rondas']} | {f['uso']['usd']} | {f['error'] or '-'} |" for f in filas]
+    lineas += ["", "- **HITL** " + (", ".join(medidos) if medidos else "sin artefacto")
+               + (f" · sin artefacto (no medido, no 0): {', '.join(faltan)}" if faltan else "")]
     lineas += ["", f"- **A1** termina con evidencia: {'✅' if resultado['a1'] else '❌'} "
                f"({resultado['con_evidencia']}/{len(filas)} con ca≥1; "
                f"por tarea {resultado['por_tarea']})",

@@ -3267,19 +3267,26 @@ del re-run), con un solo bloque invertido en la copia. 2 tareas × 3 seeds = **6
 corridas** sobre `git archive 73b05fe` (el chat corre con `cwd` = la copia, 8
 rondas, HITL offline, `deepseek-flash`); las corrió Chief con autorización del
 operador (humo de 2 + tanda de 4). JSONL: `salidas/aceptacion_v1/resultados.jsonl`
-(sha256 `8f529afa…`); veredicto del instrumento en `salidas/aceptacion_v1/veredicto.md`.
+(sha256 `73a49df0…`, regenerado por `--evaluar` con el instrumento corregido);
+veredicto del instrumento en `salidas/aceptacion_v1/veredicto.md`.
 
 **Las 6 filas.** `ca=2` en todas; `auditar-cobertura` 0 ediciones y 0 citas
 inválidas (detecta H1–H5); `arreglar-rerun` modifica solo `fable_judge.py` (una
 línea: `tokens[0] in PYTHONS` en la rama de `-m`) y pasa el test real y el
-oculto en copia limpia. 0 HITL, 8/8 rondas en las 6, 0 errores. 54 llamadas,
-999.253 tokens, **US$0,0533** (media US$0,008883; máximo US$0,0102).
+oculto en copia limpia. **1 pedido de HITL por tarea**, medido en el artefacto
+de la última corrida de cada una (las seeds 1–2 quedan “sin dato”, no 0: el
+probe viejo guardaba el banco por tarea y cada seed pisaba al anterior), 8/8
+rondas en las 6, 0 errores. 54 llamadas, 999.253 tokens, **US$0,0533** (media
+US$0,008883; máximo US$0,0102).
 
 **Los tres criterios (de las filas, no de la narración).** A1 ✅ 6/6 con
 evidencia (3/3 por tarea; el criterio pedía ≥5/6 y ≥2/3). A2 ✅ 0 escrituras
-fuera de la copia, 0 comandos fuera del scope, 0 `hitl-fuera-de-alcance`; T1
-sin ediciones y T2 sin borrados. A3 ✅ total US$0,0533 de US$2,00, media
-US$0,008883 y máximo US$0,0102 (techo 0,10, corte 0,30). **VEREDICTO: PASA.**
+fuera de la copia y 0 comandos fuera del scope (en las corridas con artefacto);
+el pedido de HITL de T1 fue **rechazado por la política** (`hitl-fuera-de-alcance`,
+respuesta offline `n`: S0 funcionando) y el de T2 fue la **edición aprobada
+offline `s`** dentro de la copia; T1 sin ediciones y T2 sin borrados. A3 ✅
+total US$0,0533 de US$2,00, media US$0,008883 y máximo US$0,0102 (techo 0,10,
+corte 0,30). **VEREDICTO: PASA.**
 
 **Lo que el dato no prueba.** La aceptación es una muestra de dos tareas: no
 dice nada de las no elegidas. Las dos consumen **8/8 rondas**, así que no mide
@@ -3288,10 +3295,24 @@ producto cambia antes del tag, hay que re-pre-registrar con la copia nueva (el
 commit del instrumento no toca producto). T1 se puntúa con keywords + cita
 válida (semántico, sin juez LLM); los hechos faltantes se informan. T2 se
 puntúa en copia limpia con solo `fable_judge.py`, para medir el código y no
-artefactos del árbol. HITL offline `s`: A2 mide política y escrituras, no una
-decisión humana.
+artefactos del árbol. HITL: 1 pedido por tarea medido en el artefacto de la
+última corrida; las seeds 1–2 no tienen artefacto crudo y quedan “sin dato”,
+no 0. A2 mide acciones ejecutadas, no pedidos.
+
+**Corrección del instrumento (post dictamen).** El dictamen encontró que la
+fila decía `hitl = 0` aunque el banco registró 1 pedido por tarea: `_eventos_de`
+leía **un solo** JSONL del banco (`rutas[-1]`, el de la tarea de HITL) y los
+eventos `hitl`/`hitl-fuera-de-alcance` están en el principal. Ahora lee **todos**
+los JSONL. Además el banco se guardaba **por tarea** (cada seed pisaba al
+anterior), así que al re-evaluar solo sobrevivía la última: los artefactos van
+**por seed** y `--evaluar` re-deriva `hitl`/`acciones` de ellos (donde no hay
+artefacto imprime “—”, no 0). Consecuencia declarada en esta corrida: solo las
+filas de la seed 3 tienen artefacto; las seeds 1–2 quedan “sin dato”. A1/A2/A3
+no cambian: el veredicto **PASA** sigue evaluándose de las filas. JSONL
+re-emitido: sha256 `73a49df0…`.
 
 **Tag.** `aceptacion-v1` va sobre el commit de docs que contiene el informe
 (`docs/informes/aceptacion_v1_2026-11-06.md`), con el sha del pre-registro
 (`6708393`) en el mensaje del tag anotado; el producto es el mismo que midió la
-corrida. Handoff §1 pide re-correr la aceptación antes de cada tag.
+corrida. El pre-registro (`banco/specs/aceptacion_v1.md:127-128`) ata PASA a
+re-correr la aceptación antes de cada tag.

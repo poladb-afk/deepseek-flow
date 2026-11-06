@@ -434,3 +434,17 @@ def test_s20_scorer_semantico_y_edicion(tmp_path):
     (run / "fs_tools.py").write_text("cambiado\n", encoding="utf-8")
     assert bench.puntuar_s20(pristine, run, reporte)[0] == 0
 
+
+
+def test_eventos_de_lee_los_dos_jsonl_del_banco(tmp_path):
+    """X176: el banco escribe dos JSONL (el principal y el de la tarea de
+    HITL) y `_eventos_de` leía solo el último: los eventos `hitl` y
+    `hitl-fuera-de-alcance` del principal no contaban (medido: la fila decía
+    0 HITL aunque el banco registró 1)."""
+    bench = _bench()
+    (tmp_path / "corrida_1.jsonl").write_text(
+        '{"tipo": "hitl"}\n{"tipo": "hitl-fuera-de-alcance"}\n', encoding="utf-8")
+    (tmp_path / "corrida_1_tarea_hitl.jsonl").write_text(
+        '{"tipo": "escritura", "ok": true}\n', encoding="utf-8")
+    tipos = [evento["tipo"] for evento in bench._eventos_de(tmp_path)]
+    assert tipos == ["hitl", "hitl-fuera-de-alcance", "escritura"]

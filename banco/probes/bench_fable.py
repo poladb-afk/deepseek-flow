@@ -907,12 +907,17 @@ def _texto_de(directorio, patron):
 
 
 def _eventos_de(directorio):
+    """Los eventos del banco, de TODOS sus JSONL: el principal y el de la tarea
+    de HITL (X176: leer solo el último dejaba afuera los eventos `hitl` y los
+    `hitl-fuera-de-alcance`, que viven en el principal)."""
     eventos = []
-    for linea in _texto_de(directorio, "*.jsonl").splitlines():
-        try:
-            eventos.append(json.loads(linea))
-        except ValueError:
-            continue
+    rutas = sorted(directorio.glob("*.jsonl")) if directorio.is_dir() else []
+    for ruta in rutas:
+        for linea in ruta.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                eventos.append(json.loads(linea))
+            except ValueError:
+                continue
     return eventos
 
 
