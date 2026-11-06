@@ -1,5 +1,5 @@
 {
-  "_doc": "Política de comandos de utils/policy.py como DATOS (fase 5a, banco/specs/fase5a.md). El mecanismo (tokenizar, segmentos, envoltorios, orden de evaluación) vive en el código; acá solo qué prefijo merece qué fricción y por qué. Sin `nivel` = solo explicación (clasifica al default preguntar). Un prefijo que es inicio de otro va DESPUÉS (rm -rf antes que rm). `opciones_permitidas` es la lista BLANCA de opciones POR BASE (X114) y los archivos de configuración que la base lee (X115): el prefijo solo ya no alcanza, lo no declarado pregunta. Cambiar una decisión es un PR con su test de bypass (R7). `git_globales_con_valor` son los globales de git que solo cambian repo/directorio; `git_globales_redefinen`, los que redefinen qué corre (config/alias/ejecutable): con uno de esos la política no sabe qué se ejecuta y un scope no lo aprueba (X170). `opciones_de_scope` es la lista BLANCA por base de lo que un scope SIN humano puede aprobar (X171), y `git_subcomandos_de_scope` la de los subcomandos de git (X174: `config` escribe lo que el próximo `git status` ejecuta): la base o las opciones que no están declaradas no se aprueban solas (la de pytest es la de `opciones_permitidas`; ruff se declara acá).",
+  "_doc": "Política de comandos de utils/policy.py como DATOS (fase 5a, banco/specs/fase5a.md). El mecanismo (tokenizar, segmentos, envoltorios, orden de evaluación) vive en el código; acá solo qué prefijo merece qué fricción y por qué. Sin `nivel` = solo explicación (clasifica al default preguntar). Un prefijo que es inicio de otro va DESPUÉS (rm -rf antes que rm). `opciones_permitidas` es la lista BLANCA de opciones POR BASE (X114) y los archivos de configuración que la base lee (X115): el prefijo solo ya no alcanza, lo no declarado pregunta. Cambiar una decisión es un PR con su test de bypass (R7). `git` junta lo propio de git en un solo lugar (X177): `globales_con_valor` son los globales que solo cambian repo/directorio; `globales_redefinen`, los que redefinen qué corre (config/alias/ejecutable): con uno de esos la política no sabe qué se ejecuta y un scope no lo aprueba (X170); `subcomandos_de_scope`, la lista BLANCA de subcomandos que un scope aprueba (X174: `config` escribe lo que el próximo `git status` ejecuta). `opciones_de_scope` es la lista BLANCA por base de lo que un scope SIN humano puede aprobar (X171; las opciones de git viven ahí, como las de toda base): la base o las opciones que no están declaradas no se aprueban solas (la de pytest es la de `opciones_permitidas`; ruff se declara acá).",
   "prefijos": [
     {"tokens": ["pytest"], "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"},
     {"tokens": ["python3", "-m", "pytest"], "nivel": "auto", "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)"},
@@ -80,8 +80,10 @@
     "time": ["-o", "--output", "-f", "--format"],
     "timeout": ["-s", "--signal", "-k", "--kill-after"]
   },
-  "git_globales_con_valor": ["--git-dir", "--namespace", "--work-tree", "-C"],
-  "git_globales_redefinen": ["-c", "--exec-path", "--super-prefix"],
-  "git_subcomandos_de_scope": ["status", "log", "diff", "show", "blame", "branch", "stash", "checkout",
-                               "switch", "restore", "add", "rev-parse", "ls-files"]
+  "git": {
+    "globales_con_valor": ["--git-dir", "--namespace", "--work-tree", "-C"],
+    "globales_redefinen": ["-c", "--exec-path", "--super-prefix"],
+    "subcomandos_de_scope": ["status", "log", "diff", "show", "blame", "branch", "stash", "checkout",
+                             "switch", "restore", "add", "rev-parse", "ls-files"]
+  }
 }

@@ -67,8 +67,7 @@ _ARCHIVO = Path(__file__).with_name("politica_comandos.json")
 _NIVELES = (AUTO, PREGUNTAR, CONFIRMAR_DOBLE)
 _CLAVES = {"prefijos": list, "flags_peligrosos": dict, "opciones_permitidas": dict,
            "opciones_de_scope": dict, "bases_modulo": list, "envoltorios": dict,
-           "git_globales_con_valor": list, "git_globales_redefinen": list,
-           "git_subcomandos_de_scope": list}
+           "git": dict}
 
 
 def _exigir(condicion, motivo):
@@ -117,8 +116,9 @@ def _validar_politica(datos):
     for nombre, opciones in datos["envoltorios"].items():
         _exigir(_es_token(nombre) and isinstance(opciones, list) and all(map(_es_token, opciones)),
                 f"envoltorio {nombre}")
-    for clave in ("git_globales_con_valor", "git_globales_redefinen", "git_subcomandos_de_scope"):
-        _exigir(all(map(_es_token, datos[clave])), clave)
+    claves = {"globales_con_valor", "globales_redefinen", "subcomandos_de_scope"}
+    _exigir(set(datos["git"]) == claves and all(isinstance(lista, list) and all(map(_es_token, lista))
+                                                for lista in datos["git"].values()), f"git: {sorted(claves)}")
 
 
 def _leer_politica(ruta=_ARCHIVO):
@@ -342,13 +342,13 @@ def _grupo_corto(tok):
 _ENVOLTORIOS = set(_POLITICA["envoltorios"])
 _OPCIONES_CON_VALOR = {e: tuple(o) for e, o in _POLITICA["envoltorios"].items() if o}
 # Opciones globales de git que toman un valor: `git -C . push` sigue siendo push.
-_GIT_GLOBAL_CON_VALOR = set(_POLITICA["git_globales_con_valor"])
+_GIT_GLOBAL_CON_VALOR = set(_POLITICA["git"]["globales_con_valor"])
 # Globales que REDEFINEN qué corre: `-c` (config/alias), `--exec-path` (el
 # ejecutable) y `--super-prefix` (las rutas de los comandos). Con uno de esos
 # el comando visible no es el que se ejecuta: el chat cobra el subcomando que
 # pueda leer, pero un scope no lo aprueba (X170).
-_GIT_GLOBAL_REDEFINEN = set(_POLITICA["git_globales_redefinen"])
-_GIT_SUBCOMANDOS_SCOPE = set(_POLITICA["git_subcomandos_de_scope"])
+_GIT_GLOBAL_REDEFINEN = set(_POLITICA["git"]["globales_redefinen"])
+_GIT_SUBCOMANDOS_SCOPE = set(_POLITICA["git"]["subcomandos_de_scope"])
 # Del nombre más largo al más corto: `-C` y `-c` comparten prefijo posible.
 _GIT_GLOBALES = tuple(sorted(_GIT_GLOBAL_CON_VALOR | _GIT_GLOBAL_REDEFINEN, key=len, reverse=True))
 
@@ -558,7 +558,7 @@ def declarado(comando):
 
 
 def _subcomando_de_scope(t):
-    """True salvo un `git` cuyo subcomando (o su ausencia) no esté en `git_subcomandos_de_scope`."""
+    """True salvo un `git` cuyo subcomando (o su ausencia) no esté en `git.subcomandos_de_scope`."""
     return t[:1] != ["git"] or (t[1 + _globales_git(t[1:])[0]:] or [""])[0] in _GIT_SUBCOMANDOS_SCOPE
 
 

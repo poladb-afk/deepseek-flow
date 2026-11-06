@@ -1,6 +1,7 @@
 """Tests del lado CLAIMS del juez de fable: cómo se extraen, validan y
 priorizan (exp/84 candidatas en prosa, exp/87 F7 presupuesto declarado,
-exp/92 prioridad de lo re-ejecutable). Puro, sin LLM ni red."""
+exp/92 prioridad de lo re-ejecutable), y el presupuesto de lo que viaja al
+prompt (X177). Puro, sin LLM ni red."""
 import pytest
 
 import fable_judge
@@ -164,3 +165,15 @@ def test_candidatas_esta_acotada():
     assert len(candidatas) == fable_judge.MAX_CANDIDATAS
 
 
+def test_las_fuentes_del_modo_dominio_respetan_su_tope(tmp_path):
+    """X177: `contenido_de` miraba el tope ANTES de sumar cada archivo, así
+    que el primero entraba entero: un `brand.md` de 50k mandaba 50k al prompt
+    contra un tope de 9.000 (medido). Ahora usa la misma contabilidad que
+    `contenido_nuevos`: el bloque entero queda acotado y el corte se marca."""
+    (tmp_path / "a.md").write_text("INICIO" + "x" * 50000)
+    (tmp_path / "b.md").write_text("y" * 10)
+    contenido = fable_judge.contenido_de(tmp_path)
+    assert len(contenido) <= fable_judge.MAX_FUENTES + 100
+    assert contenido.startswith("--- a.md ---\nINICIO") and fable_judge.MARCA_CORTE in contenido
+    (tmp_path / "a.md").write_text("chico")
+    assert fable_judge.MARCA_CORTE not in fable_judge.contenido_de(tmp_path)

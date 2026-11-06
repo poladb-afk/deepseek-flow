@@ -196,52 +196,43 @@ def es_test(rel):
     return nombre.startswith("test_") or nombre.endswith("_test.py") or "/tests/" in f"/{rel}"
 
 
-def contenido_de(raiz, tope=MAX_FUENTES, ignorar=()):
-    """Contenido de los archivos del trabajo (lo junta el código): en el
-    trabajo no-código la evidencia está en los ARCHIVOS (copy, brand.md,
-    datos), no en un diff — sin esto el juez de dominio no tendría qué
-    citar. Corte marcado al tope, presupuesto de prompt."""
+def _bloque_acotado(archivos, tope):
+    """`--- rel ---` + contenido de cada (rel, ruta), acotado al tope ENTERO.
+
+    El presupuesto de cada archivo es el REMANENTE del tope descontando la
+    marca de corte y sus saltos: `recortar_chars` devuelve maximo MÁS la
+    marca, y contabilizarlo a ojo dejaba pasar el bloque por encima (dos
+    hallazgos del meta-juicio de exp/83; X177: las fuentes del modo dominio
+    miraban el tope antes de sumar, y un archivo de 50k entraba entero)."""
     pedazos = []
     usado = 0
-    for rel, ruta in _archivos_bajo(raiz, ignorar).items():
-        if usado >= tope:
-            pedazos.append("[... fuentes truncadas ...]")
-            break
-        try:
-            texto = ruta.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        pedazos.append(f"--- {rel} ---\n{texto.rstrip()}")
-        usado += len(texto)
-    return "\n\n".join(pedazos)
-
-
-def contenido_nuevos(trabajo, cambios, tope=MAX_CONTENIDO_NUEVOS):
-    """Contenido de los archivos NUEVOS del diff (lo junta el código): el
-    diff solo los nombra, y sin sus aserciones el juez refuta un test nuevo
-    por no verlo. '' si no hay nuevos; corte marcado al tope.
-
-    El presupuesto de cada archivo es el REMANENTE del tope (no el tope
-    entero) descontando la marca de corte y sus saltos — recortar_chars
-    devuelve maximo MÁS la marca, y contabilizarlo a ojo dejaba pasar el
-    bloque por encima con varios archivos (dos hallazgos consecutivos del
-    meta-juicio de exp/83)."""
-    pedazos = []
-    usado = 0
-    for rel in cambios.get("nuevos", []):
+    for rel, ruta in archivos:
         restante = tope - usado - len(MARCA_CORTE) - 2
         if restante <= 0:
             pedazos.append(MARCA_CORTE)
             break
         try:
-            texto = (trabajo / rel).read_text(encoding="utf-8", errors="replace")
+            texto = ruta.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        cuerpo = recortar_chars(texto.rstrip(), restante, MARCA_CORTE)
-        pedazos.append(f"--- {rel} ---\n{cuerpo}")
-        # contabilidad EXACTA de lo que viaja: header + cuerpo + separador
-        usado += len(pedazos[-1]) + 2
+        pedazos.append(f"--- {rel} ---\n{recortar_chars(texto.rstrip(), restante, MARCA_CORTE)}")
+        usado += len(pedazos[-1]) + 2  # lo que viaja: header + cuerpo + separador
     return "\n\n".join(pedazos)
+
+
+def contenido_de(raiz, tope=MAX_FUENTES, ignorar=()):
+    """Contenido de los archivos del trabajo (lo junta el código): en el
+    trabajo no-código la evidencia está en los ARCHIVOS (copy, brand.md,
+    datos), no en un diff — sin esto el juez de dominio no tendría qué
+    citar. Acotado al tope, con el corte marcado."""
+    return _bloque_acotado(_archivos_bajo(raiz, ignorar).items(), tope)
+
+
+def contenido_nuevos(trabajo, cambios, tope=MAX_CONTENIDO_NUEVOS):
+    """Contenido de los archivos NUEVOS del diff (lo junta el código): el
+    diff solo los nombra, y sin sus aserciones el juez refuta un test nuevo
+    por no verlo. '' si no hay nuevos; acotado al tope, con el corte marcado."""
+    return _bloque_acotado(((rel, trabajo / rel) for rel in cambios.get("nuevos", [])), tope)
 
 
 def fraudes_deterministas(cambios):
@@ -456,6 +447,19 @@ def yaml_valido(crudo, validar):
     return validar(datos)
 
 
+def pedir_yaml(prompt, validar, contrato, aviso):
+    """UNA llamada y, si el YAML no cumple, UN reintento con la respuesta
+    inválida y el motivo a la vista. (datos|None, último crudo). Los dos
+    pasos del juez (claims y veredicto) lo hacían cada uno a mano (X177)."""
+    crudo = call_llm(prompt)
+    datos, motivo = yaml_valido(crudo, validar)
+    if datos is not None:
+        return datos, crudo
+    print(colorear(f"  [fable-judge] {aviso} ilegible → reintento con feedback", "aviso"), flush=True)
+    reintento = call_llm(prompt + feedback_reparacion(crudo, motivo, contrato))
+    return yaml_valido(reintento, validar)[0], reintento
+
+
 def feedback_reparacion(crudo, motivo, contrato):
     """El reintento informado (fase B2 del juez de respuestas): la respuesta
     inválida citada VERBATIM + el motivo + el contrato. Un sinónimo nuevo
@@ -559,15 +563,7 @@ El campo tipo SOLO puede ser hecho, verificacion, intacto o scope."""
 
     def exec(self, inputs):
         reporte, listado = inputs
-        prompt = self._prompt(reporte, listado)
-        crudo = call_llm(prompt)
-        claims, motivo = yaml_valido(crudo, validar_claims)
-        if claims is not None:
-            return claims
-        print(colorear("  [fable-judge] claims ilegibles → reintento con feedback", "aviso"), flush=True)
-        claims, _ = yaml_valido(
-            call_llm(prompt + feedback_reparacion(crudo, motivo, self.CONTRATO)),
-            validar_claims)
+        claims, _ = pedir_yaml(self._prompt(reporte, listado), validar_claims, self.CONTRATO, "claims")
         if claims is not None:
             return claims
         # Fallback semántico: sin claims no hay juicio; el lado seguro es un
@@ -805,17 +801,9 @@ class CazarFraudes(Node):
         prompt = _prompt_juicio(inputs)
         # el contrato del `tipo` viaja con la tabla: código o dominio
         validar = partial(validar_juicio, tipos=_tipos_de_fraude(inputs.get("dominio")))
-        crudo = call_llm(prompt)
-        juicio, motivo = yaml_valido(crudo, validar)
-        materiales = materiales_juicio(inputs)
+        juicio, crudo = pedir_yaml(prompt, validar, CONTRATO_JUICIO, "veredicto")
         if juicio is not None:
-            return compuerta(juicio, inputs["verificaciones"], materiales)
-        print(colorear("  [fable-judge] veredicto ilegible → reintento con feedback", "aviso"), flush=True)
-        juicio, _ = yaml_valido(
-            call_llm(prompt + feedback_reparacion(crudo, motivo, CONTRATO_JUICIO)),
-            validar)
-        if juicio is not None:
-            return compuerta(juicio, inputs["verificaciones"], materiales)
+            return compuerta(juicio, inputs["verificaciones"], materiales_juicio(inputs))
         # Fallback semántico: sin veredicto legible no se verifica nada. El
         # lado seguro del contrato de 3 NO es refuted (no hubo refutación):
         # es caveats, con el crudo citado para revisión manual.

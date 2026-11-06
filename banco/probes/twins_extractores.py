@@ -34,9 +34,10 @@ REGISTRO = {
     "debate.py": (3, "a/b",
                   "argumentos generados (a) y veredicto con assert+retry (b); "
                   "no hay hechos verificables en juego"),
-    "fable_judge.py": (4, "d",
+    "fable_judge.py": (2, "d",
                        "diff + fuentes + candidatas_verificacion (exp/84): el "
-                       "código junta todos los hechos"),
+                       "código junta todos los hechos; X177: los 4 sitios de "
+                       "claims y veredicto (llamada + reintento) son 2 en pedir_yaml"),
     "informe.py": (1, "c", "síntesis map-reduce sobre resultados estructurados"),
     "juez.py": (3, "d",
                 "el Judge recibe citas LEÍDAS del disco + inventario real de "

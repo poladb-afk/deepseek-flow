@@ -923,7 +923,7 @@ Leyes del conductor (spec [exp99](../banco/specs/exp99_delegar.md) y
   además su base declarada y solo opciones de la lista blanca
   (`opciones_de_scope`, X171): una base o una opción no declarada también
   queda `fuera-de-scope`. Para `git`, también el subcomando: fuera de
-  `git_subcomandos_de_scope` (X174: `config`, `submodule`, `bisect`,
+  `git.subcomandos_de_scope` (X174: `config`, `submodule`, `bisect`,
   `hook`, `update-ref`…) queda `fuera-de-scope`. Los
   rechazos viajan CON MOTIVO (`n fuera-de-scope`, exp/98): el modelo sabe
   por qué le dijeron que no. La doble confirmación `(1/2)/(2/2)` —nivel

@@ -162,7 +162,7 @@
         "debate.py": 99,
         "delegar.py": 185,
         "effective_n.py": 266,
-        "fable_judge.py": 600,
+        "fable_judge.py": 581,
         "flow.py": 20,
         "heartbeat.py": 75,
         "informe.py": 148,
@@ -227,7 +227,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7583
+      "metrica": 7564
     },
     "nodos_largos": {
       "detalle": {},
@@ -417,7 +417,7 @@
         "tests/test_fable.py": 30,
         "tests/test_fable_dominios.py": 6,
         "tests/test_fable_judge.py": 66,
-        "tests/test_fable_judge_claims.py": 24,
+        "tests/test_fable_judge_claims.py": 25,
         "tests/test_fase5b.py": 3,
         "tests/test_flujos.py": 37,
         "tests/test_forma_larga.py": 5,
@@ -445,7 +445,7 @@
         "tests/test_pendientes.py": 36,
         "tests/test_policy.py": 83,
         "tests/test_policy_bypass.py": 110,
-        "tests/test_policy_datos.py": 17,
+        "tests/test_policy_datos.py": 19,
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
         "tests/test_ratchet.py": 45,
@@ -472,7 +472,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 22
       },
-      "metrica": 1338
+      "metrica": 1341
     },
     "texto_de_prompt": {
       "detalle": {

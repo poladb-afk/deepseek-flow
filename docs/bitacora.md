@@ -2968,3 +2968,63 @@ artefactos): las dos mejoran y el baseline se reescribe solo; la sección 3.14
 baja de 1.054 a **1.052** y no pide clave (es mejora). La 3.12 queda en 1.053,
 más alta que el número nuevo y conservadora: el CI valida en el push y ahí se
 verá si hay que re-sembrarla con su evidencia.
+
+---
+
+## X177: parte 2, el primer pulido: git en un solo lugar y `fable_judge` sin dos copias (2026-11-06)
+
+**La política de git, en una estructura (N4).** X170–X174 dejaron tres claves
+sueltas en `utils/politica_comandos.json`: `git_globales_con_valor`,
+`git_globales_redefinen` y `git_subcomandos_de_scope`. Ahora es **una sola,
+`git`**, con `globales_con_valor`, `globales_redefinen` y
+`subcomandos_de_scope`. Las opciones de git siguen en
+`opciones_de_scope.git`, como las de cualquier base.
+- **La validación es más estricta:** las claves de `git` tienen que ser
+  exactamente esas tres. Un typo (`subcomandos_permitidos`) o el formato
+  viejo suelto hacen que la política no cargue, en vez de ignorar la lista
+  en silencio. Dos casos nuevos en `test_falla_cerrada_si_los_datos_no_validan`.
+- **Lo que no cambia:** las dos fotos de la política dan 0 diferencias y
+  `test_policy*`, `test_banco`, `test_delegar` y `test_comandos_reales` pasan
+  sin tocarse. Producto +1 línea en el primer intento (la tupla de claves
+  como constante); se dejó como un set local de la validación y quedó en 0.
+
+**`fable_judge`: dos copias menos.**
+- **`_bloque_acotado`** reemplaza el cuerpo de `contenido_de` y de
+  `contenido_nuevos`, que hacían lo mismo con dos contabilidades distintas.
+  **La copia de `contenido_de` tenía un bug:** miraba el tope ANTES de sumar
+  cada archivo, así que el primero entraba entero. Medido en este árbol: un
+  `brand.md` de 50.000 chars mandaba 50.048 chars al prompt del juez de
+  dominio contra un tope de 9.000 (`fable_judge.MAX_FUENTES`, `:48`).
+  Ahora las dos usan la contabilidad exacta que el meta-juicio de exp/83 había
+  dejado en `contenido_nuevos`. **Es un cambio de conducta, declarado:** el
+  modo dominio manda menos texto cuando las fuentes son grandes, y la marca de
+  corte pasa de `[... fuentes truncadas ...]` a la `MARCA_CORTE` común.
+- **`pedir_yaml`** junta el "una llamada y un reintento con feedback" que
+  `RecolectarClaims` y `CazarFraudes` escribían cada uno a mano.
+
+**El candado.** `test_las_fuentes_del_modo_dominio_respetan_su_tope`: en rojo
+contra `e1d3933` (medido: salían 50.048 chars, el gate lo frenó en el primer
+intento) y en verde con el arreglo. Los tests de `contenido_nuevos`, del
+reintento de claims (`test_claims_ilegibles_reparan_con_el_crudo_verbatim`) y
+del veredicto siguen verdes sin cambios.
+
+**Dos candados que dispararon en el primer gate, y por qué estaba bien.**
+- `test_el_arbol_real_no_tiene_gemelos` (exp/85): el registro de sitios LLM
+  congelaba 4 en `fable_judge.py` y quedaron 2, porque las dos llamadas y los
+  dos reintentos ahora viven en `pedir_yaml`. Se actualizó el conteo a
+  propósito, con el motivo en el registro; la clasificación (d) no cambia.
+- `test_ningun_archivo_de_tests_pasa_de_800_lineas`: `test_fable_judge.py`
+  llegó a 806. El test nuevo se mudó a `tests/test_fable_judge_claims.py`
+  (el archivo de lo que viaja al prompt), en vez de subir el tope.
+
+**Lo que queda de `fable_judge`:** baja de 600 a 581 líneas de código. Sigue
+siendo la pieza más grande del producto; el resto (los validadores, `diff_contra`,
+`verificar_trabajo`) no tiene copias y recortarlo pide la caracterización
+byte a byte con el juez guionado, como X156. Queda para un pase propio.
+
+**Los números (medidos en este árbol, donde X175 y su fix preceden a X177).**
+`lineas_del_producto` 7583 → **7564** (−19), `tests_definidos` 1338 → **1341**,
+`nodos_largos` físicos 11 → 10, y la cobertura del producto **1052 → 1045**
+líneas sin test (sección 3.14; la 3.12 sigue en 1.053, conservadora, y la
+valida el CI). Solo mejoras: los dos baselines se reescribieron solos, sin
+clave.
