@@ -3028,3 +3028,67 @@ byte a byte con el juez guionado, como X156. Queda para un pase propio.
 líneas sin test (sección 3.14; la 3.12 sigue en 1.053, conservadora, y la
 valida el CI). Solo mejoras: los dos baselines se reescribieron solos, sin
 clave.
+
+---
+
+## X178: los 25 `except` amplios, uno por uno: 3 se van, 22 se quedan con motivo (2026-11-06)
+
+Es parte del plan de pulido (parte 2). Se leyó cada handler con su `try`. La
+regla fue una sola: **un `except Exception` se va si se puede nombrar lo que
+atrapa, o si el default seguro ya vive en otro lugar.** No se toca ninguno de
+S0 ni ninguna frontera de I/O externa.
+
+**Los tres que se fueron, cada uno con un test que dio rojo antes:**
+- **`utils/hitl_web.py` (wait del pedido).** El `except` tapaba un bug de
+  validación: `float()` acepta `inf`, `1e300` y `nan`, y `Event.wait` no
+  (medido: `inf` y `1e300` lanzan OverflowError y `nan` vuelve al instante).
+  Con `HITL_WEB_TIMEOUT=inf` cada aprobación web se rechazaba en el acto, con
+  un "error esperando la decisión" que no explicaba nada. Ahora `_timeout()`
+  acota a (0, un día] y lo inválido usa el default.
+  `test_un_timeout_del_hitl_web_fuera_de_rango_cae_al_default` (4 casos): rojo
+  contra `e8f7e3e` (corrido en un worktree), verde ahora. El `finally` que
+  limpia el pedido se queda.
+- **`modules/db.py` (`sql`).** El comentario decía que cubría
+  `sqlite3.Warning` y "otros fallos de uso". Medido con Python 3.12: los
+  fallos de uso de `execute` ya son `sqlite3.Error` (bindings, una sola
+  sentencia, el byte nulo), y lo único que salía por el `except` amplio era
+  `UnicodeError` (texto con surrogates o un blob que no decodifica). Ahora se
+  nombra `except UnicodeError`. `test_sql_con_texto_invalido_vuelve_como_error_sql`
+  (2 casos) fija el camino, y si se saca el handler queda rojo.
+  **Efecto declarado, encontrado acá:** el test `datos`
+  `test_sql_cierra_conexion_ante_error_no_sqlite` simulaba un `RuntimeError`
+  desde `execute` esperando que volviera como texto; como se saltea sin
+  `trazas.db`, el paquete no lo incluyó y en este árbol (que sí tiene
+  `trazas.db`) el gate lo encontró rojo. Se adaptó al contrato nuevo: un fallo
+  inesperado ya no se convierte en texto (se propaga) y el invariante que el
+  test protegía —el `finally` cierra la conexión— se conserva y se asevera.
+- **`modules/memoria.py` (`_prefiltrar`).** Repetía el default seguro de
+  `utils/contexto.elegir_por_laya`. Pero había un hueco: si Laya devolvía
+  menos filas que unidades, `elegir_por_laya` lanzaba `KeyError` (medido) y
+  solo este `except` lo salvaba. La regla de hierro ("sin juicio no se
+  recorta") pasa a vivir donde está el juicio: sin un puntaje por unidad,
+  no-op. `test_elegir_por_laya_con_respuestas_incompletas_es_noop`: rojo
+  contra `e8f7e3e`, verde ahora.
+
+**Los 22 que se quedan, por clase:**
+| Clase | Dónde | Por qué es amplio |
+|---|---|---|
+| El error es un hecho, no un crash | `fs_tools.correr_protegido`, `research`, `websearch`, `mcp_client` (2) | frontera de tools o I/O externo: el texto vuelve al modelo |
+| Bookkeeping que nunca corta | `nodes.registrar_pregunta`, `aprobaciones.registrar`, `memoria.resumen_de_sesion` | escribe logs o llama a la API al salir |
+| Degradación terminal con salida | `juez.responder_con_juez`, `juez_lote`, `heartbeat.correr`, `bench_juez` | un fallo de UNA unidad no mata el lote o la noche |
+| Dependencia opcional | `laya`, `contexto._puntuar`, `embeddings` | sin el modelo local se degrada |
+| Guarda que falla cerrada | `fs_tools` (hook PRE) | un hook que lanza VETA la tool (S0) |
+| Hook que enriquece | `fs_tools._hook_py_compile` | un hook POST nunca rompe el resultado |
+| Instrumento | `thread_store.valido` | el validador es medición, no candado |
+| `BaseException` + raise | `tracing` (2), `carga_trazas` | registran o hacen rollback y vuelven a lanzar |
+| Stream a medias | `call_llm` (stream) | se devuelve lo acumulado, con la causa a la vista |
+
+**Lo que no se hizo:** la recomposición de lo que queda de `fable_judge.py`
+(581 líneas) pide la caracterización byte a byte con el juez guionado, y
+queda como su propio paso (X179).
+
+**Los números (medidos en este árbol, donde X175–X177 preceden a X178).**
+`excepts_amplios` 25 → **22**; `lineas_del_producto` 7564 → **7558**;
+`tests_definidos` 1341 → **1348**; cobertura del producto **1045 → 1037**
+(sección 3.14; la 3.12 sigue en 1.053, conservadora). Solo mejoras: los
+baselines se reescribieron solos, sin clave.

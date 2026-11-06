@@ -135,12 +135,10 @@ def _prefiltrar(query, archivos):
     Laya realmente puntuó."""
     if len(archivos) <= PREFILTRO_MAX:
         return archivos, False
-    try:
-        elegidos = elegir_por_laya(query, archivos, PREFILTRO_MAX,
-                                   setting_modelo="LAYA_MODEL_PREFILTRO",
-                                   texto_de=_texto_de_nota)
-    except Exception:  # el prefiltro nunca rompe la memoria  # noqa: BLE001 (prefiltro Laya best-effort: nunca rompe la memoria)
-        return archivos, False
+    # X178: el default seguro (sin juicio → todas) vive en `elegir_por_laya`;
+    # acá no hace falta un segundo `except` que lo repita.
+    elegidos = elegir_por_laya(query, archivos, PREFILTRO_MAX,
+                               setting_modelo="LAYA_MODEL_PREFILTRO", texto_de=_texto_de_nota)
     if len(elegidos) >= len(archivos):
         return archivos, False  # no actuó: sin aviso
     return elegidos, True

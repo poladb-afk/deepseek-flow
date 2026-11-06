@@ -240,6 +240,20 @@ def test_elegir_por_laya_sin_modelo_es_noop(monkeypatch):
     assert elegir_por_laya("q", unidades, 0) == unidades
     assert elegir_por_laya("q", unidades[:2], 5) == unidades[:2]
 
+
+def test_elegir_por_laya_con_respuestas_incompletas_es_noop(monkeypatch):
+    """X178: si Laya devuelve menos filas que unidades, `elegir_por_laya`
+    lanzaba KeyError (medido) y solo el `except Exception` de la memoria lo
+    tapaba. La regla de hierro va donde está el juicio: sin un puntaje por
+    unidad no hay juicio, y no se recorta."""
+    import utils.contexto as ctx
+    import utils.laya as ul
+
+    monkeypatch.setattr(ul, "disponible", lambda *a, **k: True)
+    monkeypatch.setattr(ul, "preguntar_lote", lambda estados, c, setting=None: [{"aporta_contexto": ("si", 0.9)}])
+    assert ctx.elegir_por_laya("q", ["a", "b", "c"], 2) == ["a", "b", "c"]
+
+
 def test_elegir_por_laya_elige_y_conserva_orden(monkeypatch):
     """Con un Laya simulado, elige los de mayor puntaje y los devuelve en
     ORDEN ORIGINAL (la relevancia decide qué entra, no cómo se muestra)."""

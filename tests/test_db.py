@@ -45,9 +45,10 @@ def test_sql_limita_filas_de_verdad():
 
 @pytest.mark.datos
 def test_sql_cierra_conexion_ante_error_no_sqlite():
-    """Un fallo de execute que no sea sqlite3.Error no debe filtrar la
-    conexión: el módulo la cierra siempre (finally), no solo en el camino
-    sqlite3.Error."""
+    """X178: un fallo de execute que no es sqlite3.Error ni UnicodeError ya no
+    vuelve como texto (el handler se acotó a UnicodeError, lo único que sqlite
+    levanta fuera de sqlite3.Error): se propaga. Lo que NO cambia es el
+    `finally`: la conexión se cierra igual aunque el error suba."""
 
     if not (RAIZ / "trazas.db").is_file():
         pytest.skip("sin trazas.db: corre carga_trazas.py")
@@ -70,10 +71,10 @@ def test_sql_cierra_conexion_ante_error_no_sqlite():
     original = db._con
     db._con = fake_con
     try:
-        r = db.sql("SELECT 1")
+        with pytest.raises(RuntimeError, match="fallo no-sqlite"):
+            db.sql("SELECT 1")
     finally:
         db._con = original
-    assert r.startswith("ERROR")
     assert capturada.get("cerrada"), "la conexión quedó abierta tras un error no-sqlite"
 
 @pytest.mark.datos
@@ -360,3 +361,19 @@ def test_tracing_no_deja_traza_vacia(tmp_path):
         if tracing._salida is not None and not tracing._salida.closed:
             tracing._salida.close()
         tracing._salida, tracing._ruta_salida, tracing._activo, tracing._id_thread = backup
+
+
+@pytest.mark.parametrize("consulta", ["SELECT '\ud800'", "SELECT CAST(x'ff' AS TEXT)"])
+def test_sql_con_texto_invalido_vuelve_como_error_sql(tmp_path, monkeypatch, consulta):
+    """X178: el `except Exception` de `sql` cubría lo que `sqlite3.Error` no:
+    un carácter que no se puede codificar en UTF-8 (UnicodeEncodeError) y un
+    blob que no decodifica. Medido: son los únicos que salían por ahí
+    (`sqlite3.Warning` no se levanta desde `execute`). Ahora se nombran."""
+    import sqlite3
+
+    import modules.db as db
+
+    db_ruta = tmp_path / "t.db"
+    sqlite3.connect(db_ruta).close()
+    monkeypatch.setattr(db, "_con", lambda: sqlite3.connect(db_ruta))
+    assert db.sql(consulta).startswith("ERROR SQL")

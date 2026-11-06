@@ -92,7 +92,7 @@
           "modules/a2a.py": 13,
           "modules/auditoria.py": 13,
           "modules/coding.py": 26,
-          "modules/db.py": 15,
+          "modules/db.py": 11,
           "modules/debate.py": 2,
           "modules/delegar.py": 0,
           "modules/effective_n.py": 24,
@@ -102,7 +102,7 @@
           "modules/informe.py": 6,
           "modules/juez.py": 6,
           "modules/mcp.py": 0,
-          "modules/memoria.py": 22,
+          "modules/memoria.py": 20,
           "modules/rag.py": 9,
           "modules/research.py": 2,
           "modules/supervisor.py": 8,
@@ -128,7 +128,7 @@
           "utils/fable_dominios.py": 0,
           "utils/fs_tools.py": 29,
           "utils/historial.py": 1,
-          "utils/hitl_web.py": 57,
+          "utils/hitl_web.py": 55,
           "utils/kernel.py": 0,
           "utils/laya.py": 24,
           "utils/mcp_client.py": 52,
@@ -145,7 +145,7 @@
           "utils/websearch.py": 18,
           "visor.py": 22
         },
-        "metrica": 1045
+        "metrica": 1037
       }
     }
   },

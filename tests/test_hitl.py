@@ -1,4 +1,6 @@
 """Aprobaciones humanas: escritura/coding, gate web, historial y pedido al humano (PR 4)."""
+import pytest
+
 from utils.aprobaciones import Decision
 
 
@@ -596,3 +598,17 @@ def test_pedir_aprobacion_web_devuelve_la_decision_entera(monkeypatch):
     decision = pedir_aprobacion(Pedido("¿Escribir? → /repo/z.py"))
     assert decision.ok is False
     assert decision.motivo == "fuera de scope"
+
+
+@pytest.mark.parametrize("valor", ["inf", "1e300", "nan", "-5"])
+def test_un_timeout_del_hitl_web_fuera_de_rango_cae_al_default(monkeypatch, valor):
+    """X178: `float()` acepta `inf`, `1e300` y `nan`; `Event.wait(inf)` lanza
+    OverflowError y `wait(nan)` vuelve al instante, y el `except Exception`
+    del wait los convertía en un rechazo instantáneo sin explicación. El
+    timeout se valida donde se lee: fuera de (0, un día] usa el default."""
+    import utils.hitl_web as hitl
+
+    monkeypatch.setenv("HITL_WEB_TIMEOUT", valor)
+    assert hitl._timeout() == float(hitl.TIMEOUT_DEFAULT)
+    monkeypatch.setenv("HITL_WEB_TIMEOUT", "0.2")
+    assert hitl._timeout() == 0.2

@@ -128,9 +128,10 @@ def sql(consulta):
             filas = con.execute(consulta).fetchmany(MAX_FILAS_DURO)
         except sqlite3.Error as e:
             return f"ERROR SQL: {e}"
-        except Exception as e:  # noqa: BLE001 (el error es un hecho, no un crash:
-            # sqlite3.Warning no hereda de sqlite3.Error y otros fallos de uso
-            # también deben volver como texto, no propagarse al chat)
+        except UnicodeError as e:
+            # X178: lo único que `execute` levanta fuera de sqlite3.Error
+            # (medido): texto que no codifica en UTF-8. `sqlite3.Warning` no
+            # sale de execute; el resto de los fallos de uso ya es sqlite3.Error.
             return f"ERROR SQL: {type(e).__name__}: {e}"
     finally:
         # cierra siempre: antes, un fallo que no fuera sqlite3.Error (p. ej.

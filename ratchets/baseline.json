@@ -61,12 +61,8 @@
         "juez_lote.py": [
           90
         ],
-        "modules/db.py": [
-          131
-        ],
         "modules/memoria.py": [
-          142,
-          325
+          323
         ],
         "nodes.py": [
           68
@@ -91,9 +87,6 @@
           488,
           531
         ],
-        "utils/hitl_web.py": [
-          570
-        ],
         "utils/laya.py": [
           98
         ],
@@ -112,7 +105,7 @@
           16
         ]
       },
-      "metrica": 25
+      "metrica": 22
     },
     "funciones_anidadas": {
       "detalle": {},
@@ -184,7 +177,7 @@
         "modules/informe.py": 38,
         "modules/juez.py": 47,
         "modules/mcp.py": 28,
-        "modules/memoria.py": 249,
+        "modules/memoria.py": 245,
         "modules/rag.py": 45,
         "modules/research.py": 22,
         "modules/supervisor.py": 29,
@@ -210,7 +203,7 @@
         "utils/fable_dominios.py": 55,
         "utils/fs_tools.py": 368,
         "utils/historial.py": 17,
-        "utils/hitl_web.py": 399,
+        "utils/hitl_web.py": 397,
         "utils/kernel.py": 158,
         "utils/laya.py": 129,
         "utils/mcp_client.py": 70,
@@ -227,7 +220,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7564
+      "metrica": 7558
     },
     "nodos_largos": {
       "detalle": {},
@@ -403,7 +396,7 @@
         "tests/test_convergencia.py": 9,
         "tests/test_core_sin_modulos.py": 2,
         "tests/test_costos.py": 11,
-        "tests/test_db.py": 17,
+        "tests/test_db.py": 19,
         "tests/test_delegar.py": 21,
         "tests/test_deriva_reglas.py": 8,
         "tests/test_docs_sin_deriva.py": 6,
@@ -429,7 +422,7 @@
         "tests/test_h3b_swarm.py": 6,
         "tests/test_handoff.py": 4,
         "tests/test_higiene_repo.py": 9,
-        "tests/test_hitl.py": 23,
+        "tests/test_hitl.py": 27,
         "tests/test_imports.py": 1,
         "tests/test_instrumentos_chat_real.py": 2,
         "tests/test_inventario.py": 3,
@@ -438,7 +431,7 @@
         "tests/test_laya_cache_reintento.py": 5,
         "tests/test_llm.py": 13,
         "tests/test_mcp_laya.py": 11,
-        "tests/test_memoria.py": 21,
+        "tests/test_memoria.py": 22,
         "tests/test_minar_errores.py": 20,
         "tests/test_modulos.py": 18,
         "tests/test_novedad.py": 2,
@@ -472,7 +465,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 22
       },
-      "metrica": 1341
+      "metrica": 1348
     },
     "texto_de_prompt": {
       "detalle": {

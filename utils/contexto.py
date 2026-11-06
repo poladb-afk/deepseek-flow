@@ -54,7 +54,7 @@ def elegir_por_laya(consulta, unidades, max_unidades, setting_modelo=DEFAULT_MOD
     if not unidades or max_unidades <= 0 or len(unidades) <= max_unidades:
         return unidades
     puntajes = _puntuar(consulta, unidades, setting_modelo, texto_de)
-    if puntajes is None:
+    if puntajes is None or len(puntajes) != len(unidades):  # X178: sin un puntaje por unidad no hay juicio
         # sin juicio NO se recorta: devolver los primeros N perdía recall en
         # silencio y el llamador lo anunciaba como "prefiltro Laya" (medido:
         # 12 notas → 8 sin Laya cargada). La regla de hierro es no-op.

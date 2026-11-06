@@ -537,11 +537,14 @@ def _arrancar():
 
 
 def _timeout():
-    """Timeout del pedido en segundos; cualquier valor inválido usa el default."""
+    """Timeout del pedido en segundos; cualquier valor inválido usa el default.
+    X178: `float()` acepta `inf`, `1e300` y `nan`, y `Event.wait` no (lanza
+    OverflowError o vuelve al instante): fuera de (0, un día] también es inválido."""
     try:
-        return float(_setting("HITL_WEB_TIMEOUT", str(TIMEOUT_DEFAULT)))
+        valor = float(_setting("HITL_WEB_TIMEOUT", str(TIMEOUT_DEFAULT)))
     except (TypeError, ValueError):
-        return float(TIMEOUT_DEFAULT)
+        valor = TIMEOUT_DEFAULT
+    return valor if 0 < valor <= 86400 else float(TIMEOUT_DEFAULT)
 
 
 def aprobar(titulo, cuerpo):
@@ -566,10 +569,7 @@ def aprobar(titulo, cuerpo):
     print(f"[hitl_web] aprobación pendiente en http://{HOST}:{puerto}/?token={token}")
 
     try:
-        listo = pedido.evento.wait(_timeout())
-    except Exception as e:  # nunca colgar al agente por un fallo del HITL  # noqa: BLE001 (defensa del wait: el HITL no debe colgar al agente)
-        print(f"[hitl_web] error esperando la decisión: {e}")
-        listo = False
+        listo = pedido.evento.wait(_timeout())  # X178: el timeout ya viene acotado
     finally:
         with _lock:
             _pendientes.pop(token, None)  # deja de listarse al resolverse/expirar
