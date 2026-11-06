@@ -7,7 +7,8 @@ tools? Cuatro llamadas idénticas en contenido, en orden: base, base_repetida,
 none, none_repetida. La base usa el builder del chat (`_kwargs_agente`), así
 que es el request de hoy salvo la pregunta y el `max_tokens` del instrumento.
 
-Sin red: `--autotest` decide sobre filas sintéticas (los cinco estados) y
+Sin red: `--autotest` decide sobre filas sintéticas (los cuatro estados, con
+tres casos de SIN DATO) y
 `--dry-run` imprime los cuatro requests sin mandarlos. La corrida real la corre
 Chief con autorización del operador y escribe el JSONL en
 `salidas/tool_choice_none_real/`.
@@ -116,7 +117,7 @@ def _fila(prompt, cache_hit, tool_calls=0):
 
 
 def autotest():
-    """Los cinco estados del veredicto, con filas sintéticas: sin LLM ni red."""
+    """Los cuatro estados del veredicto, con filas sintéticas: sin LLM ni red."""
     casos = [
         ("PREFIJO COMPARTIDO", [_fila(7400, 0), _fila(7400, 7296), _fila(7400, 7296), _fila(7400, 7296)]),
         ("PREFIJO NO COMPARTIDO", [_fila(7400, 0), _fila(7400, 7296), _fila(426, 0), _fila(426, 0)]),

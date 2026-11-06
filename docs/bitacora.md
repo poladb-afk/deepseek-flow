@@ -2741,3 +2741,66 @@ no cambiaron y ya pasaba antes.
 **Los números.** `tests_definidos` 1301 → **1308**; `lineas_del_producto`
 7587 → **7585**. Solo mejoras: el ratchet reescribió el baseline solo, sin
 clave.
+
+---
+
+## X173: la 4.ª medición de `tool_choice="none"`: el prefijo no se comparte y `none` no apaga las tools (2026-11-06)
+
+**La pregunta que dejó X158.** Con 3 tools chicas, `none` bajaba el prompt de
+673 a 40 tokens (la caída era el tamaño de las tools) y el `cache_hit` no
+informaba; el prefijo fijo de S3 quedaba sin probar. Pre-registro:
+`banco/specs/s3_prefijo_none.md` (`cddf656`), escrito antes de correr.
+Instrumento: `banco/probes/tool_choice_none_real.py` (`cddf656`), 4 llamadas
+con el request **real** del chat (system de 894 chars + **30 tools**, 17.840
+chars de JSON), en orden `base`, `base_repetida`, `none`, `none_repetida`.
+Corrida única, **Chief con autorización del operador**; filas crudas
+`salidas/tool_choice_none_real/20261106-073432.jsonl` (`head` `cddf656`,
+sha256 `e3a004e0…`), 11.130 tokens y **US$0,000724** medidos.
+
+**El estado pre-registrado: `PREFIJO NO COMPARTIDO`.**
+
+| llamada | prompt | cache_hit | tool_calls |
+|---|---|---|---|
+| `base` | 5.179 | 2.048 | 1 |
+| `base_repetida` | 5.179 | **4.992** | 1 |
+| `none` | **266** | 0 | 0 |
+| `none_repetida` | **266** | 128 | 0 |
+
+- **C0 ✅** el request es estable (los dos `base` cuentan 5.179; `sha_prefijo`
+  `fb5afbab4dee923f`, 30 tools, 894 chars de system).
+- **C2 ✅** `none` cuenta 266 vs 5.179: **delta 4.913**, el proveedor no cuenta
+  los esquemas con `none`.
+- **C3 ✅ control / ❌ compartida**: la base repetida cachea (4.992), pero la
+  primera `none`, después de dos `base` idénticas, da **0** de hit; su repetida
+  cachea 128 de 266. El prefijo con tools **no se reusa** en `none`.
+- **C4 ❌ informativo**: 4.913 queda 6,1 % debajo de la ventana 5.231–8.718
+  (calibrada con el ratio de X158); post-hoc declarado abajo.
+
+**El hallazgo que importa (no estaba en el pre-registro como criterio).**
+`tool_choice="none"` **no apaga el menú**: devuelve `tool_calls=0` pero el
+pedido sale como **markup DSML en texto**, idéntico en las dos llamadas (el
+instrumento guarda 120 chars). En el producto eso **no** desactiva la tool:
+`normalizar` recupera el DSML como tool calls y las ejecuta cuando las tools
+viajan (`utils/proveedor.py:93-119`, aviso `dsml_recuperado`; `nodes.py:383`,
+`utils/kernel.py:126`). Solo retirando las tools (`tools=None`) se frena (L8,
+`utils/proveedor.py:115-119`). Es lectura de código, no una corrida del chat.
+
+**Post-hoc declarado (a nombre del operador, recomputado acá).** El delta no
+incluye el system: `none` = 266 tokens ≈ system + pedido (933 chars de prosa);
+si el system se hubiera caído daría ~40, como X158. El sistema se quedó y el
+delta es todo tools; la ventana falló por el ratio: 2,558 chars/token era de 3
+tools chicas, las 30 implican **3,63** y el propio request **3,83**, con lo que
+la predicción es **4.662** (5,1 % del medido). No se reescribe el criterio.
+
+**Consecuencia para S3.** El esquema fijo no gana por ningún lado: sin prefijo
+cacheado (C2/C3) y sin freno conductual (`none` no impide pedir tools; el
+harness las recupera). La forma que hoy frena una tool sigue siendo retirarla
+(L8), que es justo lo que rompe el prefijo. S3 se re-expresa o se cierra con
+este dato delante —decisión del operador/Diseño, no de esta medición—. La
+premisa "mismas tools con `none`" **no se sostiene**.
+
+**Límites.** Texto truncado a 120 chars (el markup se ve y es reproducible; no
+se guardó completo); una corrida, un modelo/endpoint y prefijo idéntico (no el
+historial que crece, que es el A/B de S3); sin `finish_reason`; la recuperación
+DSML es lectura de código. El informe está en
+`docs/informes/s3_prefijo_none_2026-11-06.md`.
