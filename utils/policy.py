@@ -67,7 +67,8 @@ _ARCHIVO = Path(__file__).with_name("politica_comandos.json")
 _NIVELES = (AUTO, PREGUNTAR, CONFIRMAR_DOBLE)
 _CLAVES = {"prefijos": list, "flags_peligrosos": dict, "opciones_permitidas": dict,
            "opciones_de_scope": dict, "bases_modulo": list, "envoltorios": dict,
-           "git_globales_con_valor": list, "git_globales_redefinen": list}
+           "git_globales_con_valor": list, "git_globales_redefinen": list,
+           "git_subcomandos_de_scope": list}
 
 
 def _exigir(condicion, motivo):
@@ -116,7 +117,7 @@ def _validar_politica(datos):
     for nombre, opciones in datos["envoltorios"].items():
         _exigir(_es_token(nombre) and isinstance(opciones, list) and all(map(_es_token, opciones)),
                 f"envoltorio {nombre}")
-    for clave in ("git_globales_con_valor", "git_globales_redefinen"):
+    for clave in ("git_globales_con_valor", "git_globales_redefinen", "git_subcomandos_de_scope"):
         _exigir(all(map(_es_token, datos[clave])), clave)
 
 
@@ -347,6 +348,7 @@ _GIT_GLOBAL_CON_VALOR = set(_POLITICA["git_globales_con_valor"])
 # el comando visible no es el que se ejecuta: el chat cobra el subcomando que
 # pueda leer, pero un scope no lo aprueba (X170).
 _GIT_GLOBAL_REDEFINEN = set(_POLITICA["git_globales_redefinen"])
+_GIT_SUBCOMANDOS_SCOPE = set(_POLITICA["git_subcomandos_de_scope"])
 # Del nombre más largo al más corto: `-C` y `-c` comparten prefijo posible.
 _GIT_GLOBALES = tuple(sorted(_GIT_GLOBAL_CON_VALOR | _GIT_GLOBAL_REDEFINEN, key=len, reverse=True))
 
@@ -549,9 +551,15 @@ def declarado(comando):
     """True si cada segmento tiene su base declarada para un scope y solo usa
     opciones de esa lista blanca (`opciones_de_scope`; para pytest, la de
     X114): un scope sin humano no aprueba lo que la política no sabe leer
-    (X171). El chat no usa esto: su fricción no cambia."""
-    return all(_opciones_permitidas(_sin_envoltorios(_tokens(s) or []), _OPCIONES_SCOPE, True)
-               for s in segmentos(comando))
+    (X171). Para git, además, el subcomando tiene que estar en su lista blanca
+    (X174). El chat no usa esto: su fricción no cambia."""
+    partes = [_sin_envoltorios(_tokens(s) or []) for s in segmentos(comando)]
+    return all(_opciones_permitidas(t, _OPCIONES_SCOPE, True) and _subcomando_de_scope(t) for t in partes)
+
+
+def _subcomando_de_scope(t):
+    """True salvo un `git` cuyo subcomando (o su ausencia) no esté en `git_subcomandos_de_scope`."""
+    return t[:1] != ["git"] or (t[1 + _globales_git(t[1:])[0]:] or [""])[0] in _GIT_SUBCOMANDOS_SCOPE
 
 
 def opaco(comando):

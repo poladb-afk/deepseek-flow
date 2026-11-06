@@ -2804,3 +2804,57 @@ se guardó completo); una corrida, un modelo/endpoint y prefijo idéntico (no el
 historial que crece, que es el A/B de S3); sin `finish_reason`; la recuperación
 DSML es lectura de código. El informe está en
 `docs/informes/s3_prefijo_none_2026-11-06.md`.
+
+---
+
+## X174: el scope solo aprueba subcomandos de git declarados (S0) (2026-11-06)
+
+**El hueco (encontrado al revisar X173).** Con `permitir_comandos="git"`, X170
+cerró los globales y X171 las opciones, pero **el subcomando seguía sin
+mirarse**. Medido sobre `78d6aff`: 47 de 48 subcomandos daban `(True, "ok")`;
+solo `restore` caía, por la denylist. Entre ellos:
+- `git config core.fsmonitor ./x`, `core.pager x` y `alias.r 'reset --hard'`:
+  escriben en `.git/config` lo que el próximo `git status` (que es `auto`, sin
+  HITL) ejecuta, según la documentación de git (no se corrió git en el
+  entorno). Es la forma persistente de `-c core.fsmonitor=…`, que X170 había
+  cerrado como flag de una vez. El "alias en dos comandos" que estaba
+  declarado es un caso de esto.
+- `git submodule foreach x`, `git bisect run ./x` y `git hook run`, que
+  ejecutan código.
+- `git update-ref -d` y `git reflog delete`, que borran refs.
+
+**El arreglo, mismo patrón que X170 y X171: lista BLANCA en datos.**
+`git_subcomandos_de_scope` en `utils/politica_comandos.json`: `status`, `log`,
+`diff`, `show`, `blame`, `branch`, `stash`, `checkout`, `switch`, `restore`,
+`add`, `rev-parse` y `ls-files`. Quedan afuera a propósito `config`,
+`commit` (corre los hooks del repo) y todo lo que ejecuta o borra refs. La
+lista de opciones de git de X171 (`opciones_de_scope.git`) ya dejaba a
+`commit` fuera de scope (`-m` no está declarada): ahora el motivo es el
+subcomando. `declarado()` lo exige con `_subcomando_de_scope`, que reusa
+`_globales_git` para saltar los globales (no hay segunda copia, N4). Un `git`
+sin subcomando también queda afuera.
+
+**Lo que no cambia.** `clasificar` y `explicar` no se tocan: el chat ve la
+misma fricción y las fotos dan 0 diferencias. Los tests que fijaban lo
+reversible y legible siguen verdes sin cambios: `stash list`/`pop`/`show -p`,
+`branch -d`, `branch nueva`, `-C . status`, `restore --staged`, `checkout
+feature/x` y `branch -a`. Lo destructivo sigue en la denylist.
+
+**Borde que queda, declarado.** `git checkout Makefile` (archivo sin
+extensión) sigue `(True, "ok")`: `checkout` está en la lista y separar una
+ruta de una rama pide mirar el repo. Es el único borde de S0 que queda abierto
+en el scope de git.
+
+**Los candados.**
+- `test_el_scope_no_aprueba_un_subcomando_de_git_no_declarado`
+  (`tests/test_banco.py`), 13 formas: los tres `config`, `-C . config`,
+  `config user.name`, `submodule foreach`, `bisect run`, `hook run`,
+  `update-ref -d`, `reflog delete`, `worktree add`, `remote add` y `git`
+  solo. **13 de 13 en rojo contra `78d6aff`** y verde con el arreglo; el
+  mutante sin la llamada en `declarado()` las deja rojas.
+- `test_falla_cerrada_si_los_datos_no_validan[sin_subcomandos_git |
+  subcomando_con_espacio]`.
+
+**Los números.** `tests_definidos` 1308 → **1323**; `lineas_del_producto`
+7585 → **7589 (+4)**: la lista y su lectura. Es de S0 (P1 cede, como X169,
+X170 y X171) y es el único empeoramiento: **pide la clave del operador.**

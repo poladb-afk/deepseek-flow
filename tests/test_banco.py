@@ -156,6 +156,20 @@ def test_el_scope_sigue_aprobando_el_git_reversible_y_legible(comando):
     assert dentro_de_scope("comando", comando, comandos=["git"]) == (True, "ok")
 
 
+# X174: con scope `git`, el scope aprobaba cualquier subcomando. `git config`
+# escribe en `.git/config` lo que el próximo `git status` (auto, sin HITL)
+# ejecuta (`core.fsmonitor`, `core.pager`, un alias), y otros corren código
+# del repo o borran refs. Lista BLANCA de subcomandos: lo demás no pasa solo.
+@pytest.mark.parametrize("comando", [
+    "git config core.fsmonitor ./x", "git config core.pager x", "git config alias.r 'reset --hard'",
+    "git -C . config core.pager x", "git config user.name x", "git submodule foreach x",
+    "git bisect run ./x", "git hook run pre-commit", "git update-ref -d refs/heads/main",
+    "git reflog delete x", "git worktree add ../w", "git remote add o x", "git",
+])
+def test_el_scope_no_aprueba_un_subcomando_de_git_no_declarado(comando):
+    assert dentro_de_scope("comando", comando, comandos=["git"]) == (False, "fuera-de-scope")
+
+
 @pytest.mark.parametrize("comando", ["git stash drop", "git -C . reset --hard", "git branch -D vieja"])
 def test_lo_destructivo_legible_sigue_en_la_denylist_del_scope(comando):
     assert dentro_de_scope("comando", comando, comandos=["git"]) == (False, "denylist")

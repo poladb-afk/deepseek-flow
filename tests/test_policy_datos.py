@@ -48,7 +48,7 @@ def test_falla_cerrada_si_el_archivo_falta_o_no_es_json(tmp_path, contenido):
 
 @pytest.mark.parametrize("rotura", ["nivel_desconocido", "repetido", "tapado", "sin_negra_doble",
                                     "sin_explicacion", "token_con_espacio", "sin_clave", "flag_sin_guion",
-                                    "opcion_sin_guion"])
+                                    "opcion_sin_guion", "sin_subcomandos_git", "subcomando_con_espacio"])
 def test_falla_cerrada_si_los_datos_no_validan(tmp_path, rotura):
     datos = json.loads(policy._ARCHIVO.read_text(encoding="utf-8"))
     prefijos = datos["prefijos"]
@@ -69,6 +69,10 @@ def test_falla_cerrada_si_los_datos_no_validan(tmp_path, rotura):
         del datos["envoltorios"]
     elif rotura == "flag_sin_guion":
         datos["flags_peligrosos"]["find"]["flags"].append("delete")
+    elif rotura == "sin_subcomandos_git":
+        del datos["git_subcomandos_de_scope"]
+    elif rotura == "subcomando_con_espacio":
+        datos["git_subcomandos_de_scope"].append("config core.pager")
     else:
         datos["opciones_permitidas"]["pytest"]["opciones"].append("q")
     with pytest.raises(ValueError):
