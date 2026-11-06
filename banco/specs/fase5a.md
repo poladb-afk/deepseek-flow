@@ -34,9 +34,9 @@ laboratorio):
 | `_ENVOLTORIOS`, `_OPCIONES_CON_VALOR`, `_GIT_GLOBAL_CON_VALOR` | `envoltorios{nombre: [opciones con valor]}`, `git_globales_con_valor[]` (solo cambian repo/directorio) y `git_globales_redefinen[]` (X170: redefinen qué corre y hacen ilegible el comando para un scope) |
 
 X171 sumó `opciones_de_scope{base: {opciones, con_valor}}`: la lista blanca por
-base de lo que un scope SIN humano puede aprobar (las de pytest/ruff se reusan
-de `opciones_permitidas`); una base o una opción que no está declarada no se
-aprueba sola.
+base de lo que un scope SIN humano puede aprobar (la de pytest se reusa de
+`opciones_permitidas`; ruff se declara acá); una base o una opción que no está
+declarada no se aprueba sola.
 
 **Se queda en código** (es sintaxis del shell, el mecanismo, no vocabulario):
 `_PELIGRO_SHELL`, `_EXPANSION`, `_COMILLAS`, `_SEPARADORES`,

@@ -184,9 +184,9 @@ _FLAGS_PELIGROSOS = {base: tuple(e["flags"]) for base, e in _POLITICA["flags_pel
 _OPCIONES = {base: (set(e["opciones"]), set(e["con_valor"]))
              for base, e in _POLITICA["opciones_permitidas"].items()}
 # Lo que un scope SIN humano puede aprobar por base (X171): la lista de X114
-# para pytest/ruff y las bases declaradas acá para el resto. Una base o una
-# opción que no está declarada no se aprueba sola; el chat no cambia porque su
-# lista sigue siendo `_OPCIONES`.
+# para pytest y las bases declaradas acá para el resto (ruff incluido). Una
+# base o una opción que no está declarada no se aprueba sola; el chat no cambia
+# porque su lista sigue siendo `_OPCIONES`.
 _OPCIONES_SCOPE = {**_OPCIONES,
                    **{base: (set(e["opciones"]), set(e["con_valor"]))
                       for base, e in _POLITICA["opciones_de_scope"].items()}}
@@ -547,7 +547,7 @@ def ilegible(comando):
 
 def declarado(comando):
     """True si cada segmento tiene su base declarada para un scope y solo usa
-    opciones de esa lista blanca (`opciones_de_scope`; pytest/ruff, la de
+    opciones de esa lista blanca (`opciones_de_scope`; para pytest, la de
     X114): un scope sin humano no aprueba lo que la política no sabe leer
     (X171). El chat no usa esto: su fricción no cambia."""
     return all(_opciones_permitidas(_sin_envoltorios(_tokens(s) or []), _OPCIONES_SCOPE, True)
