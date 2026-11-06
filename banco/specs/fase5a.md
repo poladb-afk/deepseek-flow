@@ -31,7 +31,7 @@ laboratorio):
 | el resto de `_EXPLICACIONES` (mv, cp, mkdir, touch) | `prefijos[]` sin `nivel` (default preguntar), solo `explicacion` |
 | `_FLAGS_PELIGROSOS` | `flags_peligrosos{base: [flags]}` |
 | `_BASES_MODULO` | `bases_modulo[]` |
-| `_ENVOLTORIOS`, `_OPCIONES_CON_VALOR`, `_GIT_GLOBAL_CON_VALOR` | `envoltorios{nombre: [opciones con valor]}`, `git_globales_con_valor[]` (solo cambian repo/directorio) y `git_globales_redefinen[]` (X170: redefinen qué corre y hacen ilegible el comando para un scope) |
+| `_ENVOLTORIOS`, `_OPCIONES_CON_VALOR`, `_GIT_GLOBAL_CON_VALOR` | `envoltorios{nombre: [opciones con valor]}` y `git{globales_con_valor[] (solo cambian repo/directorio), globales_redefinen[] (X170: redefinen qué corre y hacen ilegible el comando para un scope), subcomandos_de_scope[] (X174: la lista blanca de subcomandos de git del scope)}` |
 
 X171 sumó `opciones_de_scope{base: {opciones, con_valor}}`: la lista blanca por
 base de lo que un scope SIN humano puede aprobar (la de pytest se reusa de
