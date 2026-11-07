@@ -3643,3 +3643,40 @@ docs) no se mergea porque acá X184 ya es la sexta etapa del gate con Pyright
 1427 → 1432; cobertura 1010 IGUAL; los tipos bajan de 66 a 63: la etapa 6 mide
 que el fix saca los 3 `reportOptionalMemberAccess` del card en
 `modules/a2a.py` (el baseline se reescribió solo, sin clave).
+
+---
+
+## X187: el entorno de Pyright se fija en un venv vacío: 63/52 → 52 estable (2026-11-07)
+
+**El hallazgo.** X184 dejó la etapa 6 midiendo contra el Python que Pyright
+descubre en el PATH. Con el venv del gate (deps instaladas) el producto daba
+**63** errores de tipo; con el Python del sistema, **52**. Los 11 de diferencia
+son tipos de dependencias: `effective_n.py` 6 (dos en `:312`, `params`/`_orch`/
+`_run` en `:414-417`), `fable_judge.py:816` (yaml), `rag.py:240` ×2 (numpy) y
+`utils/call_llm.py:153/345` (openai). El mismo código daba dos números y, como
+el ratchet de tipos trata una bajada como mejora, un gate corrido en un entorno
+más rico movía `ratchets/pyright.json` **sin clave**: el mismo agujero que X185
+en cobertura.
+
+**El arreglo.** La etapa 6 ya no hereda el Python del PATH: `calidad.sh` pide
+`python3 ratchet.py --pyright-entorno`, que **recrea** `.pyright/entorno` (venv
+sin pip, vacío, con `sys.executable`) y devuelve su intérprete; Pyright corre
+con `--pythonpath` a ese intérprete. Recrearlo en cada corrida evita que un
+entorno local lo contamine, y usar `sys.executable` (no el `python3` del PATH)
+es lo que lo hace inmune al PATH.
+
+**La medición.** Con el entorno fijo: **52 en las dos configuraciones** (PATH
+del venv del gate y PATH del sistema) y los diagnósticos **idénticos conjunto a
+conjunto**, no solo el total. La deuda baja 63 → 52 por mejora y el baseline se
+reescribe solo, sin clave. Límite declarado: la métrica gatea el código propio
+contra typeshed, no las firmas de terceros (que además cambian con su versión);
+esos 11 diagnósticos de deps dejan de gatearse.
+
+**Los candados** (`tests/test_pyright_ratchet.py`): el entorno es fijo, vacío e
+ignora el PATH (se crea con el PATH vacío y su `site-packages` queda sin
+paquetes; es idempotente, porque el gate lo llama en cada corrida), y el gate
+pasa `--pythonpath` al intérprete que prepara `--pyright-entorno` (textual: si
+alguien lo quita, Pyright vuelve a heredar el PATH).
+
+**Números.** `tests_definidos` 1432 → 1434; `lineas_del_producto` 7524 IGUAL
+(la etapa es de laboratorio); cobertura 1010 IGUAL; tipos **63 → 52**.

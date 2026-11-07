@@ -71,6 +71,7 @@ Uso:
     python3 ratchet.py --cobertura --sembrar-entorno  # siembra la sección del Python que corre
     python3 ratchet.py --pyright        # etapa 6/6: errores de tipo del producto (lee .pyright/datos.json)
     python3 ratchet.py --pyright --sembrar-pyright    # siembra el baseline de tipos si no existe
+    python3 ratchet.py --pyright-entorno  # etapa 6/6: prepara el venv VACÍO fijo e imprime su intérprete
 
 No tiene dependencias ni toca la red: es la palanca 3 de `calidad.sh` y de CI.
 """
@@ -1544,6 +1545,26 @@ def correr_pyright(raiz: Path = RAIZ, ruta_baseline: Path = BASELINE_PYRIGHT,
     return 0
 
 
+def entorno_pyright(raiz: Path = RAIZ) -> Path:
+    """El intérprete del entorno VACÍO fijo con el que analiza Pyright (X187).
+
+    Pyright resuelve los imports contra el Python que descubre: con el venv del
+    gate veía los tipos de las dependencias instaladas (63 errores) y con el
+    Python del sistema no (52), así que el mismo código daba dos números y un
+    gate corrido en un entorno más rico bajaba el baseline SIN clave (el mismo
+    agujero que X185 cerró en cobertura). El análisis se ancla acá: un venv sin
+    pip y VACÍO, recreado en cada corrida para que no haya estado local que lo
+    contamine, y creado con `sys.executable` (nunca con el `python3` del PATH).
+    La métrica gatea el código propio contra typeshed, no las firmas de
+    terceros, que además cambian con su versión; el costo declarado es que los
+    diagnósticos que hablan de tipos de `openai`, `numpy`, `yaml` y PocketFlow
+    dejan de gatearse."""
+    destino = raiz / ".pyright" / "entorno"
+    subprocess.run([sys.executable, "-m", "venv", "--clear", "--without-pip", str(destino)],
+                   check=True, capture_output=True)
+    return destino / "bin" / "python"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="ratchet.py",
@@ -1569,12 +1590,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sembrar-pyright", action="store_true",
                         help="siembra el baseline de tipos si no existe "
                              "(no acepta empeoramientos ni pide clave)")
+    parser.add_argument("--pyright-entorno", action="store_true",
+                        help="etapa 6/6: prepara el venv vacío fijo del análisis y "
+                             "escribe su intérprete (lo usa calidad.sh)")
     args = parser.parse_args(argv)
     if args.sembrar_clave:
         return sembrar_clave()
     if args.cobertura:
         return correr_cobertura(raiz=args.raiz.resolve(), actualizar=args.actualizar,
                                 sembrar=args.sembrar_entorno, escribir=not args.no_escribir)
+    if args.pyright_entorno:
+        print(entorno_pyright(args.raiz.resolve()))
+        return 0
     if args.pyright:
         return correr_pyright(raiz=args.raiz.resolve(), actualizar=args.actualizar,
                               sembrar=args.sembrar_pyright)

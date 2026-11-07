@@ -195,3 +195,27 @@ def test_el_gate_pinea_pyright_y_fija_el_target():
     assert config["reportMissingImports"] == "none"
     assert {"utils", "modules"} <= set(config["include"])
     assert (RAIZ / "calidad.sh").read_text(encoding="utf-8").count("6/6 tipos") == 1
+
+
+def test_el_entorno_de_tipos_es_fijo_vacio_e_ignora_el_path(tmp_path, monkeypatch):
+    """X187: la etapa 6 analiza contra un venv VACÍO creado acá, no contra el
+    Python que aparezca en el PATH. Si se heredara, el número dependería de las
+    deps instaladas (63 con el venv del gate, 52 sin él) y un entorno más rico
+    bajaría el baseline sin clave."""
+    monkeypatch.setenv("PATH", str(tmp_path / "sin-python"))
+    interprete = ratchet.entorno_pyright(tmp_path)
+    entorno = tmp_path / ".pyright" / "entorno"
+    assert interprete == entorno / "bin" / "python" and interprete.is_file()
+    sitios = list((entorno / "lib").glob("python*/site-packages"))
+    assert len(sitios) == 1
+    assert [p.name for p in sitios[0].iterdir() if p.name != "__pycache__"] == []
+    assert ratchet.entorno_pyright(tmp_path) == interprete  # idempotente: la corre el gate
+
+
+def test_el_gate_analiza_con_el_entorno_fijo_y_no_con_el_path():
+    """X187: la etapa 6 pasa `--pythonpath` al intérprete que prepara
+    `--pyright-entorno`; si alguien lo quita, vuelve a heredar el PATH."""
+    gate = (RAIZ / "calidad.sh").read_text(encoding="utf-8")
+    assert "ratchet.py --pyright-entorno" in gate
+    linea = next(linea for linea in gate.splitlines() if "-m pyright" in linea)
+    assert '--pythonpath "$ENTORNO_TIPOS"' in linea

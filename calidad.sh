@@ -105,17 +105,26 @@ else
 fi
 
 echo
-echo "═══ 6/6 tipos — pyright (producto, baseline versionado) ═══"
+echo "═══ 6/6 tipos — pyright (producto, baseline versionado, entorno fijo) ═══"
 # X184: la etapa solo junta el JSON (`--outputjson`; exit 1 = hay diagnósticos,
 # esperado mientras el baseline los contemple). `ratchet.py --pyright` lo
 # compara por archivo:regla: solo baja, y sin un JSON válido es ROJO. Pyright
 # está pinneado en requirements-dev.txt; el target fijo vive en [tool.pyright].
+# X187: el análisis corre contra un venv VACÍO creado acá (nunca contra el
+# Python que aparezca en el PATH): con el venv del gate veía los tipos de las
+# deps instaladas y el mismo código daba 63 en vez de 52, así que un gate más
+# rico bajaba el baseline sin clave (el mismo agujero que X185 en cobertura).
 mkdir -p .pyright
-python3 -m pyright --outputjson > .pyright/datos.json
-if python3 ratchet.py --pyright; then
-    echo "✅ tipos verde"
+if ENTORNO_TIPOS="$(python3 ratchet.py --pyright-entorno)"; then
+    python3 -m pyright --pythonpath "$ENTORNO_TIPOS" --outputjson > .pyright/datos.json
+    if python3 ratchet.py --pyright; then
+        echo "✅ tipos verde"
+    else
+        echo "❌ tipos roja: un error de tipo nuevo (o el baseline no es de esta versión)"
+        fallo=1
+    fi
 else
-    echo "❌ tipos roja: un error de tipo nuevo (o el baseline no es de esta versión)"
+    echo "❌ tipos roja: no se pudo crear el entorno fijo de análisis"
     fallo=1
 fi
 

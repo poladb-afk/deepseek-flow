@@ -1158,7 +1158,17 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   depende del intérprete que corre), `reportMissingImports="none"` y un stub
   propio de `laya` (`typings/`) porque las dependencias opcionales no están en
   el CI. Los warnings son diagnóstico y no gatean. La primera foto se siembra
-  con `--sembrar-pyright` (no pide clave y solo si falta).
+  con `--sembrar-pyright` (no pide clave y solo si falta). Desde X187 el
+  análisis se ancla a un entorno **vacío** recreado en cada corrida
+  (`ratchet.py --pyright-entorno` crea `.pyright/entorno` sin pip con
+  `sys.executable` y `calidad.sh` le pasa ese intérprete a Pyright con
+  `--pythonpath`): antes, con el venv del gate el número era 63 y con el Python
+  del sistema 52, porque Pyright resuelve los tipos de las dependencias
+  instaladas (`openai`, `numpy`, `yaml`, PocketFlow). La métrica gatea el código
+  propio contra typeshed (52), no las firmas de terceros, que además cambian con
+  su versión; el costo declarado son los 11 diagnósticos de esas deps, que dejan
+  de gatearse. Así un entorno más rico tampoco puede bajar el baseline sin
+  clave: el agujero de X185, cerrado también en tipos.
 - **`tests/test_estilo_humano.py` — forma humana del código** (2026-10-19):
   banners decorativos = 0 en TODO el código versionado (el harness llegó a
   61 y tests/banco a 144), sin docstrings de relleno ni wrappers vacíos sin
