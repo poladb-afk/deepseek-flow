@@ -187,7 +187,7 @@
           "resume.py": 9,
           "supervisor.py": 19,
           "utils/__init__.py": 0,
-          "utils/aprobaciones.py": 6,
+          "utils/aprobaciones.py": 2,
           "utils/call_llm.py": 10,
           "utils/citas.py": 10,
           "utils/compaccion.py": 4,
@@ -199,13 +199,13 @@
           "utils/estado_sesion.py": 0,
           "utils/estructura.py": 1,
           "utils/fable_dominios.py": 0,
-          "utils/fs_tools.py": 27,
+          "utils/fs_tools.py": 25,
           "utils/historial.py": 1,
           "utils/hitl_web.py": 53,
           "utils/kernel.py": 0,
           "utils/laya.py": 24,
           "utils/mcp_client.py": 52,
-          "utils/policy.py": 7,
+          "utils/policy.py": 6,
           "utils/prefetch.py": 6,
           "utils/proveedor.py": 0,
           "utils/riesgo.py": 0,
@@ -218,7 +218,7 @@
           "utils/websearch.py": 18,
           "visor.py": 22
         },
-        "metrica": 1017
+        "metrica": 1010
       }
     }
   },

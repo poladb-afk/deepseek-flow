@@ -3480,10 +3480,9 @@ reescribe el CI cuando mida. Los mutantes no dependen de esos números.
 del candado); `lineas_del_producto` 7524 IGUAL y cobertura 1017 IGUAL (el probe
 y su test son laboratorio, no producto).
 
-**Lo que falta para cerrar X183:** que el operador corra `python3
-banco/probes/mutantes_s0.py --workers 1` (en serie, unos 20 min: `test_hitl.py`
-fija 8791–8794 y en paralelo moriría por colisión) y pase el JSON. Con eso,
-cada vivo se mata con un test o se declara equivalente.
+**La corrida y el cierre.** La corrió el operador en serie, completa; el
+resultado y cómo se trató cada vivo quedan en la sección "X183 (cierre)" al
+final de esta bitácora.
 
 ---
 
@@ -3567,3 +3566,50 @@ IGUAL (todo el cambio es `calidad.sh`, `ratchet.py` —laboratorio— y tests);
 cobertura y tipos no se mueven (1017 / 66: sus baselines no se tocan). Gate
 completo de seis etapas verde con `PATH="$PWD/.venv/bin:$PATH"` (**absoluto**:
 el relativo es justamente el que destapó el caso).
+
+---
+
+## X183 (cierre): 259 de 305 mutantes muertos; los 46 vivos, con test o motivo (2026-11-07)
+
+**La corrida.** 305/305 mutantes medidos en serie (`--workers 1`), control
+vivo: **259 muertos por la suite y 46 vivos** —30 en `utils/policy.py`, 11 en
+`utils/aprobaciones.py` y 5 en `utils/fs_tools.py`—. Estado en
+`salidas/mutantes_s0/estado.json` (ignorado), sha256 `304e2ddf…`.
+
+**Cómo se cerró cada vivo.** `tests/test_cierre_mutantes.py` (32 casos) mata
+33 mutantes (479 y 480 comparten la fila de `stash` con flag): 18 de `policy`,
+11 de `aprobaciones` y 4 de `fs_tools`. Cada test se validó **rojo contra la
+fuente mutada real** del instrumento —no una simulación— aplicada en un
+worktree aparte sobre `f54c4d1`: 33/33 muertos, control y cierre `32 passed`
+(`salidas/validar_cierre2.log`). El método encontró dos "kills" simulados que
+no mordían: `243 i+1→i+2` deja vacío el slice siguiente y `392 sin not` solo
+cambia los args que quedan detrás del prefijo `rm -rf`; y una "equivalencia"
+que sí era kill: `480 In→NotIn` muere con `git stash --quiet drop`.
+
+**Las 13 equivalencias** (las audita el Auditor; ninguna se cerró por opinión):
+- **Identidad algebraica (3):** `375`, `498`, `559` — `rsplit("/", n)[-1]` no
+  depende de `n`.
+- **Rama muerta (4):** `288` y `293` (`_segmento_es_auto` con segmento/tokens
+  vacíos: el único caller es `clasificar`, que recibe segmentos ya filtrados
+  por `segmentos()`, y `_tokens` solo devuelve `[]` para la cadena vacía), `319`
+  (`_tiene_flag_peligroso` con tokens vacío: sus dos callers ya garantizan
+  no-vacío) y `178` en `fs_tools` (`missing_ok=False` solo agrega un
+  `FileNotFoundError` que el `suppress(OSError)` de la misma rama traga; además
+  el tmp existe cuando corre el handler).
+- **Reformateo sin cambio de nivel (6):** `243-empty-slice`, `243-extend`,
+  `260`, `262-j+2`, `392-tokens2` y `392-sin-not` — medido: **0 diferencias en
+  1.433 comandos** (los dos fixtures + generados) comparando `clasificar`,
+  `ilegible`, `declarado`, `opaco`, `configuracion`, `explicar`, `segmentos` e
+  `irreversible` entre el árbol sano y el mutante.
+
+**Números.** `tests_definidos` 1395 → **1427** (32 casos nuevos);
+`lineas_del_producto` 7524 IGUAL (no se tocó producto); cobertura 3.15
+1017 → **1010** (los tests nuevos ejecutan 7 líneas de
+`aprobaciones`/`fs_tools` que nadie cubría); tipos 66 IGUAL. Gate completo de
+seis etapas verde con `PATH="$PWD/.venv/bin:$PATH"` (absoluto).
+
+**Atribución.** X175–X183 salieron de paquetes del autor externo que el
+operador bajó a `docs/informes/`; acá se aplicaron con excludes y adaptación
+local, y se corrigieron sus números (305 sobre 33 de las 38 funciones,
+`--workers` en serie, candado de los 305). X184 se implementó acá sobre el
+diseño armado en esta conversación; X185 es del equipo.
