@@ -1172,7 +1172,10 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   sites de `_resolve`/`escribir_salida` chequean el **valor** (`if valor is
   None:`) en vez del error: mismo contrato (exactamente uno de los dos es
   `None`) y Pyright estrecha sin firmas mentirosas ni `reportReturnType` (52 →
-  17).
+  17). Desde X190 la etapa 6 tampoco mide ni escribe sobre una suite roja: si la
+  etapa 4 falló, corre en diagnóstico con `--no-escribir` y el baseline queda
+  intacto (caso real: una corrida roja de X189 movió 17 → 4 sola), igual que
+  X185 en cobertura.
 - **`tests/test_estilo_humano.py` — forma humana del código** (2026-10-19):
   banners decorativos = 0 en TODO el código versionado (el harness llegó a
   61 y tests/banco a 144), sin docstrings de relleno ni wrappers vacíos sin

@@ -1490,7 +1490,7 @@ def _peores_y_bypass_pyright(raiz: Path, ruta_baseline: Path,
 
 def correr_pyright(raiz: Path = RAIZ, ruta_baseline: Path = BASELINE_PYRIGHT,
                    datos: Path = DATOS_PYRIGHT, actualizar: bool = False,
-                   sembrar: bool = False, salida=print) -> int:
+                   sembrar: bool = False, escribir: bool = True, salida=print) -> int:
     """Etapa 6/6: errores de tipo del producto con las reglas del ratchet.
 
     Lee el JSON que dejó `pyright --outputjson` (nunca corre Pyright), compara
@@ -1499,7 +1499,9 @@ def correr_pyright(raiz: Path = RAIZ, ruta_baseline: Path = BASELINE_PYRIGHT,
     no son los del baseline, es ROJO (el baseline no se mueve por cambiar la
     herramienta sin decisión). La primera foto se siembra con
     `--sembrar-pyright`: es la medición honesta de la deuda, no una aceptación,
-    y solo si no existe."""
+    y solo si no existe. Con `escribir=False` (diagnóstico) informa la mejora
+    pero no toca el baseline: es lo que usa la etapa 6 cuando la suite no pasó
+    (X190: una corrida roja de X189 movió 17 → 4 sola, sin clave)."""
     carga = _leer_datos_pyright(datos)
     if carga is None:
         salida(f"[pyright] ROJO: no hay datos válidos en {_ruta_visible(datos, raiz)}: "
@@ -1539,10 +1541,22 @@ def correr_pyright(raiz: Path = RAIZ, ruta_baseline: Path = BASELINE_PYRIGHT,
                    f"operador con su clave y --actualizar ({motivo if actualizar else 'sin --actualizar'}).")
             return 1
     if previo != actual:
-        _guardar_pyright(ruta_baseline, actual, version, target)
-        salida(f"[pyright] baseline actualizado ({_ruta_visible(ruta_baseline, raiz)}); commitealo")
+        _publicar_pyright(raiz, ruta_baseline, actual, version, target, escribir, salida)
     salida("[pyright] VERDE")
     return 0
+
+
+def _publicar_pyright(raiz: Path, ruta_baseline: Path, actual: dict, version: str,
+                      target: str, escribir: bool, salida=print) -> None:
+    """Publica la foto nueva, o la informa sin persistir si es diagnóstica.
+
+    X190: una corrida con la suite roja no mueve el baseline de tipos (mismo
+    criterio que X185 en cobertura); la mejora se informa y no se escribe."""
+    if escribir:
+        _guardar_pyright(ruta_baseline, actual, version, target)
+        salida(f"[pyright] baseline actualizado ({_ruta_visible(ruta_baseline, raiz)}); commitealo")
+    else:
+        salida("[pyright] mejora detectada, pero --no-escribir: baseline intacto")
 
 
 def entorno_pyright(raiz: Path = RAIZ) -> Path:
@@ -1604,7 +1618,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.pyright:
         return correr_pyright(raiz=args.raiz.resolve(), actualizar=args.actualizar,
-                              sembrar=args.sembrar_pyright)
+                              sembrar=args.sembrar_pyright, escribir=not args.no_escribir)
     return correr(
         raiz=args.raiz.resolve(),
         ruta_baseline=args.baseline.resolve(),

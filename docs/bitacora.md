@@ -3761,3 +3761,36 @@ el roadmap: es concurrencia, no anotación.
 otros 12 fixes son línea por línea); `tests_definidos` 1434 IGUAL (no hay bug
 que reproducir: la suite entera lo respalda y esta tabla es la evidencia);
 cobertura 1010 IGUAL.
+
+---
+
+## X190: la etapa 6 de tipos no mide ni escribe si la suite falló (2026-11-07)
+
+**El caso real.** En X189 la primera corrida del gate dio rojo por una cita mal
+escrita en `docs/estado.md`, y **la etapa 6 igual midió y reescribió
+`ratchets/pyright.json` de 17 a 4**: la mejora era real, pero el gate no la
+había medido sobre una suite válida. Es el mismo agujero que X185 cerró en la
+etapa 5, del otro lado del JSON; en X189 se vio en vivo y el baseline se
+restauró a mano para que lo escribiera la corrida verde.
+
+**El arreglo (calcado de X185).** `calidad.sh` no corre la etapa 6 en modo que
+escribe si `funcional` no es 0: en ese caso mide **como diagnóstico** con
+`--no-escribir` y el baseline queda intacto (el gate ya está rojo por la 4).
+`correr_pyright` suma el parámetro `escribir` (como `correr_cobertura` en X185)
+y su CLI lo recibe de `--no-escribir`: una mejora se informa ("mejora detectada,
+pero --no-escribir: baseline intacto") pero no se persiste. El camino feliz no
+cambia: mismo comando, mismo mensaje, mismo baseline.
+
+**Los candados** (`tests/test_pyright_ratchet.py`).
+`test_con_no_escribir_no_pisa_el_baseline_de_tipos`: una mejora simulada (2 → 1
+errores) deja los bytes del baseline idénticos; sin el flag los escribe, y ese
+camino ya lo cubre `test_un_error_de_menos_baja_el_baseline_solo`.
+`test_el_gate_no_acredita_tipos_si_el_funcional_fallo`: textual, la etapa 6 está
+condicionada a `funcional` y usa `--pyright --no-escribir` (si alguien quita el
+flag, el test muerde). Verificado además por CLI: con una foto 5 → 4,
+`--no-escribir` informa la mejora y no toca los bytes; el control con escritura
+sí los cambia.
+
+**Números.** `tests_definidos` 1434 → **1436** (los 2 candados);
+`lineas_del_producto` 7522 IGUAL (el cambio es `calidad.sh` y `ratchet.py`,
+laboratorio, más tests); cobertura 1010 IGUAL; tipos 4 IGUAL.

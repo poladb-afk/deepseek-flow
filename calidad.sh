@@ -114,8 +114,20 @@ echo "═══ 6/6 tipos — pyright (producto, baseline versionado, entorno fi
 # Python que aparezca en el PATH): con el venv del gate veía los tipos de las
 # deps instaladas y el mismo código daba 63 en vez de 52, así que un gate más
 # rico bajaba el baseline sin clave (el mismo agujero que X185 en cobertura).
+# X190: la etapa no mide ni escribe sobre una suite roja. Si la 4 falló, corre
+# en diagnóstico con --no-escribir y el baseline queda intacto: en la corrida
+# roja de X189 la etapa movió 17 → 4 sola, sin clave. Un gate no acepta una
+# mejora que no midió sobre una suite válida.
 mkdir -p .pyright
-if ENTORNO_TIPOS="$(python3 ratchet.py --pyright-entorno)"; then
+if [ "$funcional" -ne 0 ]; then
+    echo "⏭️  tipos en diagnóstico: la suite no pasó; el baseline NO se toca"
+    if ENTORNO_TIPOS="$(python3 ratchet.py --pyright-entorno)"; then
+        python3 -m pyright --pythonpath "$ENTORNO_TIPOS" --outputjson > .pyright/datos.json
+        python3 ratchet.py --pyright --no-escribir
+    else
+        echo "⚠️  sin diagnóstico de tipos: no se pudo crear el entorno fijo"
+    fi
+elif ENTORNO_TIPOS="$(python3 ratchet.py --pyright-entorno)"; then
     python3 -m pyright --pythonpath "$ENTORNO_TIPOS" --outputjson > .pyright/datos.json
     if python3 ratchet.py --pyright; then
         echo "✅ tipos verde"

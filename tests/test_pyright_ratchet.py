@@ -219,3 +219,26 @@ def test_el_gate_analiza_con_el_entorno_fijo_y_no_con_el_path():
     assert "ratchet.py --pyright-entorno" in gate
     linea = next(linea for linea in gate.splitlines() if "-m pyright" in linea)
     assert '--pythonpath "$ENTORNO_TIPOS"' in linea
+
+
+def test_con_no_escribir_no_pisa_el_baseline_de_tipos(tmp_path):
+    """X190: una corrida inválida (suite roja) no mueve el baseline aunque vea
+    una mejora: la etapa 6 de calidad.sh le pasa `--no-escribir`."""
+    _proyecto(tmp_path)
+    _sembrar(tmp_path, _datos(tmp_path, _err(tmp_path / "a.py"), _err(tmp_path / "b.py")))
+    antes = (tmp_path / "py.json").read_bytes()
+    datos = _datos(tmp_path, _err(tmp_path / "a.py"))  # mejora visible: 2 → 1
+    codigo, salida = _gate(tmp_path, datos, escribir=False)
+    assert codigo == 0 and "no-escribir" in salida
+    assert (tmp_path / "py.json").read_bytes() == antes
+
+
+def test_el_gate_no_acredita_tipos_si_el_funcional_fallo():
+    """X190: la etapa 6 solo mide/escribe sobre una suite que pasó. El candado es
+    textual porque el fallo era la dependencia entre etapas de calidad.sh; el
+    caso real: la corrida roja de X189 movió el baseline de tipos 17 → 4."""
+    gate = (RAIZ / "calidad.sh").read_text(encoding="utf-8")
+    desde = gate.index("6/6 tipos")
+    assert gate.index('if [ "$funcional" -ne 0 ]', desde) < gate.index("--pyright --no-escribir", desde)
+    assert "tipos en diagnóstico" in gate
+    assert "python3 ratchet.py --pyright;" in gate  # el camino feliz sigue escribiendo
