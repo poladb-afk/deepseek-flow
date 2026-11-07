@@ -11,7 +11,6 @@ Uso:
 """
 import argparse
 import functools
-import inspect
 import json
 import sys
 
@@ -83,7 +82,9 @@ def envolver(nombre, fn, impls):
               "function": {"name": nombre, "arguments": json.dumps(kwargs, ensure_ascii=False)}}
         return fs_tools.run_tool_call(tc, impls)["content"]
 
-    vars(envuelta)["__signature__"] = inspect.signature(fn)
+    # Sin `__signature__` a mano: `functools.wraps` deja `__wrapped__` y
+    # `inspect.signature` lo sigue; FastMCP 4.1.6 arma el schema igual (medido
+    # por el autor externo; acá fastmcp no está instalado para repetirlo).
     return envuelta
 
 

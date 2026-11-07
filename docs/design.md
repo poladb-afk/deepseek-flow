@@ -1175,7 +1175,11 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   17). Desde X190 la etapa 6 tampoco mide ni escribe sobre una suite roja: si la
   etapa 4 falló, corre en diagnóstico con `--no-escribir` y el baseline queda
   intacto (caso real: una corrida roja de X189 movió 17 → 4 sola), igual que
-  X185 en cobertura.
+  X185 en cobertura. Desde X191 los 4 congelados de `webchat` cierran con los
+  tubos del chat tomados **una sola vez al crear la sesión**
+  (`self._entrada`/`self._salida`), y la firma de FastMCP ya no se escribe a
+  mano: `functools.wraps` conserva `__wrapped__` y `inspect.signature` lo sigue
+  (tipos 4 → 0).
 - **`tests/test_estilo_humano.py` — forma humana del código** (2026-10-19):
   banners decorativos = 0 en TODO el código versionado (el harness llegó a
   61 y tests/banco a 144), sin docstrings de relleno ni wrappers vacíos sin

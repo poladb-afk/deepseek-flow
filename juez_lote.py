@@ -200,8 +200,9 @@ class JuezLoteFlow(AsyncParallelBatchFlow):
         super().__init__(start=CorrerJuez(semaforo or asyncio.Semaphore(JUEZ_LOTE_CONCURRENCIA)))
         self.salida = Path(salida)
         # t0 lo pone prep_async (una vez, antes del fan-out): así _seg_par es
-        # el reloj de pared real de TODO el lote.
-        self._t0: float = 0.0
+        # el reloj de pared real de TODO el lote. Arranca en la construcción
+        # (no en None) para que el post sin prep mida algo en vez de romper.
+        self._t0 = time.perf_counter()
         self._seg_par = 0.0
 
     async def prep_async(self, shared):

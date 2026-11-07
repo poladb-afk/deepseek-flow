@@ -3,10 +3,8 @@
   "pythonVersion": "3.12",
   "ratchets": {
     "pyright": {
-      "detalle": {
-        "utils/webchat.py:reportOptionalMemberAccess": 4
-      },
-      "metrica": 4
+      "detalle": {},
+      "metrica": 0
     }
   },
   "version": 1

@@ -65,18 +65,20 @@ class Sesion:
             "NO_COLOR": "1",        # la página no interpreta ANSI
             "TRACE": "0",           # no ensucia .runs con cada pregunta web
         })
-        self._proceso = subprocess.Popen(
+        proceso = subprocess.Popen(
             comando or COMANDO_CHAT, cwd=RAIZ, env=entorno,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT, text=True, bufsize=1,
         )
+        assert proceso.stdin is not None and proceso.stdout is not None, "con PIPE los dos tubos existen"
+        self._proceso, self._entrada, self._salida = proceso, proceso.stdin, proceso.stdout
         threading.Thread(target=self._leer, daemon=True).start()
 
     def _leer(self):
         """Un char por vez: el streaming del chat no respeta líneas."""
         try:
             while self._viva:
-                trozo = self._proceso.stdout.read(1)
+                trozo = self._salida.read(1)
                 if trozo == "":
                     break
                 self._ultimo = time.monotonic()
@@ -87,8 +89,8 @@ class Sesion:
     def enviar(self, texto):
         if not self._viva:
             raise RuntimeError("sesión cerrada")
-        self._proceso.stdin.write(texto.rstrip("\n") + "\n")
-        self._proceso.stdin.flush()
+        self._entrada.write(texto.rstrip("\n") + "\n")
+        self._entrada.flush()
         self._ultimo = time.monotonic()
 
     def eventos(self):
@@ -112,7 +114,7 @@ class Sesion:
     def cerrar(self):
         self._viva = False
         with contextlib.suppress(OSError, ValueError):
-            self._proceso.stdin.close()
+            self._entrada.close()
         with contextlib.suppress(OSError, subprocess.TimeoutExpired):
             self._proceso.terminate()
             self._proceso.wait(timeout=3)

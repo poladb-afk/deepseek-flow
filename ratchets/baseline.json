@@ -162,7 +162,7 @@
         "juez.py": 302,
         "juez_lote.py": 132,
         "main.py": 103,
-        "mcp_server.py": 79,
+        "mcp_server.py": 77,
         "modules/__init__.py": 21,
         "modules/a2a.py": 123,
         "modules/auditoria.py": 37,
@@ -216,7 +216,7 @@
         "utils/thread_store.py": 85,
         "utils/tracing.py": 128,
         "utils/viz.py": 45,
-        "utils/webchat.py": 121,
+        "utils/webchat.py": 123,
         "utils/websearch.py": 21,
         "visor.py": 111
       },
@@ -461,6 +461,7 @@
         "tests/test_techo_unico.py": 15,
         "tests/test_thinking_tools.py": 7,
         "tests/test_thread_store.py": 26,
+        "tests/test_tipos.py": 14,
         "tests/test_tokens_runs.py": 5,
         "tests/test_twins_extractores.py": 5,
         "tests/test_ui.py": 6,
@@ -470,7 +471,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 23
       },
-      "metrica": 1436
+      "metrica": 1450
     },
     "texto_de_prompt": {
       "detalle": {

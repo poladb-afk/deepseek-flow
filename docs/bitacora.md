@@ -3794,3 +3794,54 @@ sí los cambia.
 **Números.** `tests_definidos` 1434 → **1436** (los 2 candados);
 `lineas_del_producto` 7522 IGUAL (el cambio es `calidad.sh` y `ratchet.py`,
 laboratorio, más tests); cobertura 1010 IGUAL; tipos 4 IGUAL.
+
+---
+
+## X191: los 4 congelados a cero y el cierre del frente de tipos (2026-11-07)
+
+**De dónde salió.** Del paquete X189 del autor externo (patch
+`cd2d7a5c…`), del que se tomaron tres aportes y sus tests; se descartaron su
+`re.split` en `_grupo_corto` (nuestro `re.sub` ya es equivalente: 27 casos raros
+y 5.000 aleatorios, 0 diferencias) y su seed de cobertura `3.12` (acá la siembra
+la sección el intérprete que corre).
+
+**1. `webchat`: los tubos, una sola vez.** Los 4 errores congelados de X189
+(`utils/webchat.py:79,90,91,115`) venían de que `Popen.stdin/.stdout` son
+`Optional` en typeshed aunque `PIPE` los garantiza. Se adopta el arreglo del
+autor: el constructor guarda el proceso en un local, documenta el invariante con
+un `assert` de una línea y deja `self._entrada`/`self._salida`; leer, escribir,
+flush y cerrar usan esos atributos. Son **+2 líneas de código** que se pagan con
+las **−2** de `mcp_server` (net 0 de producto). El `assert` no es defensa de
+runtime: bajo `-O` desaparece y la asignación de los tubos sigue ocurriendo.
+Tipos de la ruta: 4 → 0.
+
+**2. `mcp_server`: la firma no se escribe a mano.** Se borra
+`vars(envuelta)["__signature__"] = inspect.signature(fn)` y el `import inspect`
+(−2 líneas de código). `functools.wraps` deja `__wrapped__`, y
+`inspect.signature` lo sigue: la firma que ve FastMCP es la de la
+implementación. La evidencia de que FastMCP 4.1.6 arma igual el schema es del
+autor (**no verificada acá**: fastmcp es opcional y no está instalado); el test
+local fija lo que sí se puede: `"__signature__" not in vars(envuelta)` y la
+firma con `["command", "timeout"]`.
+
+**3. `juez_lote`: el "bug real", verificado.** El autor decía que cerrar el
+lote sin el arranque previo restaba contra `None`; nuestro triage lo había
+descartado como inalcanzable. Verificado: `post_async` sin `prep_async` da
+**`TypeError` contra `None` en `1eea773`** (padre de X189), y en el tip medía un
+fallback absurdo (23.011 s, porque `_t0` arrancaba en 0.0). No es ruta de
+producto —PocketFlow corre prep antes de post—, pero el test **muerde en rojo**
+en el tip antes del fix. Se adopta su cambio: `_t0` arranca en la construcción
+(`juez_lote.py:204`) y el post sin prep mide un valor razonable. 0 líneas de
+código netas.
+
+**4. Los 14 tests, adaptados** (`tests/test_tipos.py`): 10 casos del grupo corto
+de la política (S0, `_grupo_corto`), la firma de `envolver` sin `__signature__`,
+el schema de FastMCP (marcado `red`: se saltea donde fastmcp no está, y corre
+donde está), los contadores `rotos`/`forma` de `effective_n` y el post del lote
+sin prep. Descartado su test tautológico `isinstance(_t0, float)` (pasa con
+cualquier arreglo; no prueba nada) en favor del que mide el fallback.
+
+**Números.** Tipos **4 → 0** (baseline `pyright` vacío, 68 archivos
+analizados); `lineas_del_producto` 7522 IGUAL (webchat +2, `mcp_server` −2);
+`tests_definidos` 1436 → **1450** (14 casos); cobertura 1010 → **1009** (el test
+de `effective_n` ejecuta una línea que nadie cubría: `effective_n.py` 13 → 12).
