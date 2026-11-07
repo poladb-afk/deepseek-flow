@@ -18,7 +18,6 @@
         "juez_lote.py:reportOptionalMemberAccess": 1,
         "mcp_server.py:reportAttributeAccessIssue": 1,
         "modules/__init__.py:reportOptionalMemberAccess": 1,
-        "modules/a2a.py:reportOptionalMemberAccess": 3,
         "modules/coding.py:reportOptionalMemberAccess": 7,
         "modules/effective_n.py:reportOptionalMemberAccess": 1,
         "modules/escritura.py:reportOptionalMemberAccess": 6,
@@ -33,7 +32,7 @@
         "utils/policy.py:reportOptionalMemberAccess": 1,
         "utils/webchat.py:reportOptionalMemberAccess": 4
       },
-      "metrica": 66
+      "metrica": 63
     }
   },
   "version": 1

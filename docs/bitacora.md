@@ -3613,3 +3613,33 @@ operador bajó a `docs/informes/`; acá se aplicaron con excludes y adaptación
 local, y se corrigieron sus números (305 sobre 33 de las 38 funciones,
 `--workers` en serie, candado de los 305). X184 se implementó acá sobre el
 diseño armado en esta conversación; X185 es del equipo.
+
+---
+
+## X186: un card A2A que no es objeto ya no rompe el listado (2026-11-07)
+
+**El crash.** `_card` devolvía `r.json()` sin mirar el tipo y `agentes_remotos`
+hacía `card.get(...)`: un card JSON válido que no es objeto (`[]`, `null`,
+`"texto"`, `7`) reventaba con `AttributeError` y el listado entero se caía, con
+los agentes sanos incluidos. Un `skills` que no es lista (`5`) rompía la
+iteración con `TypeError`.
+
+**Cómo se midió.** Tests nuevos en `tests/test_modulos.py` contra el servidor
+fake de A2A: para poder servir `null` sin confundirlo con el card por defecto,
+el helper pasa a usar un sentinel (`_SIN_CARD`). **Rojo antes**: 5 failed —los
+cuatro cards con `AttributeError` en `modules/a2a.py:108`, y `skills: 5` con
+`TypeError` en `:111`—; **verde después**: 12 passed de A2A. El listado muestra
+`inaccesible (el card es list)` y el agente sano se sigue listando.
+
+**El fix.** 14 líneas tocadas de `modules/a2a.py` (net 0 de código): `_card`
+devuelve `None` si el card no es `dict`; `agentes_remotos` corta por
+`card is None` y `skills` se recorre solo si es `list`.
+
+**De dónde salió.** Del paquete X184 del autor externo (patch `fdc3e42d…`,
+verificado por sha256): se aplicó **solo** el hunk de `modules/a2a.py`; el
+resto (baseline de tipos por basedpyright, `escalar_tipos`, `test_tipos.py`,
+docs) no se mergea porque acá X184 ya es la sexta etapa del gate con Pyright
+1.1.409 y 66 errores en 28 pares. Producto 7524 IGUAL; `tests_definidos`
+1427 → 1432; cobertura 1010 IGUAL; los tipos bajan de 66 a 63: la etapa 6 mide
+que el fix saca los 3 `reportOptionalMemberAccess` del card en
+`modules/a2a.py` (el baseline se reescribió solo, sin clave).

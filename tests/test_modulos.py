@@ -221,6 +221,9 @@ def test_ver_pdf_demasiado_grande_sin_llamar(tmp_path, monkeypatch):
 
 # A2A (cola final): agentes_remotos y a2a_tarea contra un servidor fake
 
+# X186: el default del fake y "servir un card `null`" no pueden confundirse.
+_SIN_CARD = object()
+
 
 class _ServidorA2A:
     """Servidor HTTP mínimo que habla (a medias) el protocolo A2A: sirve el
@@ -237,16 +240,17 @@ class _ServidorA2A:
     def __init__(self):
         self.ultimo = None
 
-    def arrancar(self, responder=None, card=None, card_paths=None):
+    def arrancar(self, responder=None, card=_SIN_CARD, card_paths=None):
         import json as _json
         import threading
         from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
         self.ultimo = None
-        card = card if card is not None else {
-            "name": "eco", "description": "agente de prueba",
-            "skills": [{"id": "echo", "description": "repite texto"}],
-        }
+        if card is _SIN_CARD:
+            card = {
+                "name": "eco", "description": "agente de prueba",
+                "skills": [{"id": "echo", "description": "repite texto"}],
+            }
         card_paths = card_paths if card_paths is not None else (self.CARD_NUEVO, self.CARD_LEGADO)
         responder = responder or (lambda payload: {"jsonrpc": "2.0", "id": payload.get("id"), "result": {"echo": payload["params"]["message"]}})
         estado = self
@@ -423,6 +427,45 @@ def test_a2a_card_agente_caido_no_corta_el_listado(monkeypatch):
         r = a2a.agentes_remotos()
         assert "sano" in r and "agente de prueba" in r
         assert "caido" in r and "inaccesible" in r
+    finally:
+        httpd.shutdown()
+
+@pytest.mark.parametrize("card", [[], None, "texto", 7], ids=["lista", "null", "texto", "entero"])
+def test_a2a_card_que_no_es_objeto_no_rompe_el_listado(monkeypatch, card):
+    """X186: un card JSON válido que no es objeto (`[]`, `null`, `"texto"`, `7`)
+    reventaba el listado con AttributeError; ahora ese agente queda inaccesible
+    y el sano se sigue listando."""
+    import json as _json
+
+    import modules.a2a as a2a
+
+    roto = _ServidorA2A()
+    base_roto, httpd_roto = roto.arrancar(card=card)
+    sano = _ServidorA2A()
+    base_sano, httpd_sano = sano.arrancar()
+    try:
+        monkeypatch.setenv("A2A_AGENTS", _json.dumps({"roto": base_roto, "sano": base_sano}))
+        listado = a2a.agentes_remotos()
+        assert f"inaccesible (el card es {type(card).__name__})" in listado
+        assert "sano" in listado and "agente de prueba" in listado
+    finally:
+        httpd_roto.shutdown()
+        httpd_sano.shutdown()
+
+def test_a2a_skills_que_no_es_lista_se_ignora(monkeypatch):
+    """X186: un `skills` que no es lista (`5`) rompía la iteración; se ignora y
+    el resto del card se lista."""
+    import json as _json
+
+    import modules.a2a as a2a
+
+    srv = _ServidorA2A()
+    base, httpd = srv.arrancar(card={"name": "eco", "description": "sin skills", "skills": 5})
+    try:
+        monkeypatch.setenv("A2A_AGENTS", _json.dumps({"eco": base}))
+        listado = a2a.agentes_remotos()
+        assert "sin skills" in listado
+        assert "  - " not in listado
     finally:
         httpd.shutdown()
 

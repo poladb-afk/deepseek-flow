@@ -86,9 +86,12 @@ def _card(nombre, base):
         if r.status_code != 200:
             return None, f"inaccesible (HTTP {r.status_code})"
         try:
-            return r.json(), None
+            card = r.json()
         except ValueError:
             return None, "inaccesible (card no es JSON)"
+        # X186: un card `[]`, `null` o `"texto"` es JSON pero no un card, y
+        # `agentes_remotos` reventaba con AttributeError (lo marcó pyright).
+        return (card, None) if isinstance(card, dict) else (None, f"inaccesible (el card es {type(card).__name__})")
     return None, "inaccesible (sin card en ningún path conocido)"
 
 
@@ -102,13 +105,12 @@ def agentes_remotos():
     for nombre, base in agentes.items():
         lineas.append(f"\n[{nombre}] {base}")
         card, err = _card(nombre, base)
-        if err:
+        if card is None:
             lineas.append(f"  {err}")
             continue
-        desc = card.get("description") or card.get("name") or "(sin descripción)"
-        lineas.append(f"  {desc}")
-        skills = card.get("skills") or []
-        for s in skills:
+        lineas.append(f"  {card.get('description') or card.get('name') or '(sin descripción)'}")
+        skills = card.get("skills")
+        for s in skills if isinstance(skills, list) else []:
             if isinstance(s, dict):
                 sid = s.get("id") or s.get("name") or "?"
                 sdesc = (s.get("description") or "")[:120]
