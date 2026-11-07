@@ -76,20 +76,32 @@ if [ -n "$apartado" ]; then
     apartado=""
     trap - EXIT INT TERM
 fi
+funcional=0
 if [ "$medida" -eq 1 ] && python3 -m pytest tests/ -q -m "$ENTORNO"; then
     echo "✅ funcional verde"
 else
     echo "❌ funcional roja"
     fallo=1
+    funcional=1
 fi
 
 echo
 echo "═══ 5/6 cobertura — ningún archivo suma líneas sin test (baseline versionado) ═══"
-if python3 ratchet.py --cobertura; then
-    echo "✅ cobertura verde"
+# X185: la cobertura solo vale sobre una suite que pasó. Si la etapa 4 falló, se
+# mide SOLO como diagnóstico y con --no-escribir: una corrida inválida movió el
+# baseline 1017→1016 sin clave (PATH relativo → el subproceso del test no
+# encontraba `sys.executable` → suite roja → la etapa 5 veía "mejora" y
+# reescribía). Un gate no acepta una mejora que no midió sobre una suite válida.
+if [ "$funcional" -ne 0 ]; then
+    echo "⏭️  cobertura en diagnóstico: la suite no pasó; el baseline NO se toca"
+    python3 ratchet.py --cobertura --no-escribir
 else
-    echo "❌ cobertura roja: hay código nuevo sin test"
-    fallo=1
+    if python3 ratchet.py --cobertura; then
+        echo "✅ cobertura verde"
+    else
+        echo "❌ cobertura roja: hay código nuevo sin test"
+        fallo=1
+    fi
 fi
 
 echo

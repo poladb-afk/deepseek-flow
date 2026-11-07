@@ -1365,12 +1365,14 @@ def _guardar_seccion(ruta: Path, actual: dict, version: str) -> None:
 
 def correr_cobertura(raiz: Path = RAIZ, ruta_baseline: Path = BASELINE_COBERTURA,
                      datos: Path = DATOS_COBERTURA, actualizar: bool = False,
-                     sembrar: bool = False, salida=print) -> int:
+                     sembrar: bool = False, escribir: bool = True, salida=print) -> int:
     """El gate de cobertura, con las reglas del ratchet: mejorar reescribe la
     sección del intérprete que corre, empeorar (o un empeoramiento ya commiteado)
     exige la clave, y sin datos o sin sección es ROJO. La sección que falta se
     siembra con `--sembrar-entorno`: ES la medición del intérprete que corre, no
-    una aceptación, y por eso no pide clave (ni toca otra sección)."""
+    una aceptación, y por eso no pide clave (ni toca otra sección). Con
+    `escribir=False` (X185) una mejora se informa pero NO se persiste: la
+    corrida no es válida (p.ej. la suite no pasó) y el baseline no se mueve."""
     actual = escanear_cobertura(raiz, datos)
     if actual is None:
         salida(f"[cobertura] ROJO: no hay datos en {_ruta_visible(datos, raiz)}: corré ./calidad.sh entero")
@@ -1406,8 +1408,11 @@ def correr_cobertura(raiz: Path = RAIZ, ruta_baseline: Path = BASELINE_COBERTURA
                    f"del operador con su clave y --actualizar ({motivo if actualizar else 'sin --actualizar'}).")
             return 1
     if previo != actual:
-        _guardar_seccion(ruta_baseline, actual, version)
-        salida(f"[cobertura] baseline actualizado ({_ruta_visible(ruta_baseline, raiz)}); commitealo")
+        if escribir:
+            _guardar_seccion(ruta_baseline, actual, version)
+            salida(f"[cobertura] baseline actualizado ({_ruta_visible(ruta_baseline, raiz)}); commitealo")
+        else:
+            salida("[cobertura] mejora detectada, pero --no-escribir: baseline intacto")
     salida("[cobertura] VERDE")
     return 0
 
@@ -1569,7 +1574,7 @@ def main(argv: list[str] | None = None) -> int:
         return sembrar_clave()
     if args.cobertura:
         return correr_cobertura(raiz=args.raiz.resolve(), actualizar=args.actualizar,
-                                sembrar=args.sembrar_entorno)
+                                sembrar=args.sembrar_entorno, escribir=not args.no_escribir)
     if args.pyright:
         return correr_pyright(raiz=args.raiz.resolve(), actualizar=args.actualizar,
                               sembrar=args.sembrar_pyright)

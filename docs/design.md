@@ -1142,7 +1142,9 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   detalle por archivo): la única rama del producto que dependía del árbol de
   trabajo —`utils/citas._por_nombre_suelto`, que escaneaba con `rglob` desde el
   cwd— pasó a escanear solo las raíces versionadas, así un archivo ignorado no
-  cambia el número (dictamen del Auditor, X175).
+  cambia el número (dictamen del Auditor, X175). Desde X185 la etapa 5 no mide
+  ni escribe sobre una suite roja: si la etapa 4 falló, corre en diagnóstico con
+  `--no-escribir` y el baseline queda intacto.
 - **Tipos del producto (X184, etapa 6/6)**: `calidad.sh` corre `python3 -m
   pyright --outputjson` sobre el PRODUCTO (el mismo conjunto que
   `lineas_del_producto`, 68 archivos; `exclude` del laboratorio y los

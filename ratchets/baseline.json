@@ -445,7 +445,7 @@
         "tests/test_prefetch.py": 11,
         "tests/test_probe_verdict.py": 1,
         "tests/test_pyright_ratchet.py": 11,
-        "tests/test_ratchet.py": 45,
+        "tests/test_ratchet.py": 47,
         "tests/test_ratchet_elegancia.py": 28,
         "tests/test_replay.py": 16,
         "tests/test_riesgo.py": 9,
@@ -469,7 +469,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 23
       },
-      "metrica": 1393
+      "metrica": 1395
     },
     "texto_de_prompt": {
       "detalle": {

@@ -3534,3 +3534,36 @@ sigue en 3.12.
 `lineas_del_producto` 7524 IGUAL (todo lo nuevo es laboratorio: `ratchet.py`,
 `calidad.sh`, tests, `typings/` y config); cobertura 3.15 **1017**; Pyright
 **66 errores / 28 pares**, 36 warnings de diagnóstico.
+
+---
+
+## X185: integridad del gate: la cobertura no se mide ni se escribe si la suite falló (2026-11-07)
+
+**El caso real.** Auditando X184 se encontró que con `PATH=.venv/bin:$PATH`
+(relativo) el gate daba rojo en la etapa 4, no por el commit: `sys.executable`
+queda `.venv/bin/python3` y el test
+`test_el_chat_corre_sin_el_modulo_de_memoria` lanza un subproceso con
+`cwd=tmp_path` → `FileNotFoundError`. Hasta ahí era operativo. El problema es
+que la etapa 5 corría igual, veía una "mejora" (`modules/coding.py` 26→25 por
+la corrida roja) y **reescribía la sección 3.15 de `ratchets/cobertura.json`
+de 1017 a 1016 sin la clave**: el instrumento se movía solo con una corrida
+inválida. Se restauró el archivo y ahora el gate lo impide por construcción.
+
+**El arreglo.** `calidad.sh` lleva el resultado de la etapa 4 en `funcional`:
+la etapa 5 solo compara/escribe si la suite pasó. Si la suite falló, la etapa 5
+corre en **diagnóstico** con `--cobertura --no-escribir` y el baseline no se
+toca (el gate ya está rojo por la 4). `correr_cobertura` suma el parámetro
+`escribir` y `--no-escribir` se propaga al modo cobertura: una mejora se
+informa ("mejora detectada, pero --no-escribir: baseline intacto") pero no se
+persiste.
+
+**Los candados.** `test_cobertura_con_no_escribir_no_pisa_el_baseline` (una
+corrida que mejora no toca los bytes del baseline) y
+`test_el_gate_no_acredita_cobertura_si_el_funcional_fallo` (textual: la etapa 5
+está condicionada a `funcional` y usa `--no-escribir`).
+
+**Los números.** `tests_definidos` 1393 → **1395**; `lineas_del_producto` 7524
+IGUAL (todo el cambio es `calidad.sh`, `ratchet.py` —laboratorio— y tests);
+cobertura y tipos no se mueven (1017 / 66: sus baselines no se tocan). Gate
+completo de seis etapas verde con `PATH="$PWD/.venv/bin:$PATH"` (**absoluto**:
+el relativo es justamente el que destapó el caso).

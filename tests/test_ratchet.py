@@ -621,3 +621,24 @@ def test_cobertura_bypass_commiteado_es_rojo(tmp_path):
     commitear(1)
     codigo, salida = _gate(tmp_path, datos)
     assert codigo == 1 and "BYPASS: main.py: 0 → 1" in salida
+
+
+@pytest.mark.cobertura
+def test_cobertura_con_no_escribir_no_pisa_el_baseline(tmp_path):
+    """X185: una corrida inválida (suite roja) no mueve el baseline aunque vea
+    una mejora: la etapa 5 de calidad.sh le pasa `--no-escribir`."""
+    _sembrar(tmp_path, _datos_de(tmp_path, lambda e: e["a"]()))
+    antes = (tmp_path / "cob.json").read_bytes()
+    codigo, salida = _gate(tmp_path, _datos_de(tmp_path, lambda e: (e["a"](), e["b"]())), escribir=False)
+    assert codigo == 0 and "no-escribir" in salida
+    assert (tmp_path / "cob.json").read_bytes() == antes
+
+
+def test_el_gate_no_acredita_cobertura_si_el_funcional_fallo():
+    """X185: la etapa 5 solo mide/escribe sobre una suite que pasó. El candado es
+    textual porque el fallo era la dependencia entre etapas de calidad.sh."""
+    texto = (ratchet.RAIZ / "calidad.sh").read_text(encoding="utf-8")
+    assert "funcional=0" in texto and "funcional=1" in texto
+    assert 'if [ "$funcional" -ne 0 ]' in texto
+    assert "--cobertura --no-escribir" in texto
+    assert texto.index("funcional=1") < texto.index('if [ "$funcional" -ne 0 ]')
