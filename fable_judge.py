@@ -175,7 +175,7 @@ def diff_git(trabajo, ignorar=()):
         return None
     if texto.returncode != 0 or estado.returncode != 0:
         return None
-    cambios = {"cambiados": [], "nuevos": [], "borrados": []}
+    cambios: dict = {"cambiados": [], "nuevos": [], "borrados": []}
     for linea in estado.stdout.splitlines():
         marca, _, rel = linea[:2], linea[2:3], linea[3:].strip().strip('"')
         if _ignorado(Path(rel).name, ignorar):

@@ -333,7 +333,7 @@ def _grupo_corto(tok):
     valor de -o). El primer carácter que no es letra cierra el grupo."""
     if not tok.startswith("-") or tok.startswith("--"):
         return ""
-    return re.match(r"[A-Za-z]*", tok[1:]).group()
+    return re.sub(r"[^A-Za-z].*", "", tok[1:])
 
 
 # Envoltorios que ejecutan el comando que les sigue: el riesgo es el del

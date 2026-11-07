@@ -154,7 +154,7 @@
         "auditoria.py": 83,
         "debate.py": 99,
         "delegar.py": 186,
-        "effective_n.py": 266,
+        "effective_n.py": 264,
         "fable_judge.py": 563,
         "flow.py": 20,
         "heartbeat.py": 75,
@@ -220,7 +220,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7524
+      "metrica": 7522
     },
     "nodos_largos": {
       "detalle": {},

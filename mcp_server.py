@@ -83,7 +83,7 @@ def envolver(nombre, fn, impls):
               "function": {"name": nombre, "arguments": json.dumps(kwargs, ensure_ascii=False)}}
         return fs_tools.run_tool_call(tc, impls)["content"]
 
-    envuelta.__signature__ = inspect.signature(fn)
+    vars(envuelta)["__signature__"] = inspect.signature(fn)
     return envuelta
 
 

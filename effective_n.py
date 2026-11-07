@@ -88,11 +88,9 @@ def huellas_del_archivo(filepath):
             # `[]`, `null` o {"fields": null} reventaban con AttributeError
             # y tumbaban el análisis entero (C11).
             rec, motivo = leer_registro(linea)
-            if motivo == "json":
-                rotos += 1
-                continue
-            if motivo == "forma":
-                forma += 1
+            if rec is None:
+                rotos += motivo == "json"
+                forma += motivo == "forma"
                 continue
             campos = rec.get("fields", {})
             if campos.get("steps"):

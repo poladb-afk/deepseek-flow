@@ -47,4 +47,4 @@ def ganchos(evento):
     orden de nombre de módulo. Solo los ya cargados por `discover()`: un
     módulo roto no se reintenta (ni re-avisa) en cada evento."""
     cargados = (sys.modules.get(f"{__name__}.{info.name}") for info in pkgutil.iter_modules(__path__))
-    return [m.HOOKS[evento] for m in cargados if evento in getattr(m, "HOOKS", {})]
+    return [m.HOOKS[evento] for m in cargados if m is not None and evento in getattr(m, "HOOKS", {})]

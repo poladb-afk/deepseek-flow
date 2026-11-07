@@ -56,6 +56,7 @@ S0 no cede: las líneas de HITL y de política no son candidatas a recorte.
 | X186 | ✅ HECHO (2026-11-07). **Un card A2A que no es objeto ya no rompe el listado**: `_card` devuelve `None` si el JSON no es `dict` y `skills` solo se recorre si es lista (hunk de A2A del paquete externo X184) | R7 | sí, endurece (el resto de los agentes se sigue listando) | X185 | 4 cards + `skills` no-lista con test rojo antes; tipos 66 → 63; producto 7524 IGUAL |
 | X187 | ✅ HECHO (2026-11-07). **El entorno de Pyright, fijo**: la etapa 6 analiza contra un venv vacío recreado en cada corrida (`ratchet.py --pyright-entorno` + `--pythonpath`); el número deja de depender de las deps instaladas (63/52 → 52) y un entorno más rico no puede bajar el baseline sin clave | R1, R6, N4 | no (mide) | X186 | 2 candados; `tests_definidos` 1432 → 1434; producto 7524 IGUAL; tipos 63 → 52 |
 | X188 | ✅ HECHO (2026-11-07). **El pago honesto de los `_resolve`**: las guardas de los call sites pasan a `if valor is None:` (sin cambiar firmas ni mentirle a Pyright); 31 guardas en 18 archivos de producto | R9, N4 | no (sin cambio de conducta) | X187 | tipos 52 → 17, 0 `reportReturnType` nuevos; `tests_definidos` 1434 IGUAL; producto 7524 IGUAL; cobertura 1010 IGUAL |
+| X189 | ✅ HECHO (2026-11-07). **El triage de los 17 tipos congelados**: 0 bugs reales, 17 falsos positivos y 0 muertos; 13 se apagan sin sumar producto (uno resta 2) y los 4 de `webchat` quedan **congelados** porque el guard sería código muerto | R9, N4 | no (anotaciones y narrowing) | X188 | tipos 17 → 4; producto 7524 → 7522; `tests_definidos` 1434 IGUAL; cobertura 1010 IGUAL |
 
 ### Experimentos opcionales (sin orden, decisión del operador)
 
@@ -73,6 +74,7 @@ S0 no cede: las líneas de HITL y de política no son candidatas a recorte.
 | `git checkout <archivo sin extensión o con extensión numérica>` (`Makefile`, `man/a.1`: no se distingue de una rama sin mirar el repo); la evasión por alias quedó cerrada en X170 (inline) y en X174 (`git config alias.*` persistente, con `config` fuera de la lista de subcomandos del scope) | S0 | pendiente desde X159a, sin orden | un caso en `test_plan_respuesta_lo_que_descarta_trabajo_nunca_pasa_solo` |
 | 5c-b (Laya 0.4) | P3 | **bloqueado**: que esté instalada | — |
 | **La Ley 1 en el chat con hijos**: el gasto de un hijo no se refleja en `turno` (detalle en el roadmap post-X144, abajo) | P2 (a), Método | sin orden: solo es condición si se retoma la asimetría | `test_el_arbol_no_pasa_de_2r_mas_1_llamadas_con_cualquier_abanico` extendido a un chat con hijos |
+| **La carrera de `webchat`**: `enviar()` chequea `_viva` y después escribe en `stdin` (`utils/webchat.py:87-91`), mientras `cerrar()` pone `_viva=False` y cierra ese `stdin` (`:112-115`): la escritura puede caer sobre un pipe cerrado | S0, P4 | pendiente, sin orden (concurrencia real, no el error de tipos de X189) | un test que enfrente `enviar` y `cerrar` y decida: lock, o el cierre como error de sesión |
 
 ### Lo que este roadmap no hace (y por qué)
 

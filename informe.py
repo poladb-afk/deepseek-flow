@@ -38,7 +38,7 @@ DEFAULT_FOLDER = _setting("INFORME_CARPETA", ".")  # portable; local: INFORME_CA
 MAPA_CONCURRENCIA = 8
 
 
-def collect_files(folder, pattern, max_files=MAX_FILES):
+def collect_files(folder, pattern, max_files: int | None = MAX_FILES):
     """Los archivos elegibles, ordenados. `max_files=None` = TODOS: el
     cargador de SQLite no debe heredar el muestreo del informe (medido: con
     31 archivos cargaba 30 y no lo declaraba — C12 de la auditoría externa)."""

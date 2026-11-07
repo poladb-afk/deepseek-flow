@@ -3714,3 +3714,50 @@ queda sin tocar (es laboratorio y Pyright no lo analiza).
 `reportOptionalMemberAccess` de otras fuentes y 6 de otras reglas). El pago no
 necesitó un test nuevo: la suite entera (1430 passed) cubre los caminos y el
 cambio no altera conducta; el gate de tipos es el que registra la mejora.
+
+---
+
+## X189: los 17 tipos congelados, uno por uno: 0 bugs reales (2026-11-07)
+
+**El triage.** Se leyeron los 17 errores con evidencia de runtime, no olfato:
+**0 bugs reales alcanzables, 17 falsos positivos y 0 muertos**. Los dos que
+"olían a bug" quedaron desactivados con el código a la vista: `informe.py:143`
+es el `max_files=None` que `collect_files` documenta (`informe.py:42-43`,
+C12: no heredar el muestreo) y `modules/__init__.py:50` descarta el `None` de
+`sys.modules.get` con `getattr(m, "HOOKS", {})` antes de tocar `m.HOOKS`
+(probe: `'x' in getattr(None, "HOOKS", {})` → False).
+
+| # | Archivo:línea | Regla | Veredicto | Por qué / qué se hizo |
+|---|---|---|---|---|
+| 1 | `effective_n.py:97` | optionalMember | (b) falso | `leer_registro` da `rec=None` solo con motivo `json`/`forma`, y esos motivos ya hacían `continue`; pyright no correlaciona. Fix: `if rec is None:` con los contadores (`:90-93`), −2 líneas de producto |
+| 2 | `effective_n.py:102` | optionalMember | (b) falso | mismo `rec`; mismo fix |
+| 3 | `fable_judge.py:189` | argumentType | (b) falso | `cambios` es heterogéneo (3 listas + `texto`) y el literal infería `dict[str, list[Unknown]]`. Fix: `cambios: dict` |
+| 4 | `informe.py:143` | argumentType | (b) falso | **no era bug**: `max_files=None` = TODOS está documentado (`informe.py:42-43`, C12). Fix: `max_files: int \| None` |
+| 5 | `juez_lote.py:215` | operatorIssue | (b) falso | `_t0` lo pone `prep_async` y PocketFlow corre prep→exec→post (`pocketflow/__init__.py:73`), así que post nunca corre sin prep. Fix: `self._t0: float = 0.0` |
+| 6 | `mcp_server.py:86` | attributeAccess | (b) falso | `__signature__` es asignable en runtime (probe) y typeshed no lo modela. Fix: `vars(envuelta)["__signature__"] = …` (ruff B010 prohíbe `setattr`; fastmcp es opcional y no está instalado, así que no se borra la línea) |
+| 7 | `modules/__init__.py:50` | optionalMember | (b) falso | **no era bug**: `sys.modules.get` puede dar None y `getattr(None,"HOOKS",{})` lo descarta antes de `m.HOOKS` (probe). Fix: `m is not None and …` |
+| 8 | `modules/vision.py:127` | optionalMember | (b) falso | `_leer_bytes` devuelve todo-o-error y `if err:` no estrecha. Fix: `if resolved is None or data is None` (`:121`); cubre 8 y 9 |
+| 9 | `modules/vision.py:131` | argumentType | (b) falso | mismo guard |
+| 10 | `modules/vision.py:160` | optionalMember | (b) falso | mismo patrón en `ver_pdf`; guard en `:158`; cubre 10 y 11 |
+| 11 | `modules/vision.py:162` | optionalMember | (b) falso | mismo guard |
+| 12 | `modules/vision.py:196` | argumentType | (b) falso | el literal infiere `list[dict[str,str]]` y después se appendea el dict anidado de `image_url` (formato correcto de la API). Fix: `contenido: list[dict]` |
+| 13 | `utils/policy.py:336` | optionalMember | (b) falso | `re.match(r"[A-Za-z]*", …)` nunca es None (probe 0/102: matchea vacío en 0). Fix: `re.sub(r"[^A-Za-z].*", "", tok[1:])`, borra el caso |
+| 14 | `utils/webchat.py:79` | optionalMember | (b) falso, **congelado** | `.stdout` es Optional en typeshed pero `Popen(stdout=PIPE)` lo garantiza; el guard sería código muerto |
+| 15 | `utils/webchat.py:90` | optionalMember | (b) falso, **congelado** | `.stdin`, ídem |
+| 16 | `utils/webchat.py:91` | optionalMember | (b) falso, **congelado** | `.stdin`, ídem |
+| 17 | `utils/webchat.py:115` | optionalMember | (b) falso, **congelado** | `.stdin` en `cerrar()`; el mismo guard sería muerto |
+
+**Los 4 congelados, declarados.** En `utils/webchat.py` el pipe está garantizado
+por el `subprocess.PIPE` del constructor: un guard de `.stdout`/`.stdin` no
+protege ninguna ruta y serían 4 líneas de defensa para apagarle un error al
+chequeador, justo lo que este repo viene sacando. Queda como **límite
+declarado** de la métrica (no modela lo que el constructor garantiza), no como
+pendiente. A cambio, la **carrera real** que apareció leyendo el mismo código
+—`enviar()` chequea `_viva` y escribe (`utils/webchat.py:87-91`) mientras
+`cerrar()` pone `_viva=False` y cierra ese stdin (`:112-115`)— va como deuda en
+el roadmap: es concurrencia, no anotación.
+
+**Números.** `pyright` 17 → **4**; `lineas_del_producto` 7524 → **7522** (los
+otros 12 fixes son línea por línea); `tests_definidos` 1434 IGUAL (no hay bug
+que reproducir: la suite entera lo respalda y esta tabla es la evidencia);
+cobertura 1010 IGUAL.

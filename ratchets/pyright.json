@@ -4,18 +4,9 @@
   "ratchets": {
     "pyright": {
       "detalle": {
-        "effective_n.py:reportOptionalMemberAccess": 2,
-        "fable_judge.py:reportArgumentType": 1,
-        "informe.py:reportArgumentType": 1,
-        "juez_lote.py:reportOperatorIssue": 1,
-        "mcp_server.py:reportAttributeAccessIssue": 1,
-        "modules/__init__.py:reportOptionalMemberAccess": 1,
-        "modules/vision.py:reportArgumentType": 2,
-        "modules/vision.py:reportOptionalMemberAccess": 3,
-        "utils/policy.py:reportOptionalMemberAccess": 1,
         "utils/webchat.py:reportOptionalMemberAccess": 4
       },
-      "metrica": 17
+      "metrica": 4
     }
   },
   "version": 1

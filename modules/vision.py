@@ -118,7 +118,7 @@ def ver_imagen(path, pregunta="¿Qué hay en esta imagen?"):
     """Manda una imagen local al LLM como data-URL base64 y devuelve su
     respuesta. Solo imágenes JPEG/PNG/GIF/WebP (validadas por contenido)."""
     resolved, data, err = _leer_bytes(path, IMAGEN_MAX_BYTES, "una imagen")
-    if err:
+    if resolved is None or data is None:
         return err
 
     mime = _mime_por_contenido(data)
@@ -155,7 +155,7 @@ def ver_pdf(path, pregunta="¿Qué dice este PDF?"):
 
     Sin estado: rasteriza en /tmp, consulta y borra."""
     resolved, data, err = _leer_bytes(path, PDF_MAX_BYTES, "un PDF")
-    if err:
+    if resolved is None or data is None:
         return err
     if not data.startswith(b"%PDF"):
         return (
@@ -188,7 +188,7 @@ def ver_pdf(path, pregunta="¿Qué dice este PDF?"):
                 "Extraé las páginas relevantes y reintentá."
             )
 
-        contenido = [{"type": "text", "text": (
+        contenido: list[dict] = [{"type": "text", "text": (
             f"{str(pregunta)}\n\nEl PDF tiene {len(paginas)} páginas, "
             "van en orden.")} ]
         for pag in paginas:

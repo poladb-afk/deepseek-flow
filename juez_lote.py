@@ -201,7 +201,7 @@ class JuezLoteFlow(AsyncParallelBatchFlow):
         self.salida = Path(salida)
         # t0 lo pone prep_async (una vez, antes del fan-out): así _seg_par es
         # el reloj de pared real de TODO el lote.
-        self._t0 = None
+        self._t0: float = 0.0
         self._seg_par = 0.0
 
     async def prep_async(self, shared):
