@@ -71,7 +71,7 @@ def _leer_bytes(path, max_bytes, etiqueta):
     """(data, mime, error): resuelve dentro de los directorios permitidos,
     verifica existencia y tamaño. Devuelve error legible como texto."""
     resolved, err = _resolve(path)
-    if err:
+    if resolved is None:
         return None, None, f"ERROR: {err}"
     if not resolved.exists():
         return None, None, f"ERROR: no existe: {resolved}"

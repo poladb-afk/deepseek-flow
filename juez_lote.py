@@ -55,7 +55,7 @@ def resolver_archivo(raw):
     """Resuelve la ruta del archivo de preguntas dentro de las raíces
     permitidas. Devuelve (Path, error); el error es texto para el modelo."""
     resolved, err = _resolve(raw)
-    if err:
+    if resolved is None:
         return None, err
     if not resolved.is_file():
         return None, f"no existe el archivo de preguntas: {resolved}"
@@ -215,7 +215,7 @@ class JuezLoteFlow(AsyncParallelBatchFlow):
         self._seg_par = time.perf_counter() - self._t0
         texto = informe_lote(shared.get("resultados", []), self._seg_par)
         destino, err = escribir_salida(self.salida, texto)
-        if err:
+        if destino is None:
             raise ValueError(f"ERROR: {err}")
         resultados = shared.get("resultados", [])
         n = len(resultados)

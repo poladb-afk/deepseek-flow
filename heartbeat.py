@@ -72,7 +72,7 @@ def correr(tarea):
     # (antes un `mkdir` del destino corría primero). Fuera de las raíces es un
     # error de ESA tarea.
     destino, err = _resolve(str(RAIZ / tarea["salida"]))
-    if err:
+    if destino is None:
         return {"ok": False, "error": err, "seg": 0.0}
     if "tipo" in tarea:
         return {"ok": False, "error": f"tipo {tarea['tipo']!r} desconocido (X168)", "seg": 0.0}

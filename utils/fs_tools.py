@@ -69,7 +69,7 @@ def _hook_py_compile(tool_call, resultado):
         if not path or not str(path).endswith(".py"):
             return resultado
         resolved, err = _resolve(path)
-        if err or not resolved.is_file():
+        if resolved is None or not resolved.is_file():
             return resultado
         proc = subprocess.run(
             ["python3", "-m", "py_compile", str(resolved)],
@@ -138,7 +138,7 @@ def escribir_salida(ruta, texto):
     de write_file sigue siendo el de modules/escritura: acá NO se agrega
     fricción (los flujos también corren desde la CLI y desde el banco)."""
     destino, err = _resolve(ruta)
-    if err:
+    if destino is None:
         return None, err
     try:
         destino.parent.mkdir(parents=True, exist_ok=True)
@@ -187,7 +187,7 @@ def salida_ya_existe(ruta):
     se reescribe todos los días) no hay fricción. Los flujos de la CLI siguen
     pudiendo reescribir sus informes."""
     destino, err = _resolve(ruta)
-    if err:
+    if destino is None:
         return err
     if destino.exists():
         return (f"ya existe {destino}: elegí otro nombre de salida o borralo "
@@ -236,7 +236,7 @@ def list_files(path=None, depth=2):
     if path is None:
         return _raices_listadas()
     target, err = _resolve(path)
-    if err:
+    if target is None:
         return f"ERROR: {err}"
     if not target.exists():
         return f"ERROR: no existe: {target}"
@@ -264,7 +264,7 @@ def _seleccionar_lineas(fh, offset, limit):
 
 def read_file(path, offset=1, limit=400):
     resolved, err = _resolve(path)
-    if err:
+    if resolved is None:
         return f"ERROR: {err}"
     if not resolved.exists():
         return f"ERROR: no existe: {resolved}"
@@ -398,7 +398,7 @@ def _raices_de_busqueda(path):
     if not path:
         return allowed_roots(), None
     target, err = _resolve(path)
-    if err:
+    if target is None:
         return None, f"ERROR: {err}"
     if not target.exists():
         return None, f"ERROR: no existe: {target}"

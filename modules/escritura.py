@@ -44,7 +44,7 @@ def _approve(pedido):
 
 def write_file(path, content):
     resolved, err = _resolve(path)
-    if err:
+    if resolved is None:
         return f"ERROR: {err}"
     if resolved.is_dir():
         return f"ERROR: es un directorio: {resolved}"

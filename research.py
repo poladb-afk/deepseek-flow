@@ -153,7 +153,7 @@ content: |
             print(f"  🤔 huecos (ronda {shared['ronda']}): {shared['feedback'][:120]}")
             return "research"
         destino, err = escribir_salida(shared["salida"], exec_res["content"])
-        if err:
+        if destino is None:
             raise ValueError(f"ERROR: {err}")
         shared["informe"] = str(destino)
         print(f"\n✅ informe escrito: {shared['informe']}")

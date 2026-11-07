@@ -81,7 +81,7 @@ def _resolver_cita(path):
     que no está en la raíz se busca por nombre único (X180: salió de
     verificar_citas, que mezclaba resolver con validar)."""
     resolved, err = _resolve(path)
-    if (err or resolved is None or not resolved.is_file()) and "/" not in path:
+    if (resolved is None or not resolved.is_file()) and "/" not in path:
         alterno = _por_nombre_suelto(path)
         if alterno is not None:
             return alterno, None, True

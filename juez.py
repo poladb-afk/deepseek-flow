@@ -82,7 +82,7 @@ def _contexto_extra(ruta, pregunta):
     `list_files`, `sanitizar`, `COMPACTION_CHARS` y friends → regresión del
     bench del juez (70,6% vs 94,1% baseline). Código puro, best-effort."""
     resolved, err = _resolve(str(ruta))
-    if err or resolved is None or not resolved.is_file():
+    if resolved is None or not resolved.is_file():
         return ""
     try:
         lineas = resolved.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -108,7 +108,7 @@ def _archivos_de(texto):
     rutas = []
     for m in ARCHIVO_RE.findall(texto):
         resolved, err = _resolve(m)
-        if not err and resolved.is_file():
+        if resolved is not None and resolved.is_file():
             rutas.append(resolved)
     return rutas[:MAX_CTX_ARCHIVOS]
 
@@ -444,7 +444,7 @@ def _anclas_de(texto):
 def _lineas_del_archivo(ruta):
     """Líneas del archivo citado, o None si no es resoluble/legible."""
     resolved, err = _resolve(ruta)
-    if err or resolved is None or not resolved.is_file():
+    if resolved is None or not resolved.is_file():
         return None
     try:
         return resolved.read_text(encoding="utf-8", errors="replace").splitlines()

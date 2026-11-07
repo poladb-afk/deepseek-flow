@@ -55,7 +55,7 @@ def decidir(pregunta):
             resolved, err = _resolve(cruda)
         except (OSError, ValueError):  # noqa: BLE001  (decidir JAMÁS lanza)
             continue
-        if err or resolved is None or not resolved.is_file():
+        if resolved is None or not resolved.is_file():
             continue  # fuera del perímetro o inexistente → se salta
         try:
             contenido = _leer_lineas(resolved, MAX_LINEAS)

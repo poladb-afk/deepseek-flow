@@ -147,7 +147,7 @@ class SaveIndex(Node):
 
 def indexar(carpeta, glob="*"):
     folder, err = _resolve(carpeta)
-    if err:
+    if folder is None:
         raise ValueError(f"ERROR: {err}")
     if not folder.is_dir():
         raise ValueError(f"ERROR: no es una carpeta: {folder}")

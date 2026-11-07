@@ -54,7 +54,7 @@ def run_effective_n(carpetas=None, glob="*.jsonl", salida=None):
     resueltas, errores = [], []
     for c in raw:
         folder, err = _resolve(c)
-        if err:
+        if folder is None:
             errores.append(f"{c}: {err}")
         elif not folder.is_dir():
             errores.append(f"{c}: no es una carpeta: {folder}")

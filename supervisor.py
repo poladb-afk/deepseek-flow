@@ -283,7 +283,7 @@ class Sintetizar(Node):
             f"# Supervisor — {shared['tarea']}\n\n{exec_res}\n\n"
             f"## Pasos (la auditoría de la corrida)\n\n{pasos}\n",
         )
-        if err:
+        if destino is None:
             raise ValueError(f"ERROR: {err}")
         shared["informe"] = str(destino)
         print(f"\n✅ síntesis escrita: {shared['informe']}\n\n{exec_res}")

@@ -292,7 +292,7 @@ class WriteReport(Node):
         salida = shared.get("salida") or self.params.get("salida")
         if salida:
             destino, err = escribir_salida(salida, exec_res["markdown"])
-            if err:
+            if destino is None:
                 raise ValueError(f"ERROR: {err}")
             shared["informe"] = str(destino)
         shared["resumen"] = (
@@ -384,7 +384,7 @@ class EffectiveNMulti(BatchFlow):
             shared.update(informes[0])
             return
         destino, err = escribir_salida(self.salida, informe_conjunto(informes))
-        if err:
+        if destino is None:
             raise ValueError(f"ERROR: {err}")
         shared["informe"] = str(destino)
         shared["resumen"] = resumen_conjunto(informes)
@@ -457,7 +457,7 @@ def resolver_carpetas(args):
     carpetas, errores = [], []
     for c in raw:
         folder, err = _resolve(c)
-        if err:
+        if folder is None:
             errores.append(f"{c}: {err}")
         elif not folder.is_dir():
             errores.append(f"{c}: no es una carpeta: {folder}")

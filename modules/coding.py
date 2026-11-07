@@ -455,7 +455,7 @@ def _diff_visible(diff):
 
 def edit_file(path, old_string, new_string):
     resolved, err = _resolve(path)
-    if err:
+    if resolved is None:
         return f"ERROR: {err}"
     if resolved.is_dir():
         return f"ERROR: es un directorio: {resolved}"

@@ -1168,7 +1168,11 @@ repite en cada push. Dos piezas nuevas, inspiradas en tres repos externos
   propio contra typeshed (52), no las firmas de terceros, que además cambian con
   su versión; el costo declarado son los 11 diagnósticos de esas deps, que dejan
   de gatearse. Así un entorno más rico tampoco puede bajar el baseline sin
-  clave: el agujero de X185, cerrado también en tipos.
+  clave: el agujero de X185, cerrado también en tipos. Desde X188 los call
+  sites de `_resolve`/`escribir_salida` chequean el **valor** (`if valor is
+  None:`) en vez del error: mismo contrato (exactamente uno de los dos es
+  `None`) y Pyright estrecha sin firmas mentirosas ni `reportReturnType` (52 →
+  17).
 - **`tests/test_estilo_humano.py` — forma humana del código** (2026-10-19):
   banners decorativos = 0 en TODO el código versionado (el harness llegó a
   61 y tests/banco a 144), sin docstrings de relleno ni wrappers vacíos sin

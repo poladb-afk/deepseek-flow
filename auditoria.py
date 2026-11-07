@@ -95,7 +95,7 @@ class ReduceGlobal(Node):
 
     def post(self, shared, prep_res, exec_res):
         destino, err = escribir_salida(shared["salida"], exec_res)
-        if err:
+        if destino is None:
             raise ValueError(f"ERROR: {err}")
         shared["auditoria"] = str(destino)
         print(f"Auditoría escrita: {destino}")
@@ -112,7 +112,7 @@ def auditar(carpetas, glob="*.jsonl", salida="auditoria.md"):
     validas = []
     for c in carpetas:
         folder, err = _resolve(c)
-        if err or not folder.is_dir():
+        if folder is None or not folder.is_dir():
             raise ValueError(f"carpeta inválida: {c} ({err or 'no es un directorio'})")
         validas.append(str(folder))
     shared = {"carpetas": validas, "glob": glob, "salida": salida}

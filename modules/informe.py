@@ -28,7 +28,7 @@ TOOLS = [
 
 def run_informe(carpeta=None, glob="*.jsonl", salida=None):
     folder, err = _resolve(carpeta or DEFAULT_FOLDER)
-    if err:
+    if folder is None:
         return f"ERROR: {err}"
     if not folder.is_dir():
         return f"ERROR: no es una carpeta: {folder}"

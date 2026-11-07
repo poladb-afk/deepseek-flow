@@ -229,7 +229,7 @@ Carpeta: `{folder}` · {len(analisis)} archivos · {total_reg} registros
 
     def post(self, shared, prep_res, exec_res):
         destino, err = escribir_salida(shared["salida"], exec_res)
-        if err:
+        if destino is None:
             raise ValueError(f"ERROR: {err}")
         shared["informe"] = str(destino)
         print(f"Informe escrito: {destino}")
@@ -256,7 +256,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     folder, err = _resolve(args.carpeta)
-    if err:
+    if folder is None:
         raise SystemExit(f"ERROR: {err}")
     if not folder.is_dir():
         raise SystemExit(f"ERROR: no es una carpeta: {folder}")

@@ -906,7 +906,7 @@ def _dir_dentro(ruta):
     """Un directorio dentro de las raíces permitidas, o ValueError (X179: los
     dos llamadores convertían el error a mano)."""
     resolved, err = _resolve(ruta)
-    if err:
+    if resolved is None:
         raise ValueError(err)
     if not resolved.is_dir():
         raise ValueError(f"no es un directorio: {resolved}")
@@ -920,7 +920,7 @@ def _texto_del_reporte(reporte):
         raise ValueError("falta el reporte a juzgar (ruta o texto)")
     texto = str(reporte).strip()
     resolved, err = _resolve(texto)
-    if not err and resolved is not None and resolved.is_file():
+    if resolved is not None and resolved.is_file():
         return resolved.read_text(encoding="utf-8", errors="replace")
     return texto
 

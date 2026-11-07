@@ -3680,3 +3680,37 @@ alguien lo quita, Pyright vuelve a heredar el PATH).
 
 **Números.** `tests_definidos` 1432 → 1434; `lineas_del_producto` 7524 IGUAL
 (la etapa es de laboratorio); cobertura 1010 IGUAL; tipos **63 → 52**.
+
+---
+
+## X188: los call sites de `_resolve` chequean el valor, no el error: 52 → 17 (2026-11-07)
+
+**El patrón.** `_resolve` y `escribir_salida` devuelven `(valor, None)` o
+`(None, error)`: exactamente uno de los dos es `None`. Los call sites hacían
+`if err: …` y después usaban `valor`; para Pyright `valor` seguía siendo
+`Path | None` (chequear el error no estrecha el valor), así que 49 de los 63
+errores de la foto de X184 eran `reportOptionalMemberAccess` en esos call
+sites —todo el producto con la misma forma—.
+
+**Las tres alternativas, medidas** (worktree sobre `a8ba491`, misma config):
+- firma pragmática `-> tuple[Path, str | None]`: **63 → 29**, pero con un
+  `reportReturnType` nuevo en `utils/fs_tools.py:127` (la rama de error devuelve
+  `None` contra una firma que promete `Path`): se descartó; un baseline que baja
+  por tapar el tipo no vale.
+- unión honesta de tuplas `-> tuple[Path, None] | tuple[None, str]`: **63 → 63**;
+  Pyright no estrecha uniones de tuplas al desempacar, no paga.
+- chequeo del valor en los call sites: **63 → 28** (52 → 17 con X187), **0
+  `reportReturnType` nuevos**, ruff limpio y `lineas_del_producto` IGUAL.
+
+**El cambio.** 31 guardas en 18 archivos de producto: `if err:` →
+`if valor is None:` (y `if err or not valor.is_file():` → `if valor is None or
+not valor.is_file():`; `if not err and …` → `if valor is not None and …`). El
+contrato no cambia: la rama de error sigue usando `err` en sus mensajes y las
+dos guardas son equivalentes por construcción. El caso de `carga_trazas.py`
+queda sin tocar (es laboratorio y Pyright no lo analiza).
+
+**Números.** `tests_definidos` 1434 IGUAL; `lineas_del_producto` 7524 IGUAL
+(línea por línea); cobertura 1010 IGUAL; tipos **52 → 17** (quedan 11
+`reportOptionalMemberAccess` de otras fuentes y 6 de otras reglas). El pago no
+necesitó un test nuevo: la suite entera (1430 passed) cubre los caminos y el
+cambio no altera conducta; el gate de tipos es el que registra la mejora.
