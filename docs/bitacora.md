@@ -3967,4 +3967,3 @@ ZIP del informe no se pudo reproducir porque los ZIP no existen.
 `docs/design.md` (citas abreviadas y comandos), el `README.md` del patch y la spec
 `banco/specs/s0_citas_ejecucion.md` adaptada: sin Entregas, sin ZIP y sin
 constitución paralela.
-

@@ -658,12 +658,12 @@ tests/test_policy_bypass.py::test_policy_bypass_cerrados[ls\nrm -rf ~-confirmar_
 tests/test_policy_bypass.py::test_policy_bypass_cerrados[pytest --basetemp=/-preguntar]
 tests/test_policy_bypass.py::test_policy_bypass_cerrados[python3 -m pytest -p plugin_malo-preguntar]
 tests/test_policy_bypass.py::test_policy_bypass_cerrados[sort -o salida.txt a-preguntar]
-tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto[cd /x && python3 -m pytest tests/ -q]
-tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto[find . -name '*.py' | sort -rn | head -5]
-tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto[git log --oneline]
-tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto[grep -r x . 2>&1]
-tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto[ls]
-tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto[pytest -q]
+tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto_salvo_pytest[cd /x && python3 -m pytest tests/ -q]
+tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto_salvo_pytest[find . -name '*.py' | sort -rn | head -5]
+tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto_salvo_pytest[git log --oneline]
+tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto_salvo_pytest[grep -r x . 2>&1]
+tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto_salvo_pytest[ls]
+tests/test_policy_bypass.py::test_policy_lectura_legitima_sigue_auto_salvo_pytest[pytest -q]
 tests/test_policy_bypass.py::test_run_command_ls_la_dentro_de_raices_sigue_auto
 tests/test_policy_bypass.py::test_sale_de_raices_flags_con_ruta_y_tokens_sin_igual
 tests/test_prefetch.py::test_decidir_apagado_es_vacio

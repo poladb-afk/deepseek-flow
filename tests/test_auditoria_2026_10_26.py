@@ -67,8 +67,9 @@ def test_auto_no_sale_de_raices(tmp_path, monkeypatch, comando):
 
 @pytest.mark.parametrize("comando", ["cat README.md", "cd sub && ls", "find . -name '*.py'",
                                      "python3 -m pytest -q 2>&1 | tail -5"])
-def test_auto_dentro_de_raices_sigue_auto(tmp_path, monkeypatch, comando):
-    """El arreglo no suma fricción a las lecturas legítimas de siempre."""
+def test_auto_dentro_de_raices_salvo_pytest(tmp_path, monkeypatch, comando):
+    """El arreglo no suma fricción a las lecturas legítimas de siempre;
+    pytest pide permiso porque ejecuta código (S0-CITAS-EJECUCION)."""
     (tmp_path / "sub").mkdir()
     (tmp_path / "README.md").write_text("x", encoding="utf-8")
     monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))

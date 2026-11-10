@@ -42,8 +42,9 @@ def test_policy_bypass_cerrados(comando, esperado):
     "find . -name '*.py' | sort -rn | head -5",
     "git log --oneline",
 ])
-def test_policy_lectura_legitima_sigue_auto(comando):
-    """Sin regresiones: la lectura legítima sigue sin fricción."""
+def test_policy_lectura_legitima_sigue_auto_salvo_pytest(comando):
+    """Sin regresiones en la lectura legítima; pytest pide permiso
+    (S0-CITAS-EJECUCION)."""
     esperado = {'pytest -q': 'preguntar', 'cd /x && python3 -m pytest tests/ -q': 'preguntar'}.get(comando, "auto")
     assert policy.clasificar(comando) == esperado
 
@@ -107,8 +108,9 @@ def test_las_comillas_no_esconden_un_flag(comando, esperado):
     "pytest --version", "pytest -kexpresion", "pytest -mfoo",
     'pytest "tests/"', 'pytest -k "expresion"', "python3 -m pytest tests/ -q",
 ])
-def test_pytest_con_opciones_de_la_lista_sigue_auto(comando):
-    """Nombre histórico: incluso las opciones declaradas ahora requieren permiso."""
+def test_pytest_con_opciones_de_la_lista_pregunta(comando):
+    """Las opciones declaradas siguen en la lista blanca para scopes (X114),
+    pero el chat ya no ejecuta pytest sin permiso (S0-CITAS-EJECUCION)."""
     assert policy.clasificar(comando) == "preguntar"
 
 
