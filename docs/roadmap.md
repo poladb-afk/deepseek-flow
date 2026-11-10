@@ -2,7 +2,56 @@
 
 # Próximos pasos (roadmap)
 
-## Roadmap vigente (post-X150, 2026-11-04)
+## Roadmap vigente (post-X191, 2026-11-07)
+
+**Meta**: la arquitectura de `docs/arquitectura.md`. **El rumbo cambia de
+achicar dentro de la forma a construir la forma**: los principios son la lógica
+de la que sale cada paso, no un filtro. El roadmap post-X150 queda cerrado
+abajo: sus pasos ordenados están resueltos (hechos o no aplica) y sus deudas y
+experimentos opcionales siguen vigentes ahí.
+
+**Reglas del roadmap** (las anteriores siguen: pre-registro y A/B para lo que
+cambia conducta, nada por prompt ni por lista de palabras, el ratchet verde sin
+la clave salvo que se diga antes, S0 no cede), más:
+
+- **Cada paso nombra qué principio hace avanzar**, no solo cuál respeta.
+- **Un resultado negativo cierra una estrategia, no un principio**; cerrar un
+  principio constitutivo sigue el criterio de `docs/estrategias.md`.
+- **Las composiciones (y, a futuro, las recetas) las aprueba el operador**; el
+  modelo puede sugerirlas.
+- **Primero el contrato, después las piezas**: ningún módulo se migra antes del
+  template.
+
+### Orden
+
+| # | Paso | Principio que avanza | Cambia conducta | Depende de | Gate de salida |
+|---|---|---|---|---|---|
+| X192 | ✅ HECHO (2026-11-07), borrador para revisión del operador. **La arquitectura y las estrategias escritas**: `docs/arquitectura.md` (CORE de cuatro piezas, template, tipos de artefacto, composición validada al armar, catálogo) y `docs/estrategias.md` (lo refutado es un punto del espacio; F1–F6, E1–E2; criterio para cerrar un principio) | todos (los hace explícitos) | no | X191 | docs; gate verde |
+| X192b | ✅ HECHO (2026-11-07). **Las cuatro fuentes de arquitectura fractal sumadas**: FRACTAL-MAS, FRACTAL, Lár y FractFlow en `docs/principios.md`, con lo que confirman y lo que se toma en `docs/estrategias.md` (límite de profundidad y hermanos aislados; puertas humanas por rama; MCP/A2A como conectores) | P2 | no | X192 | docs; gate verde |
+| X193 | **`hitl_web` cubierto**: tests de cada ruta del servidor de aprobación y mutantes sobre sus chequeos (53 líneas sin test en la cobertura 3.15) | S0 | no | X192 | cobertura de `utils/hitl_web.py` baja; 0 mutantes vivos sin motivo |
+| X193b | **Revisión de los diseños fractales externos** (FRACTAL-MAS, FRACTAL, Lár, FractFlow) contra `docs/arquitectura.md`, antes del template: qué se adopta, qué no y por qué (la tabla por resumen ya está en `docs/estrategias.md`, X192b) | fractal, modular | no | X192, X192b | informe en `docs/informes/`; cada decisión con su motivo |
+| X194 | **El template del módulo**: el conector (consume/produce, procedencia, citas), los 5 tipos y la validación al armar, con su test de contrato; sin migrar ningún módulo | modular, grafo | no | X193, X193b | test de contrato; una composición que no encaja no arranca |
+| X195 | **`fable_judge` con el template y como instancia de `kernel.loop`** (produce `veredicto`), contra su foto byte a byte | fractal, minimalismo | no (la foto lo garantiza) | X194 | foto 0 diferencias; `lineas_del_producto` baja; si el corte deja un archivo nuevo, se registra en `PRODUCTO_RAIZ` (`ratchet.py:529`) y entra cubierto (`ratchet.py:1326`) |
+| X196 | **`debate` con el mismo template**: segunda prueba del contrato con un swarm muy diferenciado | fractal, modular | no | X195 | foto 0 diferencias; el contrato no cambió |
+| X197 | **`research` con el template y la composición research + council**, declarada por el usuario y validada al armar | emergente | sí | X196 | pre-registro propio |
+| X198 | **El catálogo**: tools mínimas del CORE + catálogo + uso | minimalismo | sí | X197 | pre-registro; `bytes_primer_request` baja con la calidad igual |
+| X199 | **N simétricas + verificador (F6)** contra un agente con el presupuesto igualado, en tareas de varianza conocida | fractal, emergente | sí (experimento) | X195 | pre-registro propio |
+
+### Pendientes del operador (sin orden)
+
+| Pendiente | Qué necesita |
+|---|---|
+| Volver a correr los mutantes de S0 sobre este árbol (**306** enumerados el 2026-11-07 con `banco/probes/mutantes_s0.py`) | la corrida local en serie (`--workers 1`) y un `--estado` nuevo: el JSON guardado es de otro árbol |
+| Repetir la aceptación y taggear `aceptacion-v2` (X188–X191 tocaron producto después de `73b05fe`) | autorización, la clave de la API y **re-pre-registro con la copia nueva**: la spec v1 fija la copia (`banco/specs/aceptacion_v1.md:203-205`) |
+| `git checkout Makefile` (S0) | elegir: mirar el repo, doble confirmación ante la duda, o límite declarado (deuda de la sección cerrada) |
+| `excepts_amplios` 22 | decidir si es el piso declarado |
+
+Las deudas y los experimentos opcionales de la sección cerrada siguen vigentes;
+no se repiten acá (N4).
+
+---
+
+## Roadmap post-X150 (cerrado el 2026-11-07 en X192)
 
 **Meta**: la de `docs/principios.md` y la misma regla de antes — cada paso
 nombra el principio que sirve y el gate que lo cierra. **El rumbo cambia de

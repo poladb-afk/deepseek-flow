@@ -74,7 +74,8 @@ def test_auto_dentro_de_raices_sigue_auto(tmp_path, monkeypatch, comando):
     monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
     monkeypatch.setenv("HITL_AUTO", "1")
     monkeypatch.chdir(tmp_path)
-    assert mc._nivel(comando) == "auto"
+    esperado = {'python3 -m pytest -q 2>&1 | tail -5': 'preguntar'}.get(comando, "auto")
+    assert mc._nivel(comando) == esperado
 
 
 def test_edit_file_preserva_crlf(tmp_path, monkeypatch):

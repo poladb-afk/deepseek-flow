@@ -4,8 +4,8 @@ Decide cuánta fricción humana merece un comando de shell:
 
   - 'auto'             whitelist de solo-lectura PRESUNTA: se ejecuta sin
                        preguntar (con una línea visible de transparencia).
-                       Límites conocidos: pytest ejecuta conftest/plugins y
-                       escribe cachés (A45); no es solo-lectura estricta.
+                       Sigue siendo una presunción, no aislamiento del SO.
+                       Pytest requiere aprobación: ejecuta código del repo.
   - 'preguntar'        el flujo HITL de siempre: un (s/n).
   - 'confirmar_doble'  dos (s/n) seguidos: la operación más peligrosa
                        (lo que descarta trabajo sin reflog) paga la fricción extra.
@@ -36,16 +36,12 @@ fuera `pytest` auto): cambia el cwd del subshell de ESTE comando, no escribe
 ni ejecuta nada — mismo nivel de confianza que `cat`, que ya lee cualquier
 ruta del disco.
 
-Límite conocido de la whitelist (A45): `pytest` ejecuta `conftest.py` y
-plugins del repo, y escribe cachés (`.pytest_cache`, `__pycache__`): "auto"
-no es solo-lectura en sentido estricto. Se ACEPTA porque correr tests es el
-flujo normal del agente; para exigir aprobación ante ejecución de código,
-HITL_AUTO=0 vuelve todo a s/n. El costo se documenta, no se esconde. Lo
-acotan dos cosas (X114, X115): sus opciones van en lista BLANCA (lo que no
-está pregunta) y, tras editar su configuración con aprobación, el próximo
-pytest pregunta (`configuracion()`, que vigila `modules/coding.py`).
+S0-CITAS-EJECUCION revierte A45: pytest y python3 -m pytest utilizan el default
+preguntar. Sus opciones declaradas se conservan para que un scope pueda autorizar
+una ejecución concreta, no para permitir auto. Aprobar ejecución no confina sus
+efectos: la whitelist restante tampoco es un sandbox del sistema operativo.
 
-Orden de evaluación: whitelist primero, negra después, default preguntar.
+Orden de evaluación: negra primero, whitelist después, default preguntar.
 """
 
 import json

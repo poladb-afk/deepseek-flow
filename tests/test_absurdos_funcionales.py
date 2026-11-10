@@ -41,7 +41,7 @@ def test_destructivo_pide_doble_aunque_cambie_la_forma(comando):
     ("git log --grep push", "auto"),    # 'push' como argumento no es el subcomando
     ("tail -n 20 log.txt", "auto"),
     ("sort archivo.txt", "auto"),
-    ("pytest -q", "auto"),
+    ("pytest -q", "preguntar"),
     ("sudo cat README.md", "preguntar"),  # el envoltorio no se come la fricción
     ("nice -n 10 cat README.md", "preguntar"),
 ])

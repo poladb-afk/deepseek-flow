@@ -46,9 +46,9 @@ Heredada de PocketFlow y de [bmo](../bmo) (el harness que inspiró los módulos)
   aprobación humana (HITL) — `s/n` en la terminal, o desde el navegador
   con `HITL_WEB=1` — y EOF/Ctrl+C/timeout cuentan como rechazo.
 - **HITL graduado**: con `HITL_AUTO=1` (default) el riesgo del comando
-  decide la fricción. Solo-lectura verificado (`pytest`, `grep`, `ls`,
-  `git status`…) corre **auto** (con el comando igual a la vista); lo no
-  reconocido pregunta como siempre; lo irreversible (la lista doble de
+  decide la fricción. Lectura presunta (`grep`, `ls`, `git status`…) corre
+  **auto** con el comando a la vista; pytest pide autorización porque ejecuta
+  código del repositorio. Lo no reconocido pregunta como siempre; lo irreversible (la lista doble de
   `utils/politica_comandos.json`: `git push`, `rm -rf` y lo que descarta
   trabajo sin reflog, como `git reset --hard`) pide **dos**
   confirmaciones. `HITL_AUTO=0` vuelve al `s/n` para todo. Además, un

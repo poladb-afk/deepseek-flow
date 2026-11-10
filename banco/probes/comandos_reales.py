@@ -135,7 +135,9 @@ def casos_por_entrada():
                 if len(flag) == 2:
                     casos.add(f"{texto} -q{flag[1]} x")
     for base, (opciones, con_valor) in policy._OPCIONES.items():
-        for prefijo in (p for p in auto if _base_efectiva(p) == base):
+        # X200: las opciones se ejercitan para TODA entrada de la política, no
+        # solo las auto; pytest ya no es auto y sus opciones siguen declaradas.
+        for prefijo in (p for p in todos if _base_efectiva(p) == base):
             texto = " ".join(prefijo)
             casos |= {f"{texto} {o} x" for o in opciones} | {f"{texto} {o} v x" for o in con_valor}
             casos |= {f"{texto} --no-es-una-opcion x", f"{texto} @args.txt"}

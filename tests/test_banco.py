@@ -217,11 +217,11 @@ def test_el_chat_no_cambia_con_la_lista_blanca_del_scope():
     """X171 es solo para el scope sin humano: el humano ve la misma fricción."""
     from utils.policy import clasificar
 
-    for comando in ("ls -la", "git log --oneline", "find . -name '*.py'", "pytest -q",
+    for comando in ("ls -la", "git log --oneline", "find . -name '*.py'",
                     "ruff check .", "cat x.py"):
         assert clasificar(comando) == "auto", comando
-    for comando in ("bash -c 'rm -rf ~'", "find . -delete", "pytest -p evil", "tail -f log.txt",
-                    "ruff check --fix .", "rm -r x", "git branch -a"):
+    for comando in ("bash -c 'rm -rf ~'", "find . -delete", "pytest -q", "pytest -p evil",
+                    "tail -f log.txt", "ruff check --fix .", "rm -r x", "git branch -a"):
         assert clasificar(comando) == "preguntar", comando
 
 

@@ -110,7 +110,8 @@ reprodujeron acá. URLs verificadas el 2026-11-02: 33 de 35 responden 200 —una
 estaba mal escrita y se corrigió—, el DOI de Parnas es válido por Crossref
 aunque ACM da 403 a los bots, y `solosoft.dev` no responde desde esta red.
 Las cuatro de 2026 sobre heterogeneidad se sumaron el 2026-11-04 (X144),
-también por abstract.
+también por abstract. Las cuatro de arquitectura fractal (FRACTAL-MAS,
+FRACTAL, Lár, FractFlow) se sumaron el 2026-11-07 (X192b), por resumen.
 
 ### Fundamentales
 
@@ -165,3 +166,7 @@ Evidencia que contrasta, acota o mide los principios; no los define.
 | AgentCARD, *Specialize Roles, Mix Deployments* (2026) | https://arxiv.org/html/2606.20629 | Equipos heterogéneos en la frontera costo–precisión: hasta +44 % contra homogéneos de costo equivalente | P2 (a) y (b) |
 | *Understanding Agent Scaling in LLM-Based Multi-Agent Systems via Diversity* (2026) | https://arxiv.org/html/2602.03794 | Lo homogéneo satura por redundancia: 2 agentes diversos igualan o superan a 16 iguales | P2 (b): por qué el 0/144 simétrico no refuta lo asimétrico |
 | *The Coordination Tax and the Heterogeneity Dividend* (2026) | https://arxiv.org/abs/2610.37700 | Descomponer en un pipeline simple multiplicó el costo 3,22× sin ganar precisión | P2 (b): el costo se mide junto a la calidad (exp/108) |
+| FRACTAL-MAS, *Divide, Conquer, and Standardize* (ICLR Blogposts 2026) | https://iclr-blogposts.github.io/2026/blog/2026/fractal-mas/ | El sistema tiene la misma forma que un agente; MCP y A2A como conectores estándar; el agente como herramienta (caja negra) | P2, `docs/arquitectura.md` (el conector) |
+| FRACTAL, *A Self-Similar Multi-Agent Orchestration Architecture* (2026) | https://arxiv.org/abs/2610.22561 | Cada nodo del árbol repite el mismo patrón (con un ensamble de 3–5 perspectivas); límite formal de profundidad; hermanos aislados | P2, `docs/estrategias.md` (swarm diferenciado, graduador) |
+| Lár, *Recursive Graph Composition* (2026) | https://docs.snath.ai/core-concepts/11-fractal-agency/ | Presupuesto de tokens propagado entre ramas; validadores de topología heredados (tools, nodos, profundidad); puertas humanas antes de juntar | P2, S0, `utils/kernel.py` (Ledger, `hijas`) |
+| FractFlow (2026) | https://github.com/EnVision-Research/FractFlow | Unidades agente–herramienta anidables; el agente de arriba lee la descripción de las de abajo para elegir | P2, P3 |

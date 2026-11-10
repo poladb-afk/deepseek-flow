@@ -191,7 +191,7 @@
         "utils/__init__.py": 0,
         "utils/aprobaciones.py": 117,
         "utils/call_llm.py": 186,
-        "utils/citas.py": 89,
+        "utils/citas.py": 96,
         "utils/compaccion.py": 151,
         "utils/conductor.py": 78,
         "utils/contexto.py": 42,
@@ -220,7 +220,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7522
+      "metrica": 7529
     },
     "nodos_largos": {
       "detalle": {},
@@ -384,13 +384,14 @@
         "tests/test_ab_skills.py": 13,
         "tests/test_absurdos_funcionales.py": 44,
         "tests/test_auditoria_2026_10_26.py": 39,
+        "tests/test_autorizacion_pytest.py": 17,
         "tests/test_banco.py": 80,
         "tests/test_bench.py": 23,
         "tests/test_caracterizacion_chat.py": 12,
         "tests/test_caracterizacion_fable_judge.py": 1,
         "tests/test_chat_flujo.py": 17,
         "tests/test_cierre_mutantes.py": 32,
-        "tests/test_citas.py": 12,
+        "tests/test_citas.py": 18,
         "tests/test_comandos_reales.py": 5,
         "tests/test_compaccion.py": 25,
         "tests/test_consolidacion.py": 36,
@@ -439,7 +440,7 @@
         "tests/test_mutantes_s0.py": 2,
         "tests/test_novedad.py": 2,
         "tests/test_pendientes.py": 36,
-        "tests/test_policy.py": 83,
+        "tests/test_policy.py": 84,
         "tests/test_policy_bypass.py": 110,
         "tests/test_policy_datos.py": 19,
         "tests/test_policy_generativo.py": 11,
@@ -471,7 +472,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 23
       },
-      "metrica": 1450
+      "metrica": 1474
     },
     "texto_de_prompt": {
       "detalle": {

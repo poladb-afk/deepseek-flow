@@ -165,6 +165,8 @@ camino `tool` existente sigue intacto. Test con el transcript real.
 | Contención | Ninguna ruta sale de `AGENT_ALLOWED_DIRS` (resueltas con `Path.resolve`) | `fs_tools._resolve` |
 | Rondas | un `kernel.Ledger` por pregunta (init = `presupuesto(shared)`: override > `MAX_TOOL_ROUNDS` = **16**, el techo único desde S6/X132); al llegar, la política `Contexto` sale a `CierreChat`, que llama sin tools y el modelo debe responder (X96). Se reinicia con cada pregunta nueva del usuario. **Límite conocido:** con `MAX_TOOL_ROUNDS=0` el loop entra sin tools y sin el aviso A38 (la arista `Contexto -cierre->` del flujo viejo no existe; sin uso ni test hoy) | `flow.create_agent_flow`, `nodes.presupuesto` |
 | Contexto | `READ_MAX_CHARS` por lectura, listados truncados | `fs_tools` |
+| Citas abreviadas | Un nombre suelto se resuelve SOLO contra bases autorizadas: `_resolve` por base antes del `rglob` y por candidato antes de aceptarlo; un archivo externo no participa de la unicidad ni cambia la respuesta (S0-CITAS-EJECUCION, X200). Límite declarado: si el fallback no alcanza, se necesita la ruta explícita | `utils/citas._por_nombre_suelto` |
+| Comandos | pytest y `python3 -m pytest` piden aprobación (default `preguntar`; A45 revocada por X200): ejecutan `conftest`/plugins del repo. Sus opciones declaradas se conservan para que un scope autorice una ejecución concreta; el resto de la whitelist sigue `auto` y la negra evalúa primero. Aprobar ejecución no confina sus efectos | `utils/politica_comandos.json`, `utils/policy.py` |
 
 ## Segundo flujo: informe map-reduce
 

@@ -1,0 +1,141 @@
+# Arquitectura del harness
+
+> **Estado: borrador para revisión del operador (X192, 2026-11-07).** Acordado
+> en conversación; **nada de esto está implementado** salvo lo marcado *hoy*.
+> Lo que se implemente, se implementa con su gate y su paso del roadmap.
+
+## La forma, en una frase
+
+Un **CORE mínimo** que es el núcleo del grafo y ofrece **conectores
+estandarizados**; los **módulos** son las piezas que esos conectores conectan,
+y también se conectan **entre sí**. El CORE sabe qué capacidades tiene y solo
+se ocupa de funcionar y de estar bien conectado.
+
+## Los cinco principios, como arquitectura
+
+| Principio | Qué define | Cómo se ve |
+|---|---|---|
+| **Grafo** | **la arquitectura**: la forma en que se expresan los demás | el CORE es el núcleo del grafo; los módulos son nodos conectados por aristas |
+| **Fractal** | **la lógica funcional** | cada módulo es, por dentro, el mismo loop, con el mismo conector, en cualquier escala |
+| **Minimalismo** | **el tamaño del código y la complejidad de cada pieza y nodo** | **uno por capacidad**: un módulo, un nodo, una función; nada duplicado |
+| **Modular** | **un template con interconectores** | todo módulo nace del mismo molde: qué recibe, qué devuelve, cómo se conecta |
+| **Emergente** | **la interconexión** | CORE ↔ piezas y piezas ↔ piezas generan capacidades que ninguna tiene sola |
+
+**S0 está por encima de los cinco** (`docs/principios.md`): falla cerrada, HITL
+graduado y una copia hereda los frenos de su padre. En esta arquitectura **S0
+vive en el conector**: toda composición la hereda sin que nadie tenga que
+acordarse.
+
+La regla de método (detalle en `docs/estrategias.md`): **un resultado negativo
+cierra una estrategia, no un principio.**
+
+## El CORE: cuatro piezas
+
+Lo que PocketFlow pone en su núcleo son tres abstracciones (Node, Flow, Shared
+Store) y deja afuera a propósito todo lo demás (el cliente del LLM, la
+búsqueda, las bases vectoriales). El agente no es una pieza especial: es nodos
+con un loop. Aplicado acá:
+
+| Pieza | Hoy | Por qué es CORE |
+|---|---|---|
+| El grafo del loop | `utils/kernel.py` (`loop`: Paso, Actuar, Cerrar, Fin) | es el motor |
+| El saldo | `Ledger` en `utils/kernel.py` | sin él ningún árbol tiene techo |
+| El paso único de las tools | `run_tool_call` en `utils/fs_tools.py` (hooks PRE/POST) | **es el conector**: S0 se engancha ahí y todo lo atraviesa |
+| El catálogo | `discover()` en `modules/__init__.py` | el CORE sabe qué capacidades hay |
+
+Fuera del CORE (utilidades o módulos): el cliente del LLM, la búsqueda web, la
+memoria, research y el resto de las capacidades.
+
+## El template del módulo
+
+**Hoy** un módulo es un archivo de `modules/` con `TOOLS` (lo que ve el modelo),
+`IMPLS` (cómo se corre) y, si hace falta, `HOOKS`. El conector es solo hacia el
+CORE.
+
+**Objetivo**: el mismo archivo, más un **conector** que declara
+
+- **qué consume y qué produce**, en tipos de artefacto (abajo);
+- que su lógica interna es una instancia de `kernel.loop` (lo fractal), con
+  su prompt, sus tools y su parte del saldo;
+- que gasta del **saldo del árbol** y corre por `run_tool_call` (hereda S0).
+
+El conector parte de la `Tool` del kernel (`agente=True`, `hijas`): se extiende
+una pieza que ya existe, no se inventa una primitiva nueva.
+
+## La compatibilidad entre módulos: tipos de artefacto
+
+El riesgo central es el de conectar bases de datos: que lo que produce un
+módulo lo entienda el siguiente. Ya pasó en chico: un card A2A que era JSON
+válido con otra forma tiraba el listado (X186), y lo mismo con las trazas
+(`leer_registro`, C11). Con LLMs hay además **cascada**: un dato inventado por
+un módulo entra como hecho en el siguiente.
+
+**Vocabulario inicial (5 tipos)**; crece solo cuando un módulo real lo necesita:
+
+| Tipo | Qué es |
+|---|---|
+| `pregunta` | lo que hay que resolver |
+| `plan` | pasos propuestos para resolverlo |
+| `hallazgos` | lo encontrado, **con citas** `archivo:línea` |
+| `veredicto` | un juicio sobre un trabajo (lo que produce `fable_judge`) |
+| `borrador` | un trabajo intermedio |
+
+Cada artefacto viaja con su **procedencia** (qué módulo lo produjo) y sus
+**citas**, para que el siguiente pueda verificar antes de creer
+(`utils/citas.py` ya verifica citas). Los tipos los **declaran** los módulos y
+se enumeran como la lista blanca de comandos: no es una lista de palabras que
+juzga significado (N2).
+
+## La composición
+
+- **La declara el usuario**, como dato (por ejemplo, research con council). Es
+  el mecanismo más simple; no hay graduador ni sugerencias del modelo hasta
+  que la arquitectura funcione.
+- **Se valida al armar**: si una salida no encaja con la entrada siguiente, la
+  composición no arranca y no gasta ninguna llamada. El antecedente es X147:
+  `loop()` ya rechaza al armarse un hijo con tools fuera del padre.
+- **Un adaptador entre tipos es un módulo más**, con su conector.
+- Todo el árbol de una composición gasta **un solo saldo** (`Ctx.hijo()`
+  comparte el `Ledger`) y hereda S0.
+
+## El catálogo: conocer no es mostrar
+
+Hoy `discover()` carga todo y el request del chat lleva **30 tools** (medido en
+X173); por eso `bytes_primer_request` (16199, la última medición en la
+bitácora) pesa más que el prompt. El
+objetivo es separar:
+
+- **lo fijo del request**: las tools mínimas del CORE más una tool de
+  **catálogo** (qué capacidades hay) y una de **uso** (conectar una capacidad o
+  una composición);
+- **el catálogo**: un manifiesto chico por módulo que viaja como resultado de
+  la tool, no en el prompt (no sube `texto_de_prompt`, N3).
+
+A medir, no a suponer: X173 mostró que el proveedor cachea el prefijo, así que
+el set fijo tiene que ser **estable** entre preguntas.
+
+## Lo que esta arquitectura todavía no incluye
+
+- **El cookbook de recetas**: puede crecer con el uso, pero hoy no es
+  necesario. Cuando exista, las recetas las **aprueba el operador**; el modelo
+  puede sugerirlas.
+- **El graduador**: elegir N y diferenciación según la necesidad
+  (`docs/estrategias.md`).
+
+## Las brechas, medidas hoy
+
+| La arquitectura pide | Hoy | Brecha |
+|---|---|---|
+| El CORE conoce su catálogo sin mostrarlo entero | 30 tools en cada request | conocer y mostrar están mezclados |
+| Conector entre módulos | solo hacia el CORE | no hay conector módulo ↔ módulo |
+| Composición como dato | `modules/research.py` importa `research.py` a mano | cableada en Python |
+| Lógica interna acoplable (fractal) | de las 8 capacidades grandes, solo el chat y el supervisor son `kernel.loop`; `fable_judge`, `juez`, `research`, `debate`, `informe` y `auditoria` son grafos propios | 6 pipelines |
+| Tipos de artefacto | no existen | todo viaja como texto libre |
+
+## Orden de implementación
+
+Primero el contrato, después las piezas: migrar módulos sin el template
+terminaría con una interfaz por módulo. El contrato se valida con **dos
+módulos de naturaleza distinta** antes de generalizarlo: un verificador
+(`fable_judge`) y un swarm muy diferenciado (`debate`). La cola está en
+`docs/roadmap.md` (roadmap post-X191).

@@ -61,18 +61,25 @@ _RAICES_DE_CITAS = ("docs", "fable", "modules", "ratchets", "skills", "tests", "
 
 
 def _por_nombre_suelto(nombre):
-    """Nombre sin ruta (p. ej. una cita abreviada sin directorio): si es
-    ÚNICO en las raíces versionadas del cwd, es esa cita. Ya no camina
-    artefactos (salidas/, memoria/, rag_index/, .runs/, .modelos/): así el
-    resultado no depende de lo que haya en el árbol de trabajo, y evita
-    falsos no_existe cuando el modelo abrevia (9/14 en una sesión real)."""
+    """Un nombre único entre fuentes autorizadas; la búsqueda no concede acceso.
+
+    Se autoriza cada base antes de recorrerla y cada destino antes de usarlo.
+    Las fuentes inaccesibles no participan en el resultado ni en su unicidad.
+    """
     if "/" in nombre or "\\" in nombre:
         return None
-    candidatos = [Path(nombre)] if Path(nombre).is_file() else []
+    rutas = [Path.cwd() / nombre]
     for raiz in _RAICES_DE_CITAS:
-        candidatos += [p for p in (Path.cwd() / raiz).rglob(nombre) if p.is_file()]
-        if len(candidatos) > 1:
-            return None
+        base, _ = _resolve(Path.cwd() / raiz)
+        if base is not None:
+            rutas.extend(base.rglob(nombre))
+    candidatos = []
+    for ruta in rutas:
+        autorizado, _ = _resolve(ruta)
+        if autorizado is not None and autorizado.is_file():
+            candidatos.append(autorizado)
+            if len(candidatos) > 1:
+                return None
     return candidatos[0] if len(candidatos) == 1 else None
 
 

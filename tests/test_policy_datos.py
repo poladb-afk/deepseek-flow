@@ -4,8 +4,10 @@ Las dos fotos se congelaron con la política de ANTES de la migración
 (`banco/specs/fase5a.md`): la real (`policy_comandos.jsonl`, comandos de
 `run_command` de los threads del operador) y la sintética
 (`policy_casos_entrada.jsonl`, casos por entrada de las listas).
-Criterio pre-registrado: 0 diferencias en nivel y en texto.
+Criterio original: 0 diferencias. S0-CITAS-EJECUCION retira auto de pytest y
+actualiza sus explicaciones por delta explícito; las fotos no se reescriben.
 """
+import hashlib
 import json
 from pathlib import Path
 
@@ -25,12 +27,28 @@ def _foto(nombre):
 
 @pytest.mark.parametrize("nombre", ["policy_comandos.jsonl", "policy_casos_entrada.jsonl"])
 def test_cero_diferencias_contra_la_foto(nombre):
+    """Foto inmutable y delta explícito de S0-CITAS-EJECUCION, sin omitir filas."""
     filas = _foto(nombre)
-    diferencias = [(f["comando"], f["nivel"], policy.clasificar(f["comando"]))
-                   for f in filas if policy.clasificar(f["comando"]) != f["nivel"]]
-    diferencias += [(f["comando"], f["explicacion"], policy.explicar(f["comando"]))
-                    for f in filas if policy.explicar(f["comando"]) != f["explicacion"]]
-    assert diferencias == [], f"{len(diferencias)} diferencias de {len(filas)}: {diferencias[:5]}"
+    ruta = Path(__file__).with_name("fixtures") / "policy_pytest_autorizacion.json"
+    deltas = json.loads(ruta.read_text(encoding="utf-8"))[nombre]
+    vistos = set()
+    diferencias = []
+    for fila in filas:
+        clave = hashlib.sha256(fila["comando"].encode()).hexdigest()
+        esperado = {"nivel": fila["nivel"], "explicacion": fila["explicacion"]}
+        if clave in deltas:
+            cambio = deltas[clave]
+            assert cambio["antes"] == esperado
+            assert (cambio["antes"]["nivel"], cambio["despues"]["nivel"]) in {
+                ("auto", "preguntar"), ("preguntar", "preguntar"),
+            }
+            esperado = cambio["despues"]
+            vistos.add(clave)
+        actual = {"nivel": policy.clasificar(fila["comando"]), "explicacion": policy.explicar(fila["comando"])}
+        if actual != esperado:
+            diferencias.append((fila["comando"], esperado, actual))
+    assert vistos == set(deltas), "hay deltas sin comando histórico correspondiente"
+    assert diferencias == [], f"{len(diferencias)} diferencias no autorizadas: {diferencias[:5]}"
 
 
 def _escribir(tmp_path, datos):

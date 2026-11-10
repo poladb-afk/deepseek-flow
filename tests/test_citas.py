@@ -97,3 +97,90 @@ def test_verificar_citas_jsonl(tmp_path, monkeypatch):
     traza.write_text('{"nodo": "a"}\n{"nodo": "b"}\n', encoding="utf-8")
     r = verificar_citas(f"ver {traza}:2")
     assert r["total"] == 1 and r["ok"] == 1
+
+
+
+@pytest.mark.parametrize("subcarpeta", [False, True], ids=["raiz", "utils"])
+def test_cita_externa_no_depende_de_su_existencia(tmp_path, monkeypatch, subcarpeta):
+    """Una fuente no autorizada no participa en lectura, búsqueda o unicidad."""
+    from pathlib import Path
+
+    from utils.citas import verificar_citas
+
+    permitido = tmp_path / "permitido"
+    permitido.mkdir()
+    trabajo = tmp_path / "trabajo"
+    trabajo.mkdir()
+    carpeta = trabajo / "utils" if subcarpeta else trabajo
+    carpeta.mkdir(exist_ok=True)
+    archivo = carpeta / "dato_restringido.py"
+    monkeypatch.chdir(trabajo)
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(permitido))
+    ausente = verificar_citas("dato_restringido.py:1")
+    archivo.write_text("fuera = 1\n", encoding="utf-8")
+    leidos = []
+    recorridos = []
+    leer = Path.read_text
+    recorrer = Path.rglob
+
+    def observar_lectura(path, *args, **kwargs):
+        leidos.append(path.resolve())
+        return leer(path, *args, **kwargs)
+
+    def observar_recorrido(path, *args, **kwargs):
+        recorridos.append(path.resolve())
+        return recorrer(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", observar_lectura)
+    monkeypatch.setattr(Path, "rglob", observar_recorrido)
+    assert verificar_citas("dato_restringido.py:1") == ausente
+    assert archivo.resolve() not in leidos
+    assert not recorridos
+
+
+@pytest.mark.parametrize("directorio", [False, True], ids=["enlace_archivo", "enlace_base"])
+def test_fallback_excluye_enlaces_hacia_fuentes_externas(tmp_path, monkeypatch, directorio):
+    from utils.citas import verificar_citas
+
+    trabajo = tmp_path / "trabajo"
+    externo = tmp_path / "externo"
+    trabajo.mkdir()
+    externo.mkdir()
+    if directorio:
+        (trabajo / "utils").symlink_to(externo, target_is_directory=True)
+    else:
+        (trabajo / "utils").mkdir()
+        (trabajo / "utils" / "dato_restringido.py").symlink_to(externo / "dato_restringido.py")
+    monkeypatch.chdir(trabajo)
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(trabajo))
+    ausente = verificar_citas("dato_restringido.py:1")
+    (externo / "dato_restringido.py").write_text("fuera = 1\n", encoding="utf-8")
+    assert verificar_citas("dato_restringido.py:1") == ausente
+    assert ausente["ok"] == 0
+
+
+def test_fallback_admite_una_base_autorizada_sin_ampliar_al_padre(tmp_path, monkeypatch):
+    from utils.citas import verificar_citas
+
+    permitido = tmp_path / "utils"
+    permitido.mkdir()
+    (permitido / "dato_autorizado.py").write_text("permitido = 1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(permitido))
+    resultado = verificar_citas("dato_autorizado.py:1")
+    assert resultado["ok"] == 1
+    assert "permitido = 1" in resultado["citas"][0]["detalle"]
+
+
+def test_fallback_conserva_ambiguedad_autorizada(tmp_path, monkeypatch):
+    from utils.citas import verificar_citas
+
+    for nombre in ("docs", "utils"):
+        carpeta = tmp_path / nombre
+        carpeta.mkdir()
+        (carpeta / "dato_duplicado.py").write_text("dato = 1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(tmp_path))
+    resultado = verificar_citas("dato_duplicado.py:1")
+    assert resultado["ok"] == 0
+    assert resultado["citas"][0]["estado"] == "no_existe"

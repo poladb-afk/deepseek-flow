@@ -1,0 +1,1516 @@
+{
+  "policy_casos_entrada.jsonl": {
+    "027254ce4c11021355f94aa631a4cf62e862fd71b92eda92b99d603ea012fb2b": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "02be9d7ec84ed65a50a25868abdf43cd67c638401479e0aa545dc985a0dafe29": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "0bc87b677d054b75441f79698eee139a8ffd68df74a46258e8d1e384f820835c": {
+      "antes": {
+        "explicacion": "opción fuera de la lista blanca del comando: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "0f26c42577bfeaed6a9b30ce17113de9787792bee867f1a08bfb3d6d8559021a": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "168abf390dc61eec9b89f0e1e22c5f1ed2416476b20e68958bf2b2a7939afa11": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "1c0273759317a5987b71df5c169ba091833d6ebbaa019ff95ce983d299bf69d4": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "1d1a394b0dfc2ae1e6c27da057c5134fa3b2b4fd1947c01a483e2747ee00a536": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "22d194be14dd12752f9b8a2b48143e00f3264cf9e7936ba75ae5d6a50ec44a8e": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "24e1fbf65b9dc59f6412eb23f745103373162b7492a3d299ba03be5c57a4c883": {
+      "antes": {
+        "explicacion": "lista un directorio (solo lee)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "28a65391e785230fad99c1bfdd8d3a8631908ab4ff3766677df2fda9c353263b": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "2b01214d32c382dbc73bf6b493bedb7926324af27bad3ee888f66774b9b114c8": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "350c7ffc007f7009f0ec912a60d9723461d976555dbc26664b51dc1e94b8df31": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "36d2428092769d3a6e3bf683893b653828ad305ec1cbe8329e2b507009a17693": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "407b1a05670f7a7a620245f1090fbe20b3ba852c62962ad4d2763a197e9b210d": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "40d902fa1d66d228524bd59513a765eec8df9ceb411902b789f75b71bc7fe1ce": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "427fd9a63dc484c802711139fdb759478aa33d5973a4951262b5f5de317c707e": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "42c5c158ac6196a5760545d1a4ed2979ef9d021c3f4e88b87b89e897f5585ecf": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "43e3ec5beb8348b93de53fd897327e1c0b2016e79af4efde746b1e64e7418941": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "450f3cd2179f041bfc22be11605c44db22ed96e7be30502f3bfd3c87fe3b1250": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "45ff4bab182e1c743846e110ca1d73ca09294e2fa6b9827704c87ab9ad8949f4": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "496b4a18752495ea54768227f1c6fd473f41af050d9985f31383d14b55d2c6fd": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "4bb99bea232d88871e726279bc17f58edfb7181fc79abd40d3b8c404c28536aa": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "4cc9dbcb3a3e419aac8654f43566c5a184c68d2c93944036b17781bc921f17ea": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "4dc7054e46a0ff66bba7bb506783f57128f9a5625231176e09d6d39097ba662e": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "4e9c1cb42db5fd1678b67d0be97302610807cb2d36cd1195f1038c1c40fed68d": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "532c68f2838f910b59b843b0de41bac66f5ad100072e762503b91e054c0ec431": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "560962ca4d1849d227a6bfacfd0affaef60d17eda913a9ab1d4fa6aab630af80": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "5676993c74efa91dba0c2a0c506c81eda03b9263c1bdcf844a2606011f233560": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "56c3922fa559008a6c8191cecd77a464b753050703eb3960a05a0796d1ce48f0": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "5758144ab0e9e994808e3009e0380e8462fcc197f61fe49a353ad7a5ac15c0ad": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "5eb8fb2777e2583c06a82fd9bf4bb6fca7e6f59d6379ba6e953e66d33f03fd30": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "65881baa05916425bc0c4da316a04c69c4dd5d29d53ccdbd7157e4fd5a29c383": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "68ada0b636b28232b38e6160413a243f05964d485fa86ec4150491e379b5d237": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "69d07cbbfeb42d264a09748670364476bef836ea74d5dd8ad5dd893d1e12f48b": {
+      "antes": {
+        "explicacion": "opción fuera de la lista blanca del comando: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "76e6539ed5ff1bf0cae5fa09fa0f6f219bcb091653d61785a1c8570ff58544be": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "770ccd98a721afee35b8421dae97e482cff9195cd7767773cfb79064fa483bec": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "7f47d8c06607335e5cf143f4377be3c5a4bd9da65aafb31808ada1c6213fff86": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "876d940a23a57679f697d5a76a1761423e411d07ad917b6270b111a448051387": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "887cffbcfa0c40ef817cc4db2d7051f4e6d72c076ab514fa4279d55c9f3c011c": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "8e3d31cf3334debfdcfa98343e839cb1a58d9cff6d40a710105ac4fc7ff5e124": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "8ea4b88132478a8b079859f372d01240341b8cfb6587f81f65caccbb921e9709": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "8f044386ab71725c9a60592a39ce663b89f5b8fd23b9a03cb19bb3ca43925e0b": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "9a81966187a079a887de3da65c13908b37a80cd3d8bd6b1e6673e5468c581bd9": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "9d3ed53d4f2a98267d0c5fddd8c54a5ae72a2d8d6000c1246b6a5f983314131a": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "a1d092856d68e5d0fd6f024fc847f3e65c3d38d71b3b5d80fdee294f86fd28d8": {
+      "antes": {
+        "explicacion": "opción fuera de la lista blanca del comando: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "a4aeff78b007b58110dcd5431db3556e202e7bde9f69544eaf863075cf56f032": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "a789c2a03bddb7b8546cfcbe3b68431fea75568117109ad5abf1e8d8c6ed5636": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "abb799d38bccb1c2b4024cb570c5bbe916c2e5afe4b59bf470246067466b00e3": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "ad54452ca60cdb162de5cb37550c2f0dc2c8662cd940e2c54182b15df2e0f8fc": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "aeddddd5697e637187aa9de499a89b7afb3ba87faf5caab697a3879e51348405": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "b390c38c6f526148606e8e35be5484203604bd7470d5f84ade46fa4215aa96de": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "b637c3e9edad741ba11c76bb9b962af08731c0351cfccd96ce757904bd671a89": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "bd97f6fa4c46491cd53a3f256ce3c7e08c9cf06540088c84cea255582c725f8d": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "c5886370a40a9de8afab790c2e64bc23ceaa98588f6bfa54eb239d0631a77f7a": {
+      "antes": {
+        "explicacion": "lista un directorio (solo lee)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "c66f92374f258d007fc60b4f6b4312ec22d1e27d76da520b3c912b96c7384df8": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "c677ee2154517484a1c3f649571e89235bbdea64a130b81ae797f1f341661ef4": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "c82fe581e38c74f18de3ade3d706f3b94ca3f709feedb611c378f34460b75d89": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "cb07fc2168be3b0bf64b0bef37bca804577b9401384496553edb6783a459d19e": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "ce2d79152a6908ac3d8fc8f5969fc205997ea50f5a80891505f442644591c81b": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "d8d3c1f3a90e9cb2b86c5906fe2fa0da29c3e53333948d1914736eb31ede312d": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "da97447e78676565a1aabcf0a41a9ebf1844e36e8c1ed300ac19492bbd762d00": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "db8530745746f7d1f1e2b62a46b64e50b596b21908de5ec461aa199513d76204": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "dba09b0287443569b7881eb1f727c89edc820465703ca5e8bf18dca5388c7881": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "dece2dbcccb293b6c74f4abfd405d083b0ea94291b2dff1243293380bc26cca4": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "e16688d293ab95296e02271b9ea06220f39bac42fbd4bd89096c1213c3c4d48e": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "ea0beca2d2ce13acde3503c2c39494616fa0ce25fa5f445763f92eac5f5bfddf": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "ef4315e45b286ffd73024d56dd50c7fd37b7c777d6e00f52fc8416130d6d3f06": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "ef6dca7b507e7ca45aac7f65abbdf155e316b8bdccd957ac6974ef160971624e": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "f4cded597f2441bfb32f25776db836061025c93e89f58eaadb21a3bef8967731": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "f4d76bb425eb58639489c54e3d19791a05983163a21a581846c2dae3e0d7f2da": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "fd0319140469d3656dd30b679a8107ed8890a2949112ea3326d7c0c4cd9fce0e": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "ff729c382914600b9f2df3e444994e4e0b59e19f82f4d9e619607edec082cec4": {
+      "antes": {
+        "explicacion": "opción fuera de la lista blanca del comando: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    }
+  },
+  "policy_comandos.jsonl": {
+    "0384dcd7592ada26f5357fdddc14085bf40a45eb849d299981c144f335d591e2": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "0ce9e76b6a496c3ccbabe3040297369c91f413d9e9ecf2e2711df7a6d4d2e815": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "126cd92c948f18192f044b73dc35192f2a8f81bd89330a731e179cef6475ea15": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "1365ad45bb888b3a55e0d9e586beae854d38c661848d020b41188e6b2264dfab": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "14b153f216bf27e5731d8ccbf0b6d7c4e1d96b01a69bfd3182d36f5df6bd64a5": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "158404f5b44f303a769878f427f755a0a9b74a70587ff0076fc686e935d73ca7": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "1719a10176fae9d4273a55e2b3c67bfb6dfa8ac13ef1ea5b4329ca3a03ceab4a": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "185c1f96ea76087b0e4a2f1378a513c47ecc2fd396ef92a585f8e96c24080b21": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "1d82ff85aaa905c6e6e33ba0eab9627706bfd5a975808667bc207fd4e7d1220d": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "1dcc965d3dcca50081c328779ee2e8365085d6dc8759226eb189bf1691458674": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "1e57200f0c1d33574a9327e4a60c84ceed1115416c5ba791bc6859a51ecc5c35": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "226b63b018357b7dcf34e962bd3b72358a2c07db2dd69a2cf3659549057ded28": {
+      "antes": {
+        "explicacion": "opción fuera de la lista blanca del comando: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "23f996fa55e28770698d0151be1bf0e759dff0f294c79cdc96b4a6c28535031a": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "27a3a4d3677a8e89b7d8e49e60b5cbdac36fa37d0aa14a069a1ce328bfb9d9ce": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "2933108f0fd5a2a54e48c0d42a98b3d5cb481a09546bf4c355b3151863bf0c64": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "2d0e9a60d06f618b28624dd2ffcba9824c7f798f2a86b483fecb63dc1a027a4e": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "3018c9480b72f7270004ed00d523dc08e19ec02c7b03cf3080bded669950c8ec": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "346138d1f568cef07476909993dbaa3d5accd2a8c5cd817862359e765ceac4a9": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "381d226336a5b3aa83132e0a3af72086fc5ff0de17681288831961250d250d59": {
+      "antes": {
+        "explicacion": "opción fuera de la lista blanca del comando: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "3dffd49eb0c996300ea21a945f3a20060d545f6fd09207ae821b53535ffea9de": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "41ab938f9fdf4bee424c98ffbf7eea38bd668344eaf7af0966854263f8262636": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "422c2981ecd81c751ae9eb85eea636d700394a0eb44a0c6bf7a227581197935d": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "47e627a557749713603c3527ad3218bf1eac65b0f98cabbe4fb6fff4128b2a94": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "4a11143253874148dd66388e563a3ab0ae0a7c2ef1bedd79b6c99826b4cb7f4c": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "4c0599f39ad1b1f764c4b9dd3b19b0dd278891a5b4c725414c2270f0d3c5be22": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "4dd6fb0582a9e4d5e422abfd4f91d41d01cce9b0554af15ba7c60126f3522508": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "4fb60d874fb04a723461963abfd0c0e77c85b9b3073fc72a89e7c4d6061a1ee3": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "53af21e56811e3125e5a060feb7aced4fa4a5cab69d0ba8809ac60d38f95fa22": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "549b0c5914b914ae475101f9bd485885acd1df71e3f3007121511fd8e3b4c249": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "588f26f44615d537de9ff1077374a34ec20a099cbca08dbac9da85db3b2cb06c": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "5e5c96f25cfa30a8e9027ae387e80ba62edfe8358f632f419d5b3bd60b5fb2e3": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "6059b92f50ab274ec2f96a8bf86f51654badd94c97fb27ff7199308fa967c253": {
+      "antes": {
+        "explicacion": "opción fuera de la lista blanca del comando: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "61e6128e6713a71ea9e2cf48dce33d2f4407b2289b2a55ac373b90cf105006e4": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "63fe204e5dc36b0d2d93947ca3bdd25b3ac1dfabab1287227a334f258b4bf03a": {
+      "antes": {
+        "explicacion": "opción fuera de la lista blanca del comando: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "64f13aab001cb556a3ae1bfe6e60a33ee579f78a70621e2ccd47fe9b7e47aff0": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "6980805361ec963f437dc255f09e8db108c7017b51f3a5c12bfaea945ad0f2c8": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "71af6c5eff646754ebb2b913f74de781f1e2cb0139c83f33b4fefe11352e9169": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "739f3494a6832a76077795714839acc772608a67e88557dbfb931ed59b3ae32d": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "743a33e8e0a8fd21249ea64d07ac74b3340c2eb06e4bc7a386434a866fba8784": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "74999e956fac67f2404b18077b7d6197fdd55161f094e4b4074840d96b17ae5d": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "754d0fab5d61e56eb40acb9eb0e9e757d40fe2627ae17ba4d7e9dc904f558f4a": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "76955dd291522556afc4ea47480525e24b45fbc75d814c6fa3be39fcdacba573": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "77fe9b84d69ed2375a083ab91f5467a4ac7e97c6190432452641fbd9858d5459": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "7b3f4ee0b80a25d8219acd5368a29efdbb2f5b84c95b3ae085223534e807b8e4": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "8ece1c93910e65fbb18283581de82503610038860883da6c9734ac672f5379db": {
+      "antes": {
+        "explicacion": "opción fuera de la lista blanca del comando: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "95dada19338b5446ccf3a6ff9bb26ce4ecf7ed199df48da19e5af98585084f1d": {
+      "antes": {
+        "explicacion": "opción fuera de la lista blanca del comando: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "9674081e0fd80ceb13e3406279c6a21f415ae12a12b38047781f9ebc3caa3044": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "9ddd15617d0497be88824f716e6cfa35b3665cece322904f4309dee1d17baa0b": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "a1fd807638ea469a1a70ab5ffb29612e2b163479a1348224dcf6c4d5bb9e37c5": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "a274115e93b0e443ba2bfa88b069280605d8f8c8d3e9e58fb2779fe33f6fc936": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "a739d358963f66211cd7e543201647b08f1bb511893d5b41252cd3d599656544": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "a774ac7d32aebc2cc681a3971d5bb03593968185287ec57332a8827c8ce5ec1c": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "a79d1fac991aa63fb919f88c52b2aa3bd4e52825f75472217845a1c3bc9db55c": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "a87667c0018778847ca7d5d20de50d3b5bed539216a269ff30dcc285e5985ff6": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "a9697933a87f957ed544acc09319fa3914ef6e8cbeb8f245fff4677057423f54": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "a9ad1792c40bb59648b48e6ce202022889bd564cf958b0bbeb19732392396453": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "aa7023c56e1137144ae83b6c49a7403fc57788918e762d53aaac52fa5c9839fa": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "ab9ef4941a16d1941613bb390d1ca513340164fee63f2c2d95a8056a520c8c3e": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "ad5003439801c6d8258c66a7d2bbad4947bd10617b0d94af4c1c9ea874a20d6d": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "af069a4ef670105cd6f425ddb936881726612622a5683a65aa028c2aefb4ef85": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "b019e8afe49a77f6461fb674372acc339a9e1c58dc968ec6c968b552d812fa2c": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "b44f71b16ca389452a410edfce636427dc6575902fbdc35a7af6f6b9e5fe72b9": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "b96774fa67fd9d07964aee0f6c02fc4fa081352e70b1c3b59e24c0c830026f3d": {
+      "antes": {
+        "explicacion": "opción fuera de la lista blanca del comando: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "c206a814100ef1d6c23035c73e8938b6d8068f134ff674b1cdca33c585df2c21": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "c23e1b6670667cb39a8cec32a85b1431f081eebba5e691a2edf7dd9dc0b5f0a5": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "c2b93d0d58988a3ae55c7b8eef180635be6bebd674fe4655d5db158ff26ec3f6": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "c4fbe2cb36a3110075a5186cce07dca1eb35fe23304e64b99c0bf2fc3b770580": {
+      "antes": {
+        "explicacion": "opción fuera de la lista blanca del comando: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "c66ce4dc149508c926348b8d48b422c4cec3f56b05c0a223bdf0858d3d5d8768": {
+      "antes": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "d02c16bc75c52b668f7703ffa08f0e386179eed61435017785f84ba19502e0f6": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "d4e737c9788c950e8bbe9ee60c007047f940ec434c88d3f4cff6d73982fced64": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "db11dfdd775f8e23fc6ca092ba48b0c21efdc08877287513b26db6777572d756": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "dd2d8153c0f1374cd264b73d9d7c99b3ef3e4ca98f7f2e622fbf4f0ddc4264f7": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "e699b2fd94ac6f5e018a75bd1c09f59f66ed9ee668e4c523217678da94652bca": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "e6d942688d8d80faee3cdbc832ce2c98b6370b987d0d17b59880482cbe8ae9a2": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "ea40fba933f22303c2996a00e9c30fbb2a576b56f2204085c9784d6682888cd8": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "ed84e58d333d2ec5f7fe761a6391157b3201c6ff96871e2387ab3603c9d289de": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "edf06c6093d6b363cb77c7652c6e37d4d6a189c1a6a8b3efc5f8f150acf17e0d": {
+      "antes": {
+        "explicacion": "código Python arbitrario en una línea",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "eff756468506b59c7f2cc9cfb819a2a7d3db711212fb6e7d86683c68b754a5bb": {
+      "antes": {
+        "explicacion": "cambia de directorio (solo afecta al subshell del comando)",
+        "nivel": "auto"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    },
+    "fe46f147d9923eb469c662b82c9cd72c31e280a2766dba5864ca940436d2721a": {
+      "antes": {
+        "explicacion": "efecto no reconocido como solo-lectura: pide aprobación",
+        "nivel": "preguntar"
+      },
+      "despues": {
+        "explicacion": "corre tests (lee el repo; ejecuta conftest/plugins y escribe cachés)",
+        "nivel": "preguntar"
+      }
+    }
+  }
+}

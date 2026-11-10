@@ -44,10 +44,11 @@ def test_policy_bypass_cerrados(comando, esperado):
 ])
 def test_policy_lectura_legitima_sigue_auto(comando):
     """Sin regresiones: la lectura legítima sigue sin fricción."""
-    assert policy.clasificar(comando) == "auto"
+    esperado = {'pytest -q': 'preguntar', 'cd /x && python3 -m pytest tests/ -q': 'preguntar'}.get(comando, "auto")
+    assert policy.clasificar(comando) == esperado
 
 
-# X114: el `auto` de pytest pasa por lista blanca (`opciones_permitidas`). La negra
+# Pytest ya no es auto; esta batería conserva la cobertura de X114. La negra
 # perdió tres veces (E1 sort, E2 pytest -o, --pastebin), así que lo no
 # declarado pregunta, incluido un flag que todavía no existe.
 @pytest.mark.parametrize("comando", [
@@ -107,8 +108,8 @@ def test_las_comillas_no_esconden_un_flag(comando, esperado):
     'pytest "tests/"', 'pytest -k "expresion"', "python3 -m pytest tests/ -q",
 ])
 def test_pytest_con_opciones_de_la_lista_sigue_auto(comando):
-    """Lo declarado en `opciones_permitidas`, y las rutas/nodeid, no suman fricción."""
-    assert policy.clasificar(comando) == "auto"
+    """Nombre histórico: incluso las opciones declaradas ahora requieren permiso."""
+    assert policy.clasificar(comando) == "preguntar"
 
 
 def _tool_call(comando):
@@ -223,21 +224,27 @@ def test_auto_no_sigue_symlinks_fuera_de_raices(monkeypatch, tmp_path):
 def test_tras_editar_la_configuracion_de_pytest_el_proximo_pregunta(monkeypatch):
     """`addopts = -p plugin` en un conftest no pasa por la línea de comandos.
     Tras una escritura aprobada de la configuración, el próximo pytest
-    pregunta; una vez aprobado, el siguiente vuelve a auto."""
+    pregunta; aprobar una ejecución ya no autoriza la siguiente. El mecanismo
+    se ejercita directo porque pytest ya no es auto (X200): si volviera a
+    serlo, `_configuracion_editada` es el que eleva la fricción."""
     from utils import aprobaciones
 
     monkeypatch.setenv("AGENT_ALLOWED_DIRS", str(RAIZ))
     aprobaciones.limpiar()
-    assert coding._nivel("python3 -m pytest -q") == "auto"
+    assert coding._nivel("python3 -m pytest -q") == "preguntar"
     aprobaciones.registrar("write_file", str(RAIZ / "tests" / "conftest.py"), False)
     aprobaciones.registrar("edit_file", str(RAIZ / "README.md"), True)
-    assert coding._nivel("python3 -m pytest -q") == "auto"  # rechazada o ajena: no cuenta
+    assert coding._nivel("python3 -m pytest -q") == "preguntar"  # rechazada o ajena: no cuenta
+    assert coding._configuracion_editada("python3 -m pytest -q") is False
     aprobaciones.registrar("edit_file", str(RAIZ / "pyproject.toml"), True)
+    assert coding._configuracion_editada("python3 -m pytest -q") is True
     assert coding._nivel("cd tests && pytest -q") == "preguntar"
     assert coding._nivel("ls") == "auto"  # solo la base que lee esa configuración
     aprobaciones.registrar("run_command", "cd tests && pytest -q", True)
-    assert coding._nivel("pytest -q") == "auto"
+    assert coding._configuracion_editada("python3 -m pytest -q") is False
+    assert coding._nivel("pytest -q") == "preguntar"
     aprobaciones.registrar("run_command", "cp /tmp/x tests/conftest.py", True)  # por otro canal
+    assert coding._configuracion_editada("python3 -m pytest -q") is True
     assert coding._nivel("pytest -q") == "preguntar"
     aprobaciones.limpiar()
 

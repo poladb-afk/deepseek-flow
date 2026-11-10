@@ -39,7 +39,7 @@ tests/test_absurdos_funcionales.py::test_mayoria_empate_usa_el_desempate
 tests/test_absurdos_funcionales.py::test_nivel_es_el_que_decide_run_command
 tests/test_absurdos_funcionales.py::test_normalizar_no_sube_friccion_de_mas[git log --grep push-auto]
 tests/test_absurdos_funcionales.py::test_normalizar_no_sube_friccion_de_mas[nice -n 10 cat README.md-preguntar]
-tests/test_absurdos_funcionales.py::test_normalizar_no_sube_friccion_de_mas[pytest -q-auto]
+tests/test_absurdos_funcionales.py::test_normalizar_no_sube_friccion_de_mas[pytest -q-preguntar]
 tests/test_absurdos_funcionales.py::test_normalizar_no_sube_friccion_de_mas[rm -f x-preguntar]
 tests/test_absurdos_funcionales.py::test_normalizar_no_sube_friccion_de_mas[rm -r x-preguntar]
 tests/test_absurdos_funcionales.py::test_normalizar_no_sube_friccion_de_mas[sort archivo.txt-auto]

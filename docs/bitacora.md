@@ -3845,3 +3845,126 @@ cualquier arreglo; no prueba nada) en favor del que mide el fallback.
 analizados); `lineas_del_producto` 7522 IGUAL (webchat +2, `mcp_server` −2);
 `tests_definidos` 1436 → **1450** (14 casos); cobertura 1010 → **1009** (el test
 de `effective_n` ejecuta una línea que nadie cubría: `effective_n.py` 13 → 12).
+
+---
+
+## X192: la arquitectura y las estrategias, escritas antes del código (2026-11-07)
+
+**Por qué.** Al revisar los principios contra el código aparecieron dos cosas
+abandonadas sin decisión: la replicación fractal (se cerró con tres
+experimentos que movían la misma variable: el modelo decidía replicar, en
+tareas cortas) y la emergencia (ninguna estrategia probada; las capacidades
+grandes son pipelines cableados). El diagnóstico de fondo: los principios se
+usaban como filtro que se cumple con lo mínimo, no como la lógica de la que
+sale la estrategia.
+
+**Qué se acordó con el operador.** El grafo es la arquitectura (la forma en que
+se expresan los demás), el fractal la lógica funcional, el minimalismo el
+tamaño y la complejidad por pieza ("uno por capacidad"), lo modular un
+template con interconectores y lo emergente la interconexión CORE ↔ piezas y
+piezas ↔ piezas. S0 sigue por encima de todos y vive en el conector. Un
+resultado negativo cierra una estrategia, no un principio. El CORE son cuatro
+piezas (loop, saldo, paso único de las tools, catálogo). Las composiciones las
+declara el usuario y las aprueba el operador; el cookbook queda para después.
+
+**Qué se escribió.** `docs/arquitectura.md` y `docs/estrategias.md` (borradores
+para revisión del operador) y el roadmap post-X191 con sus reglas y su cola
+(X192b, X193–X199). El roadmap post-X150 pasa a cerrado. Sin código: producto,
+tests y métricas iguales.
+
+---
+
+## X192b (fuentes): la arquitectura fractal ya tiene antecedentes, y el repo ya lo sabía (2026-11-07)
+
+**Qué se sumó.** Cuatro fuentes de 2026 a `docs/principios.md` (FRACTAL-MAS,
+FRACTAL, Lár, FractFlow), leídas por resumen, y una sección en
+`docs/estrategias.md` con lo que confirman y lo que conviene tomar: el límite
+de profundidad según la complejidad y los hermanos aislados (FRACTAL), las
+puertas humanas por rama (Lár), MCP/A2A como conectores (FRACTAL-MAS).
+
+**El hallazgo incómodo.** `docs/principios.md` ya citaba desde X144 que dos
+agentes diversos igualan o superan a 16 iguales, y lo anotaba como "por qué el
+0/144 simétrico no refuta". La fuente estaba; el roadmap post-X150 igual cerró
+la replicación. Es la deriva que describe `docs/estrategias.md`.
+
+**Lo que sigue.** X193b (nuevo en la cola): revisar los diseños antes de
+escribir el template (X194). El paso de `hitl_web` es X193.
+Sin código: producto, tests y métricas iguales.
+
+---
+
+## X200: S0-CITAS-EJECUCION — citas con autorización y pytest que deja el auto (2026-11-10)
+
+**Qué entró.** El patch externo `docs/informes/deepseek-flow_s0.patch` (SHA
+`3ccd109d…`), opción (a) del operador, aplicado con
+`git apply --exclude='docs/*'`: aplica limpio. Los docs del patch son del
+2026-11-01 y **no se copiaron**: se regeneraron en este árbol. Los ZIP que el
+informe pide para verificar por checksum **no existen** (no están en el árbol,
+en Descargas ni en el home), así que esa verificación queda declarada imposible;
+la evidencia real es el patch aplicado más el gate de este árbol.
+
+**Los dos cambios.** (1) `utils/citas.py`: `_por_nombre_suelto` ya no recorre con
+`rglob` y acepta lo que encuentre; autoriza cada base con `_resolve` antes de
+caminarla y cada candidato antes de aceptarlo (`utils/citas.py:63-83`). Un archivo
+fuera de las raíces permitidas no se lee y no cambia la unicidad ni la respuesta
+visible por existir o no. (2) `utils/politica_comandos.json:4-5`: pytest y
+`python3 -m pytest` pierden `nivel: auto` y caen al default `preguntar`; A45 queda
+revocada. Las opciones declaradas de pytest (`:57`) se conservan para que un scope
+autorice una ejecución concreta; el scope no se amplía. `utils/policy.py` solo
+actualiza docstrings (el AST ejecutable no cambia; la negra ya evaluaba primero).
+
+**Lo que destapó la suite.** Tres tests esperaban `auto` y se adaptaron sin tocar
+aserciones ajenas: `test_absurdos_funcionales` (`[pytest -q-auto]` → `preguntar`),
+`test_banco::test_el_chat_no_cambia_con_la_lista_blanca_del_scope` (`pytest -q`
+pasa a la lista de `preguntar`) y `test_comandos_reales`, cuyo generador de casos
+solo ejercitaba las opciones de las bases `auto`: ahora recorre todas las entradas
+de la política (`banco/probes/comandos_reales.py:137-141`), porque las opciones de
+pytest siguen declaradas aunque no sean auto. El `inventario_tests.txt` se
+actualizó en una sola línea por el ID renombrado del caso; el test sigue vivo, no
+se borró nada.
+
+**La cobertura no se acepta peor, y es lo que más dice del cambio.** La primera
+medición dio **+7** (1009 → 1016): `modules/coding.py` 26 → 35 y `utils/policy.py`
+6 → 7, con `utils/citas.py` 10 → 7. Un worktree de `63a9006` mostró que las 9
+líneas nuevas de `coding.py` son exactamente las 243–251: la X115
+(`_configuracion_editada`) solo corría en la rama `auto` y el test la ejercitaba
+vía `_nivel("pytest")`. La línea de `policy.py` es la rama genérica de "opción
+fuera de la lista blanca": la explicación propia de pytest la tapa. Ninguna de las
+dos es conducta nueva: son mecanismos que la política vuelve a alcanzar si pytest
+recupera el auto o si una base con opciones no trae prefijo. En vez de borrarlas
+se cubren directo: el test de X115 llama `_configuracion_editada` en sus tres
+estados y `test_la_explicacion_generica_nombra_la_opcion_fuera_de_lista` fija el
+fallback. Segunda medición: **1009 → 1006**, solo mejora.
+
+**Los números.** `lineas_del_producto` **7522 → 7529 (+7: `utils/citas.py`
+89 → 96; `utils/policy.py` sin cambio)**: empeoramiento deliberado **aceptado
+por el operador con su clave** (`--actualizar`, 2026-11-10): baseline 7529 y
+tests 1474. `tests_definidos`
+1450 → **1474** (+24: 17 casos de `test_autorizacion_pytest.py`, 6 de
+`test_citas.py`, 1 del fallback de explicación). Cobertura 3.15 **1009 → 1006**.
+El patch no suma helper, dependencia, setting ni prompt.
+
+**Gate.** Con la clave del operador en el entorno, la corrida completa con
+`PATH="$PWD/.venv/bin:$PATH" ./calidad.sh` dio **6/6 verde (2026-11-10)**:
+higiene y complejidad verdes; ratchet con `bypass del operador (clave
+verificada)`, `lineas_del_producto` 7529 IGUAL y `tests_definidos` 1474;
+funcional (1469 medidos + 25 con 2 skipped); cobertura 1006; tipos 0. Sin la
+clave, la etapa 3 bloquea por el guard de bypass: compara disco contra HEAD
+(7529 contra 7522) y, ya commiteada la aceptación, HEAD contra HEAD~1. La regla
+es explícita —aceptar deja un commit rojo y se corrige encima—: el commit de
+aceptación queda rojo por diseño y el commit siguiente, que no vuelve a
+empeorar, lo pone verde. El 6/6 se midió con la clave en el entorno, **no en
+CI**.
+
+**Límites declarados.** La autorización de citas no es atómica contra carreras
+entre validar y abrir (TOCTOU) ni cubre hardlinks; las búsquedas abreviadas solo
+recorren bases autorizadas, así que un scope más profundo puede necesitar la ruta
+explícita. Autorizar pytest permite ejecutar código: el scope autoriza la
+ejecución, no confina sus efectos internos. La verificación por checksum de los
+ZIP del informe no se pudo reproducir porque los ZIP no existen.
+
+**Docs.** Fila X200 en `docs/estado.md`, esta entrada, dos leyes nuevas en
+`docs/design.md` (citas abreviadas y comandos), el `README.md` del patch y la spec
+`banco/specs/s0_citas_ejecucion.md` adaptada: sin Entregas, sin ZIP y sin
+constitución paralela.
+

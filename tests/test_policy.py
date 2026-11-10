@@ -35,11 +35,10 @@ def test_policy_clasifica_los_tres_niveles():
     from utils.policy import clasificar
 
     # AUTO: whitelist de solo-lectura
-    for c in ("pytest -q", "python3 -m pytest tests/", "grep -r x .", "ls -la",
-              "cat x.py", "head -5 x", "tail -n 5 x", "wc -l x", "find . -name x",
-              "file x", "echo hola", "git status", "git log --oneline",
-              "git diff", "git show HEAD", "git blame x.py"):
+    for c in ('grep -r x .', 'ls -la', 'cat x.py', 'head -5 x', 'tail -n 5 x', 'wc -l x', 'find . -name x', 'file x', 'echo hola', 'git status', 'git log --oneline', 'git diff', 'git show HEAD', 'git blame x.py'):
         assert clasificar(c) == "auto", c
+    assert clasificar("pytest -q") == "preguntar"
+    assert clasificar("python3 -m pytest tests/") == "preguntar"
 
     # PREGUNTAR: lo no reconocido y la negra de un solo s/n
     for c in ("mkdir nueva", "curl http://x", "rm -f x", "git commit -m x",
@@ -61,7 +60,7 @@ def test_policy_semicolon_y_cd_neutro():
     from utils.policy import clasificar
 
     # cd neutro: solo cambia el cwd del subshell de este comando
-    assert clasificar("cd /algun/lado && python3 -m pytest tests/ -q") == "auto"
+    assert clasificar("cd /algun/lado && python3 -m pytest tests/ -q") == "preguntar"
     assert clasificar("cd . && ls") == "auto"
 
     # ... pero no relaja nada: el segmento peligroso sigue mandando
@@ -114,8 +113,8 @@ def test_policy_2_amp_1_es_lectura():
     from utils.policy import clasificar
 
     # AUTO: `2>&1` solo, con pipe, y en comandos de solo-lectura whitelisted
-    assert clasificar("python3 -m pytest tests/ -q 2>&1") == "auto"
-    assert clasificar("python3 -m pytest tests/ -q 2>&1 | tail -20") == "auto"
+    assert clasificar("python3 -m pytest tests/ -q 2>&1") == "preguntar"
+    assert clasificar("python3 -m pytest tests/ -q 2>&1 | tail -20") == "preguntar"
     assert clasificar("grep algo archivo 2>&1") == "auto"
     assert clasificar("cat x | head -3 2>&1") == "auto"
 
@@ -462,7 +461,7 @@ def test_supervisor_no_puede_saltear_el_denylist(monkeypatch):
      ("pytest -p no:cacheprovider", "preguntar"),
      ("sort archivo.txt", "auto")],
     [("ls 2>&1", "auto"), ("ls 2>&1 | grep x", "auto"),
-     ("pytest -q 2>&1", "auto"), ("ls 2>&1 > out.txt", "preguntar"),
+     ("pytest -q 2>&1", "preguntar"), ("ls 2>&1 > out.txt", "preguntar"),
      ("ls > out.txt 2>&1", "preguntar")],
 ], ids=["flags_peligrosos_pegados", "2and1_sin_redireccion"])
 def test_policy_clasificar_casos(casos):
@@ -516,13 +515,23 @@ def test_aprobar_doble_confirmacion_y_motivos(monkeypatch, capsys):
 def test_explicar_pytest_admite_que_ejecuta_codigo():
     """A45: la whitelist no puede rotular pytest como solo-lectura estricta;
     ejecuta conftest/plugins del repo y escribe cachés. La decisión es
-    aceptarlo (con HITL_AUTO=0 como modo estricto), pero la explicación
+    pedir autorización por S0-CITAS-EJECUCION, y la explicación
     tiene que decirlo."""
     from utils.policy import explicar
 
     texto = explicar("pytest -q")
     assert "conftest" in texto and "cach" in texto
     assert "solo lee" not in texto
+
+
+def test_la_explicacion_generica_nombra_la_opcion_fuera_de_lista():
+    """La explicación propia de pytest tapa esta rama (su prefijo está
+    declarado); el fallback sigue siendo el mensaje para una base con
+    opciones declaradas y sin prefijo propio en la política."""
+    from utils.policy import PREGUNTAR, _explicacion_generica
+
+    assert _explicacion_generica(PREGUNTAR, ["pytest", "--no-declarada", "x"]) == (
+        "opción fuera de la lista blanca del comando: pide aprobación")
 
 
 def test_policy_2and1_se_descarta_como_token_no_substring():
@@ -538,14 +547,14 @@ def test_policy_2and1_se_descarta_como_token_no_substring():
 
 def test_ruff_check_solo_lectura_scoped():
     """exp/92: `ruff check` (y su forma python3 -m) parsea sin ejecutar código
-    del repo — más seguro que pytest, que ya está admitido (A45). El scope es
+    del repo; pytest ahora requiere permiso (A45 revocada). El scope es
     el SUBCOMANDO: lo que ESCRIBE (--fix/--fix-only) o cuelga (-w/--watch) y
     `ruff format` siguen preguntando."""
     from utils.policy import clasificar
 
     assert clasificar("ruff check .") == "auto"
     assert clasificar("python3 -m ruff check utils/compaccion.py") == "auto"
-    assert clasificar("pytest -q && ruff check .") == "auto"
+    assert clasificar("pytest -q && ruff check .") == "preguntar"
     # lo que escribe archivos o cuelga
     assert clasificar("ruff check --fix fable_judge.py") == "preguntar"
     assert clasificar("ruff check --fix-only .") == "preguntar"
