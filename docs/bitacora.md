@@ -4091,3 +4091,46 @@ revierte entero (producto y los dos tests, que se vieron en rojo antes).
 Quedan la sonda y el spec, como manda el pre-registro; el `Ledger(MAX_PASOS)` y
 el filtro por nombre siguen en `supervisor.py`. El costo real (+8/+6) y el tope
 propio se vuelven otro pre-registro (N1).
+
+---
+
+## X193: `hitl_web` cubierto — cada ruta, cada chequeo y 42 mutantes (2026-11-11)
+
+**Qué faltaba.** `utils/hitl_web.py` era la mayor deuda de cobertura del
+producto: 53 líneas sin test del gate web (solo el camino feliz de
+`/decision` y el webhook tenían algo). Las rutas del chat web, los topes de
+cuerpo, el rate limit del webhook, la persistencia caída, el puerto elástico
+y la CLI no se ejercitaban.
+
+**Qué se agregó.** `tests/test_hitl_web.py` (22 tests, puerto 8796 — fuera de
+los 8791–8795 que fijan `test_hitl.py` y `test_webhook.py`): página sin
+pendientes; 404 de GET y POST desconocidos; `/eventos` con Origin ajeno (403);
+webhook sin persistencia (503), tipo solo-espacios y de 65 (400), rate limit
+(429) y ventana de 60 s; chat web apagado (404), chequeos de Origin, JSON,
+texto vacío/gigante (400), RuntimeError del chat (429), OSError (503) y SSE con
+la pestaña cerrada; `_cuerpo` 400/413; form del cuerpo (token/respuesta/motivo
+URL-encoded); `_hosts_validos`/`_origen_valido` sin server; puerto elástico
+(ocupado → siguiente; rango entero ocupado → OSError); URL impresa una vez;
+timeout acotado; token de 192 bits; CLI (CTRL+C → 0, sin server → 1).
+
+**Límite declarado.** Queda **1 línea sin cubrir** (103): la rama "`detalle`
+no simple" de `_parsear_evento` es **inconseguible por HTTP** — `json.loads`
+solo produce dict/list/str/int/float/bool/null — y X193 no toca producto.
+
+**Mutantes.** El probe `banco/probes/mutantes_s0.py` corre ahora con
+`--archivo utils/hitl_web.py`: **42 mutantes en 7 de los 8 chequeos**
+(`token_valido`, `_parsear_evento`, `_permitido_por_limite`, `_origen_valido`,
+`_timeout`, `aprobar`, `_arrancar`; `_hosts_validos` no tiene expresiones
+mutables y se cubre por tests): **42 muertos**. Doce nacieron vivos y cada uno
+se trató con un test: token sin configurar (86), tipo vacío y 65 (99),
+**`detalle: null` aceptado (102: es JSON simple; el mutante `detalle is None`
+lo rechaza)**, ventana de 60 s (113), rate limit (114/115), rango de puertos
+(515), URL una vez (525/527), timeout acotado (539) y los 24 bytes del token
+(557). La única línea sin cubrir es la **103** (la rama `detalle` no JSON,
+inconseguible por HTTP). El estado de X183 no se re-usó: los ids llevan línea y
+las líneas se movieron; el filtro por archivo usa un `--estado` propio y no le
+reescribe el `total` a un estado completo.
+
+**Números.** Cobertura 3.15 **985 → 933** (hitl_web 53 → 1); `tests_definidos`
+**1479 → 1501**; `lineas_del_producto` 7541 y `lineas_del_loop` 660 IGUAL
+(solo tests y el probe de laboratorio).

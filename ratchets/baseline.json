@@ -426,6 +426,7 @@
         "tests/test_handoff.py": 6,
         "tests/test_higiene_repo.py": 9,
         "tests/test_hitl.py": 27,
+        "tests/test_hitl_web.py": 22,
         "tests/test_imports.py": 1,
         "tests/test_instrumentos_chat_real.py": 2,
         "tests/test_inventario.py": 3,
@@ -472,7 +473,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 23
       },
-      "metrica": 1479
+      "metrica": 1501
     },
     "texto_de_prompt": {
       "detalle": {

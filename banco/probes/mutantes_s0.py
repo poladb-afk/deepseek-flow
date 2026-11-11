@@ -1,7 +1,7 @@
 """X183: mutantes en las fronteras de S0, como instrumento que corre el operador.
 
-Cada mutante cambia UNA expresión de `utils/policy.py`, `utils/aprobaciones.py` o
-`utils/fs_tools.py` (comparación invertida, `and`↔`or`, `not` quitado, booleano
+Cada mutante cambia UNA expresión de `utils/policy.py`, `utils/aprobaciones.py`,
+`utils/fs_tools.py` o `utils/hitl_web.py` (X193) (comparación invertida, `and`↔`or`, `not` quitado, booleano
 negado, entero +1, `any`↔`all`) y corre la suite de S0 entera con `-x`. Si
 ningún test falla, el mutante queda **vivo**: o hay un test que falta, o el
 cambio es equivalente (no altera la conducta) y se anota por qué.
@@ -17,6 +17,7 @@ mutante (medido: 1 failed cada una en paralelo, 27 passed en serie).
 Uso:
     python3 banco/probes/mutantes_s0.py [--workers 1] [--estado salidas/mutantes_s0/estado.json]
     python3 banco/probes/mutantes_s0.py --resumen     # solo lista los vivos
+    python3 banco/probes/mutantes_s0.py --archivo utils/hitl_web.py   # una pieza (X193)
 """
 import argparse
 import ast
@@ -43,6 +44,9 @@ OBJETIVOS = {
     "utils/aprobaciones.py": ["ruta_prohibida", "dentro_de_scope", "por_scope", "pedir_aprobacion"],
     "utils/fs_tools.py": ["sin_enlaces", "allowed_roots", "_raiz_que_contiene", "_resolve", "escribir_salida",
                           "escribir_atomico", "run_tool_call"],
+    # X193: los chequeos del gate web (token, cuerpo, origen, rate, arranque).
+    "utils/hitl_web.py": ["token_valido", "_parsear_evento", "_permitido_por_limite", "_hosts_validos",
+                          "_origen_valido", "_timeout", "aprobar", "_arrancar"],
 }
 # Los rápidos y específicos primero: con -x, un mutante que muere cuesta poco.
 SUITE_S0 = [
@@ -50,7 +54,7 @@ SUITE_S0 = [
     "tests/test_fs_tools.py", "tests/test_absurdos_funcionales.py", "tests/test_policy.py",
     "tests/test_auditoria_2026_10_26.py", "tests/test_delegar.py", "tests/test_hitl.py",
     "tests/test_gate_fractal.py", "tests/test_consolidacion.py", "tests/test_pendientes.py",
-    "tests/test_banco.py", "tests/test_policy_generativo.py",
+    "tests/test_banco.py", "tests/test_policy_generativo.py", "tests/test_hitl_web.py",
 ]
 _OPUESTO = {ast.Eq: ast.NotEq, ast.NotEq: ast.Eq, ast.Lt: ast.GtE, ast.GtE: ast.Lt, ast.Gt: ast.LtE,
             ast.LtE: ast.Gt, ast.In: ast.NotIn, ast.NotIn: ast.In, ast.Is: ast.IsNot, ast.IsNot: ast.Is}
@@ -139,10 +143,15 @@ def _copias(n):
     return copias
 
 
-def correr(estado_ruta, workers):
+def correr(estado_ruta, workers, archivo=None):
     estado: dict = json.loads(estado_ruta.read_text(encoding="utf-8")) if estado_ruta.exists() else {"resultados": {}}
-    mutantes = enumerar()
-    estado["total"] = len(mutantes)
+    # X193: un archivo a la vez para medir una pieza nueva sin re-correr el resto
+    # (el estado de X183 no matchea más: los ids llevan línea y las líneas se movieron).
+    mutantes = [m for m in enumerar() if archivo is None or (archivo and m["archivo"] == archivo)]
+    # X193: un --archivo corre con su propio --estado; si el estado ya es de una
+    # corrida completa, no se le pisa el total.
+    if archivo is None or "total" not in estado:
+        estado["total"] = len(mutantes)
     pendientes = [m for m in mutantes if m["id"] not in estado["resultados"]]
     print(f"[mutantes_s0] {len(mutantes)} mutantes, {len(pendientes)} pendientes, {workers} workers", flush=True)
     copias = _copias(workers)
@@ -197,13 +206,14 @@ def main(argv=None):
     parser.add_argument("--workers", type=int, default=1,
                         help="en serie: test_hitl.py fija 8791–8794 y en paralelo moriría por colisión")
     parser.add_argument("--estado", default=str(RAIZ / "salidas" / "mutantes_s0" / "estado.json"))
+    parser.add_argument("--archivo", help="solo los mutantes de este archivo (X193); usalo con un --estado propio")
     parser.add_argument("--resumen", action="store_true", help="solo lista los vivos del estado guardado")
     args = parser.parse_args(argv)
     estado_ruta = Path(args.estado)
     if args.resumen:
         resumen(json.loads(estado_ruta.read_text(encoding="utf-8")))
         return
-    correr(estado_ruta, max(1, args.workers))
+    correr(estado_ruta, max(1, args.workers), args.archivo)
 
 
 if __name__ == "__main__":
