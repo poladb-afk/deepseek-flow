@@ -59,3 +59,15 @@ def test_contrato_prefiltro_congelado_sha1():
 
     sha = hashlib.sha1(json.dumps(PREGUNTA_PREFILTRO, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     assert sha == "b40267534690ca6a787ebf8b40903b8dac8b3521", f"contrato del prefiltro derivado: {sha}"
+
+
+def test_el_catalogo_en_prosa_vive_en_la_sonda_y_no_en_el_producto():
+    """X204a (P1): el catálogo en prosa solo lo lee la sonda del despacho
+    jubilado; en `supervisor.py` eran 8 líneas del producto que no decidían
+    nada. Se mudó tal cual: una línea por tool del menú del supervisor."""
+    import supervisor
+    from banco.probes import sonda_supervisor
+
+    assert not hasattr(supervisor, "catalogo")
+    lineas = sonda_supervisor.catalogo().splitlines()
+    assert [ln.split("(", 1)[0] for ln in lineas] == [f"- {t['function']['name']}" for t in supervisor._TODAS]

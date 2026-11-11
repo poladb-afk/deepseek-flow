@@ -185,7 +185,7 @@
           "rag.py": 123,
           "research.py": 14,
           "resume.py": 9,
-          "supervisor.py": 19,
+          "supervisor.py": 12,
           "utils/__init__.py": 0,
           "utils/aprobaciones.py": 2,
           "utils/call_llm.py": 10,
@@ -219,7 +219,7 @@
           "utils/websearch.py": 18,
           "visor.py": 22
         },
-        "metrica": 933
+        "metrica": 926
       }
     }
   },

@@ -28,7 +28,7 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ))
-from supervisor import MAX_FALLOS_POR_HERRAMIENTA, REGISTRO, catalogo  # noqa: E402
+from supervisor import _TODAS, MAX_FALLOS_POR_HERRAMIENTA, REGISTRO  # noqa: E402
 from utils.call_llm import call_llm  # noqa: E402
 from utils.estructura import extraer_yaml  # noqa: E402
 
@@ -78,6 +78,18 @@ INSTRUCCION_ELECCION = {
                    "Luego elige UNA de las restantes para el siguiente paso (o finish "
                    "si no queda nada que aporte).",
 }
+
+
+def catalogo():
+    """El catálogo en prosa del despacho jubilado. Vivía en `supervisor.py`
+    y solo lo leía esta sonda: se mudó en X204a (P1, 8 líneas del producto)."""
+    lineas = []
+    for t in _TODAS:
+        f = t["function"]
+        args = f.get("parameters", {}).get("properties", {})
+        firma = ", ".join(f"{n}{'?' if n not in f.get('parameters', {}).get('required', []) else ''}" for n in args)
+        lineas.append(f"- {f['name']}({firma}): {f['description']}")
+    return "\n".join(lineas)
 
 
 def elegir_con_deepseek(tarea, hechos, fuera, estilo="directo"):

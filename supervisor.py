@@ -112,17 +112,6 @@ def hecho_de(n, herramienta, args, resultado):
     return f"{n} {herramienta}({breve}) -> {una_linea[:HECHO_LARGO]}"
 
 
-def catalogo():
-    """El catálogo en prosa (lo usa la sonda del despacho jubilado)."""
-    lineas = []
-    for t in _TODAS:
-        f = t["function"]
-        args = f.get("parameters", {}).get("properties", {})
-        firma = ", ".join(f"{n}{'?' if n not in f.get('parameters', {}).get('required', []) else ''}" for n in args)
-        lineas.append(f"- {f['name']}({firma}): {f['description']}")
-    return "\n".join(lineas)
-
-
 def system_prompt(tarea):
     """System prompt del sub-agente: corto y tarea-primero (estilo casa). La
     tarea del usuario, el objetivo, el presupuesto, el CWD y los directorios

@@ -4267,3 +4267,40 @@ su clave: baseline **7599 / 1512 / 660**. El gate completo dio **6/6** con
 `tests_definidos` 1512 IGUAL, `lineas_del_loop` 660 IGUAL, funcional **1507
 passed**, cobertura **933**, tipos **0**—. El commit de aceptación queda rojo
 por diseño (HEAD~1 = 7541/660/1501) y el commit siguiente lo pone verde.
+
+---
+
+## X204a: el catálogo en prosa se muda a la sonda (2026-11-11)
+
+D3 = A del operador, rehecho sobre el árbol post-X194. `supervisor.catalogo()`
+solo lo leía `banco/probes/sonda_supervisor.py`; se mudó tal cual (29 líneas,
+sha1 `857cc75c…` antes y después). El test nuevo lo escribió el autor ("visto en rojo antes" es su
+evidencia). Medido acá: suite **1508 passed, 27 deselected** (más 25 passed,
+2 skipped en la pasada marcada); ratchet VERDE con `lineas_del_producto`
+**7599 → 7591**, `tests_definidos` **1512 → 1513** y cobertura total
+**933 → 926** (7 de las 8 líneas movidas no tenían test: la cobertura de
+`supervisor.py` cayó 19 → 12; una estaba cubierta).
+
+---
+
+## X204 (pre-registro): el prototipo no entra en el techo (2026-11-11)
+
+**Evidencia del autor, no reproducida acá:** el prototipo no está en este
+árbol (7597, 7601 contra el techo 7591, Ley 1 33/33 y 1518 passed son suyos).
+Lo que sí se mide acá es la brecha de partida, 58 > 33 con
+`banco/probes/saldo_supervisor.py`.
+
+**Lo medido por el autor antes de escribir el brazo**, en una copia del árbol: el brazo de X203
+(aplica limpio sobre post-X194) da 7597; con la regla de copia extraída
+(`Ctx.negar`, usada por `agente()` y por la `Corrida`) y el filtro por nombre
+borrado, **7601** contra el techo 7591. La Ley 1 vale (33/33) y la suite del
+prototipo da 1518 passed con los 2 rojos esperables. Borrar el filtro no ahorra:
+la asignación se reescribe, no se va.
+
+**Corrección.** Dije que el `Conector` de X194 traía la anti-recursión por
+profundidad; no la trae: el chequeo de `max_profundidad` vive en
+`kernel.agente()`, y el flag `agente` del conector solo marca la arista.
+
+**Queda como D4** (A: aceptar +10 con la clave; B: X195 primero, que exige que el
+producto baje, y volver con este dato; C: cerrar). No se escribe un brazo que
+el pre-registro ya sabe que no pasa.
