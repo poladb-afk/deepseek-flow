@@ -177,13 +177,13 @@
           "modules/mcp.py": 0,
           "modules/memoria.py": 20,
           "modules/rag.py": 9,
-          "modules/research.py": 2,
+          "modules/research.py": 0,
           "modules/supervisor.py": 8,
           "modules/vision.py": 15,
           "modules/websearch.py": 1,
           "nodes.py": 4,
           "rag.py": 123,
-          "research.py": 33,
+          "research.py": 14,
           "resume.py": 9,
           "supervisor.py": 19,
           "utils/__init__.py": 0,
@@ -218,7 +218,7 @@
           "utils/websearch.py": 18,
           "visor.py": 22
         },
-        "metrica": 1006
+        "metrica": 985
       }
     }
   },

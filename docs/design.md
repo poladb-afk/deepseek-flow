@@ -988,6 +988,15 @@ como una `Tool` que otro loop puede llamar. Leyes por construcción:
   arranca un agente también descuenta 1 (X119): sin saldo, la copia vuelve
   como no ejecutada. Así las llamadas del árbol no pasan de 2R + 1 con
   cualquier abanico y profundidad.
+- **Lo que una tool le pide al modelo también lo paga el árbol** (X202): `Actuar`
+  corre cada tool dentro de `tracing.cobrando(ledger, …)` y el cliente
+  (`utils/call_llm._contabilizar`) cobra cada llamada al saldo de su contexto
+  (un `contextvar`: lo heredan los hilos de lectura, `asyncio.to_thread` y las
+  tareas async). `Paso` corre su llamada con `cobrando(None, …)` porque ya la
+  cobró: una copia que use el cliente real no paga dos veces. **Límite
+  declarado:** cuenta, no frena — una capacidad que gasta más que el saldo
+  igual termina; y un loop con su propio `Ledger` (el supervisor) cobra a ese,
+  no al del chat.
 - **Las tools del CORE pasan por `run_tool_call`** (`desde_fs`): hooks,
   denylist y contención de siempre. El despacho del loop (`Actuar`) usa la
   MISMA protección que `run_tool_call` —`fs_tools.correr_protegido`, un solo

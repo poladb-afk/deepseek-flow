@@ -495,3 +495,84 @@ def test_un_hijo_no_puede_tener_tools_que_el_padre_no_tiene():
     with pytest.raises(ValueError, match="fuera del padre"):
         loop(Ctx(None, Ledger(1)), [hijo])
     loop(Ctx(None, Ledger(1)), [hijo, ajena])  # el padre la declara: se arma
+
+
+
+# X202 (P3, P2 c): lo que una capacidad le pide al modelo lo ve el saldo del árbol
+
+
+def _cliente_falso(monkeypatch, responder):
+    """El cliente del LLM sin red: cada `create` pasa por `_contabilizar`,
+    como en producción. Devuelve la lista de requests que llegaron."""
+    from utils import call_llm as cliente
+
+    creados = []
+
+    def create(**kwargs):
+        creados.append(kwargs)
+        return NS(choices=[NS(message=responder(kwargs))], usage=None)
+
+    monkeypatch.setattr(cliente, "_client", lambda: NS(chat=NS(completions=NS(create=create))))
+    return creados
+
+
+def _research_guionado(kwargs):
+    prompt = kwargs["messages"][-1]["content"]
+    if "consultas de búsqueda" in prompt:
+        return NS(content="queries: [a, b, c]\n", tool_calls=None)
+    if prompt.startswith("Extrae"):
+        return NS(content="- un hecho (https://ejemplo.org)", tool_calls=None)
+    return NS(content="action: finalize\ncontent: '# informe'\n", tool_calls=None)
+
+
+def test_lo_que_una_capacidad_le_pide_al_modelo_lo_cuenta_el_saldo_del_chat(monkeypatch, tmp_path):
+    """Medido antes de X202: un `deep_research` desde el chat hizo 5 llamadas
+    al modelo y el `Ledger` del chat contó 0 — `research` llama al cliente
+    directo y el despacho no le pasaba el árbol. La Ley 1 (llamadas ≤ 2R + 1)
+    solo valía para el loop de afuera."""
+    import flow
+    import research
+    from utils.kernel import Ledger
+
+    saldos = []
+    monkeypatch.setattr(flow, "Ledger", lambda rondas: saldos.append(Ledger(rondas)) or saldos[-1])
+    monkeypatch.setattr(research, "search_web", lambda q, k=4: f"- {q}: https://ejemplo.org")
+    creados = _cliente_falso(monkeypatch, _research_guionado)
+    guion = iter([_msg(None, _llamada("deep_research", {"tema": "t", "salida": str(tmp_path / "r.md")})),
+                  _msg("listo")])
+    _correr_el_chat(monkeypatch, lambda mensajes, tools=None: next(guion), ["investigá t", "salir"])
+    assert (tmp_path / "r.md").is_file() and len(creados) == 5  # plan + 3 extracciones + síntesis
+    assert saldos[0].llamadas == 2 + len(creados)
+
+
+def test_las_lecturas_en_paralelo_tambien_le_cobran_al_saldo_del_arbol(monkeypatch):
+    """Las lecturas corren en hilos (`Actuar`): el saldo se fija en cada hilo,
+    no en el que las lanza."""
+    from utils import call_llm as cliente
+    from utils.kernel import Ctx, Ledger, Tool, correr
+
+    creados = _cliente_falso(monkeypatch, lambda kwargs: NS(content="ok", tool_calls=None))
+    tools = [Tool(f"leer{i}", {"type": "function", "function": {
+        "name": f"leer{i}", "parameters": {"type": "object", "properties": {}}}},
+        lambda llamada, ctx: cliente.call_llm("resumí"), "lectura") for i in range(3)]
+    guion = iter([NS(content=None, tool_calls=[_llamada(f"leer{i}", {}, id=f"c{i}") for i in range(3)]),
+                  NS(content="fin", tool_calls=None)])
+    ctx = Ctx(lambda mensajes, tools: next(guion), Ledger(4))
+    respuesta, _ = correr("s", "q", tools, ctx, wait=0)
+    assert respuesta == "fin" and len(creados) == 3
+    assert ctx.ledger.llamadas == 2 + 3
+
+
+def test_una_copia_que_usa_el_cliente_real_no_se_cobra_dos_veces(monkeypatch):
+    """El `Paso` ya cobra su llamada al saldo: el cliente no la vuelve a cobrar
+    aunque corra dentro de la tool de un padre con el mismo saldo."""
+    from utils.call_llm import call_llm_agent
+    from utils.kernel import Ctx, Ledger, agente, correr
+
+    respuestas = iter([NS(content=None, tool_calls=[_llamada("copia", {"pedido": "parte"})]),
+                       NS(content="parte hecha", tool_calls=None),
+                       NS(content="todo hecho", tool_calls=None)])
+    creados = _cliente_falso(monkeypatch, lambda kwargs: next(respuestas))
+    ctx = Ctx(lambda mensajes, tools: call_llm_agent(mensajes, tools=tools), Ledger(4))
+    respuesta, _ = correr("s", "q", [agente("copia", "d", "s", [])], ctx, wait=0)
+    assert respuesta == "todo hecho" and ctx.ledger.llamadas == len(creados) == 3

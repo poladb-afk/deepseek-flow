@@ -3967,3 +3967,89 @@ ZIP del informe no se pudo reproducir porque los ZIP no existen.
 `docs/design.md` (citas abreviadas y comandos), el `README.md` del patch y la spec
 `banco/specs/s0_citas_ejecucion.md` adaptada: sin Entregas, sin ZIP y sin
 constitución paralela.
+
+---
+
+## X201: una sola numeración de principios (2026-11-11)
+
+**Por qué.** `docs/arquitectura.md` (borrador X192) reescribía los principios
+como cinco —con el grafo separado del fractal— sin citar P1–P4. Al compararlos:
+"Fractal" perdía la asimetría de P2 (a, b, c) y sus dos leyes; "Minimalismo"
+perdía el contexto de P1; "Modular" contradecía en la letra a P3 ("el CORE sabe
+qué capacidades tiene" contra "el CORE no conoce sus módulos"); "Emergente"
+perdía el control en las aristas y la observación en la traza; y ninguno tenía
+gate. `docs/estrategias.md` clasificaba N3 y N4 como regulativos ("se ajustan con
+evidencia") aunque en `docs/principios.md` ceden ante Nada.
+
+**Decisión del operador.** Opción A: vale `docs/principios.md`. El grafo es la
+forma en que se expresan los demás, no un principio; conector, tipos de
+artefacto, composición y catálogo son mecanismos de P1, P3 y P4.
+
+**Qué cambió.** La tabla de `docs/arquitectura.md` pasa a S0 y P1–P4 con su
+mecanismo y su gate (o "sin gate" con lo que falta); `docs/estrategias.md`
+clasifica con números (constitutivos P2–P4, regulativo P1; S0 y N fuera); la
+columna "Principio que avanza" del roadmap usa números. Dos tests en
+`tests/test_handoff.py` lo fijan, y los dos se vieron en rojo contra los docs
+anteriores (evidencia del autor; acá corren verdes).
+
+**Medición nueva (brecha).** Con un LLM falso, una llamada a `deep_research`
+hizo 5 llamadas al modelo que el `Ledger` del chat no descontó (evidencia del
+autor, no reproducida acá): el despacho del chat descarta el `Ctx` y las
+capacidades llaman a `call_llm` directo. Queda como fila de la tabla de
+brechas; es el primer paso propuesto hacia P3/P2 (c). X202 lo cierra: con el
+fix, el chat cuenta 7 (5 de la capacidad + 2 del chat).
+
+**Gate (este árbol, con X202 aplicado).** Solo docs y tests: `tests_definidos`
+1474 → 1479 (2 de acá y 3 de X202). Con la aceptación del operador
+(2026-11-11) el gate dio **6/6**: ruff, complejidad, funcional (1474 passed),
+cobertura (985) y tipos (0) verdes, y el ratchet aceptado por `--actualizar`
+(X202). Los dos tests de acá se vieron en rojo contra los docs anteriores:
+evidencia del autor, no reproducida acá.
+
+---
+
+## X202: el saldo del árbol cuenta lo que piden las capacidades (2026-11-11)
+
+**Por qué.** S0 dice que una copia hereda el saldo de su padre, y la Ley 1
+(llamadas ≤ 2R + 1) lo promete para todo el árbol. Pero solo valía para el loop
+de afuera: `nodes.despachar_tool` descarta el `Ctx` y seis capacidades llaman
+al cliente del LLM directo. **Medido antes del fix** (cliente falso, el chat
+real): un `deep_research` hizo 5 llamadas (plan, 3 extracciones, síntesis) y el
+`Ledger` del chat contó 0 de esas 5 (evidencia del autor, no reproducida acá).
+
+**Raíz, no caso.** En vez de pasar `ctx` por la firma de cada capacidad (seis
+archivos y sus tests), el cobro vive en el único punto por donde pasa toda
+llamada al LLM: `utils/call_llm._contabilizar`. El saldo que paga es un
+`contextvar` (`utils/tracing.SALDO`) que fija el kernel: `Actuar` corre cada
+tool con `cobrando(ctx.ledger, …)` y `Paso` corre su llamada con
+`cobrando(None, …)`, porque ya la cobró (sin eso, una copia que usa el cliente
+real pagaba dos veces). Un contextvar y no `threading.local`: lo heredan los
+hilos de lectura del kernel (`contextvars.copy_context` en `cobrando`),
+`asyncio.to_thread` y las tareas async (evidencia del autor: verificado aparte,
+3 async + 2 to_thread = 5 cobradas, y afuera el saldo queda en None).
+
+**Tests.** Tres en `tests/test_gate_fractal.py`: el chat real con
+`deep_research` (5 llamadas de la capacidad + 2 del chat = 7 en el `Ledger`),
+las lecturas en paralelo y el doble cobro. Evidencia del autor (no reproducida
+acá): contra el código previo, los dos primeros en rojo (2 contra 7 y 2 contra
+5), y tres mutantes del fix (sin cobro en `Actuar`, sin `None` en `Paso`, sin
+cobro en el cliente) ponen al menos uno en rojo cada uno.
+
+**Lo que NO hace.** Cuenta, no frena: una capacidad que gasta más que el saldo
+igual termina (cortarla es cambio de conducta y pide su pre-registro). Y el
+supervisor sigue con su propio `Ledger(MAX_PASOS)`: evidencia del autor: medido,
+desde el chat solo su síntesis llega al saldo del chat. Las dos cosas se cierran
+haciendo del supervisor un `kernel.agente()` sobre `ctx.hijo()` (el paso
+siguiente).
+
+**Números (medidos en este árbol, los dos patches aplicados).** Con la
+aceptación del operador, el gate completo dio **6/6** (`bypass del operador
+(clave verificada)`): ruff y complejidad verdes; funcional **1474 passed**
+(más 25 marcados, 2 skipped); cobertura **1006 → 985**; tipos **0**;
+`tests_definidos` **1474 → 1479**. Ratchet **aceptado por el operador con su
+clave (2026-11-11)** (`--actualizar`): `lineas_del_producto`
+7529 → 7541 (+12: `utils/tracing.py` +9, `utils/kernel.py` +2,
+`utils/call_llm.py` +1) y `lineas_del_loop` 659 → 660, con baseline
+**7541/660/1479** y las dos métricas IGUAL. Los patches llegaron desde un
+entorno sin git; acá X202 cierra con el commit de aceptación (rojo por diseño:
+HEAD~1 = 7529/659/1474) y el commit siguiente.

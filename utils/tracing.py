@@ -4,6 +4,7 @@ Patch mínimo en BaseNode._run/_run_async (lo único que todos los nodos
 atraviesan, sync o async). Cada evento: nodo, acción devuelta, duración.
 TRACE=0 lo apaga. Los archivos .runs/ son artefactos, van al .gitignore."""
 import atexit
+import contextvars
 import json
 import os
 import threading
@@ -20,6 +21,25 @@ _id_thread = None
 # el nodo que está corriendo, por hilo: lo lee evento_llm para decir QUIÉN
 # hizo la llamada (X98). Solo se llena con el tracing activo.
 _en_curso = threading.local()
+# X202 (S0, P2 c): el saldo del árbol que paga lo que corre en este contexto.
+# Lo fija el kernel mientras corre una tool; el cliente del LLM le cobra cada
+# llamada. Es contextvar y no threading.local: `asyncio.to_thread` y las tareas
+# async copian el contexto, así que el lote del juez y el informe también pagan.
+SALDO = contextvars.ContextVar("saldo", default=None)
+
+
+def cobrando(ledger, correr):
+    """`correr()` con sus llamadas al LLM cobradas a `ledger` (None: a nadie).
+    Corre en una copia del contexto: al volver, el saldo de afuera sigue igual."""
+    def adentro():
+        SALDO.set(ledger)
+        return correr()
+    return contextvars.copy_context().run(adentro)
+
+
+def cobrar_llamada():
+    if (ledger := SALDO.get()) is not None:
+        ledger.contar_llamada()
 
 
 def _escribir(dic):

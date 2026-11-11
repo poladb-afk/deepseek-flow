@@ -8,23 +8,26 @@
 
 Un **CORE mínimo** que es el núcleo del grafo y ofrece **conectores
 estandarizados**; los **módulos** son las piezas que esos conectores conectan,
-y también se conectan **entre sí**. El CORE sabe qué capacidades tiene y solo
-se ocupa de funcionar y de estar bien conectado.
+y también se conectan **entre sí**. El CORE conoce su catálogo (`discover()`)
+sin importar ningún módulo (P3) y solo se ocupa de funcionar y de estar bien
+conectado.
 
-## Los cinco principios, como arquitectura
+## Los principios, como arquitectura
 
-| Principio | Qué define | Cómo se ve |
-|---|---|---|
-| **Grafo** | **la arquitectura**: la forma en que se expresan los demás | el CORE es el núcleo del grafo; los módulos son nodos conectados por aristas |
-| **Fractal** | **la lógica funcional** | cada módulo es, por dentro, el mismo loop, con el mismo conector, en cualquier escala |
-| **Minimalismo** | **el tamaño del código y la complejidad de cada pieza y nodo** | **uno por capacidad**: un módulo, un nodo, una función; nada duplicado |
-| **Modular** | **un template con interconectores** | todo módulo nace del mismo molde: qué recibe, qué devuelve, cómo se conecta |
-| **Emergente** | **la interconexión** | CORE ↔ piezas y piezas ↔ piezas generan capacidades que ninguna tiene sola |
+Los principios son los de `docs/principios.md` (S0, P1–P4, N1–N4, EL1–EL9) y
+acá **no se redefinen** (N4 también vale para los docs, X144): esta tabla dice
+cómo se ve cada uno en la arquitectura y qué mecanismo de este borrador lo
+sirve. El **grafo** no es un principio aparte: es la forma en que se expresan
+todos (P2 lo nombra; EL2: el control es un dato). Decisión del operador
+(X201, opción A).
 
-**S0 está por encima de los cinco** (`docs/principios.md`): falla cerrada, HITL
-graduado y una copia hereda los frenos de su padre. En esta arquitectura **S0
-vive en el conector**: toda composición la hereda sin que nadie tenga que
-acordarse.
+| # | Cómo se ve en la arquitectura | Mecanismo de este borrador | Gate |
+|---|---|---|---|
+| S0 | **vive en el conector** (`run_tool_call` + `HOOKS_PRE`): toda composición la hereda sin que nadie tenga que acordarse; el árbol entero gasta un solo saldo | la composición validada al armar; `Ctx.hijo()` comparte el `Ledger` | el de S0 en `docs/principios.md`; para el árbol de una composición, sin gate (falta: el saldo contado de punta a punta, chat → capacidad → LLM) |
+| P1 | **uno por capacidad**: un módulo, un nodo, una función, nada duplicado; el contexto se gana: conocer no es mostrar | el catálogo | `bytes_primer_request`, `lineas_del_producto` |
+| P2 | cada módulo es, por dentro, una instancia de `kernel.loop` con su prompt, sus tools y su parte del saldo **(a)**; hereda todos los frenos y, como mucho, las capacidades del padre **(c)**; la forma **(b)** sigue medida y no adoptada | el conector extiende la `Tool` del kernel (`agente=True`, `hijas`) | `test_un_hijo_no_puede_tener_tools_que_el_padre_no_tiene`; para los módulos del producto, sin gate (X195) |
+| P3 | **el template**: `TOOLS`, `IMPL` y `HOOKS` más un conector que declara qué consume y qué produce; el despacho y la política siguen únicos | los tipos de artefacto | `core_importa_modulos`; el contrato del template, sin gate (X194) |
+| P4 | **la interconexión** CORE ↔ piezas y piezas ↔ piezas; el control en las aristas, el `shared` solo con JSON, la emergencia se observa en la traza | la composición declarada por el usuario | `test_las_fallas_topologicas_se_ven_en_la_traza`; la composición, sin gate (X197) |
 
 La regla de método (detalle en `docs/estrategias.md`): **un resultado negativo
 cierra una estrategia, no un principio.**
@@ -131,6 +134,7 @@ el set fijo tiene que ser **estable** entre preguntas.
 | Composición como dato | `modules/research.py` importa `research.py` a mano | cableada en Python |
 | Lógica interna acoplable (fractal) | de las 8 capacidades grandes, solo el chat y el supervisor son `kernel.loop`; `fable_judge`, `juez`, `research`, `debate`, `informe` y `auditoria` son grafos propios | 6 pipelines |
 | Tipos de artefacto | no existen | todo viaja como texto libre |
+| Un solo saldo por árbol (S0, P2 (c)) | **X202**: toda llamada al LLM que hace una tool la cobra el saldo del árbol (`tracing.cobrando` + el cliente); queda el supervisor con su propio `Ledger(MAX_PASOS)` | medido en X201: un `deep_research` hizo llamadas que el `Ledger` del chat no contó (hoy las cuenta); el loop del supervisor sigue fuera hasta que sea `kernel.agente()` |
 
 ## Orden de implementación
 

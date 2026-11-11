@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 
 from pocketflow import Flow, Node
 
-from utils import fs_tools
+from utils import fs_tools, tracing
 from utils.historial import as_dict, historiar
 from utils.proveedor import normalizar
 
@@ -123,7 +123,8 @@ class Paso(_DelLoop):
     def exec(self, entrada):
         mensajes, tools = entrada
         self.ctx.ledger.contar_llamada()
-        msg, _ = normalizar(self.ctx.llm(mensajes, tools), tools)
+        # ya cobrada arriba: si la tool de un padre corre este loop, no paga dos veces (X202)
+        msg, _ = tracing.cobrando(None, lambda: normalizar(self.ctx.llm(mensajes, tools), tools))
         return msg
 
     def post(self, s, entrada, msg):
@@ -152,7 +153,9 @@ class Actuar(_DelLoop):
                 return f"ERROR: herramienta desconocida: {llamada['function']['name']}"
             # X146 (P4): el despacho del loop no lanza; comparte la
             # protección con run_tool_call (una sola, sin except nuevo).
-            return fs_tools.correr_protegido(lambda: tool.correr(llamada, self.ctx))
+            # X202: lo que la tool le pida al LLM lo paga el saldo del árbol.
+            return tracing.cobrando(self.ctx.ledger, lambda: fs_tools.correr_protegido(
+                lambda: tool.correr(llamada, self.ctx)))
 
         lectura = all(getattr(por_nombre.get(c["function"]["name"]), "efecto", "") == "lectura"
                       for c in llamadas)

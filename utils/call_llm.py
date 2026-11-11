@@ -118,6 +118,7 @@ def _contabilizar(usage, modelo=None):
     hit = int(getattr(usage, "prompt_cache_hit_tokens", 0) or 0)
     miss = int(getattr(usage, "prompt_cache_miss_tokens", 0) or 0) or (pt - hit)
     USO["llamadas"] += 1
+    tracing.cobrar_llamada()
     USO["prompt"] += pt
     USO["completion"] += ct
     fila = USO_POR_MODELO.setdefault(

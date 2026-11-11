@@ -22,8 +22,13 @@ filtro que se cumple con lo mínimo. En consecuencia:
 
 | Tipo | Qué son | Cómo se cambian | Cuáles |
 |---|---|---|---|
-| **Constitutivos** | definen **qué es** el harness: sin ellos es otro proyecto | solo por decisión del operador, nunca por una métrica | grafo, fractal, modular, emergente |
-| **Regulativos** | definen **cómo hacerlo bien** | se ajustan con evidencia | minimalismo, sin duplicados (N4), nada por prompt (N3) |
+| **Constitutivos** | definen **qué es** el harness: sin ellos es otro proyecto | solo por decisión del operador, nunca por una métrica | P2, P3, P4 (el grafo es su forma, no un principio aparte) |
+| **Regulativos** | definen **cómo hacerlo bien** | se ajustan con evidencia | P1 |
+
+Los números son los de `docs/principios.md` (X201, opción A). S0 y N1–N4 no
+entran en esta clasificación: su columna "Cede ante" dice **Nada**, así que no
+se ajustan con evidencia (antes N3 y N4 figuraban como regulativos, en contra
+de esa precedencia).
 
 **Cómo se perdió un principio sin que nadie lo decidiera** (para no repetirlo):
 se midió la replicación y no ganó; el roadmap post-X150 dijo "no retoma
@@ -32,7 +37,7 @@ cumplía las reglas y la suma dejó al fractal escrito y sin ningún paso que lo
 sirviera. Es deriva por decisiones locales. Se evita revisando, principio por
 principio, dónde está vivo en el código.
 
-## Fractal
+## P2 · Fractal
 
 ### Lo probado: un punto del espacio
 
@@ -92,7 +97,7 @@ medidas** (empezar con N = 1 y escalar si el verificador rechaza: la señal es
 un hecho, no una lista de palabras); (3) **aprendido** (un juicio de Laya), cuando
 haya datos de los dos primeros. **Hoy solo el escalón 1.**
 
-## Emergente
+## P4 · Emergente
 
 **Ninguna estrategia se probó**: no se abandonó por evidencia, se abandonó por
 inercia. Hoy las capacidades grandes son pipelines cableados, no composiciones.
@@ -102,13 +107,13 @@ inercia. Hoy las capacidades grandes son pipelines cableados, no composiciones.
 | E1 | **Composición por conector**, declarada por el usuario: research + council (un consejo debate cómo encarar el research) | abierta: primera prueba de la arquitectura |
 | E2 | **Copias + verificador** como capacidad nueva hecha de piezas existentes (F6) | abierta |
 
-## Grafo, modular y minimalismo
+## P1, P3 y el grafo como forma
 
 | Principio | Vivo hoy | Gate | Estrategia abierta |
 |---|---|---|---|
-| Grafo | el loop del kernel; el chat son 20 líneas que lo arman | `nodos_largos`, el diagrama del README es el grafo, sin calles muertas | las composiciones como aristas, no como código |
-| Modular | `discover()`, `TOOLS`/`IMPLS`/`HOOKS` | `core_importa_modulos` 0, `producto_conoce_lab` 0 | el template con interconectores |
-| Minimalismo | un solo loop (X126); `lineas_del_producto` solo baja | 5 métricas del ratchet | uno por capacidad; el catálogo para bajar `bytes_primer_request` |
+| Grafo (la forma de P2; EL2) | el loop del kernel; el chat son 20 líneas que lo arman | `nodos_largos`, el diagrama del README es el grafo, sin calles muertas | las composiciones como aristas, no como código |
+| P3 · Modular | `discover()`, `TOOLS`/`IMPLS`/`HOOKS` | `core_importa_modulos` 0, `producto_conoce_lab` 0 | el template con interconectores |
+| P1 · Minimalismo | un solo loop (X126); `lineas_del_producto` solo baja | 5 métricas del ratchet | uno por capacidad; el catálogo para bajar `bytes_primer_request` |
 
 ## Lo que ya se probó afuera (X192b, por resumen)
 

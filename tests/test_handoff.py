@@ -83,3 +83,36 @@ def test_cada_fuente_tiene_url_y_dice_donde_se_aplica():
                if "http" not in fila and "privado" not in fila]
     assert not sin_url, f"fuentes sin URL: {sin_url}"
     assert all(fila.rstrip().rstrip("|").split("|")[-1].strip() for fila in filas)
+
+
+ARQUITECTURA = RAIZ / "docs" / "arquitectura.md"
+ESTRATEGIAS = RAIZ / "docs" / "estrategias.md"
+ROADMAP = RAIZ / "docs" / "roadmap.md"
+
+
+def test_arquitectura_y_estrategias_citan_los_principios_sin_redefinirlos():
+    """X201 (opción A): la numeración vive en `docs/principios.md`; los
+    borradores la citan. Una tabla con "Grafo" como fila propia o un "los
+    cinco principios" es una segunda definición (N4 en los docs)."""
+    definidos = {celdas[0] for celdas in (f.strip().strip("|").split("|") for f in
+                 _filas(_texto(PRINCIPIOS), "S") + _filas(_texto(PRINCIPIOS), "P"))}
+    definidos = {d.strip() for d in definidos}
+    arquitectura = _texto(ARQUITECTURA)
+    filas = {f.strip().strip("|").split("|")[0].strip() for f in _filas(arquitectura, "[SP]")}
+    assert filas == definidos, f"arquitectura.md: {sorted(filas)} contra principios.md: {sorted(definidos)}"
+    for ruta in (ARQUITECTURA, ESTRATEGIAS):
+        texto = _texto(ruta).lower()
+        assert "cinco principios" not in texto and "los cinco" not in texto, ruta.name
+        assert not re.search(r"^\|\s*\*\*grafo\*\*\s*\|", texto, re.MULTILINE), ruta.name
+
+
+def test_el_roadmap_nombra_principios_por_su_numero():
+    """La columna "Principio que avanza" del roadmap vigente cita S0, P1–P4,
+    N1–N4 o EL1–EL9 (o "todos"): un nombre suelto como "fractal" no tiene gate."""
+    vigente = _texto(ROADMAP).split("### Orden", 1)[1].split("###", 1)[0]
+    sueltos = []
+    for fila in re.findall(r"^\|\s*X\d+[a-z]?\s*\|.*$", vigente, re.MULTILINE):
+        principio = fila.strip().strip("|").split("|")[2]
+        if not re.search(r"\b(S0|P[1-4]|N[1-4]|EL[1-9])\b|todos", principio):
+            sueltos.append(fila.split("|")[1].strip())
+    assert not sueltos, f"pasos sin principio numerado: {sueltos}"
