@@ -4356,3 +4356,94 @@ nodo `ReEjecutar` (pasó 1:1 a `_verificaciones`, sin perder ninguna
 parametrización) y el registro congelado de sitios LLM
 (`banco/probes/twins_extractores.py`) tenía 2 en `fable_judge.py` y ahora hay
 1: las dos etapas comparten `_con_el_kernel`.
+
+---
+
+## X204: el supervisor como copia del kernel, con la regla en el `Ctx` (2026-11-11)
+
+**Qué se hizo.** El brazo de X203 aplicado tal cual (`tracing.ARBOL` con el
+`Ctx`, `Ledger.padre`, `Ctx.hijo(tope)`, `turno` como proyección del `Ledger`
+en `Observar`) + la anti-recursión extraída a `Ctx.negar` (`utils/kernel.py:96`,
+texto en `:101`), usada por `agente()` y por la `Corrida`; el filtro
+`!= "run_supervisor"` se borró (`_TODAS = BASE_TOOLS + MODULE_TOOLS`,
+`REGISTRO` con `MODULE_IMPLS`). El supervisor ya no tiene saldo propio: cuelga
+de `arbol.hijo(tope=MAX_PASOS)` y la segunda copia no abre (la `Corrida`
+levanta antes de armar el ctx).
+
+**X195 adaptado.** `_con_el_kernel` usa `tracing.ARBOL` (el `Ctx`) en vez de
+`SALDO`; la foto de `fable_judge` sigue **6/6, 0 diferencias**.
+
+**Lo medido.** Sonda `saldo_supervisor.py 1 3 8`: **9/9, 23/23, 33/33** (antes
+3/9, 5/23, 10/58); el padre ve `[16, 12, 8, 4]`. `no puede delegar más`
+aparece **una vez** en el producto. `lineas_del_producto` **7578 → 7591
+(+13)** y `lineas_del_loop` **660 → 672 (+12)**; `tests_definidos` **1514 →
+1520** (los 6 tests del brazo).
+
+**Desvíos declarados.**
+1. El prototipo del spec estimaba +10 de producto y no había medido el loop:
+   el brazo da **+13 de producto y +12 de loop**, dentro del techo A (7601)
+   pero con un segundo empeoramiento que pide la clave.
+2. El brazo de X203 se aplicó tal cual (es el mismo mecanismo que NO PASÓ por
+   no borrar; acá se paga con `negar` y el filtro). `test_contratos.py` no se
+   regeneró; el test de L1 por nombre se reescribió 1:1 y se nombra.
+3. `Ctx.negar` devuelve el texto sin `ERROR:` y cada llamador lo prefija: la
+   regla vive una sola vez en el producto.
+
+**Gate** (6 etapas, una corrida, sobre este árbol): 1/6 y 2/6 verdes; 3/6
+`tests_definidos` 1514 → 1520 MEJORÓ, `lineas_del_loop` 660 → 672 EMPEORÓ y
+`lineas_del_producto` 7578 → 7591 EMPEORÓ (rojo por diseño hasta la clave,
+D4=A); 4/6 funcional **1515 passed, 27 deselected**; 5/6 cobertura **926 →
+916** (MEJORÓ: las líneas del brazo entran cubiertas y se fueron líneas sin
+test); 6/6 tipos **0 (antes 0)**. El `--actualizar` con la clave lo corre el
+operador; después el A/B (7–11) con el humo de US$0,05.
+
+**Aceptación (2026-11-11).** El operador corrió `--actualizar` con su clave:
+baseline **7591 / 672 / 1520**. El gate dio **6/6** con `bypass del operador
+(clave verificada)` —producto 7591 IGUAL, loop 672 IGUAL, `tests_definidos`
+1520 IGUAL, cobertura **916**, tipos **0**—. El commit de aceptación queda rojo
+por diseño (HEAD~1 = 7578/660/1514). **El commit del brazo espera el A/B 7–11**:
+PASA entra, NO PASA se revierte (spec).
+
+**Reversión (2026-11-11).** El A/B dio NO PASA por costo (entrada siguiente): el brazo se
+revirtió entero a `4c70c63` y el baseline volvió a **7578/660/1514** (cobertura 926).
+Quedan la sonda `banco/probes/ab_x204.py`, el spec, X204a y el informe.
+
+## X204: A/B 7–11 — NO PASA por costo, con calidad y seguridad iguales (2026-11-11)
+
+**Qué se midió.** Los criterios 7–11 del spec, con la sonda nueva
+`banco/probes/ab_x204.py` (sha256 `c6d42369…`): 6 tareas de
+`banco/supervisor_tareas.jsonl` pedidas al chat con `usá run_supervisor
+para: …`, 3 seeds × 2 brazos = **36 corridas, una a la vez**. Base =
+`git archive 4c70c63`; X204 = ese árbol + el diff de trabajo (21 archivos;
+sha del diff `fd11ec3d…`, brazo congelado en `salidas/x204_ab/arms/` con
+`brazo.sha256`). El chat corre en una copia por corrida; grading de
+`banco/bench_supervisor.py` sobre la copia prístina; costo de la línea
+`[tokens] sesión`.
+
+**Desvío declarado antes de correr.** `trazas.db` y `salidas/routing.jsonl`
+copiados idénticos a los dos brazos para que las dos tareas de artefactos sean
+evaluables (la spec las salta sin recurso). Denominador **18 por brazo, 0
+saltadas**.
+
+**Lo medido** (US$0,2341 las 36; humo 0,0066 tras una primera pasada descartada
+de 0,0111; total del experimento 0,2518 de US$0,20–0,70):
+
+| # | Criterio | Medido | |
+|---|---|---|---|
+| 7 | Calidad | **18/18 vs 18/18** | ✅ |
+| 8 | Costo | **US$0,1211 vs US$0,1130 (+7,2%)** | 🔴 |
+| 9 | Ley 1 en tráfico | máx **11** llamadas del árbol (base 16) ≤ 33; llamadas de sesión == eventos `llm` de `.runs` en 36/36 | ✅ |
+| 10 | Seguridad | 0 escrituras/comandos ejecutados y 0 cambios en el árbol; 6 (base) y 5 (X204) intentos de comando **rechazados por la política** | ✅ |
+| 11 | Recursión anidada | 0 intentos y 0 ejecutadas (no se ejerció en tráfico) | ✅ |
+
+El +7,2% de costo viene del **completion** (+21,0%, 32.420 → 39.237 tokens) con
+**menos** llamadas (137 → 133) y menos prompt (−4,2%). Post-hoc declarado:
+11/18 pares con X204 > base, sign test p = 0,48, bootstrap P(X204 ≤ base) =
+0,37 — no distinguible del ruido con n=18; el criterio pre-registrado es de
+totales y da **NO PASA**. No se retoca: un margen de no-inferioridad o más
+seeds es otro pre-registro del operador.
+
+**Decisión.** NO PASA → el brazo **se revierte entero** (spec); quedan la
+sonda, el spec y X204a. El commit del brazo no entra. Informe:
+`docs/informes/x204_ab_2026-11-11.md`; filas `salidas/x204_ab/resultados.jsonl`
+(sha256 `649f5e30…`); veredicto `salidas/x204_ab/veredicto.md` (`f01de119…`).
