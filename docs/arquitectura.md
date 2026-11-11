@@ -65,6 +65,12 @@ CORE.
 El conector parte de la `Tool` del kernel (`agente=True`, `hijas`): se extiende
 una pieza que ya existe, no se inventa una primitiva nueva.
 
+**Contrato negativo**: el conector **no recibe** política, validador ni
+allowlist por parámetro. La herencia es por construcción: un hijo hereda los
+frenos del padre y, como mucho, sus capacidades (`hijas`, `utils/kernel.py:205`;
+X147 y X157). Un módulo con otra política no existe, y el gate fractal lo
+verifica en los tres niveles (`tests/test_gate_fractal.py:144,483`).
+
 ## La compatibilidad entre módulos: tipos de artefacto
 
 El riesgo central es el de conectar bases de datos: que lo que produce un

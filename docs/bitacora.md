@@ -4157,3 +4157,47 @@ reescribe el `total` a un estado completo.
 **Números.** Cobertura 3.15 **985 → 933** (hitl_web 53 → 1); `tests_definidos`
 **1479 → 1501**; `lineas_del_producto` 7541 y `lineas_del_loop` 660 IGUAL
 (solo tests y el probe de laboratorio).
+
+---
+
+## X193b: los cuatro diseños fractales externos, revisados contra la arquitectura (2026-11-11)
+
+**Por qué.** FRACTAL-MAS, FRACTAL, Lár y FractFlow estaban citados por resumen
+en `docs/principios.md` y en `docs/estrategias.md`, sin una revisión que dijera
+qué se adopta y qué no antes de escribir el template (X194). Las arquitecturas
+externas son el riesgo clásico del diseño por prestigio: copiar la forma sin
+saber por qué.
+
+**Qué se leyó.** Las cuatro fuentes por HTTP el 2026-11-11: FRACTAL-MAS (blog
+ICLR completo), Lár (docs del producto completas), FractFlow (README completo) y
+FRACTAL (solo el *abstract* de arXiv 2610.22561v1; el PDF no se leyó, declarado
+en el informe). **Ninguna trae mediciones**: los dos papers lo dicen de sí
+mismos ("we do not report quantitative performance claims", "our immediate
+focus is to empirically evaluate"). Por eso la revisión sirve para **forma** y
+no como evidencia, y no abre ni cierra ningún A/B.
+
+**Qué dejó.** `docs/informes/x193b_disenos_externos.md`: veredicto por fuente
+(qué confirma, qué se adopta, qué no y por qué) y **ocho ítems de contrato** para
+X194 —siete obligaciones y un contrato negativo—: consume/produce con
+procedencia y citas; el loop interno como `kernel.loop`; el conector **no
+recibe** política ni validador; una sola arista tool-o-hijo por el flag `agente`;
+una sola descripción por módulo; filas por rama visibles en la puerta humana
+**antes** del agregado; council en dos fases (propuesta ciega → refutación); y
+profundidad/N declarados con la Ley 1 de tope. Excluido con motivo: memoria
+procedimental (CBR), escalado bayesiano, supermayoría como código, que el LLM
+diseñe el grafo, `max_nodes`, tres modos de corrida y entornos `uv`.
+
+**Las dos correcciones aplicadas.** `docs/estrategias.md:127-130`: la tabla ya
+dice lo que dicen las fuentes (Lár, **una** puerta antes del reduce con las
+filas por rama y no una por rama; FRACTAL-MAS, la uniformidad de la arista y no
+"MCP y A2A como conectores", que ya existen; FractFlow, una sola descripción;
+FRACTAL, dos fases y una señal medible). `docs/arquitectura.md:68-71`: el
+template nombra el **contrato negativo** que estaba implícito en X157 y en el
+gate fractal.
+
+**Números.** Solo docs: `lineas_del_producto` **7541 IGUAL**,
+`lineas_del_loop` **660 IGUAL**, `tests_definidos` **1501 IGUAL**, cobertura
+3.15 **933 IGUAL**, tipos **0 IGUAL**. **Sin gate propio**: las citas
+`archivo:línea` se verificaron a mano (28 anclas únicas en 8 archivos, 39
+referencias); el gate 6/6 vigente es el de `f3579ae` y no se re-corrió (cambio
+docs-only). Candados de docs en verde.

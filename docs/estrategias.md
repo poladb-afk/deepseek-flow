@@ -119,14 +119,15 @@ inercia. Hoy las capacidades grandes son pipelines cableados, no composiciones.
 
 El fractal no es una rareza: en 2026 hay una línea activa. Leído por resumen y
 abstract (los números son de sus autores); la revisión de sus diseños es el
-paso X193b, antes de escribir el template.
+informe de X193b (`docs/informes/x193b_disenos_externos.md`), antes de escribir
+el template.
 
 | Fuente | Qué confirma de lo nuestro | Qué tomar | Dónde |
 |---|---|---|---|
-| Lár | el saldo compartido (`Ledger`) y la validación heredada (`hijas`, X147) | puertas humanas por rama antes de juntar resultados | S0 en la composición (X197) |
-| FRACTAL | el swarm diferenciado dentro de un nodo | el **límite de profundidad según la complejidad** de la tarea; **hermanos aislados** (las copias no se hablan) | graduador; F6 (X199) |
-| FRACTAL-MAS | el agente como herramienta | **MCP y A2A como conectores** (el harness ya tiene `mcp_server` y `a2a`) | template (X194) |
-| FractFlow | unidades agente–herramienta anidables | la descripción de cada pieza como lo que lee el de arriba | catálogo (X198) |
+| Lár | el saldo compartido (`Ledger`) y la validación heredada (`hijas`, X147) | **una** puerta humana **antes del reduce**, con las filas por rama (no una puerta por rama) | S0 en la composición (X197) |
+| FRACTAL | el swarm diferenciado dentro de un nodo | **dos fases** (propuesta ciega → refutación), una **señal medible** de saturación y copias aisladas | concilio (X196); graduador y F6 (X199) |
+| FRACTAL-MAS | el agente como herramienta | la **uniformidad de la arista**: tool o hijo por el mismo despacho (MCP y A2A ya existen) | template (X194) |
+| FractFlow | unidades agente–herramienta anidables | **una sola descripción** por módulo, la lee el de arriba | catálogo (X198) |
 
 **Lo que nos diferencia**: el minimalismo. FRACTAL pone cinco componentes en
 cada nodo; acá el nodo es el loop mínimo y todo lo demás es un módulo
