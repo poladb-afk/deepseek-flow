@@ -192,6 +192,7 @@
           "utils/citas.py": 7,
           "utils/compaccion.py": 4,
           "utils/conductor.py": 42,
+          "utils/conector.py": 0,
           "utils/contexto.py": 0,
           "utils/convergencia.py": 0,
           "utils/costos.py": 0,

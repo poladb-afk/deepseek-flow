@@ -163,7 +163,7 @@
         "juez_lote.py": 132,
         "main.py": 103,
         "mcp_server.py": 77,
-        "modules/__init__.py": 21,
+        "modules/__init__.py": 27,
         "modules/a2a.py": 123,
         "modules/auditoria.py": 37,
         "modules/coding.py": 312,
@@ -194,6 +194,7 @@
         "utils/citas.py": 96,
         "utils/compaccion.py": 151,
         "utils/conductor.py": 78,
+        "utils/conector.py": 52,
         "utils/contexto.py": 42,
         "utils/convergencia.py": 9,
         "utils/costos.py": 40,
@@ -220,7 +221,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7541
+      "metrica": 7599
     },
     "nodos_largos": {
       "detalle": {},
@@ -394,6 +395,7 @@
         "tests/test_citas.py": 18,
         "tests/test_comandos_reales.py": 5,
         "tests/test_compaccion.py": 25,
+        "tests/test_conector.py": 11,
         "tests/test_consolidacion.py": 36,
         "tests/test_contratos.py": 4,
         "tests/test_convergencia.py": 9,
@@ -473,7 +475,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 23
       },
-      "metrica": 1501
+      "metrica": 1512
     },
     "texto_de_prompt": {
       "detalle": {

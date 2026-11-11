@@ -323,6 +323,45 @@ terceros.
 > fixes de auditoría) vive en [bitacora.md](bitacora.md): acá queda solo lo que
 > es verdad hoy.
 
+## El template del módulo (X194) — el conector y los tipos
+
+[utils/conector.py](../utils/conector.py) es el contrato que un módulo declara
+para conectarse con otro. El registro de módulos ya lo aplica al armar
+(`discover()`); ningún módulo declara conectores todavía: migrarlos es X195+.
+
+- **`Artefacto(tipo, contenido, procedencia, citas)`**: el dato que cruza la
+  arista. Los tipos son los cinco del contrato (`pregunta`, `plan`,
+  `hallazgos`, `veredicto`, `borrador`; crecen solo cuando un módulo real lo
+  pide, N2), la procedencia no puede ser vacía y las citas se verifican contra
+  el disco con `utils/citas.verificar_citas` —una cita que el parser no
+  reconoce también falla—. Un `hallazgos` sin citas no existe: es el dato
+  inventado que el módulo siguiente tomaría como hecho (la cascada).
+- **`Conector(tool, produce, consume)`**: el borde del módulo. La `tool` es la
+  del kernel (el tool calling de siempre) y su **única** descripción es la del
+  esquema: la lee el módulo de arriba, no hay un manifiesto paralelo.
+  `producir()` estampa la procedencia con el nombre de la tool (un módulo no
+  firma como otro) y `consumir()` entrega el contenido solo si el tipo es el
+  que el módulo declaró.
+- **Contrato negativo**: no hay campos de política, validador ni allowlist.
+  La herencia es por construcción: el conector usa la tool que el árbol le
+  pasó, con sus frenos y su saldo (X147/X157).
+- **Una sola arista**: no hay un "nodo hijo" aparte. Si la tool es un
+  `kernel.agente()` la arista es la de un hijo (`agente=True`); si no, la de
+  una tool. El mismo `Conector` sirve para las dos.
+- **El registro valida al armar**: un módulo puede declarar `CONECTORES` (tupla
+  de `Conector`) y `discover()` (en `modules/__init__.py`) saltea el módulo que
+  declara otra cosa, como a uno que no importa: sus tools no entran al chat.
+- **`componer(*conectores) -> tuple[Tool, ...]`**: la composición como dato,
+  validada al armar: arranca en `pregunta` y cada salida tiene que ser una
+  entrada del siguiente. Si no encaja, `ValueError` en el armado y no se gastó
+  ninguna llamada (el mismo criterio que la validación de `hijas` de
+  `kernel.loop`, X147). El que la corre es la composición declarada (X197).
+
+Fuera del contrato, para no reabrirlo: el council en dos fases (X196) y la
+profundidad/N con la señal de saturación (X199), los ítems 7 y 8 del informe
+`docs/informes/x193b_disenos_externos.md`. Las pruebas del contrato están en
+`tests/test_conector.py`.
+
 ## Piezas: juez, auditoría, RAG y debate
 
 Cada pieza es standalone (subcomando CLI) Y módulo del chat.

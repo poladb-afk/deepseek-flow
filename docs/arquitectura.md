@@ -26,7 +26,7 @@ todos (P2 lo nombra; EL2: el control es un dato). Decisión del operador
 | S0 | **vive en el conector** (`run_tool_call` + `HOOKS_PRE`): toda composición la hereda sin que nadie tenga que acordarse; el árbol entero gasta un solo saldo | la composición validada al armar; `Ctx.hijo()` comparte el `Ledger` | el de S0 en `docs/principios.md`; el saldo chat → capacidad → LLM lo cuentan los 3 tests de X202; falta el supervisor (X203) |
 | P1 | **uno por capacidad**: un módulo, un nodo, una función, nada duplicado; el contexto se gana: conocer no es mostrar | el catálogo | `bytes_primer_request`, `lineas_del_producto` |
 | P2 | cada módulo es, por dentro, una instancia de `kernel.loop` con su prompt, sus tools y su parte del saldo **(a)**; hereda todos los frenos y, como mucho, las capacidades del padre **(c)**; la forma **(b)** sigue medida y no adoptada | el conector extiende la `Tool` del kernel (`agente=True`, `hijas`) | `test_un_hijo_no_puede_tener_tools_que_el_padre_no_tiene`; para los módulos del producto, sin gate (X195) |
-| P3 | **el template**: `TOOLS`, `IMPL` y `HOOKS` más un conector que declara qué consume y qué produce; el despacho y la política siguen únicos | los tipos de artefacto | `core_importa_modulos`; el contrato del template, sin gate (X194) |
+| P3 | **el template**: `TOOLS`, `IMPL` y `HOOKS` más un conector que declara qué consume y qué produce; el despacho y la política siguen únicos | los tipos de artefacto | `core_importa_modulos`; `tests/test_conector.py` (el contrato del template, X194) |
 | P4 | **la interconexión** CORE ↔ piezas y piezas ↔ piezas; el control en las aristas, el `shared` solo con JSON, la emergencia se observa en la traza | la composición declarada por el usuario | `test_las_fallas_topologicas_se_ven_en_la_traza`; la composición, sin gate (X197) |
 
 La regla de método (detalle en `docs/estrategias.md`): **un resultado negativo
@@ -71,6 +71,13 @@ frenos del padre y, como mucho, sus capacidades (`hijas`, `utils/kernel.py:205`;
 X147 y X157). Un módulo con otra política no existe, y el gate fractal lo
 verifica en los tres niveles (`tests/test_gate_fractal.py:144,483`).
 
+**X194**: el contrato existe en `utils/conector.py` y se prueba en
+`tests/test_conector.py`; el registro (`discover()`) valida los `CONECTORES`
+que declare un módulo al armar y saltea el que no cumple. Ningún módulo declara
+conectores todavía (`modules/` sigue con `TOOLS`/`IMPL`): migrarlos es X195 en
+adelante; el council en dos fases (X196) y la profundidad/N (X199) quedan
+declarados.
+
 ## La compatibilidad entre módulos: tipos de artefacto
 
 El riesgo central es el de conectar bases de datos: que lo que produce un
@@ -101,8 +108,9 @@ juzga significado (N2).
   el mecanismo más simple; no hay graduador ni sugerencias del modelo hasta
   que la arquitectura funcione.
 - **Se valida al armar**: si una salida no encaja con la entrada siguiente, la
-  composición no arranca y no gasta ninguna llamada. El antecedente es X147:
-  `loop()` ya rechaza al armarse un hijo con tools fuera del padre.
+  composición no arranca y no gasta ninguna llamada (X194: `componer()` en
+  `utils/conector.py`; el antecedente es X147, que rechaza al armarse un hijo
+  con tools fuera del padre).
 - **Un adaptador entre tipos es un módulo más**, con su conector.
 - Todo el árbol de una composición gasta **un solo saldo** (`Ctx.hijo()`
   comparte el `Ledger`) y hereda S0.
@@ -136,10 +144,10 @@ el set fijo tiene que ser **estable** entre preguntas.
 | La arquitectura pide | Hoy | Brecha |
 |---|---|---|
 | El CORE conoce su catálogo sin mostrarlo entero | 30 tools en cada request | conocer y mostrar están mezclados |
-| Conector entre módulos | solo hacia el CORE | no hay conector módulo ↔ módulo |
-| Composición como dato | `modules/research.py` importa `research.py` a mano | cableada en Python |
+| Conector entre módulos | X194: el contrato existe (`utils/conector.py`); en los módulos sigue siendo solo hacia el CORE | falta migrar los módulos (X195+) |
+| Composición como dato | `modules/research.py` importa `research.py` a mano; X194 agrega la validación al armar | falta que la composición la declare el usuario (X197) |
 | Lógica interna acoplable (fractal) | de las 8 capacidades grandes, solo el chat y el supervisor son `kernel.loop`; `fable_judge`, `juez`, `research`, `debate`, `informe` y `auditoria` son grafos propios | 6 pipelines |
-| Tipos de artefacto | no existen | todo viaja como texto libre |
+| Tipos de artefacto | X194: los 5 tipos y el artefacto con procedencia y citas verificadas; ningún módulo los produce | todo sigue viajando como texto libre hasta la migración |
 | Un solo saldo por árbol (S0, P2 (c)) | **X202**: toda llamada al LLM que hace una tool la cobra el saldo del árbol (`tracing.cobrando` + el cliente); queda el supervisor con su propio `Ledger(MAX_PASOS)` | medido en X201: un `deep_research` hizo llamadas que el `Ledger` del chat no contó (hoy las cuenta); el loop del supervisor sigue fuera hasta que sea `kernel.agente()` |
 
 ## Orden de implementación

@@ -4201,3 +4201,69 @@ gate fractal.
 `archivo:línea` se verificaron a mano (28 anclas únicas en 8 archivos, 39
 referencias); el gate 6/6 vigente es el de `f3579ae` y no se re-corrió (cambio
 docs-only). Candados de docs en verde.
+
+---
+
+## X194: el template del módulo — el conector y los 5 tipos (2026-11-11)
+
+**Qué se escribió.** `utils/conector.py`, producto y sin migrar ningún módulo:
+
+- `Artefacto(tipo, contenido, procedencia, citas)`: los cinco tipos del
+  contrato (`pregunta`, `plan`, `hallazgos`, `veredicto`, `borrador`; crecen
+  solo cuando un módulo real lo pide, N2), procedencia no vacía, `hallazgos`
+  sin citas rechazado y cada cita verificada contra el disco con
+  `utils/citas.verificar_citas` —una cita que el parser no reconoce también
+  falla, porque el total del verificador no coincide—.
+- `Conector(tool, produce, consume)`: envuelve la `Tool` del kernel. La
+  descripción vive **solo** en el esquema (la única que lee el de arriba) y la
+  arista es una sola: `tool.agente` decide tool o hijo. Contrato negativo: no
+  hay campos de política, validador ni allowlist; `producir()` estampa la
+  procedencia con el nombre de la tool y `consumir()` solo entrega el tipo
+  declarado.
+- `componer(*conectores)`: la composición como dato, validada al armar
+  (arranca en `pregunta`; cada salida tiene que ser una entrada del siguiente).
+  Si no encaja, `ValueError` ahí, antes de gastar ninguna llamada (el
+  antecedente es X147). El runner de la composición es X197.
+
+**El template se aplica al armar.** `modules/__init__.py` acepta `CONECTORES`
+(opcional, tupla de `Conector`) y `discover()` saltea el módulo que declara
+otra cosa, como a uno que no importa: sus tools no entran al chat. Es el primer
+uso real del contrato en el producto. Ningún módulo declara conectores todavía:
+migrarlos es X195+.
+
+**El primer gate quedó rojo, y por qué.** Con la pieza sola en `utils/`,
+`test_cada_pieza_de_utils_la_usa_el_producto` (X165) falló: el producto no la
+usaba. La resolución no fue moverla de lugar sino engancharla donde el contrato
+se aplica (el armado de `discover()`), con su test; +6 líneas de producto más.
+
+**Lo que NO entró, declarado.** Los ítems 7 (council en dos fases) y 8
+(profundidad/N con señal de saturación) del informe
+`docs/informes/x193b_disenos_externos.md` son X196/X199.
+
+**Medición.** `tests/test_conector.py` (11 tests): la composición válida arma y
+corre sobre `kernel.loop`; la inválida lanza en `componer()` sin una llamada;
+el conector no acepta los tres frenos; el mismo `Conector` sirve para una tool
+y para un `agente()`; la descripción no se duplica; un `hallazgos` sin citas o
+con una cita falsa no existe; un tipo fuera de los cinco no existe; el registro
+carga un módulo con conectores válidos y saltea uno con conectores inválidos.
+Cobertura de `utils/conector.py`: **100 %** (46 sentencias).
+
+**El costo y por qué.** El template suma **+58** líneas de producto
+(`7541 → 7599`: 52 en `utils/conector.py` y 6 en `modules/__init__.py`) y no
+borra ninguna todavía: el pago es la migración (X195–X197), donde el conector
+reemplaza el código propio de cada módulo. El gate queda **rojo solo en el
+ratchet**; el `--actualizar` lo corre el operador con su clave y no se corrió
+acá.
+
+**Gate** (6 etapas, la corrida válida, sobre este árbol): 1/6 y 2/6 verdes; 3/6
+`tests_definidos` 1501 → 1512 MEJORÓ, `lineas_del_loop` 660 IGUAL,
+`lineas_del_producto` 7541 → 7599 **EMPEORÓ** (rojo por diseño hasta la
+aceptación); 4/6 funcional **1507 passed, 27 deselected**; 5/6 cobertura
+**933 (antes 933)**; 6/6 tipos **0 (antes 0)**.
+
+**Aceptación (2026-11-11).** El operador corrió `ratchet.py --actualizar` con
+su clave: baseline **7599 / 1512 / 660**. El gate completo dio **6/6** con
+`bypass del operador (clave verificada)` —`lineas_del_producto` 7599 IGUAL,
+`tests_definidos` 1512 IGUAL, `lineas_del_loop` 660 IGUAL, funcional **1507
+passed**, cobertura **933**, tipos **0**—. El commit de aceptación queda rojo
+por diseño (HEAD~1 = 7541/660/1501) y el commit siguiente lo pone verde.
