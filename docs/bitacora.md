@@ -4053,3 +4053,31 @@ clave (2026-11-11)** (`--actualizar`): `lineas_del_producto`
 **7541/660/1479** y las dos métricas IGUAL. Los patches llegaron desde un
 entorno sin git; acá X202 cierra con el commit de aceptación `2f912bc` (rojo
 por diseño: HEAD~1 = 7529/659/1474) y el commit siguiente.
+
+---
+
+## X203 (pre-registro): el supervisor rompe la Ley 1 y el chat no ve lo que gasta un hijo (2026-11-11)
+
+**Medición de partida** (`banco/probes/saldo_supervisor.py`, el chat real con un
+cliente falso, sin red): con 1, 3 y 8 supervisores en una ronda, el árbol hace
+9, 23 y **58** llamadas; el saldo del chat cuenta 3, 5 y 10 y descuenta 1 ronda.
+Con 8, la Ley 1 (≤ 2R + 1 = 33) se rompe. X202 cobra lo que piden las tools,
+pero cada supervisor tiene su `Ledger(MAX_PASOS)`.
+
+**El hallazgo que bloquea el diseño obvio.** Darle al supervisor el `Ledger` del
+chat no alcanza: `PasoChat.prep` re-deriva el saldo desde `turno` antes de cada
+llamada (X140). Medido con una tool que toma 10 rondas del árbol por ronda: el
+chat ve `[16, 15, 14, 13]`. La decisión de X140 (una sola fuente, `turno`)
+impide hoy "un saldo por árbol" con el chat de padre.
+
+**Qué se escribió.** El pre-registro `banco/specs/x203_supervisor_agente.md`:
+dos decisiones previas del operador (D1: la fuente del saldo del chat; D2: la
+parte del saldo del hijo), qué se borra, 5 criterios estructurales y un A/B de
+18 corridas por brazo con las tareas del bench del supervisor pedidas al chat.
+Sin producto tocado; la sonda es laboratorio.
+
+**Decisión del operador (2026-11-11).** D1 = **A**: el `Ledger` manda y `turno`
+pasa a ser su proyección; revierte la dirección de X140 y sus 8 mutantes se
+reescriben 1:1. D2 = **A**: `Ctx.hijo(tope=n)` con tope propio y `MAX_PASOS = 5`
+como tope del supervisor; su `Ledger(MAX_PASOS)` se borra. Queda el código y el
+A/B; el gasto (US$0,20–0,70, humo de US$0,05) se autoriza antes de correr.
