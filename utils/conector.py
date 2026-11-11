@@ -35,6 +35,7 @@ class Artefacto:
             raise ValueError("un artefacto sin procedencia no se puede auditar")
         if self.tipo == "hallazgos" and not self.citas:
             raise ValueError("hallazgos sin citas: no hay nada que verificar")
+        # dedupe solo para verificar: el campo frozen conserva orden y repetidos
         citas = tuple(dict.fromkeys(self.citas))
         if citas:
             resultado = verificar_citas(" ".join(citas))

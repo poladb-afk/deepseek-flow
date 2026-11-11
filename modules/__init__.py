@@ -44,7 +44,7 @@ def discover():
                   file=sys.stderr)
             continue
         conectores = getattr(module, "CONECTORES", ())
-        if not isinstance(conectores, tuple) or not all(isinstance(c, Conector) for c in conectores):
+        if not isinstance(conectores, tuple) or not all(type(c) is Conector for c in conectores):
             print(f"[módulos] {info.name} declara conectores que no son del template → se saltea",
                   file=sys.stderr)
             continue

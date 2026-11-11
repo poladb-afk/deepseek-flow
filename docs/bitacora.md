@@ -4246,7 +4246,7 @@ el conector no acepta los tres frenos; el mismo `Conector` sirve para una tool
 y para un `agente()`; la descripción no se duplica; un `hallazgos` sin citas o
 con una cita falsa no existe; un tipo fuera de los cinco no existe; el registro
 carga un módulo con conectores válidos y saltea uno con conectores inválidos.
-Cobertura de `utils/conector.py`: **100 %** (46 sentencias).
+Cobertura: `ratchets/cobertura.json` deja `utils/conector.py` con **0 líneas sin test**; el total queda en **933**.
 
 **El costo y por qué.** El template suma **+58** líneas de producto
 (`7541 → 7599`: 52 en `utils/conector.py` y 6 en `modules/__init__.py`) y no

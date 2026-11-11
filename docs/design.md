@@ -334,8 +334,10 @@ para conectarse con otro. El registro de módulos ya lo aplica al armar
   `hallazgos`, `veredicto`, `borrador`; crecen solo cuando un módulo real lo
   pide, N2), la procedencia no puede ser vacía y las citas se verifican contra
   el disco con `utils/citas.verificar_citas` —una cita que el parser no
-  reconoce también falla—. Un `hallazgos` sin citas no existe: es el dato
-  inventado que el módulo siguiente tomaría como hecho (la cascada).
+  reconoce también falla—. El campo `citas` puede repetir: la verificación
+  deduplica para mirar cada cita una vez, pero no normaliza el campo. Un
+  `hallazgos` sin citas no existe: es el dato inventado que el módulo
+  siguiente tomaría como hecho (la cascada).
 - **`Conector(tool, produce, consume)`**: el borde del módulo. La `tool` es la
   del kernel (el tool calling de siempre) y su **única** descripción es la del
   esquema: la lee el módulo de arriba, no hay un manifiesto paralelo.
@@ -351,6 +353,9 @@ para conectarse con otro. El registro de módulos ya lo aplica al armar
 - **El registro valida al armar**: un módulo puede declarar `CONECTORES` (tupla
   de `Conector`) y `discover()` (en `modules/__init__.py`) saltea el módulo que
   declara otra cosa, como a uno que no importa: sus tools no entran al chat.
+  Vale el tipo exacto (`type(c) is Conector`), no una subclase. Límite
+  declarado: no valida que la tool del conector esté entre las `TOOLS`/`IMPL`
+  del módulo; eso lo cierra la migración (X195).
 - **`componer(*conectores) -> tuple[Tool, ...]`**: la composición como dato,
   validada al armar: arranca en `pregunta` y cada salida tiene que ser una
   entrada del siguiente. Si no encaja, `ValueError` en el armado y no se gastó

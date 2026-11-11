@@ -42,17 +42,12 @@ def test_una_composicion_valida_arranca():
 
 
 def test_una_composicion_que_no_encaja_no_arranca():
+    """El `ValueError` es estructural: sale de `componer()`, antes de armar el
+    loop y sin un LLM en el camino."""
     plan = Conector(tool("planificador"), "plan", ("pregunta",))
     juzgar = Conector(tool("juez"), "veredicto", ("hallazgos",))
-    llamadas = []
-
-    def llm(mensajes, disponibles=None):
-        llamadas.append(disponibles)
-        return NS(content="no", tool_calls=None)
-
     with pytest.raises(ValueError, match="no encaja"):
         componer(plan, juzgar)
-    assert llamadas == []  # la validación es al armar: ninguna llamada gastada
 
 
 def test_la_composicion_arranca_en_pregunta():
