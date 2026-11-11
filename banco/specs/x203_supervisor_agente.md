@@ -1,6 +1,15 @@
 # X203 — el supervisor como copia del chat (pre-registro)
 
-**Estado: pre-registro, escrito ANTES de tocar el producto (2026-11-11).**
+**Corrido el 2026-11-11 (estructurales): NO PASA por los criterios 3 y 5.**
+Los criterios 1 y 2 pasan (la Ley 1 vale con el chat y el padre ve lo que
+gasta el hijo), pero lo que el spec prometía borrar no se borró y el producto
+creció (7547 contra el techo de 7541). Consecuencia pre-registrada ejecutada:
+el brazo se revierte entero, no se corre el A/B; quedan la sonda y este spec.
+El brazo queda como evidencia fuera del árbol (`x203_brazo_no_pasa.patch`).
+
+---
+
+**Estado original: pre-registro, escrito ANTES de tocar el producto (2026-11-11).**
 Cambia conducta (el supervisor deja de tener saldo propio), así que sin este
 documento no se toca el código. Si algo cambia al correrlo, va como desvío
 declarado al final; los criterios no se retocan después de ver los datos.
@@ -142,4 +151,31 @@ Humo primero: `constante-max-pasos` seed 1 en los dos brazos; si cuesta más de
 
 ## Desvíos declarados
 
-(ninguno todavía)
+- D1 y D2 decididos por el operador el 2026-11-11: **A y A**, sin cambios de
+  criterio.
+- El canal de X202 se reemplazó como decía el spec (`tracing.SALDO` → `ARBOL`,
+  que guarda el `Ctx`): sin canal nuevo.
+
+## Resultado (2026-11-11, solo estructurales; el A/B no se corrió)
+
+| # | Criterio | Medido en el brazo | |
+|---|---|---|---|
+| 1 | Ley 1 con el chat (1, 3, 8 supervisores) | `contadas == reales`: 9/9, 23/23, 33/33; todas ≤ 33. Los tres casos de `test_el_arbol_chat_supervisor_cumple_la_ley_1` vistos en rojo antes (3≠9, 5≠23, 10≠58) | ✅ |
+| 2 | El padre ve lo que gastó el hijo | `[16, 12, 8, 4]` (antes `[16, 15, 14, 13]`); test visto en rojo antes | ✅ |
+| 3 | Lo borrado se fue | `Ledger(MAX_PASOS)` sigue (la raíz de la CLI, más la mención del docstring) y el filtro `!= "run_supervisor"` **no se tocó**: sin él, el supervisor se ofrece a sí mismo y `run_supervisor` no es una `kernel.agente()` con chequeo de profundidad. `Corrida` conserva `ctx` (ahora una copia) | ❌ |
+| 4 | Gates de siempre | suite 1486 passed, 20 skipped; ruff verde; `test_contratos.py` sin regenerar; un test de X140 reescrito 1:1 (`..._se_deriva_de_turno_...` → `test_el_saldo_del_chat_se_arma_al_abrir_la_pregunta_y_turno_lo_proyecta`) y 5 llamadas a `Observar()` adaptadas a `Observar(ctx, [])` | ✅ |
+| 5 | Más chico: `lineas_del_producto` ≤ 7541 | **7547** (+6: `utils/kernel.py` +4 por el `Ledger` con padre y `hijo(tope)`, `supervisor.py` +2); `lineas_del_loop` 660 → 665 | ❌ |
+
+**Lectura.** El mecanismo funciona: con D1 y D2 la Ley 1 vale de punta a punta
+y, con 8 supervisores, el árbol se frena justo en la cota (33). Pero el spec
+prometía que el cambio se pagaba borrando, y no se pagó: el supervisor no se
+volvió una `kernel.agente()`, siguió siendo una tool de módulo que cuelga del
+árbol por el contextvar, así que el filtro por nombre y la raíz de la CLI se
+quedaron. **Dato de conducta nuevo, visto al medir**: con D1 un supervisor
+desde el chat gasta del techo de 16 (3 supervisores lo agotan), así que el chat
+puede cerrar antes; es lo que el A/B iba a medir.
+
+**Lo que no vuelve como parche (N1).** Otra forma de pagar las 6 líneas
+(borrar el filtro con un chequeo de profundidad en el despacho, hacer de
+`run_supervisor` una `kernel.agente()` real) es otro pre-registro, con este
+dato delante.

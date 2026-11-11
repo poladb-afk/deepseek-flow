@@ -4082,15 +4082,38 @@ reescriben 1:1. D2 = **A**: `Ctx.hijo(tope=n)` con tope propio y `MAX_PASOS = 5`
 como tope del supervisor; su `Ledger(MAX_PASOS)` se borra. Queda el código y el
 A/B; el gasto (US$0,20–0,70, humo de US$0,05) se autoriza antes de correr.
 
-**Resultado (2026-11-11): NO PASA.** Implementado el piso de D1=A + D2=A
-—`Ledger` hijo que cobra en los dos, `Ctx.hijo(tope)`, el contextvar con el
-`Ctx` y `turno` como proyección— **sin** el supervisor: `lineas_del_producto`
-7541 → **7549** (+8) y `lineas_del_loop` 660 → **666** (+6). El corte del spec
-es ≤ 7541 y el loop no se puede aceptar sin la clave del operador, así que se
-revierte entero (producto y los dos tests, que se vieron en rojo antes).
-Quedan la sonda y el spec, como manda el pre-registro; el `Ledger(MAX_PASOS)` y
-el filtro por nombre siguen en `supervisor.py`. El costo real (+8/+6) y el tope
-propio se vuelven otro pre-registro (N1).
+---
+
+## X203 (resultado): NO PASA por lo que no borró (2026-11-11)
+
+**Evidencia del autor:** el brazo y su medición (7547/665, 1486 passed)
+son de `x203_brazo_no_pasa.patch`; no se reprodujeron en este árbol.
+
+**Decisiones del operador:** D1 = A (adentro de la pregunta la fuente del saldo
+es el `Ledger`; `turno` su proyección) y D2 = A (`Ctx.hijo(tope=n)`).
+
+**El brazo.** `tracing.SALDO` pasó a `ARBOL` (guarda el `Ctx`, mismo canal);
+`Ledger` ganó `padre` y `Ctx.hijo(tope)`; `PasoChat.prep` arma el saldo solo al
+abrir la pregunta y `Observar` proyecta `turno = techo − saldo`; la `Corrida`
+del supervisor cuelga del árbol con `hijo(tope=MAX_PASOS)` y cuenta sus rondas
+por el `paso` de cada llamada. Cinco tests nuevos, vistos en rojo antes del
+código (3≠9, 5≠23, 10≠58; `[16, 15, 14, 13]`; `hijo(tope)` inexistente).
+
+**Lo medido.** Criterio 1 ✅ (9/9, 23/23, 33/33 contra la cota 33), criterio 2
+✅ (`[16, 12, 8, 4]`), criterio 4 ✅ (1486 passed, 20 skipped). Criterio 3 ❌: el
+filtro `!= "run_supervisor"` y la raíz `Ledger(MAX_PASOS)` de la CLI se
+quedaron, porque el supervisor siguió siendo una tool de módulo y no una
+`kernel.agente()`. Criterio 5 ❌: `lineas_del_producto` 7547 > 7541 (+6:
+kernel +4, supervisor +2).
+
+**Consecuencia pre-registrada:** revertido entero, sin A/B. Queda la sonda,
+que sigue mostrando la brecha (58 > 33). El mecanismo D1 + D2 está probado; lo
+que falló es que no se pagó con borrado. Otro intento —`run_supervisor` como
+`kernel.agente()` real, que sí borraría el filtro— es otro pre-registro.
+
+**El error de diseño del brazo, en palabras del autor.** El spec decía "pasa a
+ser la Tool de un agente del kernel" y el brazo lo hizo colgar del contextvar:
+el atajo de X202 hizo innecesario el refactor y por eso no hubo nada que borrar.
 
 ---
 
