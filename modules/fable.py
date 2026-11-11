@@ -2,8 +2,15 @@
 
 Expone la pieza fable_judge.py (F1 del port de fable-method) como tool del
 chat: el reporte de un trabajo es un conjunto de claims que se juzgan por
-diff contra la referencia y por re-ejecución, no creyéndolos."""
+diff contra la referencia y por re-ejecución, no creyéndolos.
+
+X195: la capacidad declara su arista en el template de X194 (produce
+`veredicto`) y sus dos etapas del modelo corren en `kernel.loop`; el
+conector es la MISMA tool, por el despacho único."""
 from fable_judge import verificar_trabajo as juzgar
+from utils.conector import Conector
+from utils.fs_tools import run_tool_call
+from utils.kernel import Tool
 
 TOOLS = [
     {
@@ -32,6 +39,17 @@ TOOLS = [
         },
     },
 ]
+
+
+def _por_el_kernel(llamada, _ctx):
+    """La tool de la arista: el mismo verificar_trabajo, por run_tool_call."""
+    return run_tool_call(llamada, IMPL)["content"]
+
+
+CONECTORES = (
+    Conector(Tool(TOOLS[0]["function"]["name"], TOOLS[0], _por_el_kernel),
+             "veredicto", ("pregunta",)),
+)
 
 
 def verificar_trabajo(trabajo, pristine=None, reporte=None, sector=None):

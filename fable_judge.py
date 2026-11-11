@@ -26,11 +26,12 @@ import subprocess
 import time
 from functools import partial
 from pathlib import Path
+from types import SimpleNamespace as NS
 
 import yaml
 from openai import OpenAIError
-from pocketflow import Flow, Node
 
+from utils import kernel, tracing
 from utils.call_llm import call_llm
 from utils.estructura import extraer_yaml
 from utils.fable_dominios import adaptador, disponibles
@@ -444,16 +445,32 @@ def yaml_valido(crudo, validar):
     return validar(datos)
 
 
+class _ClienteDelPrompt:
+    """El modelo del juez como cliente del kernel: el prompt del contrato es
+    el último mensaje (el loop aporta saldo, retry y traza; no cambia bytes)."""
+
+    def __call__(self, mensajes, tools=None):
+        return NS(content=call_llm(mensajes[-1]["content"]), tool_calls=None)
+
+
+def _con_el_kernel(prompt):
+    """Una instancia de `kernel.loop` sin tools: un paso del modelo. El retry
+    de infra es el del nodo del kernel (el que tenía el Flow, X195)."""
+    ctx = kernel.Ctx(_ClienteDelPrompt(), tracing.SALDO.get() or kernel.Ledger(1))
+    crudo, _ = kernel.correr("", prompt, [], ctx, max_retries=3, wait=5)
+    return crudo
+
+
 def pedir_yaml(prompt, validar, contrato, aviso):
     """UNA llamada y, si el YAML no cumple, UN reintento con la respuesta
     inválida y el motivo a la vista. (datos|None, último crudo). Los dos
     pasos del juez (claims y veredicto) lo hacían cada uno a mano (X177)."""
-    crudo = call_llm(prompt)
+    crudo = _con_el_kernel(prompt)
     datos, motivo = yaml_valido(crudo, validar)
     if datos is not None:
         return datos, crudo
     print(colorear(f"  [fable-judge] {aviso} ilegible → reintento con feedback", "aviso"), flush=True)
-    reintento = call_llm(prompt + feedback_reparacion(crudo, motivo, contrato))
+    reintento = _con_el_kernel(prompt + feedback_reparacion(crudo, motivo, contrato))
     return yaml_valido(reintento, validar)[0], reintento
 
 
@@ -517,17 +534,17 @@ def compuerta(juicio, verificaciones, materiales=None):
 # ── nodos ───────────────────────────────────────────────────────────────
 
 
-class RecolectarClaims(Node):
-    """Paso 1: el reporte como lista de afirmaciones a probar o refutar."""
+CONTRATO_CLAIMS = ("El campo tipo SOLO puede ser hecho, verificacion, intacto o scope; "
+                   "las candidatas a verificación que afirman una corrida van con "
+                   "tipo: verificacion y comando exacto; claims una lista.")
 
-    def prep(self, shared):
-        listado = listado_prompt(_archivos_bajo(shared["trabajo"], shared["ignorar"])) or "(vacío)"
-        return shared["reporte"], listado
 
-    def _prompt(self, reporte, listado):
-        candidatas = candidatas_verificacion(reporte)
-        bloque = "\n".join(f"- {c}" for c in candidatas) or "(ninguna)"
-        return f"""Reporte de trabajo terminado:
+def _prompt_claims(reporte, listado):
+    """El prompt de extracción: el reporte, el listado real y las candidatas
+    del código como señuelo (no como prueba de nada)."""
+    candidatas = candidatas_verificacion(reporte)
+    bloque = "\n".join(f"- {c}" for c in candidatas) or "(ninguna)"
+    return f"""Reporte de trabajo terminado:
 {recortar_chars(reporte, 6000, "\n[... reporte truncado ...]")}
 
 Archivos del trabajo:
@@ -554,83 +571,59 @@ claims:
 ```
 El campo tipo SOLO puede ser hecho, verificacion, intacto o scope."""
 
-    CONTRATO = ("El campo tipo SOLO puede ser hecho, verificacion, intacto o scope; "
-                "las candidatas a verificación que afirman una corrida van con "
-                "tipo: verificacion y comando exacto; claims una lista.")
 
-    def exec(self, inputs):
-        reporte, listado = inputs
-        claims, _ = pedir_yaml(self._prompt(reporte, listado), validar_claims, self.CONTRATO, "claims")
-        if claims is not None:
-            return claims
-        # Fallback semántico: sin claims no hay juicio; el lado seguro es un
-        # claim único que no afirma nada del reporte (nunca se inventa un ok).
-        return [{"texto": "(el reporte no pudo parsearse en claims)", "tipo": "hecho"}]
-
-    def post(self, shared, prep_res, exec_res):
-        shared["claims"] = exec_res
+def _claims(trabajo, reporte, ignorar):
+    """Paso 1: el reporte como lista de afirmaciones a probar o refutar. Sin
+    claims legibles el lado seguro es un claim único que no afirma nada."""
+    listado = listado_prompt(_archivos_bajo(trabajo, ignorar)) or "(vacío)"
+    claims, _ = pedir_yaml(_prompt_claims(reporte, listado), validar_claims,
+                           CONTRATO_CLAIMS, "claims")
+    if claims is not None:
+        return claims
+    # Fallback semántico: sin claims no hay juicio; el lado seguro es un
+    # claim único que no afirma nada del reporte (nunca se inventa un ok).
+    return [{"texto": "(el reporte no pudo parsearse en claims)", "tipo": "hecho"}]
 
 
-class EstablecerCambio(Node):
-    """Paso 2: qué cambió de verdad. El diff es la verdad; el reporte, no."""
-
-    def prep(self, shared):
-        return shared["pristine"], shared["trabajo"], shared["ignorar"]
-
-    def exec(self, inputs):
-        pristine, trabajo, ignorar = inputs
-        if pristine is not None:
-            return diff_contra(trabajo, pristine, ignorar)
-        cambios = diff_git(trabajo, ignorar)
-        if cambios is not None:
-            return cambios
-        # sin referencia no se afirma nada: los cambios quedan unverifiable
-        return {"cambiados": [], "nuevos": [], "borrados": [],
-                "texto": "(sin referencia pre-tarea ni git: los cambios no se pueden establecer)"}
-
-    def post(self, shared, prep_res, exec_res):
-        shared["cambios"] = exec_res
-        shared["hechos"] = fraudes_deterministas(exec_res)
+def _cambios(trabajo, pristine, ignorar):
+    """Paso 2: qué cambió de verdad. El diff es la verdad; el reporte, no.
+    Sin referencia no se afirma nada: los cambios quedan unverifiable."""
+    if pristine is not None:
+        return diff_contra(trabajo, pristine, ignorar)
+    cambios = diff_git(trabajo, ignorar)
+    if cambios is not None:
+        return cambios
+    return {"cambiados": [], "nuevos": [], "borrados": [],
+            "texto": "(sin referencia pre-tarea ni git: los cambios no se pueden establecer)"}
 
 
-class ReEjecutar(Node):
+def _verificaciones(trabajo, claims, ejecutar):
     """Paso 3: re-ejecutar cada verificación clamada. Un claim no re-ejecutable
     es UNVERIFIABLE, nunca verdadero."""
-
-    def prep(self, shared):
-        ejecutar = shared["ejecutar"] or _ejecutar_por_policy
-        con_comando = [
-            c for c in shared["claims"]
-            if c.get("tipo") == "verificacion" and c.get("comando")
-        ][:MAX_RERUNS]
-        return shared["trabajo"], ejecutar, con_comando
-
-    def exec(self, inputs):
-        trabajo, ejecutar, claims = inputs
-        verificaciones = []
-        for claim in claims:
-            comando = claim["comando"]
-            if not permitido_rerun(comando, trabajo):
-                verificaciones.append({"claim": claim["texto"], "comando": comando,
-                                       "estado": "no_permitido", "salida": ""})
-                continue
-            print(colorear(f"  [fable-judge] re-ejecutando: {comando}", "info"), flush=True)
-            inicio = time.monotonic()
-            # X160 (S0): la ruta del trabajo viaja como UN argumento del shell
-            # (sin comillas, `a;touch x` agregaba un comando y `mi trabajo`
-            # rompía el cd y refutaba una verificación sana).
-            salida = ejecutar(f"cd {shlex.quote(str(trabajo))} && {comando}")
-            seg = round(time.monotonic() - inicio, 2)
-            estado = estado_de_rerun(salida)
-            evento_tool("fable_rerun", estado == "ok", seg, codigo=estado)
-            verificaciones.append({
-                "claim": claim["texto"], "comando": comando,
-                "estado": estado, "salida": salida,
-            })
-        return verificaciones
-
-    def post(self, shared, prep_res, exec_res):
-        shared["verificaciones"] = exec_res
+    ejecutar = ejecutar or _ejecutar_por_policy
+    con_comando = [c for c in claims
+                   if c.get("tipo") == "verificacion" and c.get("comando")][:MAX_RERUNS]
+    verificaciones = []
+    for claim in con_comando:
+        comando = claim["comando"]
+        if not permitido_rerun(comando, trabajo):
+            verificaciones.append({"claim": claim["texto"], "comando": comando,
+                                   "estado": "no_permitido", "salida": ""})
+            continue
+        print(colorear(f"  [fable-judge] re-ejecutando: {comando}", "info"), flush=True)
+        inicio = time.monotonic()
+        # X160 (S0): la ruta del trabajo viaja como UN argumento del shell
+        # (sin comillas, `a;touch x` agregaba un comando y `mi trabajo`
+        # rompía el cd y refutaba una verificación sana).
+        salida = ejecutar(f"cd {shlex.quote(str(trabajo))} && {comando}")
+        seg = round(time.monotonic() - inicio, 2)
+        estado = estado_de_rerun(salida)
+        evento_tool("fable_rerun", estado == "ok", seg, codigo=estado)
+        verificaciones.append({
+            "claim": claim["texto"], "comando": comando,
+            "estado": estado, "salida": salida,
+        })
+    return verificaciones
 
 
 CONTRATO_JUICIO = ("El campo veredicto SOLO puede ser verified, "
@@ -785,39 +778,29 @@ def _tipos_de_fraude(dominio):
 def sin_veredicto(caveat, verificaciones):
     """El juicio cuando el modelo no dio uno legible: el lado seguro del
     contrato de 3 NO es refuted (no hubo refutación), es caveats con el
-    motivo a la vista. Lo usan el fallback del nodo y la degradación de
+    motivo a la vista. Lo usan el fallback de `_juicio` y la degradación de
     `verificar_trabajo` (X179: eran dos copias del mismo dict)."""
     return compuerta({"veredicto": "verified_with_caveats", "fraudes": [], "caveats": [caveat],
                       "accion": "correr el juez de nuevo"}, verificaciones)
 
 
-class CazarFraudes(Node):
+def _juicio(estado):
     """Pasos 4 y 5: la tabla de fraudes + el veredicto, con los hechos a la vista."""
-
-    def prep(self, shared):
-        estado = {k: shared[k] for k in
-                  ("reporte", "claims", "cambios", "hechos", "verificaciones")}
-        if shared.get("dominio"):
-            estado["dominio"] = shared["dominio"]
-            estado["fuentes"] = contenido_de(shared["trabajo"], ignorar=shared["ignorar"])
-        else:
-            estado["contenido_nuevos"] = contenido_nuevos(
-                shared["trabajo"], shared["cambios"])
-        return estado
-
-    def exec(self, inputs):
-        prompt = _prompt_juicio(inputs)
-        # el contrato del `tipo` viaja con la tabla: código o dominio
-        validar = partial(validar_juicio, tipos=_tipos_de_fraude(inputs.get("dominio")))
-        juicio, crudo = pedir_yaml(prompt, validar, CONTRATO_JUICIO, "veredicto")
-        if juicio is not None:
-            return compuerta(juicio, inputs["verificaciones"], materiales_juicio(inputs))
-        # sin veredicto legible no se verifica nada: el crudo queda citado
-        return sin_veredicto("el juez no pudo emitir un veredicto legible (último crudo: "
-                             + recortar_chars(crudo, 300, "…") + ")", inputs["verificaciones"])
-
-    def post(self, shared, prep_res, exec_res):
-        shared["juicio"] = exec_res
+    inputs = {k: estado[k] for k in
+              ("reporte", "claims", "cambios", "hechos", "verificaciones")}
+    if estado.get("dominio"):
+        inputs["dominio"] = estado["dominio"]
+        inputs["fuentes"] = contenido_de(estado["trabajo"], ignorar=estado["ignorar"])
+    else:
+        inputs["contenido_nuevos"] = contenido_nuevos(estado["trabajo"], estado["cambios"])
+    # el contrato del `tipo` viaja con la tabla: código o dominio
+    validar = partial(validar_juicio, tipos=_tipos_de_fraude(inputs.get("dominio")))
+    juicio, crudo = pedir_yaml(_prompt_juicio(inputs), validar, CONTRATO_JUICIO, "veredicto")
+    if juicio is not None:
+        return compuerta(juicio, inputs["verificaciones"], materiales_juicio(inputs))
+    # sin veredicto legible no se verifica nada: el crudo queda citado
+    return sin_veredicto("el juez no pudo emitir un veredicto legible (último crudo: "
+                         + recortar_chars(crudo, 300, "…") + ")", inputs["verificaciones"])
 
 
 def observacion_de(claim, verificaciones):
@@ -863,31 +846,6 @@ def texto_veredicto(juicio, claims, verificaciones, cambios):
         f"{len(cambios['nuevos'])} nuevos, {len(cambios['borrados'])} borrados",
     ]
     return "\n".join(lineas)
-
-
-class Verdictar(Node):
-    """El veredicto final es determinista: formatea lo que los pasos probaron."""
-
-    def prep(self, shared):
-        return (shared["juicio"], shared["claims"],
-                shared["verificaciones"], shared["cambios"])
-
-    def exec(self, inputs):
-        return texto_veredicto(*inputs)
-
-    def post(self, shared, prep_res, exec_res):
-        shared["salida"] = exec_res
-
-
-def create_fable_judge_flow():
-    recolectar = RecolectarClaims(max_retries=3, wait=5)
-    cambiar = EstablecerCambio()
-    reejecutar = ReEjecutar()
-    cazar = CazarFraudes(max_retries=3, wait=5)
-    verdictar = Verdictar()
-
-    recolectar >> cambiar >> reejecutar >> cazar >> verdictar
-    return Flow(start=recolectar)
 
 
 # ── entrada pública ─────────────────────────────────────────────────────
@@ -939,7 +897,7 @@ def verificar_trabajo(trabajo, pristine=None, reporte=None, ejecutar=None, secto
         if dominio is None:
             conocidos = ", ".join(sorted(disponibles())) or "(ninguno cargado)"
             raise ValueError(f"dominio no conocido: {sector!r} (disponibles: {conocidos})")
-    shared = {
+    estado = {
         "trabajo": dir_trabajo, "pristine": dir_pristine,
         "reporte": _texto_del_reporte(reporte),
         "claims": [], "verificaciones": [], "cambios": None, "hechos": [],
@@ -947,23 +905,31 @@ def verificar_trabajo(trabajo, pristine=None, reporte=None, ejecutar=None, secto
         "ejecutar": ejecutar, "dominio": dominio, "ignorar": tuple(ignorar),
     }
     try:
-        create_fable_judge_flow().run(shared)
+        estado["claims"] = _claims(estado["trabajo"], estado["reporte"], estado["ignorar"])
+        estado["cambios"] = _cambios(estado["trabajo"], estado["pristine"], estado["ignorar"])
+        estado["hechos"] = fraudes_deterministas(estado["cambios"])
+        estado["verificaciones"] = _verificaciones(
+            estado["trabajo"], estado["claims"], estado["ejecutar"])
+        estado["juicio"] = _juicio(estado)
+        estado["salida"] = texto_veredicto(
+            estado["juicio"], estado["claims"], estado["verificaciones"], estado["cambios"])
     except (RuntimeError, OpenAIError, OSError):
         # Degradación terminal (mismo patrón que responder_con_juez): si el
-        # flujo revienta tras los retries pero hay estado, se entrega LO
+        # juez revienta tras los retries pero hay estado, se entrega LO
         # DETERMINISTA con advertencia. El except es ESTRECHO a propósito:
         # cubre las fallas de infra (API sin key = RuntimeError, red =
         # OpenAIError, disco = OSError) y deja que un bug del código crashee
         # honesto — no suma un except amplio (ratchet X13 los congela).
-        if shared["cambios"] is None:
+        if estado["cambios"] is None:
             raise
-        shared["advertencia"] = (
+        estado["advertencia"] = (
             "el juez no completó el análisis; se entrega la parte determinista "
             "(diff y hechos) sin veredicto del modelo.")
-        juicio = sin_veredicto("análisis incompleto: el flujo del juez cortó", shared["verificaciones"])
-        shared["salida"] = texto_veredicto(
-            juicio, shared["claims"], shared["verificaciones"], shared["cambios"])
-    return shared["salida"], shared["advertencia"]
+        juicio = sin_veredicto("análisis incompleto: el flujo del juez cortó",
+                               estado["verificaciones"])
+        estado["salida"] = texto_veredicto(
+            juicio, estado["claims"], estado["verificaciones"], estado["cambios"])
+    return estado["salida"], estado["advertencia"]
 
 
 def main(argv=None):

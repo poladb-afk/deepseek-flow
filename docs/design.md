@@ -326,8 +326,9 @@ terceros.
 ## El template del módulo (X194) — el conector y los tipos
 
 [utils/conector.py](../utils/conector.py) es el contrato que un módulo declara
-para conectarse con otro. El registro de módulos ya lo aplica al armar
-(`discover()`); ningún módulo declara conectores todavía: migrarlos es X195+.
+para conectarse con otro. El registro de módulos lo aplica al armar
+(`discover()`); `fable_judge` ya declara el suyo (X195) y el resto se migra en
+X196+.
 
 - **`Artefacto(tipo, contenido, procedencia, citas)`**: el dato que cruza la
   arista. Los tipos son los cinco del contrato (`pregunta`, `plan`,
@@ -353,9 +354,9 @@ para conectarse con otro. El registro de módulos ya lo aplica al armar
 - **El registro valida al armar**: un módulo puede declarar `CONECTORES` (tupla
   de `Conector`) y `discover()` (en `modules/__init__.py`) saltea el módulo que
   declara otra cosa, como a uno que no importa: sus tools no entran al chat.
-  Vale el tipo exacto (`type(c) is Conector`), no una subclase. Límite
-  declarado: no valida que la tool del conector esté entre las `TOOLS`/`IMPL`
-  del módulo; eso lo cierra la migración (X195).
+  Vale el tipo exacto (`type(c) is Conector`), no una subclase, y la tool del
+  conector tiene que estar entre las `TOOLS`/`IMPL` del módulo (X195: el test
+  de la arista de `fable`).
 - **`componer(*conectores) -> tuple[Tool, ...]`**: la composición como dato,
   validada al armar: arranca en `pregunta` y cada salida tiene que ser una
   entrada del siguiente. Si no encaja, `ValueError` en el armado y no se gastó
@@ -400,26 +401,27 @@ configurable por corrida con `--rondas N` o `shared["max_rounds"]`; la tool
 
 ```mermaid
 flowchart LR
-    c[RecolectarClaims] --> d[EstablecerCambio] --> r[ReEjecutar] --> f[CazarFraudes] --> v[Verdictar]
+    c[_claims] --> d[_cambios] --> r[_verificaciones] --> f[_juicio] --> v[texto_veredicto]
 ```
 
 F1 del port de [fable-method](https://github.com/Sahir619/fable-method)
 (@9924067, MIT; método en `skills/fable-judge/SKILL.md`, diseño del port en
 el [mapeo](informes/fable_method_mapeo_2026-10-21.md) §4.2): juzga TRABAJO
 TERMINADO, no preguntas — "un reporte es un conjunto de claims, no
-evidencia". Los dos nodos LLM (claims y juicio) usan structured output con
-loop de reparación (crudo inválido citado verbatim + fallback semántico,
-fase B2 del juez de respuestas); los otros tres son deterministas:
+evidencia". Las dos etapas LLM (claims y juicio) corren como instancias de `kernel.loop`
+sin tools (X195: retry del kernel, saldo del árbol) y usan structured output
+con loop de reparación (crudo inválido citado verbatim + fallback semántico,
+fase B2 del juez de respuestas); los otros tres pasos son deterministas:
 
-- **EstablecerCambio**: diff `trabajo/` vs `pristine/` (difflib, sin
+- **`_cambios`**: diff `trabajo/` vs `pristine/` (difflib, sin
   basura de tooling); sin pristine, `git diff` best-effort; sin referencia
   los cambios quedan UNVERIFIABLE (nunca asumidos).
-- **ReEjecutar**: re-ejecuta las verificaciones que el reporte clama, con
+- **`_verificaciones`**: re-ejecuta las verificaciones que el reporte clama, con
   allowlist propia (un `python`/`pytest` simple, sin metacaracteres de
   shell) y despacho SIEMPRE por `run_command` de `modules/coding` (policy
   + HITL graduado, nunca shell libre). El ejecutor es inyectable
   (`ejecutar=`) para los tests. Un claim no re-ejecutable es UNVERIFIABLE.
-- **Verdictar**: la **compuerta** de hechos del código (mismo patrón que el
+- **`_juicio` → `texto_veredicto`**: la **compuerta** de hechos del código (mismo patrón que el
   Judge de respuestas): una verificación clamada que falla al re-ejecutarse
   fuerza REFUTED aunque el modelo diga VERIFIED, y un verified con fraudes
   se refuta solo. El formato es el de fable: veredicto en la primera línea
@@ -432,6 +434,10 @@ Presupuestos (L8): `MAX_CLAIMS=12`, `MAX_RERUNS=6`, diff al prompt truncado
 `verificar_trabajo(trabajo, pristine?, reporte)` (módulo `fable`) la expone;
 el reporte llega como ruta o texto literal. Medición: exp/81 sobre el
 fixture s7 (5 fraudes plantados) en [bitacora/2026-10.md](bitacora/2026-10.md).
+
+El módulo `fable` declara su `Conector` (produce `veredicto`, consume
+`pregunta`; la misma tool por `run_tool_call`, X195): la arista del módulo ya
+está en el template.
 
 **Dominios (F3, exp/82)**: con `sector` (ej. `marketing`), el trabajo
 no-código se juzga con el **adapter del dominio** — la fraud table, el

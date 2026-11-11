@@ -8,7 +8,6 @@ import pytest
 
 import fable_judge
 from fable_judge import (
-    ReEjecutar,
     compuerta,
     contenido_nuevos,
     diff_contra,
@@ -137,9 +136,8 @@ def test_rerun_pide_solo_lo_permitido_y_arma_el_cd(tmp_path):
             {"texto": "un hecho", "tipo": "hecho"},
         ],
     }
-    nodo = ReEjecutar()
-
-    verif = nodo.exec(nodo.prep(shared))
+    verif = fable_judge._verificaciones(
+        shared["trabajo"], shared["claims"], shared["ejecutar"])
 
     assert llamadas == [f"cd {tmp_path} && python3 test_x.py"]
     assert [v["estado"] for v in verif] == ["ok", "no_permitido"]
@@ -423,7 +421,7 @@ def test_un_fraude_que_cita_fuera_del_corpus_se_marca(con_raices, monkeypatch):
 def test_el_prompt_de_claims_trae_las_candidatas_y_el_contrato(con_raices):
     reporte = "Verificaciones: pytest da 63 passed y ruff check . está limpio."
 
-    prompt = fable_judge.RecolectarClaims()._prompt(reporte, "convert.py")
+    prompt = fable_judge._prompt_claims(reporte, "convert.py")
 
     assert "candidatas a verificación" in prompt
     assert "pytest da 63 passed" in prompt and "ruff check . está limpio" in prompt
@@ -786,7 +784,7 @@ def test_el_prompt_de_claims_con_arbol_gigante_queda_acotado():
     listado = fable_judge.listado_prompt(
         {f"salidas/corrida_{i:05d}/transcript.jsonl": None for i in range(6000)})
 
-    prompt = fable_judge.RecolectarClaims()._prompt("pytest 63 passed", listado)
+    prompt = fable_judge._prompt_claims("pytest 63 passed", listado)
 
     assert len(prompt) < 8000
     assert "listado truncado: 6000 archivos" in prompt

@@ -49,6 +49,11 @@ def discover():
                   file=sys.stderr)
             continue
         nuevos = getattr(module, "IMPL", {})
+        registradas = {t["function"]["name"] for t in getattr(module, "TOOLS", [])} | set(nuevos)
+        if any(c.tool.nombre not in registradas for c in conectores):
+            print(f"[módulos] {info.name} declara un conector de una tool ajena → se saltea",
+                  file=sys.stderr)
+            continue
         for nombre in set(nuevos) & set(impls):
             print(f"[módulos] {info.name} redefine la tool '{nombre}'", file=sys.stderr)
         tools.extend(getattr(module, "TOOLS", []))

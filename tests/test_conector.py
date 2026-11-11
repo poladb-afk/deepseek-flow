@@ -6,6 +6,7 @@ ni gasta una llamada; el conector no acepta política, validador ni allowlist;
 hay una sola arista (tool o hijo por el flag `agente`) y una sola descripción,
 la del esquema de la tool que lee el módulo de arriba.
 """
+import json
 from dataclasses import fields
 from types import SimpleNamespace as NS
 
@@ -125,11 +126,29 @@ def test_el_registro_valida_los_conectores_al_armar(monkeypatch, capsys):
                 CONECTORES=(Conector(tool("leido"), "hallazgos", ("pregunta",)),))
     roto = NS(name="roto", TOOLS=[tool("roto").esquema], IMPL={"roto": lambda **_: "ok"},
               CONECTORES=("no soy un conector",))
-    monkeypatch.setattr(modules, "pkgutil", NS(iter_modules=lambda _: [roto, valido]))
+    ajena = NS(name="ajena", TOOLS=[tool("otra").esquema], IMPL={"otra": lambda **_: "ok"},
+               CONECTORES=(Conector(tool("no_esta"), "veredicto", ("pregunta",)),))
+    monkeypatch.setattr(modules, "pkgutil", NS(iter_modules=lambda _: [roto, ajena, valido]))
     monkeypatch.setattr(modules, "importlib", NS(
-        import_module=lambda nombre: roto if nombre.endswith(".roto") else valido))
+        import_module=lambda nombre: {"roto": roto, "ajena": ajena}.get(nombre.rsplit(".", 1)[-1], valido)))
 
     tools, impls = modules.discover()
     assert set(impls) == {"leido"}
     assert [t["function"]["name"] for t in tools] == ["leido"]
-    assert "roto declara conectores" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "roto declara conectores" in err
+    assert "ajena declara un conector de una tool ajena" in err
+
+
+def test_el_conector_de_fable_produce_veredicto(monkeypatch):
+    """X195: fable declara su arista; la tool del conector es la del módulo y
+    corre por el despacho único (`run_tool_call`)."""
+    from modules import fable
+
+    conector, = fable.CONECTORES
+    assert (conector.tool.nombre, conector.produce, conector.consume) == (
+        "verificar_trabajo", "veredicto", ("pregunta",))
+    monkeypatch.setattr(fable, "IMPL", {"verificar_trabajo": lambda **_: "juicio"})
+    llamada = {"function": {"name": "verificar_trabajo",
+                            "arguments": json.dumps({"trabajo": "t", "reporte": "r"})}}
+    assert conector.tool.correr(llamada, None) == "juicio"

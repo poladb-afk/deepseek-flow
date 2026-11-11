@@ -262,7 +262,7 @@ def test_el_rerun_de_fable_judge_no_interpreta_la_ruta_del_trabajo(tmp_path, nom
     import shlex
     import subprocess
 
-    from fable_judge import ReEjecutar
+    import fable_judge
 
     trabajo = tmp_path / nombre
     trabajo.mkdir()
@@ -274,9 +274,8 @@ def test_el_rerun_de_fable_judge_no_interpreta_la_ruta_del_trabajo(tmp_path, nom
         r = subprocess.run(comando, shell=True, capture_output=True, text=True, cwd=tmp_path, timeout=30)
         return f"exit {r.returncode}\n{r.stdout}"
 
-    nodo = ReEjecutar()
-    verif = nodo.exec(nodo.prep({"trabajo": trabajo, "ejecutar": correr, "claims": [
-        {"texto": "corre", "tipo": "verificacion", "comando": "python3 ok.py"}]}))
+    verif = fable_judge._verificaciones(trabajo, [
+        {"texto": "corre", "tipo": "verificacion", "comando": "python3 ok.py"}], correr)
 
     assert verif[0]["estado"] == "ok"
     assert shlex.split(vistos[0])[:3] == ["cd", str(trabajo), "&&"]  # la ruta es UN argumento

@@ -4304,3 +4304,55 @@ profundidad; no la trae: el chequeo de `max_profundidad` vive en
 **Queda como D4** (A: aceptar +10 con la clave; B: X195 primero, que exige que el
 producto baje, y volver con este dato; C: cerrar). No se escribe un brazo que
 el pre-registro ya sabe que no pasa.
+
+---
+
+## X195: `fable_judge` sobre el kernel, contra la foto (2026-11-11)
+
+**Qué se hizo.** Los 5 nodos de PocketFlow y el `Flow` de 5 pasos se fueron;
+el pipeline son funciones sobre un estado dict (`_claims`, `_cambios`,
+`_verificaciones`, `_juicio`) y las **dos etapas del modelo** corren como
+instancias de `kernel.loop` sin tools (`_ClienteDelPrompt`, `_con_el_kernel`):
+el prompt del contrato viaja como el último mensaje, el retry de infra es el
+del nodo del kernel (`max_retries=3`) y el saldo es el del árbol
+(`tracing.SALDO`); sin árbol (la CLI standalone) usa un `Ledger(1)` local
+que no decide nada porque no hay tools. `modules/fable.py` declara su
+`Conector` (produce `veredicto`, consume `pregunta`; la tool es la misma por
+`run_tool_call`) y `discover()` valida que esa tool esté entre las
+`TOOLS`/`IMPL` del módulo: cierra el límite que X194 había declarado.
+
+**La foto.** `tests/test_caracterizacion_fable_judge.py`: **6/6 escenarios, 0
+diferencias** — los prompts (sha256) y las salidas byte a byte, incluidos los
+reintentos (claims ilegibles, veredicto ilegible dos veces y la API caída 3
+veces).
+
+**Lo medido.** `lineas_del_producto` **7591 → 7578 (−13)**:
+`fable_judge.py` 563 → 536 (los nodos, el `Flow` y `_reintentos` menos; el
+adaptador y las funciones más), `modules/fable.py` 30 → 39 y
+`modules/__init__.py` 27 → 32. `tests_definidos` 1513 → 1514. El pago habilita
+el +10 de X204: **7578 + 10 = 7588 ≤ 7591**.
+
+**Desvíos declarados.**
+1. Son **dos** instancias de `kernel.loop` (una por etapa del modelo), no una
+   sola: las dos llamadas son independientes y un loop único exigiría que el
+   modelo eligiera las etapas, que es lo que cambia la conducta y la foto.
+2. El retry de infra ahora es por llamada al modelo (el nodo del kernel), no
+   por etapa completa: con `pedir_yaml`, el reintento de YAML vuelve a pedir
+   también la primera llamada. Ningún escenario de la foto lo distingue.
+3. El `except` sigue estrecho (RuntimeError/OpenAIError/OSError) y
+   `excepts_amplios` no se movió.
+
+**Lo que la foto no cubre.** El modo dominio se ejercita en la foto con
+`marketing`; el camino sin `pristine` (`diff_git`) y la CLI siguen cubiertos
+por `tests/test_fable_judge.py` y `tests/test_db.py` como antes.
+
+**Gate** (6 etapas, una corrida, sobre este árbol): 1/6 y 2/6 verdes; 3/6
+`tests_definidos` 1513 → 1514 MEJORÓ, `lineas_del_loop` 660 IGUAL,
+`lineas_del_producto` 7591 → 7578 MEJORÓ (baseline escrito por el gate, sin
+clave); 4/6 funcional **1509 passed, 27 deselected**; 5/6 cobertura **926
+(antes 926)**; 6/6 tipos **0 (antes 0)**. El primer intento quedó rojo por dos
+acoplamientos de la migración: un test de `test_policy_bypass.py` importaba el
+nodo `ReEjecutar` (pasó 1:1 a `_verificaciones`, sin perder ninguna
+parametrización) y el registro congelado de sitios LLM
+(`banco/probes/twins_extractores.py`) tenía 2 en `fable_judge.py` y ahora hay
+1: las dos etapas comparten `_con_el_kernel`.
