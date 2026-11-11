@@ -174,6 +174,7 @@ python3 main.py informe [carpeta]        # map-reduce de trazas .jsonl
 python3 main.py auditoria c1 c2          # multi-carpeta comparativa
 python3 main.py research "tema"          # investigación web con loop
 python3 main.py debate "tema" [--rondas] # debate multi-agente
+python3 main.py composicion research_council "tema" # composición declarada (research + council)
 python3 main.py supervisor "tarea"       # orquestación de piezas
 python3 main.py effective_n [carpeta ...] # deduplicación exacta (1 o varias carpetas)
 python3 main.py evals                   # evals: linter de trazas + costos

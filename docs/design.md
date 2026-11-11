@@ -327,8 +327,8 @@ terceros.
 
 [utils/conector.py](../utils/conector.py) es el contrato que un módulo declara
 para conectarse con otro. El registro de módulos lo aplica al armar
-(`discover()`); `fable_judge` (X195) y `debate` (X196) ya declaran el suyo; el
-resto se migra en X197+.
+(`discover()`); `fable_judge` (X195), `debate` (X196) y `research` (X197) ya
+declaran el suyo; el resto no tiene paso asignado.
 
 - **`Artefacto(tipo, contenido, procedencia, citas)`**: el dato que cruza la
   arista. Los tipos son los cinco del contrato (`pregunta`, `plan`,
@@ -366,6 +366,15 @@ resto se migra en X197+.
   entrada del siguiente. Si no encaja, `ValueError` en el armado y no se gastó
   ninguna llamada (el mismo criterio que la validación de `hijas` de
   `kernel.loop`, X147). El que la corre es la composición declarada (X197).
+
+**La composición declarada (X197).** `utils/composicion.py` corre
+`pregunta → research (borrador) → puente → council (veredicto)`:
+`componer()` la valida al armar, el puente determinista convierte el informe
+en la moción (`borrador → pregunta`) y el runner pasa cada artefacto a la
+tool siguiente cobrando todo al mismo `Ledger`. Se pide con
+`main.py composicion research_council "tema"`; el catálogo resuelve las
+aristas por nombre (`modules.conectores()`), sin que el CORE importe ningún
+módulo.
 
 Fuera del contrato, para no reabrirlo: el council en dos fases (X196) y la
 profundidad/N con la señal de saturación (X199), los ítems 7 y 8 del informe
@@ -525,7 +534,9 @@ flowchart LR
 
 El synthesizer juzga la COBERTURA (no la respuesta): con huecos, vuelve
 al planner con feedback; presupuesto MAX_ROUNDS=2. Web por ddgs,
-structured output en todo (extraer_yaml + assert + retry).
+structured output en todo (extraer_yaml + assert + retry). El módulo declara
+su `Conector` (produce `borrador`); el artefacto de la composición es el
+**informe** y el chat sigue recibiendo la ruta (X197, D6=A).
 
 ### Supervisor — el loop del kernel con las leyes del ejecutor (v3, H2 PR 2)
 `main.py supervisor "tarea"` · [supervisor.py](../supervisor.py) · [sonda_supervisor.py](../banco/probes/sonda_supervisor.py)

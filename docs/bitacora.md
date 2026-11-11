@@ -4473,3 +4473,82 @@ pagó `modules/debate.py` (+2) y lo que se fue de `modules/fable.py` (−7);
 `tests_definidos` 1514 → 1517 (+1 el caso de debate del conector y +2 el archivo
 nuevo) y cobertura **926 → 869**: `debate.py` pasa de 64 a 7 líneas sin test
 (queda el CLI).
+
+---
+
+## X197: `research` con el template y la composición research + council (2026-11-11)
+
+**Las decisiones (operador, 2026-11-11): D5=A, D6=A, D7=A, D8=A.** El humo
+con tope US$0,10 lo corre Laboratorio.
+
+**Qué se escribió.** `modules/research.py` declara su `Conector` (produce
+`borrador`, consume `pregunta`); su tool de la composición corre la pieza y
+devuelve el INFORME, mientras el chat sigue recibiendo la ruta (D6=A).
+`modules/__init__.py` gana `conectores()` (las aristas por nombre de tool; el
+CORE no importa módulos). `utils/composicion.py`: el puente determinista
+`borrador → pregunta` (D8=A), la tabla `COMPOSICIONES` y el runner que
+`componer()` valida al armar (0 llamadas si no encaja), pasa cada artefacto a
+la tool siguiente (el primer `required` del esquema) y cobra todo al mismo
+`Ledger`; `main.py composicion research_council "tema"` (D7=A). La arista de
+`debate` de X196 no se movió: `componer(research, debate)` no arma.
+
+**Lo medido.** `lineas_del_producto` **7578 → 7650 (+72)** (research +12,
+`utils/composicion.py` +56, el catálogo +3, el CLI +1), dentro del techo 7658
+que fijó el pre-registro; `tests_definidos` 1517 → 1523; loop 660 IGUAL;
+cobertura del archivo nuevo 100 % (49 sentencias). **Desvío declarado**: el
+primer corte dio **+85** (7663), 5 sobre el techo; se simplificó la misma
+pieza (fuera el guard de parámetro requerido, el guard `__main__` y la
+llamada armada inline) para entrar sin cambiar el diseño.
+
+**Estado al cerrar el brazo.** Faltaban el gate 6/6 con la clave del operador
+(+72 dentro del techo) y el humo real de Laboratorio (tope US$0,10); los dos
+se cerraron el 2026-11-11 (aceptación al final de la entrada del humo).
+
+**Gate** (6 etapas, una corrida, sobre este árbol): 1/6 y 2/6 verdes; 3/6
+`lineas_del_producto` 7578 → 7650 EMPEORÓ (rojo por diseño hasta la clave,
+dentro del techo 7658), `tests_definidos` 1517 → 1523 MEJORÓ y
+`lineas_del_loop` 660 IGUAL; 4/6 funcional **1519 passed, 27 deselected**;
+5/6 cobertura **869 → 867**; 6/6 tipos **0 (antes 0)**. El primer intento
+quedó rojo en tipos: `Tool.correr` está tipado `object` y el `partial` nuevo
+lo delataba (`reportArgumentType`); el runner pasó a un helper `_protegida`
+que llama la tool directo y el tipo volvió a 0. Después, rojo solo el ratchet
+hasta que el operador corrió su clave (7650/1523/660 y gate 6/6; ver la
+aceptación al final de la entrada del humo).
+
+## X197: el humo de la composición research + council — PASA con US$0,0173 (2026-11-11)
+
+**Qué se midió.** El criterio 7 del spec, sobre el árbol de trabajo sin
+commitear (`HEAD = f26e3c1` + 11 modificados + los 3 nuevos), copiado tal cual
+a `salidas/x197_humo/arm/` con sha256 verificado (0 diferencias):
+`main.py composicion research_council "¿Qué es PocketFlow y para qué sirve?"`,
+una corrida, `TRACE=1`.
+
+**Lo medido.** research: 3 rondas del loop de cobertura, 9 bloques de material,
+informe de 32 líneas; el puente armó la moción sin LLM; el council dio 2 rondas
+de proponente/crítico + juez y **"Ganador: proponente"** con síntesis real. El
+runner imprimió **`[16 llamadas del árbol]`** y la traza tiene **16 eventos
+`llm`** (research 11 + council 5): el `Ledger` de la composición cuenta todo lo
+que las piezas hicieron. Costo **US$0,0173** con split de cache y **US$0,0179**
+de techo (todo el prompt como miss), contra el tope de **US$0,10** (17%).
+Prompt 16.366, completion 25.729, cache hit 3.968 reportado en 16/16 llamadas.
+**0 eventos `hitl`, 0 comandos** y una sola escritura (`salidas/research.md`
+dentro de la copia); ningún archivo del producto tocado.
+
+**Desvíos declarados.** 1) El tope es US$0,10, no los 0,05 del pre-registro
+(lo subió el operador). 2) `ddgs` está en `requirements-opcionales.txt` pero no
+en el `.venv`: se instaló 9.16.1 con `pip --target salidas/x197_humo/pylibs` y
+se usó por `PYTHONPATH` solo en ese proceso — el venv del gate no se tocó.
+3) El subcomando no pasa por `sesion()`, así que no imprime `[tokens] sesión`:
+el costo se computa de los eventos `llm` de la traza con la tarifa de
+`utils/costos.py` (off-peak, `~`; el techo no subestima).
+
+**Aceptación (2026-11-11).** El operador corrió `python3 ratchet.py
+--actualizar` y `./calidad.sh` con su clave: el ratchet imprimió `bypass del
+operador (clave verificada)` y dejó **7650/660/1523** IGUAL; la suite dio
+**1519 passed, 27 deselected** (más 25 passed, 2 skipped de la pasada
+marcada), cobertura **867** (`utils/composicion.py`: 0 líneas sin test;
+`modules/debate.py`: 2 → 0) y tipos **0**: **gate 6/6**. Los dos
+`ratchets/*.json` quedan actualizados para el commit del brazo. Informe:
+`docs/informes/x197_humo_2026-11-11.md`; evidencia en `salidas/x197_humo/`
+(`humo.log` sha256 `9c26e500…`, `traza.jsonl` `16908e31…`, `medicion.json`
+`bff56622…`).
