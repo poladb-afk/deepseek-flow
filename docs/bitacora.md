@@ -4081,3 +4081,13 @@ pasa a ser su proyección; revierte la dirección de X140 y sus 8 mutantes se
 reescriben 1:1. D2 = **A**: `Ctx.hijo(tope=n)` con tope propio y `MAX_PASOS = 5`
 como tope del supervisor; su `Ledger(MAX_PASOS)` se borra. Queda el código y el
 A/B; el gasto (US$0,20–0,70, humo de US$0,05) se autoriza antes de correr.
+
+**Resultado (2026-11-11): NO PASA.** Implementado el piso de D1=A + D2=A
+—`Ledger` hijo que cobra en los dos, `Ctx.hijo(tope)`, el contextvar con el
+`Ctx` y `turno` como proyección— **sin** el supervisor: `lineas_del_producto`
+7541 → **7549** (+8) y `lineas_del_loop` 660 → **666** (+6). El corte del spec
+es ≤ 7541 y el loop no se puede aceptar sin la clave del operador, así que se
+revierte entero (producto y los dos tests, que se vieron en rojo antes).
+Quedan la sonda y el spec, como manda el pre-registro; el `Ledger(MAX_PASOS)` y
+el filtro por nombre siguen en `supervisor.py`. El costo real (+8/+6) y el tope
+propio se vuelven otro pre-registro (N1).
