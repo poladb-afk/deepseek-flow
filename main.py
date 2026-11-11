@@ -87,6 +87,7 @@ SUBCOMANDOS = {
     "auditoria": "auditoria",
     "index": "rag",
     "debate": "debate",
+    "composicion": "utils.composicion",
     "mcp-server": "mcp_server",
     "research": "research",
     "supervisor": "supervisor",

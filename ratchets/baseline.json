@@ -161,9 +161,9 @@
         "informe.py": 148,
         "juez.py": 302,
         "juez_lote.py": 132,
-        "main.py": 103,
+        "main.py": 104,
         "mcp_server.py": 77,
-        "modules/__init__.py": 32,
+        "modules/__init__.py": 35,
         "modules/a2a.py": 123,
         "modules/auditoria.py": 37,
         "modules/coding.py": 312,
@@ -179,7 +179,7 @@
         "modules/mcp.py": 28,
         "modules/memoria.py": 245,
         "modules/rag.py": 45,
-        "modules/research.py": 22,
+        "modules/research.py": 34,
         "modules/supervisor.py": 29,
         "modules/vision.py": 148,
         "modules/websearch.py": 21,
@@ -193,6 +193,7 @@
         "utils/call_llm.py": 187,
         "utils/citas.py": 96,
         "utils/compaccion.py": 151,
+        "utils/composicion.py": 56,
         "utils/conductor.py": 78,
         "utils/conector.py": 57,
         "utils/contexto.py": 42,
@@ -221,7 +222,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7578
+      "metrica": 7650
     },
     "nodos_largos": {
       "detalle": {},
@@ -396,6 +397,7 @@
         "tests/test_citas.py": 18,
         "tests/test_comandos_reales.py": 5,
         "tests/test_compaccion.py": 25,
+        "tests/test_composicion.py": 6,
         "tests/test_conector.py": 13,
         "tests/test_consolidacion.py": 36,
         "tests/test_contratos.py": 5,
@@ -476,7 +478,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 23
       },
-      "metrica": 1517
+      "metrica": 1523
     },
     "texto_de_prompt": {
       "detalle": {

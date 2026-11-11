@@ -166,7 +166,7 @@
           "modules/auditoria.py": 13,
           "modules/coding.py": 26,
           "modules/db.py": 11,
-          "modules/debate.py": 2,
+          "modules/debate.py": 0,
           "modules/delegar.py": 0,
           "modules/effective_n.py": 24,
           "modules/escritura.py": 7,
@@ -191,6 +191,7 @@
           "utils/call_llm.py": 10,
           "utils/citas.py": 7,
           "utils/compaccion.py": 4,
+          "utils/composicion.py": 0,
           "utils/conductor.py": 42,
           "utils/conector.py": 0,
           "utils/contexto.py": 0,
@@ -219,7 +220,7 @@
           "utils/websearch.py": 18,
           "visor.py": 22
         },
-        "metrica": 869
+        "metrica": 867
       }
     }
   },

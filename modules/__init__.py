@@ -61,6 +61,14 @@ def discover():
     return tools, impls
 
 
+def conectores():
+    """Los conectores que declaran los módulos presentes, por nombre de tool
+    (X197): la composición los resuelve así sin que el CORE importe ningún
+    módulo. Solo los ya cargados por `discover()`."""
+    cargados = (sys.modules.get(f"{__name__}.{info.name}") for info in pkgutil.iter_modules(__path__))
+    return {c.tool.nombre: c for m in cargados if m is not None for c in getattr(m, "CONECTORES", ())}
+
+
 def ganchos(evento):
     """Las funciones que los módulos presentes registran para `evento`, en
     orden de nombre de módulo. Solo los ya cargados por `discover()`: un

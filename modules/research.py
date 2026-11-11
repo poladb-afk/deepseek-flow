@@ -1,8 +1,17 @@
 """Módulo `research`: deep research como capacidad del chat.
 
 Corre el loop planner→researcher→synthesizer (web + cobertura) y devuelve
-la ruta del informe con fuentes."""
+la ruta del informe con fuentes.
+
+X197: declara su arista con el template (produce `borrador`, consume
+`pregunta`). El conector de la composición devuelve el INFORME (D6=A); el
+chat sigue recibiendo la ruta, que es lo que no inunda su contexto."""
+import json
+from pathlib import Path
+
 from research import investigar
+from utils.conector import Conector
+from utils.kernel import Tool
 
 TOOLS = [
     {
@@ -29,3 +38,16 @@ def deep_research(tema, salida="salidas/research.md"):
 
 
 IMPL = {"deep_research": deep_research}
+
+
+def _informe(llamada, _ctx):
+    """El artefacto de la composición: corre la pieza y devuelve el informe."""
+    args = json.loads(llamada["function"].get("arguments") or "{}")
+    tema = str(args.get("tema", "") if isinstance(args, dict) else "")
+    salida = args.get("salida") if isinstance(args, dict) else None
+    return Path(investigar(tema, salida or "salidas/research.md")).read_text(
+        encoding="utf-8", errors="replace")
+
+
+CONECTORES = (Conector(Tool(TOOLS[0]["function"]["name"], TOOLS[0], _informe),
+                       "borrador", ("pregunta",)),)
