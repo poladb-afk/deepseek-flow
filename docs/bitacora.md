@@ -4048,7 +4048,7 @@ aceptación del operador, el gate completo dio **6/6** (`bypass del operador
 (más 25 marcados, 2 skipped); cobertura **1006 → 985**; tipos **0**;
 `tests_definidos` **1474 → 1479**. Ratchet **aceptado por el operador con su
 clave (2026-11-11)** (`--actualizar`): `lineas_del_producto`
-7529 → 7541 (+12: `utils/tracing.py` +9, `utils/kernel.py` +2,
+7529 → 7541 (+12: `utils/tracing.py` +10, `utils/kernel.py` +1,
 `utils/call_llm.py` +1) y `lineas_del_loop` 659 → 660, con baseline
 **7541/660/1479** y las dos métricas IGUAL. Los patches llegaron desde un
 entorno sin git; acá X202 cierra con el commit de aceptación `2f912bc` (rojo

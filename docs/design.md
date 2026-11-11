@@ -991,8 +991,10 @@ como una `Tool` que otro loop puede llamar. Leyes por construcción:
 - **Lo que una tool le pide al modelo también lo paga el árbol** (X202): `Actuar`
   corre cada tool dentro de `tracing.cobrando(ledger, …)` y el cliente
   (`utils/call_llm._contabilizar`) cobra cada llamada al saldo de su contexto
-  (un `contextvar`: lo heredan los hilos de lectura, `asyncio.to_thread` y las
-  tareas async). `Paso` corre su llamada con `cobrando(None, …)` porque ya la
+  (un `contextvar`). `ThreadPoolExecutor` no hereda contextvars: las lecturas
+  cobran porque `cobrando` corre dentro de cada worker (`utils/kernel.py:157`);
+  `asyncio.to_thread` y las tareas async sí propagan el contexto. `Paso` corre
+  su llamada con `cobrando(None, …)` porque ya la
   cobró: una copia que use el cliente real no paga dos veces. **Límite
   declarado:** cuenta, no frena — una capacidad que gasta más que el saldo
   igual termina; y un loop con su propio `Ledger` (el supervisor) cobra a ese,

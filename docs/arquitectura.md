@@ -23,7 +23,7 @@ todos (P2 lo nombra; EL2: el control es un dato). Decisión del operador
 
 | # | Cómo se ve en la arquitectura | Mecanismo de este borrador | Gate |
 |---|---|---|---|
-| S0 | **vive en el conector** (`run_tool_call` + `HOOKS_PRE`): toda composición la hereda sin que nadie tenga que acordarse; el árbol entero gasta un solo saldo | la composición validada al armar; `Ctx.hijo()` comparte el `Ledger` | el de S0 en `docs/principios.md`; para el árbol de una composición, sin gate (falta: el saldo contado de punta a punta, chat → capacidad → LLM) |
+| S0 | **vive en el conector** (`run_tool_call` + `HOOKS_PRE`): toda composición la hereda sin que nadie tenga que acordarse; el árbol entero gasta un solo saldo | la composición validada al armar; `Ctx.hijo()` comparte el `Ledger` | el de S0 en `docs/principios.md`; el saldo chat → capacidad → LLM lo cuentan los 3 tests de X202; falta el supervisor (X203) |
 | P1 | **uno por capacidad**: un módulo, un nodo, una función, nada duplicado; el contexto se gana: conocer no es mostrar | el catálogo | `bytes_primer_request`, `lineas_del_producto` |
 | P2 | cada módulo es, por dentro, una instancia de `kernel.loop` con su prompt, sus tools y su parte del saldo **(a)**; hereda todos los frenos y, como mucho, las capacidades del padre **(c)**; la forma **(b)** sigue medida y no adoptada | el conector extiende la `Tool` del kernel (`agente=True`, `hijas`) | `test_un_hijo_no_puede_tener_tools_que_el_padre_no_tiene`; para los módulos del producto, sin gate (X195) |
 | P3 | **el template**: `TOOLS`, `IMPL` y `HOOKS` más un conector que declara qué consume y qué produce; el despacho y la política siguen únicos | los tipos de artefacto | `core_importa_modulos`; el contrato del template, sin gate (X194) |
