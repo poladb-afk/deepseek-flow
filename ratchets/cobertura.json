@@ -150,7 +150,7 @@
       "3.15": {
         "detalle": {
           "auditoria.py": 38,
-          "debate.py": 64,
+          "debate.py": 7,
           "delegar.py": 30,
           "effective_n.py": 12,
           "fable_judge.py": 52,
@@ -219,7 +219,7 @@
           "utils/websearch.py": 18,
           "visor.py": 22
         },
-        "metrica": 926
+        "metrica": 869
       }
     }
   },

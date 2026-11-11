@@ -168,11 +168,11 @@
         "modules/auditoria.py": 37,
         "modules/coding.py": 312,
         "modules/db.py": 119,
-        "modules/debate.py": 22,
+        "modules/debate.py": 24,
         "modules/delegar.py": 98,
         "modules/effective_n.py": 58,
         "modules/escritura.py": 67,
-        "modules/fable.py": 39,
+        "modules/fable.py": 32,
         "modules/humano.py": 36,
         "modules/informe.py": 38,
         "modules/juez.py": 47,
@@ -194,7 +194,7 @@
         "utils/citas.py": 96,
         "utils/compaccion.py": 151,
         "utils/conductor.py": 78,
-        "utils/conector.py": 52,
+        "utils/conector.py": 57,
         "utils/contexto.py": 42,
         "utils/convergencia.py": 9,
         "utils/costos.py": 40,
@@ -389,13 +389,14 @@
         "tests/test_banco.py": 80,
         "tests/test_bench.py": 23,
         "tests/test_caracterizacion_chat.py": 12,
+        "tests/test_caracterizacion_debate.py": 2,
         "tests/test_caracterizacion_fable_judge.py": 1,
         "tests/test_chat_flujo.py": 17,
         "tests/test_cierre_mutantes.py": 32,
         "tests/test_citas.py": 18,
         "tests/test_comandos_reales.py": 5,
         "tests/test_compaccion.py": 25,
-        "tests/test_conector.py": 12,
+        "tests/test_conector.py": 13,
         "tests/test_consolidacion.py": 36,
         "tests/test_contratos.py": 5,
         "tests/test_convergencia.py": 9,
@@ -475,7 +476,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 23
       },
-      "metrica": 1514
+      "metrica": 1517
     },
     "texto_de_prompt": {
       "detalle": {

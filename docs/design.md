@@ -327,8 +327,8 @@ terceros.
 
 [utils/conector.py](../utils/conector.py) es el contrato que un módulo declara
 para conectarse con otro. El registro de módulos lo aplica al armar
-(`discover()`); `fable_judge` ya declara el suyo (X195) y el resto se migra en
-X196+.
+(`discover()`); `fable_judge` (X195) y `debate` (X196) ya declaran el suyo; el
+resto se migra en X197+.
 
 - **`Artefacto(tipo, contenido, procedencia, citas)`**: el dato que cruza la
   arista. Los tipos son los cinco del contrato (`pregunta`, `plan`,
@@ -351,6 +351,10 @@ X196+.
 - **Una sola arista**: no hay un "nodo hijo" aparte. Si la tool es un
   `kernel.agente()` la arista es la de un hijo (`agente=True`); si no, la de
   una tool. El mismo `Conector` sirve para las dos.
+- **La fábrica de un módulo**: `conector_de_modulo(esquema, produce, consume,
+  impls)` arma la arista con la tool del módulo por `run_tool_call` (el despacho
+  único: hooks, denylist y HITL). La usan `fable` y `debate` (X196); el
+  conector no re-despacha.
 - **El registro valida al armar**: un módulo puede declarar `CONECTORES` (tupla
   de `Conector`) y `discover()` (en `modules/__init__.py`) saltea el módulo que
   declara otra cosa, como a uno que no importa: sus tools no entran al chat.
@@ -499,6 +503,15 @@ auto-apuntan (`agente - "continue" >> agente`) y se comunican SOLO por
 para terminar limpio; `JuezDebate` dictamina en YAML reutilizando
 `extraer_yaml`. Las call_llm síncronas dentro de async son correctas:
 el debate es ping-pong, solo uno piensa a la vez.
+
+**Las dos fases, fijadas (X196).** El council separa la **propuesta ciega**
+(el proponente no ve la refutación de su propia ronda) de la **refutación**
+(el crítico sí ve la propuesta): ítem 7 de X193b. Con k=1/1 el ping-pong ya es
+ese protocolo y `tests/test_caracterizacion_debate.py` lo fija ronda por ronda
+(orden de las fases y qué ve cada rol), junto con los prompts y el veredicto
+byte a byte; un consejo con k>1 es un cambio de interfaz de X199 (N), no de
+este paso. El módulo declara su `Conector` (produce `veredicto`, consume
+`pregunta`) con `conector_de_modulo`.
 
 ### Research — loop de cobertura (la inversión del juez)
 `main.py research "tema"` · [research.py](../research.py)

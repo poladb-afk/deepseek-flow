@@ -1,8 +1,13 @@
 """Módulo `debate`: debate multi-agente como capacidad del chat.
 
 Corre el debate de debate.py (proponente y crítico por colas + juez) y
-devuelve el veredicto. El transcript completo se imprime en la terminal."""
+devuelve el veredicto. El transcript completo se imprime en la terminal.
+
+X196: declara su arista en el template de X194 (produce `veredicto`) con la
+fábrica compartida; el council mantiene las dos fases (propuesta ciega →
+refutación), fijadas por la foto de `tests/test_caracterizacion_debate.py`."""
 from debate import debatir
+from utils.conector import conector_de_modulo
 
 TOOLS = [
     {
@@ -29,3 +34,5 @@ def debate(tema, rondas=2):
 
 
 IMPL = {"debate": debate}
+
+CONECTORES = (conector_de_modulo(TOOLS[0], "veredicto", ("pregunta",), IMPL),)

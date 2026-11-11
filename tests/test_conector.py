@@ -6,6 +6,7 @@ ni gasta una llamada; el conector no acepta política, validador ni allowlist;
 hay una sola arista (tool o hijo por el flag `agente`) y una sola descripción,
 la del esquema de la tool que lee el módulo de arriba.
 """
+import importlib
 import json
 from dataclasses import fields
 from types import SimpleNamespace as NS
@@ -140,15 +141,17 @@ def test_el_registro_valida_los_conectores_al_armar(monkeypatch, capsys):
     assert "ajena declara un conector de una tool ajena" in err
 
 
-def test_el_conector_de_fable_produce_veredicto(monkeypatch):
-    """X195: fable declara su arista; la tool del conector es la del módulo y
-    corre por el despacho único (`run_tool_call`)."""
-    from modules import fable
-
-    conector, = fable.CONECTORES
+@pytest.mark.parametrize(("ruta", "nombre", "args"), [
+    ("modules.fable", "verificar_trabajo", {"trabajo": "t", "reporte": "r"}),
+    ("modules.debate", "debate", {"tema": "t"}),
+])
+def test_los_modulos_que_producen_veredicto_declaran_su_arista(monkeypatch, ruta, nombre, args):
+    """X195/X196: la arista del módulo es la MISMA tool por el despacho único
+    (`run_tool_call`), y produce un veredicto."""
+    modulo = importlib.import_module(ruta)
+    conector, = modulo.CONECTORES
     assert (conector.tool.nombre, conector.produce, conector.consume) == (
-        "verificar_trabajo", "veredicto", ("pregunta",))
-    monkeypatch.setattr(fable, "IMPL", {"verificar_trabajo": lambda **_: "juicio"})
-    llamada = {"function": {"name": "verificar_trabajo",
-                            "arguments": json.dumps({"trabajo": "t", "reporte": "r"})}}
+        nombre, "veredicto", ("pregunta",))
+    monkeypatch.setitem(modulo.IMPL, nombre, lambda **_: "juicio")
+    llamada = {"function": {"name": nombre, "arguments": json.dumps(args)}}
     assert conector.tool.correr(llamada, None) == "juicio"

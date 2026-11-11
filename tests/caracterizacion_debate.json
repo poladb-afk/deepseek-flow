@@ -1,0 +1,26 @@
+{
+  "dos_rondas": {
+    "prompts": [
+      "348f8e366a40d73f2deca3f7bdcaae08f486e43e14dd34be3a028c56aa4864f2",
+      "d6b2b87abb4516a8887ad7276eb882f235bbfeecfa74b1eb6e7a5c7c1297f340",
+      "66fa5adb3353af8a41e38a5708e8a8dc8b8127684272e5adef7497a4c5f38b27",
+      "2bae79d5133460202effc0179b52c750744868cf25a8504ea34b3ee82ffe2bb7",
+      "938096935589672ffb94012c3b578eece65f7524921b0937a85def4b89c99565"
+    ],
+    "veredicto": {
+      "ganador": "proponente",
+      "sintesis": "El proponente ancla la tesis en evidencia;\nel crítico muestra el supuesto que falta."
+    }
+  },
+  "una_ronda": {
+    "prompts": [
+      "c977db66bce6036eade7b72058c7dc01f214fd730cc515ee281e77c6951f534a",
+      "a7769b7a102ef0c1537900deca8d822536762db1b22b8ff82cd4a5a2a494a64b",
+      "1b4db26379e01b3c7463c5c94fbc43c5315235cb57360bc6ecbf85a51a22ed5b"
+    ],
+    "veredicto": {
+      "ganador": "proponente",
+      "sintesis": "El proponente ancla la tesis en evidencia;\nel crítico muestra el supuesto que falta."
+    }
+  }
+}

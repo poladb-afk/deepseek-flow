@@ -8,9 +8,7 @@ X195: la capacidad declara su arista en el template de X194 (produce
 `veredicto`) y sus dos etapas del modelo corren en `kernel.loop`; el
 conector es la MISMA tool, por el despacho único."""
 from fable_judge import verificar_trabajo as juzgar
-from utils.conector import Conector
-from utils.fs_tools import run_tool_call
-from utils.kernel import Tool
+from utils.conector import conector_de_modulo
 
 TOOLS = [
     {
@@ -41,17 +39,6 @@ TOOLS = [
 ]
 
 
-def _por_el_kernel(llamada, _ctx):
-    """La tool de la arista: el mismo verificar_trabajo, por run_tool_call."""
-    return run_tool_call(llamada, IMPL)["content"]
-
-
-CONECTORES = (
-    Conector(Tool(TOOLS[0]["function"]["name"], TOOLS[0], _por_el_kernel),
-             "veredicto", ("pregunta",)),
-)
-
-
 def verificar_trabajo(trabajo, pristine=None, reporte=None, sector=None):
     try:
         texto, advertencia = juzgar(trabajo, pristine, reporte, sector=sector)
@@ -63,3 +50,5 @@ def verificar_trabajo(trabajo, pristine=None, reporte=None, sector=None):
 
 
 IMPL = {"verificar_trabajo": verificar_trabajo}
+
+CONECTORES = (conector_de_modulo(TOOLS[0], "veredicto", ("pregunta",), IMPL),)

@@ -75,9 +75,9 @@ verifica en los tres niveles (`tests/test_gate_fractal.py:144,483`).
 **X194/X195**: el contrato existe en `utils/conector.py` y se prueba en
 `tests/test_conector.py`; el registro (`discover()`) valida los `CONECTORES`
 que declare un módulo al armar (tipo exacto y tool entre sus `TOOLS`/`IMPL`) y
-saltea el que no cumple. `fable_judge` ya declara el suyo (produce `veredicto`)
-y sus dos etapas LLM corren en `kernel.loop`; el resto de los módulos sigue con
-`TOOLS`/`IMPL` (X196+). El council en dos fases (X196) y la profundidad/N
+saltea el que no cumple. `fable_judge` (X195) y `debate` (X196) ya declaran el suyo (producen
+`veredicto`); las dos etapas LLM de `fable_judge` corren en `kernel.loop`. El
+resto de los módulos sigue con `TOOLS`/`IMPL` (X197+). El council en dos fases (X196) y la profundidad/N
 (X199) quedan declarados.
 
 ## La compatibilidad entre módulos: tipos de artefacto
@@ -146,10 +146,10 @@ el set fijo tiene que ser **estable** entre preguntas.
 | La arquitectura pide | Hoy | Brecha |
 |---|---|---|
 | El CORE conoce su catálogo sin mostrarlo entero | 30 tools en cada request | conocer y mostrar están mezclados |
-| Conector entre módulos | X194: el contrato (`utils/conector.py`); X195: `fable_judge` ya declara su arista (`veredicto`) | falta migrar el resto (X196+) |
+| Conector entre módulos | X194: el contrato (`utils/conector.py`); X195: `fable_judge` y X196: `debate` ya declaran su arista (`veredicto`) | falta migrar el resto (X197+) |
 | Composición como dato | `modules/research.py` importa `research.py` a mano; X194 agrega la validación al armar | falta que la composición la declare el usuario (X197) |
 | Lógica interna acoplable (fractal) | el chat y el supervisor son `kernel.loop`; X195 migró las dos etapas LLM de `fable_judge`; `juez`, `research`, `debate`, `informe` y `auditoria` son grafos propios | 5 pipelines |
-| Tipos de artefacto | X194: los 5 tipos y el artefacto con procedencia y citas verificadas; X195: `fable_judge` produce `veredicto` en su conector | el resto sigue viajando como texto libre hasta su migración |
+| Tipos de artefacto | X194: los 5 tipos y el artefacto con procedencia y citas verificadas; X195: `fable_judge` y X196: `debate` producen `veredicto` en su conector | el resto sigue viajando como texto libre hasta su migración |
 | Un solo saldo por árbol (S0, P2 (c)) | **X202**: toda llamada al LLM que hace una tool la cobra el saldo del árbol (`tracing.cobrando` + el cliente); queda el supervisor con su propio `Ledger(MAX_PASOS)` | medido en X201: un `deep_research` hizo llamadas que el `Ledger` del chat no contó (hoy las cuenta); el loop del supervisor sigue fuera hasta que sea `kernel.agente()` |
 
 ## Orden de implementación

@@ -4447,3 +4447,29 @@ seeds es otro pre-registro del operador.
 sonda, el spec y X204a. El commit del brazo no entra. Informe:
 `docs/informes/x204_ab_2026-11-11.md`; filas `salidas/x204_ab/resultados.jsonl`
 (sha256 `649f5e30…`); veredicto `salidas/x204_ab/veredicto.md` (`f01de119…`).
+
+---
+
+## X196: `debate` con el template y las dos fases fijadas (2026-11-11)
+
+**Qué se hizo.** `modules/debate.py` declara su `Conector` (produce
+`veredicto`, consume `pregunta`) con la fábrica nueva
+`conector_de_modulo(esquema, produce, consume, impls)` de `utils/conector.py`:
+la tool del módulo por `run_tool_call`, el despacho único. `fable` (X195) pasa
+a la misma fábrica y desaparece su `_por_el_kernel`: la segunda arista planta
+la extracción (R5). `discover()` ya validaba que la tool del conector fuera del
+módulo; las dos pasan.
+
+**El council, dos fases.** El ítem 7 de X193b pide propuesta ciega →
+refutación. Con k=1/1 el ping-pong de colas YA es ese protocolo: cada ronda
+propone antes de que exista la refutación, el crítico ve la propuesta y la
+propuesta siguiente no ve la refutación de su propia ronda. La foto nueva
+`tests/test_caracterizacion_debate.py` fija prompts (sha256) y veredicto en 2
+escenarios (**0 diferencias**) y el test de fases lo verifica ronda por ronda;
+un consejo con k>1 es el N de X199, no este paso.
+
+**Lo medido.** `lineas_del_producto` **7578 → 7578 (IGUAL)**: la fábrica (+5)
+pagó `modules/debate.py` (+2) y lo que se fue de `modules/fable.py` (−7);
+`tests_definidos` 1514 → 1517 (+1 el caso de debate del conector y +2 el archivo
+nuevo) y cobertura **926 → 869**: `debate.py` pasa de 64 a 7 líneas sin test
+(queda el CLI).

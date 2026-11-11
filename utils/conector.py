@@ -10,6 +10,7 @@ la herencia es la propiedad, no un detalle que cada módulo configure).
 from dataclasses import dataclass
 
 from utils.citas import verificar_citas
+from utils.fs_tools import run_tool_call
 from utils.kernel import Tool
 
 # La lista blanca, como la de comandos: los tipos los declaran los módulos y
@@ -90,3 +91,13 @@ def componer(*conectores: Conector) -> tuple[Tool, ...]:
             raise ValueError(
                 f"{productor.produce!r} no encaja con {consumidor.consume} de {consumidor.tool.nombre}")
     return tuple(c.tool for c in conectores)
+
+
+def conector_de_modulo(esquema: dict, produce: str, consume: tuple[str, ...], impls: dict) -> Conector:
+    """La arista de un módulo: su tool por el DESPACHO ÚNICO (`run_tool_call`,
+    donde viven hooks, denylist y HITL). El conector no re-despacha: el módulo
+    corre por el mismo camino que el chat."""
+    def correr(llamada, _ctx):
+        return run_tool_call(llamada, impls)["content"]
+
+    return Conector(Tool(esquema["function"]["name"], esquema, correr), produce, consume)
