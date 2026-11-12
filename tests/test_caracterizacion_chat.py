@@ -45,13 +45,13 @@ def chat(monkeypatch):
             llamadas.append({"mensajes": [dict(m) for m in mensajes], "tools": tools})
             return guion(len(llamadas) - 1, mensajes, tools)
 
-        def tool(tc, impls=None):
+        def tool(tc, tools, impls):
             ejecutadas.append(tc["function"]["name"])
             contenido = (ejecutar or (lambda tc: "contenido"))(tc)
             return {"role": "tool", "tool_call_id": tc["id"], "content": contenido}
 
         monkeypatch.setattr(nodes, "call_llm_agent", llm)
-        monkeypatch.setattr(nodes, "run_tool_call", tool)
+        monkeypatch.setattr(nodes.catalogo, "despachar", tool)
         shared = {"messages": [{"role": "system", "content": "s"}]}
         create_agent_flow().run(shared)
         return shared, llamadas, ejecutadas

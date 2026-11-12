@@ -159,12 +159,19 @@ def test_un_rechazo_del_humano_llega_igual_al_chat_al_supervisor_y_a_una_copia(
         return real(llamada, impls)
 
     monkeypatch.setattr(fs, "run_tool_call", espia)
-    monkeypatch.setattr(nodes, "run_tool_call", espia)
+    real_catalogo = nodes.catalogo.despachar
+
+    def espia_catalogo(llamada, tools, impls):
+        cruces.append(llamada["function"]["name"])
+        return real_catalogo(llamada, tools, impls)
+
+    monkeypatch.setattr(nodes.catalogo, "despachar", espia_catalogo)
 
     def llm_chat(mensajes, tools=None):
         if any(m.get("role") == "tool" for m in mensajes):
             return _msg("el humano lo rechazó")
-        return _msg(None, _llamada("run_command", {"command": COMANDO}))
+        return _msg(None, _llamada("usar", {"nombre": "run_command",
+                                            "argumentos": {"command": COMANDO}}))
 
     shared = _correr_el_chat(monkeypatch, llm_chat,
                              ("corré los tests", "salir"))
@@ -213,15 +220,16 @@ def test_sin_saldo_ningun_nivel_ejecuta_y_la_ultima_llamada_va_sin_tools(
     (A38: sin el aviso el modelo sigue emitiendo tool calls; el freno mudo
     del Ledger no lo reemplaza)."""
     import nodes
-    from utils.fs_tools import run_tool_call as run_real
 
     ejecutadas = []
 
-    def espia(llamada, impls=None):
-        ejecutadas.append(llamada["function"]["name"])
-        return run_real(llamada, impls)
+    real_catalogo = nodes.catalogo.despachar
 
-    monkeypatch.setattr(nodes, "run_tool_call", espia)
+    def espia(llamada, tools, impls):
+        ejecutadas.append(llamada["function"]["name"])
+        return real_catalogo(llamada, tools, impls)
+
+    monkeypatch.setattr(nodes.catalogo, "despachar", espia)
 
     llamadas_chat = []
 
@@ -538,7 +546,8 @@ def test_lo_que_una_capacidad_le_pide_al_modelo_lo_cuenta_el_saldo_del_chat(monk
     monkeypatch.setattr(flow, "Ledger", lambda rondas: saldos.append(Ledger(rondas)) or saldos[-1])
     monkeypatch.setattr(research, "search_web", lambda q, k=4: f"- {q}: https://ejemplo.org")
     creados = _cliente_falso(monkeypatch, _research_guionado)
-    guion = iter([_msg(None, _llamada("deep_research", {"tema": "t", "salida": str(tmp_path / "r.md")})),
+    guion = iter([_msg(None, _llamada("usar", {"nombre": "deep_research",
+                                                "argumentos": {"tema": "t", "salida": str(tmp_path / "r.md")}})),
                   _msg("listo")])
     _correr_el_chat(monkeypatch, lambda mensajes, tools=None: next(guion), ["investigá t", "salir"])
     assert (tmp_path / "r.md").is_file() and len(creados) == 5  # plan + 3 extracciones + síntesis

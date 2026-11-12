@@ -70,7 +70,10 @@ def test_agent_step_anuncia_solo_el_subset_del_skill():
     tools = nodes.herramientas_de(shared)
     assert {tool.nombre for tool in tools} == set(revision.tools)
     todos = nodes.herramientas_de({"messages": [{"role": "user", "content": "hola"}]})
-    assert {tool.nombre for tool in todos} == {tool["function"]["name"] for tool in nodes.TOOLS}
+    # X198: sin skill el chat anuncia el CORE + el catálogo, no las 27 directas.
+    from utils.catalogo import TOOLS as CATALOGO_TOOLS
+    assert {tool.nombre for tool in todos} == {
+        tool["function"]["name"] for tool in nodes.CORE_TOOLS + CATALOGO_TOOLS}
 
 
 def test_preguntas_reales_no_cuentan_el_mensaje_de_skill():

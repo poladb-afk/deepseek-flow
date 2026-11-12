@@ -139,8 +139,8 @@ def test_execute_tools_anuncia_y_etiqueta(monkeypatch, capsys):
     monkeypatch.setattr("sys.stdout.isatty", lambda: False, raising=False)
     monkeypatch.setattr(nodes, "MODULE_IMPLS", {})
     monkeypatch.setattr(
-        nodes, "run_tool_call",
-        lambda tc, impls: {"role": "tool", "tool_call_id": tc["id"], "content": "ok"},
+        nodes.catalogo, "despachar",
+        lambda tc, tools, impls: {"role": "tool", "tool_call_id": tc["id"], "content": "ok"},
     )
 
     shared = {"messages": [], "tool_rounds": 0}

@@ -120,9 +120,12 @@ def _inventario_tools():
     patrón documentado en modules/supervisor.py), para no armar un ciclo ni
     pagar el registro entero al cargar juez.py."""
     from nodes import MODULE_IMPLS, TOOLS
+    from utils.catalogo import TOOLS as CATALOGO_TOOLS
 
     nombres = {t["function"]["name"] for t in TOOLS}
     nombres |= set(MODULE_IMPLS.keys())
+    # X198: el chat también llama a `catalogo` y `usar`; son del action space.
+    nombres |= {t["function"]["name"] for t in CATALOGO_TOOLS}
     return nombres
 
 

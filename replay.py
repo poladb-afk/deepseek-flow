@@ -59,6 +59,7 @@ from debate import Critico, FinAgente, JuezDebate, Proponente
 from instrumentos import DIR_RUNS, leer_eventos, sha_corto
 from nodes import MODULE_IMPLS, TOOLS
 from rag import ChunkDocs, EmbedChunks, SaveIndex
+from utils.catalogo import TOOLS as CATALOGO_TOOLS
 from utils.tracing import es_bookkeeping
 from utils.viz import FLOWS
 
@@ -247,7 +248,8 @@ def _grafos_vivos():
 def _herramientas_vivas():
     """Los nombres del action space VIVO: TOOLS (esquemas) + IMPL (implementaciones)
     importados de nodes — el registro real del que el chat despacha."""
-    return {t["function"]["name"] for t in TOOLS} | set(MODULE_IMPLS)
+    return ({t["function"]["name"] for t in TOOLS} | set(MODULE_IMPLS)
+            | {t["function"]["name"] for t in CATALOGO_TOOLS})
 
 
 # 2) NIVELES — funciones PURAS sobre listas de eventos

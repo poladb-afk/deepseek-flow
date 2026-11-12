@@ -189,6 +189,7 @@
           "utils/__init__.py": 0,
           "utils/aprobaciones.py": 2,
           "utils/call_llm.py": 10,
+          "utils/catalogo.py": 0,
           "utils/citas.py": 7,
           "utils/compaccion.py": 4,
           "utils/composicion.py": 0,

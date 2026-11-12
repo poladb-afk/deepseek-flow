@@ -4579,3 +4579,41 @@ marcada); gate **6/6** sin clave (el ratchet MEJORÓ y escribió el baseline).
 El autor declaraba "1527 passed, 20 skipped" (otra configuración de suite):
 no reproducido. La fila S0 de `docs/arquitectura.md` deja de declarar la
 excepción y nombra el test.
+
+## X198: el catálogo — el request baja de 30 a 5 tools (2026-11-12)
+
+**Las decisiones (operador, 2026-11-12): D1–D7 = A.** El A/B (D5–D6, tope
+US$0,30) lo corre Laboratorio.
+
+**D1: el instrumento.** `bytes_primer_request` contaba por AST los `TOOLS` de
+los 27 módulos aunque el catálogo los saca del request: medía un request que
+ya no existe. El escáner ahora cuenta el set fijo (`main.py` + system prompt +
+`utils/fs_tools.py:TOOLS` + `utils/catalogo.py:TOOLS`): **16199 → 3362**. La
+vara cambió, no es una mejora contra el número viejo. Además, el request
+serializado real (system prompt + array de tools, `json.dumps`): **18919 →
+3294** bytes. El test del escáner se adaptó 1:1.
+
+**Lo que se escribió.** `utils/catalogo.py`: `catalogo` devuelve el manifiesto
+de las 27 capacidades (nombre, descripción y parámetros, generados de los
+`TOOLS` de `discover()`) y `usar(nombre, argumentos)` las ejecuta por
+`run_tool_call` (política, hooks y HITL; el veto PRE corta con 0 llamadas).
+El primer request son **5 tools** (3 del CORE + las dos del catálogo);
+`nodes.py` despacha por `utils.catalogo` y un skill conserva sus tools
+directas. El cableado se movió a `utils/catalogo.py` para no sumar líneas de
+loop: `lineas_del_loop` **660 IGUAL**.
+
+**Lo medido.** `lineas_del_producto` **7643 → 7702 (+59: `utils/catalogo.py`
+57 + `juez.py` 2)**, dentro del techo 7723 de D7; `tests_definidos` 1523 →
+**1531** (+7 tests nuevos); cobertura **867** y tipos **0**; suite **1527
+passed, 27 deselected** (más 25 passed, 2 skipped de la pasada marcada). Gate
+**5/6**: rojo solo el ratchet por el +59, que acepta el operador con su clave
+(y `--actualizar` escribe 3362/1531/7702). Los contratos congelados y el de
+X194 no se movieron.
+
+**Las dos corridas rojas anteriores.** La primera: el fixture de
+`test_caracterizacion_chat.py` espiaba `nodes.run_tool_call`, que el chat ya
+no usa; se apuntó a `nodes.catalogo.despachar` (1:1, mismos asserts). La
+segunda: `utils/catalogo.py` tenía 2 líneas sin test (la rama de JSON
+inválido); se agregó el test que la ejerce. Ninguna de las dos se resolvió
+tocando la métrica. **Falta** el A/B de Laboratorio (criterios 9–10) y la
+aceptación del operador.
