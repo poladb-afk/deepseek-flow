@@ -129,3 +129,20 @@ def test_un_error_de_una_pieza_corta_la_composicion(monkeypatch):
     monkeypatch.setattr(modulo, "investigar", sin_red)
     with pytest.raises(ValueError, match="ERROR: RuntimeError: sin red"):
         correr_composicion("research_council", "tema")
+
+
+def test_un_veto_de_la_politica_sobre_research_corta_la_composicion_antes_de_gastar(monkeypatch):
+    """S0 vive en el conector (X197b): una guarda PRE agregada una vez sobre
+    `deep_research` frena también a la composición, antes de que research
+    llame al modelo. Medido antes del fix: el conector de research llamaba a
+    `investigar` directo, se salteaba `run_tool_call` y la composición no
+    cortaba: hacía 10 llamadas (5 de research + 5 del council) con el veto
+    activo. El patch del autor decía 3 llamadas y corte en `debate`: no se
+    reprodujo en este árbol (evidencia del autor)."""
+    from utils import fs_tools
+
+    creados = _cliente_falso(monkeypatch, _respuesta)
+    monkeypatch.setitem(fs_tools.HOOKS_PRE, "deep_research", [lambda tc: "ERROR: vetado por la política"])
+    with pytest.raises(ValueError, match="vetado por la política"):
+        correr_composicion("research_council", "tema")
+    assert creados == []

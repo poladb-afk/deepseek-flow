@@ -109,6 +109,21 @@ simplificó la misma pieza para entrar: fuera el guard de parámetro requerido
 fuera el `if __name__ == "__main__"` (el CLI entra por `main.py`) y la llamada
 armada inline. Nada de eso cambia el diseño ni los tipos.
 
+## Corrección posterior (X197b, 2026-11-12)
+
+La auditoría de X197 encontró que el conector de research (`_informe`)
+llamaba a la pieza directo y no pasaba por `run_tool_call`: con un veto PRE
+sobre `deep_research`, la composición igual corría research y recién cortaba
+en `debate`, contra S0. Arreglo: la arista se arma con `conector_de_modulo`
+(la misma tool, IMPL `informe` que devuelve el texto; D6=A se mantiene) y se
+borra `_informe`. Medido acá con el test nuevo: antes, con el veto, la
+composición **no cortaba** e hizo **10 llamadas** (5 de research + 5 del
+council); después corta con `ERROR: vetado…` y **0**. `lineas_del_producto`
+7650 → **7643**; `tests_definidos` 1523 → 1524. El patch del autor declaraba
+3 llamadas y "1527 passed, 20 skipped", no reproducidos en este árbol
+(evidencia del autor). Test:
+`test_un_veto_de_la_politica_sobre_research_corta_la_composicion_antes_de_gastar`.
+
 ## Fuera de alcance
 
 - El catálogo (X198) y el N simétrico (X199).

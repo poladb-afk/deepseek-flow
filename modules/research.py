@@ -6,12 +6,10 @@ la ruta del informe con fuentes.
 X197: declara su arista con el template (produce `borrador`, consume
 `pregunta`). El conector de la composición devuelve el INFORME (D6=A); el
 chat sigue recibiendo la ruta, que es lo que no inunda su contexto."""
-import json
 from pathlib import Path
 
 from research import investigar
-from utils.conector import Conector
-from utils.kernel import Tool
+from utils.conector import conector_de_modulo
 
 TOOLS = [
     {
@@ -40,14 +38,11 @@ def deep_research(tema, salida="salidas/research.md"):
 IMPL = {"deep_research": deep_research}
 
 
-def _informe(llamada, _ctx):
+def informe(tema, salida="salidas/research.md"):
     """El artefacto de la composición: corre la pieza y devuelve el informe."""
-    args = json.loads(llamada["function"].get("arguments") or "{}")
-    tema = str(args.get("tema", "") if isinstance(args, dict) else "")
-    salida = args.get("salida") if isinstance(args, dict) else None
-    return Path(investigar(tema, salida or "salidas/research.md")).read_text(
-        encoding="utf-8", errors="replace")
+    return Path(investigar(tema, salida)).read_text(encoding="utf-8", errors="replace")
 
 
-CONECTORES = (Conector(Tool(TOOLS[0]["function"]["name"], TOOLS[0], _informe),
-                       "borrador", ("pregunta",)),)
+# X197b: por la fábrica, como `debate` y `fable`: la composición pasa por el
+# despacho único (hooks PRE, política) con la misma tool y otro IMPL (D6=A).
+CONECTORES = (conector_de_modulo(TOOLS[0], "borrador", ("pregunta",), {"deep_research": informe}),)

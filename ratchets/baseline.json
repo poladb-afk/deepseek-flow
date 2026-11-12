@@ -179,7 +179,7 @@
         "modules/mcp.py": 28,
         "modules/memoria.py": 245,
         "modules/rag.py": 45,
-        "modules/research.py": 34,
+        "modules/research.py": 27,
         "modules/supervisor.py": 29,
         "modules/vision.py": 148,
         "modules/websearch.py": 21,
@@ -222,7 +222,7 @@
         "utils/websearch.py": 21,
         "visor.py": 111
       },
-      "metrica": 7650
+      "metrica": 7643
     },
     "nodos_largos": {
       "detalle": {},
@@ -397,7 +397,7 @@
         "tests/test_citas.py": 18,
         "tests/test_comandos_reales.py": 5,
         "tests/test_compaccion.py": 25,
-        "tests/test_composicion.py": 6,
+        "tests/test_composicion.py": 7,
         "tests/test_conector.py": 13,
         "tests/test_consolidacion.py": 36,
         "tests/test_contratos.py": 5,
@@ -478,7 +478,7 @@
         "tests/test_webchat.py": 9,
         "tests/test_webhook.py": 23
       },
-      "metrica": 1523
+      "metrica": 1524
     },
     "texto_de_prompt": {
       "detalle": {

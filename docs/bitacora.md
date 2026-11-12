@@ -4552,3 +4552,30 @@ marcada), cobertura **867** (`utils/composicion.py`: 0 líneas sin test;
 `docs/informes/x197_humo_2026-11-11.md`; evidencia en `salidas/x197_humo/`
 (`humo.log` sha256 `9c26e500…`, `traza.jsonl` `16908e31…`, `medicion.json`
 `bff56622…`).
+
+## X197b: la composición se salteaba la política de research (2026-11-12)
+
+**El agujero (auditoría de X197).** El conector de research de la
+composición (`_informe`) llamaba a `investigar` directo, sin `run_tool_call`:
+un veto PRE sobre `deep_research` frenaba al chat pero no a la composición,
+que corría research y recién cortaba en `debate` (contra S0). Medido acá con
+el test nuevo, antes del fix: con el veto activo la composición **no corta** e
+hizo **10 llamadas** (5 de research + 5 del council). El patch del autor
+declara 3 llamadas: no se reproduce en este árbol (evidencia del autor,
+declarada).
+
+**El arreglo (patch del autor, sha256 `f9a2dbe4…`, verificado).** La arista
+se arma con `conector_de_modulo` (el despacho único, como `debate` y
+`fable`), la misma tool y un IMPL `informe` que devuelve el texto (D6=A no
+cambia); se borran `_informe` y su parseo de argumentos duplicado. El test
+nuevo, visto en rojo antes, queda verde: con el veto la composición corta con
+`ERROR: vetado por la política` y **0** llamadas.
+
+**Números medidos acá.** `lineas_del_producto` **7650 → 7643 (−7)**
+(`modules/research.py` 34 → 27), `tests_definidos` 1523 → 1524,
+`lineas_del_loop` 660 IGUAL, cobertura **867** (antes 867) y tipos **0**;
+suite **1520 passed, 27 deselected** (más 25 passed, 2 skipped de la pasada
+marcada); gate **6/6** sin clave (el ratchet MEJORÓ y escribió el baseline).
+El autor declaraba "1527 passed, 20 skipped" (otra configuración de suite):
+no reproducido. La fila S0 de `docs/arquitectura.md` deja de declarar la
+excepción y nombra el test.
