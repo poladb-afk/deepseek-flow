@@ -46,8 +46,8 @@ def traza_del_chat(tmp_path, monkeypatch):
         return NS(content="cierro con lo que tengo", tool_calls=None)
 
     monkeypatch.setattr(nodes, "call_llm_agent", llm)
-    monkeypatch.setattr(nodes.catalogo, "despachar",
-                        lambda tc, tools, impls: {"role": "tool", "tool_call_id": tc["id"], "content": "ok"})
+    monkeypatch.setattr(nodes, "run_tool_call",
+                        lambda tc, impls=None: {"role": "tool", "tool_call_id": tc["id"], "content": "ok"})
     entradas = iter(["auditá", "y ahora?", "salir"])
     monkeypatch.setattr(builtins, "input", lambda *a, **k: next(entradas))
     respaldo = (tracing._salida, tracing._ruta_salida, tracing._activo, tracing._id_thread)

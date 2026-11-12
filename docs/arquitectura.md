@@ -123,21 +123,19 @@ juzga significado (N2).
 
 ## El catálogo: conocer no es mostrar
 
-Hasta X197 `discover()` cargaba todo y el request del chat llevaba **30 tools**
-(3 del CORE + 27 de módulos); `bytes_primer_request` pesaba 16199. Desde X198
-el request se separa en tres:
+Hoy `discover()` carga todo y el request del chat lleva **30 tools** (medido en
+X173); por eso `bytes_primer_request` (16199, la última medición en la
+bitácora) pesa más que el prompt. El
+objetivo es separar:
 
-- **lo fijo del request**: las 3 tools del CORE más `catalogo` y `usar`
-  (`utils/catalogo.py`) = **5 tools**;
-- **el catálogo**: un manifiesto de las 27 capacidades (nombre, descripción y
-  parámetros) generado de los `TOOLS` de `discover()`, que viaja como
-  **resultado de la tool**, no en el prompt (no sube `texto_de_prompt`, N3);
-- **la ejecución**: `usar` despacha por `run_tool_call`, el camino único
-  (política, hooks y HITL); un skill conserva sus tools directas.
+- **lo fijo del request**: las tools mínimas del CORE más una tool de
+  **catálogo** (qué capacidades hay) y una de **uso** (conectar una capacidad o
+  una composición);
+- **el catálogo**: un manifiesto chico por módulo que viaja como resultado de
+  la tool, no en el prompt (no sube `texto_de_prompt`, N3).
 
-Medido: `bytes_primer_request` **16199 → 3362** y el request serializado real
-**18919 → 3294** bytes. El set fijo es **estable** entre preguntas, que es lo
-que X173 necesita para que el proveedor cachee el prefijo.
+A medir, no a suponer: X173 mostró que el proveedor cachea el prefijo, así que
+el set fijo tiene que ser **estable** entre preguntas.
 
 ## Lo que esta arquitectura todavía no incluye
 
@@ -151,9 +149,9 @@ que X173 necesita para que el proveedor cachee el prefijo.
 
 | La arquitectura pide | Hoy | Brecha |
 |---|---|---|
-| El CORE conoce su catálogo sin mostrarlo entero | **X198**: el request lleva **5 tools** (3 del CORE + `catalogo` + `usar`); el manifiesto de las 27 viaja como resultado | — (el A/B de calidad es el criterio 9 de X198) |
+| El CORE conoce su catálogo sin mostrarlo entero | 30 tools en cada request | conocer y mostrar están mezclados |
 | Conector entre módulos | X194: el contrato (`utils/conector.py`); X195: `fable_judge` y X196: `debate` ya declaran su arista (`veredicto`); X197: `research` declara la suya (`borrador`) | falta migrar el resto (sin paso asignado) |
-| Composición como dato | X197: la composición research + council se declara en el CLI y se valida al armar (`utils/composicion.py`, `componer()`); research sigue importando su pieza a mano | falta el resto de las composiciones |
+| Composición como dato | X197: la composición research + council se declara en el CLI y se valida al armar (`utils/composicion.py`, `componer()`); research sigue importando su pieza a mano | falta el resto de las composiciones y el catálogo (X198) |
 | Lógica interna acoplable (fractal) | el chat y el supervisor son `kernel.loop`; X195 migró las dos etapas LLM de `fable_judge`; `juez`, `research`, `debate`, `informe` y `auditoria` son grafos propios | 5 pipelines |
 | Tipos de artefacto | X194: los 5 tipos y el artefacto con procedencia y citas verificadas; X195/X196: `fable_judge` y `debate` producen `veredicto`; X197: `research` produce `borrador` | el resto sigue viajando como texto libre hasta su migración |
 | Un solo saldo por árbol (S0, P2 (c)) | **X202**: toda llamada al LLM que hace una tool la cobra el saldo del árbol (`tracing.cobrando` + el cliente); queda el supervisor con su propio `Ledger(MAX_PASOS)` | medido en X201: un `deep_research` hizo llamadas que el `Ledger` del chat no contó (hoy las cuenta); el loop del supervisor sigue fuera hasta que sea `kernel.agente()` |

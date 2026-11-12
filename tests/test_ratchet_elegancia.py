@@ -144,16 +144,13 @@ def test_texto_de_prompt_mide_lo_literal_y_no_lo_interpolado(tmp_path):
 
 
 def test_bytes_primer_request_suma_prompt_y_esquemas_sin_lo_interpolado(tmp_path):
-    """P1 (X124, X198): lo fijo de cada request es el prompt MÁS los esquemas
-    del set fijo (CORE + catálogo). Un `TOOLS` de módulo ya no viaja en el
-    request y no cuenta; lo interpolado no cuenta."""
+    """P1 (X124): lo fijo de cada request es el prompt MÁS los esquemas de
+    tools. Un esquema del CORE y uno de un módulo cuentan; lo interpolado no."""
     _escribir(tmp_path, "main.py", 'def system_prompt():\n    return f"Hola {x}"\n')
     _escribir(tmp_path, "utils/fs_tools.py", 'TOOLS = [{"name": "leer"}]\n')
-    _escribir(tmp_path, "utils/catalogo.py", 'TOOLS = [{"name": "usar"}]\n')
     _escribir(tmp_path, "modules/m.py", 'D = "/r"\nTOOLS = [{"description": f"ñ {D}"}]\nOTRA = ["no cuenta"]\n')
     assert ratchet.escanear_bytes_primer_request(tmp_path) == {
-        "main.py:system_prompt": 5,
-        "utils/catalogo.py:TOOLS": len("name") + len("usar"),
+        "main.py:system_prompt": 5, "modules/m.py:TOOLS": len("description") + len("ñ ".encode()),
         "utils/fs_tools.py:TOOLS": len("name") + len("leer")}
 
 

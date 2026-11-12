@@ -7,13 +7,13 @@ from pathlib import Path
 from pocketflow import Node
 
 from modules import discover, ganchos
-from utils import catalogo, estado_sesion
+from utils import estado_sesion
 from utils.aprobaciones import resumen
 from utils.call_llm import _entero, _setting, call_llm_agent, call_llm_agent_stream, desglose_de_sesion
 from utils.citas import reporte, verificar_citas
 from utils.compaccion import PREFIJO_COMPACCION, compactar, huella, recortar_tools_viejos, serializar
 from utils.costos import delta_desglose
-from utils.fs_tools import MAX_TOOL_ROUNDS
+from utils.fs_tools import MAX_TOOL_ROUNDS, run_tool_call
 from utils.fs_tools import TOOLS as CORE_TOOLS
 from utils.historial import historiar
 from utils.kernel import Actuar, Paso, Tool
@@ -151,9 +151,7 @@ AVISO_CIERRE = (
 
 # Action space = capacidades base del CORE + lo que aporten los módulos.
 MODULE_TOOLS, MODULE_IMPLS = discover()
-TOOLS = CORE_TOOLS + MODULE_TOOLS  # inventario completo (juez, MCP, replay)
-# X198: el primer request es el CORE + el catálogo (`utils/catalogo.py`); las
-# capacidades de los módulos entran por `catalogo`/`usar`, no en el prompt.
+TOOLS = CORE_TOOLS + MODULE_TOOLS
 
 
 class GetQuestion(Node):
@@ -397,7 +395,7 @@ def despachar_tool(llamada, _ctx):
     inicio = time.time()
     nombre = (llamada.get("function") or {}).get("name") or "?"  # A27: sin KeyError
     print(colorear(f"  → {nombre}", "tool"), flush=True)
-    r = catalogo.despachar(llamada, MODULE_TOOLS, MODULE_IMPLS)
+    r = run_tool_call(llamada, MODULE_IMPLS)
     evento_tool(nombre, resultado_ok(r["content"]), time.time() - inicio,
                 codigo=codigo_error(r["content"]), huella=huella_llamada(llamada))
     return r["content"]
@@ -407,10 +405,8 @@ def herramientas_de(shared):
     """Las tools del chat como objetos del kernel (en orden: efecto escritura)."""
     skill_id = turno(shared).get("skill")
     skill = next((h for h in disponibles() if h.id == skill_id), None) if skill_id else None
-    # X198: sin skill, el request es el CORE + catálogo; un skill conserva sus
-    # tools directas (recorta el action space completo, como siempre).
-    base = filtrar_tools(TOOLS, skill) if skill else catalogo.tools_de_request(MODULE_TOOLS, MODULE_IMPLS)
-    return [Tool(t["function"]["name"], t, despachar_tool) for t in base]
+    tools = filtrar_tools(TOOLS, skill) if skill else TOOLS
+    return [Tool(t["function"]["name"], t, despachar_tool) for t in tools]
 
 
 class PasoChat(Paso):

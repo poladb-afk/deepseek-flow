@@ -124,8 +124,8 @@ con el tope de **US$0,30** y una corrida a la vez.
 | 6 | `bytes_primer_request` | **16199 → 3362** con el escáner del set fijo (D1=A); el request serializado real: **18919 → 3294** bytes. El escáner se adaptó 1:1 en `test_ratchet_elegancia.py` | ✅ |
 | 7 | Presupuesto de producto | `lineas_del_producto` **7643 → 7702 (+59 ≤ 7723)**; `lineas_del_loop` 660 IGUAL; `tests_definidos` 1523 → **1531**; contratos congelados intactos; cobertura 867 y tipos 0 | ✅ (clave del operador por el +59) |
 | 8 | Gate | **5/6**: rojo solo el ratchet por el +59 de producto dentro del techo; 6/6 con la clave del operador y `--actualizar` | ⏳ clave |
-| 9 | A/B del supervisor (6 × 3 × 2) | pendiente: lo corre Laboratorio (el árbol no se commitea antes) | ⏳ |
-| 10 | Presupuesto del A/B | tope US$0,30, una corrida a la vez; pendiente | ⏳ |
+| 9 | A/B del supervisor (6 × 3 × 2) | **NO PASA** (Laboratorio, 2026-11-12): catálogo **17/18** vs base 18/18 — falla `conteo-routing` s3 (el supervisor propuso un `run_command`, la política lo rechazó y el chat se negó a dar el número sin contar; no usó `read_file`). Adopción **18/18** vía `catalogo` + `usar`; 0 escrituras/edits ejecutados y 0 cambios en el árbol (10 comandos rechazados, 9 lecturas `auto: solo-lectura` dentro de la copia); llamadas declaradas: base 131 vs catálogo 153 (+22, +1,22/corrida; +1 típico en los 16 pares con adopción pareja) | 🔴 |
+| 10 | Presupuesto del A/B | **US$0,2301** las 36 (base 0,1104 + catálogo 0,1197) ≤ 0,30; humo US$0,0126; total del experimento US$0,2427 | ✅ |
 
 **Desvíos declarados.**
 
@@ -167,3 +167,40 @@ con el tope de **US$0,30** y una corrida a la vez.
   cubierto por estructura, no por conducta. Se declara en el resultado.
 - **`lineas_del_producto` sube**: es una capacidad nueva (D7); la clave es del
   operador.
+
+## Desvíos del A/B (9–10, declarados antes de correr)
+
+- **Recursos copiados a los dos brazos**: `trazas.db` y
+  `salidas/routing.jsonl` (artefactos ignorados) para que las dos tareas de
+  artefactos sean evaluables; 0 saltadas, 18 por brazo. El mismo desvío que el
+  A/B de X204.
+- **La tolerancia "+2 por tarea" se lee por corrida** (cada corrida ejecuta
+  una tarea; con 3 seeds, el agregado por tarea tolera +6); se informan las dos
+  lecturas.
+- **Comandos `auto: solo-lectura`**: `HITL_AUTO` los aprueba sin evento en el
+  archivo de decisiones; se cuentan del transcript (9, todos read-only dentro
+  de la copia).
+
+## Resultado del A/B (9–10), 2026-11-12
+
+36 corridas, una a la vez, **US$0,2301** (humo 0,0126; total del experimento
+0,2427), instrumento `banco/probes/ab_x198.py` (adaptación del de X204):
+**catalogo 17/18 vs base 18/18**; adopción 18/18 vía `catalogo` + `usar`;
+seguridad ✅; llamadas base 131 vs catálogo 153 (**+22**), que **incumplen** la
+tolerancia del D6 (+2 por tarea: **+9 en `linea-marcadores`**, máx +7 por
+corrida). La corrida que falla (`conteo-routing`
+s3) es válida: el chat se negó a inventar el número tras un `run_command`
+rechazado y no usó `read_file` (la base y las otras seeds del brazo resolvieron
+el mismo caso contando). **NO PASA** por el criterio 9 (calidad) **y por las
+llamadas** → se revierte el brazo;
+quedan este spec y la sonda. Informe: `docs/informes/x198_ab_2026-11-12.md`;
+filas `salidas/x198_ab/resultados.jsonl` (sha256 `63df3618…`).
+
+**La reversión se ejecutó (2026-11-12).** Código, tests y baselines volvieron a
+`54bfd54` (el diff `git diff 54bfd54 -- '*.py' 'ratchets/*.json'` deja solo
+`banco/probes/ab_x198.py`) y el
+árbol mide **7643/1524/660**, cobertura **867** y tipos **0**. El hallazgo de
+la corrida que falla **no es de descubrimiento** (18/18 encontraron y
+ejecutaron el supervisor): es de **recuperación tras un rechazo de la política**
+—el chat se negó a paginar con `read_file` en vez de buscar otra vía— y es un
+paso propio después de X199.

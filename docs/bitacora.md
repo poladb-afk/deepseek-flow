@@ -4617,3 +4617,50 @@ segunda: `utils/catalogo.py` tenía 2 líneas sin test (la rama de JSON
 inválido); se agregó el test que la ejerce. Ninguna de las dos se resolvió
 tocando la métrica. **Falta** el A/B de Laboratorio (criterios 9–10) y la
 aceptación del operador.
+
+## X198: el A/B del catálogo — NO PASA por calidad (17/18) (2026-11-12)
+
+**Qué se midió.** Los criterios 9–10 del spec, con el instrumento nuevo
+`banco/probes/ab_x198.py` (adaptación del de X204: mismos helpers de entorno,
+traza y seguridad, mismo grading con `banco/bench_supervisor.py`; dos brazos
+commiteados): base `54bfd54` (X197b, 30 tools) contra catálogo `faac7a7`
+(X198, 5 tools), 6 tareas × 3 seeds × 2 brazos = **36 corridas, una a la vez**,
+humo primero.
+
+**Lo medido** (US$0,2301 las 36; humo 0,0126; total del experimento 0,2427, de
+un tope de 0,30): **calidad 17/18 vs 18/18 → NO PASA**; **adopción 18/18** vía
+`catalogo` + `usar` (20 `usar`, 17 `catalogo`, supervisor ejecutado en las 18);
+seguridad: 0 escrituras/edits ejecutados y 0 cambios en el árbol, 10 comandos
+**rechazados** por la política (5/5) y 9 lecturas `auto: solo-lectura` dentro de
+la copia (5/4); llamadas base **131** vs catálogo **153** (+22, +1,22/corrida)
+→ **incumple** la tolerancia de +2 por tarea del D6: **+9 en `linea-marcadores`**,
+máx +7 por corrida (los +5/+7 son corridas donde la base no adoptó y contestó
+directo).
+
+**La corrida que falla.** `conteo-routing` s3 del brazo: el supervisor propuso
+un `run_command` con `awk`/`wc` sobre ruta absoluta, el scope lo rechazó
+(`fuera-de-scope`) y el chat **se negó a dar el número sin contarlo** ("any
+figure I gave would be invented") en vez de paginar con `read_file`, que tenía
+disponible. La base (3/3) y las otras seeds del brazo (2/3) resolvieron el mismo
+tema con `read_file` o con `wc -l` de auto-lectura y dieron **1374**. La corrida
+terminó bien (exit 0, sin timeout ni error de API): no es error operativo, no
+hay cláusula de re-corrida y cuenta 0.
+
+**Decisión.** El NO PASA tiene dos motivos (calidad y llamadas) y el spec ata el
+resultado: **se revierte el brazo** (quedan este
+spec y la sonda) y la clave del +59 no se usa. El fallo **no es de
+descubrimiento** del catálogo (18/18 lo encontraron y lo ejecutaron): es de
+recuperación del chat ante un comando rechazado, y decide porque el umbral
+pre-registrado era 18/18.
+
+**Desvíos declarados antes de correr.** 1) `trazas.db` y
+`salidas/routing.jsonl` copiados a los dos brazos (mismo desvío que X204;
+0 saltadas). 2) La tolerancia "+2 por tarea" se lee por corrida (con 3 seeds,
++6 por tarea agregada); se informan las dos. 3) Los comandos `auto:
+solo-lectura` se cuentan del transcript (no dejan evento en el archivo de
+decisiones).
+
+**Evidencia.** Informe `docs/informes/x198_ab_2026-11-12.md`; filas
+`salidas/x198_ab/resultados.jsonl` (sha256 `63df3618…`), veredicto
+`salidas/x198_ab/veredicto.md` (`c8b66e2a…`), logs `humo.log`/`tanda.log`, y
+18+18 artefactos por corrida en `salidas/x198_ab/artefactos/`.

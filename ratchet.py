@@ -820,29 +820,21 @@ def _bytes_literales(nodo) -> int:
                if isinstance(n, ast.Constant) and isinstance(n.value, str))
 
 
-# X198 (D1=A): lo que de verdad viaja en el primer request. Los `TOOLS` de los
-# módulos ya no van (el chat los alcanza por el catálogo), así que cuentan el
-# system prompt y estos dos archivos, nada más.
-FIJO_DEL_REQUEST = ("utils/fs_tools.py", "utils/catalogo.py")
-
-
 def escanear_bytes_primer_request(raiz: Path) -> dict[str, int]:
     """Lo fijo que viaja en CADA request antes del pedido (P1, X124): el texto
-    del system prompt y los esquemas del set FIJO (CORE + catálogo y uso, X198).
-    Los `TOOLS` de los módulos ya no viajan: entran por el catálogo, y contarlos
-    acá medía un request que no existe. Se cuenta por AST, sin importar los
-    módulos (uno opcional ausente no cambia la métrica) y sin la serialización
-    JSON."""
+    del system prompt y los esquemas de tools del CORE y de cada módulo. Es lo
+    que comparan las mediciones de harnesses de 2026 (prompt + esquemas); acá
+    se cuenta por AST, sin importar los módulos (uno opcional ausente no
+    cambia la métrica) y sin la serialización JSON."""
     detalle = {f"main.py:{k}": v for k, v in escanear_texto_de_prompt(raiz).items()}
-    for relativa in FIJO_DEL_REQUEST:
-        ruta = raiz / relativa
+    for ruta in [raiz / "utils" / "fs_tools.py", *sorted((raiz / "modules").glob("*.py"))]:
         try:
             arbol = ast.parse(ruta.read_text(encoding="utf-8"))
         except (OSError, SyntaxError):
             continue
         for sentencia in arbol.body:
             if _nombre_de(sentencia) == "TOOLS" and getattr(sentencia, "value", None) is not None:
-                detalle[f"{relativa}:TOOLS"] = _bytes_literales(sentencia.value)
+                detalle[f"{_relativa(ruta, raiz)}:TOOLS"] = _bytes_literales(sentencia.value)
     return dict(sorted(detalle.items()))
 
 

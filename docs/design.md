@@ -376,16 +376,6 @@ tool siguiente cobrando todo al mismo `Ledger`. Se pide con
 aristas por nombre (`modules.conectores()`), sin que el CORE importe ningún
 módulo.
 
-**El catálogo del chat (X198).** `utils/catalogo.py` saca del primer request
-las 27 capacidades de los módulos: quedan las 3 del CORE más `catalogo` (el
-manifiesto: nombre, descripción y parámetros, generado de los `TOOLS` de
-`discover()`) y `usar` (ejecuta una capacidad por `run_tool_call`, el camino
-único: política, hooks y HITL). El manifiesto viaja como resultado de la
-tool, no en el prompt; el set fijo es estable entre preguntas (X173) y un
-skill conserva sus tools directas. Medido: `bytes_primer_request` 16199 →
-3362 y el request real 18919 → 3294 bytes
-(`banco/specs/x198_catalogo.md`).
-
 Fuera del contrato, para no reabrirlo: el council en dos fases (X196) y la
 profundidad/N con la señal de saturación (X199), los ítems 7 y 8 del informe
 `docs/informes/x193b_disenos_externos.md`. Las pruebas del contrato están en
