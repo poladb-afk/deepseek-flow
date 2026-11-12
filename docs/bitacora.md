@@ -4712,3 +4712,58 @@ celdas del humo (etiqueta, no dato).
 `salidas/x199/resultados.jsonl` (sha256 `46b45007…`), `verificador.jsonl`
 (`8bfc0379…`), `celdas.jsonl` (`dc09ecbc…`), `veredicto.md` (`68ed74d6…`) y
 `tanda.log`.
+
+## X205: el rechazo de un comando nombra el camino alternativo (2026-11-12)
+
+**El dato.** En `conteo-routing` s3 (X198, brazo catálogo) el rechazo decía
+"podés proponer otro o preguntar qué cambiaría" y no nombraba `read_file`; el
+modelo propuso paginar ("sin escribir nada") y no lo hizo: leyó el rechazo del
+comando como un límite del scope entero y pidió autorización. La base y las
+otras seeds del mismo caso dieron **1374**.
+
+**El arreglo (D1–D7 = A).** `RECHAZO`/`RECHAZO_DOBLE` (`modules/coding.py`)
+nombran las tools del CORE por efecto (`read_file` con offset/limit,
+`search_files`; `write_file`, `edit_file`) y aclaran que el rechazo es de ESE
+comando, no del scope. Es el **resultado de la tool**, no el prompt (N3); la
+política no cambia (R7). Tests: los 2 del arreglo (el mensaje y la política),
+revertidos con él.
+
+**Medición.** `lineas_del_producto` **7643 IGUAL** (el texto del mensaje no
+cuenta como línea de código, misma definición que "el texto impreso no
+cuenta"), `tests_definidos` 1524 → **1526**, cobertura **867 → 866**,
+`texto_de_prompt` 1542 y `bytes_primer_request` 16199 IGUAL, `lineas_del_loop`
+660 IGUAL; gate **6/6** sin clave.
+
+**Pendiente.** El A/B de `conteo-routing` × 9 seeds (base vs arreglado, tope
+US$0,20) y la reproducción de D4: si la base da 9/9, el resultado honesto es
+"no se reproduce" y el arreglo no se adopta.
+
+## X205: la recuperación tras un rechazo — NO SE REPRODUCE (base 9/9) (2026-11-12)
+
+**Qué se midió.** La reproducción de D4 con la sonda `banco/probes/x205_rechazo.py`
+(el escenario y el scorer de X198, chat real en una copia por corrida): `conteo-routing`
+× 9 seeds, 8 rondas, mensaje de rechazo **actual** (`da544f3`). Humo 2 seeds
+(US$0,0061; proyección 18 corridas US$0,0549 ≤ 0,20).
+
+**Lo medido.** La base dio **9/9**: en **5 de las 9 celdas hubo rechazos** de la
+política (**11 intentos**, todos `fuera-de-scope`) y **se recuperó sola en las
+5**: contó con el `wc -l` de auto-lectura y/o paginó con `read_file`, y respondió
+**1374**. Costo **US$0,0381** las 9 corridas (73 llamadas, 0,0022–0,0066 por
+corrida, 2–7 rondas); 0 escrituras/comandos ejecutados fuera y 0 cambios en el
+árbol.
+
+**Decisión (D4).** Base 9/9 = **"no se reproduce"**: el brazo arreglado **no se
+corre ni se adopta** (el fallo que motivó X205 fue del brazo catálogo de X198, 5
+tools, NO PASA y revertido). El arreglo se revirtió con sus 2 tests: el árbol
+vuelve a `da544f3` (7643/1524/660, cobertura 867); forzar el rechazo con una
+banca guionada es otro pre-registro. La hipótesis H0 no se decide: no se midió
+al modelo fallando con el mensaje nuevo al lado.
+
+**Desvíos declarados.** `trazas.db` y `salidas/routing.jsonl` copiados a los dos
+brazos (mismo desvío que X198); el arreglo no se corrió (D4); costo de la línea
+`[tokens] sesión` (off-peak `~`).
+
+**Evidencia.** Informe `docs/informes/x205_rechazo_2026-11-12.md`; filas
+`salidas/x205/resultados.jsonl` (sha256 `de4a899b…`), `veredicto.md`
+(`3d6236d4…`), `humo.log` (`378bb010…`), `tanda.log` (`1a02c7eb…`) y 9 artefactos
+por seed; sonda `banco/probes/x205_rechazo.py` (`37b6d4eb…`).
