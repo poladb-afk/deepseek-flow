@@ -4664,3 +4664,51 @@ decisiones).
 `salidas/x198_ab/resultados.jsonl` (sha256 `63df3618…`), veredicto
 `salidas/x198_ab/veredicto.md` (`c8b66e2a…`), logs `humo.log`/`tanda.log`, y
 18+18 artefactos por corrida en `salidas/x198_ab/artefactos/`.
+
+## X199: N simétricas + verificador (F6) — NO PASA: empata con la base (2026-11-12)
+
+**Qué se midió.** Los criterios con gasto del pre-registro, con la sonda
+`banco/probes/x199_n_simetricas.py` (reusa el instrumento de la aceptación v1
+para los árboles de T1/T2, el scorer determinista y el test oculto, y
+`fable_judge` como verificador): 6 celdas (T1 + T2 × 3 seeds), brazo N =
+**3 copias simétricas × 8 rondas + verificador** contra base = **1 agente ×
+24 rondas**, una corrida a la vez. Costo **US$0,3528** (tope 0,50; humo 2
+celdas US$0,1158).
+
+**Lo medido.** Los dos brazos dieron **6/6** celdas con `ca ≥ 1`; el `ca` total
+también empató (**11 vs 11**): N perdió calidad fina en T1 s1 (1 vs 2) y la
+ganó en T1 s3 (2 vs 1). **La base a 24 rondas resolvió el caso C**: T2 3/3,
+usando **8/10/11** rondas (no necesitó las 24), así que el presupuesto —no el
+swarm— cerró la varianza que a 8 rondas daba 5/6. El costo por evidencia:
+**US$0,0488 (N) vs US$0,0100 (base)**, 4,9×; el verificador es **US$0,1618**,
+el 55,2 % del brazo N. Llamadas: N **196** (160 copias + 36 del verificador)
+vs base **106**.
+
+**El verificador.** 18 juicios: 14 VERIFIED WITH CAVEATS y 4 REFUTED; **2 de
+los REFUTED sobre copias que el scorer puntúa 2** (más duro que el scorer, sin
+cambiar la celda elegida). En **T1 s1 eligió peor**: la copia de menos caveats
+(ca=1) teniendo una ca=2 disponible; el criterio mide el trabajo elegido, así
+que el error entra.
+
+**Independencia (D5).** 3 fallas en 18 copias (tasa 1/6), **0** celdas con las
+3 fallas y **0** con ≥2; el modelo independiente con la tasa marginal espera
+0,03 y 0,44 celdas (p = 1,000): **no distinguible**, sin agrupamiento
+observable y con potencia baja declarada. `(1/6)³` no se confirma ni se
+refuta.
+
+**Decisión.** D7: empate con la base = **NO PASA** (sin ganancia) → se cierra
+la estrategia y queda el dato; no vuelve como parche. Seguridad: T1 0
+ediciones, T2 el fix pedido (1 archivo, 0 borrados), 0 escrituras/comandos
+fuera de la copia y 27 intentos rechazados por la política.
+
+**Desvíos declarados.** Las re-ejecuciones del verificador se aprobaron con un
+scope de la sonda (`cd <copia>`, `python3 -m pytest`, `python3 -m coverage`),
+registradas aparte y no contadas como acciones de los brazos; el stdout del
+humo no se archivó (un `tee` a un directorio inexistente; sus números están en
+las filas); la etiqueta `elegida` se corrigió de 0-based a 1-based en las dos
+celdas del humo (etiqueta, no dato).
+
+**Evidencia.** Informe `docs/informes/x199_n_simetricas_2026-11-12.md`; filas
+`salidas/x199/resultados.jsonl` (sha256 `46b45007…`), `verificador.jsonl`
+(`8bfc0379…`), `celdas.jsonl` (`dc09ecbc…`), `veredicto.md` (`68ed74d6…`) y
+`tanda.log`.

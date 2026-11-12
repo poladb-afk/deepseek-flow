@@ -74,6 +74,11 @@ con probabilidad (1/6)³ ≈ 0,5 % contra 17 % de una sola. **Es una hipótesis*
 independencia es justamente lo que hay que medir. El verificador ya existe:
 `fable_judge`.
 
+**X199 la midió (2026-11-12)**: el brazo de 3 copias + verificador **empató con
+la base** (6/6 celdas y ca 11 los dos) y costó **4,9× por evidencia**; la base a
+24 rondas resolvió el caso C (T2 3/3 con 8/10/11 rondas) y la independencia
+quedó **no distinguible** (0 celdas con ≥2 fallas; potencia baja declarada).
+
 ### Estrategias abiertas
 
 | # | Estrategia | Variable que mueve |
@@ -83,7 +88,10 @@ independencia es justamente lo que hay que medir. El verificador ya existe:
 | F3 | **El régimen**: tareas que no entran en un contexto | el banco |
 | F4 | **Otra métrica**: aislamiento de contexto, paralelismo, robustez | qué cuenta como ganancia |
 | F5 | **Cómo se ofrece**: el esquema de la tool y cuándo se ofrece (sin prompt, N3) | la interfaz |
-| F6 | **N simétricas + verificador** sobre tareas de varianza conocida (el caso C) | el modo del swarm |
+
+**Cerradas por evidencia**: **F6** — N simétricas + verificador sobre tareas de
+varianza conocida (el caso C): X199 la midió; empata con la base a 24 rondas y
+cuesta 4,9× por evidencia.
 
 **Regla de método para todas**: comparar **con el presupuesto igualado** (por
 ejemplo, 3 copias de 8 rondas contra un agente de 24). Sin eso, la ventaja es
@@ -99,13 +107,14 @@ haya datos de los dos primeros. **Hoy solo el escalón 1.**
 
 ## P4 · Emergente
 
-**Ninguna estrategia se probó**: no se abandonó por evidencia, se abandonó por
-inercia. Hoy las capacidades grandes son pipelines cableados, no composiciones.
+**E1 se implementó (X197) y E2 se midió (X199)**: la composición research +
+council existe; las copias + verificador no entran por evidencia (empatan y
+cuestan 4,9× por evidencia). El resto de las capacidades grandes sigue cableado.
 
 | # | Estrategia | Estado |
 |---|---|---|
-| E1 | **Composición por conector**, declarada por el usuario: research + council (un consejo debate cómo encarar el research) | abierta: primera prueba de la arquitectura |
-| E2 | **Copias + verificador** como capacidad nueva hecha de piezas existentes (F6) | abierta |
+| E1 | **Composición por conector**, declarada por el usuario: research + council (un consejo debate cómo encarar el research) | implementada (X197: `utils/composicion.py`, research + council) |
+| E2 | **Copias + verificador** como capacidad nueva hecha de piezas existentes (F6) | cerrada (NO PASA, X199): 6/6 vs 6/6, ca 11 vs 11 y 4,9× por evidencia; el caso C se cierra con la base a 24 rondas |
 
 ## P1, P3 y el grafo como forma
 

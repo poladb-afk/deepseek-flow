@@ -2,13 +2,17 @@
 
 # Próximos pasos (roadmap)
 
-## Roadmap vigente (post-X191, 2026-11-07)
+## Roadmap vigente (post-X191, 2026-11-07) — **cola cerrada (2026-11-12)**
 
 **Meta**: la arquitectura de `docs/arquitectura.md`. **El rumbo cambia de
 achicar dentro de la forma a construir la forma**: los principios son la lógica
 de la que sale cada paso, no un filtro. El roadmap post-X150 queda cerrado
 abajo: sus pasos ordenados están resueltos (hechos o no aplica) y sus deudas y
 experimentos opcionales siguen vigentes ahí.
+
+**La cola quedó cerrada con X199 (2026-11-12)**: X193–X199 están todos, con su
+resultado (los ✅ y los ❌ con su dato). Lo que sigue son las deudas y los
+hallazgos declarados abajo, y lo que el operador elija de los pendientes.
 
 **Reglas del roadmap** (las anteriores siguen: pre-registro y A/B para lo que
 cambia conducta, nada por prompt ni por lista de palabras, el ratchet verde sin
@@ -41,7 +45,7 @@ la clave salvo que se diga antes, S0 no cede), más:
 | X197 | ✅ HECHO (2026-11-11; **aceptado por el operador con su clave**: baseline 7650/1523/660 y gate **6/6**; humo ✅ US$0,0173). **`research` con el template y la composición research + council**: el módulo declara su `Conector` (`borrador`), el puente determinista `borrador → pregunta` y el runner/CLI validan al armar con `componer()` y cobran un solo `Ledger`; la arista de `debate` no se movió. `lineas_del_producto` 7578 → 7650 (+72, techo 7658); `tests_definidos` 1517 → 1523; cobertura 869 → 867 | P4 | sí (capacidad nueva) | X196 | pre-registro propio; criterios 1–7 medidos y aceptados |
 | X197b | ✅ HECHO (2026-11-12, patch del autor verificado por sha256). **La arista de research por el despacho único**: la composición se salteaba `run_tool_call`, así que un veto PRE sobre `deep_research` no la frenaba; ahora se arma con `conector_de_modulo` como `debate` y `fable` (la misma tool, IMPL `informe` que devuelve el texto; D6=A). Medido acá: antes 10 llamadas y sin corte; después 0. `lineas_del_producto` 7650 → 7643 (−7); `tests_definidos` 1523 → 1524; gate 6/6 sin clave | S0, N4 | no | X197 | `test_un_veto_de_la_politica_sobre_research_corta_la_composicion_antes_de_gastar` (rojo antes del fix) |
 | X198 | ❌ NO PASA (2026-11-12). **El catálogo**: `utils/catalogo.py` con `catalogo` (manifiesto de las 27 capacidades) y `usar` (por `run_tool_call`, el despacho único); el primer request bajaba a **5 tools** y `bytes_primer_request` de **16199 → 3362** (request real 18919 → 3294). El **A/B 9–10 dio catálogo 17/18 vs base 18/18** y las llamadas **+22 (+9 en `linea-marcadores`)** incumplen el +2 por tarea del D6 (adopción 18/18, US$0,2301 ≤ 0,30): el spec ató **revertir el brazo**, que volvió a `54bfd54` (7643/1524/660). La corrida que falla es de **recuperación tras un rechazo de la política**, no de descubrimiento; paso propio después de X199 | P1 | sí (revertido) | X197 | `docs/informes/x198_ab_2026-11-12.md`, `banco/probes/ab_x198.py`, spec con 9–10 |
-| X199 | **N simétricas + verificador (F6)** contra un agente con el presupuesto igualado, en tareas de varianza conocida | P2, P4 | sí (experimento) | X195 | pre-registro propio |
+| X199 | ❌ NO PASA (2026-11-12). **N simétricas + verificador (F6)**: 3 copias × 8 rondas + `fable_judge` como selector contra 1 agente × 24, en T1 + T2 × 3 seeds: **N 6/6 (ca 11) vs base 6/6 (ca 11)** y **4,9× por evidencia** (US$0,0488 vs US$0,0100); el caso C se cierra con la base a 24 rondas (T2 3/3, 8/10/11 rondas) y la independencia es **no distinguible** (0 celdas con ≥2 fallas, p = 1,000). Se cierran F6 y E2; no vuelve como parche | P2, P4 | sí (experimento, empate) | X195 | `docs/informes/x199_n_simetricas_2026-11-12.md`, `banco/probes/x199_n_simetricas.py`, spec con el resultado |
 
 ### Pendientes del operador (sin orden)
 
